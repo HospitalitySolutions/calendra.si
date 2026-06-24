@@ -151,7 +151,7 @@ import type {
   WebsiteWidgetSettingsForm
 } from "./configuration/guestWebsiteSettings";
 
-import { GeneralAppSettingsSection } from "./configuration/GeneralAppSettingsSection";
+import { ReservationRulesSettingsSection } from "./configuration/ReservationRulesSettingsSection";
 
 import {
   MODULE_VISIBILITY_PACKAGES,
@@ -173,7 +173,6 @@ import {
 } from "./configuration/moduleSettings";
 
 type Tab =
-  | "general"
   | "company"
   | "booking"
   | "billing"
@@ -253,7 +252,6 @@ type IntegrationGoogleCalendarConnection = {
 };
 
 const CONFIG_TAB_IDS: readonly Tab[] = [
-  "general",
   "company",
   "booking",
   "billing",
@@ -268,7 +266,6 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
 ];
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
-  general: "tabGeneralSettings",
   company: "tabCompany",
   booking: "configBookingSpacesTab",
   billing: "tabBilling",
@@ -765,7 +762,7 @@ export function ConfigurationPage() {
   const { t, locale } = useLocale();
   const { showToast } = useToast();
 
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>("company");
   const [accountSubtab, setAccountSubtab] = useState<AccountSubtab>("company");
   const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<
     AccountReceivedInvoice[]
@@ -1972,7 +1969,6 @@ export function ConfigurationPage() {
     settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== "false";
 
   const hasConfigTabViewPermission = (tabId: Tab) => {
-    if (tabId === "general") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "company") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "booking") return hasEmployeePermission(me, 'SPACES_VIEW');
     if (tabId === "billing") return hasAnyEmployeePermission(me, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW']);
@@ -1988,7 +1984,7 @@ export function ConfigurationPage() {
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
-    if (tabId === "general" || tabId === "company" || tabId === "modules" || tabId === "integrations")
+    if (tabId === "company" || tabId === "modules" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
     if (tabId === "billing") return billingEnabledCommitted;
@@ -2008,7 +2004,7 @@ export function ConfigurationPage() {
   };
 
   const firstAvailableConfigTab = (): Tab => {
-    return CONFIG_TAB_IDS.find((candidate) => isConfigTabAvailable(candidate)) ?? "general";
+    return CONFIG_TAB_IDS.find((candidate) => isConfigTabAvailable(candidate)) ?? "company";
   };
 
   useEffect(() => {
@@ -2598,7 +2594,6 @@ export function ConfigurationPage() {
 
   const configNavItems = useMemo((): ConfigNavItem[] => {
     const items: ConfigNavItem[] = [
-      { id: "general", icon: "general" },
       { id: "company", icon: "company" },
       { id: "booking", icon: "booking" },
       { id: "billing", icon: "billing" },
@@ -4894,11 +4889,7 @@ export function ConfigurationPage() {
                 <button
                   key={entry.id}
                   type="button"
-                  className={
-                    entry.id === "general"
-                      ? "config-overview-tile is-featured"
-                      : "config-overview-tile"
-                  }
+                  className="config-overview-tile"
                   onClick={() => setTabAndUrl(entry.id)}
                 >
                   <span className="config-overview-tile-icon">
@@ -4916,30 +4907,28 @@ export function ConfigurationPage() {
             {isCompactConfigViewport ? (
               tab === "integrations" ? null : (
                 <div className="config-detail-bar">
-                  {tab === "general" ? null : (
-                    <button
-                      type="button"
-                      className="config-detail-back"
-                      onClick={() => navigate("/configuration")}
-                      aria-label={t("settingsGroup")}
+                  <button
+                    type="button"
+                    className="config-detail-back"
+                    onClick={() => navigate("/configuration")}
+                    aria-label={t("settingsGroup")}
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
                     >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden
-                      >
-                        <path d="M19 12H5" />
-                        <path d="M12 19l-7-7 7-7" />
-                      </svg>
-                    </button>
-                  )}
-                  {tab === "general" ? null : <span>{configDetailTitle}</span>}
+                      <path d="M19 12H5" />
+                      <path d="M12 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span>{configDetailTitle}</span>
                 </div>
               )
             ) : (
@@ -4963,14 +4952,7 @@ export function ConfigurationPage() {
               </aside>
             )}
             <div className="config-content">
-              {tab === "general" ? (
-                <GeneralAppSettingsSection
-                  settings={settings}
-                  setSettings={setSettings}
-                  saving={savingSettings}
-                  onSave={() => saveSettings()}
-                />
-              ) : tab === "company" ? (
+              {tab === "company" ? (
                 <div className="account-management-shell">
                   <style>{`
             .account-management-shell {
@@ -12848,6 +12830,12 @@ export function ConfigurationPage() {
               ) : tab === "modules" && modulesDraftDisplay ? (
                 <Card className="settings-card modules-design-card">
                   <div className="modules-design-shell">
+                    <ReservationRulesSettingsSection
+                      settings={settings}
+                      setSettings={setSettings}
+                      saving={savingSettings}
+                      onSave={() => saveSettings({ applyModulesDraft: true })}
+                    />
                     <div className="modules-design-grid">
                       {[
                         ["booking", "services"],

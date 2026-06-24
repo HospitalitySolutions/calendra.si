@@ -52,8 +52,6 @@ public class FolioPdfRequest {
     private BigDecimal discountAmountGross;
     /** Total amount of advance/deposit payments used on this folio. */
     private BigDecimal usedAdvancePaymentsGross;
-    /** ISO 4217 currency code used for monetary labels on the folio. */
-    private String currency;
     /** Advance/deposit payments consumed by this folio, rendered in a dedicated table. */
     private List<AdvancePaymentLine> advancePayments;
     private String locale;
@@ -197,8 +195,6 @@ public class FolioPdfRequest {
     public void setDiscountAmountGross(BigDecimal discountAmountGross) { this.discountAmountGross = discountAmountGross; }
     public BigDecimal getUsedAdvancePaymentsGross() { return usedAdvancePaymentsGross; }
     public void setUsedAdvancePaymentsGross(BigDecimal usedAdvancePaymentsGross) { this.usedAdvancePaymentsGross = usedAdvancePaymentsGross; }
-    public String getCurrency() { return currency; }
-    public void setCurrency(String currency) { this.currency = currency; }
     public List<AdvancePaymentLine> getAdvancePayments() { return advancePayments; }
     public void setAdvancePayments(List<AdvancePaymentLine> advancePayments) { this.advancePayments = advancePayments; }
     public String getLocale() { return locale; }

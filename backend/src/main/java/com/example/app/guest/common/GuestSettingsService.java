@@ -3,7 +3,7 @@ package com.example.app.guest.common;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.SettingKey;
-import com.example.app.settings.TenantGeneralSettingsService;
+import com.example.app.settings.TenantReservationRulesService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -20,44 +20,39 @@ public class GuestSettingsService {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final AppSettingRepository settings;
     private final GlobalPaymentProviderService globalPaymentProviders;
-    private final TenantGeneralSettingsService tenantGeneralSettingsService;
 
-    public GuestSettingsService(
-            AppSettingRepository settings,
-            GlobalPaymentProviderService globalPaymentProviders,
-            TenantGeneralSettingsService tenantGeneralSettingsService
-    ) {
+    public GuestSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
         this.settings = settings;
         this.globalPaymentProviders = globalPaymentProviders;
-        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
     }
 
     public GuestPublicSettings publicSettings(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        TenantGeneralSettingsService.TenantGeneralSettings general = tenantGeneralSettingsService != null
-                ? tenantGeneralSettingsService.resolve(companyId)
-                : TenantGeneralSettingsService.resolve(values);
         boolean enabled = root.path("guestAppEnabled").asBoolean(true);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
         boolean inboxEnabled = enabled && root.path("inboxEnabled").asBoolean(true);
         boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
-        String name = firstNonBlank(textOrNull(root.path("publicName")), general.publicCompanyName());
+        String name = textOrNull(root.path("publicName"));
         String description = textOrNull(root.path("publicDescription"));
         String city = textOrNull(root.path("publicCity"));
-        String phone = firstNonBlank(textOrNull(root.path("publicPhone")), general.contactPhone());
+        String phone = textOrNull(root.path("publicPhone"));
         String tenantType = normalizeTenantType(textOrNull(root.path("tenantType")));
         String cardImageUrl = textOrNull(root.path("cardImageUrl"));
-        String logoImageUrl = firstNonBlank(textOrNull(root.path("logoImageUrl")), general.brandLogoBase64());
+        String logoImageUrl = textOrNull(root.path("logoImageUrl"));
         String iconImageUrl = textOrNull(root.path("iconImageUrl"));
         String street = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
         String postal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
         String companyCity = textOrNull(values.get(SettingKey.COMPANY_CITY.name()));
-        String formattedAddress = firstNonBlank(general.contactAddress(), formatCompanyAddressLine(street, postal, companyCity));
-        String invoiceCompanyName = firstNonBlank(values.get(SettingKey.COMPANY_NAME.name()), general.publicCompanyName());
-        String defaultLanguage = general.defaultLanguage();
-        boolean employeeSelectionStep = root.path("employeeSelectionStep").asBoolean(false);
+        String formattedAddress = formatCompanyAddressLine(street, postal, companyCity);
+        String invoiceCompanyName = textOrNull(values.get(SettingKey.COMPANY_NAME.name()));
+        if (phone == null) {
+            phone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
+        }
+        String defaultLanguage = root.path("defaultLanguage").asText("sl");
+        TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
+        boolean employeeSelectionStep = reservationRules.employeeSelectionAllowed();
         boolean useEmployeeContact = root.path("useEmployeeContact").asBoolean(false);
         return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
     }
@@ -159,12 +154,13 @@ public class GuestSettingsService {
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name()));
         JsonNode guestAppRoot = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
+        TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
         boolean advanceBillingEnabled = billingEnabled && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
         if (!billingEnabled || !advanceBillingEnabled) {
             return new GuestBookingRules(
-                    root.path("cancelUntilHours").asInt(24),
-                    root.path("rescheduleUntilHours").asInt(12),
+                    reservationRules.cancelUntilHours(),
+                    reservationRules.rescheduleUntilHours(),
                     root.path("lateCancelConsumesCredit").asBoolean(true),
                     root.path("noShowConsumesCredit").asBoolean(true),
                     false,
@@ -174,7 +170,12 @@ public class GuestSettingsService {
                     List.of(),
                     false,
                     "none",
-                    normalizeDepositPercent(root.path("depositPercent").asInt(20))
+                    normalizeDepositPercent(root.path("depositPercent").asInt(20)),
+                    reservationRules.minBookingNoticeMinutes(),
+                    reservationRules.maxAdvanceBookingDays(),
+                    reservationRules.employeeSelectionAllowed(),
+                    reservationRules.noShowMode(),
+                    reservationRules.noShowAfterMinutes()
             );
         }
         boolean requireOnlinePayment;
@@ -188,8 +189,8 @@ public class GuestSettingsService {
         String paymentRequirement = normalizePaymentRequirement(root.path("paymentRequirement").asText(null), requireOnlinePayment);
         int depositPercent = normalizeDepositPercent(root.path("depositPercent").asInt(20));
         return new GuestBookingRules(
-                root.path("cancelUntilHours").asInt(24),
-                root.path("rescheduleUntilHours").asInt(12),
+                reservationRules.cancelUntilHours(),
+                reservationRules.rescheduleUntilHours(),
                 root.path("lateCancelConsumesCredit").asBoolean(true),
                 root.path("noShowConsumesCredit").asBoolean(true),
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
@@ -199,7 +200,12 @@ public class GuestSettingsService {
                 readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "COURSE")),
                 requireOnlinePayment,
                 paymentRequirement,
-                depositPercent
+                depositPercent,
+                reservationRules.minBookingNoticeMinutes(),
+                reservationRules.maxAdvanceBookingDays(),
+                reservationRules.employeeSelectionAllowed(),
+                reservationRules.noShowMode(),
+                reservationRules.noShowAfterMinutes()
         );
     }
 
@@ -220,14 +226,6 @@ public class GuestSettingsService {
         } catch (Exception ex) {
             return JSON.createObjectNode();
         }
-    }
-
-    private static String firstNonBlank(String... values) {
-        if (values == null) return null;
-        for (String value : values) {
-            if (value != null && !value.trim().isBlank()) return value.trim();
-        }
-        return null;
     }
 
     private static String textOrNull(JsonNode node) {
@@ -303,6 +301,46 @@ public class GuestSettingsService {
             List<String> allowPaypalFor,
             boolean requireOnlinePayment,
             String paymentRequirement,
-            int depositPercent
-    ) {}
+            int depositPercent,
+            int minBookingNoticeMinutes,
+            int maxAdvanceBookingDays,
+            boolean employeeSelectionAllowed,
+            String noShowMode,
+            int noShowAfterMinutes
+    ) {
+        public GuestBookingRules(
+                int cancelUntilHours,
+                int rescheduleUntilHours,
+                boolean lateCancelConsumesCredit,
+                boolean noShowConsumesCredit,
+                boolean sameDayBankTransferAllowed,
+                boolean bankTransferReservesSlot,
+                List<String> allowBankTransferFor,
+                List<String> allowCardFor,
+                List<String> allowPaypalFor,
+                boolean requireOnlinePayment,
+                String paymentRequirement,
+                int depositPercent
+        ) {
+            this(
+                    cancelUntilHours,
+                    rescheduleUntilHours,
+                    lateCancelConsumesCredit,
+                    noShowConsumesCredit,
+                    sameDayBankTransferAllowed,
+                    bankTransferReservesSlot,
+                    allowBankTransferFor,
+                    allowCardFor,
+                    allowPaypalFor,
+                    requireOnlinePayment,
+                    paymentRequirement,
+                    depositPercent,
+                    TenantReservationRulesService.DEFAULT_MIN_BOOKING_NOTICE_MINUTES,
+                    TenantReservationRulesService.DEFAULT_MAX_ADVANCE_BOOKING_DAYS,
+                    TenantReservationRulesService.DEFAULT_EMPLOYEE_SELECTION_ALLOWED,
+                    TenantReservationRulesService.DEFAULT_NO_SHOW_MODE,
+                    TenantReservationRulesService.DEFAULT_NO_SHOW_AFTER_MINUTES
+            );
+        }
+    }
 }

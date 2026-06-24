@@ -3,7 +3,6 @@ package com.example.app.billing;
 import com.example.app.client.Client;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
-import com.example.app.settings.TenantGeneralSettingsService;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.logging.LogSanitizer;
@@ -44,7 +43,6 @@ public class BillingEmailService {
     private final String mailFrom;
     private final String fallbackFrom;
     private final boolean mailConfigured;
-    private final TenantGeneralSettingsService tenantGeneralSettingsService;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -52,7 +50,6 @@ public class BillingEmailService {
     public BillingEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
             AppSettingRepository appSettingRepository,
-            TenantGeneralSettingsService tenantGeneralSettingsService,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername
@@ -62,7 +59,6 @@ public class BillingEmailService {
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.mailConfigured = mailSender != null && mailHost != null && !mailHost.isBlank();
-        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
     }
 
     public void sendCheckoutLink(Bill bill, String checkoutUrl) {
@@ -201,11 +197,11 @@ public class BillingEmailService {
         String body = slovenian
                 ? "Pozdravljeni" + (guestName.isBlank() ? "" : " " + guestName) + ",\n\n" +
                   "v priponki vam pošiljamo predračun " + safeBillNumber(bill) + ".\n" +
-                  "Znesek za plačilo: " + fmtAmount(bill, bill.getTotalGross()) + "\n\n" +
+                  "Znesek za plačilo: " + fmtAmount(bill.getTotalGross()) + "\n\n" +
                   "Lep pozdrav,\n" + companyName
                 : "Hello" + (guestName.isBlank() ? "" : " " + guestName) + ",\n\n" +
                   "your proforma invoice " + safeBillNumber(bill) + " is attached.\n" +
-                  "Amount due: " + fmtAmount(bill, bill.getTotalGross()) + "\n\n" +
+                  "Amount due: " + fmtAmount(bill.getTotalGross()) + "\n\n" +
                   "Thank you,\n" + companyName;
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -359,10 +355,6 @@ public class BillingEmailService {
 
     private String resolveCompanyName(Bill bill) {
         Long companyId = bill != null && bill.getCompany() != null ? bill.getCompany().getId() : null;
-        if (tenantGeneralSettingsService != null && companyId != null) {
-            String publicName = tenantGeneralSettingsService.resolve(companyId).publicCompanyName();
-            if (publicName != null && !publicName.isBlank()) return publicName.trim();
-        }
         String configured = settingValue(companyId, SettingKey.COMPANY_NAME);
         if (configured != null && !configured.isBlank()) return configured.trim();
         return bill != null && bill.getCompany() != null && bill.getCompany().getName() != null
@@ -385,18 +377,9 @@ public class BillingEmailService {
         return bill.getBillNumber().trim();
     }
 
-    private String fmtAmount(Bill bill, java.math.BigDecimal amount) {
+    private String fmtAmount(java.math.BigDecimal amount) {
         java.math.BigDecimal normalized = amount == null ? java.math.BigDecimal.ZERO : amount.setScale(2, java.math.RoundingMode.HALF_UP);
-        return normalized.toPlainString() + " " + resolveCurrency(bill);
-    }
-
-    private String resolveCurrency(Bill bill) {
-        Long companyId = bill != null && bill.getCompany() != null ? bill.getCompany().getId() : null;
-        if (tenantGeneralSettingsService != null && companyId != null) {
-            String currency = tenantGeneralSettingsService.resolve(companyId).currency();
-            if (currency != null && !currency.isBlank()) return currency.trim().toUpperCase(Locale.ROOT);
-        }
-        return "EUR";
+        return normalized.toPlainString() + " EUR";
     }
 
     private boolean isInvoiceDeliveryEnabled(Bill bill) {
@@ -459,11 +442,10 @@ public class BillingEmailService {
             companyName = "Company";
         }
         LocalDate issueDate = bill.getIssueDate();
-        DateTimeFormatter tenantDateFormat = tenantDateFormatter(bill);
-        String invoiceDate = issueDate == null ? "" : issueDate.format(tenantDateFormat);
+        String invoiceDate = issueDate == null ? "" : issueDate.format(DATE_FORMAT);
         LocalDate dueDate = issueDate == null ? null : issueDate.plusDays(resolvePaymentDeadlineDays(bill));
-        String dueDateLabel = dueDate == null ? "" : dueDate.format(tenantDateFormat);
-        String amount = fmtAmount(bill, bill.getTotalGross());
+        String dueDateLabel = dueDate == null ? "" : dueDate.format(DATE_FORMAT);
+        String amount = bill.getTotalGross() == null ? "EUR 0.00" : "EUR " + bill.getTotalGross().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
 
         Map<String, String> tokens = new LinkedHashMap<>();
         tokens.put("{{guestName}}", guestName);
@@ -484,18 +466,6 @@ public class BillingEmailService {
         return appSettingRepository.findByCompanyIdAndKey(companyId, key)
                 .map(setting -> setting.getValue() == null ? null : setting.getValue().trim())
                 .orElse(null);
-    }
-
-    private DateTimeFormatter tenantDateFormatter(Bill bill) {
-        Long companyId = bill != null && bill.getCompany() != null ? bill.getCompany().getId() : null;
-        String dateFormat = companyId != null && tenantGeneralSettingsService != null
-                ? tenantGeneralSettingsService.resolve(companyId).dateFormat()
-                : "DD_MM_YYYY";
-        return switch (TenantGeneralSettingsService.normalizeDateFormat(dateFormat)) {
-            case "YYYY_MM_DD" -> DateTimeFormatter.ISO_LOCAL_DATE;
-            case "MM_DD_YYYY" -> DateTimeFormatter.ofPattern("MM/dd/yyyy");
-            default -> DateTimeFormatter.ofPattern("dd.MM.yyyy");
-        };
     }
 
     private int resolvePaymentDeadlineDays(Bill bill) {

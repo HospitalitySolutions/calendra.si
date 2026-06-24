@@ -183,6 +183,9 @@ public class GuestOrderService {
         var product = catalogService.resolveProduct(companyId, request.productId(), guestUser);
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
         GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
+        if (request.slotId() != null && !request.slotId().isBlank() && isSessionLikeProductType(product.productType())) {
+            catalogService.assertSlotWithinReservationWindow(companyId, request.slotId(), rules);
+        }
         assertPaymentMethodAllowed(companyId, paymentMethodType, product.productType(), channel);
         assertExternalCheckoutReadyBeforeOrderCreated(link, paymentMethodType);
 

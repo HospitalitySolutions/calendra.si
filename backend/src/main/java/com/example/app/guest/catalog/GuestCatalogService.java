@@ -19,7 +19,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.CourseModuleAccessService;
-import com.example.app.settings.TenantGeneralSettingsService;
+import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -61,7 +61,6 @@ public class GuestCatalogService {
     private final GuestSettingsService guestSettings;
     private final TimeService timeService;
     private final CourseModuleAccessService courseModuleAccessService;
-    private final TenantGeneralSettingsService tenantGeneralSettingsService;
     private final ZoneId zoneId;
 
     public GuestCatalogService(
@@ -74,7 +73,6 @@ public class GuestCatalogService {
             GuestSettingsService guestSettings,
             TimeService timeService,
             CourseModuleAccessService courseModuleAccessService,
-            TenantGeneralSettingsService tenantGeneralSettingsService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.sessionTypes = sessionTypes;
@@ -86,7 +84,6 @@ public class GuestCatalogService {
         this.guestSettings = guestSettings;
         this.timeService = timeService;
         this.courseModuleAccessService = courseModuleAccessService;
-        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
         this.zoneId = ZoneId.of((timezoneId == null || timezoneId.isBlank()) ? "Europe/Ljubljana" : timezoneId.trim());
     }
 
@@ -163,20 +160,21 @@ public class GuestCatalogService {
         if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
         }
-        LocalDate today = timeService.localDate(tenantZoneId(companyId));
-        if (date.isBefore(today)) {
+        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+        if (!dateAllowedByReservationRules(companyId, date, rules)) {
             return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), List.of());
         }
+        Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
         int durationMinutes = type.getDurationMinutes() == null ? 60 : type.getDurationMinutes();
 
         if (isGuestGroupService(type)) {
-            List<GuestDtos.AvailabilitySlotResponse> groupSlots = guestGroupSessionSlots(companyId, type, date, consultantId, guestUser);
+            List<GuestDtos.AvailabilitySlotResponse> groupSlots = guestGroupSessionSlots(companyId, type, date, requestedConsultantId, guestUser);
             return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), groupSlots);
         }
 
         Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
-        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, consultantId, merged);
-        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, consultantId, merged);
+        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, requestedConsultantId, merged, rules);
+        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, requestedConsultantId, merged, rules);
 
         List<GuestDtos.AvailabilitySlotResponse> sorted = merged.values().stream()
                 .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::endsAt))
@@ -191,6 +189,9 @@ public class GuestCatalogService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
         if (!isGuestBookable(type)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not enabled for the guest app.");
+        }
+        if (!guestSettings.bookingRules(companyId).employeeSelectionAllowed()) {
+            return List.of();
         }
         return supportedGuestConsultants(companyId, type).stream()
                 .map(u -> new GuestDtos.ConsultantResponse(
@@ -250,6 +251,20 @@ public class GuestCatalogService {
     }
 
 
+    public void assertSlotWithinReservationWindow(
+            Long companyId,
+            String slotId,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
+        LocalDateTime startsAt = slotStartFromToken(slotId);
+        if (startsAt == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid slot identifier.");
+        }
+        if (!slotAllowedByReservationRules(companyId, startsAt, rules)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is no longer bookable.");
+        }
+    }
+
     public SlotPayload requireBookableRescheduleSlot(
             Long companyId,
             Long sessionTypeId,
@@ -278,7 +293,8 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot no longer matches the booking service duration.");
         }
         LocalDate slotDate = slot.startsAt().toLocalDate();
-        if (!isGuestSlotStartInFuture(companyId, slotDate, slot.startsAt())) {
+        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+        if (!slotAllowedByReservationRules(companyId, slot.startsAt(), rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is no longer bookable.");
         }
         User consultant = users.findByIdAndCompanyId(slot.consultantId(), companyId)
@@ -349,7 +365,8 @@ public class GuestCatalogService {
 
     private void addSlotsFromBookableWindows(Long companyId, SessionType type, LocalDate date, int durationMinutes,
                                              Long requiredConsultantId,
-                                             Map<String, GuestDtos.AvailabilitySlotResponse> merged) {
+                                             Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+                                             GuestSettingsService.GuestBookingRules rules) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
                 .filter(slot -> slot.getConsultant() != null)
@@ -367,7 +384,7 @@ public class GuestCatalogService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!isGuestSlotStartInFuture(companyId, date, start)) {
+                if (!slotAllowedByReservationRules(companyId, start, rules)) {
                     cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
                     continue;
                 }
@@ -382,7 +399,8 @@ public class GuestCatalogService {
 
     private void addSlotsFromWorkingHours(Long companyId, SessionType type, LocalDate date, int durationMinutes,
                                           Long requiredConsultantId,
-                                          Map<String, GuestDtos.AvailabilitySlotResponse> merged) {
+                                          Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+                                          GuestSettingsService.GuestBookingRules rules) {
         for (User consultant : supportedGuestConsultants(companyId, type)) {
             if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) {
                 continue;
@@ -396,7 +414,7 @@ public class GuestCatalogService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!isGuestSlotStartInFuture(companyId, date, start)) {
+                if (!slotAllowedByReservationRules(companyId, start, rules)) {
                     cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
                     continue;
                 }
@@ -462,6 +480,44 @@ public class GuestCatalogService {
         return false;
     }
 
+    private static LocalDateTime slotStartFromToken(String slotId) {
+        if (slotId == null || slotId.isBlank()) return null;
+        try {
+            String[] parts = slotId.split("\\|");
+            if (isGroupSlotToken(slotId)) {
+                return parts.length >= 4 ? LocalDateTime.parse(parts[2]) : null;
+            }
+            return parts.length >= 3 ? LocalDateTime.parse(parts[1]) : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean dateAllowedByReservationRules(Long companyId, LocalDate date, GuestSettingsService.GuestBookingRules rules) {
+        if (date == null || rules == null) return false;
+        LocalDate today = timeService.localDate(tenantZoneId(companyId));
+        if (date.isBefore(today)) return false;
+        return !date.isAfter(today.plusDays(rules.maxAdvanceBookingDays()));
+    }
+
+    private boolean slotAllowedByReservationRules(Long companyId, LocalDateTime slotStart, GuestSettingsService.GuestBookingRules rules) {
+        if (slotStart == null || rules == null) return false;
+        return TenantReservationRulesService.slotAllowed(
+                new TenantReservationRulesService.TenantReservationRules(
+                        rules.minBookingNoticeMinutes(),
+                        rules.maxAdvanceBookingDays(),
+                        rules.rescheduleUntilHours(),
+                        rules.cancelUntilHours(),
+                        rules.employeeSelectionAllowed(),
+                        rules.noShowMode(),
+                        rules.noShowAfterMinutes()
+                ),
+                slotStart,
+                tenantZoneId(companyId),
+                timeService.localDateTime(tenantZoneId(companyId))
+        );
+    }
+
     private boolean isGuestSlotStartInFuture(Long companyId, LocalDate date, LocalDateTime slotStart) {
         ZoneId effectiveZone = tenantZoneId(companyId);
         LocalDate today = timeService.localDate(effectiveZone);
@@ -475,13 +531,11 @@ public class GuestCatalogService {
     }
 
     private String tenantCurrency(Long companyId) {
-        if (tenantGeneralSettingsService == null) return "EUR";
-        return TenantGeneralSettingsService.normalizeCurrency(tenantGeneralSettingsService.resolve(companyId).currency());
+        return "EUR";
     }
 
     private ZoneId tenantZoneId(Long companyId) {
-        if (tenantGeneralSettingsService == null) return zoneId;
-        return TenantGeneralSettingsService.zoneIdOrDefault(tenantGeneralSettingsService.resolve(companyId).timeZone());
+        return zoneId;
     }
 
     private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
@@ -618,7 +672,11 @@ public class GuestCatalogService {
         SessionBooking representative = rows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElse(rows.get(0));
-        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(tenantZoneId(representative.getCompany().getId())))) {
+        if (representative.getStartTime() == null
+                || !slotAllowedByReservationRules(
+                representative.getCompany().getId(),
+                representative.getStartTime(),
+                guestSettings.bookingRules(representative.getCompany().getId()))) {
             return null;
         }
         if (consultantId != null) {
@@ -644,7 +702,11 @@ public class GuestCatalogService {
         SessionBooking representative = rows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElse(rows.get(0));
-        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(tenantZoneId(representative.getCompany().getId())))) {
+        if (representative.getStartTime() == null
+                || !slotAllowedByReservationRules(
+                representative.getCompany().getId(),
+                representative.getStartTime(),
+                guestSettings.bookingRules(representative.getCompany().getId()))) {
             return false;
         }
         boolean hasBlockingSessionRow = rows.stream()

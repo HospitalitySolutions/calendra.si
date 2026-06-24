@@ -74,21 +74,8 @@ public class SettingsController {
             SettingKey.SECURITY_API_INTEGRATIONS_ENABLED.name()
     );
 
-    private static final Set<SettingKey> GENERAL_SETTING_KEYS = EnumSet.of(
-            SettingKey.TENANT_DEFAULT_LANGUAGE,
-            SettingKey.TENANT_TIME_ZONE,
-            SettingKey.TENANT_CURRENCY,
-            SettingKey.TENANT_DATE_FORMAT,
-            SettingKey.TENANT_TIME_FORMAT,
-            SettingKey.TENANT_WEEK_START_DAY,
-            SettingKey.TENANT_PUBLIC_COMPANY_NAME,
-            SettingKey.TENANT_CONTACT_PHONE,
-            SettingKey.TENANT_CONTACT_EMAIL,
-            SettingKey.TENANT_CONTACT_WEBSITE,
-            SettingKey.TENANT_CONTACT_ADDRESS,
-            SettingKey.TENANT_BRAND_LOGO_BASE64,
-            SettingKey.TENANT_BRAND_PRIMARY_COLOR,
-            SettingKey.TENANT_BRAND_ACCENT_COLOR
+    private static final Set<SettingKey> RESERVATION_RULE_SETTING_KEYS = EnumSet.of(
+            SettingKey.TENANT_RESERVATION_RULES_JSON
     );
 
     private final AppSettingRepository repository;
@@ -99,7 +86,7 @@ public class SettingsController {
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
     private final CourseModuleAccessService courseModuleAccessService;
     private final TenantSmsQuotaService tenantSmsQuotaService;
-    private final TenantGeneralSettingsService tenantGeneralSettingsService;
+    private final TenantReservationRulesService tenantReservationRulesService;
 
     @Autowired
     public SettingsController(
@@ -111,7 +98,7 @@ public class SettingsController {
             PlatformTenantAccountLinkService platformTenantAccountLinkService,
             CourseModuleAccessService courseModuleAccessService,
             TenantSmsQuotaService tenantSmsQuotaService,
-            TenantGeneralSettingsService tenantGeneralSettingsService
+            TenantReservationRulesService tenantReservationRulesService
     ) {
         this.repository = repository;
         this.crypto = crypto;
@@ -121,7 +108,7 @@ public class SettingsController {
         this.platformTenantAccountLinkService = platformTenantAccountLinkService;
         this.courseModuleAccessService = courseModuleAccessService;
         this.tenantSmsQuotaService = tenantSmsQuotaService;
-        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
+        this.tenantReservationRulesService = tenantReservationRulesService;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -140,18 +127,18 @@ public class SettingsController {
     public record ModuleCapabilitiesResponse(boolean consumablesEnabled) {}
     public record SmsQuotaResponse(int quota, int used, int remaining, boolean warning, boolean exhausted) {}
 
-    @GetMapping("/general")
-    public TenantGeneralSettingsService.TenantGeneralSettings general(@AuthenticationPrincipal User me) {
+    @GetMapping("/reservation-rules")
+    public TenantReservationRulesService.TenantReservationRules reservationRules(@AuthenticationPrincipal User me) {
         if (me == null || me.getCompany() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required.");
         }
-        return resolveGeneralSettings(me.getCompany().getId());
+        return resolveReservationRules(me.getCompany().getId());
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping("/general")
+    @PutMapping("/reservation-rules")
     @Transactional
-    public TenantGeneralSettingsService.TenantGeneralSettings saveGeneral(
+    public TenantReservationRulesService.TenantReservationRules saveReservationRules(
             @RequestBody Map<String, String> payload,
             @AuthenticationPrincipal User me
     ) {
@@ -159,20 +146,11 @@ public class SettingsController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required.");
         }
         Long companyId = me.getCompany().getId();
-        Map<String, String> normalized = normalizeTenantGeneralSettingsPayload(payload);
-        GENERAL_SETTING_KEYS.forEach(key -> {
-            if (!normalized.containsKey(key.name())) return;
-            var setting = repository.findByCompanyIdAndKey(companyId, key).orElseGet(() -> {
-                var ns = new AppSetting();
-                ns.setCompany(me.getCompany());
-                ns.setKey(key.name());
-                return ns;
-            });
-            setting.setKey(key.name());
-            setting.setValue(normalized.getOrDefault(key.name(), ""));
-            repository.save(setting);
-        });
-        return resolveGeneralSettings(companyId);
+        Map<String, String> normalized = normalizeTenantReservationRulesPayload(payload);
+        persistSetting(me, companyId, SettingKey.TENANT_RESERVATION_RULES_JSON,
+                normalized.get(SettingKey.TENANT_RESERVATION_RULES_JSON.name()));
+        synchronizeReservationRuleSettings(me, companyId, normalized);
+        return resolveReservationRules(companyId);
     }
 
     @GetMapping("/sms-quota")
@@ -198,7 +176,7 @@ public class SettingsController {
 
         latestGlobalSettingValue(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON)
                 .ifPresent(v -> values.put(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name(), v));
-        applyTenantGeneralSettingDefaults(values);
+        applyTenantReservationRulesDefaults(values);
         if (!isSuperAdmin(me)) {
             applyPlatformModuleVisibilityRules(values);
         }
@@ -210,7 +188,7 @@ public class SettingsController {
     @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        Map<String, String> normalizedPayload = normalizeTenantGeneralSettingsPayload(payload);
+        Map<String, String> normalizedPayload = normalizeTenantReservationRulesPayload(payload);
         if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
         }
@@ -233,6 +211,7 @@ public class SettingsController {
                 repository.save(s);
             }
         });
+        synchronizeReservationRuleSettings(me, companyId, normalizedPayload);
         platformTenantAccountLinkService.syncFromTenantSettings(me.getCompany(), normalizedPayload);
         return all(me);
     }
@@ -271,9 +250,9 @@ public class SettingsController {
         return new ModuleCapabilitiesResponse(globalConsumablesFeatureService.isEnabledForUser(me));
     }
 
-    private TenantGeneralSettingsService.TenantGeneralSettings resolveGeneralSettings(Long companyId) {
-        if (tenantGeneralSettingsService != null) {
-            return tenantGeneralSettingsService.resolve(companyId);
+    private TenantReservationRulesService.TenantReservationRules resolveReservationRules(Long companyId) {
+        if (tenantReservationRulesService != null) {
+            return tenantReservationRulesService.resolve(companyId);
         }
         Map<String, String> values = companyId == null
                 ? Map.of()
@@ -283,66 +262,60 @@ public class SettingsController {
                 (a, b) -> b,
                 LinkedHashMap::new
         ));
-        return TenantGeneralSettingsService.resolve(values);
+        return TenantReservationRulesService.resolve(values);
     }
 
-    private void applyTenantGeneralSettingDefaults(Map<String, String> values) {
-        TenantGeneralSettingsService.TenantGeneralSettings general = TenantGeneralSettingsService.resolve(values);
-        values.putIfAbsent(SettingKey.TENANT_DEFAULT_LANGUAGE.name(), general.defaultLanguage());
-        values.putIfAbsent(SettingKey.TENANT_TIME_ZONE.name(), general.timeZone());
-        values.putIfAbsent(SettingKey.TENANT_CURRENCY.name(), general.currency());
-        values.putIfAbsent(SettingKey.TENANT_DATE_FORMAT.name(), general.dateFormat());
-        values.putIfAbsent(SettingKey.TENANT_TIME_FORMAT.name(), general.timeFormat());
-        values.putIfAbsent(SettingKey.TENANT_WEEK_START_DAY.name(), general.weekStartDay());
-        values.putIfAbsent(SettingKey.TENANT_PUBLIC_COMPANY_NAME.name(), general.publicCompanyName());
-        values.putIfAbsent(SettingKey.TENANT_CONTACT_PHONE.name(), general.contactPhone());
-        values.putIfAbsent(SettingKey.TENANT_CONTACT_EMAIL.name(), general.contactEmail());
-        values.putIfAbsent(SettingKey.TENANT_CONTACT_WEBSITE.name(), general.contactWebsite());
-        values.putIfAbsent(SettingKey.TENANT_CONTACT_ADDRESS.name(), general.contactAddress());
-        values.putIfAbsent(SettingKey.TENANT_BRAND_LOGO_BASE64.name(), general.brandLogoBase64());
-        values.putIfAbsent(SettingKey.TENANT_BRAND_PRIMARY_COLOR.name(), general.brandPrimaryColor());
-        values.putIfAbsent(SettingKey.TENANT_BRAND_ACCENT_COLOR.name(), general.brandAccentColor());
+    private void applyTenantReservationRulesDefaults(Map<String, String> values) {
+        values.putIfAbsent(
+                SettingKey.TENANT_RESERVATION_RULES_JSON.name(),
+                TenantReservationRulesService.toJson(TenantReservationRulesService.resolve(values))
+        );
     }
 
-    private Map<String, String> normalizeTenantGeneralSettingsPayload(Map<String, String> payload) {
+    private Map<String, String> normalizeTenantReservationRulesPayload(Map<String, String> payload) {
         Map<String, String> normalized = new LinkedHashMap<>(payload == null ? Map.of() : payload);
-        if (normalized.containsKey(SettingKey.TENANT_DEFAULT_LANGUAGE.name())) {
-            normalized.put(SettingKey.TENANT_DEFAULT_LANGUAGE.name(),
-                    TenantGeneralSettingsService.normalizeLanguage(normalized.get(SettingKey.TENANT_DEFAULT_LANGUAGE.name())));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_TIME_ZONE.name())) {
-            normalized.put(SettingKey.TENANT_TIME_ZONE.name(),
-                    TenantGeneralSettingsService.normalizeTimeZone(normalized.get(SettingKey.TENANT_TIME_ZONE.name())));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_CURRENCY.name())) {
-            normalized.put(SettingKey.TENANT_CURRENCY.name(),
-                    TenantGeneralSettingsService.normalizeCurrency(normalized.get(SettingKey.TENANT_CURRENCY.name())));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_DATE_FORMAT.name())) {
-            normalized.put(SettingKey.TENANT_DATE_FORMAT.name(),
-                    TenantGeneralSettingsService.normalizeDateFormat(normalized.get(SettingKey.TENANT_DATE_FORMAT.name())));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_TIME_FORMAT.name())) {
-            normalized.put(SettingKey.TENANT_TIME_FORMAT.name(),
-                    TenantGeneralSettingsService.normalizeTimeFormat(normalized.get(SettingKey.TENANT_TIME_FORMAT.name())));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_WEEK_START_DAY.name())) {
-            normalized.put(SettingKey.TENANT_WEEK_START_DAY.name(),
-                    TenantGeneralSettingsService.normalizeWeekStart(normalized.get(SettingKey.TENANT_WEEK_START_DAY.name())));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_BRAND_PRIMARY_COLOR.name())) {
-            normalized.put(SettingKey.TENANT_BRAND_PRIMARY_COLOR.name(),
-                    TenantGeneralSettingsService.normalizeHexColor(normalized.get(SettingKey.TENANT_BRAND_PRIMARY_COLOR.name()), "#2563EB"));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_BRAND_ACCENT_COLOR.name())) {
-            normalized.put(SettingKey.TENANT_BRAND_ACCENT_COLOR.name(),
-                    TenantGeneralSettingsService.normalizeHexColor(normalized.get(SettingKey.TENANT_BRAND_ACCENT_COLOR.name()), "#22C55E"));
-        }
-        if (normalized.containsKey(SettingKey.TENANT_BRAND_LOGO_BASE64.name())) {
-            normalized.put(SettingKey.TENANT_BRAND_LOGO_BASE64.name(),
-                    TenantGeneralSettingsService.normalizeLogoDataUri(normalized.get(SettingKey.TENANT_BRAND_LOGO_BASE64.name())));
+        if (normalized.containsKey(SettingKey.TENANT_RESERVATION_RULES_JSON.name())) {
+            String json = TenantReservationRulesService.normalizeJson(
+                    normalized.get(SettingKey.TENANT_RESERVATION_RULES_JSON.name()));
+            normalized.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), json);
         }
         return normalized;
+    }
+
+    private void synchronizeReservationRuleSettings(User me, Long companyId, Map<String, String> payload) {
+        if (payload == null || !payload.containsKey(SettingKey.TENANT_RESERVATION_RULES_JSON.name())) return;
+        String rawRules = payload.getOrDefault(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), "");
+        TenantReservationRulesService.TenantReservationRules rules = TenantReservationRulesService.resolve(
+                Map.of(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), rawRules == null ? "" : rawRules));
+        String existingGuestRules = existingOrPayload(companyId, payload, SettingKey.GUEST_BOOKING_RULES_JSON);
+        String existingWebsiteRules = existingOrPayload(companyId, payload, SettingKey.WEBSITE_BOOKING_RULES_JSON);
+        String existingGuestApp = existingOrPayload(companyId, payload, SettingKey.GUEST_APP_SETTINGS_JSON);
+        String existingWebsite = existingOrPayload(companyId, payload, SettingKey.WEBSITE_WIDGET_SETTINGS_JSON);
+        persistSetting(me, companyId, SettingKey.GUEST_BOOKING_RULES_JSON,
+                TenantReservationRulesService.mergeIntoGuestBookingRulesJson(existingGuestRules, rules));
+        persistSetting(me, companyId, SettingKey.WEBSITE_BOOKING_RULES_JSON,
+                TenantReservationRulesService.mergeIntoWebsiteBookingRulesJson(existingWebsiteRules, rules));
+        persistSetting(me, companyId, SettingKey.GUEST_APP_SETTINGS_JSON,
+                TenantReservationRulesService.mergeIntoGuestAppSettingsJson(existingGuestApp, rules));
+        persistSetting(me, companyId, SettingKey.WEBSITE_WIDGET_SETTINGS_JSON,
+                TenantReservationRulesService.mergeIntoWebsiteWidgetSettingsJson(existingWebsite, rules));
+    }
+
+    private String existingOrPayload(Long companyId, Map<String, String> payload, SettingKey key) {
+        if (payload != null && payload.containsKey(key.name())) return payload.get(key.name());
+        return repository.findByCompanyIdAndKey(companyId, key).map(AppSetting::getValue).orElse("");
+    }
+
+    private void persistSetting(User me, Long companyId, SettingKey key, String value) {
+        var setting = repository.findByCompanyIdAndKey(companyId, key).orElseGet(() -> {
+            var ns = new AppSetting();
+            ns.setCompany(me.getCompany());
+            ns.setKey(key.name());
+            return ns;
+        });
+        setting.setKey(key.name());
+        setting.setValue(value == null ? "" : value);
+        repository.save(setting);
     }
 
     private java.util.Optional<String> latestGlobalSettingValue(SettingKey key) {

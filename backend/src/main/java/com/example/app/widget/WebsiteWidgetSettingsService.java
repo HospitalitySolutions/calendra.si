@@ -4,6 +4,7 @@ import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantReservationRulesService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -48,8 +49,9 @@ public class WebsiteWidgetSettingsService {
         boolean paymentOnLocation = root.has("paymentOnLocation")
                 ? root.path("paymentOnLocation").asBoolean(true)
                 : "none".equalsIgnoreCase(rulesRoot.path("paymentRequirement").asText(""));
+        var reservationRules = TenantReservationRulesService.resolve(values);
         return new WebsiteWidgetSettings(
-                root.path("employeeSelectionStep").asBoolean(false),
+                reservationRules.employeeSelectionAllowed(),
                 paymentOnLocation ? List.of() : parseAcceptedConfigIds(root.path("acceptedPaymentMethodIds")),
                 paymentOnLocation
         );
@@ -61,6 +63,7 @@ public class WebsiteWidgetSettingsService {
                 values.get(SettingKey.WEBSITE_BOOKING_RULES_JSON.name()),
                 values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name())
         ));
+        TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
         JsonNode widgetRoot = parse(firstNonBlank(
                 values.get(SettingKey.WEBSITE_WIDGET_SETTINGS_JSON.name()),
                 values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name())
@@ -69,8 +72,8 @@ public class WebsiteWidgetSettingsService {
         boolean advanceBillingEnabled = billingEnabled && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
         if (!billingEnabled || !advanceBillingEnabled) {
             return new GuestSettingsService.GuestBookingRules(
-                    root.path("cancelUntilHours").asInt(24),
-                    root.path("rescheduleUntilHours").asInt(12),
+                    reservationRules.cancelUntilHours(),
+                    reservationRules.rescheduleUntilHours(),
                     root.path("lateCancelConsumesCredit").asBoolean(true),
                     root.path("noShowConsumesCredit").asBoolean(true),
                     false,
@@ -80,7 +83,12 @@ public class WebsiteWidgetSettingsService {
                     List.of(),
                     false,
                     "none",
-                    normalizeDepositPercent(root.path("depositPercent").asInt(20))
+                    normalizeDepositPercent(root.path("depositPercent").asInt(20)),
+                    reservationRules.minBookingNoticeMinutes(),
+                    reservationRules.maxAdvanceBookingDays(),
+                    reservationRules.employeeSelectionAllowed(),
+                    reservationRules.noShowMode(),
+                    reservationRules.noShowAfterMinutes()
             );
         }
 
@@ -97,8 +105,8 @@ public class WebsiteWidgetSettingsService {
         }
         int depositPercent = normalizeDepositPercent(root.path("depositPercent").asInt(20));
         return new GuestSettingsService.GuestBookingRules(
-                root.path("cancelUntilHours").asInt(24),
-                root.path("rescheduleUntilHours").asInt(12),
+                reservationRules.cancelUntilHours(),
+                reservationRules.rescheduleUntilHours(),
                 root.path("lateCancelConsumesCredit").asBoolean(true),
                 root.path("noShowConsumesCredit").asBoolean(true),
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
@@ -108,7 +116,12 @@ public class WebsiteWidgetSettingsService {
                 readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
                 requireOnlinePayment,
                 paymentRequirement,
-                depositPercent
+                depositPercent,
+                reservationRules.minBookingNoticeMinutes(),
+                reservationRules.maxAdvanceBookingDays(),
+                reservationRules.employeeSelectionAllowed(),
+                reservationRules.noShowMode(),
+                reservationRules.noShowAfterMinutes()
         );
     }
 
