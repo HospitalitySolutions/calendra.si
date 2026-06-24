@@ -1,6 +1,9 @@
 package com.example.app.user;
 
 import com.example.app.security.SecurityUtils;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.constraints.NotBlank;
@@ -27,17 +30,20 @@ public class EmployeeAccessRoleController {
 
     private final EmployeeAccessRoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final AppSettingRepository settingRepository;
     private final TenantOwnerAccessService tenantOwnerAccessService;
     private final ObjectMapper objectMapper;
 
     public EmployeeAccessRoleController(
             EmployeeAccessRoleRepository roleRepository,
             UserRepository userRepository,
+            AppSettingRepository settingRepository,
             TenantOwnerAccessService tenantOwnerAccessService,
             ObjectMapper objectMapper
     ) {
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
+        this.settingRepository = settingRepository;
         this.tenantOwnerAccessService = tenantOwnerAccessService;
         this.objectMapper = objectMapper;
     }
@@ -58,7 +64,7 @@ public class EmployeeAccessRoleController {
 
         long assignedUsers = roles.stream().mapToLong(EmployeeRoleResponse::memberCount).sum();
         long customRoles = roles.stream().filter(role -> !role.system()).count();
-        return new RolesOverviewResponse(roles, assignedUsers, customRoles, permissionGroups());
+        return new RolesOverviewResponse(roles, assignedUsers, customRoles, permissionGroups(companyId));
     }
 
     @PostMapping
@@ -241,7 +247,14 @@ public class EmployeeAccessRoleController {
         }
     }
 
-    private List<PermissionGroupResponse> permissionGroups() {
+    private List<PermissionGroupResponse> permissionGroups(Long companyId) {
+        Map<String, String> settings = settingsMap(companyId);
+        return allPermissionGroups().stream()
+                .filter(group -> permissionGroupEnabled(group.key(), settings))
+                .toList();
+    }
+
+    private List<PermissionGroupResponse> allPermissionGroups() {
         return List.of(
                 group("CALENDAR_BOOKINGS", "Calendar & Bookings", "View and manage calendar bookings, appointments and booking details"),
                 group("CLIENTS", "Clients", "View and manage client profiles, contact details and client history"),
@@ -268,6 +281,79 @@ public class EmployeeAccessRoleController {
 
     private PermissionGroupResponse group(String key, String label, String description) {
         return new PermissionGroupResponse(key, label, description);
+    }
+
+    private Map<String, String> settingsMap(Long companyId) {
+        if (companyId == null) return Map.of();
+        return settingRepository.findAllByCompanyId(companyId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AppSetting::getKey,
+                        AppSetting::getValue,
+                        (a, b) -> b,
+                        java.util.LinkedHashMap::new
+                ));
+    }
+
+    private boolean permissionGroupEnabled(String groupKey, Map<String, String> settings) {
+        return switch (groupKey) {
+            case "SERVICES" -> settingEnabled(settings, SettingKey.TYPES_ENABLED, true);
+            case "SPACES" -> settingEnabled(settings, SettingKey.SPACES_ENABLED, false);
+            case "COURSES" -> settingEnabled(settings, SettingKey.TYPES_ENABLED, true)
+                    && settingEnabled(settings, SettingKey.COURSES_ENABLED, true);
+            case "BILLING_INVOICES" -> settingEnabled(settings, SettingKey.BILLING_ENABLED, true)
+                    && settingEnabled(settings, SettingKey.BILLING_INVOICES_ENABLED, true);
+            case "ORDERS" -> websiteWidgetEnabled(settings) || guestOrdersEnabled(settings);
+            case "WALLET_BENEFITS" -> guestWalletEnabled(settings);
+            case "INBOX_MESSAGES" -> settingEnabled(settings, SettingKey.INBOX_ENABLED, true) || guestInboxEnabled(settings);
+            case "NOTIFICATIONS", "DELIVERY_LOGS" -> settingEnabled(settings, SettingKey.NOTIFICATIONS_ENABLED, true);
+            case "INTEGRATIONS" -> settingEnabled(settings, SettingKey.GOOGLE_CALENDAR_MODULE_ENABLED, true)
+                    || settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true)
+                    || settingEnabled(settings, SettingKey.WHATSAPP_MODULE_ENABLED, true)
+                    || settingEnabled(settings, SettingKey.VIBER_MODULE_ENABLED, false);
+            case "WEBSITE_WIDGET" -> websiteWidgetEnabled(settings);
+            case "GUEST_MOBILE_APP" -> guestAppEnabled(settings);
+            case "PAYMENTS" -> settingEnabled(settings, SettingKey.BILLING_ENABLED, true);
+            case "SCANNER" -> settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true);
+            default -> true;
+        };
+    }
+
+    private boolean websiteWidgetEnabled(Map<String, String> settings) {
+        return settingEnabled(settings, SettingKey.WEBSITE_WIDGET_ENABLED, true);
+    }
+
+    private boolean guestAppEnabled(Map<String, String> settings) {
+        return guestAppBoolean(settings, "guestAppEnabled", true);
+    }
+
+    private boolean guestWalletEnabled(Map<String, String> settings) {
+        return guestAppEnabled(settings) && guestAppBoolean(settings, "walletEnabled", true);
+    }
+
+    private boolean guestOrdersEnabled(Map<String, String> settings) {
+        return guestWalletEnabled(settings) && guestAppBoolean(settings, "ordersEnabled", true);
+    }
+
+    private boolean guestInboxEnabled(Map<String, String> settings) {
+        return guestAppEnabled(settings) && guestAppBoolean(settings, "inboxEnabled", true);
+    }
+
+    private boolean settingEnabled(Map<String, String> settings, SettingKey key, boolean defaultValue) {
+        String raw = settings.get(key.name());
+        if (raw == null || raw.isBlank()) return defaultValue;
+        return !"false".equalsIgnoreCase(raw.trim());
+    }
+
+    private boolean guestAppBoolean(Map<String, String> settings, String jsonKey, boolean defaultValue) {
+        String raw = settings.get(SettingKey.GUEST_APP_SETTINGS_JSON.name());
+        if (raw == null || raw.isBlank()) return defaultValue;
+        try {
+            var node = objectMapper.readTree(raw);
+            if (node == null || !node.has(jsonKey) || node.get(jsonKey).isNull()) return defaultValue;
+            return node.get(jsonKey).asBoolean(defaultValue);
+        } catch (Exception ignored) {
+            return defaultValue;
+        }
     }
 
     private String cleanName(String value) {

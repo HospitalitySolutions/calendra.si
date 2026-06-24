@@ -428,13 +428,24 @@ export function EmployeeRolesPermissionsTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selected role switches should reset the editor draft
   }, [selectedRoleId])
 
+  function visibleMatrixPermissionKeys() {
+    return new Set(
+      permissionGroups.flatMap((group) =>
+        EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action)),
+      ),
+    )
+  }
+
   function matrixPermissionsOnly(permissions: string[]) {
-    const matrixKeys = new Set(permissionGroups.flatMap((group) => EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action))))
+    const matrixKeys = visibleMatrixPermissionKeys()
     return permissions.filter((permission) => matrixKeys.has(permission as EmployeePermission))
   }
 
   function enforceViewDependenciesForDraft(permissions: string[]) {
-    const values = new Set(matrixPermissionsOnly(permissions))
+    // Preserve permissions for currently hidden module groups. The matrix only edits
+    // visible groups, so disabling a module in App settings hides it here without
+    // silently deleting saved role permissions that may be needed again if the module is re-enabled.
+    const values = new Set(permissions)
     permissionGroups.forEach((group) => {
       const viewKey = permissionKey(group.key, 'VIEW')
       if (values.has(viewKey)) return
@@ -442,7 +453,7 @@ export function EmployeeRolesPermissionsTab() {
       values.delete(permissionKey(group.key, 'EDIT'))
       values.delete(permissionKey(group.key, 'DELETE'))
     })
-    return matrixPermissionsOnly(Array.from(values))
+    return Array.from(values)
   }
 
   function togglePermission(groupKey: string, action: PermissionAction) {
