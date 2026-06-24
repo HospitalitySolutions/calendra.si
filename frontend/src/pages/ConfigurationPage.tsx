@@ -151,6 +151,8 @@ import type {
   WebsiteWidgetSettingsForm
 } from "./configuration/guestWebsiteSettings";
 
+import { GeneralAppSettingsSection } from "./configuration/GeneralAppSettingsSection";
+
 import {
   MODULE_VISIBILITY_PACKAGES,
   PLATFORM_MODULE_VISIBILITY_RULES_KEY,
@@ -171,6 +173,7 @@ import {
 } from "./configuration/moduleSettings";
 
 type Tab =
+  | "general"
   | "company"
   | "booking"
   | "billing"
@@ -196,6 +199,7 @@ type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "security
 type PersonalTaskPreset = { id: string; name: string; color: string };
 
 type ConfigNavIcon =
+  | "general"
   | "company"
   | "booking"
   | "billing"
@@ -249,6 +253,7 @@ type IntegrationGoogleCalendarConnection = {
 };
 
 const CONFIG_TAB_IDS: readonly Tab[] = [
+  "general",
   "company",
   "booking",
   "billing",
@@ -263,6 +268,7 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
 ];
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
+  general: "tabGeneralSettings",
   company: "tabCompany",
   booking: "configBookingSpacesTab",
   billing: "tabBilling",
@@ -328,6 +334,28 @@ function IntegrationGoogleCalendarIcon() {
 }
 
 function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
+  if (kind === "general") {
+    return (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M4 7h16" />
+        <path d="M4 12h16" />
+        <path d="M4 17h16" />
+        <circle cx="8" cy="7" r="1.8" />
+        <circle cx="15" cy="12" r="1.8" />
+        <circle cx="10" cy="17" r="1.8" />
+      </svg>
+    );
+  }
   if (kind === "company") {
     return (
       <svg
@@ -737,7 +765,7 @@ export function ConfigurationPage() {
   const { t, locale } = useLocale();
   const { showToast } = useToast();
 
-  const [tab, setTab] = useState<Tab>("company");
+  const [tab, setTab] = useState<Tab>("general");
   const [accountSubtab, setAccountSubtab] = useState<AccountSubtab>("company");
   const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<
     AccountReceivedInvoice[]
@@ -1944,6 +1972,7 @@ export function ConfigurationPage() {
     settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== "false";
 
   const hasConfigTabViewPermission = (tabId: Tab) => {
+    if (tabId === "general") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "company") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "booking") return hasEmployeePermission(me, 'SPACES_VIEW');
     if (tabId === "billing") return hasAnyEmployeePermission(me, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW']);
@@ -1959,7 +1988,7 @@ export function ConfigurationPage() {
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
-    if (tabId === "company" || tabId === "modules" || tabId === "integrations")
+    if (tabId === "general" || tabId === "company" || tabId === "modules" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
     if (tabId === "billing") return billingEnabledCommitted;
@@ -1979,7 +2008,7 @@ export function ConfigurationPage() {
   };
 
   const firstAvailableConfigTab = (): Tab => {
-    return CONFIG_TAB_IDS.find((candidate) => isConfigTabAvailable(candidate)) ?? "company";
+    return CONFIG_TAB_IDS.find((candidate) => isConfigTabAvailable(candidate)) ?? "general";
   };
 
   useEffect(() => {
@@ -2569,6 +2598,7 @@ export function ConfigurationPage() {
 
   const configNavItems = useMemo((): ConfigNavItem[] => {
     const items: ConfigNavItem[] = [
+      { id: "general", icon: "general" },
       { id: "company", icon: "company" },
       { id: "booking", icon: "booking" },
       { id: "billing", icon: "billing" },
@@ -4865,7 +4895,7 @@ export function ConfigurationPage() {
                   key={entry.id}
                   type="button"
                   className={
-                    entry.id === "company"
+                    entry.id === "general"
                       ? "config-overview-tile is-featured"
                       : "config-overview-tile"
                   }
@@ -4886,7 +4916,7 @@ export function ConfigurationPage() {
             {isCompactConfigViewport ? (
               tab === "integrations" ? null : (
                 <div className="config-detail-bar">
-                  {tab === "company" ? null : (
+                  {tab === "general" ? null : (
                     <button
                       type="button"
                       className="config-detail-back"
@@ -4909,7 +4939,7 @@ export function ConfigurationPage() {
                       </svg>
                     </button>
                   )}
-                  {tab === "company" ? null : <span>{configDetailTitle}</span>}
+                  {tab === "general" ? null : <span>{configDetailTitle}</span>}
                 </div>
               )
             ) : (
@@ -4933,7 +4963,14 @@ export function ConfigurationPage() {
               </aside>
             )}
             <div className="config-content">
-              {tab === "company" ? (
+              {tab === "general" ? (
+                <GeneralAppSettingsSection
+                  settings={settings}
+                  setSettings={setSettings}
+                  saving={savingSettings}
+                  onSave={() => saveSettings()}
+                />
+              ) : tab === "company" ? (
                 <div className="account-management-shell">
                   <style>{`
             .account-management-shell {

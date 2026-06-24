@@ -3,6 +3,7 @@ package com.example.app.guest.common;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantGeneralSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -19,37 +20,43 @@ public class GuestSettingsService {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final AppSettingRepository settings;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final TenantGeneralSettingsService tenantGeneralSettingsService;
 
-    public GuestSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
+    public GuestSettingsService(
+            AppSettingRepository settings,
+            GlobalPaymentProviderService globalPaymentProviders,
+            TenantGeneralSettingsService tenantGeneralSettingsService
+    ) {
         this.settings = settings;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
     }
 
     public GuestPublicSettings publicSettings(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
+        TenantGeneralSettingsService.TenantGeneralSettings general = tenantGeneralSettingsService != null
+                ? tenantGeneralSettingsService.resolve(companyId)
+                : TenantGeneralSettingsService.resolve(values);
         boolean enabled = root.path("guestAppEnabled").asBoolean(true);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
         boolean inboxEnabled = enabled && root.path("inboxEnabled").asBoolean(true);
         boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
-        String name = textOrNull(root.path("publicName"));
+        String name = firstNonBlank(textOrNull(root.path("publicName")), general.publicCompanyName());
         String description = textOrNull(root.path("publicDescription"));
         String city = textOrNull(root.path("publicCity"));
-        String phone = textOrNull(root.path("publicPhone"));
+        String phone = firstNonBlank(textOrNull(root.path("publicPhone")), general.contactPhone());
         String tenantType = normalizeTenantType(textOrNull(root.path("tenantType")));
         String cardImageUrl = textOrNull(root.path("cardImageUrl"));
-        String logoImageUrl = textOrNull(root.path("logoImageUrl"));
+        String logoImageUrl = firstNonBlank(textOrNull(root.path("logoImageUrl")), general.brandLogoBase64());
         String iconImageUrl = textOrNull(root.path("iconImageUrl"));
         String street = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
         String postal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
         String companyCity = textOrNull(values.get(SettingKey.COMPANY_CITY.name()));
-        String formattedAddress = formatCompanyAddressLine(street, postal, companyCity);
-        String invoiceCompanyName = textOrNull(values.get(SettingKey.COMPANY_NAME.name()));
-        if (phone == null) {
-            phone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
-        }
-        String defaultLanguage = root.path("defaultLanguage").asText("sl");
+        String formattedAddress = firstNonBlank(general.contactAddress(), formatCompanyAddressLine(street, postal, companyCity));
+        String invoiceCompanyName = firstNonBlank(values.get(SettingKey.COMPANY_NAME.name()), general.publicCompanyName());
+        String defaultLanguage = general.defaultLanguage();
         boolean employeeSelectionStep = root.path("employeeSelectionStep").asBoolean(false);
         boolean useEmployeeContact = root.path("useEmployeeContact").asBoolean(false);
         return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
@@ -213,6 +220,14 @@ public class GuestSettingsService {
         } catch (Exception ex) {
             return JSON.createObjectNode();
         }
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.trim().isBlank()) return value.trim();
+        }
+        return null;
     }
 
     private static String textOrNull(JsonNode node) {

@@ -14,6 +14,7 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.TenantSmsQuotaService;
+import com.example.app.settings.TenantGeneralSettingsService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.sms.SmsGateway;
@@ -62,6 +63,7 @@ public class ReminderService {
     private final GuestNotificationService guestNotifications;
     private final GuestPushService guestPushService;
     private final TenantSmsQuotaService smsQuotaService;
+    private final TenantGeneralSettingsService tenantGeneralSettingsService;
     private final String frontendBaseUrl;
 
     @Autowired(required = false)
@@ -79,7 +81,8 @@ public class ReminderService {
             SmsGateway smsGateway,
             GuestNotificationService guestNotifications,
             GuestPushService guestPushService,
-            TenantSmsQuotaService smsQuotaService
+            TenantSmsQuotaService smsQuotaService,
+            TenantGeneralSettingsService tenantGeneralSettingsService
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
@@ -95,6 +98,7 @@ public class ReminderService {
         this.guestNotifications = guestNotifications;
         this.guestPushService = guestPushService;
         this.smsQuotaService = smsQuotaService;
+        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
     }
 
     /**
@@ -702,7 +706,10 @@ public class ReminderService {
         Long companyId = company.getId();
 
         Client client = booking.getClient();
-        String companyName = settingOr(companyId, SettingKey.COMPANY_NAME, company.getName());
+        TenantGeneralSettingsService.TenantGeneralSettings general = tenantGeneralSettingsService != null
+                ? tenantGeneralSettingsService.resolve(companyId)
+                : TenantGeneralSettingsService.resolve(appSettings.findAllByCompanyId(companyId).stream().collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b)));
+        String companyName = TenantGeneralSettingsService.firstNonBlank(general.publicCompanyName(), settingOr(companyId, SettingKey.COMPANY_NAME, company.getName()), company.getName());
         String clientFirstName = nz(client.getFirstName());
         String clientLastName = nz(client.getLastName());
         String serviceName = booking.getType() != null ? nz(booking.getType().getName()) : "";
@@ -716,8 +723,8 @@ public class ReminderService {
         String time = start.format(TAG_TIME) + "–" + end.format(TAG_TIME);
 
         String locationName = booking.getSpace() != null ? nz(booking.getSpace().getName()) : "";
-        String locationAddress = formatCompanyAddress(companyId);
-        String locationPhone = settingOr(companyId, SettingKey.COMPANY_TELEPHONE, "");
+        String locationAddress = TenantGeneralSettingsService.firstNonBlank(general.contactAddress(), formatCompanyAddress(companyId));
+        String locationPhone = TenantGeneralSettingsService.firstNonBlank(general.contactPhone(), settingOr(companyId, SettingKey.COMPANY_TELEPHONE, ""));
 
         User consultant = booking.getConsultant();
         String consultantName = consultant == null

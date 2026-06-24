@@ -164,6 +164,22 @@ public enum SettingKey {
     COMPANY_LOGO_BASE64,
     FOLIO_SIGNATURE_BASE64,
 
+    /** Tenant-wide defaults used across admin, guest app, website widget, notifications and public-facing output. */
+    TENANT_DEFAULT_LANGUAGE,
+    TENANT_TIME_ZONE,
+    TENANT_CURRENCY,
+    TENANT_DATE_FORMAT,
+    TENANT_TIME_FORMAT,
+    TENANT_WEEK_START_DAY,
+    TENANT_PUBLIC_COMPANY_NAME,
+    TENANT_CONTACT_PHONE,
+    TENANT_CONTACT_EMAIL,
+    TENANT_CONTACT_WEBSITE,
+    TENANT_CONTACT_ADDRESS,
+    TENANT_BRAND_LOGO_BASE64,
+    TENANT_BRAND_PRIMARY_COLOR,
+    TENANT_BRAND_ACCENT_COLOR,
+
     /** JSON: custom email/SMS templates and toggles for booking notifications (see frontend parser). */
     NOTIFICATION_SETTINGS_JSON,
 

@@ -678,24 +678,24 @@ public class FolioPdfService {
 
     private FooterRenderData buildFooterRenderData(BigDecimal totalNett, BigDecimal totalGross, FolioPdfRequest req) {
         Map<String, String> footerValues = new HashMap<>();
-        footerValues.put("totalNett", fmtEurSuffix(totalNett));
-        footerValues.put("totalGross", fmtEurSuffix(totalGross));
+        footerValues.put("totalNett", fmtMoneySuffix(totalNett, req));
+        footerValues.put("totalGross", fmtMoneySuffix(totalGross, req));
         BigDecimal usedAdvancePaymentsGross = req == null || req.getUsedAdvancePaymentsGross() == null
                 ? BigDecimal.ZERO
                 : req.getUsedAdvancePaymentsGross().abs().setScale(2, RoundingMode.HALF_UP);
         if (usedAdvancePaymentsGross.compareTo(BigDecimal.ZERO) > 0) {
-            footerValues.put("usedAdvances", fmtEurDeductionSuffix(usedAdvancePaymentsGross));
+            footerValues.put("usedAdvances", fmtMoneyDeductionSuffix(usedAdvancePaymentsGross, req));
         }
         BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
         if (!isCreditNoteRequest(req) && discountAmountGross != null && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
-            footerValues.put("discount", fmtEurDeductionSuffix(discountAmountGross));
+            footerValues.put("discount", fmtMoneyDeductionSuffix(discountAmountGross, req));
         }
-        footerValues.put("toBePaid", fmtEurSuffix(resolveToBePaid(req)));
+        footerValues.put("toBePaid", fmtMoneySuffix(resolveToBePaid(req), req));
         List<VatBreakdownRow> vatRows = buildVatBreakdownRows(req == null ? null : req.getServices());
-        footerValues.put("vat22", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_22)));
-        footerValues.put("vat95", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_9_5)));
-        footerValues.put("vat0", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_0)));
-        footerValues.put("noVat", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.NO_VAT)));
+        footerValues.put("vat22", fmtMoney(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_22), req));
+        footerValues.put("vat95", fmtMoney(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_9_5), req));
+        footerValues.put("vat0", fmtMoney(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_0), req));
+        footerValues.put("noVat", fmtMoney(vatBreakdownAmount(vatRows, VatBreakdownBucket.NO_VAT), req));
         if (req != null && req.getNotes() != null && !req.getNotes().isBlank()) {
             footerValues.put("notes", safe(req.getNotes()));
         }
@@ -731,7 +731,7 @@ public class FolioPdfService {
                 BigDecimal amount = line.getAmountGross();
                 if (name.isBlank() && amount == null) continue;
                 if (name.isBlank()) name = "Payment";
-                lines.add(name + (amount == null ? "" : " " + fmtEurSuffix(amount)));
+                lines.add(name + (amount == null ? "" : " " + fmtMoneySuffix(amount, req)));
             }
         }
         if (lines.isEmpty() && req != null && req.getPaymentMethod() != null && !req.getPaymentMethod().isBlank()) {
@@ -855,8 +855,8 @@ public class FolioPdfService {
             float textY = rowTextBaseline(rowTop, rowH, bodyFs);
             drawText(ctx, fonts.regular(), bodyFs, c1 + 3, textY, localizedVatBreakdownLabel(row.bucket(), locale));
             drawText(ctx, fonts.regular(), bodyFs, c2 + 3, textY, vatRateLabel(row.bucket(), locale));
-            drawTextRight(ctx, fonts.regular(), bodyFs, c3 + basisW - 3, textY, fmtEur(row.netBasis()));
-            drawTextRight(ctx, fonts.regular(), bodyFs, right - 3, textY, fmtEur(row.vatAmount()));
+            drawTextRight(ctx, fonts.regular(), bodyFs, c3 + basisW - 3, textY, fmtMoney(row.netBasis(), req));
+            drawTextRight(ctx, fonts.regular(), bodyFs, right - 3, textY, fmtMoney(row.vatAmount(), req));
         }
     }
 
@@ -1163,17 +1163,24 @@ public class FolioPdfService {
         return v.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
-    private static String fmtEur(BigDecimal v) {
-        return "EUR " + fmt(v);
+    private static String currencyCode(FolioPdfRequest req) {
+        String currency = req == null ? null : req.getCurrency();
+        if (currency == null || currency.isBlank()) return "EUR";
+        String normalized = currency.trim().toUpperCase(java.util.Locale.ROOT);
+        return normalized.matches("^[A-Z]{3}$") ? normalized : "EUR";
     }
 
-    private static String fmtEurSuffix(BigDecimal v) {
-        return fmt(v) + " EUR";
+    private static String fmtMoney(BigDecimal v, FolioPdfRequest req) {
+        return currencyCode(req) + " " + fmt(v);
     }
 
-    private static String fmtEurDeductionSuffix(BigDecimal v) {
+    private static String fmtMoneySuffix(BigDecimal v, FolioPdfRequest req) {
+        return fmt(v) + " " + currencyCode(req);
+    }
+
+    private static String fmtMoneyDeductionSuffix(BigDecimal v, FolioPdfRequest req) {
         BigDecimal absolute = v == null ? BigDecimal.ZERO : v.abs();
-        return "- " + fmt(absolute) + " EUR";
+        return "- " + fmt(absolute) + " " + currencyCode(req);
     }
 
     private static List<VatBreakdownRow> buildVatBreakdownRows(List<FolioPdfRequest.ServiceLine> lines) {

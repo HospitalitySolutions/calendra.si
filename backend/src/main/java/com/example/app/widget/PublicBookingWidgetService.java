@@ -19,6 +19,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantGeneralSettingsService;
 import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -79,6 +80,7 @@ public class PublicBookingWidgetService {
     private final PaymentMethodRepository paymentMethods;
     private final StripeConnectService stripeConnectService;
     private final TimeService timeService;
+    private final TenantGeneralSettingsService tenantGeneralSettingsService;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -99,6 +101,7 @@ public class PublicBookingWidgetService {
             PaymentMethodRepository paymentMethods,
             StripeConnectService stripeConnectService,
             TimeService timeService,
+            TenantGeneralSettingsService tenantGeneralSettingsService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
     ) {
         this.companies = companies;
@@ -119,6 +122,7 @@ public class PublicBookingWidgetService {
         this.paymentMethods = paymentMethods;
         this.stripeConnectService = stripeConnectService;
         this.timeService = timeService;
+        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
         this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
                 ? ZoneId.of("Europe/Ljubljana")
                 : ZoneId.of(widgetTimezoneId.trim());
@@ -139,7 +143,19 @@ public class PublicBookingWidgetService {
                 cfg.sessionLengthMinutes(),
                 cfg.workingHoursStart().toString(),
                 cfg.workingHoursEnd().toString(),
-                widgetZoneId.getId(),
+                cfg.zoneId().getId(),
+                cfg.general().defaultLanguage(),
+                cfg.general().currency(),
+                cfg.general().dateFormat(),
+                cfg.general().timeFormat(),
+                cfg.general().weekStartDay(),
+                cfg.general().contactPhone(),
+                cfg.general().contactEmail(),
+                cfg.general().contactWebsite(),
+                cfg.general().contactAddress(),
+                cfg.general().brandLogoBase64(),
+                cfg.general().brandPrimaryColor(),
+                cfg.general().brandAccentColor(),
                 widgetTurnstileService.isEnabled(company),
                 widgetTurnstileService.siteKey(company),
                 websiteSettings.employeeSelectionStep(),
@@ -191,6 +207,7 @@ public class PublicBookingWidgetService {
     public List<PublicBookingWidgetController.WidgetServiceResponse> services(String tenantCode, HttpServletRequest request) {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "services");
+        WidgetConfig cfg = loadConfig(company.getId());
         return types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
                 .filter(this::isWebsiteBookingEnabled)
                 .sorted(Comparator.comparing(SessionType::getName, String.CASE_INSENSITIVE_ORDER))
@@ -199,7 +216,7 @@ public class PublicBookingWidgetService {
                         type.getName(),
                         type.getDescription(),
                         type.getDurationMinutes() != null ? type.getDurationMinutes() : 60,
-                        toPriceLabel(type),
+                        toPriceLabel(type, cfg.general().currency()),
                         type.getMaxParticipantsPerSession(),
                         isWebsiteBookingEnabled(type)
                 ))
@@ -236,7 +253,7 @@ public class PublicBookingWidgetService {
                 : null;
 
         List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
-        List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions = buildGroupSessions(company, type, date, resolvedConsultantId);
+        List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions = buildGroupSessions(company, cfg, type, date, resolvedConsultantId);
         if (groupOnlyWebsiteBooking) {
             slots = List.of();
         } else if (cfg.availabilityEnabled()) {
@@ -272,7 +289,7 @@ public class PublicBookingWidgetService {
                 ? resolveConsultantForBooking(company.getId(), consultantId, false).getId()
                 : null;
 
-        LocalDate today = timeService.localDate(widgetZoneId);
+        LocalDate today = timeService.localDate(cfg.zoneId());
         LocalDate cursor = month.atDay(1);
         if (cursor.isBefore(today)) {
             cursor = today;
@@ -290,7 +307,7 @@ public class PublicBookingWidgetService {
 
     private boolean dayHasAvailability(Company company, WidgetConfig cfg, SessionType type, LocalDate date, Long consultantId, boolean groupOnlyWebsiteBooking) {
         if (groupOnlyWebsiteBooking) {
-            return !buildGroupSessions(company, type, date, consultantId).isEmpty();
+            return !buildGroupSessions(company, cfg, type, date, consultantId).isEmpty();
         }
         if (cfg.availabilityEnabled()) {
             if (!buildBookableSlots(company, cfg, type, date, consultantId).isEmpty()) {
@@ -338,7 +355,7 @@ public class PublicBookingWidgetService {
             LocalDateTime start = parseStartTime(request.startTime(), date);
             LocalDateTime end = start.plusMinutes(type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes());
 
-            if (!start.isAfter(timeService.localDateTime(widgetZoneId))) {
+            if (!start.isAfter(timeService.localDateTime(cfg.zoneId()))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected time is in the past.");
             }
 
@@ -376,7 +393,7 @@ public class PublicBookingWidgetService {
                         booking.getId(),
                         booking.getType() == null ? type.getName() : booking.getType().getName(),
                         booking.getStartTime().format(DATE_TIME_FORMAT),
-                        booking.getStartTime().format(HUMAN_FORMAT),
+                        booking.getStartTime().format(humanFormatter(cfg.general())),
                         client.getEmail(),
                         consultantName
                 );
@@ -407,7 +424,8 @@ public class PublicBookingWidgetService {
         if (representative.getType() == null || !Objects.equals(representative.getType().getId(), type.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session does not match this service.");
         }
-        if (!representative.getStartTime().isAfter(timeService.localDateTime(widgetZoneId))) {
+        WidgetConfig cfg = loadConfig(company.getId());
+        if (!representative.getStartTime().isAfter(timeService.localDateTime(cfg.zoneId()))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
         }
 
@@ -432,7 +450,7 @@ public class PublicBookingWidgetService {
                 joined.getId(),
                 joined.getType() == null ? type.getName() : joined.getType().getName(),
                 joined.getStartTime().format(DATE_TIME_FORMAT),
-                joined.getStartTime().format(HUMAN_FORMAT),
+                joined.getStartTime().format(humanFormatter(cfg.general())),
                 client.getEmail(),
                 consultantName
         );
@@ -455,6 +473,7 @@ public class PublicBookingWidgetService {
 
     private List<PublicBookingWidgetController.GroupSessionSlotResponse> buildGroupSessions(
             Company company,
+            WidgetConfig cfg,
             SessionType type,
             LocalDate date,
             Long consultantId
@@ -477,7 +496,7 @@ public class PublicBookingWidgetService {
                     continue;
                 }
             }
-            if (!booking.getStartTime().isAfter(timeService.localDateTime(widgetZoneId))) {
+            if (!booking.getStartTime().isAfter(timeService.localDateTime(cfg.zoneId()))) {
                 continue;
             }
             grouped.computeIfAbsent(groupKeyOf(booking), ignored -> new ArrayList<>()).add(booking);
@@ -555,7 +574,7 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
-        LocalDate today = timeService.localDate(widgetZoneId);
+        LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
             return new ArrayList<>();
         }
@@ -575,7 +594,7 @@ public class PublicBookingWidgetService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!isWidgetSlotStartInFuture(date, start)) {
+                if (!isWidgetSlotStartInFuture(date, start, cfg.zoneId())) {
                     cursor = cursor.plusMinutes(30);
                     continue;
                 }
@@ -613,7 +632,7 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
-        LocalDate today = timeService.localDate(widgetZoneId);
+        LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
             return new ArrayList<>();
         }
@@ -634,7 +653,7 @@ public class PublicBookingWidgetService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!isWidgetSlotStartInFuture(date, start)) {
+                if (!isWidgetSlotStartInFuture(date, start, cfg.zoneId())) {
                     cursor = cursor.plusMinutes(30);
                     continue;
                 }
@@ -744,7 +763,7 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
-        LocalDate today = timeService.localDate(widgetZoneId);
+        LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
             return new ArrayList<>();
         }
@@ -773,7 +792,7 @@ public class PublicBookingWidgetService {
         LocalTime cursor = rangeStart;
         while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
             LocalDateTime start = date.atTime(cursor);
-            if (!isWidgetSlotStartInFuture(date, start)) {
+            if (!isWidgetSlotStartInFuture(date, start, cfg.zoneId())) {
                 cursor = cursor.plusMinutes(30);
                 continue;
             }
@@ -791,15 +810,15 @@ public class PublicBookingWidgetService {
         return items;
     }
 
-    private boolean isWidgetSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {
-        LocalDate today = timeService.localDate(widgetZoneId);
+    private boolean isWidgetSlotStartInFuture(LocalDate date, LocalDateTime slotStart, ZoneId zoneId) {
+        LocalDate today = timeService.localDate(zoneId);
         if (date.isBefore(today)) {
             return false;
         }
         if (date.isAfter(today)) {
             return true;
         }
-        return slotStart.isAfter(timeService.localDateTime(widgetZoneId));
+        return slotStart.isAfter(timeService.localDateTime(zoneId));
     }
 
     private boolean isActuallyBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
@@ -958,13 +977,16 @@ public class PublicBookingWidgetService {
         }
     }
 
-    private String toPriceLabel(SessionType type) {
+    private String toPriceLabel(SessionType type, String currency) {
         BigDecimal min = type.getLinkedServices() == null ? null : type.getLinkedServices().stream()
                 .map(link -> link.getPrice())
                 .filter(price -> price != null)
                 .min(BigDecimal::compareTo)
                 .orElse(null);
-        return min == null ? null : "€" + min.stripTrailingZeros().toPlainString();
+        if (min == null) return null;
+        String amount = min.stripTrailingZeros().toPlainString();
+        String symbol = TenantGeneralSettingsService.currencySymbol(currency);
+        return "€".equals(symbol) || "$".equals(symbol) || "£".equals(symbol) ? symbol + amount : amount + " " + symbol;
     }
 
     private WidgetConfig loadConfig(Long companyId) {
@@ -975,8 +997,29 @@ public class PublicBookingWidgetService {
         int sessionLengthMinutes = parseInteger(values.get(SettingKey.SESSION_LENGTH_MINUTES.name()), 60);
         LocalTime workingHoursStart = parseTime(values.get(SettingKey.WORKING_HOURS_START.name()), LocalTime.of(8, 0));
         LocalTime workingHoursEnd = parseTime(values.get(SettingKey.WORKING_HOURS_END.name()), LocalTime.of(18, 0));
-        String companyName = values.getOrDefault(SettingKey.COMPANY_NAME.name(), "Calendra");
-        return new WidgetConfig(companyName, availabilityEnabled, typesEnabled, sessionLengthMinutes, workingHoursStart, workingHoursEnd);
+        TenantGeneralSettingsService.TenantGeneralSettings general = tenantGeneralSettingsService != null
+                ? tenantGeneralSettingsService.resolve(companyId)
+                : TenantGeneralSettingsService.resolve(values);
+        String companyName = TenantGeneralSettingsService.firstNonBlank(general.publicCompanyName(), values.get(SettingKey.COMPANY_NAME.name()), "Calendra");
+        ZoneId zoneId = TenantGeneralSettingsService.zoneIdOrDefault(general.timeZone());
+        return new WidgetConfig(companyName, availabilityEnabled, typesEnabled, sessionLengthMinutes, workingHoursStart, workingHoursEnd, zoneId, general);
+    }
+
+    private ZoneId tenantZoneId(Long companyId) {
+        if (tenantGeneralSettingsService == null) return widgetZoneId;
+        return TenantGeneralSettingsService.zoneIdOrDefault(tenantGeneralSettingsService.resolve(companyId).timeZone());
+    }
+
+    private DateTimeFormatter humanFormatter(TenantGeneralSettingsService.TenantGeneralSettings general) {
+        String language = general == null ? "en" : general.defaultLanguage();
+        String timeFormat = general == null ? "24H" : general.timeFormat();
+        if ("sl".equalsIgnoreCase(language)) {
+            return DateTimeFormatter.ofPattern("EEEE, d. M. yyyy 'ob' HH:mm", Locale.forLanguageTag("sl-SI"));
+        }
+        if ("12H".equalsIgnoreCase(timeFormat)) {
+            return DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' h:mm a", Locale.ENGLISH);
+        }
+        return HUMAN_FORMAT;
     }
 
     private int parseInteger(String value, int fallback) {
@@ -1001,6 +1044,8 @@ public class PublicBookingWidgetService {
             boolean typesEnabled,
             int sessionLengthMinutes,
             LocalTime workingHoursStart,
-            LocalTime workingHoursEnd
+            LocalTime workingHoursEnd,
+            ZoneId zoneId,
+            TenantGeneralSettingsService.TenantGeneralSettings general
     ) {}
 }

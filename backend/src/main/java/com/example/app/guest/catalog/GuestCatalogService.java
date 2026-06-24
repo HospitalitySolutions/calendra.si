@@ -19,6 +19,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.TenantGeneralSettingsService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -60,6 +61,7 @@ public class GuestCatalogService {
     private final GuestSettingsService guestSettings;
     private final TimeService timeService;
     private final CourseModuleAccessService courseModuleAccessService;
+    private final TenantGeneralSettingsService tenantGeneralSettingsService;
     private final ZoneId zoneId;
 
     public GuestCatalogService(
@@ -72,6 +74,7 @@ public class GuestCatalogService {
             GuestSettingsService guestSettings,
             TimeService timeService,
             CourseModuleAccessService courseModuleAccessService,
+            TenantGeneralSettingsService tenantGeneralSettingsService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.sessionTypes = sessionTypes;
@@ -83,6 +86,7 @@ public class GuestCatalogService {
         this.guestSettings = guestSettings;
         this.timeService = timeService;
         this.courseModuleAccessService = courseModuleAccessService;
+        this.tenantGeneralSettingsService = tenantGeneralSettingsService;
         this.zoneId = ZoneId.of((timezoneId == null || timezoneId.isBlank()) ? "Europe/Ljubljana" : timezoneId.trim());
     }
 
@@ -92,6 +96,7 @@ public class GuestCatalogService {
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
+        String defaultCurrency = tenantCurrency(companyId);
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
             BigDecimal price = sessionTypePriceGross(type);
@@ -101,7 +106,7 @@ public class GuestCatalogService {
                     type.getName(),
                     productType,
                     price.doubleValue(),
-                    "EUR",
+                    defaultCurrency,
                     String.valueOf(type.getId()),
                     type.getName(),
                     true,
@@ -158,7 +163,7 @@ public class GuestCatalogService {
         if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
         }
-        LocalDate today = timeService.localDate(zoneId);
+        LocalDate today = timeService.localDate(tenantZoneId(companyId));
         if (date.isBefore(today)) {
             return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), List.of());
         }
@@ -212,7 +217,7 @@ public class GuestCatalogService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
             }
             BigDecimal price = sessionTypePriceGross(type);
-            return new ResolvedProduct(null, type, type.getName(), type.isWidgetGroupBookingEnabled() ? "CLASS_TICKET" : "SESSION_SINGLE", price, "EUR", true);
+            return new ResolvedProduct(null, type, type.getName(), type.isWidgetGroupBookingEnabled() ? "CLASS_TICKET" : "SESSION_SINGLE", price, tenantCurrency(companyId), true);
         }
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
@@ -273,7 +278,7 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot no longer matches the booking service duration.");
         }
         LocalDate slotDate = slot.startsAt().toLocalDate();
-        if (!isGuestSlotStartInFuture(slotDate, slot.startsAt())) {
+        if (!isGuestSlotStartInFuture(companyId, slotDate, slot.startsAt())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is no longer bookable.");
         }
         User consultant = users.findByIdAndCompanyId(slot.consultantId(), companyId)
@@ -362,7 +367,7 @@ public class GuestCatalogService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!isGuestSlotStartInFuture(date, start)) {
+                if (!isGuestSlotStartInFuture(companyId, date, start)) {
                     cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
                     continue;
                 }
@@ -391,7 +396,7 @@ public class GuestCatalogService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!isGuestSlotStartInFuture(date, start)) {
+                if (!isGuestSlotStartInFuture(companyId, date, start)) {
                     cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
                     continue;
                 }
@@ -457,15 +462,26 @@ public class GuestCatalogService {
         return false;
     }
 
-    private boolean isGuestSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {
-        LocalDate today = timeService.localDate(zoneId);
+    private boolean isGuestSlotStartInFuture(Long companyId, LocalDate date, LocalDateTime slotStart) {
+        ZoneId effectiveZone = tenantZoneId(companyId);
+        LocalDate today = timeService.localDate(effectiveZone);
         if (date.isBefore(today)) {
             return false;
         }
         if (date.isAfter(today)) {
             return true;
         }
-        return slotStart.isAfter(timeService.localDateTime(zoneId));
+        return slotStart.isAfter(timeService.localDateTime(effectiveZone));
+    }
+
+    private String tenantCurrency(Long companyId) {
+        if (tenantGeneralSettingsService == null) return "EUR";
+        return TenantGeneralSettingsService.normalizeCurrency(tenantGeneralSettingsService.resolve(companyId).currency());
+    }
+
+    private ZoneId tenantZoneId(Long companyId) {
+        if (tenantGeneralSettingsService == null) return zoneId;
+        return TenantGeneralSettingsService.zoneIdOrDefault(tenantGeneralSettingsService.resolve(companyId).timeZone());
     }
 
     private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
@@ -562,7 +578,7 @@ public class GuestCatalogService {
     }
 
     private boolean hasVisibleGuestGroupSession(Long companyId, SessionType type, GuestUser guestUser) {
-        LocalDateTime now = timeService.localDateTime(zoneId, companyId);
+        LocalDateTime now = timeService.localDateTime(tenantZoneId(companyId), companyId);
         LocalDateTime to = now.plusMonths(6);
         return bookings.findPublicGroupSessionCandidates(companyId, type.getId(), now.toLocalDate().atStartOfDay(), to)
                 .stream()
@@ -602,7 +618,7 @@ public class GuestCatalogService {
         SessionBooking representative = rows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElse(rows.get(0));
-        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneId))) {
+        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(tenantZoneId(representative.getCompany().getId())))) {
             return null;
         }
         if (consultantId != null) {
@@ -628,7 +644,7 @@ public class GuestCatalogService {
         SessionBooking representative = rows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElse(rows.get(0));
-        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneId))) {
+        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(tenantZoneId(representative.getCompany().getId())))) {
             return false;
         }
         boolean hasBlockingSessionRow = rows.stream()

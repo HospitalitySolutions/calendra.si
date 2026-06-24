@@ -4,6 +4,7 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantGeneralSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -81,12 +82,13 @@ public class BillFolioPdfService {
         var req = new FolioPdfRequest();
         req.setFolioNumber(bill.getBillNumber());
         req.setFolioNumberLabel(documentNumberPrefix(bill, locale));
-        req.setFolioDate(formatIssueDateTime(bill));
+        req.setFolioDate(formatIssueDateTime(bill, companyId));
         req.setFiscalZoi(bill.getFiscalZoi());
         req.setFiscalEor(bill.getFiscalEor());
         req.setFiscalQr(bill.getFiscalQr());
-        req.setCompanyName(settingValue(companyId, SettingKey.COMPANY_NAME));
-        req.setCompanyAddress(settingValue(companyId, SettingKey.COMPANY_ADDRESS));
+        req.setCompanyName(firstNonBlank(settingValue(companyId, SettingKey.TENANT_PUBLIC_COMPANY_NAME), settingValue(companyId, SettingKey.COMPANY_NAME)));
+        req.setCurrency(resolveCurrency(companyId));
+        req.setCompanyAddress(firstNonBlank(settingValue(companyId, SettingKey.TENANT_CONTACT_ADDRESS), settingValue(companyId, SettingKey.COMPANY_ADDRESS)));
         req.setCompanyPostalCode(settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE));
         req.setCompanyCity(settingValue(companyId, SettingKey.COMPANY_CITY));
         req.setCompanyTaxId(settingValue(companyId, SettingKey.COMPANY_VAT_ID));
@@ -129,7 +131,7 @@ public class BillFolioPdfService {
         List<FolioPdfRequest.PaymentLine> paymentLines = buildPaymentLines(bill, locale);
         req.setPaymentMethods(paymentLines);
         if (!paymentLines.isEmpty()) {
-            req.setPaymentMethod(buildPaymentSummary(paymentLines));
+            req.setPaymentMethod(buildPaymentSummary(paymentLines, req.getCurrency()));
         } else if (bill.getPaymentMethod() != null) {
             req.setPaymentMethod(bill.getPaymentMethod().getName());
         }
@@ -299,15 +301,29 @@ public class BillFolioPdfService {
         return trimmed;
     }
 
-    private String formatIssueDateTime(Bill bill) {
+    private String formatIssueDateTime(Bill bill, Long companyId) {
         if (bill == null) return "";
+        DateTimeFormatter formatter = invoiceDateTimeFormatter(companyId);
+        ZoneId zone = TenantGeneralSettingsService.zoneIdOrDefault(settingValue(companyId, SettingKey.TENANT_TIME_ZONE));
         if (bill.getCreatedAt() != null) {
-            return ISSUE_DATE_TIME_FORMAT.format(bill.getCreatedAt().atZone(ZoneId.systemDefault()));
+            return formatter.format(bill.getCreatedAt().atZone(zone));
         }
         if (bill.getIssueDate() != null) {
-            return ISSUE_DATE_TIME_FORMAT.format(bill.getIssueDate().atStartOfDay());
+            return formatter.format(bill.getIssueDate().atStartOfDay());
         }
         return "";
+    }
+
+    private DateTimeFormatter invoiceDateTimeFormatter(Long companyId) {
+        String dateFormat = TenantGeneralSettingsService.normalizeDateFormat(settingValue(companyId, SettingKey.TENANT_DATE_FORMAT));
+        String timeFormat = TenantGeneralSettingsService.normalizeTimeFormat(settingValue(companyId, SettingKey.TENANT_TIME_FORMAT));
+        String datePattern = switch (dateFormat) {
+            case "YYYY_MM_DD" -> "yyyy-MM-dd";
+            case "MM_DD_YYYY" -> "MM/dd/yyyy";
+            default -> "dd.MM.yyyy";
+        };
+        String timePattern = "12H".equals(timeFormat) ? "hh:mm a" : "HH:mm";
+        return DateTimeFormatter.ofPattern(datePattern + " " + timePattern);
     }
 
     private List<FolioPdfRequest.AdvancePaymentLine> buildAdvancePaymentLines(Bill bill) {
@@ -392,7 +408,7 @@ public class BillFolioPdfService {
         return rows;
     }
 
-    private String buildPaymentSummary(List<FolioPdfRequest.PaymentLine> paymentLines) {
+    private String buildPaymentSummary(List<FolioPdfRequest.PaymentLine> paymentLines, String currency) {
         if (paymentLines == null || paymentLines.isEmpty()) return "";
         var parts = new ArrayList<String>();
         for (FolioPdfRequest.PaymentLine line : paymentLines) {
@@ -400,14 +416,15 @@ public class BillFolioPdfService {
             String name = line.getName() == null ? "" : line.getName().trim();
             if (name.isBlank()) name = "Payment";
             BigDecimal amount = line.getAmountGross() == null ? BigDecimal.ZERO : line.getAmountGross();
-            parts.add(name + " " + fmtEur(amount));
+            parts.add(name + " " + fmtMoney(amount, currency));
         }
         return String.join(", ", parts);
     }
 
-    private static String fmtEur(BigDecimal value) {
+    private static String fmtMoney(BigDecimal value, String currency) {
         BigDecimal normalized = value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
-        return "EUR " + normalized.toPlainString();
+        String code = currency == null || currency.isBlank() ? "EUR" : currency.trim().toUpperCase(Locale.ROOT);
+        return code + " " + normalized.toPlainString();
     }
 
     private int resolvePaymentDeadlineDays(Long companyId) {
@@ -447,7 +464,8 @@ public class BillFolioPdfService {
         String value = firstNonBlank(
                 requestedLocale,
                 bill == null ? null : bill.getInvoiceLocale(),
-                resolveGuestOrderInvoiceLocale(bill)
+                resolveGuestOrderInvoiceLocale(bill),
+                bill == null || bill.getCompany() == null ? null : settingValue(bill.getCompany().getId(), SettingKey.TENANT_DEFAULT_LANGUAGE)
         );
         if (value == null || value.isBlank()) return null;
         String normalized = value.trim().toLowerCase(Locale.ROOT);
@@ -508,8 +526,12 @@ public class BillFolioPdfService {
                 .orElse("");
     }
 
+    private String resolveCurrency(Long companyId) {
+        return TenantGeneralSettingsService.normalizeCurrency(settingValue(companyId, SettingKey.TENANT_CURRENCY));
+    }
+
     private byte[] loadLogoBytes(Long companyId) {
-        var dataUri = settingValue(companyId, SettingKey.COMPANY_LOGO_BASE64);
+        var dataUri = firstNonBlank(settingValue(companyId, SettingKey.TENANT_BRAND_LOGO_BASE64), settingValue(companyId, SettingKey.COMPANY_LOGO_BASE64));
         if (dataUri.isBlank()) return null;
         int commaIdx = dataUri.indexOf(',');
         if (commaIdx < 0) return null;
