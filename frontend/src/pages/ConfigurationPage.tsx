@@ -20,6 +20,7 @@ import {
 } from "./ConfigurationInboxMessagingSections";
 import { ConfigurationInvoiceDeliverySection } from "./ConfigurationInvoiceDeliverySection";
 import { ConfigurationDeliveryLogsSection } from "./ConfigurationDeliveryLogsSection";
+import { ConfigurationGiftCardSection } from "./ConfigurationGiftCardSection";
 import {
   ConfigurationNotificationsSection,
   NOTIFICATION_SETTINGS_KEY,
@@ -191,6 +192,7 @@ type BillingSubtab =
   | "paypal"
   | "fiscal"
   | "invoiceDelivery"
+  | "giftCard"
   | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
 type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "security" | "legal";
@@ -2110,6 +2112,7 @@ export function ConfigurationPage() {
       subtabQuery === "paypal" ||
       subtabQuery === "fiscal" ||
       subtabQuery === "invoiceDelivery" ||
+      subtabQuery === "giftCard" ||
       subtabQuery === "folioLayout"
     ) {
       if (subtabQuery === "stripe" && !stripePaymentsAvailableCommitted) {
@@ -4059,6 +4062,7 @@ export function ConfigurationPage() {
       : []),
     { id: "fiscal", label: t("configBillingFiscalTab") },
     { id: "invoiceDelivery", label: t("configBillingInvoiceDeliveryTab") },
+    { id: "giftCard", label: locale === "sl" ? "Darilni bon" : "Gift card" },
     {
       id: "folioLayout",
       label: locale === "sl" ? "Postavitev računa" : "Invoice layout",
@@ -10538,6 +10542,14 @@ export function ConfigurationPage() {
                         savingSettings={savingSettings}
                         onSave={() => saveSettings()}
                         t={t}
+                        locale={locale}
+                      />
+                    ) : billingSubtab === "giftCard" ? (
+                      <ConfigurationGiftCardSection
+                        settings={settings}
+                        setSettings={setSettings}
+                        savingSettings={savingSettings}
+                        onSave={() => saveSettings()}
                         locale={locale}
                       />
                     ) : (
