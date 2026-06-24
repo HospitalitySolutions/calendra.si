@@ -48,8 +48,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -195,6 +195,18 @@ public class ClientWalletPurchaseController {
 
         open = openBills.saveAndFlush(open);
         return new CreateWalletPurchaseOpenBillResponse(open.getId(), order.getId(), product.getId());
+    }
+
+    /**
+     * Backwards-compatible overload for direct controller tests and internal callers
+     * that do not need optional gift-card recipient/message metadata.
+     */
+    public CreateWalletPurchaseOpenBillResponse createPurchaseOpenBill(
+            Long clientId,
+            Long productId,
+            User me
+    ) {
+        return createPurchaseOpenBill(clientId, productId, null, me);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
