@@ -40,7 +40,11 @@ app.calendra.si {
 
 }
 
-calendra.si, www.calendra.si {
+www.calendra.si {
+	redir https://calendra.si{uri} permanent
+}
+
+calendra.si {
 	encode gzip
 
 	header {
