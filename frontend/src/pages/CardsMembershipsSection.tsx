@@ -256,13 +256,14 @@ export type CardsMembershipsSectionHandle = {
 export type CardsMembershipsSectionProps = {
   sessionTypes: SessionTypeT[]
   coursesEnabled: boolean
+  giftCardsEnabled: boolean
   searchQuery: string
   activeFilter: 'active' | 'inactive'
   onFilteredCountChange?: (filteredCount: number) => void
 }
 
 export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle, CardsMembershipsSectionProps>(
-  function CardsMembershipsSection({ sessionTypes, coursesEnabled, searchQuery, activeFilter, onFilteredCountChange }, ref) {
+  function CardsMembershipsSection({ sessionTypes, coursesEnabled, giftCardsEnabled, searchQuery, activeFilter, onFilteredCountChange }, ref) {
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
   const { t, locale } = useLocale()
@@ -287,7 +288,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
           ? api.get<CourseOption[]>('/courses').catch(() => ({ data: [] as CourseOption[] }))
           : Promise.resolve({ data: [] as CourseOption[] }),
       ])
-      setGuestProducts(productsRes.data || [])
+      setGuestProducts((productsRes.data || []).filter((product: GuestAdminProduct) => giftCardsEnabled || product.productType !== 'GIFT_CARD'))
       setTransactionServices(Array.isArray(servicesRes.data) ? servicesRes.data : [])
       setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : [])
     } catch {
@@ -295,7 +296,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       setTransactionServices([])
       setCourses([])
     }
-  }, [isAdmin, coursesEnabled])
+  }, [isAdmin, coursesEnabled, giftCardsEnabled])
 
   useEffect(() => {
     void loadGuestProducts()
@@ -318,6 +319,11 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
     setGuestProductForm((f) => syncGuestProductPriceFromSessionTypes(f, sessionTypes))
   }, [showGuestProductModal, guestProductForm.productType, guestProductForm.sessionTypeId, guestProductForm.usageLimit, sessionTypes])
 
+  useEffect(() => {
+    if (giftCardsEnabled || guestProductForm.productType !== 'GIFT_CARD') return
+    setGuestProductForm((f) => normalizeGuestProductFormForType(f, 'PACK', sessionTypes[0] ? String(sessionTypes[0].id) : ''))
+  }, [giftCardsEnabled, guestProductForm.productType, sessionTypes])
+
   const activeTransactionServices = useMemo(
     () => transactionServices
       .filter((service) => service.active !== false)
@@ -325,12 +331,16 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
     [transactionServices],
   )
 
-  const availableAdminGuestProductTypes = useMemo(
-    () => coursesEnabled || guestProductForm.productType === 'COURSE'
-      ? ADMIN_GUEST_PRODUCT_TYPES
-      : ADMIN_GUEST_PRODUCT_TYPES.filter((productType) => productType !== 'COURSE'),
-    [coursesEnabled, guestProductForm.productType],
-  )
+  const availableAdminGuestProductTypes = useMemo(() => {
+    let types = ADMIN_GUEST_PRODUCT_TYPES
+    if (!coursesEnabled && guestProductForm.productType !== 'COURSE') {
+      types = types.filter((productType) => productType !== 'COURSE')
+    }
+    if (!giftCardsEnabled && guestProductForm.productType !== 'GIFT_CARD') {
+      types = types.filter((productType) => productType !== 'GIFT_CARD')
+    }
+    return types
+  }, [coursesEnabled, giftCardsEnabled, guestProductForm.productType])
 
   const openNewGuestProductModal = useCallback(() => {
     setOpenProductMenuId(null)
@@ -348,6 +358,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   useImperativeHandle(ref, () => ({ openNew: openNewGuestProductModal }), [openNewGuestProductModal])
 
   const openEditGuestProductModal = (product: GuestAdminProduct) => {
+    if (product.productType === 'GIFT_CARD' && !giftCardsEnabled) return
     setOpenProductMenuId(null)
     setEditingGuestProductId(product.id)
     setGuestProductForm(
@@ -385,6 +396,10 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
     const isCourseAccess = guestProductForm.productType === 'COURSE'
     if (isCourseAccess && !coursesEnabled) {
       window.alert(locale === 'sl' ? 'Prodaja dostopa do tečajev je izklopljena v App nastavitvah.' : 'Course access sales are disabled in App settings.')
+      return
+    }
+    if (isGiftCard && !giftCardsEnabled) {
+      window.alert(locale === 'sl' ? 'Darilni boni so izklopljeni v App nastavitvah.' : 'Gift cards are disabled in App settings.')
       return
     }
     if (!coursesEnabled && guestProductForm.productType === 'MEMBERSHIP' && guestProductForm.includedCourseIds.length > 0) {
@@ -515,7 +530,10 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   }
 
   const filteredGuestProducts = useMemo(() => {
-    const visibleByModule = guestProducts.filter((product) => coursesEnabled || product.productType !== 'COURSE')
+    const visibleByModule = guestProducts.filter((product) =>
+      (coursesEnabled || product.productType !== 'COURSE') &&
+      (giftCardsEnabled || product.productType !== 'GIFT_CARD')
+    )
     const byStatus = visibleByModule.filter((product) => (activeFilter === 'inactive' ? product.active === false : product.active !== false))
     const q = searchQuery.trim().toLowerCase()
     if (!q) return byStatus
@@ -541,7 +559,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
         .toLowerCase()
       return hay.includes(q)
     })
-  }, [guestProducts, searchQuery, activeFilter, coursesEnabled])
+  }, [guestProducts, searchQuery, activeFilter, coursesEnabled, giftCardsEnabled])
 
   useEffect(() => {
     onFilteredCountChange?.(filteredGuestProducts.length)

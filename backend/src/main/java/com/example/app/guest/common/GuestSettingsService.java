@@ -79,6 +79,13 @@ public class GuestSettingsService {
                 && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
     }
 
+    public boolean giftCardsEnabled(Long companyId) {
+        Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
+                .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        return settingEnabled(values, SettingKey.BILLING_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
+    }
+
     /**
      * Runtime payment methods enabled for the tenant in the guest app.
      * Returned values are runtime ids: {@code CARD}, {@code BANK_TRANSFER}, {@code PAYPAL}, {@code GIFT_CARD}.
@@ -92,9 +99,10 @@ public class GuestSettingsService {
             return List.of();
         }
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
+        boolean giftCardsEnabled = settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
         List<String> accepted = parseAcceptedPaymentMethods(root.path("acceptedPaymentMethodIds"));
         var capabilities = tenantPaymentCapabilities(values);
-        return applyGlobalProviderCapabilities(accepted, capabilities);
+        return applyGlobalProviderCapabilities(accepted, capabilities, giftCardsEnabled);
     }
 
     static List<String> parseAcceptedPaymentMethods(JsonNode node) {
@@ -126,16 +134,25 @@ public class GuestSettingsService {
             List<String> accepted,
             GlobalPaymentProviderService.ProviderCapabilities capabilities
     ) {
+        return applyGlobalProviderCapabilities(accepted, capabilities, true);
+    }
+
+    public static List<String> applyGlobalProviderCapabilities(
+            List<String> accepted,
+            GlobalPaymentProviderService.ProviderCapabilities capabilities,
+            boolean giftCardsEnabled
+    ) {
         List<String> filtered = (accepted == null ? List.<String>of() : accepted).stream()
                 .filter(method -> !"CARD".equals(method) || capabilities.stripeEnabled())
                 .filter(method -> !"PAYPAL".equals(method) || capabilities.paypalEnabled())
+                .filter(method -> giftCardsEnabled || !"GIFT_CARD".equals(method))
                 .toList();
         if (!filtered.isEmpty()) return filtered;
         List<String> fallback = new ArrayList<>();
         if (capabilities.stripeEnabled()) fallback.add("CARD");
         fallback.add("BANK_TRANSFER");
         if (capabilities.paypalEnabled()) fallback.add("PAYPAL");
-        fallback.add("GIFT_CARD");
+        if (giftCardsEnabled) fallback.add("GIFT_CARD");
         return fallback;
     }
 
@@ -192,6 +209,7 @@ public class GuestSettingsService {
         }
         String paymentRequirement = normalizePaymentRequirement(root.path("paymentRequirement").asText(null), requireOnlinePayment);
         int depositPercent = normalizeDepositPercent(root.path("depositPercent").asInt(20));
+        boolean giftCardsEnabled = settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
         return new GuestBookingRules(
                 reservationRules.cancelUntilHours(),
                 reservationRules.rescheduleUntilHours(),
@@ -199,9 +217,9 @@ public class GuestSettingsService {
                 root.path("noShowConsumesCredit").asBoolean(true),
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
                 root.path("bankTransferReservesSlot").asBoolean(false),
-                readTextArray(root.path("allowBankTransferFor"), List.of("PACK", "MEMBERSHIP")),
-                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "COURSE")),
-                readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "COURSE")),
+                filterGiftCardProductTypes(readTextArray(root.path("allowBankTransferFor"), List.of("PACK", "MEMBERSHIP", "GIFT_CARD")), giftCardsEnabled),
+                filterGiftCardProductTypes(readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
+                filterGiftCardProductTypes(readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent,
@@ -275,6 +293,13 @@ public class GuestSettingsService {
         return java.util.stream.StreamSupport.stream(node.spliterator(), false)
                 .map(JsonNode::asText)
                 .filter(s -> s != null && !s.isBlank())
+                .toList();
+    }
+
+    private static List<String> filterGiftCardProductTypes(List<String> values, boolean giftCardsEnabled) {
+        if (giftCardsEnabled) return values;
+        return (values == null ? List.<String>of() : values).stream()
+                .filter(value -> !"GIFT_CARD".equalsIgnoreCase(value))
                 .toList();
     }
 

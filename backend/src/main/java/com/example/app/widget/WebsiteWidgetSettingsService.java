@@ -50,9 +50,10 @@ public class WebsiteWidgetSettingsService {
                 ? root.path("paymentOnLocation").asBoolean(true)
                 : "none".equalsIgnoreCase(rulesRoot.path("paymentRequirement").asText(""));
         var reservationRules = TenantReservationRulesService.resolve(values);
+        boolean giftCardsEnabled = giftCardsEnabled(values);
         return new WebsiteWidgetSettings(
                 reservationRules.employeeSelectionAllowed(),
-                paymentOnLocation ? List.of() : parseAcceptedConfigIds(root.path("acceptedPaymentMethodIds")),
+                paymentOnLocation ? List.of() : filterGiftCardConfigIds(parseAcceptedConfigIds(root.path("acceptedPaymentMethodIds")), giftCardsEnabled),
                 paymentOnLocation
         );
     }
@@ -69,6 +70,7 @@ public class WebsiteWidgetSettingsService {
                 values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name())
         ));
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
+        boolean giftCardsEnabled = giftCardsEnabled(values);
         boolean advanceBillingEnabled = billingEnabled && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
         if (!billingEnabled || !advanceBillingEnabled) {
             return new GuestSettingsService.GuestBookingRules(
@@ -99,7 +101,7 @@ public class WebsiteWidgetSettingsService {
                 : "none".equalsIgnoreCase(root.path("paymentRequirement").asText(""));
         List<String> acceptedOnlineMethods = paymentOnLocation
                 ? List.of()
-                : parseAcceptedRuntimeTypes(widgetRoot.path("acceptedPaymentMethodIds"));
+                : filterGiftCardRuntimeTypes(parseAcceptedRuntimeTypes(widgetRoot.path("acceptedPaymentMethodIds")), giftCardsEnabled);
         boolean requireOnlinePayment = !acceptedOnlineMethods.isEmpty();
         String paymentRequirement = normalizePaymentRequirement(root.path("paymentRequirement").asText(null), requireOnlinePayment);
         if (paymentOnLocation) {
@@ -113,9 +115,9 @@ public class WebsiteWidgetSettingsService {
                 root.path("noShowConsumesCredit").asBoolean(true),
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
                 root.path("bankTransferReservesSlot").asBoolean(false),
-                readTextArray(root.path("allowBankTransferFor"), List.of("SESSION_SINGLE", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
-                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
-                readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
+                filterGiftCardProductTypes(readTextArray(root.path("allowBankTransferFor"), List.of("SESSION_SINGLE", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
+                filterGiftCardProductTypes(readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
+                filterGiftCardProductTypes(readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent,
@@ -148,16 +150,18 @@ public class WebsiteWidgetSettingsService {
         if (paymentOnLocation) {
             return List.of();
         }
-        List<String> accepted = parseAcceptedRuntimeTypes(root.path("acceptedPaymentMethodIds"));
-        return applyGlobalProviderCapabilitiesWithoutFallback(accepted, values);
+        boolean giftCardsEnabled = giftCardsEnabled(values);
+        List<String> accepted = filterGiftCardRuntimeTypes(parseAcceptedRuntimeTypes(root.path("acceptedPaymentMethodIds")), giftCardsEnabled);
+        return applyGlobalProviderCapabilitiesWithoutFallback(accepted, values, giftCardsEnabled);
     }
 
-    private List<String> applyGlobalProviderCapabilitiesWithoutFallback(List<String> accepted, Map<String, String> values) {
+    private List<String> applyGlobalProviderCapabilitiesWithoutFallback(List<String> accepted, Map<String, String> values, boolean giftCardsEnabled) {
         var global = globalPaymentProviders.capabilities();
         boolean tenantStripeEnabled = settingEnabled(values, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, true);
         return (accepted == null ? List.<String>of() : accepted).stream()
                 .filter(method -> !"CARD".equals(method) || (global.stripeEnabled() && tenantStripeEnabled))
                 .filter(method -> !"PAYPAL".equals(method) || global.paypalEnabled())
+                .filter(method -> giftCardsEnabled || !"GIFT_CARD".equals(method))
                 .toList();
     }
 
@@ -173,6 +177,36 @@ public class WebsiteWidgetSettingsService {
         Map<String, String> values = values(companyId);
         return settingEnabled(values, SettingKey.BILLING_ENABLED, true)
                 && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
+    }
+
+    public boolean giftCardsEnabled(Long companyId) {
+        return giftCardsEnabled(values(companyId));
+    }
+
+    private static boolean giftCardsEnabled(Map<String, String> values) {
+        return settingEnabled(values, SettingKey.BILLING_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
+    }
+
+    private static List<String> filterGiftCardConfigIds(List<String> values, boolean giftCardsEnabled) {
+        if (giftCardsEnabled) return values;
+        return (values == null ? List.<String>of() : values).stream()
+                .filter(value -> !"gift_card".equalsIgnoreCase(value))
+                .toList();
+    }
+
+    private static List<String> filterGiftCardRuntimeTypes(List<String> values, boolean giftCardsEnabled) {
+        if (giftCardsEnabled) return values;
+        return (values == null ? List.<String>of() : values).stream()
+                .filter(value -> !"GIFT_CARD".equalsIgnoreCase(value))
+                .toList();
+    }
+
+    private static List<String> filterGiftCardProductTypes(List<String> values, boolean giftCardsEnabled) {
+        if (giftCardsEnabled) return values;
+        return (values == null ? List.<String>of() : values).stream()
+                .filter(value -> !"GIFT_CARD".equalsIgnoreCase(value))
+                .toList();
     }
 
     private Map<String, String> values(Long companyId) {

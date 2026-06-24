@@ -9,6 +9,7 @@ import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
 import com.example.app.guest.order.GiftCardEmailService;
+import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.user.User;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -39,15 +40,18 @@ public class BillingGiftCardController {
     private final GuestEntitlementRepository entitlements;
     private final BillRepository bills;
     private final GiftCardEmailService giftCardEmailService;
+    private final BillingModuleAccessService billingModuleAccessService;
 
     public BillingGiftCardController(
             GuestEntitlementRepository entitlements,
             BillRepository bills,
-            GiftCardEmailService giftCardEmailService
+            GiftCardEmailService giftCardEmailService,
+            BillingModuleAccessService billingModuleAccessService
     ) {
         this.entitlements = entitlements;
         this.bills = bills;
         this.giftCardEmailService = giftCardEmailService;
+        this.billingModuleAccessService = billingModuleAccessService;
     }
 
     public record GiftCardBillingResponse(
@@ -73,6 +77,7 @@ public class BillingGiftCardController {
     @Transactional(readOnly = true)
     public List<GiftCardBillingResponse> giftCards(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        billingModuleAccessService.assertGiftCardsEnabled(companyId);
         List<GuestEntitlement> cards = entitlements.findGiftCardsByCompanyId(companyId, EntitlementType.GIFT_CARD, ProductType.GIFT_CARD);
         Set<Long> billIds = cards.stream()
                 .map(GuestEntitlement::getSourceOrder)
@@ -93,6 +98,7 @@ public class BillingGiftCardController {
     @GetMapping(value = "/gift-cards/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> giftCardPdf(@PathVariable Long id, @AuthenticationPrincipal User me) throws IOException {
+        billingModuleAccessService.assertGiftCardsEnabled(me.getCompany().getId());
         GuestEntitlement entitlement = loadGiftCard(id, me);
         byte[] pdf = giftCardEmailService.giftCardPdf(entitlement);
         return ResponseEntity.ok()
@@ -104,6 +110,7 @@ public class BillingGiftCardController {
     @PostMapping("/gift-cards/{id}/send")
     @Transactional
     public GiftCardBillingResponse sendGiftCard(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        billingModuleAccessService.assertGiftCardsEnabled(me.getCompany().getId());
         GuestEntitlement entitlement = loadGiftCard(id, me);
         giftCardEmailService.sendGiftCardEmail(entitlement);
         Bill bill = null;

@@ -1132,6 +1132,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [giftCardRecipientName, setGiftCardRecipientName] = useState('')
   const [giftCardMessage, setGiftCardMessage] = useState('')
   const groupBookingEnabled = settings.GROUP_BOOKING_ENABLED === 'true'
+  const giftCardsFeatureEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
   const giftCardDisplaySettings = parseGiftCardDisplaySettings(settings[GIFT_CARD_SETTINGS_KEY])
 
   const companyInvoiceStatusPill = (bill: CompanyBillSummary): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
@@ -1514,9 +1515,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     return detailCompanyFiles.filter((file) => file.fileName.toLowerCase().includes(q))
   }, [detailCompanyFiles, companyFileSearch])
 
+  const featureVisibleWalletEntitlements = useMemo(() => {
+    return (detailWallet?.activeEntitlements ?? []).filter((entitlement) =>
+      giftCardsFeatureEnabled || entitlementKind(entitlement) !== 'gift_card'
+    )
+  }, [detailWallet, giftCardsFeatureEnabled])
+
   const visibleWalletEntitlements = useMemo(() => {
-    const activeEntitlements = detailWallet?.activeEntitlements ?? []
-    if (walletFilter === 'giftCards') return activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'gift_card')
+    const activeEntitlements = featureVisibleWalletEntitlements
+    if (walletFilter === 'giftCards') return giftCardsFeatureEnabled ? activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'gift_card') : []
     if (walletFilter === 'memberships') return activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'membership')
     if (walletFilter === 'courses') return activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'course')
     if (walletFilter === 'packs') return activeEntitlements.filter((entitlement) => {
@@ -1524,39 +1531,46 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       return kind === 'pack' || kind === 'ticket'
     })
     return activeEntitlements
-  }, [detailWallet, walletFilter])
+  }, [featureVisibleWalletEntitlements, walletFilter, giftCardsFeatureEnabled])
+
+  useEffect(() => {
+    if (!giftCardsFeatureEnabled && walletFilter === 'giftCards') {
+      setWalletFilter('all')
+    }
+  }, [giftCardsFeatureEnabled, walletFilter])
 
   const expiringWalletEntitlementsCount = useMemo(() => {
     const now = new Date()
     const soon = new Date(now)
     soon.setDate(soon.getDate() + 30)
-    return (detailWallet?.activeEntitlements ?? []).filter((entitlement) => {
+    return featureVisibleWalletEntitlements.filter((entitlement) => {
       if (!entitlement.validUntil) return false
       const validUntil = new Date(entitlement.validUntil)
       return !Number.isNaN(validUntil.getTime()) && validUntil >= now && validUntil <= soon
     }).length
-  }, [detailWallet])
+  }, [featureVisibleWalletEntitlements])
 
   const filteredWalletProducts = useMemo(() => {
     const q = walletProductSearch.trim().toLowerCase()
     const rows = walletProducts.filter((product) => {
+      if (!giftCardsFeatureEnabled && isGiftCardWalletProduct(product)) return false
       if (!q) return true
       const haystack = `${product.name ?? ''} ${product.productType ?? ''} ${product.sessionTypeName ?? ''} ${product.transactionServiceDescription ?? ''}`.toLowerCase()
       return haystack.includes(q)
     })
     return rows
-  }, [walletProducts, walletProductSearch])
+  }, [walletProducts, walletProductSearch, giftCardsFeatureEnabled])
 
   const selectedWalletProduct = useMemo(() => {
-    return walletProducts.find((product) => product.id === selectedWalletProductId) ?? filteredWalletProducts[0] ?? null
-  }, [walletProducts, selectedWalletProductId, filteredWalletProducts])
+    return filteredWalletProducts.find((product) => product.id === selectedWalletProductId) ?? filteredWalletProducts[0] ?? null
+  }, [selectedWalletProductId, filteredWalletProducts])
 
   const loadWalletProducts = useCallback(async (clientId: number) => {
     setWalletProductsLoading(true)
     setWalletPurchaseError('')
     try {
       const res = await api.get<WalletProduct[]>(`/clients/${clientId}/wallet/products`)
-      const rows = res.data ?? []
+      const rows = (res.data ?? []).filter((product) => giftCardsFeatureEnabled || !isGiftCardWalletProduct(product))
       setWalletProducts(rows)
       setSelectedWalletProductId((prev) => rows.some((row) => row.id === prev) ? prev : (rows[0]?.id ?? null))
     } catch {
@@ -1566,7 +1580,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } finally {
       setWalletProductsLoading(false)
     }
-  }, [locale])
+  }, [locale, giftCardsFeatureEnabled])
 
   const openWalletPurchaseDrawer = useCallback(() => {
     if (!detailClient) return
@@ -3431,13 +3445,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <button type="button" className={walletFilter === 'courses' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('courses')}>
                                 {locale === 'sl' ? 'Tečaji' : 'Courses'}
                               </button>
-                              <button type="button" className={walletFilter === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('giftCards')}>
-                                {locale === 'sl' ? 'Darilne kartice' : 'Gift cards'}
-                              </button>
+                              {giftCardsFeatureEnabled && (
+                                <button type="button" className={walletFilter === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('giftCards')}>
+                                  {locale === 'sl' ? 'Darilne kartice' : 'Gift cards'}
+                                </button>
+                              )}
                             </div>
                             <div className="clients-wallet-summary">
                               <span className="clients-wallet-summary-pill clients-wallet-summary-pill--active">
-                                <span /> {(detailWallet?.activeEntitlements?.length ?? 0)} {clientsCopy.walletActive}
+                                <span /> {featureVisibleWalletEntitlements.length} {clientsCopy.walletActive}
                               </span>
                               <span className="clients-wallet-summary-pill clients-wallet-summary-pill--expiring">
                                 <span /> {expiringWalletEntitlementsCount} {locale === 'sl' ? 'Kmalu poteče' : 'Expiring soon'}
@@ -3562,6 +3578,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <div className="clients-wallet-summary-info"><span aria-hidden>i</span>{locale === 'sl' ? 'Račun se odpre v novem obrazcu odprtega računa z možnostjo Zaključi račun.' : 'The bill opens in the open-bill form with the option to close the bill.'}</div>
                             </div>
                             <div className="clients-wallet-drawer-footer">
+                              <button type="button" className="secondary" onClick={closeWalletPurchaseDrawer}>{locale === 'sl' ? 'Nazaj' : 'Back'}</button>
                               <button type="button" className="clients-wallet-open-bill-button" onClick={continueWalletPurchaseOpenBill} disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}>
                                 {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Odpri nov račun' : 'Open new bill')}
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -3622,6 +3639,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                 )}
                               </div>
                               <div className="clients-wallet-gift-card-actions">
+                                <button type="button" className="secondary" onClick={() => setGiftCardPersonalizationOpen(false)} disabled={creatingWalletOpenBill}>
+                                  {locale === 'sl' ? 'Nazaj' : 'Back'}
+                                </button>
                                 <button type="button" className="clients-wallet-open-bill-button" onClick={submitGiftCardPersonalization} disabled={creatingWalletOpenBill}>
                                   {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Nadaljuj na račun' : 'Continue to bill')}
                                 </button>

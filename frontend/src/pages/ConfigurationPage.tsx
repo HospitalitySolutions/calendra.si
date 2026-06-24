@@ -129,6 +129,8 @@ import {
   parseWebsiteBookingRules,
   parseWebsiteWidgetSettings,
   qrModulesToPath,
+  removeGiftCardPaymentMethod,
+  removeGiftCardProductType,
   removeStripePaymentMethod,
   sanitizeDownloadPart,
   serializeGuestAppSettings,
@@ -1979,6 +1981,8 @@ export function ConfigurationPage() {
   );
   const billingEnabledCommitted =
     settingsLoaded && settings.BILLING_ENABLED !== "false";
+  const giftCardsEnabledCommitted =
+    billingEnabledCommitted && settings.BILLING_GIFT_CARDS_ENABLED === "true";
   const stripeModuleEnabledCommitted =
     billingEnabledCommitted &&
     settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "false";
@@ -2126,6 +2130,12 @@ export function ConfigurationPage() {
         !paymentGlobalCapabilities.paypalEnabled
       ) {
         setBillingSubtab("paymentMethods");
+      } else if (subtabQuery === "giftCard" && !giftCardsEnabledCommitted) {
+        setBillingSubtab("paymentMethods");
+        if (q === "billing")
+          navigate("/configuration?tab=billing&subtab=paymentMethods", {
+            replace: true,
+          });
       } else {
         setBillingSubtab(subtabQuery);
       }
@@ -2149,6 +2159,7 @@ export function ConfigurationPage() {
     paymentGlobalCapabilities.paypalEnabled,
     stripePaymentsAvailableCommitted,
     billingEnabledCommitted,
+    giftCardsEnabledCommitted,
     notificationsEnabledCommitted,
     guestAppEnabledCommitted,
     websiteWidgetEnabledCommitted,
@@ -2665,6 +2676,8 @@ export function ConfigurationPage() {
       let effectiveSettings = settings;
       let effectiveGuestApp = guestAppSettings;
       let effectiveWebsiteSettings = websiteSettings;
+      let effectiveGuestBookingRules = guestBookingRules;
+      let effectiveWebsiteBookingRules = websiteBookingRules;
       if (opts?.applyModulesDraft && modulesDraft) {
         const modulesDraftForSave: ModulesDraft = {
           ...modulesDraft,
@@ -2804,6 +2817,44 @@ export function ConfigurationPage() {
                     : effectiveWebsiteSettings.paymentDefaultMethodId,
               };
         }
+        if (modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED !== "true") {
+          const fallbackMethodId =
+            effectiveGuestApp.acceptedPaymentMethodIds.find((id) => id !== "gift_card") ||
+            effectiveWebsiteSettings.acceptedPaymentMethodIds.find((id) => id !== "gift_card") ||
+            "bank_transfer";
+          const guestAccepted = removeGiftCardPaymentMethod(
+            effectiveGuestApp.acceptedPaymentMethodIds,
+            fallbackMethodId,
+          );
+          effectiveGuestApp = {
+            ...effectiveGuestApp,
+            acceptedPaymentMethodIds: guestAccepted,
+            paymentDefaultMethodId: guestAccepted.includes(effectiveGuestApp.paymentDefaultMethodId)
+              ? effectiveGuestApp.paymentDefaultMethodId
+              : guestAccepted[0],
+          };
+          effectiveWebsiteSettings = effectiveWebsiteSettings.paymentOnLocation
+            ? { ...effectiveWebsiteSettings, acceptedPaymentMethodIds: [] }
+            : (() => {
+                const websiteAccepted = removeGiftCardPaymentMethod(
+                  effectiveWebsiteSettings.acceptedPaymentMethodIds,
+                  fallbackMethodId,
+                );
+                return {
+                  ...effectiveWebsiteSettings,
+                  acceptedPaymentMethodIds: websiteAccepted,
+                  paymentDefaultMethodId: websiteAccepted.includes(effectiveWebsiteSettings.paymentDefaultMethodId)
+                    ? effectiveWebsiteSettings.paymentDefaultMethodId
+                    : websiteAccepted[0],
+                };
+              })();
+          effectiveGuestBookingRules = {
+            ...effectiveGuestBookingRules,
+            allowBankTransferFor: removeGiftCardProductType(effectiveGuestBookingRules.allowBankTransferFor),
+            allowCardFor: removeGiftCardProductType(effectiveGuestBookingRules.allowCardFor),
+            allowPaypalFor: removeGiftCardProductType(effectiveGuestBookingRules.allowPaypalFor),
+          };
+        }
       }
       const unifiedTenantType = normalizeTenantConfigType(
         effectiveSettings.MODULE_CONFIG_TYPE || effectiveGuestApp.tenantType,
@@ -2828,15 +2879,16 @@ export function ConfigurationPage() {
           buildNotificationSettingsJson(effectiveSettings),
         [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(effectiveGuestApp),
         [GUEST_BOOKING_RULES_KEY]:
-          serializeGuestBookingRules(guestBookingRules),
+          serializeGuestBookingRules(effectiveGuestBookingRules),
         [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(
           effectiveWebsiteSettings,
         ),
         [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(
           normalizeWebsiteBookingRulesForPaymentLocation(
-            websiteBookingRules,
+            effectiveWebsiteBookingRules,
             effectiveWebsiteSettings.paymentOnLocation,
           ),
+          { giftCardsEnabled: effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true" },
         ),
       };
       const { data } = await api.put("/settings", payload);
@@ -3252,13 +3304,35 @@ export function ConfigurationPage() {
         ...settings,
         MODULE_CONFIG_TYPE: unifiedTenantType,
       };
-      const effectiveGuestAppSettings = {
+      const effectiveGuestAppBase = {
         ...guestAppSettings,
         tenantType: unifiedTenantType,
       };
+      const giftCardsEnabled = effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true";
+      const effectiveGuestAppSettings = giftCardsEnabled
+        ? effectiveGuestAppBase
+        : (() => {
+            const acceptedPaymentMethodIds = removeGiftCardPaymentMethod(
+              effectiveGuestAppBase.acceptedPaymentMethodIds,
+            );
+            return {
+              ...effectiveGuestAppBase,
+              acceptedPaymentMethodIds,
+              paymentDefaultMethodId: acceptedPaymentMethodIds.includes(effectiveGuestAppBase.paymentDefaultMethodId)
+                ? effectiveGuestAppBase.paymentDefaultMethodId
+                : acceptedPaymentMethodIds[0],
+            };
+          })();
       const effectiveGuestBookingRules =
         normalizeBookingRulesForPaymentLocation(
-          guestBookingRules,
+          giftCardsEnabled
+            ? guestBookingRules
+            : {
+                ...guestBookingRules,
+                allowBankTransferFor: removeGiftCardProductType(guestBookingRules.allowBankTransferFor),
+                allowCardFor: removeGiftCardProductType(guestBookingRules.allowCardFor),
+                allowPaypalFor: removeGiftCardProductType(guestBookingRules.allowPaypalFor),
+              },
           effectiveGuestAppSettings.paymentOnLocation,
         );
       const payload = {
@@ -3325,10 +3399,25 @@ export function ConfigurationPage() {
         ...guestAppSettings,
         tenantType: unifiedTenantType,
       };
+      const giftCardsEnabled = effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true";
+      const effectiveWebsiteSettings = giftCardsEnabled || websiteSettings.paymentOnLocation
+        ? websiteSettings
+        : (() => {
+            const acceptedPaymentMethodIds = removeGiftCardPaymentMethod(
+              websiteSettings.acceptedPaymentMethodIds,
+            );
+            return {
+              ...websiteSettings,
+              acceptedPaymentMethodIds,
+              paymentDefaultMethodId: acceptedPaymentMethodIds.includes(websiteSettings.paymentDefaultMethodId)
+                ? websiteSettings.paymentDefaultMethodId
+                : acceptedPaymentMethodIds[0],
+            };
+          })();
       const effectiveWebsiteBookingRules =
         normalizeWebsiteBookingRulesForPaymentLocation(
           websiteBookingRules,
-          websiteSettings.paymentOnLocation,
+          effectiveWebsiteSettings.paymentOnLocation,
         );
       const payload = {
         ...effectiveSettings,
@@ -3342,9 +3431,10 @@ export function ConfigurationPage() {
         [GUEST_BOOKING_RULES_KEY]:
           serializeGuestBookingRules(guestBookingRules),
         [WEBSITE_WIDGET_SETTINGS_KEY]:
-          serializeWebsiteWidgetSettings(websiteSettings),
+          serializeWebsiteWidgetSettings(effectiveWebsiteSettings),
         [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(
           effectiveWebsiteBookingRules,
+          { giftCardsEnabled },
         ),
       };
       const { data } = await api.put("/settings", payload);
@@ -3880,9 +3970,15 @@ export function ConfigurationPage() {
           return stripePaymentsAvailableCommitted;
         if (method.id === "paypal")
           return paymentGlobalCapabilities.paypalEnabled;
+        if (method.id === "gift_card")
+          return giftCardsEnabledCommitted;
         return true;
       }),
-    [paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted],
+    [
+      giftCardsEnabledCommitted,
+      paymentGlobalCapabilities.paypalEnabled,
+      stripePaymentsAvailableCommitted,
+    ],
   );
 
   useEffect(() => {
@@ -4062,7 +4158,14 @@ export function ConfigurationPage() {
       : []),
     { id: "fiscal", label: t("configBillingFiscalTab") },
     { id: "invoiceDelivery", label: t("configBillingInvoiceDeliveryTab") },
-    { id: "giftCard", label: locale === "sl" ? "Darilni bon" : "Gift card" },
+    ...(giftCardsEnabledCommitted
+      ? [
+          { id: "giftCard", label: locale === "sl" ? "Darilni bon" : "Gift card" } satisfies {
+            id: BillingSubtab;
+            label: string;
+          },
+        ]
+      : []),
     {
       id: "folioLayout",
       label: locale === "sl" ? "Postavitev računa" : "Invoice layout",
@@ -4079,8 +4182,12 @@ export function ConfigurationPage() {
     ) {
       setBillingSubtab("paymentMethods");
     }
+    if (!giftCardsEnabledCommitted && billingSubtab === "giftCard") {
+      setBillingSubtab("paymentMethods");
+    }
   }, [
     billingSubtab,
+    giftCardsEnabledCommitted,
     paymentGlobalCapabilities.paypalEnabled,
     stripePaymentsAvailableCommitted,
   ]);
@@ -4548,6 +4655,22 @@ export function ConfigurationPage() {
           onChange: (checked) =>
             setModuleStringSetting("BILLING_ENABLED", checked),
           children: [
+            {
+              id: "billing-gift-cards",
+              ...moduleVisibilityProps("BILLING_GIFT_CARDS_ENABLED"),
+              icon: "wallet",
+              title: locale === "sl" ? "Darilni boni" : "Gift Cards",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči prodajo, pošiljanje, plačilo in pregled darilnih bonov."
+                  : "Enable gift-card sales, sending, payment and tracking.",
+              checked:
+                moduleOn("BILLING_ENABLED") &&
+                moduleOn("BILLING_GIFT_CARDS_ENABLED"),
+              disabled: !moduleOn("BILLING_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting("BILLING_GIFT_CARDS_ENABLED", checked),
+            },
             {
               id: "billing-stripe",
               ...moduleVisibilityProps("BILLING_ONLINE_CARD_PAYMENTS_ENABLED"),

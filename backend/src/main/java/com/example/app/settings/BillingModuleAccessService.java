@@ -34,6 +34,20 @@ public class BillingModuleAccessService {
         }
     }
 
+    public boolean isGiftCardsEnabled(Long companyId) {
+        if (companyId == null) {
+            return false;
+        }
+        return isEnabled(companyId, SettingKey.BILLING_ENABLED, true)
+                && isEnabled(companyId, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
+    }
+
+    public void assertGiftCardsEnabled(Long companyId) {
+        if (!isGiftCardsEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Gift cards are disabled for this tenant.");
+        }
+    }
+
     private boolean isEnabled(Long companyId, SettingKey key, boolean defaultValue) {
         return settings.findByCompanyIdAndKey(companyId, key)
                 .map(AppSetting::getValue)

@@ -1201,7 +1201,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)))
     setBookings(bookingsRes.data || [])
     setUnusedAdvances(settingsRes.data?.BILLING_ADVANCE_ENABLED === 'false' ? [] : (unusedAdvancesRes.data || []))
-    setGiftCards(settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'false' ? [] : (giftCardsRes.data || []))
+    setGiftCards(settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'true' ? (giftCardsRes.data || []) : [])
     setClients(clientsRes.data)
     setCompanies(companiesRes.data || [])
     setUsers(usersRes.data)
@@ -1217,7 +1217,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
-  const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED !== 'false'
+  const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
   const stripeBillingEnabled = settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const visiblePaymentMethods = useMemo(
     () => {

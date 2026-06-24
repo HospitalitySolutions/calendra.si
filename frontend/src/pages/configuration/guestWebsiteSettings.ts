@@ -176,6 +176,17 @@ export const removeStripePaymentMethod = (
   return filtered.length > 0 ? filtered : [fallback];
 };
 
+export const removeGiftCardPaymentMethod = (
+  ids: GuestPaymentMethodId[],
+  fallback: GuestPaymentMethodId = "bank_transfer",
+): GuestPaymentMethodId[] => {
+  const filtered = ids.filter((id) => id !== "gift_card");
+  return filtered.length > 0 ? filtered : [fallback];
+};
+
+export const removeGiftCardProductType = (ids: string[]): string[] =>
+  ids.filter((id) => String(id || "").trim().toUpperCase() !== "GIFT_CARD");
+
 export function guestAppSubtabs(
   t: (key: string) => string,
 ): { id: GuestAppSubtab; label: string }[] {
@@ -838,33 +849,26 @@ export const serializeWebsiteWidgetSettings = (value: WebsiteWidgetSettingsForm)
   });
 };
 
-export const serializeWebsiteBookingRules = (value: WebsiteBookingRulesForm) =>
-  JSON.stringify({
+export const serializeWebsiteBookingRules = (
+  value: WebsiteBookingRulesForm,
+  options?: { giftCardsEnabled?: boolean },
+) => {
+  const walletProductTypes = [
+    "SESSION_SINGLE",
+    "CLASS_TICKET",
+    "PACK",
+    "MEMBERSHIP",
+    ...(options?.giftCardsEnabled ? ["GIFT_CARD"] : []),
+  ];
+  return JSON.stringify({
     requireOnlinePayment: value.paymentRequirement !== "none",
     paymentRequirement: value.paymentRequirement,
     depositPercent: String(value.depositPercent || "20").trim() || "20",
-    allowBankTransferFor: [
-      "SESSION_SINGLE",
-      "CLASS_TICKET",
-      "PACK",
-      "MEMBERSHIP",
-      "GIFT_CARD",
-    ],
-    allowCardFor: [
-      "SESSION_SINGLE",
-      "CLASS_TICKET",
-      "PACK",
-      "MEMBERSHIP",
-      "GIFT_CARD",
-    ],
-    allowPaypalFor: [
-      "SESSION_SINGLE",
-      "CLASS_TICKET",
-      "PACK",
-      "MEMBERSHIP",
-      "GIFT_CARD",
-    ],
+    allowBankTransferFor: walletProductTypes,
+    allowCardFor: walletProductTypes,
+    allowPaypalFor: walletProductTypes,
   });
+};
 
 export const serializeGuestAppSettings = (value: GuestAppSettingsForm) =>
   JSON.stringify({

@@ -654,6 +654,7 @@ export function SessionTypesPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
   const coursesModuleEnabled = settings.COURSES_ENABLED !== "false";
+  const giftCardsModuleEnabled = settings.BILLING_GIFT_CARDS_ENABLED === "true";
   const showCourses = showCoursesParam && coursesModuleEnabled;
   const [types, setTypes] = useState<SessionTypeT[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
@@ -2293,6 +2294,7 @@ export function SessionTypesPage() {
               ref={cardsMembershipsRef}
               sessionTypes={activeTypes}
               coursesEnabled={coursesModuleEnabled}
+              giftCardsEnabled={giftCardsModuleEnabled}
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}
@@ -2472,6 +2474,7 @@ export function SessionTypesPage() {
               ref={cardsMembershipsRef}
               sessionTypes={activeTypes}
               coursesEnabled={coursesModuleEnabled}
+              giftCardsEnabled={giftCardsModuleEnabled}
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}

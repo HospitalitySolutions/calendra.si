@@ -16,6 +16,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -51,6 +52,7 @@ public class GuestProductAdminController {
     private final CourseRepository courses;
     private final MembershipCourseRepository membershipCourses;
     private final CourseModuleAccessService courseModuleAccessService;
+    private final BillingModuleAccessService billingModuleAccessService;
 
     @Autowired
     public GuestProductAdminController(
@@ -61,7 +63,8 @@ public class GuestProductAdminController {
             GuestEntitlementRepository entitlements,
             CourseRepository courses,
             MembershipCourseRepository membershipCourses,
-            CourseModuleAccessService courseModuleAccessService
+            CourseModuleAccessService courseModuleAccessService,
+            BillingModuleAccessService billingModuleAccessService
     ) {
         this.products = products;
         this.sessionTypes = sessionTypes;
@@ -71,6 +74,7 @@ public class GuestProductAdminController {
         this.courses = courses;
         this.membershipCourses = membershipCourses;
         this.courseModuleAccessService = courseModuleAccessService;
+        this.billingModuleAccessService = billingModuleAccessService;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -83,14 +87,17 @@ public class GuestProductAdminController {
             CourseRepository courses,
             MembershipCourseRepository membershipCourses
     ) {
-        this(products, sessionTypes, transactionServices, orderItems, entitlements, courses, membershipCourses, null);
+        this(products, sessionTypes, transactionServices, orderItems, entitlements, courses, membershipCourses, null, null);
     }
 
     @GetMapping
     @Transactional(readOnly = true)
     public List<ProductAdminResponse> list(@AuthenticationPrincipal User me) {
-        return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(me.getCompany().getId()).stream()
+        Long companyId = me.getCompany().getId();
+        boolean giftCardsEnabled = giftCardsEnabled(companyId);
+        return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
                 .filter(product -> product.getCourse() == null)
+                .filter(product -> giftCardsEnabled || product.getProductType() != ProductType.GIFT_CARD)
                 .map(this::toResponse)
                 .toList();
     }
@@ -141,6 +148,9 @@ public class GuestProductAdminController {
         }
 
         Long companyId = me.getCompany().getId();
+        if (productType == ProductType.GIFT_CARD) {
+            assertGiftCardsEnabled(companyId);
+        }
         SessionType sessionType = productType == ProductType.GIFT_CARD
                 ? null
                 : resolveSessionType(request.sessionTypeId(), companyId);
@@ -214,6 +224,16 @@ public class GuestProductAdminController {
     private void assertCoursesEnabled(Long companyId) {
         if (courseModuleAccessService != null) {
             courseModuleAccessService.assertEnabled(companyId);
+        }
+    }
+
+    private boolean giftCardsEnabled(Long companyId) {
+        return billingModuleAccessService == null || billingModuleAccessService.isGiftCardsEnabled(companyId);
+    }
+
+    private void assertGiftCardsEnabled(Long companyId) {
+        if (billingModuleAccessService != null) {
+            billingModuleAccessService.assertGiftCardsEnabled(companyId);
         }
     }
 

@@ -93,6 +93,7 @@ public class GuestCatalogService {
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
+        boolean giftCardsEnabled = guestSettings.giftCardsEnabled(companyId);
         String defaultCurrency = tenantCurrency(companyId);
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
@@ -116,6 +117,7 @@ public class GuestCatalogService {
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
             if (product.getCourse() != null) continue;
+            if (product.getProductType() == ProductType.GIFT_CARD && !giftCardsEnabled) continue;
             if (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null)) continue;
             if (!billingEnabled && !product.isBookable()) continue;
             // Course access entitlements are sellable wallet products that only use
@@ -223,6 +225,10 @@ public class GuestCatalogService {
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
+        boolean giftCardsEnabled = guestSettings.giftCardsEnabled(companyId);
+        if (product.getProductType() == ProductType.GIFT_CARD && !giftCardsEnabled) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards are disabled for this tenant.");
+        }
         if (product.getCourse() != null || !product.isActive() || !product.isGuestVisible()
                 || (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This product is not available in the guest app.");

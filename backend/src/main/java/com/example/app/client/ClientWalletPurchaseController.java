@@ -27,6 +27,7 @@ import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
 import com.example.app.security.SecurityUtils;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,6 +75,7 @@ public class ClientWalletPurchaseController {
     private final PaymentMethodRepository paymentMethods;
     private final TransactionServiceRepository transactionServices;
     private final CourseModuleAccessService courseModuleAccessService;
+    private final BillingModuleAccessService billingModuleAccessService;
 
     @Autowired
     public ClientWalletPurchaseController(
@@ -85,7 +87,8 @@ public class ClientWalletPurchaseController {
             OpenBillRepository openBills,
             PaymentMethodRepository paymentMethods,
             TransactionServiceRepository transactionServices,
-            CourseModuleAccessService courseModuleAccessService
+            CourseModuleAccessService courseModuleAccessService,
+            BillingModuleAccessService billingModuleAccessService
     ) {
         this.clients = clients;
         this.products = products;
@@ -96,6 +99,7 @@ public class ClientWalletPurchaseController {
         this.paymentMethods = paymentMethods;
         this.transactionServices = transactionServices;
         this.courseModuleAccessService = courseModuleAccessService;
+        this.billingModuleAccessService = billingModuleAccessService;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -109,7 +113,7 @@ public class ClientWalletPurchaseController {
             PaymentMethodRepository paymentMethods,
             TransactionServiceRepository transactionServices
     ) {
-        this(clients, products, orders, guestTenantLinks, guestUsers, openBills, paymentMethods, transactionServices, null);
+        this(clients, products, orders, guestTenantLinks, guestUsers, openBills, paymentMethods, transactionServices, null, null);
     }
 
     public record WalletProductResponse(
@@ -144,10 +148,12 @@ public class ClientWalletPurchaseController {
         loadClientForWalletWrite(clientId, me);
         Long companyId = me.getCompany().getId();
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
+        boolean giftCardsEnabled = billingModuleAccessService == null || billingModuleAccessService.isGiftCardsEnabled(companyId);
         return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
                 .filter(GuestProduct::isActive)
                 .filter(product -> product.getCourse() == null)
                 .filter(product -> BUYABLE_WALLET_TYPES.contains(product.getProductType()))
+                .filter(product -> product.getProductType() != ProductType.GIFT_CARD || giftCardsEnabled)
                 .filter(product -> product.getProductType() != ProductType.COURSE || coursesEnabled)
                 .map(this::toWalletProductResponse)
                 .toList();
@@ -170,6 +176,9 @@ public class ClientWalletPurchaseController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet product not found."));
         if (product.getProductType() == ProductType.COURSE && courseModuleAccessService != null) {
             courseModuleAccessService.assertEnabled(companyId);
+        }
+        if (product.getProductType() == ProductType.GIFT_CARD && billingModuleAccessService != null) {
+            billingModuleAccessService.assertGiftCardsEnabled(companyId);
         }
 
         GuestTenantLink link = resolveOrCreateGuestLink(client);
