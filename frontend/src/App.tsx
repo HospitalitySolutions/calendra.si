@@ -310,7 +310,13 @@ export default function App() {
 
   if (location.pathname === '/oauth-callback') return <OAuthCallbackPage />
   if (location.pathname.startsWith('/course-access/')) return <CourseAccessPage />
-  if (location.pathname.startsWith('/public-booking/manage/')) return <PublicBookingManagePage />
+  if (location.pathname.startsWith('/public-booking/manage/')) {
+    return (
+      <Routes>
+        <Route path="/public-booking/manage/:token" element={<PublicBookingManagePage />} />
+      </Routes>
+    )
+  }
   if (location.pathname === '/forgot-password') return <ForgotPasswordPage />
   if (location.pathname === '/reset-password') return <ResetPasswordPage />
 
