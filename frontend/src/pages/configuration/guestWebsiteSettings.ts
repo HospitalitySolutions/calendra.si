@@ -65,7 +65,6 @@ export type GuestBookingRulesForm = {
 export type GuestAppSubtab = "general" | "bookingRules" | "paymentMethods" | "qrCode";
 
 export type WebsiteWidgetSettingsForm = {
-  employeeSelectionStep: boolean;
   acceptedPaymentMethodIds: GuestPaymentMethodId[];
   paymentDefaultMethodId: GuestPaymentMethodId;
   paymentOnLocation: boolean;
@@ -288,7 +287,6 @@ export const defaultGuestBookingRules = (): GuestBookingRulesForm => ({
 });
 
 export const defaultWebsiteWidgetSettings = (): WebsiteWidgetSettingsForm => ({
-  employeeSelectionStep: false,
   acceptedPaymentMethodIds: DEFAULT_GUEST_PAYMENT_METHOD_IDS,
   paymentDefaultMethodId: "online_card",
   paymentOnLocation: true,
@@ -752,7 +750,6 @@ export const parseWebsiteWidgetSettings = (
   try {
     const parsed = JSON.parse(raw);
     return {
-      employeeSelectionStep: parsed?.employeeSelectionStep === true,
       acceptedPaymentMethodIds: normalizeWebsitePaymentMethods(
         parsed?.acceptedPaymentMethodIds,
       ),
@@ -835,7 +832,6 @@ export const normalizeWebsiteBookingRulesForPaymentLocation = (
 export const serializeWebsiteWidgetSettings = (value: WebsiteWidgetSettingsForm) => {
   const normalized = normalizeWebsiteSettingsForPaymentLocation(value);
   return JSON.stringify({
-    employeeSelectionStep: normalized.employeeSelectionStep,
     acceptedPaymentMethodIds: normalized.acceptedPaymentMethodIds,
     paymentDefaultMethodId: normalized.paymentDefaultMethodId,
     paymentOnLocation: normalized.paymentOnLocation,

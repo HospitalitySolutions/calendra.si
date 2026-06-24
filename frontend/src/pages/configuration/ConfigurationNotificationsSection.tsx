@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../../components/GuestConfigSaveIcon";
+import { GuestSwitch } from "./ConfigurationVisualComponents";
 
 type NotificationChannel = "email" | "sms" | "guestApp";
 type NotificationEventKind =
@@ -627,16 +628,7 @@ function NotificationSwitch({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
-  return (
-    <button
-      type="button"
-      className={checked ? "notif-switch is-on" : "notif-switch"}
-      aria-pressed={checked}
-      onClick={() => onChange(!checked)}
-    >
-      <span />
-    </button>
-  );
+  return <GuestSwitch checked={checked} onChange={onChange} />;
 }
 
 function NotificationToolbarIcon({
@@ -1067,7 +1059,7 @@ export function ConfigurationNotificationsSection({
         }
         .notif-event-row {
           display: grid;
-          grid-template-columns: 52px minmax(220px, 1fr) minmax(218px, 0.34fr) 52px auto;
+          grid-template-columns: 52px minmax(220px, 1fr) minmax(218px, 0.34fr) 68px auto;
           align-items: center;
           gap: 18px;
           min-height: 88px;
@@ -1079,7 +1071,7 @@ export function ConfigurationNotificationsSection({
           transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
         }
         .notif-layout.has-editor .notif-event-row {
-          grid-template-columns: 52px minmax(170px, 1fr) minmax(190px, 0.34fr) 52px auto;
+          grid-template-columns: 52px minmax(170px, 1fr) minmax(190px, 0.34fr) 68px auto;
           gap: 14px;
         }
         .notif-event-row.is-editing {
@@ -1137,6 +1129,9 @@ export function ConfigurationNotificationsSection({
         }
         .notif-switch.is-on span {
           transform: translateX(22px);
+        }
+        .notif-event-row .gapp-switch {
+          justify-self: start;
         }
         .notif-row-action {
           display: inline-flex;
@@ -1648,6 +1643,11 @@ export function ConfigurationNotificationsSection({
           }
           .notif-switch.is-on span {
             transform: translateX(20px);
+          }
+          .notif-event-row .gapp-switch {
+            grid-area: switch;
+            align-self: center;
+            justify-self: end;
           }
           .notif-reminder-placeholder {
             display: none;

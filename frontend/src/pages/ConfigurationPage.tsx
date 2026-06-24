@@ -2361,7 +2361,6 @@ export function ConfigurationPage() {
     const parsedWebsiteSettings = settingsData[WEBSITE_WIDGET_SETTINGS_KEY]
       ? parseWebsiteWidgetSettings(settingsData[WEBSITE_WIDGET_SETTINGS_KEY])
       : {
-          employeeSelectionStep: nextGuestApp.employeeSelectionStep,
           acceptedPaymentMethodIds: nextGuestApp.acceptedPaymentMethodIds,
           paymentDefaultMethodId: nextGuestApp.paymentDefaultMethodId,
           paymentOnLocation: nextGuestApp.paymentOnLocation,
@@ -11220,57 +11219,6 @@ export function ConfigurationPage() {
                       <>
                         <div className="gapp-form-grid">
                           <div className="gapp-column">
-                            <GuestField
-                              label="Minimalni čas pred rezervacijo"
-                              hint="Najkasnejši čas pred začetkom termina, ko lahko gost opravi rezervacijo."
-                            >
-                              <input
-                                className="gapp-input"
-                                value={guestBookingRules.minBookingNotice}
-                                onChange={(e) =>
-                                  setGuestBookingRules({
-                                    ...guestBookingRules,
-                                    minBookingNotice: e.target.value,
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
-                              label="Maksimalni čas vnaprej"
-                              hint="Največje časovno obdobje vnaprej, za katero je mogoče ustvariti rezervacijo."
-                            >
-                              <select
-                                className="gapp-select"
-                                value={guestBookingRules.maxAdvanceDays}
-                                onChange={(e) =>
-                                  setGuestBookingRules({
-                                    ...guestBookingRules,
-                                    maxAdvanceDays: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="30">30 dni</option>
-                                <option value="60">60 dni</option>
-                                <option value="90">90 dni</option>
-                                <option value="180">180 dni</option>
-                              </select>
-                            </GuestField>
-                            <GuestField
-                              label="Brezplačna odpoved do"
-                              hint="Gost lahko odpove brez stroškov do izteka nastavljenega časa pred terminom."
-                            >
-                              <input
-                                className="gapp-input"
-                                value={`${guestBookingRules.freeCancelUntilHours} ur`}
-                                onChange={(e) =>
-                                  setGuestBookingRules({
-                                    ...guestBookingRules,
-                                    freeCancelUntilHours:
-                                      e.target.value.replace(/[^0-9]/g, ""),
-                                  })
-                                }
-                              />
-                            </GuestField>
                             <div className="gapp-inline-switch-row">
                               <GuestSwitch
                                 checked={
