@@ -21,11 +21,29 @@ public final class SecurityUtils {
             "CALENDAR_BOOKINGS",
             "CLIENTS",
             "EMPLOYEES",
+            "ROLES_PERMISSIONS",
+            "SERVICES",
+            "SPACES",
+            "COURSES",
+            "BILLING_INVOICES",
+            "ORDERS",
+            "WALLET_BENEFITS",
+            "INBOX_MESSAGES",
+            "NOTIFICATIONS",
+            "DELIVERY_LOGS",
+            "REPORTS_ANALYTICS",
+            "SETTINGS",
+            "INTEGRATIONS",
+            "WEBSITE_WIDGET",
+            "GUEST_MOBILE_APP",
+            "PAYMENTS",
+            "SCANNER"
+    );
+
+    private static final List<String> LEGACY_PERMISSION_GROUP_KEYS = List.of(
             "BILLING",
             "WALLET",
             "REPORTS",
-            "SETTINGS",
-            "INTEGRATIONS",
             "PLATFORM_FEATURES"
     );
 
@@ -54,19 +72,29 @@ public final class SecurityUtils {
     }
 
     public static boolean canScanWalletEntitlements(User user) {
-        return hasPermission(user, PERMISSION_WALLET_ENTITLEMENT_SCAN);
+        return hasPermission(user, PERMISSION_WALLET_ENTITLEMENT_SCAN)
+                || hasPermission(user, "SCANNER_VIEW")
+                || hasPermission(user, "SCANNER_CREATE")
+                || hasPermission(user, "SCANNER_EDIT");
     }
 
     public static boolean canIssueAdvanceInvoices(User user) {
-        return hasPermission(user, PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE);
+        return hasPermission(user, PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE)
+                || hasPermission(user, "BILLING_INVOICES_CREATE")
+                || hasPermission(user, "BILLING_INVOICES_EDIT");
     }
 
     public static boolean canIssueOpenInvoices(User user) {
-        return hasPermission(user, PERMISSION_BILLING_OPEN_INVOICE_ISSUE);
+        return hasPermission(user, PERMISSION_BILLING_OPEN_INVOICE_ISSUE)
+                || hasPermission(user, "BILLING_INVOICES_CREATE")
+                || hasPermission(user, "BILLING_INVOICES_EDIT");
     }
 
     public static boolean canIssueRefundInvoices(User user) {
-        return hasPermission(user, PERMISSION_BILLING_REFUND_ISSUE);
+        return hasPermission(user, PERMISSION_BILLING_REFUND_ISSUE)
+                || hasPermission(user, "BILLING_INVOICES_DELETE")
+                || hasPermission(user, "PAYMENTS_EDIT")
+                || hasPermission(user, "PAYMENTS_DELETE");
     }
 
     /**
@@ -137,18 +165,35 @@ public final class SecurityUtils {
                 allowed.add(group + "_" + action);
             }
         }
+        for (String group : LEGACY_PERMISSION_GROUP_KEYS) {
+            for (String action : PERMISSION_ACTION_KEYS) {
+                allowed.add(group + "_" + action);
+            }
+        }
         return Collections.unmodifiableSet(allowed);
     }
 
     private static void addCompatibilityPermissions(LinkedHashSet<String> normalized) {
-        if (normalized.contains("BILLING_CREATE") || normalized.contains("BILLING_EDIT")) {
+        if (normalized.contains("BILLING_CREATE")
+                || normalized.contains("BILLING_EDIT")
+                || normalized.contains("BILLING_INVOICES_CREATE")
+                || normalized.contains("BILLING_INVOICES_EDIT")) {
             normalized.add(PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE);
             normalized.add(PERMISSION_BILLING_OPEN_INVOICE_ISSUE);
         }
-        if (normalized.contains("BILLING_DELETE") || normalized.contains("BILLING_EDIT")) {
+        if (normalized.contains("BILLING_DELETE")
+                || normalized.contains("BILLING_EDIT")
+                || normalized.contains("BILLING_INVOICES_DELETE")
+                || normalized.contains("PAYMENTS_EDIT")
+                || normalized.contains("PAYMENTS_DELETE")) {
             normalized.add(PERMISSION_BILLING_REFUND_ISSUE);
         }
-        if (normalized.contains("WALLET_VIEW") || normalized.contains("WALLET_CREATE") || normalized.contains("WALLET_EDIT")) {
+        if (normalized.contains("WALLET_VIEW")
+                || normalized.contains("WALLET_CREATE")
+                || normalized.contains("WALLET_EDIT")
+                || normalized.contains("SCANNER_VIEW")
+                || normalized.contains("SCANNER_CREATE")
+                || normalized.contains("SCANNER_EDIT")) {
             normalized.add(PERMISSION_WALLET_ENTITLEMENT_SCAN);
         }
     }

@@ -46,7 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
 
-        return path.startsWith("/api/guest/")
+        return (path.startsWith("/api/guest/") && !path.startsWith("/api/guest/admin/"))
                 || path.startsWith("/api/public/widget/")
                 || path.startsWith("/widget/")
                 || path.startsWith("/api/inbox/webhooks/")
@@ -124,6 +124,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (user.getRole() == Role.SUPER_ADMIN) {
             return List.of(
                     new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_ADMIN")
+            );
+        }
+        if (user.getRole() == Role.CONSULTANT && user.getEmployeeAccessRole() != null) {
+            // Custom employee roles must be allowed through legacy tenant endpoints that still use
+            // hasRole('ADMIN'). TenantPermissionAuthorizationFilter then enforces the fine-grained
+            // View/Create/Edit/Delete permission for the requested module before the controller runs.
+            return List.of(
+                    new SimpleGrantedAuthority("ROLE_CONSULTANT"),
                     new SimpleGrantedAuthority("ROLE_ADMIN")
             );
         }

@@ -45,6 +45,7 @@ public class SecurityConfig {
     private final ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository;
     private final CorsProperties corsProperties;
     private final CsrfCookieFilter csrfCookieFilter;
+    private final TenantPermissionAuthorizationFilter tenantPermissionAuthorizationFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           GuestJwtAuthenticationFilter guestJwtAuthenticationFilter,
@@ -52,7 +53,8 @@ public class SecurityConfig {
                           Environment environment,
                           ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository,
                           CorsProperties corsProperties,
-                          CsrfCookieFilter csrfCookieFilter) {
+                          CsrfCookieFilter csrfCookieFilter,
+                          TenantPermissionAuthorizationFilter tenantPermissionAuthorizationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.guestJwtAuthenticationFilter = guestJwtAuthenticationFilter;
         this.googleOAuth2SuccessHandler = googleOAuth2SuccessHandler;
@@ -60,6 +62,7 @@ public class SecurityConfig {
         this.clientRegistrationRepository = clientRegistrationRepository;
         this.corsProperties = corsProperties;
         this.csrfCookieFilter = csrfCookieFilter;
+        this.tenantPermissionAuthorizationFilter = tenantPermissionAuthorizationFilter;
     }
 
     @Bean
@@ -228,6 +231,7 @@ public class SecurityConfig {
                 )
                 .addFilterAfter(csrfCookieFilter, CsrfFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(tenantPermissionAuthorizationFilter, JwtAuthenticationFilter.class)
                 .addFilterBefore(guestJwtAuthenticationFilter, JwtAuthenticationFilter.class)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)

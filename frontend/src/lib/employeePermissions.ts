@@ -10,17 +10,39 @@ export const EMPLOYEE_PERMISSION_GROUP_KEYS = [
   'CALENDAR_BOOKINGS',
   'CLIENTS',
   'EMPLOYEES',
-  'BILLING',
-  'WALLET',
-  'REPORTS',
+  'ROLES_PERMISSIONS',
+  'SERVICES',
+  'SPACES',
+  'COURSES',
+  'BILLING_INVOICES',
+  'ORDERS',
+  'WALLET_BENEFITS',
+  'INBOX_MESSAGES',
+  'NOTIFICATIONS',
+  'DELIVERY_LOGS',
+  'REPORTS_ANALYTICS',
   'SETTINGS',
   'INTEGRATIONS',
-  'PLATFORM_FEATURES',
+  'WEBSITE_WIDGET',
+  'GUEST_MOBILE_APP',
+  'PAYMENTS',
+  'SCANNER',
 ] as const
 
 export const EMPLOYEE_PERMISSION_ACTION_KEYS = ['VIEW', 'CREATE', 'EDIT', 'DELETE'] as const
 
+const LEGACY_EMPLOYEE_PERMISSION_GROUP_KEYS = [
+  'BILLING',
+  'WALLET',
+  'REPORTS',
+  'PLATFORM_FEATURES',
+] as const
+
 const MATRIX_EMPLOYEE_PERMISSIONS = EMPLOYEE_PERMISSION_GROUP_KEYS.flatMap((group) =>
+  EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => `${group}_${action}` as const),
+)
+
+const LEGACY_MATRIX_EMPLOYEE_PERMISSIONS = LEGACY_EMPLOYEE_PERMISSION_GROUP_KEYS.flatMap((group) =>
   EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => `${group}_${action}` as const),
 )
 
@@ -36,12 +58,44 @@ export const ALL_EMPLOYEE_PERMISSIONS = [
   BILLING_OPEN_INVOICE_PERMISSION,
   BILLING_REFUND_PERMISSION,
   ...MATRIX_EMPLOYEE_PERMISSIONS,
+  ...LEGACY_MATRIX_EMPLOYEE_PERMISSIONS,
 ] as const
 
 export type EmployeePermission = typeof ALL_EMPLOYEE_PERMISSIONS[number]
 
 const allPermissionSet = new Set<string>(ALL_EMPLOYEE_PERMISSIONS)
-const defaultEnabledPermissionSet = new Set<string>(DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS)
+function addCompatibilityPermissions(values: Set<string>) {
+  if (
+    values.has('BILLING_INVOICES_CREATE') ||
+    values.has('BILLING_INVOICES_EDIT') ||
+    values.has('BILLING_CREATE') ||
+    values.has('BILLING_EDIT')
+  ) {
+    values.add(BILLING_ADVANCE_INVOICE_PERMISSION)
+    values.add(BILLING_OPEN_INVOICE_PERMISSION)
+  }
+
+  if (
+    values.has('BILLING_INVOICES_DELETE') ||
+    values.has('PAYMENTS_EDIT') ||
+    values.has('PAYMENTS_DELETE') ||
+    values.has('BILLING_DELETE') ||
+    values.has('BILLING_EDIT')
+  ) {
+    values.add(BILLING_REFUND_PERMISSION)
+  }
+
+  if (
+    values.has('SCANNER_VIEW') ||
+    values.has('SCANNER_CREATE') ||
+    values.has('SCANNER_EDIT') ||
+    values.has('WALLET_VIEW') ||
+    values.has('WALLET_CREATE') ||
+    values.has('WALLET_EDIT')
+  ) {
+    values.add(WALLET_SCANNER_PERMISSION)
+  }
+}
 
 export function normalizeEmployeePermissions(permissions?: string[] | null): EmployeePermission[] {
   const raw = Array.isArray(permissions) ? permissions : []
@@ -54,6 +108,8 @@ export function normalizeEmployeePermissions(permissions?: string[] | null): Emp
   if (!hasMarker) {
     DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS.forEach((permission) => values.add(permission))
   }
+
+  addCompatibilityPermissions(values)
 
   return ALL_EMPLOYEE_PERMISSIONS.filter((permission) => values.has(permission))
 }
@@ -74,4 +130,8 @@ export function canIssueOpenInvoices(user: Pick<User, 'role' | 'permissions'> | 
 
 export function canIssueRefundInvoices(user: Pick<User, 'role' | 'permissions'> | null | undefined): boolean {
   return hasEmployeePermission(user, BILLING_REFUND_PERMISSION)
+}
+
+export function canScanWalletEntitlements(user: Pick<User, 'role' | 'permissions'> | null | undefined): boolean {
+  return hasEmployeePermission(user, WALLET_SCANNER_PERMISSION)
 }

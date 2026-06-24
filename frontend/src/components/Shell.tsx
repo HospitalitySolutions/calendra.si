@@ -169,7 +169,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
   const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
-  const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && (isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN'))
+  const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && (isAdmin || user.permissions?.some((permission) => ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'].includes(permission)))
   const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)

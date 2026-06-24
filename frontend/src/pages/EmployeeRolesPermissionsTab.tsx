@@ -56,27 +56,49 @@ type RolesOverview = {
 }
 
 const fallbackPermissionGroups: PermissionGroup[] = [
-  { key: 'CALENDAR_BOOKINGS', label: 'Calendar & Bookings', description: 'Manage appointments, availability and resources' },
-  { key: 'CLIENTS', label: 'Clients', description: 'View and manage client profiles and data' },
-  { key: 'EMPLOYEES', label: 'Employees', description: 'Manage team members and their access' },
-  { key: 'BILLING', label: 'Billing', description: 'Invoices, payments, subscriptions and refunds' },
-  { key: 'WALLET', label: 'Wallet', description: 'Manage wallet transactions and balances' },
-  { key: 'REPORTS', label: 'Reports', description: 'View reports and analytics' },
-  { key: 'SETTINGS', label: 'Settings', description: 'Configure system, business and preferences' },
-  { key: 'INTEGRATIONS', label: 'Integrations', description: 'Manage third-party integrations and APIs' },
-  { key: 'PLATFORM_FEATURES', label: 'Platform features', description: 'Access platform tools and advanced features' },
+  { key: 'CALENDAR_BOOKINGS', label: 'Calendar & Bookings', description: 'View and manage calendar bookings, appointments and booking details' },
+  { key: 'CLIENTS', label: 'Clients', description: 'View and manage client profiles, contact details and client history' },
+  { key: 'EMPLOYEES', label: 'Employees', description: 'View and manage team members, employee profiles and assigned roles' },
+  { key: 'ROLES_PERMISSIONS', label: 'Roles & Permissions', description: 'Create and manage custom roles and permission access' },
+  { key: 'SERVICES', label: 'Services', description: 'View and manage services, durations, prices and public visibility' },
+  { key: 'SPACES', label: 'Spaces', description: 'View and manage spaces, rooms, resources and their availability' },
+  { key: 'COURSES', label: 'Courses', description: 'View and manage courses, participants, schedules and capacity' },
+  { key: 'BILLING_INVOICES', label: 'Billing & Invoices', description: 'View and manage bills, invoices, advances and invoice statuses' },
+  { key: 'ORDERS', label: 'Orders', description: 'View and manage guest app, widget and wallet product orders' },
+  { key: 'WALLET_BENEFITS', label: 'Wallet / Benefits', description: 'View and manage benefits, entitlements, validity and QR access' },
+  { key: 'INBOX_MESSAGES', label: 'Inbox / Messages', description: 'Read and manage guest and client message conversations' },
+  { key: 'NOTIFICATIONS', label: 'Notifications', description: 'View and manage notification templates, rules and reminders' },
+  { key: 'DELIVERY_LOGS', label: 'Delivery Logs', description: 'View and manage email, SMS and app message delivery logs' },
+  { key: 'REPORTS_ANALYTICS', label: 'Reports & Analytics', description: 'View and manage reports, statistics and saved analytics views' },
+  { key: 'SETTINGS', label: 'Settings', description: 'View and manage business, system and application settings' },
+  { key: 'INTEGRATIONS', label: 'Integrations', description: 'View and manage third-party integrations and provider connections' },
+  { key: 'WEBSITE_WIDGET', label: 'Website Widget', description: 'View and manage public booking widget settings and visibility' },
+  { key: 'GUEST_MOBILE_APP', label: 'Guest Mobile App', description: 'View and manage guest mobile app settings, modules and content' },
+  { key: 'PAYMENTS', label: 'Payments', description: 'View and manage payment records, payment status and refunds' },
+  { key: 'SCANNER', label: 'Scanner', description: 'View and use QR scanning and guest check-in validation' },
 ]
 
 const slPermissionGroups: Record<string, PermissionGroup> = {
-  CALENDAR_BOOKINGS: { key: 'CALENDAR_BOOKINGS', label: 'Koledar in rezervacije', description: 'Upravljanje terminov, razpoložljivosti in virov' },
-  CLIENTS: { key: 'CLIENTS', label: 'Stranke', description: 'Pregled in urejanje profilov ter podatkov strank' },
-  EMPLOYEES: { key: 'EMPLOYEES', label: 'Zaposleni', description: 'Upravljanje članov ekipe in njihovih dostopov' },
-  BILLING: { key: 'BILLING', label: 'Obračun', description: 'Računi, plačila, naročnine in vračila' },
-  WALLET: { key: 'WALLET', label: 'Denarnica', description: 'Upravljanje transakcij in stanj v denarnici' },
-  REPORTS: { key: 'REPORTS', label: 'Poročila', description: 'Pregled poročil in analitike' },
-  SETTINGS: { key: 'SETTINGS', label: 'Nastavitve', description: 'Nastavitve sistema, poslovanja in preferenc' },
-  INTEGRATIONS: { key: 'INTEGRATIONS', label: 'Integracije', description: 'Upravljanje zunanjih integracij in API povezav' },
-  PLATFORM_FEATURES: { key: 'PLATFORM_FEATURES', label: 'Funkcije platforme', description: 'Dostop do sistemskih orodij in naprednih funkcij' },
+  CALENDAR_BOOKINGS: { key: 'CALENDAR_BOOKINGS', label: 'Koledar in rezervacije', description: 'Pregled in upravljanje koledarskih rezervacij, terminov in podrobnosti rezervacij' },
+  CLIENTS: { key: 'CLIENTS', label: 'Stranke', description: 'Pregled in upravljanje profilov strank, kontaktov in zgodovine strank' },
+  EMPLOYEES: { key: 'EMPLOYEES', label: 'Zaposleni', description: 'Pregled in upravljanje zaposlenih, profilov zaposlenih in dodeljenih vlog' },
+  ROLES_PERMISSIONS: { key: 'ROLES_PERMISSIONS', label: 'Vloge in dovoljenja', description: 'Ustvarjanje in upravljanje prilagojenih vlog ter dostopov' },
+  SERVICES: { key: 'SERVICES', label: 'Storitve', description: 'Pregled in upravljanje storitev, trajanja, cen in javne vidnosti' },
+  SPACES: { key: 'SPACES', label: 'Prostori', description: 'Pregled in upravljanje prostorov, sob, virov in njihove razpoložljivosti' },
+  COURSES: { key: 'COURSES', label: 'Tečaji', description: 'Pregled in upravljanje tečajev, udeležencev, urnikov in kapacitet' },
+  BILLING_INVOICES: { key: 'BILLING_INVOICES', label: 'Obračun in računi', description: 'Pregled in upravljanje računov, predplačil in statusov računov' },
+  ORDERS: { key: 'ORDERS', label: 'Naročila', description: 'Pregled in upravljanje naročil iz aplikacije, vtičnika in denarnice' },
+  WALLET_BENEFITS: { key: 'WALLET_BENEFITS', label: 'Denarnica / ugodnosti', description: 'Pregled in upravljanje ugodnosti, pravic, veljavnosti in QR dostopa' },
+  INBOX_MESSAGES: { key: 'INBOX_MESSAGES', label: 'Prejeto / sporočila', description: 'Branje in upravljanje pogovorov s strankami in uporabniki' },
+  NOTIFICATIONS: { key: 'NOTIFICATIONS', label: 'Obvestila', description: 'Pregled in upravljanje predlog, pravil in opomnikov za obvestila' },
+  DELIVERY_LOGS: { key: 'DELIVERY_LOGS', label: 'Dnevniki pošiljanja', description: 'Pregled in upravljanje dnevnikov e-pošte, SMS in sporočil v aplikaciji' },
+  REPORTS_ANALYTICS: { key: 'REPORTS_ANALYTICS', label: 'Poročila in analitika', description: 'Pregled in upravljanje poročil, statistik in shranjenih analitičnih pogledov' },
+  SETTINGS: { key: 'SETTINGS', label: 'Nastavitve', description: 'Pregled in upravljanje poslovnih, sistemskih in aplikacijskih nastavitev' },
+  INTEGRATIONS: { key: 'INTEGRATIONS', label: 'Integracije', description: 'Pregled in upravljanje zunanjih integracij in povezav s ponudniki' },
+  WEBSITE_WIDGET: { key: 'WEBSITE_WIDGET', label: 'Spletni vtičnik', description: 'Pregled in upravljanje nastavitev ter vidnosti javnega naročanja' },
+  GUEST_MOBILE_APP: { key: 'GUEST_MOBILE_APP', label: 'Mobilna aplikacija za stranke', description: 'Pregled in upravljanje nastavitev, modulov in vsebin mobilne aplikacije za stranke' },
+  PAYMENTS: { key: 'PAYMENTS', label: 'Plačila', description: 'Pregled in upravljanje plačil, statusov plačil in vračil' },
+  SCANNER: { key: 'SCANNER', label: 'Skener', description: 'Pregled in uporaba QR skeniranja ter potrjevanja prihodov' },
 }
 
 const roleCopy = {
@@ -195,7 +217,7 @@ const roleCopy = {
     userFallback: (id: number) => `Uporabnik #${id}`,
     systemAdministratorDescription: 'Poln sistemski dostop z vsemi dovoljenji v platformi.',
     actionLabel: (action: PermissionAction) => {
-      if (action === 'VIEW') return 'Pregled'
+      if (action === 'VIEW') return 'Ogled'
       if (action === 'CREATE') return 'Ustvari'
       if (action === 'EDIT') return 'Uredi'
       if (action === 'DELETE') return 'Izbriši'
@@ -264,12 +286,23 @@ function groupIconName(key: string): Parameters<typeof RolePermissionIcon>[0]['n
   if (key === 'CALENDAR_BOOKINGS') return 'calendar'
   if (key === 'CLIENTS') return 'client'
   if (key === 'EMPLOYEES') return 'employee'
-  if (key === 'BILLING') return 'billing'
-  if (key === 'WALLET') return 'wallet'
-  if (key === 'REPORTS') return 'reports'
+  if (key === 'ROLES_PERMISSIONS') return 'shield'
+  if (key === 'SERVICES') return 'platform'
+  if (key === 'SPACES') return 'platform'
+  if (key === 'COURSES') return 'platform'
+  if (key === 'BILLING_INVOICES') return 'billing'
+  if (key === 'ORDERS') return 'billing'
+  if (key === 'WALLET_BENEFITS') return 'wallet'
+  if (key === 'INBOX_MESSAGES') return 'group'
+  if (key === 'NOTIFICATIONS') return 'info'
+  if (key === 'DELIVERY_LOGS') return 'reports'
+  if (key === 'REPORTS_ANALYTICS') return 'reports'
   if (key === 'SETTINGS') return 'settings'
   if (key === 'INTEGRATIONS') return 'integrations'
-  if (key === 'PLATFORM_FEATURES') return 'platform'
+  if (key === 'WEBSITE_WIDGET') return 'platform'
+  if (key === 'GUEST_MOBILE_APP') return 'platform'
+  if (key === 'PAYMENTS') return 'billing'
+  if (key === 'SCANNER') return 'wallet'
   return 'group'
 }
 

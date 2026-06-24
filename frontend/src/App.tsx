@@ -348,7 +348,7 @@ export default function App() {
   const billingAllowed = isPlatformAdmin || billingModuleEnabled
   const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
   const inboxAllowed = isPlatformAdmin || inboxModuleEnabled
-  const canScanWalletEntitlements = scannerModuleEnabled && (isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN'))
+  const canScanWalletEntitlements = scannerModuleEnabled && (isAdmin || user.permissions?.some((permission) => ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'].includes(permission)))
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)
 
   return (

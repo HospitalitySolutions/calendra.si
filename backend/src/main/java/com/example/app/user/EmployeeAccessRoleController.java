@@ -243,15 +243,26 @@ public class EmployeeAccessRoleController {
 
     private List<PermissionGroupResponse> permissionGroups() {
         return List.of(
-                group("CALENDAR_BOOKINGS", "Calendar & Bookings", "Manage appointments, availability and resources"),
-                group("CLIENTS", "Clients", "View and manage client profiles and data"),
-                group("EMPLOYEES", "Employees", "Manage team members and their access"),
-                group("BILLING", "Billing", "Invoices, payments, subscriptions and refunds"),
-                group("WALLET", "Wallet", "Manage wallet transactions and balances"),
-                group("REPORTS", "Reports", "View reports and analytics"),
-                group("SETTINGS", "Settings", "Configure system, business and preferences"),
-                group("INTEGRATIONS", "Integrations", "Manage third-party integrations and APIs"),
-                group("PLATFORM_FEATURES", "Platform features", "Access platform tools and advanced features")
+                group("CALENDAR_BOOKINGS", "Calendar & Bookings", "View and manage calendar bookings, appointments and booking details"),
+                group("CLIENTS", "Clients", "View and manage client profiles, contact details and client history"),
+                group("EMPLOYEES", "Employees", "View and manage team members, employee profiles and assigned roles"),
+                group("ROLES_PERMISSIONS", "Roles & Permissions", "Create and manage custom roles and permission access"),
+                group("SERVICES", "Services", "View and manage services, durations, prices and public visibility"),
+                group("SPACES", "Spaces", "View and manage spaces, rooms, resources and their availability"),
+                group("COURSES", "Courses", "View and manage courses, participants, schedules and capacity"),
+                group("BILLING_INVOICES", "Billing & Invoices", "View and manage bills, invoices, advances and invoice statuses"),
+                group("ORDERS", "Orders", "View and manage guest app, widget and wallet product orders"),
+                group("WALLET_BENEFITS", "Wallet / Benefits", "View and manage benefits, entitlements, validity and QR access"),
+                group("INBOX_MESSAGES", "Inbox / Messages", "Read and manage guest and client message conversations"),
+                group("NOTIFICATIONS", "Notifications", "View and manage notification templates, rules and reminders"),
+                group("DELIVERY_LOGS", "Delivery Logs", "View and manage email, SMS and app message delivery logs"),
+                group("REPORTS_ANALYTICS", "Reports & Analytics", "View and manage reports, statistics and saved analytics views"),
+                group("SETTINGS", "Settings", "View and manage business, system and application settings"),
+                group("INTEGRATIONS", "Integrations", "View and manage third-party integrations and provider connections"),
+                group("WEBSITE_WIDGET", "Website Widget", "View and manage public booking widget settings and visibility"),
+                group("GUEST_MOBILE_APP", "Guest Mobile App", "View and manage guest mobile app settings, modules and content"),
+                group("PAYMENTS", "Payments", "View and manage payment records, payment status and refunds"),
+                group("SCANNER", "Scanner", "View and use QR scanning and guest check-in validation")
         );
     }
 

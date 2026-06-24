@@ -520,33 +520,44 @@
 }
 
 .employee-roles-group-icon--clients,
-.employee-roles-group-icon--wallet {
+.employee-roles-group-icon--wallet-benefits,
+.employee-roles-group-icon--inbox-messages,
+.employee-roles-group-icon--notifications {
     color: #0f9f6e;
     background: #ecfdf5;
 }
 
 .employee-roles-group-icon--employees,
-.employee-roles-group-icon--reports {
+.employee-roles-group-icon--roles-permissions,
+.employee-roles-group-icon--reports-analytics,
+.employee-roles-group-icon--delivery-logs {
     color: #7c3aed;
     background: #f5f3ff;
 }
 
-.employee-roles-group-icon--billing {
+.employee-roles-group-icon--billing-invoices,
+.employee-roles-group-icon--orders,
+.employee-roles-group-icon--payments {
     color: #d97706;
     background: #fffbeb;
 }
 
-.employee-roles-group-icon--settings {
+.employee-roles-group-icon--settings,
+.employee-roles-group-icon--scanner {
     color: #64748b;
     background: #f1f5f9;
 }
 
-.employee-roles-group-icon--integrations {
+.employee-roles-group-icon--integrations,
+.employee-roles-group-icon--website-widget,
+.employee-roles-group-icon--guest-mobile-app {
     color: #0891b2;
     background: #ecfeff;
 }
 
-.employee-roles-group-icon--platform-features {
+.employee-roles-group-icon--services,
+.employee-roles-group-icon--spaces,
+.employee-roles-group-icon--courses {
     color: #db2777;
     background: #fdf2f8;
 }
