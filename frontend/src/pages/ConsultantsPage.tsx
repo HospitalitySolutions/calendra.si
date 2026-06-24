@@ -9,6 +9,7 @@ import { formatDate, fullName } from '../lib/format'
 import { dayOptions, type DayOfWeek, type WorkingHoursConfig } from '../lib/types'
 import {
   DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS,
+  hasEmployeePermission,
   normalizeEmployeePermissions,
   type EmployeePermission,
 } from '../lib/employeePermissions'
@@ -314,7 +315,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const { t, locale } = useLocale()
   const navigate = useNavigate()
   const user = getStoredUser()
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === ('ROLE_ADMIN' as any) || user?.role === ('ROLE_SUPER_ADMIN' as any)
+  const canViewEmployeesTab = hasEmployeePermission(user, 'EMPLOYEES_VIEW')
+  const canViewRolesTab = hasEmployeePermission(user, 'ROLES_PERMISSIONS_VIEW')
+  const canCreateEmployees = hasEmployeePermission(user, 'EMPLOYEES_CREATE')
+  const canEditEmployees = hasEmployeePermission(user, 'EMPLOYEES_EDIT')
+  const canDeleteEmployees = hasEmployeePermission(user, 'EMPLOYEES_DELETE')
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [accessRoleOptions, setAccessRoleOptions] = useState<AccessRoleOption[]>([])
   const [userQuota, setUserQuota] = useState<UserQuota | null>(null)
@@ -336,7 +341,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const formBaselineRef = useRef<ConsultantForm | null>(null)
   const [loadingSelfProfile, setLoadingSelfProfile] = useState(false)
   const [activatingEmployeeId, setActivatingEmployeeId] = useState<number | null>(null)
-  const [employeesTab, setEmployeesTab] = useState<'employees' | 'roles'>('employees')
+  const [employeesTab, setEmployeesTab] = useState<'employees' | 'roles'>(() => canViewEmployeesTab ? 'employees' : 'roles')
+
+  useEffect(() => {
+    if (selfService) return
+    if (employeesTab === 'employees' && !canViewEmployeesTab && canViewRolesTab) setEmployeesTab('roles')
+    if (employeesTab === 'roles' && !canViewRolesTab && canViewEmployeesTab) setEmployeesTab('employees')
+  }, [canViewEmployeesTab, canViewRolesTab, employeesTab, selfService])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 450px)')
@@ -347,9 +358,9 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }, [])
 
   async function loadConsultants() {
-    if (!isAdmin) {
+    if (!canViewEmployeesTab) {
       setConsultants([])
-      setErrorMessage('You are not allowed to view consultants. Please log in again as admin.')
+      if (!canViewRolesTab) setErrorMessage(locale === 'sl' ? 'Nimate dovoljenja za ogled zaposlenih.' : 'You do not have permission to view employees.')
       return
     }
 
@@ -369,15 +380,15 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       console.error('Failed to load consultants', error)
 
       if (error?.response?.status === 403) {
-        setErrorMessage('You are not allowed to view consultants. Please log in again as admin.')
+        setErrorMessage(locale === 'sl' ? 'Nimate dovoljenja za ogled zaposlenih.' : 'You do not have permission to view employees.')
       } else {
-        setErrorMessage('Failed to load consultants.')
+        setErrorMessage(locale === 'sl' ? 'Zaposlenih ni bilo mogoče naložiti.' : 'Failed to load employees.')
       }
     }
   }
 
   const refreshUserQuota = async (): Promise<UserQuota | null> => {
-    if (!isAdmin) return null
+    if (!canCreateEmployees) return null
     try {
       const { data } = await api.get<UserQuota>(`/users/quota`)
       setUserQuota(data ?? null)
@@ -406,7 +417,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }
 
   const toggleConsultantActiveById = async (consultantId: number, currentlyActive: boolean) => {
-    if (!isAdmin) return
+    if (!canEditEmployees) return
     if (!currentlyActive && hasReachedUserQuota(userQuota)) {
       void showEmployeeLimitPopup(userQuota)
       return
@@ -431,9 +442,9 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }
 
   useEffect(() => {
-    if (selfService) return
-    loadConsultants()
-  }, [selfService])
+    if (selfService || !canViewEmployeesTab) return
+    void loadConsultants()
+  }, [canViewEmployeesTab, selfService])
 
   useEffect(() => {
     if (!selfService) return
@@ -549,7 +560,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }, [form, showFormPanel])
 
   const removeEditing = async () => {
-    if (!editing) return
+    if (!editing || !canDeleteEmployees) return
     if (!window.confirm(`Delete consultant ${fullName(editing)}? This cannot be undone.`)) return
     setDeleting(true)
     setErrorMessage('')
@@ -572,9 +583,12 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!isFormDirty) return
-    if (!selfService && !isAdmin) {
-      setErrorMessage('You are not allowed to create consultants. Please log in again as admin.')
-      return
+    if (!selfService) {
+      const canSubmitEmployee = editing ? canEditEmployees : canCreateEmployees
+      if (!canSubmitEmployee) {
+        setErrorMessage(locale === 'sl' ? 'Nimate dovoljenja za shranjevanje zaposlenih.' : 'You do not have permission to save employees.')
+        return
+      }
     }
 
     setErrorMessage('')
@@ -749,34 +763,38 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       {!selfService && (
         <div className="employees-page-tabs-shell clients-entity-tabs-shell">
         <div className="employee-page-tabs clients-session-tabs clients-entity-tabs" role="tablist" aria-label={t('employeesSubtabsAria')}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={employeesTab === 'employees'}
-            className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
-            onClick={() => {
-              setEmployeesTab('employees')
-              void loadConsultants()
-            }}
-          >
-            <EmployeePageTabIcon name="employees" />
-            <span>{t('employeesSubtabEmployees')}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={employeesTab === 'roles'}
-            className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
-            onClick={() => setEmployeesTab('roles')}
-          >
-            <EmployeePageTabIcon name="roles" />
-            <span>{t('employeesSubtabRolesPermissions')}</span>
-          </button>
+          {canViewEmployeesTab && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={employeesTab === 'employees'}
+              className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
+              onClick={() => {
+                setEmployeesTab('employees')
+                void loadConsultants()
+              }}
+            >
+              <EmployeePageTabIcon name="employees" />
+              <span>{t('employeesSubtabEmployees')}</span>
+            </button>
+          )}
+          {canViewRolesTab && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={employeesTab === 'roles'}
+              className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
+              onClick={() => setEmployeesTab('roles')}
+            >
+              <EmployeePageTabIcon name="roles" />
+              <span>{t('employeesSubtabRolesPermissions')}</span>
+            </button>
+          )}
         </div>
         </div>
       )}
-      {!selfService && employeesTab === 'roles' && <EmployeeRolesPermissionsTab />}
-      {!selfService && employeesTab === 'employees' && (
+      {!selfService && canViewRolesTab && employeesTab === 'roles' && <EmployeeRolesPermissionsTab />}
+      {!selfService && canViewEmployeesTab && employeesTab === 'employees' && (
         <div>
           <Card data-onboarding-panel="employees" className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
             <div className="clients-toolbar clients-modern-toolbar employees-modern-toolbar">
@@ -804,10 +822,10 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 <div className={`clients-count-chip${isConsultantsMobile ? ' clients-count-chip--mobile-open' : ''}`}>
                   {employeeListCountLabel(filteredConsultants.length, locale)}
                 </div>
-                <button type="button" className="clients-modern-new-btn employees-modern-new-btn" onClick={startCreate}>
+                {canCreateEmployees && <button type="button" className="clients-modern-new-btn employees-modern-new-btn" onClick={startCreate}>
                   <EmployeeModernIcon name="plus" />
                   <span>{isConsultantsMobile ? t('billingNewMobile') : t('billingNew')}</span>
-                </button>
+                </button>}
               </div>
             </div>
             {errorMessage && !showFormPanel && <div className="error">{errorMessage}</div>}
@@ -1261,7 +1279,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
               </form>
               <div className="form-actions booking-side-panel-footer consultant-form-footer employees-form-popup-footer">
                 <div className="employees-form-footer-left">
-                  {editing && !selfService && !isEditingTenantOwner ? (
+                  {editing && !selfService && !isEditingTenantOwner && canDeleteEmployees ? (
                     <button type="button" className="danger secondary employees-form-delete-btn" disabled={saving || deleting} onClick={() => void removeEditing()}>
                       <EmployeeFormIcon name="trash" />
                       {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}

@@ -68,6 +68,7 @@ import {
   getDefaultAllowedRoute,
   normalizePackageType,
 } from "../lib/packageAccess";
+import { hasAnyEmployeePermission, hasEmployeePermission } from "../lib/employeePermissions";
 import {
   companyProfileFromSettings,
   companyProfileToSettings,
@@ -720,7 +721,17 @@ const parseRegisteredPremises = (raw: string | undefined): string[] => {
 
 export function ConfigurationPage() {
   const me = getStoredUser()!;
-  const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
+  const canViewConfiguration = hasAnyEmployeePermission(me, [
+    'SETTINGS_VIEW',
+    'SPACES_VIEW',
+    'BILLING_INVOICES_VIEW',
+    'PAYMENTS_VIEW',
+    'GUEST_MOBILE_APP_VIEW',
+    'WEBSITE_WIDGET_VIEW',
+    'NOTIFICATIONS_VIEW',
+    'DELIVERY_LOGS_VIEW',
+    'INTEGRATIONS_VIEW',
+  ]);
   const navigate = useNavigate();
   const query = useQuery();
   const { t, locale } = useLocale();
@@ -1513,7 +1524,7 @@ export function ConfigurationPage() {
   };
 
   const saveSubscriptionCapacity = async () => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     const normalizedCurrentUserAdd = Math.max(
       minimumCurrentCycleUserAdd,
       currentBillingCycleUserAdd,
@@ -1628,7 +1639,7 @@ export function ConfigurationPage() {
   ]);
 
   const requestPackageChange = (target: AccountPlanPackageKey) => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     if (
       target === activeSubscriptionPackage &&
       subscriptionBillingInterval === storedSubscriptionInterval
@@ -1932,7 +1943,22 @@ export function ConfigurationPage() {
   const googleCalendarModuleEnabledCommitted =
     settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== "false";
 
+  const hasConfigTabViewPermission = (tabId: Tab) => {
+    if (tabId === "company") return hasEmployeePermission(me, 'SETTINGS_VIEW');
+    if (tabId === "booking") return hasEmployeePermission(me, 'SPACES_VIEW');
+    if (tabId === "billing") return hasAnyEmployeePermission(me, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW']);
+    if (tabId === "guestApp") return hasEmployeePermission(me, 'GUEST_MOBILE_APP_VIEW');
+    if (tabId === "website") return hasEmployeePermission(me, 'WEBSITE_WIDGET_VIEW');
+    if (tabId === "notifications") return hasEmployeePermission(me, 'NOTIFICATIONS_VIEW');
+    if (tabId === "deliveryLogs") return hasEmployeePermission(me, 'DELIVERY_LOGS_VIEW');
+    if (tabId === "integrations") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
+    if (tabId === "whatsapp" || tabId === "viber") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
+    if (tabId === "modules") return hasEmployeePermission(me, 'SETTINGS_VIEW');
+    return false;
+  };
+
   const isConfigTabAvailable = (tabId: Tab) => {
+    if (!hasConfigTabViewPermission(tabId)) return false;
     if (tabId === "company" || tabId === "modules" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
@@ -1948,17 +1974,16 @@ export function ConfigurationPage() {
   };
 
   const getUnavailableConfigTabFallback = (tabId: Tab): Tab => {
-    if (tabId === "billing") return "modules";
+    if (tabId === "billing" && isConfigTabAvailable("modules")) return "modules";
     return firstAvailableConfigTab();
   };
 
   const firstAvailableConfigTab = (): Tab => {
-    if (isConfigTabAvailable("company")) return "company";
-    return "company";
+    return CONFIG_TAB_IDS.find((candidate) => isConfigTabAvailable(candidate)) ?? "company";
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     if (
       !settingsLoaded ||
       !inboxCapabilitiesLoaded ||
@@ -2071,7 +2096,7 @@ export function ConfigurationPage() {
   }, [
     query,
     navigate,
-    isAdmin,
+    canViewConfiguration,
     settingsLoaded,
     inboxCapabilitiesLoaded,
     paymentCapabilitiesLoaded,
@@ -2087,7 +2112,7 @@ export function ConfigurationPage() {
   ]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -2113,10 +2138,10 @@ export function ConfigurationPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [canViewConfiguration]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -2142,7 +2167,7 @@ export function ConfigurationPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [canViewConfiguration]);
 
   useEffect(() => {
     if (!settingsLoaded || !inboxCapabilitiesLoaded) return;
@@ -2424,11 +2449,11 @@ export function ConfigurationPage() {
   };
 
   useEffect(() => {
-    if (isAdmin) void load();
-  }, [isAdmin]);
+    if (canViewConfiguration) void load();
+  }, [canViewConfiguration]);
 
   useEffect(() => {
-    if (!isAdmin || !billingEnabledCommitted) return;
+    if (!canViewConfiguration || !billingEnabledCommitted) return;
     const merchantId =
       query.get("merchantIdInPayPal") ||
       query.get("merchantId") ||
@@ -2477,7 +2502,7 @@ export function ConfigurationPage() {
       cancelled = true;
     };
   }, [
-    isAdmin,
+    canViewConfiguration,
     query,
     navigate,
     showToast,
@@ -2486,7 +2511,7 @@ export function ConfigurationPage() {
   ]);
 
   useEffect(() => {
-    if (!isAdmin || !billingEnabledCommitted) return;
+    if (!canViewConfiguration || !billingEnabledCommitted) return;
     const stripeMode = query.get("stripeMode");
     if (!stripeMode) return;
 
@@ -2519,7 +2544,7 @@ export function ConfigurationPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, query, navigate, showToast, billingEnabledCommitted]);
+  }, [canViewConfiguration, query, navigate, showToast, billingEnabledCommitted]);
 
   useEffect(() => {
     const connected = query.get("google_calendar_connected");
@@ -2590,7 +2615,7 @@ export function ConfigurationPage() {
   }, [openSpaceMenuId]);
 
   const saveSettings = async (opts?: { applyModulesDraft?: boolean }) => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     setSavingSettings(true);
     try {
       const normalizedStart = toTimeInputValue(
@@ -3074,7 +3099,7 @@ export function ConfigurationPage() {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     if (tab !== "integrations") return;
     if (googleCalendarModuleEnabledCommitted) {
       void refreshGoogleCalendarStatusSummary();
@@ -3086,7 +3111,7 @@ export function ConfigurationPage() {
       current === "googleCalendar" ? null : current,
     );
   }, [
-    isAdmin,
+    canViewConfiguration,
     tab,
     googleCalendarModuleEnabledCommitted,
     refreshGoogleCalendarStatusSummary,
@@ -3173,7 +3198,7 @@ export function ConfigurationPage() {
   };
 
   const saveGuestAppConfiguration = async () => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     setSavingSettings(true);
     try {
       const normalizedStart = toTimeInputValue(
@@ -3242,7 +3267,7 @@ export function ConfigurationPage() {
   };
 
   const saveWebsiteConfiguration = async () => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     setSavingSettings(true);
     try {
       const normalizedStart = toTimeInputValue(
@@ -3326,7 +3351,7 @@ export function ConfigurationPage() {
     field: GuestAppAssetField,
     file: File | null,
   ) => {
-    if (!isAdmin || !file) return;
+    if (!canViewConfiguration || !file) return;
     const assetTypeByField: Record<
       GuestAppAssetField,
       "card" | "logo" | "icon"
@@ -3472,7 +3497,7 @@ export function ConfigurationPage() {
   };
 
   const saveEditedSpace = async (spaceId: number) => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     const name = spaceEditDraft.name.trim();
     if (!name) return;
     await api.put(`/spaces/${spaceId}`, {
@@ -3485,7 +3510,7 @@ export function ConfigurationPage() {
   };
 
   const createSpaceFromDraft = async (tempId: string) => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     const draft = newSpaceDrafts.find((item) => item.tempId === tempId);
     if (!draft) return;
     const name = draft.name.trim();
@@ -3496,7 +3521,7 @@ export function ConfigurationPage() {
   };
 
   const removeSpace = async (id: number) => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     if (!window.confirm("Delete this space?")) return;
     await api.delete(`/spaces/${id}`);
     load();
@@ -3520,7 +3545,7 @@ export function ConfigurationPage() {
   };
 
   const saveInlinePaymentMethodEdit = async (id: number) => {
-    if (!isAdmin || !inlinePaymentMethodForm) return;
+    if (!canViewConfiguration || !inlinePaymentMethodForm) return;
     const payload = {
       name: inlinePaymentMethodForm.name.trim(),
       paymentType: inlinePaymentMethodForm.paymentType,
@@ -3541,7 +3566,7 @@ export function ConfigurationPage() {
   };
 
   const registerBusinessPremise = async () => {
-    if (!isAdmin || registeringPremise) return;
+    if (!canViewConfiguration || registeringPremise) return;
     const premiseId = (settings.FISCAL_BUSINESS_PREMISE_ID || "").trim();
     if (!premiseId) {
       setPremiseRegisterResult(t("configFiscalPremiseRequired"));
@@ -4036,7 +4061,7 @@ export function ConfigurationPage() {
   };
 
   const togglePaymentMethodFiscalized = async (method: PaymentMethod) => {
-    if (!isAdmin) return;
+    if (!canViewConfiguration) return;
     const nextFiscalized = !method.fiscalized;
     await api.put(`/billing/payment-methods/${method.id}`, {
       name: method.name,
@@ -4784,7 +4809,7 @@ export function ConfigurationPage() {
     },
   ];
 
-  if (!isAdmin) {
+  if (!canViewConfiguration) {
     return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />;
   }
 
@@ -6989,7 +7014,7 @@ export function ConfigurationPage() {
                                   <button
                                     type="button"
                                     className="account-button-secondary"
-                                    disabled={!isAdmin}
+                                    disabled={!canViewConfiguration}
                                     onClick={() =>
                                       requestPackageChange(planKey)
                                     }

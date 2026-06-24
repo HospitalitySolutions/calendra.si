@@ -62,8 +62,20 @@ export const ALL_EMPLOYEE_PERMISSIONS = [
 ] as const
 
 export type EmployeePermission = typeof ALL_EMPLOYEE_PERMISSIONS[number]
+export type EmployeePermissionGroup = typeof EMPLOYEE_PERMISSION_GROUP_KEYS[number]
+export type EmployeePermissionAction = typeof EMPLOYEE_PERMISSION_ACTION_KEYS[number]
 
 const allPermissionSet = new Set<string>(ALL_EMPLOYEE_PERMISSIONS)
+function enforceViewDependencies(values: Set<string>) {
+  for (const group of [...EMPLOYEE_PERMISSION_GROUP_KEYS, ...LEGACY_EMPLOYEE_PERMISSION_GROUP_KEYS]) {
+    const viewPermission = `${group}_VIEW`
+    if (values.has(viewPermission)) continue
+    values.delete(`${group}_CREATE`)
+    values.delete(`${group}_EDIT`)
+    values.delete(`${group}_DELETE`)
+  }
+}
+
 function addCompatibilityPermissions(values: Set<string>) {
   if (
     values.has('BILLING_INVOICES_CREATE') ||
@@ -109,6 +121,7 @@ export function normalizeEmployeePermissions(permissions?: string[] | null): Emp
     DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS.forEach((permission) => values.add(permission))
   }
 
+  enforceViewDependencies(values)
   addCompatibilityPermissions(values)
 
   return ALL_EMPLOYEE_PERMISSIONS.filter((permission) => values.has(permission))
@@ -118,6 +131,32 @@ export function hasEmployeePermission(user: Pick<User, 'role' | 'permissions'> |
   if (!user) return false
   if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true
   return normalizeEmployeePermissions(user.permissions).includes(permission)
+}
+
+export function hasAnyEmployeePermission(
+  user: Pick<User, 'role' | 'permissions'> | null | undefined,
+  permissions: readonly EmployeePermission[],
+): boolean {
+  return permissions.some((permission) => hasEmployeePermission(user, permission))
+}
+
+export function employeePermissionKey(group: EmployeePermissionGroup, action: EmployeePermissionAction): EmployeePermission {
+  return `${group}_${action}` as EmployeePermission
+}
+
+export function hasEmployeePermissionAction(
+  user: Pick<User, 'role' | 'permissions'> | null | undefined,
+  group: EmployeePermissionGroup,
+  action: EmployeePermissionAction,
+): boolean {
+  return hasEmployeePermission(user, employeePermissionKey(group, action))
+}
+
+export function hasEmployeeViewPermission(
+  user: Pick<User, 'role' | 'permissions'> | null | undefined,
+  group: EmployeePermissionGroup,
+): boolean {
+  return hasEmployeePermissionAction(user, group, 'VIEW')
 }
 
 export function canIssueAdvanceInvoices(user: Pick<User, 'role' | 'permissions'> | null | undefined): boolean {

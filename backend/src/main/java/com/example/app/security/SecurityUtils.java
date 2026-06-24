@@ -120,6 +120,7 @@ public final class SecurityUtils {
             permissions.stream()
                     .filter(ALLOWED_EMPLOYEE_PERMISSIONS::contains)
                     .forEach(normalized::add);
+            enforceViewDependencies(normalized);
             addCompatibilityPermissions(normalized);
         } else {
             normalized.addAll(DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS);
@@ -137,7 +138,25 @@ public final class SecurityUtils {
         if (!hasMarker) {
             active.addAll(DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS);
         }
+        enforceViewDependencies(active);
+        addCompatibilityPermissions(active);
         return active;
+    }
+
+    private static void enforceViewDependencies(LinkedHashSet<String> permissions) {
+        for (String group : PERMISSION_GROUP_KEYS) {
+            removeActionsWithoutView(permissions, group);
+        }
+        for (String group : LEGACY_PERMISSION_GROUP_KEYS) {
+            removeActionsWithoutView(permissions, group);
+        }
+    }
+
+    private static void removeActionsWithoutView(LinkedHashSet<String> permissions, String group) {
+        if (permissions.contains(group + "_VIEW")) return;
+        permissions.remove(group + "_CREATE");
+        permissions.remove(group + "_EDIT");
+        permissions.remove(group + "_DELETE");
     }
 
     private static List<String> parseStoredPermissions(String permissionsJson) {

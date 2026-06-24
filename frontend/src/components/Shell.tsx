@@ -10,6 +10,7 @@ import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
 import { OnboardingTour } from './OnboardingTour'
+import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
 
 function AndroidNavIconCalendar() {
   return (
@@ -151,15 +152,31 @@ function ShellInner({ children }: PropsWithChildren) {
   }
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
-  const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
-  const billingAllowed = isPlatformAdmin || billingModuleEnabled
-  const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
-  const inboxAllowed = isPlatformAdmin || inboxModuleEnabled
+  const canViewCalendar = hasEmployeePermission(user, 'CALENDAR_BOOKINGS_VIEW')
+  const canViewClients = hasEmployeePermission(user, 'CLIENTS_VIEW')
+  const canViewEmployees = hasAnyEmployeePermission(user, ['EMPLOYEES_VIEW', 'ROLES_PERMISSIONS_VIEW'])
+  const canViewServices = hasEmployeePermission(user, 'SERVICES_VIEW')
+  const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
+  const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
+  const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
+  const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
+  const canViewConfiguration = hasAnyEmployeePermission(user, [
+    'SETTINGS_VIEW',
+    'SPACES_VIEW',
+    'NOTIFICATIONS_VIEW',
+    'DELIVERY_LOGS_VIEW',
+    'INTEGRATIONS_VIEW',
+    'WEBSITE_WIDGET_VIEW',
+    'GUEST_MOBILE_APP_VIEW',
+  ])
+  const billingAllowed = billingModuleEnabled && canViewBilling
+  const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
+  const inboxAllowed = inboxModuleEnabled && canViewInbox
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
@@ -169,7 +186,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
   const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
-  const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && (isAdmin || user.permissions?.some((permission) => ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'].includes(permission)))
+  const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
   const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -539,26 +556,30 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="mobile-nav-overlay-link-label">{t('navPlatformAdmin')}</span>
               </NavLink>
             )}
-            <NavLink
-              to="/calendar"
-              className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/calendar')}
-            >
-              <span className="mobile-nav-overlay-link-icon">
-                <AndroidNavIconCalendar />
-              </span>
-              <span className="mobile-nav-overlay-link-label">{t('navCalendar')}</span>
-            </NavLink>
-            <NavLink
-              to="/clients"
-              className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/clients')}
-            >
-              <span className="mobile-nav-overlay-link-icon">
-                <AndroidNavIconClients />
-              </span>
-              <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
-            </NavLink>
+            {canViewCalendar && (
+              <NavLink
+                to="/calendar"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/calendar')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <AndroidNavIconCalendar />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navCalendar')}</span>
+              </NavLink>
+            )}
+            {canViewClients && (
+              <NavLink
+                to="/clients"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/clients')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <AndroidNavIconClients />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
+              </NavLink>
+            )}
             {billingAllowed && (
               <NavLink
                 to="/billing"
@@ -583,16 +604,18 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="mobile-nav-overlay-link-label">{t('navConsumables')}</span>
               </NavLink>
             )}
-            <NavLink
-              to="/analytics"
-              className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/analytics')}
-            >
-              <span className="mobile-nav-overlay-link-icon">
-                <AndroidNavIconAnalytics />
-              </span>
-              <span className="mobile-nav-overlay-link-label">{t('navAnalytics')}</span>
-            </NavLink>
+            {canViewReports && (
+              <NavLink
+                to="/analytics"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/analytics')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <AndroidNavIconAnalytics />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navAnalytics')}</span>
+              </NavLink>
+            )}
             {inboxAllowed && (
               <NavLink
                 to="/inbox"
@@ -607,7 +630,7 @@ function ShellInner({ children }: PropsWithChildren) {
             )}
           </div>
           <div className="mobile-nav-overlay-body-settings">
-            {isAdmin && typesModuleEnabled && (
+            {canViewServices && typesModuleEnabled && (
               <NavLink
                 to="/session-types"
                 className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
@@ -619,7 +642,7 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="mobile-nav-overlay-link-label">{t('tabSessionServiceTypes')}</span>
               </NavLink>
             )}
-            {isAdmin && (
+            {canViewEmployees && (
               <NavLink
                 to="/consultants"
                 className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
@@ -644,7 +667,7 @@ function ShellInner({ children }: PropsWithChildren) {
               </NavLink>
             )}
             <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
-            {isAdmin && (
+            {canViewConfiguration && (
               <NavLink
                 to="/configuration"
                 className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
@@ -656,7 +679,7 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="mobile-nav-overlay-link-label">{t('settingsGroup')}</span>
               </NavLink>
             )}
-            {!isAdmin && (
+            {!canViewConfiguration && (
               <NavLink
                 to="/security"
                 className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
@@ -852,7 +875,7 @@ function ShellInner({ children }: PropsWithChildren) {
         </button>
         {configOpen && (
           <div className="config-dropdown">
-            {isAdmin && (
+            {canViewConfiguration && (
               <button type="button" className="config-dropdown-item" onClick={() => { navigate('/configuration'); setConfigOpen(false) }}>
                 {t('settingsGroup')}
               </button>
@@ -1042,14 +1065,18 @@ function ShellInner({ children }: PropsWithChildren) {
         </div>
         {globalVoiceButton}
         <nav className="android-bottom-nav" aria-label="Main navigation">
-          <NavLink to="/calendar" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
-            <AndroidNavIconCalendar />
-            <span>Calendar</span>
-          </NavLink>
-          <NavLink to="/analytics" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
-            <AndroidNavIconAnalytics />
-            <span>Analytics</span>
-          </NavLink>
+          {canViewCalendar && (
+            <NavLink to="/calendar" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
+              <AndroidNavIconCalendar />
+              <span>Calendar</span>
+            </NavLink>
+          )}
+          {canViewReports && (
+            <NavLink to="/analytics" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
+              <AndroidNavIconAnalytics />
+              <span>Analytics</span>
+            </NavLink>
+          )}
           {inboxAllowed && (
             <NavLink to="/inbox" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
               <AndroidNavIconInbox />
@@ -1062,10 +1089,12 @@ function ShellInner({ children }: PropsWithChildren) {
               <span>Billing</span>
             </NavLink>
           )}
-          <NavLink to="/clients" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
-            <AndroidNavIconClients />
-            <span>Clients</span>
-          </NavLink>
+          {canViewClients && (
+            <NavLink to="/clients" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
+              <AndroidNavIconClients />
+              <span>Clients</span>
+            </NavLink>
+          )}
         </nav>
       </div>
     )
@@ -1090,30 +1119,34 @@ function ShellInner({ children }: PropsWithChildren) {
             </NavLink>
           )}
           <nav>
-            <NavLink
-              className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
-              to="/calendar"
-              data-onboarding-nav="calendar"
-              title={t('navCalendar')}
-              aria-label={t('navCalendar')}
-            >
-              <span className="sidebar-rail-link-icon" aria-hidden>
-                <AndroidNavIconCalendar />
-              </span>
-              <span className="sidebar-rail-link-label">{t('navCalendar')}</span>
-            </NavLink>
-            <NavLink
-              className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
-              to="/clients"
-              data-onboarding-nav="clients"
-              title={t('navClients')}
-              aria-label={t('navClients')}
-            >
-              <span className="sidebar-rail-link-icon" aria-hidden>
-                <AndroidNavIconClients />
-              </span>
-              <span className="sidebar-rail-link-label">{t('navClients')}</span>
-            </NavLink>
+            {canViewCalendar && (
+              <NavLink
+                className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+                to="/calendar"
+                data-onboarding-nav="calendar"
+                title={t('navCalendar')}
+                aria-label={t('navCalendar')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <AndroidNavIconCalendar />
+                </span>
+                <span className="sidebar-rail-link-label">{t('navCalendar')}</span>
+              </NavLink>
+            )}
+            {canViewClients && (
+              <NavLink
+                className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+                to="/clients"
+                data-onboarding-nav="clients"
+                title={t('navClients')}
+                aria-label={t('navClients')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <AndroidNavIconClients />
+                </span>
+                <span className="sidebar-rail-link-label">{t('navClients')}</span>
+              </NavLink>
+            )}
             {billingAllowed && (
               <NavLink
                 className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
@@ -1155,22 +1188,24 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="sidebar-rail-link-label">{t('navInbox')}</span>
               </NavLink>
             )}
-            <NavLink
-              className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
-              to="/analytics"
-              data-onboarding-nav="analytics"
-              title={t('navAnalytics')}
-              aria-label={t('navAnalytics')}
-            >
-              <span className="sidebar-rail-link-icon" aria-hidden>
-                <AndroidNavIconAnalytics />
-              </span>
-              <span className="sidebar-rail-link-label">{t('navAnalytics')}</span>
-            </NavLink>
+            {canViewReports && (
+              <NavLink
+                className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+                to="/analytics"
+                data-onboarding-nav="analytics"
+                title={t('navAnalytics')}
+                aria-label={t('navAnalytics')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <AndroidNavIconAnalytics />
+                </span>
+                <span className="sidebar-rail-link-label">{t('navAnalytics')}</span>
+              </NavLink>
+            )}
           </nav>
-          {(isAdmin || canScanWalletEntitlements) && (
+          {(canViewServices || canViewEmployees || canScanWalletEntitlements) && (
             <div className="sidebar-rail-footer">
-              {isAdmin && typesModuleEnabled && (
+              {canViewServices && typesModuleEnabled && (
                 <NavLink
                   to="/session-types"
                   data-onboarding-nav="services"
@@ -1186,7 +1221,7 @@ function ShellInner({ children }: PropsWithChildren) {
                   <span className="sidebar-rail-link-label">{t('tabSessionServiceTypes')}</span>
                 </NavLink>
               )}
-              {isAdmin && (
+              {canViewEmployees && (
                 <NavLink
                   className={({ isActive }) =>
                     `sidebar-consultants sidebar-rail-link${isActive ? ' active' : ''}`
@@ -1276,9 +1311,9 @@ function ShellInner({ children }: PropsWithChildren) {
         user={user}
         billingModuleEnabled={billingModuleEnabled}
         inboxModuleEnabled={inboxModuleEnabled}
-        servicesModuleEnabled={isAdmin && typesModuleEnabled}
-        employeesModuleEnabled={isAdmin}
-        configurationModuleEnabled={isAdmin}
+        servicesModuleEnabled={canViewServices && typesModuleEnabled}
+        employeesModuleEnabled={canViewEmployees}
+        configurationModuleEnabled={canViewConfiguration}
         ready={settingsLoaded}
       />
     </div>

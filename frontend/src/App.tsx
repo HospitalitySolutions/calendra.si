@@ -17,6 +17,7 @@ import { CourseAccessPage } from './pages/CourseAccessPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
 import { getDefaultAllowedRoute } from './lib/packageAccess'
+import { hasAnyEmployeePermission, hasEmployeePermission } from './lib/employeePermissions'
 import { storeAuthenticatedSession } from './lib/session'
 import { startClockSync, stopClockSync } from './lib/clock'
 import { clearAuthStoragePreservingTheme } from './theme'
@@ -344,30 +345,59 @@ export default function App() {
   }
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
-  const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
-  const billingAllowed = isPlatformAdmin || billingModuleEnabled
-  const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
-  const inboxAllowed = isPlatformAdmin || inboxModuleEnabled
-  const canScanWalletEntitlements = scannerModuleEnabled && (isAdmin || user.permissions?.some((permission) => ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'].includes(permission)))
-  const fallbackRoute = getDefaultAllowedRoute(user.packageType)
+  const canViewCalendar = hasEmployeePermission(user, 'CALENDAR_BOOKINGS_VIEW')
+  const canViewClients = hasEmployeePermission(user, 'CLIENTS_VIEW')
+  const canViewEmployees = hasAnyEmployeePermission(user, ['EMPLOYEES_VIEW', 'ROLES_PERMISSIONS_VIEW'])
+  const canViewServices = hasEmployeePermission(user, 'SERVICES_VIEW')
+  const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
+  const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
+  const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
+  const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
+  const canViewConfiguration = hasAnyEmployeePermission(user, [
+    'SETTINGS_VIEW',
+    'SPACES_VIEW',
+    'NOTIFICATIONS_VIEW',
+    'DELIVERY_LOGS_VIEW',
+    'INTEGRATIONS_VIEW',
+    'WEBSITE_WIDGET_VIEW',
+    'GUEST_MOBILE_APP_VIEW',
+  ])
+  const billingAllowed = billingModuleEnabled && canViewBilling
+  const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
+  const inboxAllowed = inboxModuleEnabled && canViewInbox
+  const canScanWalletEntitlements = scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
+  const preferredFallbackRoute = getDefaultAllowedRoute(user.packageType)
+  const routeCandidates = [
+    { path: '/calendar', allowed: canViewCalendar },
+    { path: '/clients', allowed: canViewClients },
+    { path: '/billing', allowed: billingAllowed },
+    { path: '/inbox', allowed: inboxAllowed },
+    { path: '/analytics', allowed: canViewReports },
+    { path: '/session-types', allowed: canViewServices },
+    { path: '/consultants', allowed: canViewEmployees },
+    { path: '/configuration', allowed: canViewConfiguration },
+    { path: '/scanner', allowed: canScanWalletEntitlements },
+  ]
+  const preferredCandidate = routeCandidates.find((candidate) => candidate.path === preferredFallbackRoute && candidate.allowed)
+  const fallbackRoute = preferredCandidate?.path ?? routeCandidates.find((candidate) => candidate.allowed)?.path ?? (user.role === 'CONSULTANT' ? '/my-profile' : '/help')
 
   return (
     <Shell>
       <Suspense fallback={<div className="content content-android-native" style={{ padding: 24 }}>{copy.loading}</div>}>
         <Routes>
-          <Route path="/" element={<Navigate to="/calendar" replace />} />
-          <Route path="/calendar/*" element={<CalendarPage />} />
-          <Route path="/sessions" element={<Navigate to="/calendar" replace />} />
-          <Route path="/sessions/booked" element={<Navigate to="/calendar" replace />} />
-          <Route path="/sessions/bookable" element={<Navigate to="/calendar" replace />} />
-          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/" element={<Navigate to={fallbackRoute} replace />} />
+          <Route path="/calendar/*" element={canViewCalendar ? <CalendarPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/sessions" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
+          <Route path="/sessions/booked" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
+          <Route path="/sessions/bookable" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
+          <Route path="/clients" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
             path="/scanner"
             element={canScanWalletEntitlements ? <WalletScannerPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
             path="/consultants"
-            element={isAdmin ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
+            element={canViewEmployees ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
             path="/my-profile"
@@ -377,12 +407,12 @@ export default function App() {
           <Route path="/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/analytics" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/configuration" element={<ConfigurationPage />} />
+          <Route path="/configuration" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
             path="/session-types"
-            element={isAdmin ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
+            element={canViewServices ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/platform-admin" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
@@ -390,16 +420,16 @@ export default function App() {
           <Route
             path="/security"
             element={
-              isAdmin ? (
+              canViewConfiguration ? (
                 <Navigate to="/configuration?tab=company&subtab=security" replace />
               ) : (
                 <SecurityPage />
               )
             }
           />
-          <Route path="/settings" element={<Navigate to={user.role === 'CONSULTANT' ? '/configuration?tab=integrations' : '/configuration'} replace />} />
-          <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />
-          <Route path="/sessions/types" element={<Navigate to="/session-types" replace />} />
+          <Route path="/settings" element={<Navigate to={canViewConfiguration ? (user.role === 'CONSULTANT' ? '/configuration?tab=integrations' : '/configuration') : fallbackRoute} replace />} />
+          <Route path="/sessions/spaces" element={<Navigate to={canViewConfiguration ? '/configuration?tab=booking' : fallbackRoute} replace />} />
+          <Route path="/sessions/types" element={<Navigate to={canViewServices ? '/session-types' : fallbackRoute} replace />} />
           <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
         </Routes>
       </Suspense>

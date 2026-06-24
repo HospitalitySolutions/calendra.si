@@ -138,6 +138,7 @@ const roleCopy = {
     saveChanges: 'Save changes',
     systemArchiveTitle: 'System roles cannot be archived.',
     systemSaveTitle: 'Duplicate a system role to customize it.',
+    viewRequiredTitle: 'View permission must be enabled before this action can be selected.',
     permissionGroup: 'Permission group',
     detailFoot: 'Changes to permissions will be applied to all users assigned to this custom role.',
     assignedUsersEyebrow: 'Assigned users',
@@ -192,6 +193,7 @@ const roleCopy = {
     saveChanges: 'Shrani spremembe',
     systemArchiveTitle: 'Sistemskih vlog ni mogoče arhivirati.',
     systemSaveTitle: 'Za prilagoditev sistemsko vlogo najprej podvojite.',
+    viewRequiredTitle: 'Najprej mora biti omogočen ogled, šele nato lahko izberete to dovoljenje.',
     permissionGroup: 'Skupina dovoljenj',
     detailFoot: 'Spremembe dovoljenj bodo uporabljene za vse uporabnike, ki so dodeljeni tej prilagojeni vlogi.',
     assignedUsersEyebrow: 'Dodeljeni uporabniki',
@@ -413,7 +415,7 @@ export function EmployeeRolesPermissionsTab() {
   function syncDraft(role: EmployeeRole) {
     setDraftName(role.name)
     setDraftDescription(role.description ?? '')
-    setDraftPermissions(matrixPermissionsOnly(role.permissions))
+    setDraftPermissions(enforceViewDependenciesForDraft(role.permissions))
   }
 
   useEffect(() => {
@@ -431,12 +433,43 @@ export function EmployeeRolesPermissionsTab() {
     return permissions.filter((permission) => matrixKeys.has(permission as EmployeePermission))
   }
 
+  function enforceViewDependenciesForDraft(permissions: string[]) {
+    const values = new Set(matrixPermissionsOnly(permissions))
+    permissionGroups.forEach((group) => {
+      const viewKey = permissionKey(group.key, 'VIEW')
+      if (values.has(viewKey)) return
+      values.delete(permissionKey(group.key, 'CREATE'))
+      values.delete(permissionKey(group.key, 'EDIT'))
+      values.delete(permissionKey(group.key, 'DELETE'))
+    })
+    return matrixPermissionsOnly(Array.from(values))
+  }
+
   function togglePermission(groupKey: string, action: PermissionAction) {
     if (!selectedRole || selectedRole.system) return
     const key = permissionKey(groupKey, action)
-    setDraftPermissions((current) => current.includes(key)
-      ? current.filter((permission) => permission !== key)
-      : [...current, key])
+    const viewKey = permissionKey(groupKey, 'VIEW')
+    setDraftPermissions((current) => {
+      const next = new Set(enforceViewDependenciesForDraft(current))
+      const checked = next.has(key)
+
+      if (action === 'VIEW') {
+        if (checked) {
+          next.delete(viewKey)
+          next.delete(permissionKey(groupKey, 'CREATE'))
+          next.delete(permissionKey(groupKey, 'EDIT'))
+          next.delete(permissionKey(groupKey, 'DELETE'))
+        } else {
+          next.add(viewKey)
+        }
+        return enforceViewDependenciesForDraft(Array.from(next))
+      }
+
+      if (!next.has(viewKey)) return current
+      if (checked) next.delete(key)
+      else next.add(key)
+      return enforceViewDependenciesForDraft(Array.from(next))
+    })
   }
 
   function selectRoleByKeyboard(event: KeyboardEvent<HTMLDivElement>, roleId: string) {
@@ -508,7 +541,7 @@ export function EmployeeRolesPermissionsTab() {
       const { data } = await api.put<EmployeeRole>(`/employee-roles/custom/${selectedRole.customRoleId}`, {
         name: draftName,
         description: draftDescription,
-        permissions: draftPermissions,
+        permissions: enforceViewDependenciesForDraft(draftPermissions),
       })
       setSuccessMessage(copy.saveSuccess)
       await loadRoles(data.id)
@@ -681,13 +714,18 @@ export function EmployeeRolesPermissionsTab() {
                       {EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => {
                         const key = permissionKey(group.key, action)
                         const checked = permissionSet.has(key)
+                        const viewChecked = permissionSet.has(permissionKey(group.key, 'VIEW'))
+                        const disabled = !!selectedRole.system || (action !== 'VIEW' && !viewChecked)
                         return (
                           <td key={key}>
-                            <label className={`employee-roles-check${checked ? ' employee-roles-check--checked' : ''}${selectedRole.system ? ' employee-roles-check--disabled' : ''}`}>
+                            <label
+                              className={`employee-roles-check${checked ? ' employee-roles-check--checked' : ''}${disabled ? ' employee-roles-check--disabled' : ''}`}
+                              title={action !== 'VIEW' && !viewChecked ? copy.viewRequiredTitle : undefined}
+                            >
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                disabled={selectedRole.system}
+                                disabled={disabled}
                                 onChange={() => togglePermission(group.key, action)}
                                 aria-label={`${group.label} ${copy.actionLabel(action)}`}
                               />
