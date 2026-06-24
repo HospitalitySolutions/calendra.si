@@ -16,20 +16,34 @@ import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.internet.MimeMessage;
+import java.awt.Color;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.Currency;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -39,6 +53,9 @@ public class GiftCardEmailService {
     private static final Logger log = LoggerFactory.getLogger(GiftCardEmailService.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final DateTimeFormatter DATE_FORMAT_SL = DateTimeFormatter.ofPattern("dd. MM. yyyy");
+    private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
+    private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
+
 
     private final JavaMailSender mailSender;
     private final AppSettingRepository settings;
@@ -79,15 +96,17 @@ public class GiftCardEmailService {
             return;
         }
         String subject = subject(entitlement);
-        String html = html(entitlement, cardSettings);
+        String body = emailBody(entitlement, cardSettings);
         String preview = plainPreview(entitlement, cardSettings);
         try {
+            byte[] pdfBytes = giftCardPdf(entitlement, cardSettings);
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setTo(recipient.trim());
             helper.setFrom(resolveFrom());
             helper.setSubject(subject);
-            helper.setText(html, true);
+            helper.setText(body, false);
+            helper.addAttachment(giftCardFileName(entitlement), new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
             logDeliverySent(entitlement, recipient, subject, preview);
         } catch (Exception ex) {
@@ -122,59 +141,273 @@ public class GiftCardEmailService {
         return "Darilni bon " + companyName;
     }
 
-    private String html(GuestEntitlement entitlement, GiftCardSettings settings) {
-        String companyName = escape(companyName(entitlement));
-        String productName = escape(productName(entitlement));
-        String backgroundStyle = settings.backgroundImageDataUrl() == null || settings.backgroundImageDataUrl().isBlank()
-                ? ""
-                : "background-image: linear-gradient(90deg, rgba(255,255,255,.92), rgba(255,255,255,.55)), url('" + safeCssUrl(settings.backgroundImageDataUrl()) + "'); background-size: cover; background-position: center;";
-        String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "—");
-        StringBuilder fields = new StringBuilder();
-        if (settings.showFrom()) {
-            fields.append(field("Od", fromName(entitlement)));
+    private String emailBody(GuestEntitlement entitlement, GiftCardSettings settings) {
+        String companyName = companyName(entitlement);
+        String productName = productName(entitlement);
+        String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
+        StringBuilder body = new StringBuilder();
+        body.append("Pozdravljeni,\n\n");
+        body.append("v priponki vam pošiljamo darilni bon");
+        if (!productName.isBlank()) body.append(" ").append(productName);
+        body.append(".\n");
+        if (!code.isBlank()) {
+            body.append("Koda darilnega bona: ").append(code).append("\n");
         }
-        String to = giftCardMetadata(entitlement).get("giftCardRecipientName");
+        body.append("\nLep pozdrav,\n").append(companyName);
+        return body.toString();
+    }
+
+    private byte[] giftCardPdf(GuestEntitlement entitlement, GiftCardSettings settings) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PDFont regular = loadFont(document, FONT_REGULAR_CLASSPATH);
+            PDFont bold = loadFont(document, FONT_BOLD_CLASSPATH);
+            PDPage page = new PDPage(new PDRectangle(842, 595));
+            document.addPage(page);
+            try (PDPageContentStream stream = new PDPageContentStream(document, page)) {
+                drawGiftCardPage(document, stream, entitlement, settings, regular, bold);
+            }
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private void drawGiftCardPage(
+            PDDocument document,
+            PDPageContentStream stream,
+            GuestEntitlement entitlement,
+            GiftCardSettings settings,
+            PDFont regular,
+            PDFont bold
+    ) throws IOException {
+        float pageW = 842;
+        float pageH = 595;
+        float cardW = 720;
+        float cardH = 390;
+        float cardX = (pageW - cardW) / 2;
+        float cardY = (pageH - cardH) / 2;
+
+        fillRect(stream, 0, 0, pageW, pageH, new Color(244, 247, 251));
+        fillRect(stream, cardX + 5, cardY - 7, cardW, cardH, new Color(225, 232, 240));
+        fillRect(stream, cardX, cardY, cardW, cardH, new Color(255, 250, 242));
+
+        byte[] background = decodeImageDataUrl(settings.backgroundImageDataUrl());
+        if (background != null && background.length > 0) {
+            try {
+                PDImageXObject image = PDImageXObject.createFromByteArray(document, background, "gift-card-background");
+                stream.saveGraphicsState();
+                stream.addRect(cardX, cardY, cardW, cardH);
+                stream.clip();
+                drawCoverImage(stream, image, cardX, cardY, cardW, cardH);
+                stream.restoreGraphicsState();
+            } catch (Exception ex) {
+                log.warn("Gift-card PDF background image could not be rendered: {}", ex.getMessage());
+            }
+        } else {
+            drawDefaultGiftIllustration(stream, cardX, cardY, cardW, cardH);
+        }
+
+        // Light overlay, matching the Configuration preview where text stays readable over the uploaded background.
+        setAlpha(stream, 0.92f);
+        fillRect(stream, cardX, cardY, cardW * 0.58f, cardH, Color.WHITE);
+        setAlpha(stream, 0.28f);
+        fillRect(stream, cardX + cardW * 0.38f, cardY, cardW * 0.62f, cardH, Color.WHITE);
+        setAlpha(stream, 1f);
+
+        String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "—");
+        if (settings.showCode()) {
+            drawCodePill(stream, regular, code, cardX + cardW - 132, cardY + cardH - 52);
+        }
+
+        float leftX = cardX + 42;
+        float topY = cardY + cardH - 48;
+        float fieldWidth = 315;
+        float cursorY = topY;
+        Map<String, String> metadata = giftCardMetadata(entitlement);
+
+        if (settings.showFrom()) {
+            cursorY = drawPdfField(stream, regular, bold, "OD", fromName(entitlement), leftX, cursorY, fieldWidth, 23, true);
+        }
+        String to = metadata.get("giftCardRecipientName");
         if (settings.showTo() && to != null && !to.isBlank()) {
-            fields.append(field("Za", to));
+            cursorY = drawPdfField(stream, regular, bold, "ZA", to, leftX, cursorY, fieldWidth, 23, true);
         }
         if (settings.showValue()) {
-            fields.append("""
-                    <div style=\"margin: 0 0 18px;\">
-                      <div style=\"font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #6f4e15; margin-bottom: 6px;\">Vrednost</div>
-                      <div style=\"font-family: Georgia, 'Times New Roman', serif; font-size: 58px; line-height: .95; letter-spacing: -.05em; color: #b7893f;\">%s</div>
-                    </div>
-                    """.formatted(escape(value(entitlement))));
+            drawPdfLabel(stream, bold, "VREDNOST", leftX, cursorY);
+            drawPdfText(stream, bold, value(entitlement), leftX, cursorY - 54, 46, new Color(183, 138, 66));
+            cursorY -= 84;
         }
         if (settings.showExpires()) {
-            fields.append(field("Poteče", expiry(entitlement)));
+            cursorY = drawPdfField(stream, regular, bold, "POTEČE", expiry(entitlement), leftX, cursorY, fieldWidth, 20, true);
         }
-        String text = giftCardMetadata(entitlement).get("giftCardMessage");
-        if (settings.showText() && text != null && !text.isBlank()) {
-            fields.append(field("Besedilo", text));
+        String message = metadata.get("giftCardMessage");
+        if (settings.showText() && message != null && !message.isBlank()) {
+            drawPdfLabel(stream, bold, "BESEDILO", leftX, cursorY);
+            drawWrappedPdfText(stream, regular, message, leftX, cursorY - 22, fieldWidth, 14.5f, 19f, new Color(48, 38, 29), 4);
         }
-        String codeHtml = settings.showCode()
-                ? "<div style=\"position:absolute; top:24px; right:24px; padding:8px 11px; border:1px solid rgba(184,137,62,.45); border-radius:999px; background:rgba(255,255,255,.78); color:#654a1e; font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase;\">" + escape(code) + "</div>"
-                : "";
-        return """
-                <!doctype html>
-                <html>
-                <body style=\"margin:0; padding:0; background:#f4f7fb; font-family: Arial, sans-serif; color:#0f172a;\">
-                  <div style=\"max-width:760px; margin:0 auto; padding:28px 16px;\">
-                    <div style=\"background:#ffffff; border:1px solid #dbe4f0; border-radius:22px; padding:24px; box-shadow:0 18px 42px rgba(15,23,42,.08);\">
-                      <h1 style=\"margin:0 0 6px; font-size:24px; line-height:1.25;\">Prejeli ste darilni bon</h1>
-                      <p style=\"margin:0 0 22px; color:#64748b; font-size:14px; line-height:1.5;\">%s vam pošilja darilni bon: %s.</p>
-                      <div style=\"position:relative; overflow:hidden; min-height:360px; border-radius:22px; background:linear-gradient(120deg,#fffaf2,#f1dfc7); box-shadow:0 20px 46px rgba(69,53,31,.18); %s\">
-                        %s
-                        <div style=\"width:min(420px, 62%%); padding:36px 38px;\">
-                          %s
-                        </div>
-                      </div>
-                      <p style=\"margin:18px 0 0; color:#64748b; font-size:13px; line-height:1.45;\">Kodo darilnega bona shranite. Uporabi se lahko skladno s pogoji ponudnika.</p>
-                    </div>
-                  </div>
-                </body>
-                </html>
-                """.formatted(companyName, productName, backgroundStyle, codeHtml, fields);
+    }
+
+    private float drawPdfField(
+            PDPageContentStream stream,
+            PDFont regular,
+            PDFont bold,
+            String label,
+            String value,
+            float x,
+            float y,
+            float width,
+            float valueSize,
+            boolean underline
+    ) throws IOException {
+        drawPdfLabel(stream, bold, label, x, y);
+        drawPdfText(stream, regular, firstNonBlank(value, "—"), x, y - 24, valueSize, new Color(48, 38, 29));
+        float nextY = y - 54;
+        if (underline) {
+            stream.setStrokingColor(new Color(184, 137, 62));
+            stream.setLineWidth(0.7f);
+            stream.moveTo(x, nextY + 7);
+            stream.lineTo(x + width, nextY + 7);
+            stream.stroke();
+            nextY -= 10;
+        }
+        return nextY;
+    }
+
+    private void drawPdfLabel(PDPageContentStream stream, PDFont bold, String text, float x, float y) throws IOException {
+        drawPdfText(stream, bold, text, x, y, 9.5f, new Color(101, 74, 30));
+    }
+
+    private void drawCodePill(PDPageContentStream stream, PDFont regular, String code, float x, float y) throws IOException {
+        String displayCode = firstNonBlank(code, "—");
+        float width = Math.max(92, Math.min(132, textWidth(regular, displayCode, 9) + 24));
+        fillRect(stream, x, y, width, 26, new Color(255, 255, 255));
+        stream.setStrokingColor(new Color(184, 137, 62));
+        stream.setLineWidth(0.8f);
+        stream.addRect(x, y, width, 26);
+        stream.stroke();
+        drawPdfText(stream, regular, displayCode, x + 12, y + 9, 9, new Color(101, 74, 30));
+    }
+
+    private void drawDefaultGiftIllustration(PDPageContentStream stream, float cardX, float cardY, float cardW, float cardH) throws IOException {
+        setAlpha(stream, 0.18f);
+        Color gold = new Color(183, 138, 66);
+        float x = cardX + cardW - 220;
+        float y = cardY + 115;
+        fillRect(stream, x + 30, y, 130, 112, gold);
+        fillRect(stream, x + 12, y + 112, 166, 36, gold);
+        fillRect(stream, x + 86, y, 20, 148, new Color(150, 106, 44));
+        stream.setStrokingColor(gold);
+        stream.setLineWidth(13);
+        stream.moveTo(x + 96, y + 151);
+        stream.curveTo(x + 38, y + 205, x + 20, y + 127, x + 86, y + 142);
+        stream.stroke();
+        stream.moveTo(x + 104, y + 151);
+        stream.curveTo(x + 162, y + 205, x + 180, y + 127, x + 114, y + 142);
+        stream.stroke();
+        setAlpha(stream, 1f);
+    }
+
+    private void drawCoverImage(PDPageContentStream stream, PDImageXObject image, float x, float y, float width, float height) throws IOException {
+        float imageW = image.getWidth();
+        float imageH = image.getHeight();
+        if (imageW <= 0 || imageH <= 0) return;
+        float scale = Math.max(width / imageW, height / imageH);
+        float drawW = imageW * scale;
+        float drawH = imageH * scale;
+        float drawX = x + (width - drawW) / 2f;
+        float drawY = y + (height - drawH) / 2f;
+        stream.drawImage(image, drawX, drawY, drawW, drawH);
+    }
+
+    private void fillRect(PDPageContentStream stream, float x, float y, float width, float height, Color color) throws IOException {
+        stream.setNonStrokingColor(color);
+        stream.addRect(x, y, width, height);
+        stream.fill();
+    }
+
+    private void setAlpha(PDPageContentStream stream, float alpha) throws IOException {
+        PDExtendedGraphicsState state = new PDExtendedGraphicsState();
+        state.setNonStrokingAlphaConstant(alpha);
+        state.setStrokingAlphaConstant(alpha);
+        stream.setGraphicsStateParameters(state);
+    }
+
+    private void drawPdfText(PDPageContentStream stream, PDFont font, String text, float x, float y, float fontSize, Color color) throws IOException {
+        stream.beginText();
+        stream.setFont(font, fontSize);
+        stream.setNonStrokingColor(color);
+        stream.newLineAtOffset(x, y);
+        stream.showText(pdfText(text));
+        stream.endText();
+    }
+
+    private void drawWrappedPdfText(
+            PDPageContentStream stream,
+            PDFont font,
+            String text,
+            float x,
+            float y,
+            float maxWidth,
+            float fontSize,
+            float lineHeight,
+            Color color,
+            int maxLines
+    ) throws IOException {
+        float cursorY = y;
+        int lines = 0;
+        for (String line : wrapPdfText(font, pdfText(text), fontSize, maxWidth)) {
+            if (lines >= maxLines) break;
+            drawPdfText(stream, font, line, x, cursorY, fontSize, color);
+            cursorY -= lineHeight;
+            lines++;
+        }
+    }
+
+    private java.util.List<String> wrapPdfText(PDFont font, String text, float fontSize, float maxWidth) throws IOException {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        if (text == null || text.isBlank()) return lines;
+        String[] paragraphs = text.replace("\r", "").split("\n");
+        for (String paragraph : paragraphs) {
+            StringBuilder line = new StringBuilder();
+            for (String word : paragraph.trim().split("\\s+")) {
+                String candidate = line.isEmpty() ? word : line + " " + word;
+                if (!line.isEmpty() && textWidth(font, candidate, fontSize) > maxWidth) {
+                    lines.add(line.toString());
+                    line = new StringBuilder(word);
+                } else {
+                    line = new StringBuilder(candidate);
+                }
+            }
+            if (!line.isEmpty()) lines.add(line.toString());
+        }
+        return lines;
+    }
+
+    private float textWidth(PDFont font, String text, float fontSize) throws IOException {
+        if (text == null || text.isBlank()) return 0;
+        return font.getStringWidth(pdfText(text)) / 1000f * fontSize;
+    }
+
+    private PDFont loadFont(PDDocument document, String classpath) throws IOException {
+        try (InputStream stream = GiftCardEmailService.class.getResourceAsStream(classpath)) {
+            if (stream == null) throw new IOException("Missing font resource: " + classpath);
+            return PDType0Font.load(document, stream, true);
+        }
+    }
+
+    private byte[] decodeImageDataUrl(String dataUrl) {
+        if (dataUrl == null || dataUrl.isBlank()) return null;
+        String trimmed = dataUrl.trim();
+        if (!trimmed.startsWith("data:image/")) return null;
+        int comma = trimmed.indexOf(',');
+        if (comma < 0 || comma >= trimmed.length() - 1) return null;
+        String header = trimmed.substring(0, comma).toLowerCase(Locale.ROOT);
+        String payload = trimmed.substring(comma + 1);
+        if (!header.contains(";base64")) return null;
+        try {
+            return Base64.getDecoder().decode(payload);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private String field(String label, String value) {
@@ -245,6 +478,13 @@ public class GiftCardEmailService {
         if (value != null && !value.isBlank()) result.put(fieldName, value.trim());
     }
 
+    private String giftCardFileName(GuestEntitlement entitlement) {
+        String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), String.valueOf(entitlement.getId()));
+        String safeCode = code == null ? "" : code.replaceAll("[^A-Za-z0-9._-]", "-");
+        if (safeCode.isBlank()) safeCode = "bon";
+        return "darilni-bon-" + safeCode + ".pdf";
+    }
+
     private String resolveFrom() {
         return !mailFrom.isBlank() ? mailFrom : (!fallbackFrom.isBlank() ? fallbackFrom : "no-reply@calendra.si");
     }
@@ -297,6 +537,15 @@ public class GiftCardEmailService {
         String trimmed = value.trim();
         if (!trimmed.startsWith("data:image/")) return "";
         return trimmed.replace("'", "").replace("\\", "");
+    }
+
+    private static String pdfText(String value) {
+        if (value == null) return "";
+        return value
+                .replace('\u00A0', ' ')
+                .replace("\t", " ")
+                .replaceAll("[\\p{Cntrl}&&[^\\r\\n]]", "")
+                .trim();
     }
 
     private static String escape(String value) {
