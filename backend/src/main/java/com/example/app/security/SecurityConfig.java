@@ -96,6 +96,7 @@ public class SecurityConfig {
             // Keep CSRF for the existing browser/session app, but ignore it for the guest API.
             return path.startsWith("/api/guest/")
                     || path.startsWith("/api/public/widget/")
+                    || path.startsWith("/api/public-bookings/manage/")
                     || path.startsWith("/api/course-access/")
                     || path.startsWith("/widget/")
                     || path.startsWith("/api/inbox/webhooks/")
@@ -160,6 +161,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/course-access/**").permitAll();
 
                     auth.requestMatchers("/api/public/widget/**").permitAll();
+                    auth.requestMatchers("/api/public-bookings/manage/**").permitAll();
                     auth.requestMatchers("/widget/**").permitAll();
 
                     auth.requestMatchers("/api/inbox/webhooks/**").permitAll();

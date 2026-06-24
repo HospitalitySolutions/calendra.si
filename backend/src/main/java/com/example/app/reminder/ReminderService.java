@@ -14,10 +14,13 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.TenantSmsQuotaService;
+import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingStatus;
 import com.example.app.sms.SmsGateway;
 import com.example.app.user.User;
+import com.example.app.widget.manage.PublicBookingManageTokenService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -63,6 +66,7 @@ public class ReminderService {
     private final GuestPushService guestPushService;
     private final TenantSmsQuotaService smsQuotaService;
     private final String frontendBaseUrl;
+    private final PublicBookingManageTokenService publicBookingManageTokenService;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -79,7 +83,8 @@ public class ReminderService {
             SmsGateway smsGateway,
             GuestNotificationService guestNotifications,
             GuestPushService guestPushService,
-            TenantSmsQuotaService smsQuotaService
+            TenantSmsQuotaService smsQuotaService,
+            @Autowired(required = false) PublicBookingManageTokenService publicBookingManageTokenService
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
@@ -95,6 +100,7 @@ public class ReminderService {
         this.guestNotifications = guestNotifications;
         this.guestPushService = guestPushService;
         this.smsQuotaService = smsQuotaService;
+        this.publicBookingManageTokenService = publicBookingManageTokenService;
     }
 
     /**
@@ -583,6 +589,7 @@ public class ReminderService {
 
         String subject = replaceTokens(template.subject(), tokens);
         String bodyHtml = replaceTokens(template.bodyHtml(), tokens);
+        bodyHtml = appendPublicBookingManageButtonsIfNeeded(booking, kind, bodyHtml);
 
         try {
             sendHtmlMail(client.getEmail().trim(), subject, bodyHtml);
@@ -748,6 +755,8 @@ public class ReminderService {
         m.put("{{consultantName}}", consultantName);
         m.put("{{consultantPhone}}", consultantPhone);
         m.put("{{rescheduleLink}}", rescheduleLink);
+        m.put("{{manageBookingLink}}", rescheduleLink);
+        m.put("{{cancelBookingLink}}", "");
         m.put("{{originalAppointmentDateTime}}", originalAppointmentDateTime);
 
         // Slovenian aliases used by Configuration -> Notifications template tags.
@@ -761,6 +770,8 @@ public class ReminderService {
         m.put("{{ime_lokacije}}", locationName);
         m.put("{{telefon_lokacije}}", locationPhone);
         m.put("{{povezava_za_prenarocanje}}", rescheduleLink);
+        m.put("{{povezava_za_upravljanje_termina}}", rescheduleLink);
+        m.put("{{povezava_za_odpoved_termina}}", "");
         m.put("{{kategorija_storitve}}", serviceCategories);
         m.put("{{ime_izvajalca}}", consultantName);
         m.put("{{telefon_izvajalca}}", consultantPhone);
@@ -784,6 +795,63 @@ public class ReminderService {
             sb.append(city);
         }
         return sb.toString();
+    }
+
+
+    private String appendPublicBookingManageButtonsIfNeeded(SessionBooking booking, NotificationKind kind, String bodyHtml) {
+        if ((kind != NotificationKind.NEW_SESSION && kind != NotificationKind.CHANGE_SESSION) || !isWebsiteWidgetBookingSource(booking)) {
+            return bodyHtml;
+        }
+        if (publicBookingManageTokenService == null || frontendBaseUrl.isBlank() || booking.getCompany() == null || booking.getEndTime() == null) {
+            return bodyHtml;
+        }
+        var rules = TenantReservationRulesService.resolve(appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
+                .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b)));
+        boolean canModify = canUsePublicManageAction(booking, rules.rescheduleUntilHours()) && booking.getClientGroup() == null;
+        boolean canCancel = canUsePublicManageAction(booking, rules.cancelUntilHours());
+        if (!canModify && !canCancel) {
+            return bodyHtml;
+        }
+        String token = publicBookingManageTokenService.createToken(booking, java.time.ZoneId.of("Europe/Ljubljana"));
+        if (token == null || token.isBlank()) {
+            return bodyHtml;
+        }
+        String base = frontendBaseUrl + "/public-booking/manage/" + token;
+        String modifyLink = base + "?action=modify";
+        String cancelLink = base + "?action=cancel";
+        StringBuilder html = new StringBuilder(bodyHtml == null ? "" : bodyHtml);
+        html.append("<div style=\"margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-family:Arial,sans-serif\">");
+        html.append("<p style=\"margin:0 0 12px;color:#374151;font-size:14px\">Termin lahko po potrebi uredite prek spodnje povezave.</p>");
+        if (canModify) {
+            html.append("<a href=\"").append(escapeHtmlAttribute(modifyLink)).append("\" style=\"display:inline-block;margin:0 8px 8px 0;padding:10px 14px;border-radius:8px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600\">Spremeni termin</a>");
+        }
+        if (canCancel) {
+            html.append("<a href=\"").append(escapeHtmlAttribute(cancelLink)).append("\" style=\"display:inline-block;margin:0 8px 8px 0;padding:10px 14px;border-radius:8px;background:#f3f4f6;color:#111827;text-decoration:none;font-weight:600\">Odpovej termin</a>");
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private boolean canUsePublicManageAction(SessionBooking booking, int cutoffHours) {
+        if (!isWebsiteWidgetBookingSource(booking)) return false;
+        if (!SessionBookingStatus.RESERVED.equals(SessionBookingStatus.normalizeStored(booking.getBookingStatus()))) return false;
+        LocalDateTime now = LocalDateTime.now();
+        if (booking.getStartTime() == null || !booking.getStartTime().isAfter(now)) return false;
+        LocalDateTime deadline = booking.getStartTime().minusHours(Math.max(0, cutoffHours));
+        return !now.isAfter(deadline);
+    }
+
+    private static boolean isWebsiteWidgetBookingSource(SessionBooking booking) {
+        return booking != null && "WEBSITE_WIDGET".equalsIgnoreCase(String.valueOf(booking.getSourceChannel()));
+    }
+
+    private static String escapeHtmlAttribute(String value) {
+        if (value == null) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     private String buildRescheduleLink(Company company) {

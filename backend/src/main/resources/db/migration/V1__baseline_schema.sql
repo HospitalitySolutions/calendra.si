@@ -1197,6 +1197,20 @@ CREATE TABLE IF NOT EXISTS widget_booking_idempotency (
     last_error VARCHAR(1000)
 );
 
+
+-- backend/src/main/java/com/example/app/widget/manage/PublicBookingManageToken.java
+CREATE TABLE IF NOT EXISTS public_booking_manage_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    company_id BIGINT NOT NULL,
+    booking_id BIGINT NOT NULL,
+    token_hash VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    revoked_at TIMESTAMP WITH TIME ZONE
+);
+
 -- backend/src/main/java/com/example/app/zoom/ZoomOAuthToken.java
 CREATE TABLE IF NOT EXISTS zoom_oauth_tokens (
     id BIGSERIAL PRIMARY KEY,
@@ -1419,6 +1433,17 @@ BEGIN
             ALTER TABLE widget_booking_idempotency ADD COLUMN last_error VARCHAR(1000);
         END IF;
         ALTER TABLE widget_booking_idempotency ALTER COLUMN response_json DROP NOT NULL;
+    END IF;
+
+    IF to_regclass('public.public_booking_manage_tokens') IS NOT NULL THEN
+        EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS ux_public_booking_manage_tokens_hash
+                 ON public_booking_manage_tokens (token_hash)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_public_booking_manage_tokens_booking
+                 ON public_booking_manage_tokens (booking_id)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_public_booking_manage_tokens_company
+                 ON public_booking_manage_tokens (company_id)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_public_booking_manage_tokens_active
+                 ON public_booking_manage_tokens (token_hash, revoked_at, expires_at)';
     END IF;
 
     IF to_regclass('public.guest_device_tokens') IS NOT NULL THEN

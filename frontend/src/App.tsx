@@ -14,6 +14,7 @@ import { RegisterAccountPage } from './pages/RegisterAccountPage'
 import { RegisterBillingDetailsPage } from './pages/RegisterBillingDetailsPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { CourseAccessPage } from './pages/CourseAccessPage'
+import { PublicBookingManagePage } from './pages/PublicBookingManagePage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
 import { getDefaultAllowedRoute } from './lib/packageAccess'
@@ -309,6 +310,7 @@ export default function App() {
 
   if (location.pathname === '/oauth-callback') return <OAuthCallbackPage />
   if (location.pathname.startsWith('/course-access/')) return <CourseAccessPage />
+  if (location.pathname.startsWith('/public-booking/manage/')) return <PublicBookingManagePage />
   if (location.pathname === '/forgot-password') return <ForgotPasswordPage />
   if (location.pathname === '/reset-password') return <ResetPasswordPage />
 
