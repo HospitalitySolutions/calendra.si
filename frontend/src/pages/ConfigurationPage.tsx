@@ -3300,7 +3300,7 @@ export function ConfigurationPage() {
       const unifiedTenantType = normalizeTenantConfigType(
         settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType,
       );
-      const effectiveSettings = {
+      const effectiveSettings: Record<string, string> = {
         ...settings,
         MODULE_CONFIG_TYPE: unifiedTenantType,
       };
@@ -3391,7 +3391,7 @@ export function ConfigurationPage() {
       const unifiedTenantType = normalizeTenantConfigType(
         settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType,
       );
-      const effectiveSettings = {
+      const effectiveSettings: Record<string, string> = {
         ...settings,
         MODULE_CONFIG_TYPE: unifiedTenantType,
       };

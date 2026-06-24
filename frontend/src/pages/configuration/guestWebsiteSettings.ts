@@ -48,6 +48,7 @@ export type GuestBookingRulesForm = {
   requireOnlinePayment: boolean;
   allowBankTransferFor: string[];
   allowCardFor: string[];
+  allowPaypalFor: string[];
   minBookingNotice: string;
   maxAdvanceDays: string;
   cancellationEnabled: boolean;
@@ -276,6 +277,13 @@ export const defaultGuestBookingRules = (): GuestBookingRulesForm => ({
   requireOnlinePayment: true,
   allowBankTransferFor: ["PACK", "MEMBERSHIP", "GIFT_CARD"],
   allowCardFor: [
+    "SESSION_SINGLE",
+    "CLASS_TICKET",
+    "PACK",
+    "MEMBERSHIP",
+    "GIFT_CARD",
+  ],
+  allowPaypalFor: [
     "SESSION_SINGLE",
     "CLASS_TICKET",
     "PACK",
@@ -705,6 +713,13 @@ export const parseGuestBookingRules = (
         "MEMBERSHIP",
         "GIFT_CARD",
       ]),
+      allowPaypalFor: normalizeAllowed(parsed?.allowPaypalFor, [
+        "SESSION_SINGLE",
+        "CLASS_TICKET",
+        "PACK",
+        "MEMBERSHIP",
+        "GIFT_CARD",
+      ]),
       minBookingNotice: String(parsed?.minBookingNotice || "2 uri"),
       maxAdvanceDays: String(parsed?.maxAdvanceDays ?? "60"),
       cancellationEnabled: parsed?.cancellationEnabled !== false,
@@ -925,6 +940,7 @@ export const serializeGuestBookingRules = (value: GuestBookingRulesForm) =>
     requireOnlinePayment: value.paymentRequirement !== "none",
     allowBankTransferFor: value.allowBankTransferFor,
     allowCardFor: value.allowCardFor,
+    allowPaypalFor: value.allowPaypalFor,
     minBookingNotice: value.minBookingNotice.trim(),
     maxAdvanceDays: value.maxAdvanceDays.trim(),
     cancellationEnabled: value.cancellationEnabled,
