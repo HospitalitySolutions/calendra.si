@@ -22,6 +22,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let tenantType: String?
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
+    let cancellationAllowed: Bool?
+    let modificationAllowed: Bool?
     let billingEnabled: Bool?
     let inboxEnabled: Bool?
     let cardImageUrl: String?
@@ -47,6 +49,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case tenantType
         case employeeSelectionStep
         case useEmployeeContact
+        case cancellationAllowed
+        case modificationAllowed
         case billingEnabled
         case inboxEnabled
         case cardImageUrl
@@ -69,6 +73,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
         tenantType: String? = nil,
         employeeSelectionStep: Bool? = nil,
         useEmployeeContact: Bool? = nil,
+        cancellationAllowed: Bool? = nil,
+        modificationAllowed: Bool? = nil,
         billingEnabled: Bool? = nil,
         inboxEnabled: Bool? = nil,
         cardImageUrl: String? = nil,
@@ -89,6 +95,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.tenantType = tenantType
         self.employeeSelectionStep = employeeSelectionStep
         self.useEmployeeContact = useEmployeeContact
+        self.cancellationAllowed = cancellationAllowed
+        self.modificationAllowed = modificationAllowed
         self.billingEnabled = billingEnabled
         self.inboxEnabled = inboxEnabled
         self.cardImageUrl = cardImageUrl
@@ -112,6 +120,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.tenantType = try c.decodeIfPresent(String.self, forKey: .tenantType)
         self.employeeSelectionStep = try c.decodeIfPresent(Bool.self, forKey: .employeeSelectionStep)
         self.useEmployeeContact = try c.decodeIfPresent(Bool.self, forKey: .useEmployeeContact)
+        self.cancellationAllowed = try c.decodeIfPresent(Bool.self, forKey: .cancellationAllowed)
+        self.modificationAllowed = try c.decodeIfPresent(Bool.self, forKey: .modificationAllowed)
         self.billingEnabled = try c.decodeIfPresent(Bool.self, forKey: .billingEnabled)
         self.inboxEnabled = try c.decodeIfPresent(Bool.self, forKey: .inboxEnabled)
         self.cardImageUrl = try c.decodeIfPresent(String.self, forKey: .cardImageUrl)
@@ -777,6 +787,8 @@ struct BookingCardModel: Identifiable, Hashable {
     let endsAt: String?
     let consultantName: String?
     let sessionTypeId: String?
+    var cancellationAllowed: Bool = true
+    var modificationAllowed: Bool = true
 }
 
 struct BookingActionResultModel: Codable {

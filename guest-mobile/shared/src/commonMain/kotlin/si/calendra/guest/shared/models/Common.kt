@@ -17,6 +17,8 @@ data class TenantSummary(
     val status: String = "ACTIVE",
     val employeeSelectionStep: Boolean = false,
     val useEmployeeContact: Boolean = false,
+    val cancellationAllowed: Boolean = true,
+    val modificationAllowed: Boolean = true,
     val billingEnabled: Boolean = true,
     val inboxEnabled: Boolean = true,
     val requireOnlinePayment: Boolean = true,

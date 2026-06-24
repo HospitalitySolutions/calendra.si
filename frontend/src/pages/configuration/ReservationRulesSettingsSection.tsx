@@ -18,6 +18,8 @@ type ReservationRules = {
   rescheduleUntilHours: number;
   cancelUntilHours: number;
   employeeSelectionAllowed: boolean;
+  cancellationAllowed: boolean;
+  modificationAllowed: boolean;
   noShowMode: "MANUAL" | "AUTOMATIC";
   noShowAfterMinutes: number;
 };
@@ -41,6 +43,10 @@ type Copy = {
   rescheduleHint: string;
   cancel: string;
   cancelHint: string;
+  allowCancellation: string;
+  allowCancellationHint: string;
+  allowModification: string;
+  allowModificationHint: string;
   allowEmployeeChoice: string;
   allowEmployeeChoiceHint: string;
   noShowMode: string;
@@ -75,6 +81,10 @@ const TEXT: Record<AppLocale, Copy> = {
     rescheduleHint: "Guest rescheduling is blocked closer than this many hours before the appointment.",
     cancel: "Cancellation allowed until",
     cancelHint: "Guest cancellation is blocked closer than this many hours before the appointment.",
+    allowCancellation: "Booking cancellation",
+    allowCancellationHint: "When off, guests can never cancel a booking (website link and guest app). When on, the cancellation deadline above applies.",
+    allowModification: "Booking modification",
+    allowModificationHint: "When off, guests can never reschedule a booking (website link and guest app). When on, the reschedule deadline above applies.",
     allowEmployeeChoice: "Allow employee selection",
     allowEmployeeChoiceHint: "When off, guests choose service and time; Calendra assigns the available employee behind the selected slot.",
     noShowMode: "No-show mode",
@@ -107,6 +117,10 @@ const TEXT: Record<AppLocale, Copy> = {
     rescheduleHint: "Bližje kot toliko ur pred terminom stranka termina ne more več prestaviti.",
     cancel: "Odpoved termina dovoljena do",
     cancelHint: "Bližje kot toliko ur pred terminom stranka termina ne more več odpovedati.",
+    allowCancellation: "Odpoved rezervacije",
+    allowCancellationHint: "Ko je izklopljeno, stranka rezervacije ne more odpovedati (spletna povezava in aplikacija). Ko je vklopljeno, velja zgornji rok za odpoved.",
+    allowModification: "Sprememba rezervacije",
+    allowModificationHint: "Ko je izklopljeno, stranka rezervacije ne more prestaviti (spletna povezava in aplikacija). Ko je vklopljeno, velja zgornji rok za spremembo.",
     allowEmployeeChoice: "Dovoli izbiro zaposlenega",
     allowEmployeeChoiceHint: "Ko je izklopljeno, stranka izbere storitev in termin; Calendra v ozadju dodeli razpoložljivega zaposlenega.",
     noShowMode: "Način No Show",
@@ -128,6 +142,8 @@ const DEFAULT_RULES: ReservationRules = {
   rescheduleUntilHours: 12,
   cancelUntilHours: 24,
   employeeSelectionAllowed: false,
+  cancellationAllowed: true,
+  modificationAllowed: true,
   noShowMode: "MANUAL",
   noShowAfterMinutes: 15,
 };
@@ -148,6 +164,10 @@ export const parseTenantReservationRules = (raw: string | undefined): Reservatio
       rescheduleUntilHours: clampNumber(parsed?.rescheduleUntilHours, DEFAULT_RULES.rescheduleUntilHours, 0, 24 * 90),
       cancelUntilHours: clampNumber(parsed?.cancelUntilHours ?? parsed?.freeCancelUntilHours, DEFAULT_RULES.cancelUntilHours, 0, 24 * 90),
       employeeSelectionAllowed: parsed?.employeeSelectionAllowed === true || parsed?.employeeSelectionStep === true,
+      cancellationAllowed:
+        parsed?.cancellationAllowed === false || parsed?.cancellationEnabled === false ? false : true,
+      modificationAllowed:
+        parsed?.modificationAllowed === false || parsed?.modificationEnabled === false ? false : true,
       noShowMode: parsed?.noShowMode === "AUTOMATIC" || parsed?.noShowMode === "AUTO" ? "AUTOMATIC" : "MANUAL",
       noShowAfterMinutes: clampNumber(parsed?.noShowAfterMinutes, DEFAULT_RULES.noShowAfterMinutes, 0, 24 * 60),
     };
@@ -163,6 +183,9 @@ export const serializeTenantReservationRules = (rules: ReservationRules) =>
     rescheduleUntilHours: clampNumber(rules.rescheduleUntilHours, DEFAULT_RULES.rescheduleUntilHours, 0, 24 * 90),
     cancelUntilHours: clampNumber(rules.cancelUntilHours, DEFAULT_RULES.cancelUntilHours, 0, 24 * 90),
     employeeSelectionAllowed: rules.employeeSelectionAllowed,
+    cancellationAllowed: rules.cancellationAllowed,
+    cancellationEnabled: rules.cancellationAllowed,
+    modificationAllowed: rules.modificationAllowed,
     noShowMode: rules.noShowMode === "AUTOMATIC" ? "AUTOMATIC" : "MANUAL",
     noShowAfterMinutes: clampNumber(rules.noShowAfterMinutes, DEFAULT_RULES.noShowAfterMinutes, 0, 24 * 60),
   });
@@ -251,6 +274,26 @@ export function ReservationRulesSettingsSection({
               min={0}
               max={24 * 90}
               onChange={(value) => update({ cancelUntilHours: value })}
+            />
+          </div>
+          <div className="reservation-rules-toggle-row">
+            <div>
+              <strong>{text.allowCancellation}</strong>
+              <p>{text.allowCancellationHint}</p>
+            </div>
+            <GuestSegmentedToggle
+              value={rules.cancellationAllowed}
+              onChange={(value) => update({ cancellationAllowed: value })}
+            />
+          </div>
+          <div className="reservation-rules-toggle-row">
+            <div>
+              <strong>{text.allowModification}</strong>
+              <p>{text.allowModificationHint}</p>
+            </div>
+            <GuestSegmentedToggle
+              value={rules.modificationAllowed}
+              onChange={(value) => update({ modificationAllowed: value })}
             />
           </div>
         </article>

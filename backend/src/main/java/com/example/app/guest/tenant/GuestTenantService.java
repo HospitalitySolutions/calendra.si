@@ -92,7 +92,9 @@ public class GuestTenantService {
                 GuestJoinMethod.TENANT_CODE.name(),
                 settings.guestAppEnabled(),
                 settings.employeeSelectionStep(),
-                settings.useEmployeeContact()
+                settings.useEmployeeContact(),
+                settings.cancellationAllowed(),
+                settings.modificationAllowed()
         );
     }
 
@@ -119,7 +121,9 @@ public class GuestTenantService {
                 GuestJoinMethod.INVITE_LINK.name(),
                 settings.guestAppEnabled(),
                 settings.employeeSelectionStep(),
-                settings.useEmployeeContact()
+                settings.useEmployeeContact(),
+                settings.cancellationAllowed(),
+                settings.modificationAllowed()
         );
     }
 

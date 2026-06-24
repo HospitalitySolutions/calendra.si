@@ -327,18 +327,21 @@ public class PublicBookingManageService {
 
     private boolean canModify(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {
         if (!isManageableWidgetBooking(booking)) return false;
+        if (rules != null && !rules.modificationAllowed()) return false;
         if (booking.getClientGroup() != null) return false;
         return beforeCutoff(booking, rules.rescheduleUntilHours());
     }
 
     private boolean canCancel(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {
         if (!isManageableWidgetBooking(booking)) return false;
+        if (rules != null && !rules.cancellationAllowed()) return false;
         return beforeCutoff(booking, rules.cancelUntilHours());
     }
 
     private String modifyBlockedReason(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {
         if (canModify(booking, rules)) return null;
         if (!isManageableWidgetBooking(booking)) return "This booking can no longer be changed.";
+        if (rules != null && !rules.modificationAllowed()) return "This booking cannot be changed online.";
         if (booking != null && booking.getClientGroup() != null) return "Group sessions cannot be rescheduled from this link.";
         return "This booking can no longer be changed because the reschedule deadline has passed.";
     }
@@ -346,6 +349,7 @@ public class PublicBookingManageService {
     private String cancelBlockedReason(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {
         if (canCancel(booking, rules)) return null;
         if (!isManageableWidgetBooking(booking)) return "This booking can no longer be cancelled.";
+        if (rules != null && !rules.cancellationAllowed()) return "This booking cannot be cancelled online.";
         return "This booking can no longer be cancelled because the cancellation deadline has passed.";
     }
 

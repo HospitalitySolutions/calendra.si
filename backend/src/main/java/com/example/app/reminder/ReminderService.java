@@ -875,8 +875,8 @@ public class ReminderService {
         }
         var rules = TenantReservationRulesService.resolve(appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
                 .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b)));
-        boolean canModify = canUsePublicManageAction(booking, rules.rescheduleUntilHours()) && booking.getClientGroup() == null;
-        boolean canCancel = canUsePublicManageAction(booking, rules.cancelUntilHours());
+        boolean canModify = rules.modificationAllowed() && canUsePublicManageAction(booking, rules.rescheduleUntilHours()) && booking.getClientGroup() == null;
+        boolean canCancel = rules.cancellationAllowed() && canUsePublicManageAction(booking, rules.cancelUntilHours());
         if (!canModify && !canCancel) {
             return bodyHtml;
         }

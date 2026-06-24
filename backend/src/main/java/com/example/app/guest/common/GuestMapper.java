@@ -55,7 +55,9 @@ public final class GuestMapper {
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent,
-                acceptedPaymentMethods == null ? List.of() : acceptedPaymentMethods
+                acceptedPaymentMethods == null ? List.of() : acceptedPaymentMethods,
+                settings.cancellationAllowed(),
+                settings.modificationAllowed()
         );
     }
 
@@ -86,7 +88,9 @@ public final class GuestMapper {
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent,
-                acceptedPaymentMethods == null ? List.of() : acceptedPaymentMethods
+                acceptedPaymentMethods == null ? List.of() : acceptedPaymentMethods,
+                settings.cancellationAllowed(),
+                settings.modificationAllowed()
         );
     }
 

@@ -3059,7 +3059,9 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
                     tenantPhone = phone,
                     cardImageUrl = it.cardImageUrl,
                     logoImageUrl = it.logoImageUrl,
-                    iconImageUrl = it.iconImageUrl
+                    iconImageUrl = it.iconImageUrl,
+                    cancellationAllowed = it.cancellationAllowed,
+                    modificationAllowed = it.modificationAllowed
                 )
             }
         }
@@ -3080,7 +3082,9 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
                     tenantPhone = it.publicPhone,
                     cardImageUrl = it.cardImageUrl,
                     logoImageUrl = it.logoImageUrl,
-                    iconImageUrl = it.iconImageUrl
+                    iconImageUrl = it.iconImageUrl,
+                    cancellationAllowed = it.cancellationAllowed,
+                    modificationAllowed = it.modificationAllowed
                 )
             }
         }
@@ -3114,7 +3118,9 @@ private fun aggregatedCalendarBookings(state: GuestUiState): List<UpcomingBookin
                 tenantPhone = phone,
                 cardImageUrl = tenant.cardImageUrl,
                 logoImageUrl = tenant.logoImageUrl,
-                iconImageUrl = tenant.iconImageUrl
+                iconImageUrl = tenant.iconImageUrl,
+                cancellationAllowed = tenant.cancellationAllowed,
+                modificationAllowed = tenant.modificationAllowed
             )
         }
     }.filterNot { it.status.equals("CANCELLED", ignoreCase = true) }

@@ -577,19 +577,21 @@ struct HomeBookingCard: View {
                     .zIndex(2)
             }
 
-            Button {
-                activeActionMenu = activeActionMenu == .manage ? nil : .manage
-            } label: {
-                fullWidthActionLabel(title: isSl ? "Upravljaj rezervacijo" : "Manage reservation", systemName: "bell", filled: false)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, activeActionMenu == .contact ? 6 : 8)
+            if booking.modificationAllowed || booking.cancellationAllowed {
+                Button {
+                    activeActionMenu = activeActionMenu == .manage ? nil : .manage
+                } label: {
+                    fullWidthActionLabel(title: isSl ? "Upravljaj rezervacijo" : "Manage reservation", systemName: "bell", filled: false)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, activeActionMenu == .contact ? 6 : 8)
 
-            if activeActionMenu == .manage {
-                bookingActionSheet(menu: .manage)
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(2)
+                if activeActionMenu == .manage {
+                    bookingActionSheet(menu: .manage)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(2)
+                }
             }
         }
         .padding(.horizontal, 13)
@@ -673,14 +675,25 @@ struct HomeBookingCard: View {
                     .foregroundColor(mutedText)
                     .padding(.bottom, 8)
 
-                HStack(spacing: 8) {
-                    sheetButton(title: isSl ? "Prestavi termin" : "Reschedule", systemName: "calendar.badge.clock", color: brandBlue, disabled: !booking.canManage) {
-                        onReschedule(booking)
-                        activeActionMenu = nil
-                    }
-                    sheetButton(title: isSl ? "Odpovej termin" : "Cancel booked session", systemName: "trash", color: .red, disabled: !booking.canManage) {
-                        onCancel()
-                        activeActionMenu = nil
+                if !booking.modificationAllowed && !booking.cancellationAllowed {
+                    Text(isSl ? "Te rezervacije ni mogoče urejati." : "This booking cannot be managed.")
+                        .font(.system(size: 13))
+                        .foregroundColor(mutedText)
+                        .padding(.vertical, 6)
+                } else {
+                    HStack(spacing: 8) {
+                        if booking.modificationAllowed {
+                            sheetButton(title: isSl ? "Prestavi termin" : "Reschedule", systemName: "calendar.badge.clock", color: brandBlue, disabled: !booking.canManage) {
+                                onReschedule(booking)
+                                activeActionMenu = nil
+                            }
+                        }
+                        if booking.cancellationAllowed {
+                            sheetButton(title: isSl ? "Odpovej termin" : "Cancel booked session", systemName: "trash", color: .red, disabled: !booking.canManage) {
+                                onCancel()
+                                activeActionMenu = nil
+                            }
+                        }
                     }
                 }
             }

@@ -87,6 +87,8 @@ public class WebsiteWidgetSettingsService {
                     reservationRules.minBookingNoticeMinutes(),
                     reservationRules.maxAdvanceBookingDays(),
                     reservationRules.employeeSelectionAllowed(),
+                    reservationRules.cancellationAllowed(),
+                    reservationRules.modificationAllowed(),
                     reservationRules.noShowMode(),
                     reservationRules.noShowAfterMinutes()
             );
@@ -120,6 +122,8 @@ public class WebsiteWidgetSettingsService {
                 reservationRules.minBookingNoticeMinutes(),
                 reservationRules.maxAdvanceBookingDays(),
                 reservationRules.employeeSelectionAllowed(),
+                reservationRules.cancellationAllowed(),
+                reservationRules.modificationAllowed(),
                 reservationRules.noShowMode(),
                 reservationRules.noShowAfterMinutes()
         );

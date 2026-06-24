@@ -165,6 +165,9 @@ public class GuestBookingActionsController {
             return actionResponse(booking, false);
         }
         var rules = catalogService.bookingRules(booking.getCompany().getId());
+        if (!rules.cancellationAllowed()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cancellation is not available for this business.");
+        }
         LocalDateTime now = LocalDateTime.now();
         if (booking.getStartTime() != null && !booking.getStartTime().isAfter(now)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking has already started.");
@@ -204,6 +207,9 @@ public class GuestBookingActionsController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking service is missing.");
         }
         var rules = catalogService.bookingRules(booking.getCompany().getId());
+        if (!rules.modificationAllowed()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Modification is not available for this business.");
+        }
         LocalDateTime now = LocalDateTime.now();
         if (booking.getStartTime() != null && !booking.getStartTime().isAfter(now)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking has already started.");

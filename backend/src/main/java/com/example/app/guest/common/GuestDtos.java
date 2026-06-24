@@ -37,7 +37,11 @@ public final class GuestDtos {
             /** Deposit percentage used when paymentRequirement=deposit. */
             Integer depositPercent,
             /** Runtime payment ids enabled in this tenant's guest app: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. */
-            List<String> acceptedPaymentMethods
+            List<String> acceptedPaymentMethods,
+            /** When false, guests cannot cancel upcoming bookings. */
+            boolean cancellationAllowed,
+            /** When false, guests cannot modify/reschedule upcoming bookings. */
+            boolean modificationAllowed
     ) {}
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
@@ -106,7 +110,7 @@ public final class GuestDtos {
     public record DeleteGuestAccountResponse(boolean deleted) {}
 
     public record TenantLookupRequest(String tenantCode) {}
-    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin, boolean employeeSelectionStep, boolean useEmployeeContact) {}
+    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin, boolean employeeSelectionStep, boolean useEmployeeContact, boolean cancellationAllowed, boolean modificationAllowed) {}
     public record JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId) {}
     public record TenantLinkResponse(String companyId, String clientId, String status, String joinedVia) {}
     public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {}

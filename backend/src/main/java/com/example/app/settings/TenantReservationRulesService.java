@@ -26,6 +26,8 @@ public class TenantReservationRulesService {
     public static final int DEFAULT_RESCHEDULE_UNTIL_HOURS = 12;
     public static final int DEFAULT_CANCEL_UNTIL_HOURS = 24;
     public static final boolean DEFAULT_EMPLOYEE_SELECTION_ALLOWED = false;
+    public static final boolean DEFAULT_CANCELLATION_ALLOWED = true;
+    public static final boolean DEFAULT_MODIFICATION_ALLOWED = true;
     public static final String NO_SHOW_MANUAL = "MANUAL";
     public static final String NO_SHOW_AUTOMATIC = "AUTOMATIC";
     public static final String DEFAULT_NO_SHOW_MODE = NO_SHOW_MANUAL;
@@ -83,13 +85,29 @@ public class TenantReservationRulesService {
                 guestRules.path("freeCancelUntilHours")
         ), DEFAULT_CANCEL_UNTIL_HOURS, 0, 24 * 90);
         boolean employeeSelectionAllowed = firstBoolean(
+                DEFAULT_EMPLOYEE_SELECTION_ALLOWED,
                 canonical.path("employeeSelectionAllowed"),
                 canonical.path("employeeSelectionStep"),
                 website.path("employeeSelectionAllowed"),
                 website.path("employeeSelectionStep"),
                 guestApp.path("employeeSelectionAllowed"),
-                guestApp.path("employeeSelectionStep"),
-                DEFAULT_EMPLOYEE_SELECTION_ALLOWED
+                guestApp.path("employeeSelectionStep")
+        );
+        boolean cancellationAllowed = firstBoolean(
+                DEFAULT_CANCELLATION_ALLOWED,
+                canonical.path("cancellationAllowed"),
+                canonical.path("cancellationEnabled"),
+                guestRules.path("cancellationAllowed"),
+                guestRules.path("cancellationEnabled"),
+                guestApp.path("cancellationAllowed"),
+                guestApp.path("cancellationEnabled")
+        );
+        boolean modificationAllowed = firstBoolean(
+                DEFAULT_MODIFICATION_ALLOWED,
+                canonical.path("modificationAllowed"),
+                canonical.path("modificationEnabled"),
+                guestRules.path("modificationAllowed"),
+                guestRules.path("modificationEnabled")
         );
         String noShowMode = normalizeNoShowMode(firstText(
                 canonical.path("noShowMode"),
@@ -108,6 +126,8 @@ public class TenantReservationRulesService {
                 rescheduleHours,
                 cancelHours,
                 employeeSelectionAllowed,
+                cancellationAllowed,
+                modificationAllowed,
                 noShowMode,
                 noShowAfterMinutes
         );
@@ -125,6 +145,8 @@ public class TenantReservationRulesService {
             node.put("rescheduleUntilHours", rules.rescheduleUntilHours());
             node.put("cancelUntilHours", rules.cancelUntilHours());
             node.put("employeeSelectionAllowed", rules.employeeSelectionAllowed());
+            node.put("cancellationAllowed", rules.cancellationAllowed());
+            node.put("modificationAllowed", rules.modificationAllowed());
             node.put("noShowMode", normalizeNoShowMode(rules.noShowMode()));
             node.put("noShowAfterMinutes", rules.noShowAfterMinutes());
             return JSON.writeValueAsString(node);
@@ -144,6 +166,8 @@ public class TenantReservationRulesService {
                 DEFAULT_RESCHEDULE_UNTIL_HOURS,
                 DEFAULT_CANCEL_UNTIL_HOURS,
                 DEFAULT_EMPLOYEE_SELECTION_ALLOWED,
+                DEFAULT_CANCELLATION_ALLOWED,
+                DEFAULT_MODIFICATION_ALLOWED,
                 DEFAULT_NO_SHOW_MODE,
                 DEFAULT_NO_SHOW_AFTER_MINUTES
         );
@@ -158,6 +182,9 @@ public class TenantReservationRulesService {
         node.put("rescheduleUntilHours", rules.rescheduleUntilHours());
         node.put("cancelUntilHours", rules.cancelUntilHours());
         node.put("freeCancelUntilHours", String.valueOf(rules.cancelUntilHours()));
+        node.put("cancellationEnabled", rules.cancellationAllowed());
+        node.put("cancellationAllowed", rules.cancellationAllowed());
+        node.put("modificationAllowed", rules.modificationAllowed());
         node.put("noShowMode", normalizeNoShowMode(rules.noShowMode()));
         node.put("noShowAfterMinutes", rules.noShowAfterMinutes());
         return write(node);
@@ -281,8 +308,9 @@ public class TenantReservationRulesService {
         return null;
     }
 
-    private static boolean firstBoolean(JsonNode n1, JsonNode n2, JsonNode n3, JsonNode n4, JsonNode n5, JsonNode n6, boolean fallback) {
-        for (JsonNode node : new JsonNode[]{n1, n2, n3, n4, n5, n6}) {
+    private static boolean firstBoolean(boolean fallback, JsonNode... nodes) {
+        if (nodes == null) return fallback;
+        for (JsonNode node : nodes) {
             if (node == null || node.isMissingNode() || node.isNull()) continue;
             if (node.isBoolean()) return node.asBoolean();
             if (node.isTextual()) {
@@ -300,6 +328,8 @@ public class TenantReservationRulesService {
             int rescheduleUntilHours,
             int cancelUntilHours,
             boolean employeeSelectionAllowed,
+            boolean cancellationAllowed,
+            boolean modificationAllowed,
             String noShowMode,
             int noShowAfterMinutes
     ) {}

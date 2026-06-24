@@ -54,7 +54,9 @@ public class GuestSettingsService {
         TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
         boolean employeeSelectionStep = reservationRules.employeeSelectionAllowed();
         boolean useEmployeeContact = root.path("useEmployeeContact").asBoolean(false);
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
+        boolean cancellationAllowed = reservationRules.cancellationAllowed();
+        boolean modificationAllowed = reservationRules.modificationAllowed();
+        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl, cancellationAllowed, modificationAllowed);
     }
 
     public Boolean billingEnabled(Long companyId) {
@@ -174,6 +176,8 @@ public class GuestSettingsService {
                     reservationRules.minBookingNoticeMinutes(),
                     reservationRules.maxAdvanceBookingDays(),
                     reservationRules.employeeSelectionAllowed(),
+                    reservationRules.cancellationAllowed(),
+                    reservationRules.modificationAllowed(),
                     reservationRules.noShowMode(),
                     reservationRules.noShowAfterMinutes()
             );
@@ -204,6 +208,8 @@ public class GuestSettingsService {
                 reservationRules.minBookingNoticeMinutes(),
                 reservationRules.maxAdvanceBookingDays(),
                 reservationRules.employeeSelectionAllowed(),
+                reservationRules.cancellationAllowed(),
+                reservationRules.modificationAllowed(),
                 reservationRules.noShowMode(),
                 reservationRules.noShowAfterMinutes()
         );
@@ -288,7 +294,7 @@ public class GuestSettingsService {
         return Math.min(value, 100);
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl) {}
+    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, boolean cancellationAllowed, boolean modificationAllowed) {}
     public record GuestBookingRules(
             int cancelUntilHours,
             int rescheduleUntilHours,
@@ -305,6 +311,8 @@ public class GuestSettingsService {
             int minBookingNoticeMinutes,
             int maxAdvanceBookingDays,
             boolean employeeSelectionAllowed,
+            boolean cancellationAllowed,
+            boolean modificationAllowed,
             String noShowMode,
             int noShowAfterMinutes
     ) {
@@ -338,6 +346,8 @@ public class GuestSettingsService {
                     TenantReservationRulesService.DEFAULT_MIN_BOOKING_NOTICE_MINUTES,
                     TenantReservationRulesService.DEFAULT_MAX_ADVANCE_BOOKING_DAYS,
                     TenantReservationRulesService.DEFAULT_EMPLOYEE_SELECTION_ALLOWED,
+                    TenantReservationRulesService.DEFAULT_CANCELLATION_ALLOWED,
+                    TenantReservationRulesService.DEFAULT_MODIFICATION_ALLOWED,
                     TenantReservationRulesService.DEFAULT_NO_SHOW_MODE,
                     TenantReservationRulesService.DEFAULT_NO_SHOW_AFTER_MINUTES
             );

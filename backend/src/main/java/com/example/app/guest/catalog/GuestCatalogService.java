@@ -509,6 +509,8 @@ public class GuestCatalogService {
                         rules.rescheduleUntilHours(),
                         rules.cancelUntilHours(),
                         rules.employeeSelectionAllowed(),
+                        rules.cancellationAllowed(),
+                        rules.modificationAllowed(),
                         rules.noShowMode(),
                         rules.noShowAfterMinutes()
                 ),

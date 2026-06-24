@@ -22,7 +22,9 @@ data class TenantLookupResponse(
     val joinMethod: String,
     val canJoin: Boolean,
     val employeeSelectionStep: Boolean = false,
-    val useEmployeeContact: Boolean = false
+    val useEmployeeContact: Boolean = false,
+    val cancellationAllowed: Boolean = true,
+    val modificationAllowed: Boolean = true
 )
 
 @Serializable

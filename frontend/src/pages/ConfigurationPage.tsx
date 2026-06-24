@@ -11256,20 +11256,6 @@ export function ConfigurationPage() {
                               </select>
                             </GuestField>
                             <GuestField
-                              label="Odpoved rezervacije"
-                              hint="Ko je vklopljeno, lahko gostje odpovejo rezervacijo po pravilih odpovedi."
-                            >
-                              <GuestSegmentedToggle
-                                value={guestBookingRules.cancellationEnabled}
-                                onChange={(value) =>
-                                  setGuestBookingRules({
-                                    ...guestBookingRules,
-                                    cancellationEnabled: value,
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
                               label="Brezplačna odpoved do"
                               hint="Gost lahko odpove brez stroškov do izteka nastavljenega časa pred terminom."
                             >

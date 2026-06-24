@@ -111,7 +111,9 @@ data class UpcomingBookingCard(
     val tenantPhone: String?,
     val cardImageUrl: String?,
     val logoImageUrl: String?,
-    val iconImageUrl: String?
+    val iconImageUrl: String?,
+    val cancellationAllowed: Boolean = true,
+    val modificationAllowed: Boolean = true
 )
 
 data class AccessCard(
@@ -496,33 +498,39 @@ fun UpcomingBookingFocusCard(
                             isSl = isSl,
                             canContact = !booking.tenantPhone.isNullOrBlank(),
                             canManage = booking.canBeCancelled(),
+                            canReschedule = booking.modificationAllowed,
+                            canCancel = booking.cancellationAllowed,
                             onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
                             onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
                             onReschedule = { onReschedule(booking); activeActionMenu = null },
                             onCancel = { onCancelBooking(booking); activeActionMenu = null }
                         )
                     }
-                    Spacer(Modifier.height(5.dp))
-                    BookingPrimaryActionButton(
-                        label = if (isSl) "Upravljaj rezervacijo" else "Manage reservation",
-                        icon = Icons.Rounded.NotificationsNone,
-                        container = Color.White,
-                        content = BrandBlue,
-                        border = BrandBlue,
-                        onClick = { activeActionMenu = if (activeActionMenu == BookingActionMenu.Manage) null else BookingActionMenu.Manage }
-                    )
-                    if (activeActionMenu == BookingActionMenu.Manage) {
-                        Spacer(Modifier.height(6.dp))
-                        BookingActionSheet(
-                            menu = BookingActionMenu.Manage,
-                            isSl = isSl,
-                            canContact = !booking.tenantPhone.isNullOrBlank(),
-                            canManage = booking.canBeCancelled(),
-                            onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
-                            onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
-                            onReschedule = { onReschedule(booking); activeActionMenu = null },
-                            onCancel = { onCancelBooking(booking); activeActionMenu = null }
+                    if (booking.modificationAllowed || booking.cancellationAllowed) {
+                        Spacer(Modifier.height(5.dp))
+                        BookingPrimaryActionButton(
+                            label = if (isSl) "Upravljaj rezervacijo" else "Manage reservation",
+                            icon = Icons.Rounded.NotificationsNone,
+                            container = Color.White,
+                            content = BrandBlue,
+                            border = BrandBlue,
+                            onClick = { activeActionMenu = if (activeActionMenu == BookingActionMenu.Manage) null else BookingActionMenu.Manage }
                         )
+                        if (activeActionMenu == BookingActionMenu.Manage) {
+                            Spacer(Modifier.height(6.dp))
+                            BookingActionSheet(
+                                menu = BookingActionMenu.Manage,
+                                isSl = isSl,
+                                canContact = !booking.tenantPhone.isNullOrBlank(),
+                                canManage = booking.canBeCancelled(),
+                                canReschedule = booking.modificationAllowed,
+                                canCancel = booking.cancellationAllowed,
+                                onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
+                                onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
+                                onReschedule = { onReschedule(booking); activeActionMenu = null },
+                                onCancel = { onCancelBooking(booking); activeActionMenu = null }
+                            )
+                        }
                     }
                 }
             }
@@ -736,6 +744,8 @@ private fun BookingActionSheet(
     isSl: Boolean,
     canContact: Boolean,
     canManage: Boolean,
+    canReschedule: Boolean = true,
+    canCancel: Boolean = true,
     onCall: () -> Unit,
     onSms: () -> Unit,
     onReschedule: () -> Unit,
@@ -781,23 +791,35 @@ private fun BookingActionSheet(
                     }
                 }
                 BookingActionMenu.Manage -> {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        SheetOptionButton(
-                            label = if (isSl) "Prestavi termin" else "Reschedule",
-                            icon = Icons.Rounded.Schedule,
-                            color = BrandBlue,
-                            enabled = canManage,
-                            modifier = Modifier.weight(1f),
-                            onClick = onReschedule
+                    if (!canReschedule && !canCancel) {
+                        Text(
+                            text = if (isSl) "Te rezervacije ni mogoče urejati." else "This booking cannot be managed.",
+                            color = Color(0xFF6B7280),
+                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
                         )
-                        SheetOptionButton(
-                            label = if (isSl) "Odpovej termin" else "Cancel booked session",
-                            icon = Icons.Rounded.Delete,
-                            color = Color(0xFFE53935),
-                            enabled = canManage,
-                            modifier = Modifier.weight(1f),
-                            onClick = onCancel
-                        )
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            if (canReschedule) {
+                                SheetOptionButton(
+                                    label = if (isSl) "Prestavi termin" else "Reschedule",
+                                    icon = Icons.Rounded.Schedule,
+                                    color = BrandBlue,
+                                    enabled = canManage,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = onReschedule
+                                )
+                            }
+                            if (canCancel) {
+                                SheetOptionButton(
+                                    label = if (isSl) "Odpovej termin" else "Cancel booked session",
+                                    icon = Icons.Rounded.Delete,
+                                    color = Color(0xFFE53935),
+                                    enabled = canManage,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = onCancel
+                                )
+                            }
+                        }
                     }
                 }
             }

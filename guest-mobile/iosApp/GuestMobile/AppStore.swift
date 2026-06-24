@@ -115,7 +115,9 @@ final class AppStore: ObservableObject {
                         iconImageUrl: dashboard.tenant.iconImageUrl,
                         endsAt: booking.endsAt,
                         consultantName: booking.consultantName,
-                        sessionTypeId: booking.sessionTypeId
+                        sessionTypeId: booking.sessionTypeId,
+                        cancellationAllowed: dashboard.tenant.cancellationAllowed ?? true,
+                        modificationAllowed: dashboard.tenant.modificationAllowed ?? true
                     )
                 }
                 var seen = Set<String>()
