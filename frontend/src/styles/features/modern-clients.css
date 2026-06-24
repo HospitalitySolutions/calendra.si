@@ -3422,3 +3422,131 @@
         min-height: 132px;
     }
 }
+
+.clients-wallet-gift-card-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+    background: rgba(15, 23, 42, 0.36);
+    backdrop-filter: blur(6px);
+}
+
+.clients-wallet-gift-card-modal {
+    width: min(520px, calc(100vw - 28px));
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    border: 1px solid #dbe4f0;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24);
+}
+
+.clients-wallet-gift-card-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.clients-wallet-gift-card-modal h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.25rem;
+    font-weight: 950;
+}
+
+.clients-wallet-gift-card-modal p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    font-weight: 650;
+}
+
+.clients-wallet-gift-card-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border: 1px solid #f3e8ff;
+    border-radius: 14px;
+    background: #faf5ff;
+    color: #6d28d9;
+    font-size: 0.93rem;
+    font-weight: 900;
+}
+
+.clients-wallet-gift-card-summary strong {
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.clients-wallet-gift-card-fields {
+    display: grid;
+    gap: 14px;
+}
+
+.clients-wallet-gift-card-fields label {
+    display: grid;
+    gap: 8px;
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 900;
+}
+
+.clients-wallet-gift-card-fields input,
+.clients-wallet-gift-card-fields textarea {
+    width: 100%;
+    border: 1px solid #d9e4f2;
+    border-radius: 12px;
+    background: #fff;
+    color: #0f172a;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 650;
+    outline: 0;
+}
+
+.clients-wallet-gift-card-fields input {
+    min-height: 44px;
+    padding: 0 13px;
+}
+
+.clients-wallet-gift-card-fields textarea {
+    min-height: 104px;
+    padding: 12px 13px;
+    resize: vertical;
+}
+
+.clients-wallet-gift-card-fields input:focus,
+.clients-wallet-gift-card-fields textarea:focus {
+    border-color: #1672f3;
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.1);
+}
+
+.clients-wallet-gift-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.clients-wallet-gift-card-actions .secondary {
+    min-height: 44px;
+    min-width: 86px;
+    border-radius: 12px;
+    font-weight: 900;
+}
+
+@media (max-width: 620px) {
+    .clients-wallet-gift-card-actions {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+}

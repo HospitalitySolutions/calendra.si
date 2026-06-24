@@ -40,6 +40,10 @@ public class GuestEntitlementService {
     private final TimeService timeService;
     private final MembershipCourseRepository membershipCourses;
     private final CourseAccessEmailService courseAccessEmailService;
+
+    @Autowired(required = false)
+    private GiftCardEmailService giftCardEmailService;
+
     private final String publicBaseUrl;
 
     @Autowired
@@ -421,6 +425,11 @@ public class GuestEntitlementService {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("autoRenews", product.isAutoRenews());
         metadata.put("listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue());
+        if (product.getProductType() == ProductType.GIFT_CARD) {
+            Map<String, Object> orderMetadata = metadata(order.getMetadataJson());
+            copyTextMetadata(orderMetadata, metadata, "giftCardRecipientName");
+            copyTextMetadata(orderMetadata, metadata, "giftCardMessage");
+        }
         if ((product.getProductType() == ProductType.COURSE || product.getProductType() == ProductType.MEMBERSHIP) && membershipCourses != null) {
             metadata.put("includedCourseIds", mappedCourseIds(product));
         }
@@ -434,6 +443,9 @@ public class GuestEntitlementService {
         }
         entitlement.setMetadataJson(writeMetadata(metadata));
         entitlement = entitlements.save(entitlement);
+        if (product.getProductType() == ProductType.GIFT_CARD && giftCardEmailService != null) {
+            giftCardEmailService.sendGiftCardEmail(entitlement);
+        }
         if (product.getProductType() == ProductType.COURSE) {
             if (courseAccessEmailService != null) {
                 courseAccessEmailService.sendCourseAccessEmail(entitlement, courseAccessUrl(entitlement));
@@ -495,6 +507,16 @@ public class GuestEntitlementService {
                 .map(row -> row.getCourse() == null ? null : row.getCourse().getId())
                 .filter(java.util.Objects::nonNull)
                 .toList();
+    }
+
+    private static void copyTextMetadata(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source == null || target == null || key == null) return;
+        Object value = source.get(key);
+        if (value == null) return;
+        String text = String.valueOf(value).trim();
+        if (!text.isBlank()) {
+            target.put(key, text);
+        }
     }
 
     private String courseAccessUrl(GuestEntitlement entitlement) {

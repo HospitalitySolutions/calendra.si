@@ -130,6 +130,7 @@ public class ClientWalletPurchaseController {
             String transactionServiceDescription
     ) {}
 
+    public record CreateWalletPurchaseOpenBillRequest(String giftCardTo, String giftCardText) {}
     public record CreateWalletPurchaseOpenBillResponse(Long openBillId, Long orderId, Long productId) {}
     public record WalletPurchaseErrorResponse(String message) {}
 
@@ -156,6 +157,7 @@ public class ClientWalletPurchaseController {
     public CreateWalletPurchaseOpenBillResponse createPurchaseOpenBill(
             @PathVariable Long clientId,
             @PathVariable Long productId,
+            @RequestBody(required = false) CreateWalletPurchaseOpenBillRequest request,
             @AuthenticationPrincipal User me
     ) {
         var client = loadClientForWalletWrite(clientId, me);
@@ -171,7 +173,7 @@ public class ClientWalletPurchaseController {
 
         GuestTenantLink link = resolveOrCreateGuestLink(client);
         var paymentMethod = resolveDefaultPaymentMethod(companyId);
-        var order = createPendingWalletOrder(client, link.getGuestUser(), product);
+        var order = createPendingWalletOrder(client, link.getGuestUser(), product, request);
 
         var open = new OpenBill();
         open.setCompany(me.getCompany());
@@ -276,7 +278,7 @@ public class ClientWalletPurchaseController {
         return guestTenantLinks.save(link);
     }
 
-    private GuestOrder createPendingWalletOrder(Client client, GuestUser guestUser, GuestProduct product) {
+    private GuestOrder createPendingWalletOrder(Client client, GuestUser guestUser, GuestProduct product, CreateWalletPurchaseOpenBillRequest request) {
         BigDecimal total = safeGross(product.getPriceGross());
         var order = new GuestOrder();
         order.setCompany(client.getCompany());
@@ -289,7 +291,7 @@ public class ClientWalletPurchaseController {
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(total);
         order.setReferenceCode("ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
-        order.setMetadataJson(buildMetadataJson(product));
+        order.setMetadataJson(buildMetadataJson(product, request));
         return orders.save(order);
     }
 
@@ -381,7 +383,7 @@ public class ClientWalletPurchaseController {
                 .orElse(all.getFirst());
     }
 
-    private String buildMetadataJson(GuestProduct product) {
+    private String buildMetadataJson(GuestProduct product, CreateWalletPurchaseOpenBillRequest request) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", null);
@@ -391,6 +393,16 @@ public class ClientWalletPurchaseController {
             map.put("sessionTypeId", product.getSessionType() == null ? null : product.getSessionType().getId());
             map.put("currency", defaultCurrency(product.getCurrency()));
             map.put("priceGross", safeGross(product.getPriceGross()).doubleValue());
+            if (product.getProductType() == ProductType.GIFT_CARD) {
+                String recipientName = truncate(cleanOptionalText(request == null ? null : request.giftCardTo()), 120);
+                String message = truncate(cleanOptionalText(request == null ? null : request.giftCardText()), 300);
+                if (recipientName != null) {
+                    map.put("giftCardRecipientName", recipientName);
+                }
+                if (message != null) {
+                    map.put("giftCardMessage", message);
+                }
+            }
             map.put("source", "STAFF_CLIENT_WALLET");
             return JSON.writeValueAsString(map);
         } catch (Exception ex) {
@@ -419,6 +431,18 @@ public class ClientWalletPurchaseController {
                 transactionService == null ? null : transactionService.getCode(),
                 transactionService == null ? null : transactionService.getDescription()
         );
+    }
+
+    private static String cleanOptionalText(String value) {
+        if (value == null) return null;
+        String cleaned = value.trim();
+        return cleaned.isBlank() ? null : cleaned;
+    }
+
+    private static String truncate(String value, int maxLength) {
+        if (value == null) return null;
+        if (value.length() <= maxLength) return value;
+        return value.substring(0, maxLength);
     }
 
     private static BigDecimal safeGross(BigDecimal value) {

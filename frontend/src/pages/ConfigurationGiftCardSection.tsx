@@ -8,21 +8,37 @@ const GIFT_CARD_SETTINGS_KEY = "BILLING_GIFT_CARD_SETTINGS_JSON";
 const MAX_BACKGROUND_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 type GiftCardSettings = {
+  active: boolean;
+  showFrom: boolean;
+  showTo: boolean;
+  showValue: boolean;
+  showExpires: boolean;
+  showText: boolean;
+  showCode: boolean;
   from: string;
   to: string;
   value: string;
   expires: string;
   text: string;
+  code: string;
   backgroundImageDataUrl: string;
   backgroundImageName: string;
 };
 
 const DEFAULT_GIFT_CARD_SETTINGS: GiftCardSettings = {
-  from: "Ana",
+  active: true,
+  showFrom: true,
+  showTo: true,
+  showValue: true,
+  showExpires: true,
+  showText: true,
+  showCode: true,
+  from: "Ana Novak",
   to: "Marko",
   value: "€50",
   expires: "31. 12. 2026",
   text: "Vse najboljše! Uživaj v darilu.",
+  code: "GC-425-001",
   backgroundImageDataUrl: "",
   backgroundImageName: "",
 };
@@ -32,11 +48,19 @@ function parseGiftCardSettings(raw: string | undefined): GiftCardSettings {
   try {
     const parsed = JSON.parse(raw) as Partial<GiftCardSettings>;
     return {
+      active: cleanBool(parsed.active, DEFAULT_GIFT_CARD_SETTINGS.active),
+      showFrom: cleanBool(parsed.showFrom, DEFAULT_GIFT_CARD_SETTINGS.showFrom),
+      showTo: cleanBool(parsed.showTo, DEFAULT_GIFT_CARD_SETTINGS.showTo),
+      showValue: cleanBool(parsed.showValue, DEFAULT_GIFT_CARD_SETTINGS.showValue),
+      showExpires: cleanBool(parsed.showExpires, DEFAULT_GIFT_CARD_SETTINGS.showExpires),
+      showText: cleanBool(parsed.showText, DEFAULT_GIFT_CARD_SETTINGS.showText),
+      showCode: cleanBool(parsed.showCode, DEFAULT_GIFT_CARD_SETTINGS.showCode),
       from: cleanText(parsed.from, DEFAULT_GIFT_CARD_SETTINGS.from),
       to: cleanText(parsed.to, DEFAULT_GIFT_CARD_SETTINGS.to),
       value: cleanText(parsed.value, DEFAULT_GIFT_CARD_SETTINGS.value),
       expires: cleanText(parsed.expires, DEFAULT_GIFT_CARD_SETTINGS.expires),
       text: cleanText(parsed.text, DEFAULT_GIFT_CARD_SETTINGS.text),
+      code: cleanText(parsed.code, DEFAULT_GIFT_CARD_SETTINGS.code),
       backgroundImageDataUrl: cleanText(parsed.backgroundImageDataUrl, ""),
       backgroundImageName: cleanText(parsed.backgroundImageName, ""),
     };
@@ -47,6 +71,15 @@ function parseGiftCardSettings(raw: string | undefined): GiftCardSettings {
 
 function cleanText(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function cleanBool(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.trim().toLowerCase() === "true") return true;
+    if (value.trim().toLowerCase() === "false") return false;
+  }
+  return fallback;
 }
 
 function serializeGiftCardSettings(settings: GiftCardSettings): string {
@@ -145,14 +178,55 @@ export function ConfigurationGiftCardSection({
           display: grid;
           gap: 16px;
         }
+        .billing-gift-card-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 22px;
+        }
+        .billing-gift-card-active-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          padding: 9px 12px;
+          border: 1px solid #dbe4f0;
+          border-radius: 999px;
+          background: #fff;
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+        .billing-gift-card-active-toggle input,
+        .billing-gift-card-field-check input {
+          width: 17px;
+          height: 17px;
+          accent-color: var(--billing-blue);
+          cursor: pointer;
+        }
         .billing-gift-card-row {
           display: grid;
-          grid-template-columns: 105px minmax(0, 1fr);
+          grid-template-columns: 132px minmax(0, 1fr);
           gap: 18px;
           align-items: start;
         }
-        .billing-gift-card-row .billing-label {
-          padding-top: 14px;
+        .billing-gift-card-field-check {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          padding-top: 13px;
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+        .billing-gift-card-dynamic-help {
+          margin: 7px 0 0;
+          color: var(--billing-muted);
+          font-size: 12px;
+          line-height: 1.35;
+          font-weight: 700;
         }
         .billing-gift-card-textarea-wrap {
           position: relative;
@@ -312,6 +386,21 @@ export function ConfigurationGiftCardSection({
           background: radial-gradient(circle, rgba(184, 137, 62, .30), rgba(184, 137, 62, 0) 66%);
           z-index: -1;
         }
+        .billing-gift-card-code {
+          position: absolute;
+          top: 28px;
+          right: 32px;
+          z-index: 2;
+          padding: 8px 11px;
+          border: 1px solid rgba(184, 137, 62, .38);
+          border-radius: 999px;
+          background: rgba(255,255,255,.72);
+          color: #654a1e;
+          font-size: 11px;
+          font-weight: 950;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
         .billing-gift-card-ribbon {
           position: absolute;
           right: 58px;
@@ -383,78 +472,115 @@ export function ConfigurationGiftCardSection({
         @media (max-width: 780px) {
           .billing-gift-card-form-card,
           .billing-gift-card-preview-card { padding: 22px; }
+          .billing-gift-card-heading { align-items: stretch; flex-direction: column; }
           .billing-gift-card-row { grid-template-columns: 1fr; gap: 8px; }
-          .billing-gift-card-row .billing-label { padding-top: 0; }
+          .billing-gift-card-field-check { padding-top: 0; }
           .billing-gift-card-upload-grid { grid-template-columns: 1fr; }
           .billing-gift-card-actions { flex-direction: column; align-items: stretch; }
           .billing-gift-card-preview-shell { padding: 14px; }
           .billing-gift-card-preview { min-height: 420px; }
           .billing-gift-card-preview-content { width: 100%; padding: 28px; }
+          .billing-gift-card-code { top: 18px; right: 18px; }
           .billing-gift-card-ribbon { right: 18px; top: auto; bottom: 18px; width: 148px; height: 148px; opacity: .20; }
         }
       `}</style>
 
       <div className="billing-card billing-gift-card-form-card">
-        <div className="billing-section-heading-row">
-          <span className="billing-section-icon" aria-hidden="true">
-            <GiftCardIcon />
-          </span>
-          <span>
-            <h3 className="billing-section-title">
-              {isSl ? "Nastavitve darilnega bona" : "Gift card settings"}
-            </h3>
-            <span className="billing-section-kicker">
-              {isSl
-                ? "Določite besedila, prikaz vrednosti in ozadje darilnega bona."
-                : "Define the displayed text, value and background image for gift cards."}
+        <div className="billing-gift-card-heading">
+          <div className="billing-section-heading-row" style={{ marginBottom: 0 }}>
+            <span className="billing-section-icon" aria-hidden="true">
+              <GiftCardIcon />
             </span>
-          </span>
+            <span>
+              <h3 className="billing-section-title">
+                {isSl ? "Nastavitve darilnega bona" : "Gift card settings"}
+              </h3>
+              <span className="billing-section-kicker">
+                {isSl
+                  ? "Izberite, katera polja se prikažejo na darilnem bonu. Dinamični podatki pridejo iz dejanske ugodnosti."
+                  : "Choose which fields appear on the gift card. Dynamic values come from the actual entitlement."}
+              </span>
+            </span>
+          </div>
+          <label className="billing-gift-card-active-toggle">
+            <input
+              type="checkbox"
+              checked={giftCard.active}
+              onChange={(event) => updateGiftCard({ active: event.target.checked })}
+            />
+            {isSl ? "Aktivno" : "Active"}
+          </label>
         </div>
 
         <div className="billing-gift-card-form">
-          <GiftCardInputRow label={isSl ? "Od" : "From"}>
-            <input
-              className="billing-input"
-              value={giftCard.from}
-              onChange={(event) => updateGiftCard({ from: event.target.value })}
-              placeholder={isSl ? "Npr. Ana" : "e.g. Ana"}
-            />
+          <GiftCardInputRow
+            label={isSl ? "Od" : "From"}
+            checked={giftCard.showFrom}
+            onCheckedChange={(checked) => updateGiftCard({ showFrom: checked })}
+          >
+            <input className="billing-input" value={giftCard.from} onChange={(event) => updateGiftCard({ from: event.target.value })} />
+            <p className="billing-gift-card-dynamic-help">
+              {isSl ? "Na dejanskem bonu se vzame iz imena in priimka stranke, kateri je ugodnost izdana." : "On the real gift card this is taken from the client name the entitlement is issued to."}
+            </p>
           </GiftCardInputRow>
-          <GiftCardInputRow label={isSl ? "Za" : "To"}>
-            <input
-              className="billing-input"
-              value={giftCard.to}
-              onChange={(event) => updateGiftCard({ to: event.target.value })}
-              placeholder={isSl ? "Npr. Marko" : "e.g. Marko"}
-            />
+          <GiftCardInputRow
+            label={isSl ? "Za" : "To"}
+            checked={giftCard.showTo}
+            onCheckedChange={(checked) => updateGiftCard({ showTo: checked })}
+          >
+            <input className="billing-input" value={giftCard.to} onChange={(event) => updateGiftCard({ to: event.target.value })} placeholder={isSl ? "Predogled" : "Preview"} />
+            <p className="billing-gift-card-dynamic-help">
+              {isSl ? "Pri nakupu darilne kartice se po kliku Odpri račun odpre majhen vnos. Če ostane prazno, se polje ne prikaže." : "When buying a gift card, a small input opens after Open bill. If blank, this field is hidden."}
+            </p>
           </GiftCardInputRow>
-          <GiftCardInputRow label={isSl ? "Vrednost" : "Value"}>
-            <input
-              className="billing-input"
-              value={giftCard.value}
-              onChange={(event) => updateGiftCard({ value: event.target.value })}
-              placeholder="€50"
-            />
+          <GiftCardInputRow
+            label={isSl ? "Vrednost" : "Value"}
+            checked={giftCard.showValue}
+            onCheckedChange={(checked) => updateGiftCard({ showValue: checked })}
+          >
+            <input className="billing-input" value={giftCard.value} onChange={(event) => updateGiftCard({ value: event.target.value })} />
+            <p className="billing-gift-card-dynamic-help">
+              {isSl ? "Na dejanskem bonu se vzame iz vrednosti kupljene darilne kartice." : "On the real gift card this is taken from the purchased gift card value."}
+            </p>
           </GiftCardInputRow>
-          <GiftCardInputRow label={isSl ? "Poteče" : "Expires"}>
-            <input
-              className="billing-input"
-              value={giftCard.expires}
-              onChange={(event) => updateGiftCard({ expires: event.target.value })}
-              placeholder="31. 12. 2026"
-            />
+          <GiftCardInputRow
+            label={isSl ? "Poteče" : "Expires"}
+            checked={giftCard.showExpires}
+            onCheckedChange={(checked) => updateGiftCard({ showExpires: checked })}
+          >
+            <input className="billing-input" value={giftCard.expires} onChange={(event) => updateGiftCard({ expires: event.target.value })} />
+            <p className="billing-gift-card-dynamic-help">
+              {isSl ? "Na dejanskem bonu se vzame iz roka veljavnosti darilne kartice." : "On the real gift card this is taken from the actual gift card expiry date."}
+            </p>
           </GiftCardInputRow>
-          <GiftCardInputRow label={isSl ? "Besedilo" : "Text"}>
+          <GiftCardInputRow
+            label={isSl ? "Besedilo" : "Text"}
+            checked={giftCard.showText}
+            onCheckedChange={(checked) => updateGiftCard({ showText: checked })}
+          >
             <div className="billing-gift-card-textarea-wrap">
               <textarea
                 className="billing-textarea"
                 value={giftCard.text}
                 onChange={(event) => updateGiftCard({ text: event.target.value.slice(0, 200) })}
-                placeholder={isSl ? "Kratko osebno sporočilo ..." : "Short personal message ..."}
+                placeholder={isSl ? "Predogled osebnega sporočila ..." : "Preview personal message ..."}
                 maxLength={200}
               />
               <span className="billing-gift-card-counter">{textLength} / 200</span>
             </div>
+            <p className="billing-gift-card-dynamic-help">
+              {isSl ? "Pri nakupu darilne kartice se lahko vnese osebno sporočilo. Če ostane prazno, se polje ne prikaže." : "When buying a gift card, a personal message can be entered. If blank, this field is hidden."}
+            </p>
+          </GiftCardInputRow>
+          <GiftCardInputRow
+            label={isSl ? "Koda" : "Code"}
+            checked={giftCard.showCode}
+            onCheckedChange={(checked) => updateGiftCard({ showCode: checked })}
+          >
+            <input className="billing-input" value={giftCard.code} onChange={(event) => updateGiftCard({ code: event.target.value })} />
+            <p className="billing-gift-card-dynamic-help">
+              {isSl ? "Na dejanskem bonu se zgoraj desno prikaže unikatna koda izdane ugodnosti." : "On the real gift card the unique entitlement code is shown in the upper right."}
+            </p>
           </GiftCardInputRow>
 
           <div className="billing-gift-card-divider" />
@@ -551,8 +677,8 @@ export function ConfigurationGiftCardSection({
             </h3>
             <span className="billing-section-kicker">
               {isSl
-                ? "Predogled se sproti posodablja glede na vnesena polja."
-                : "The preview updates immediately as you edit the fields."}
+                ? "Predogled prikazuje izbrana polja. Dejanske vrednosti se izpolnijo ob izdaji ugodnosti."
+                : "The preview shows selected fields. Real values are filled when the entitlement is issued."}
             </span>
           </span>
         </div>
@@ -570,38 +696,47 @@ export function ConfigurationGiftCardSection({
                 : undefined
             }
           >
+            {giftCard.showCode ? <span className="billing-gift-card-code">{giftCard.code || "—"}</span> : null}
             <div className="billing-gift-card-ribbon" aria-hidden="true">
               <GiftRibbonIllustration />
             </div>
             <div className="billing-gift-card-preview-content">
-              <GiftCardPreviewLine label={isSl ? "Od" : "From"} value={giftCard.from} />
-              <GiftCardPreviewLine label={isSl ? "Za" : "To"} value={giftCard.to} />
-              <span className="billing-gift-card-preview-label">
-                {isSl ? "Vrednost" : "Value"}
-              </span>
-              <p className="billing-gift-card-preview-value">{giftCard.value || "€0"}</p>
-              <div className="billing-gift-card-preview-line" style={{ marginTop: 18 }}>
-                <span className="billing-gift-card-preview-label">
-                  {isSl ? "Poteče" : "Expires"}
-                </span>
-                <span className="billing-gift-card-preview-date">
-                  {giftCard.expires || "—"}
-                </span>
-              </div>
-              <div>
-                <span className="billing-gift-card-preview-label">
-                  {isSl ? "Besedilo" : "Text"}
-                </span>
-                <span className="billing-gift-card-preview-text">
-                  {giftCard.text || "—"}
-                </span>
-              </div>
+              {giftCard.showFrom ? <GiftCardPreviewLine label={isSl ? "Od" : "From"} value={giftCard.from} /> : null}
+              {giftCard.showTo ? <GiftCardPreviewLine label={isSl ? "Za" : "To"} value={giftCard.to} /> : null}
+              {giftCard.showValue ? (
+                <>
+                  <span className="billing-gift-card-preview-label">
+                    {isSl ? "Vrednost" : "Value"}
+                  </span>
+                  <p className="billing-gift-card-preview-value">{giftCard.value || "€0"}</p>
+                </>
+              ) : null}
+              {giftCard.showExpires ? (
+                <div className="billing-gift-card-preview-line" style={{ marginTop: giftCard.showValue ? 18 : 0 }}>
+                  <span className="billing-gift-card-preview-label">
+                    {isSl ? "Poteče" : "Expires"}
+                  </span>
+                  <span className="billing-gift-card-preview-date">
+                    {giftCard.expires || "—"}
+                  </span>
+                </div>
+              ) : null}
+              {giftCard.showText ? (
+                <div>
+                  <span className="billing-gift-card-preview-label">
+                    {isSl ? "Besedilo" : "Text"}
+                  </span>
+                  <span className="billing-gift-card-preview-text">
+                    {giftCard.text || "—"}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </div>
           <p className="billing-gift-card-note">
             {isSl
-              ? "Shranjena nastavitev bo uporabljena kot osnova za prikaz darilnega bona. Dinamične podatke naročila lahko kasneje povežemo z dejanskim kupcem, prejemnikom, vrednostjo in rokom veljavnosti."
-              : "The saved settings are used as the base gift card layout. Dynamic order data can later be connected to the actual buyer, recipient, value and expiry date."}
+              ? "Ko je nastavitev Aktivno vklopljena, se po plačilu darilne kartice gostu pošlje e-mail z darilnim bonom. Polji Za in Besedilo se prikažeta samo, če sta vključeni in ob nakupu izpolnjeni."
+              : "When Active is enabled, the guest receives the gift card by email after payment. To and Text are shown only when enabled and filled during purchase."}
           </p>
         </div>
       </div>
@@ -609,12 +744,15 @@ export function ConfigurationGiftCardSection({
   );
 }
 
-function GiftCardInputRow({ label, children }: { label: string; children: ReactNode }) {
+function GiftCardInputRow({ label, checked, onCheckedChange, children }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void; children: ReactNode }) {
   return (
-    <label className="billing-gift-card-row">
-      <span className="billing-label">{label}</span>
-      {children}
-    </label>
+    <div className="billing-gift-card-row">
+      <label className="billing-gift-card-field-check">
+        <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} />
+        <span>{label}</span>
+      </label>
+      <div>{children}</div>
+    </div>
   );
 }
 

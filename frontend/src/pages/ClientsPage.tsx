@@ -117,6 +117,47 @@ type WalletPurchaseOpenBillResponse = {
   productId: number
 }
 
+const GIFT_CARD_SETTINGS_KEY = 'BILLING_GIFT_CARD_SETTINGS_JSON'
+
+type GiftCardDisplaySettings = {
+  active: boolean
+  showTo: boolean
+  showText: boolean
+}
+
+const DEFAULT_GIFT_CARD_DISPLAY_SETTINGS: GiftCardDisplaySettings = {
+  active: true,
+  showTo: true,
+  showText: true,
+}
+
+function parseGiftCardDisplaySettings(raw: string | undefined): GiftCardDisplaySettings {
+  if (!raw) return DEFAULT_GIFT_CARD_DISPLAY_SETTINGS
+  try {
+    const parsed = JSON.parse(raw) as Partial<GiftCardDisplaySettings>
+    return {
+      active: cleanBooleanSetting(parsed.active, DEFAULT_GIFT_CARD_DISPLAY_SETTINGS.active),
+      showTo: cleanBooleanSetting(parsed.showTo, DEFAULT_GIFT_CARD_DISPLAY_SETTINGS.showTo),
+      showText: cleanBooleanSetting(parsed.showText, DEFAULT_GIFT_CARD_DISPLAY_SETTINGS.showText),
+    }
+  } catch {
+    return DEFAULT_GIFT_CARD_DISPLAY_SETTINGS
+  }
+}
+
+function cleanBooleanSetting(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    if (value.trim().toLowerCase() === 'true') return true
+    if (value.trim().toLowerCase() === 'false') return false
+  }
+  return fallback
+}
+
+function isGiftCardWalletProduct(product: WalletProduct | null | undefined): boolean {
+  return String(product?.productType ?? '').toUpperCase() === 'GIFT_CARD'
+}
+
 /** Human-readable entitlement status (e.g. EXPIRED → Expired). */
 function formatWalletEntitlementStatusLabel(status: string | null | undefined): string {
   if (!status?.trim()) return '—'
@@ -1087,7 +1128,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null)
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [globalWhatsAppEnabled, setGlobalWhatsAppEnabled] = useState(false)
+  const [giftCardPersonalizationOpen, setGiftCardPersonalizationOpen] = useState(false)
+  const [giftCardRecipientName, setGiftCardRecipientName] = useState('')
+  const [giftCardMessage, setGiftCardMessage] = useState('')
   const groupBookingEnabled = settings.GROUP_BOOKING_ENABLED === 'true'
+  const giftCardDisplaySettings = parseGiftCardDisplaySettings(settings[GIFT_CARD_SETTINGS_KEY])
 
   const companyInvoiceStatusPill = (bill: CompanyBillSummary): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
     if (bill.fiscalStatus === 'FAILED') return { label: 'FAILED', variant: 'fiscal-failed' }
@@ -1543,15 +1588,27 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setWalletPurchaseDrawerOpen(false)
     setWalletPurchaseError('')
     setWalletProductSearch('')
+    setGiftCardPersonalizationOpen(false)
+    setGiftCardRecipientName('')
+    setGiftCardMessage('')
   }, [])
 
-  const createWalletPurchaseOpenBill = useCallback(async () => {
+  const createWalletPurchaseOpenBill = useCallback(async (giftCardDetails?: { to?: string; text?: string }) => {
     if (!detailClient || !selectedWalletProduct) return
     setCreatingWalletOpenBill(true)
     setWalletPurchaseError('')
     try {
-      const res = await api.post<WalletPurchaseOpenBillResponse>(`/clients/${detailClient.id}/wallet/products/${selectedWalletProduct.id}/open-bill`)
+      const payload = isGiftCardWalletProduct(selectedWalletProduct)
+        ? {
+            giftCardTo: giftCardDetails?.to?.trim() || '',
+            giftCardText: giftCardDetails?.text?.trim() || '',
+          }
+        : {}
+      const res = await api.post<WalletPurchaseOpenBillResponse>(`/clients/${detailClient.id}/wallet/products/${selectedWalletProduct.id}/open-bill`, payload)
       const openBillId = res.data?.openBillId
+      setGiftCardPersonalizationOpen(false)
+      setGiftCardRecipientName('')
+      setGiftCardMessage('')
       setWalletPurchaseDrawerOpen(false)
       setDetailClient(null)
       if (openBillId) {
@@ -1567,6 +1624,24 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       setCreatingWalletOpenBill(false)
     }
   }, [detailClient, selectedWalletProduct, navigate, locale])
+
+  const continueWalletPurchaseOpenBill = useCallback(() => {
+    if (!selectedWalletProduct) return
+    if (isGiftCardWalletProduct(selectedWalletProduct) && giftCardDisplaySettings.active && (giftCardDisplaySettings.showTo || giftCardDisplaySettings.showText)) {
+      setGiftCardRecipientName('')
+      setGiftCardMessage('')
+      setGiftCardPersonalizationOpen(true)
+      return
+    }
+    void createWalletPurchaseOpenBill()
+  }, [selectedWalletProduct, giftCardDisplaySettings.active, giftCardDisplaySettings.showTo, giftCardDisplaySettings.showText, createWalletPurchaseOpenBill])
+
+  const submitGiftCardPersonalization = useCallback(() => {
+    void createWalletPurchaseOpenBill({
+      to: giftCardDisplaySettings.showTo ? giftCardRecipientName : '',
+      text: giftCardDisplaySettings.showText ? giftCardMessage : '',
+    })
+  }, [createWalletPurchaseOpenBill, giftCardDisplaySettings.showTo, giftCardDisplaySettings.showText, giftCardRecipientName, giftCardMessage])
 
   const deleteWalletEntitlement = useCallback(async (entitlement: ClientWalletEntitlement) => {
     if (!detailClient || deletingWalletEntitlementId != null) return
@@ -3488,7 +3563,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             </div>
                             <div className="clients-wallet-drawer-footer">
                               <button type="button" className="secondary" onClick={closeWalletPurchaseDrawer}>{locale === 'sl' ? 'Nazaj' : 'Back'}</button>
-                              <button type="button" className="clients-wallet-open-bill-button" onClick={createWalletPurchaseOpenBill} disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}>
+                              <button type="button" className="clients-wallet-open-bill-button" onClick={continueWalletPurchaseOpenBill} disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}>
                                 {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Odpri nov račun' : 'Open new bill')}
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                   <path d="M7 17 17 7" />
@@ -3497,6 +3572,66 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               </button>
                             </div>
                           </aside>
+                        )}
+                        {giftCardPersonalizationOpen && selectedWalletProduct && (
+                          <div className="clients-wallet-gift-card-overlay" role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Podatki za darilni bon' : 'Gift card details'}>
+                            <div className="clients-wallet-gift-card-modal">
+                              <div className="clients-wallet-gift-card-modal-header">
+                                <span className="clients-wallet-product-badge clients-wallet-product-badge--gift">{locale === 'sl' ? 'Darilni bon' : 'Gift card'}</span>
+                                <button
+                                  type="button"
+                                  className="clients-wallet-drawer-close"
+                                  onClick={() => setGiftCardPersonalizationOpen(false)}
+                                  aria-label={t('mobileNavClose')}
+                                  disabled={creatingWalletOpenBill}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <h3>{locale === 'sl' ? 'Podatki za darilni bon' : 'Gift card details'}</h3>
+                              <p>
+                                {locale === 'sl'
+                                  ? 'Vnesite podatke, ki se bodo prikazali na darilnem bonu. Če polje pustite prazno, se na bonu ne bo prikazalo.'
+                                  : 'Enter the optional details that should appear on the gift card. Blank fields will be hidden.'}
+                              </p>
+                              <div className="clients-wallet-gift-card-summary">
+                                <span>{selectedWalletProduct.name}</span>
+                                <strong>{currency(walletProductPrice(selectedWalletProduct))}</strong>
+                              </div>
+                              <div className="clients-wallet-gift-card-fields">
+                                {giftCardDisplaySettings.showTo && (
+                                  <label>
+                                    <span>{locale === 'sl' ? 'Za' : 'To'}</span>
+                                    <input
+                                      value={giftCardRecipientName}
+                                      onChange={(event) => setGiftCardRecipientName(event.target.value.slice(0, 120))}
+                                      placeholder={locale === 'sl' ? 'Ime prejemnika' : 'Recipient name'}
+                                      autoFocus
+                                    />
+                                  </label>
+                                )}
+                                {giftCardDisplaySettings.showText && (
+                                  <label>
+                                    <span>{locale === 'sl' ? 'Besedilo' : 'Text'}</span>
+                                    <textarea
+                                      value={giftCardMessage}
+                                      onChange={(event) => setGiftCardMessage(event.target.value.slice(0, 300))}
+                                      placeholder={locale === 'sl' ? 'Osebno sporočilo' : 'Personal message'}
+                                      rows={4}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                              <div className="clients-wallet-gift-card-actions">
+                                <button type="button" className="secondary" onClick={() => setGiftCardPersonalizationOpen(false)} disabled={creatingWalletOpenBill}>
+                                  {locale === 'sl' ? 'Nazaj' : 'Back'}
+                                </button>
+                                <button type="button" className="clients-wallet-open-bill-button" onClick={submitGiftCardPersonalization} disabled={creatingWalletOpenBill}>
+                                  {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Nadaljuj na račun' : 'Continue to bill')}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
