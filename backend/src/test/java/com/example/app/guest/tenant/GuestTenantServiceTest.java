@@ -297,7 +297,9 @@ class GuestTenantServiceTest {
                 tenantType,
                 "https://example.com/card.jpg",
                 "https://example.com/logo.png",
-                "https://example.com/icon.svg"
+                "https://example.com/icon.svg",
+                true,
+                true
         );
     }
 

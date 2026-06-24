@@ -75,7 +75,9 @@ class GuestHomeServiceTest {
                                 "salon",
                                 null,
                                 null,
-                                null));
+                                null,
+                                true,
+                                true));
         when(settingsService.bookingRules(10L))
                 .thenReturn(
                         new GuestSettingsService.GuestBookingRules(
