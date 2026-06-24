@@ -157,6 +157,17 @@ public class GiftCardEmailService {
         return body.toString();
     }
 
+    public byte[] giftCardPdf(GuestEntitlement entitlement) throws IOException {
+        if (entitlement == null || entitlement.getCompany() == null) {
+            throw new IOException("Gift-card entitlement is incomplete.");
+        }
+        return giftCardPdf(entitlement, loadSettings(entitlement.getCompany().getId()));
+    }
+
+    public String giftCardPdfFileName(GuestEntitlement entitlement) {
+        return giftCardFileName(entitlement);
+    }
+
     private byte[] giftCardPdf(GuestEntitlement entitlement, GiftCardSettings settings) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PDFont regular = loadFont(document, FONT_REGULAR_CLASSPATH);
@@ -440,8 +451,9 @@ public class GiftCardEmailService {
     }
 
     private String value(GuestEntitlement entitlement) {
-        BigDecimal amount = entitlement.getRemainingValueGross();
-        if (amount == null && entitlement.getProduct() != null) amount = entitlement.getProduct().getPriceGross();
+        BigDecimal amount = entitlement.getProduct() == null ? null : entitlement.getProduct().getPriceGross();
+        if (amount == null && entitlement.getSourceOrder() != null) amount = entitlement.getSourceOrder().getTotalGross();
+        if (amount == null) amount = entitlement.getRemainingValueGross();
         if (amount == null) amount = BigDecimal.ZERO;
         String currencyCode = entitlement.getProduct() == null ? "EUR" : entitlement.getProduct().getCurrency();
         if (currencyCode == null || currencyCode.isBlank()) currencyCode = "EUR";

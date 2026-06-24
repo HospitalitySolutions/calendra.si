@@ -606,7 +606,7 @@ function slovenianRacunCountForm(count: number): string {
   return 'računov'
 }
 
-const billingTabIcon = (tab: 'open' | 'openPayments' | 'unusedAdvances' | 'history'): ReactNode => {
+const billingTabIcon = (tab: BillingTab): ReactNode => {
   if (tab === 'open') {
     return (
       <span className="billing-tab-icon" aria-hidden>
@@ -641,6 +641,19 @@ const billingTabIcon = (tab: 'open' | 'openPayments' | 'unusedAdvances' | 'histo
       </span>
     )
   }
+  if (tab === 'giftCards') {
+    return (
+      <span className="billing-tab-icon" aria-hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 12v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 20v-8" />
+          <path d="M3 8.5h18V12H3z" />
+          <path d="M12 8.5v13" />
+          <path d="M12 8.5H8.7a2.2 2.2 0 1 1 2.2-2.2c0 1.4-1.1 2.2-2.2 2.2Z" />
+          <path d="M12 8.5h3.3a2.2 2.2 0 1 0-2.2-2.2c0 1.4 1.1 2.2 2.2 2.2Z" />
+        </svg>
+      </span>
+    )
+  }
   return (
     <span className="billing-tab-icon" aria-hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -655,6 +668,26 @@ type BillDocumentType = 'INVOICE' | 'ADVANCE'
 type HistoryInvoiceTypeFilter = 'all' | BillDocumentType | 'REFUND'
 type HistoryFiscalStatusFilter = 'all' | NonNullable<Bill['fiscalStatus']>
 type HistoryPaymentStatusFilter = 'all' | NonNullable<Bill['paymentStatus']>
+type BillingTab = 'open' | 'openPayments' | 'unusedAdvances' | 'giftCards' | 'history'
+type BillingGiftCardStatus = 'all' | 'active' | 'partially_used' | 'used' | 'expired' | 'cancelled' | 'pending_payment'
+type BillingGiftCard = {
+  id: number
+  giftCardNumber?: string | null
+  code?: string | null
+  productName?: string | null
+  clientId?: number | null
+  clientName?: string | null
+  clientEmail?: string | null
+  valueGross: number
+  usedGross: number
+  remainingGross: number
+  issuedAt?: string | null
+  expiresAt?: string | null
+  status: Exclude<BillingGiftCardStatus, 'all'> | string
+  billId?: number | null
+  billNumber?: string | null
+  orderReference?: string | null
+}
 type UnusedAdvance = {
   advanceBillId: number
   billNumber: string
@@ -1017,6 +1050,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [unusedAdvances, setUnusedAdvances] = useState<UnusedAdvance[]>([])
+  const [giftCards, setGiftCards] = useState<BillingGiftCard[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -1074,6 +1108,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillsSearch, setOpenBillsSearch] = useState('')
   const [openPaymentsSearch, setOpenPaymentsSearch] = useState('')
   const [unusedAdvancesSearch, setUnusedAdvancesSearch] = useState('')
+  const [giftCardSearch, setGiftCardSearch] = useState('')
+  const [giftCardDateFrom, setGiftCardDateFrom] = useState('')
+  const [giftCardDateTo, setGiftCardDateTo] = useState('')
+  const giftCardDateFromInputRef = useRef<HTMLInputElement | null>(null)
+  const giftCardDateToInputRef = useRef<HTMLInputElement | null>(null)
+  const [giftCardStatusFilter, setGiftCardStatusFilter] = useState<BillingGiftCardStatus>('all')
   const [historySearch, setHistorySearch] = useState('')
   const [historyDateFrom, setHistoryDateFrom] = useState('')
   const [historyDateTo, setHistoryDateTo] = useState('')
@@ -1082,7 +1122,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryPaymentStatusFilter>('all')
   const [historyFiscalStatusFilter, setHistoryFiscalStatusFilter] = useState<HistoryFiscalStatusFilter>('all')
   const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<HistoryInvoiceTypeFilter>('all')
-  const [billingTab, setBillingTab] = useState<'open' | 'openPayments' | 'unusedAdvances' | 'history'>('open')
+  const [billingTab, setBillingTab] = useState<BillingTab>('open')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
   const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
   const [applyAmountNet, setApplyAmountNet] = useState('')
@@ -1129,6 +1169,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [historyPage, setHistoryPage] = useState(1)
   const [openPaymentsPage, setOpenPaymentsPage] = useState(1)
   const [unusedAdvancesPage, setUnusedAdvancesPage] = useState(1)
+  const [giftCardsPage, setGiftCardsPage] = useState(1)
+  const [sendingGiftCardId, setSendingGiftCardId] = useState<number | null>(null)
+  const [printingGiftCardId, setPrintingGiftCardId] = useState<number | null>(null)
+  const [detailGiftCard, setDetailGiftCard] = useState<BillingGiftCard | null>(null)
   const [splittingSessionKey, setSplittingSessionKey] = useState<string | null>(null)
   const [expandedBatchSessionId, setExpandedBatchSessionId] = useState<number | null>(null)
   const batchInvoicesRef = useRef<HTMLDivElement | null>(null)
@@ -1138,13 +1182,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const load = async () => {
-    const [settingsRes, servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
+    const [settingsRes, servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
       api.get('/settings').catch(() => ({ data: {} })),
       api.get('/billing/services'),
       api.get('/billing/bills'),
       api.get('/billing/open-bills'),
       api.get('/bookings').catch(() => ({ data: [] })),
       api.get('/billing/unused-advances').catch(() => ({ data: [] })),
+      api.get('/billing/gift-cards').catch(() => ({ data: [] })),
       api.get('/clients'),
       api.get('/companies'),
       isAdmin ? api.get('/users') : Promise.resolve({ data: [] }),
@@ -1156,6 +1201,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)))
     setBookings(bookingsRes.data || [])
     setUnusedAdvances(settingsRes.data?.BILLING_ADVANCE_ENABLED === 'false' ? [] : (unusedAdvancesRes.data || []))
+    setGiftCards(settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'false' ? [] : (giftCardsRes.data || []))
     setClients(clientsRes.data)
     setCompanies(companiesRes.data || [])
     setUsers(usersRes.data)
@@ -1171,6 +1217,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
+  const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED !== 'false'
   const stripeBillingEnabled = settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const visiblePaymentMethods = useMemo(
     () => {
@@ -1185,7 +1232,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setBillingTab('open')
       setSelectedUnusedAdvanceId(null)
     }
-  }, [advanceBillingEnabled, billingTab])
+    if (!giftCardsEnabled && billingTab === 'giftCards') {
+      setBillingTab('open')
+    }
+  }, [advanceBillingEnabled, giftCardsEnabled, billingTab])
 
   const embeddedCreateKey = embeddedCreateBill
     ? [
@@ -1966,6 +2016,66 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   useEffect(() => {
     if (historyPagination.page !== historyPage) setHistoryPage(historyPagination.page)
   }, [historyPagination.page, historyPage])
+
+  const filteredGiftCards = useMemo(() => {
+    const q = giftCardSearch.trim().toLowerCase()
+    const from = giftCardDateFrom ? Date.parse(`${giftCardDateFrom}T00:00:00`) : Number.NEGATIVE_INFINITY
+    const to = giftCardDateTo ? Date.parse(`${giftCardDateTo}T23:59:59`) : Number.POSITIVE_INFINITY
+    return giftCards.filter((card) => {
+      const issuedTs = Date.parse(String(card.issuedAt || ''))
+      const dateMatches = !Number.isFinite(issuedTs) || (issuedTs >= from && issuedTs <= to)
+      const statusMatches = giftCardStatusFilter === 'all' || card.status === giftCardStatusFilter
+      if (!dateMatches || !statusMatches) return false
+      if (!q) return true
+      return [
+        card.giftCardNumber,
+        card.code,
+        card.productName,
+        card.clientName,
+        card.clientEmail,
+        card.billNumber,
+        card.orderReference,
+      ].some((entry) => String(entry || '').toLowerCase().includes(q))
+    })
+  }, [giftCards, giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
+
+  const sortedGiftCards = useMemo(() => {
+    return [...filteredGiftCards].sort((a, b) => {
+      const tsA = Date.parse(String(a.issuedAt || ''))
+      const tsB = Date.parse(String(b.issuedAt || ''))
+      return (Number.isFinite(tsB) ? tsB : 0) - (Number.isFinite(tsA) ? tsA : 0)
+    })
+  }, [filteredGiftCards])
+
+  const giftCardStats = useMemo(() => {
+    const active = giftCards.filter((card) => card.status === 'active').length
+    const partial = giftCards.filter((card) => card.status === 'partially_used').length
+    const used = giftCards.filter((card) => card.status === 'used').length
+    const expired = giftCards.filter((card) => card.status === 'expired').length
+    const outstanding = giftCards
+      .filter((card) => card.status === 'active' || card.status === 'partially_used')
+      .reduce((sum, card) => sum + Number(card.remainingGross || 0), 0)
+    return { active, partial, used, expired, outstanding }
+  }, [giftCards])
+
+  const giftCardsPagination = useMemo(() => {
+    const total = sortedGiftCards.length
+    const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
+    const page = Math.min(Math.max(1, giftCardsPage), totalPages)
+    const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
+    const slice = sortedGiftCards.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const showFrom = total === 0 ? 0 : offset + 1
+    const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
+    return { total, totalPages, page, slice, showFrom, showTo }
+  }, [sortedGiftCards, giftCardsPage])
+
+  useEffect(() => {
+    setGiftCardsPage(1)
+  }, [giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
+
+  useEffect(() => {
+    if (giftCardsPagination.page !== giftCardsPage) setGiftCardsPage(giftCardsPagination.page)
+  }, [giftCardsPagination.page, giftCardsPage])
 
   function openBillItemToDraft(ob: OpenBill, i: OpenBill['items'][number], index: number): OpenBillEditItem {
     const fallbackGross = Number(i.netPrice || 0) * (1 + billingTaxMultiplier(i.transactionService?.taxRate))
@@ -3798,6 +3908,81 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     } finally {
       setPrintingBillId(null)
     }
+  }
+
+  const giftCardPdfFileName = (card: BillingGiftCard) => `darilni-bon-${String(card.code || card.giftCardNumber || card.id).replace(/[^A-Za-z0-9._-]/g, '-')}.pdf`
+
+  const fetchGiftCardPdfBlob = async (cardId: number): Promise<Blob> => {
+    const res = await api.get(`/billing/gift-cards/${cardId}/pdf`, { responseType: 'blob' })
+    return new Blob([res.data], { type: 'application/pdf' })
+  }
+
+  const downloadGiftCardPdf = async (card: BillingGiftCard) => {
+    try {
+      const blob = await fetchGiftCardPdfBlob(card.id)
+      downloadPdfBlob(blob, giftCardPdfFileName(card))
+    } catch (error) {
+      showToast('error', locale === 'sl' ? 'PDF darilnega bona ni bilo mogoče prenesti.' : 'Unable to download gift card PDF.')
+    }
+  }
+
+  const printGiftCardPdf = async (card: BillingGiftCard, preparedWindow?: Window | null) => {
+    if (printingGiftCardId) {
+      closePdfActionWindow(preparedWindow)
+      return
+    }
+    setPrintingGiftCardId(card.id)
+    try {
+      const blob = await fetchGiftCardPdfBlob(card.id)
+      printPdfBlob(blob, giftCardPdfFileName(card), preparedWindow)
+    } catch (error) {
+      closePdfActionWindow(preparedWindow)
+      showToast('error', locale === 'sl' ? 'Darilnega bona ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare gift card for printing.')
+    } finally {
+      setPrintingGiftCardId(null)
+    }
+  }
+
+  const sendGiftCardAgain = async (card: BillingGiftCard) => {
+    if (sendingGiftCardId) return
+    setSendingGiftCardId(card.id)
+    try {
+      await api.post(`/billing/gift-cards/${card.id}/send`)
+      showToast('success', locale === 'sl' ? 'Darilni bon je bil poslan.' : 'Gift card was sent.')
+      await load()
+    } catch (error: any) {
+      showToast('error', readBillingApiMessage(error) || (locale === 'sl' ? 'Darilnega bona ni bilo mogoče poslati.' : 'Unable to send gift card.'))
+    } finally {
+      setSendingGiftCardId(null)
+    }
+  }
+
+  const giftCardStatusLabel = (status: string | null | undefined): string => {
+    if (locale === 'sl') {
+      if (status === 'active') return 'Aktiven'
+      if (status === 'partially_used') return 'Delno porabljen'
+      if (status === 'used') return 'Porabljen'
+      if (status === 'expired') return 'Potekel'
+      if (status === 'cancelled') return 'Preklican'
+      if (status === 'pending_payment') return 'Čaka plačilo'
+      return 'Neznano'
+    }
+    if (status === 'active') return 'Active'
+    if (status === 'partially_used') return 'Partially used'
+    if (status === 'used') return 'Used'
+    if (status === 'expired') return 'Expired'
+    if (status === 'cancelled') return 'Cancelled'
+    if (status === 'pending_payment') return 'Pending payment'
+    return 'Unknown'
+  }
+
+  const giftCardStatusClass = (status: string | null | undefined): string => {
+    if (status === 'active') return 'paid'
+    if (status === 'partially_used') return 'partial'
+    if (status === 'used') return 'archived'
+    if (status === 'expired' || status === 'cancelled') return 'failed'
+    if (status === 'pending_payment') return 'open'
+    return 'not-sent'
   }
 
   const handleCreatedBillPdfAction = async (bill: any, action: InvoicePdfAction, preparedWindow?: Window | null) => {
@@ -7259,6 +7444,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span>{t('billingTabUnusedAdvances')}</span>
                   </button>
                 )}
+                {giftCardsEnabled && (
+                  <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('giftCards')}>
+                    {billingTabIcon('giftCards')}
+                    <span>{t('billingTabGiftCards')}</span>
+                  </button>
+                )}
                 <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>
                   {billingTabIcon('history')}
                   <span>{t('billingTabFolioHistory')}</span>
@@ -7785,6 +7976,167 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
             )}
 
+            {giftCardsEnabled && billingTab === 'giftCards' && (
+              <div className="billing-modern-content">
+                <div className="billing-modern-filter-row billing-modern-filter-row--history">
+                  <div className="billing-modern-search-wrap">
+                    <span className="billing-modern-search-icon" aria-hidden>⌕</span>
+                    <input
+                      className="clients-search-input billing-modern-search"
+                      placeholder={locale === 'sl' ? 'Išči po kodi, kupcu ali računu …' : 'Search by code, buyer or invoice …'}
+                      value={giftCardSearch}
+                      onChange={(e) => setGiftCardSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="billing-date-range-picker" aria-label={locale === 'sl' ? 'Filtriraj po datumu izdaje' : 'Filter by issued date'}>
+                    <div className="billing-date-range-input-wrap">
+                      <input ref={giftCardDateFromInputRef} type="date" value={giftCardDateFrom} onChange={(e) => setGiftCardDateFrom(e.target.value)} />
+                      <button
+                        type="button"
+                        className="billing-date-range-input-icon"
+                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma od' : 'Open start date picker'}
+                        onClick={() => openHistoryDatePicker(giftCardDateFromInputRef.current)}
+                      >
+                        <span aria-hidden>📅</span>
+                      </button>
+                    </div>
+                    <span className="billing-date-range-separator">–</span>
+                    <div className="billing-date-range-input-wrap">
+                      <input ref={giftCardDateToInputRef} type="date" value={giftCardDateTo} onChange={(e) => setGiftCardDateTo(e.target.value)} />
+                      <button
+                        type="button"
+                        className="billing-date-range-input-icon"
+                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma do' : 'Open end date picker'}
+                        onClick={() => openHistoryDatePicker(giftCardDateToInputRef.current)}
+                      >
+                        <span aria-hidden>📅</span>
+                      </button>
+                    </div>
+                  </div>
+                  <select
+                    className="billing-history-filter-select"
+                    aria-label={locale === 'sl' ? 'Filtriraj po statusu bona' : 'Filter by gift card status'}
+                    value={giftCardStatusFilter}
+                    onChange={(e) => setGiftCardStatusFilter(e.target.value as BillingGiftCardStatus)}
+                  >
+                    <option value="all">{locale === 'sl' ? 'Vsi statusi' : 'All statuses'}</option>
+                    <option value="active">{locale === 'sl' ? 'Aktivni' : 'Active'}</option>
+                    <option value="partially_used">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</option>
+                    <option value="used">{locale === 'sl' ? 'Porabljeni' : 'Used'}</option>
+                    <option value="expired">{locale === 'sl' ? 'Potekli' : 'Expired'}</option>
+                    <option value="pending_payment">{locale === 'sl' ? 'Čaka plačilo' : 'Pending payment'}</option>
+                    <option value="cancelled">{locale === 'sl' ? 'Preklicani' : 'Cancelled'}</option>
+                  </select>
+                </div>
+
+                <div className="billing-modern-stats billing-modern-stats--five">
+                  <div className="billing-modern-stat-card">
+                    <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>🎁</span>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Aktivni' : 'Active'}</span><strong>{giftCardStats.active}</strong><small>{locale === 'sl' ? 'Veljavni in neporabljeni boni' : 'Valid unused gift cards'}</small></div>
+                  </div>
+                  <div className="billing-modern-stat-card">
+                    <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>◔</span>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</span><strong>{giftCardStats.partial}</strong><small>{locale === 'sl' ? 'Boni z delno porabljeno vrednostjo' : 'Gift cards with remaining value'}</small></div>
+                  </div>
+                  <div className="billing-modern-stat-card">
+                    <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>✓</span>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Porabljeni' : 'Used'}</span><strong>{giftCardStats.used}</strong><small>{locale === 'sl' ? 'Popolnoma izkoriščeni boni' : 'Fully redeemed gift cards'}</small></div>
+                  </div>
+                  <div className="billing-modern-stat-card">
+                    <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>⏱</span>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Potekli' : 'Expired'}</span><strong>{giftCardStats.expired}</strong><small>{locale === 'sl' ? 'Boni, ki jim je potekel rok' : 'Expired gift cards'}</small></div>
+                  </div>
+                  <div className="billing-modern-stat-card">
+                    <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupna neporabljena vrednost' : 'Unused value'}</span><strong>{currency(giftCardStats.outstanding)}</strong><small>{locale === 'sl' ? 'Vrednost vseh neporabljenih bonov' : 'Remaining gift-card value'}</small></div>
+                  </div>
+                </div>
+
+                {sortedGiftCards.length === 0 ? <EmptyState title={t('billingTabGiftCards')} text={locale === 'sl' ? 'Ni darilnih bonov.' : 'No gift cards yet.'} /> : (
+                  <div className="billing-modern-table-wrap">
+                    <table className="billing-modern-table billing-modern-gift-cards-table">
+                      <thead>
+                        <tr>
+                          <th>{locale === 'sl' ? 'ID bona' : 'Gift card ID'}</th>
+                          <th>{locale === 'sl' ? 'Koda' : 'Code'}</th>
+                          <th>{locale === 'sl' ? 'Stranka / Kupec' : 'Client / Buyer'}</th>
+                          <th>{locale === 'sl' ? 'Vrednost' : 'Value'}</th>
+                          <th>{locale === 'sl' ? 'Porabljeno' : 'Used'}</th>
+                          <th>{locale === 'sl' ? 'Preostanek' : 'Remaining'}</th>
+                          <th>{locale === 'sl' ? 'Poteče' : 'Expires'}</th>
+                          <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
+                          <th>{locale === 'sl' ? 'Račun' : 'Invoice'}</th>
+                          <th>{locale === 'sl' ? 'Dejanja' : 'Actions'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {giftCardsPagination.slice.map((card) => (
+                          <tr key={card.id} className="billing-history-row" onClick={() => setDetailGiftCard(card)}>
+                            <td className="billing-modern-link-cell">{card.giftCardNumber || `GB-${card.id}`}</td>
+                            <td>{card.code || '—'}</td>
+                            <td>
+                              <div className="billing-modern-main-text">{card.clientName || '—'}</div>
+                              {card.clientEmail ? <div className="billing-modern-muted">{card.clientEmail}</div> : null}
+                            </td>
+                            <td className="billing-modern-amount">{currency(Number(card.valueGross || 0))}</td>
+                            <td className="billing-modern-amount">{currency(Number(card.usedGross || 0))}</td>
+                            <td className="billing-modern-amount">{currency(Number(card.remainingGross || 0))}</td>
+                            <td>
+                              <div className="billing-modern-main-text">{card.expiresAt ? formatDateShort(card.expiresAt) : '—'}</div>
+                              {card.expiresAt ? <div className="billing-modern-muted">{formatDate(card.expiresAt)}</div> : null}
+                            </td>
+                            <td><span className={`billing-status-pill billing-status-pill--${giftCardStatusClass(card.status)}`}>{giftCardStatusLabel(card.status)}</span></td>
+                            <td>{card.billNumber || card.orderReference || '—'}</td>
+                            <td className="billing-modern-actions billing-modern-actions--history" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" className="billing-action-btn" onClick={() => setDetailGiftCard(card)}>{locale === 'sl' ? 'Poglej' : 'View'}</button>
+                              <button type="button" className="billing-action-btn" onClick={() => downloadGiftCardPdf(card)}>{locale === 'sl' ? 'Prenesi PDF' : 'PDF'}</button>
+                              <button type="button" className="billing-action-btn" onClick={() => sendGiftCardAgain(card)} disabled={sendingGiftCardId === card.id}>{sendingGiftCardId === card.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji' : 'Send')}</button>
+                              <button type="button" className="billing-action-btn" onClick={() => printGiftCardPdf(card)} disabled={printingGiftCardId === card.id}>{printingGiftCardId === card.id ? (locale === 'sl' ? 'Tiskanje…' : 'Printing…') : (locale === 'sl' ? 'Natisni' : 'Print')}</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="billing-modern-footer">
+                      <span>
+                        {locale === 'sl'
+                          ? `Prikazujem ${giftCardsPagination.showFrom} do ${giftCardsPagination.showTo} od ${giftCardsPagination.total} darilnih bonov`
+                          : `Showing ${giftCardsPagination.showFrom} to ${giftCardsPagination.showTo} of ${giftCardsPagination.total} gift cards`}
+                      </span>
+                      <div
+                        className="clients-modern-pagination"
+                        aria-hidden={giftCardsPagination.totalPages <= 1}
+                        role={giftCardsPagination.totalPages > 1 ? 'navigation' : undefined}
+                        aria-label={giftCardsPagination.totalPages > 1 ? 'Gift card pages' : undefined}
+                      >
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={giftCardsPagination.totalPages > 1 ? () => setGiftCardsPage((p) => Math.max(1, p - 1)) : undefined}
+                          disabled={giftCardsPagination.totalPages > 1 && giftCardsPagination.page <= 1}
+                        >
+                          ‹
+                        </button>
+                        <span>{giftCardsPagination.page}</span>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={
+                            giftCardsPagination.totalPages > 1
+                              ? () => setGiftCardsPage((p) => Math.min(giftCardsPagination.totalPages, p + 1))
+                              : undefined
+                          }
+                          disabled={giftCardsPagination.totalPages > 1 && giftCardsPagination.page >= giftCardsPagination.totalPages}
+                        >
+                          ›
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {billingTab === 'history' && (
               <div className="billing-modern-content">
                 <div className="billing-modern-filter-row billing-modern-filter-row--history">
@@ -7972,6 +8324,51 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             )}
           </Card>
       </div>
+
+      {detailGiftCard && (
+        <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" onMouseDown={() => setDetailGiftCard(null)} role="presentation">
+          <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="billing-bill-modal-header">
+              <div>
+                <div className="billing-bill-modal-title-row">
+                  <h2>{locale === 'sl' ? 'Darilni bon' : 'Gift card'}</h2>
+                  <span className={`billing-bill-modal-status billing-status-pill billing-status-pill--${giftCardStatusClass(detailGiftCard.status)}`}>{giftCardStatusLabel(detailGiftCard.status)}</span>
+                </div>
+                <p>{detailGiftCard.giftCardNumber || `GB-${detailGiftCard.id}`} · {detailGiftCard.code || '—'}</p>
+              </div>
+              <button type="button" className="billing-bill-modal-close" onClick={() => setDetailGiftCard(null)} aria-label="Close">×</button>
+            </div>
+            <div className="billing-bill-modal-body stack gap-md">
+              <div className="billing-modern-stats billing-modern-stats--two">
+                <div className="billing-modern-stat-card">
+                  <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
+                  <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vrednost' : 'Value'}</span><strong>{currency(Number(detailGiftCard.valueGross || 0))}</strong><small>{locale === 'sl' ? 'Začetna vrednost bona' : 'Original value'}</small></div>
+                </div>
+                <div className="billing-modern-stat-card">
+                  <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>€</span>
+                  <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Preostanek' : 'Remaining'}</span><strong>{currency(Number(detailGiftCard.remainingGross || 0))}</strong><small>{locale === 'sl' ? 'Trenutno stanje' : 'Current balance'}</small></div>
+                </div>
+              </div>
+              <div className="billing-open-detail-grid">
+                <div><span className="muted">{locale === 'sl' ? 'Stranka / kupec' : 'Client / buyer'}</span><strong>{detailGiftCard.clientName || '—'}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{detailGiftCard.clientEmail || '—'}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Porabljeno' : 'Used'}</span><strong>{currency(Number(detailGiftCard.usedGross || 0))}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Poteče' : 'Expires'}</span><strong>{detailGiftCard.expiresAt ? formatDate(detailGiftCard.expiresAt) : '—'}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Račun' : 'Invoice'}</span><strong>{detailGiftCard.billNumber || detailGiftCard.orderReference || '—'}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Izdelek' : 'Product'}</span><strong>{detailGiftCard.productName || '—'}</strong></div>
+              </div>
+            </div>
+            <div className="billing-bill-modal-footer">
+              <div />
+              <div className="billing-bill-modal-footer-actions">
+                <button type="button" className="secondary" onClick={() => downloadGiftCardPdf(detailGiftCard)}>{locale === 'sl' ? 'Prenesi PDF' : 'Download PDF'}</button>
+                <button type="button" className="secondary" onClick={() => printGiftCardPdf(detailGiftCard)} disabled={printingGiftCardId === detailGiftCard.id}>{printingGiftCardId === detailGiftCard.id ? (locale === 'sl' ? 'Tiskanje…' : 'Printing…') : (locale === 'sl' ? 'Natisni' : 'Print')}</button>
+                <button type="button" className="primary" onClick={() => sendGiftCardAgain(detailGiftCard)} disabled={sendingGiftCardId === detailGiftCard.id}>{sendingGiftCardId === detailGiftCard.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji po e-pošti' : 'Send by email')}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editorOnlyMode && !detailOpenBill && (
         <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" role="presentation">

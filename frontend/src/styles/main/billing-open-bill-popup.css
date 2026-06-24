@@ -6008,3 +6008,36 @@
         grid-column: 2 / 6 !important;
     }
 }
+
+.billing-open-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.billing-open-detail-grid > div {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--surface, #ffffff);
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.billing-open-detail-grid > div > span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.billing-open-detail-grid > div > strong {
+  color: var(--text, #0f172a);
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .billing-open-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

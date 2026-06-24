@@ -35,6 +35,15 @@ public interface GuestEntitlementRepository extends JpaRepository<GuestEntitleme
     boolean existsByEntitlementCode(String entitlementCode);
     long countByProductId(Long productId);
 
+    @EntityGraph(attributePaths = {"client", "product", "sourceOrder", "sourceOrder.guestUser"})
+    @Query("SELECT e FROM GuestEntitlement e WHERE e.company.id = :companyId "
+            + "AND (e.entitlementType = :entitlementType OR e.product.productType = :productType) "
+            + "ORDER BY e.createdAt DESC")
+    List<GuestEntitlement> findGiftCardsByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("entitlementType") EntitlementType entitlementType,
+            @Param("productType") ProductType productType);
+
     @Query("SELECT DISTINCT e.client.id FROM GuestEntitlement e WHERE e.company.id = :companyId AND e.client.id IN :clientIds "
             + "AND e.status IN :statuses AND (e.validFrom IS NULL OR e.validFrom <= :now) "
             + "AND (e.validUntil IS NULL OR e.validUntil > :now) "
