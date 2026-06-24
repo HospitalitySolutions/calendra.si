@@ -217,12 +217,8 @@ public class GiftCardEmailService {
             drawDefaultGiftIllustration(stream, cardX, cardY, cardW, cardH);
         }
 
-        // Light overlay, matching the Configuration preview where text stays readable over the uploaded background.
-        setAlpha(stream, 0.92f);
-        fillRect(stream, cardX, cardY, cardW * 0.58f, cardH, Color.WHITE);
-        setAlpha(stream, 0.28f);
-        fillRect(stream, cardX + cardW * 0.38f, cardY, cardW * 0.62f, cardH, Color.WHITE);
-        setAlpha(stream, 1f);
+        // Keep the user-uploaded background fully visible. Do not draw an opaque white field block.
+        // Only the text itself and thin dividers are rendered on top of the background.
 
         String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "—");
         if (settings.showCode()) {
@@ -290,7 +286,7 @@ public class GiftCardEmailService {
     private void drawCodePill(PDPageContentStream stream, PDFont regular, String code, float x, float y) throws IOException {
         String displayCode = firstNonBlank(code, "—");
         float width = Math.max(92, Math.min(132, textWidth(regular, displayCode, 9) + 24));
-        fillRect(stream, x, y, width, 26, new Color(255, 255, 255));
+        fillRect(stream, x, y, width, 26, new Color(255, 255, 255, 60));
         stream.setStrokingColor(new Color(184, 137, 62));
         stream.setLineWidth(0.8f);
         stream.addRect(x, y, width, 26);

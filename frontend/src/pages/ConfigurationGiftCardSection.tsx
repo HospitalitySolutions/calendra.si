@@ -369,11 +369,7 @@ export function ConfigurationGiftCardSection({
           background-position: center;
         }
         .billing-gift-card-preview::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(90deg, rgba(255,255,255,.90) 0%, rgba(255,255,255,.76) 40%, rgba(255,255,255,.18) 74%, rgba(255,255,255,.06) 100%);
-          z-index: -1;
+          content: none;
         }
         .billing-gift-card-preview::after {
           content: '';
@@ -392,9 +388,10 @@ export function ConfigurationGiftCardSection({
           right: 32px;
           z-index: 2;
           padding: 8px 11px;
-          border: 1px solid rgba(184, 137, 62, .38);
+          border: 1px solid rgba(184, 137, 62, .42);
           border-radius: 999px;
-          background: rgba(255,255,255,.72);
+          background: rgba(255,255,255,.24);
+          backdrop-filter: blur(2px);
           color: #654a1e;
           font-size: 11px;
           font-weight: 950;
@@ -418,6 +415,8 @@ export function ConfigurationGiftCardSection({
         .billing-gift-card-preview-content {
           width: min(430px, 58%);
           padding: 38px 42px;
+          position: relative;
+          z-index: 1;
         }
         .billing-gift-card-preview-label {
           display: block;
@@ -427,6 +426,7 @@ export function ConfigurationGiftCardSection({
           font-weight: 900;
           letter-spacing: .12em;
           text-transform: uppercase;
+          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.45);
         }
         .billing-gift-card-preview-line {
           padding-bottom: 14px;
@@ -441,6 +441,7 @@ export function ConfigurationGiftCardSection({
           font-size: 28px;
           line-height: 1.08;
           word-break: break-word;
+          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55);
         }
         .billing-gift-card-preview-value {
           margin: 0;
@@ -451,6 +452,7 @@ export function ConfigurationGiftCardSection({
           font-weight: 500;
           letter-spacing: -0.06em;
           word-break: break-word;
+          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.45);
         }
         .billing-gift-card-preview-date {
           font-size: 25px;
