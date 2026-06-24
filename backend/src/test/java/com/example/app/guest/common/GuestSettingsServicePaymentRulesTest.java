@@ -8,6 +8,7 @@ import com.example.app.company.Company;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
+import com.example.app.settings.TenantGeneralSettingsService;
 import com.example.app.settings.SettingKey;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ class GuestSettingsServicePaymentRulesTest {
     @Test
     void bookingRules_prefersExplicitRequireOnlinePaymentFromBookingRulesJson() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
-        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class), mock(TenantGeneralSettingsService.class));
         when(repo.findAllByCompanyId(10L)).thenReturn(List.of(
                 setting(10L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{\"requireOnlinePayment\":false}"),
                 setting(10L, SettingKey.GUEST_APP_SETTINGS_JSON.name(), "{\"paymentOnLocation\":false}")
@@ -31,7 +32,7 @@ class GuestSettingsServicePaymentRulesTest {
     @Test
     void bookingRules_usesPaymentOnLocationFallbackWhenRequireOnlinePaymentMissing() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
-        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class), mock(TenantGeneralSettingsService.class));
         when(repo.findAllByCompanyId(11L)).thenReturn(List.of(
                 setting(11L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{\"paymentRequirement\":\"deposit\"}"),
                 setting(11L, SettingKey.GUEST_APP_SETTINGS_JSON.name(), "{\"paymentOnLocation\":false}")
@@ -45,7 +46,7 @@ class GuestSettingsServicePaymentRulesTest {
     @Test
     void bookingRules_usesPaymentOnLocationFallbackForPayAtVenue() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
-        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class), mock(TenantGeneralSettingsService.class));
         when(repo.findAllByCompanyId(12L)).thenReturn(List.of(
                 setting(12L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{\"paymentRequirement\":\"none\"}"),
                 setting(12L, SettingKey.GUEST_APP_SETTINGS_JSON.name(), "{\"paymentOnLocation\":true}")
@@ -59,7 +60,7 @@ class GuestSettingsServicePaymentRulesTest {
     @Test
     void bookingRules_defaultsToRequireOnlinePaymentWhenBothFieldsMissing() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
-        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class), mock(TenantGeneralSettingsService.class));
         when(repo.findAllByCompanyId(13L)).thenReturn(List.of(
                 setting(13L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{}")
         ));
@@ -74,7 +75,7 @@ class GuestSettingsServicePaymentRulesTest {
     @Test
     void bookingRules_readsDepositRequirementAndPercent() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
-        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class), mock(TenantGeneralSettingsService.class));
         when(repo.findAllByCompanyId(14L)).thenReturn(List.of(
                 setting(14L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{\"paymentRequirement\":\"deposit\",\"depositPercent\":35}")
         ));
@@ -88,7 +89,7 @@ class GuestSettingsServicePaymentRulesTest {
     @Test
     void bookingRules_clampsDepositPercentRange() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
-        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class), mock(TenantGeneralSettingsService.class));
         when(repo.findAllByCompanyId(15L)).thenReturn(List.of(
                 setting(15L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{\"paymentRequirement\":\"deposit\",\"depositPercent\":0}")
         ));
