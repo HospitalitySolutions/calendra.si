@@ -1761,6 +1761,10 @@ a.config-nav-item {
     font-size: 13px;
     line-height: 1.45;
 }
+.reservation-rules-toggle-row + .reservation-rules-toggle-row,
+.reservation-rules-toggle-row + .reservation-rules-deadline-grid {
+    margin-top: 12px;
+}
 .reservation-rules-number-input {
     position: relative;
     display: flex;

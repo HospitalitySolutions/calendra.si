@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useMemo } from "react";
 import { useLocale, type AppLocale } from "../../locale";
-import { GuestSegmentedToggle } from "./ConfigurationVisualComponents";
+import { GuestSwitch } from "./ConfigurationVisualComponents";
 
 export const TENANT_RESERVATION_RULES_KEY = "TENANT_RESERVATION_RULES_JSON";
 
@@ -256,33 +256,13 @@ export function ReservationRulesSettingsSection({
 
         <article className="general-settings-card">
           <SectionHeader title={text.changesTitle} subtitle={text.changesSubtitle} />
-          <div className="general-settings-form-grid">
-            <NumericField
-              label={text.reschedule}
-              hint={text.rescheduleHint}
-              value={rules.rescheduleUntilHours}
-              suffix={text.hours}
-              min={0}
-              max={24 * 90}
-              onChange={(value) => update({ rescheduleUntilHours: value })}
-            />
-            <NumericField
-              label={text.cancel}
-              hint={text.cancelHint}
-              value={rules.cancelUntilHours}
-              suffix={text.hours}
-              min={0}
-              max={24 * 90}
-              onChange={(value) => update({ cancelUntilHours: value })}
-            />
-          </div>
           <div className="reservation-rules-toggle-row">
             <div>
               <strong>{text.allowCancellation}</strong>
               <p>{text.allowCancellationHint}</p>
             </div>
-            <GuestSegmentedToggle
-              value={rules.cancellationAllowed}
+            <GuestSwitch
+              checked={rules.cancellationAllowed}
               onChange={(value) => update({ cancellationAllowed: value })}
             />
           </div>
@@ -291,11 +271,37 @@ export function ReservationRulesSettingsSection({
               <strong>{text.allowModification}</strong>
               <p>{text.allowModificationHint}</p>
             </div>
-            <GuestSegmentedToggle
-              value={rules.modificationAllowed}
+            <GuestSwitch
+              checked={rules.modificationAllowed}
               onChange={(value) => update({ modificationAllowed: value })}
             />
           </div>
+          {rules.modificationAllowed || rules.cancellationAllowed ? (
+            <div className="general-settings-form-grid reservation-rules-deadline-grid">
+              {rules.modificationAllowed ? (
+                <NumericField
+                  label={text.reschedule}
+                  hint={text.rescheduleHint}
+                  value={rules.rescheduleUntilHours}
+                  suffix={text.hours}
+                  min={0}
+                  max={24 * 90}
+                  onChange={(value) => update({ rescheduleUntilHours: value })}
+                />
+              ) : null}
+              {rules.cancellationAllowed ? (
+                <NumericField
+                  label={text.cancel}
+                  hint={text.cancelHint}
+                  value={rules.cancelUntilHours}
+                  suffix={text.hours}
+                  min={0}
+                  max={24 * 90}
+                  onChange={(value) => update({ cancelUntilHours: value })}
+                />
+              ) : null}
+            </div>
+          ) : null}
         </article>
 
         <article className="general-settings-card reservation-rules-card--wide">
@@ -305,8 +311,8 @@ export function ReservationRulesSettingsSection({
               <strong>{text.allowEmployeeChoice}</strong>
               <p>{text.allowEmployeeChoiceHint}</p>
             </div>
-            <GuestSegmentedToggle
-              value={rules.employeeSelectionAllowed}
+            <GuestSwitch
+              checked={rules.employeeSelectionAllowed}
               onChange={(value) => update({ employeeSelectionAllowed: value })}
             />
           </div>
