@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { api, getApiErrorMessage } from '../api'
 import { useLocale } from '../locale'
 
@@ -31,6 +31,23 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function decodeUrlSegment(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function tokenFromManagePath(pathname: string) {
+  const prefix = '/public-booking/manage/'
+  const index = pathname.indexOf(prefix)
+  if (index < 0) return ''
+  const rest = pathname.slice(index + prefix.length)
+  const segment = rest.split('/').find(Boolean) || ''
+  return decodeUrlSegment(segment).trim()
+}
+
 function dateFromIso(value?: string | null) {
   return value ? value.slice(0, 10) : todayIsoDate()
 }
@@ -51,7 +68,12 @@ function formatDateTime(value: string | null | undefined, locale: string) {
 }
 
 export function PublicBookingManagePage() {
-  const { token = '' } = useParams()
+  const { token: routeToken } = useParams()
+  const location = useLocation()
+  const token = useMemo(() => {
+    const fromRoute = routeToken ? decodeUrlSegment(routeToken).trim() : ''
+    return fromRoute || tokenFromManagePath(location.pathname)
+  }, [location.pathname, routeToken])
   const [searchParams] = useSearchParams()
   const requestedAction = searchParams.get('action') === 'cancel' ? 'cancel' : 'modify'
   const { locale } = useLocale()
@@ -119,6 +141,11 @@ export function PublicBookingManagePage() {
     let cancelled = false
     setLoading(true)
     setError('')
+    if (!token) {
+      setError(copy.invalid)
+      setLoading(false)
+      return () => { cancelled = true }
+    }
     api.get(`/public-bookings/manage/${encodeURIComponent(token)}`, { headers: { 'X-Skip-CSRF-Prefetch': 'true' } })
       .then((res) => {
         if (cancelled) return
@@ -139,7 +166,7 @@ export function PublicBookingManagePage() {
   }, [copy.invalid, requestedAction, token])
 
   useEffect(() => {
-    if (!info?.canModify || action !== 'modify' || !date || success) return
+    if (!token || !info?.canModify || action !== 'modify' || !date || success) return
     let cancelled = false
     setSlotsLoading(true)
     setSelectedSlot('')
@@ -163,6 +190,10 @@ export function PublicBookingManagePage() {
   }, [action, copy.loadSlotsFailed, date, info?.canModify, success, token])
 
   const submitReschedule = async () => {
+    if (!token) {
+      setError(copy.invalid)
+      return
+    }
     if (!selectedSlot) return
     setBusy(true)
     setError('')
@@ -181,6 +212,10 @@ export function PublicBookingManagePage() {
   }
 
   const submitCancel = async () => {
+    if (!token) {
+      setError(copy.invalid)
+      return
+    }
     setBusy(true)
     setError('')
     try {
