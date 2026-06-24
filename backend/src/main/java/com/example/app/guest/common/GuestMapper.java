@@ -143,7 +143,7 @@ public final class GuestMapper {
                 String.valueOf(entitlement.getId()),
                 product == null ? "" : product.getName(),
                 entitlement.getEntitlementType().name(),
-                entitlement.getEntitlementCode(),
+                publicEntitlementCode(entitlement),
                 entitlement.getRemainingUses(),
                 entitlement.getVisitCount(),
                 totalUses,
@@ -159,6 +159,16 @@ public final class GuestMapper {
                 currency,
                 accessUrl
         );
+    }
+
+    private static String publicEntitlementCode(GuestEntitlement entitlement) {
+        if (entitlement == null) return null;
+        if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD
+                && entitlement.getDisplayCode() != null
+                && !entitlement.getDisplayCode().isBlank()) {
+            return entitlement.getDisplayCode();
+        }
+        return entitlement.getEntitlementCode();
     }
 
     private static String courseAccessUrl(GuestEntitlement entitlement) {

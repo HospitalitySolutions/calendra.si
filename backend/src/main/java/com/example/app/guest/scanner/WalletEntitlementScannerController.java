@@ -465,7 +465,7 @@ public class WalletEntitlementScannerController {
         if (entitlement == null) return null;
         return new ScanEntitlementResponse(
                 entitlement.getId(),
-                entitlement.getEntitlementCode(),
+                firstUsableCode(entitlement),
                 entitlement.getProduct() == null ? null : entitlement.getProduct().getName(),
                 entitlement.getEntitlementType() == null ? null : entitlement.getEntitlementType().name(),
                 entitlement.getRemainingUses(),
@@ -490,6 +490,11 @@ public class WalletEntitlementScannerController {
 
     private static String firstUsableCode(GuestEntitlement entitlement) {
         if (entitlement == null) return null;
+        if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD
+                && entitlement.getDisplayCode() != null
+                && !entitlement.getDisplayCode().isBlank()) {
+            return entitlement.getDisplayCode();
+        }
         if (entitlement.getEntitlementCode() != null && !entitlement.getEntitlementCode().isBlank()) {
             return entitlement.getEntitlementCode();
         }

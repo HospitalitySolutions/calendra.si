@@ -1731,6 +1731,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_entitlements_entitlement_code
 CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_entitlements_course_access_token
     ON guest_entitlements (course_access_token)
     WHERE course_access_token IS NOT NULL AND trim(course_access_token) <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_entitlements_gift_card_company_seq
+    ON guest_entitlements (company_id, display_seq)
+    WHERE entitlement_type = 'GIFT_CARD' AND display_seq IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_entitlements_gift_card_company_display_code
+    ON guest_entitlements (company_id, lower(display_code))
+    WHERE entitlement_type = 'GIFT_CARD' AND display_code IS NOT NULL AND trim(display_code) <> '';
 
 DO $$
 BEGIN

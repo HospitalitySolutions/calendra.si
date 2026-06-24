@@ -38,7 +38,7 @@ const DEFAULT_GIFT_CARD_SETTINGS: GiftCardSettings = {
   value: "€50",
   expires: "31. 12. 2026",
   text: "Vse najboljše! Uživaj v darilu.",
-  code: "GC-425-001",
+  code: "GC-7K2Q-M9XA",
   backgroundImageDataUrl: "",
   backgroundImageName: "",
 };
@@ -579,7 +579,7 @@ export function ConfigurationGiftCardSection({
           >
             <input className="billing-input" value={giftCard.code} onChange={(event) => updateGiftCard({ code: event.target.value })} />
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Na dejanskem bonu se zgoraj desno prikaže unikatna koda izdane ugodnosti." : "On the real gift card the unique entitlement code is shown in the upper right."}
+              {isSl ? "Na dejanskem bonu se zgoraj desno prikaže unikatna koda kupona, ki jo gost uporabi pri plačilu." : "On the real gift card the unique coupon code shown to the guest appears in the upper right."}
             </p>
           </GiftCardInputRow>
 

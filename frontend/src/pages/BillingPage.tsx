@@ -7983,7 +7983,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
                       className="clients-search-input billing-modern-search"
-                      placeholder={locale === 'sl' ? 'Išči po kodi, kupcu ali računu …' : 'Search by code, buyer or invoice …'}
+                      placeholder={locale === 'sl' ? 'Išči po kodi kupona, kupcu ali računu …' : 'Search by coupon code, buyer or invoice …'}
                       value={giftCardSearch}
                       onChange={(e) => setGiftCardSearch(e.target.value)}
                     />
@@ -8058,7 +8058,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <thead>
                         <tr>
                           <th>{locale === 'sl' ? 'ID bona' : 'Gift card ID'}</th>
-                          <th>{locale === 'sl' ? 'Koda' : 'Code'}</th>
+                          <th>{locale === 'sl' ? 'Koda kupona' : 'Coupon code'}</th>
                           <th>{locale === 'sl' ? 'Stranka / Kupec' : 'Client / Buyer'}</th>
                           <th>{locale === 'sl' ? 'Vrednost' : 'Value'}</th>
                           <th>{locale === 'sl' ? 'Porabljeno' : 'Used'}</th>
@@ -8072,7 +8072,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <tbody>
                         {giftCardsPagination.slice.map((card) => (
                           <tr key={card.id} className="billing-history-row" onClick={() => setDetailGiftCard(card)}>
-                            <td className="billing-modern-link-cell">{card.giftCardNumber || `GB-${card.id}`}</td>
+                            <td className="billing-modern-link-cell">{card.giftCardNumber || `DB-${card.id}`}</td>
                             <td>{card.code || '—'}</td>
                             <td>
                               <div className="billing-modern-main-text">{card.clientName || '—'}</div>
@@ -8334,7 +8334,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <h2>{locale === 'sl' ? 'Darilni bon' : 'Gift card'}</h2>
                   <span className={`billing-bill-modal-status billing-status-pill billing-status-pill--${giftCardStatusClass(detailGiftCard.status)}`}>{giftCardStatusLabel(detailGiftCard.status)}</span>
                 </div>
-                <p>{detailGiftCard.giftCardNumber || `GB-${detailGiftCard.id}`} · {detailGiftCard.code || '—'}</p>
+                <p>{detailGiftCard.giftCardNumber || `DB-${detailGiftCard.id}`} · {detailGiftCard.code || '—'}</p>
               </div>
               <button type="button" className="billing-bill-modal-close" onClick={() => setDetailGiftCard(null)} aria-label="Close">×</button>
             </div>

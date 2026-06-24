@@ -1,6 +1,7 @@
 package com.example.app.guest.order;
 
 import com.example.app.client.Client;
+import com.example.app.company.CompanyRepository;
 import com.example.app.course.CourseAccessEmailService;
 import com.example.app.course.MembershipCourse;
 import com.example.app.course.MembershipCourseRepository;
@@ -40,6 +41,7 @@ public class GuestEntitlementService {
     private final TimeService timeService;
     private final MembershipCourseRepository membershipCourses;
     private final CourseAccessEmailService courseAccessEmailService;
+    private final CompanyRepository companies;
 
     @Autowired(required = false)
     private GiftCardEmailService giftCardEmailService;
@@ -53,6 +55,7 @@ public class GuestEntitlementService {
             TimeService timeService,
             MembershipCourseRepository membershipCourses,
             CourseAccessEmailService courseAccessEmailService,
+            CompanyRepository companies,
             @Value("${app.public-base-url:}") String publicBaseUrl
     ) {
         this.entitlements = entitlements;
@@ -60,12 +63,13 @@ public class GuestEntitlementService {
         this.timeService = timeService;
         this.membershipCourses = membershipCourses;
         this.courseAccessEmailService = courseAccessEmailService;
+        this.companies = companies;
         this.publicBaseUrl = publicBaseUrl;
     }
 
     /** Backwards-compatible constructor used by older unit tests. */
     public GuestEntitlementService(GuestEntitlementRepository entitlements, GuestEntitlementUsageRepository usages, TimeService timeService) {
-        this(entitlements, usages, timeService, null, null, "");
+        this(entitlements, usages, timeService, null, null, null, "");
     }
 
     @Transactional
@@ -418,10 +422,22 @@ public class GuestEntitlementService {
         if (product.getProductType() == ProductType.GIFT_CARD) {
             entitlement.setRemainingValueGross((product.getPriceGross() == null ? BigDecimal.ZERO : product.getPriceGross()).setScale(2, RoundingMode.HALF_UP));
         }
-        int seq = (int) (entitlements.countByProductId(product.getId()) + 1);
-        entitlement.setDisplaySeq(seq);
-        entitlement.setDisplayCode(buildDisplayCode(product, seq));
-        entitlement.setEntitlementCode(generateUniqueEntitlementCode());
+        if (product.getProductType() == ProductType.GIFT_CARD) {
+            Long companyId = order.getCompany() == null ? null : order.getCompany().getId();
+            lockCompanyForGiftCardNumber(companyId);
+            int seq = nextGiftCardSequence(companyId);
+            String couponCode = generateUniqueGiftCardCouponCode(companyId);
+            entitlement.setDisplaySeq(seq);
+            entitlement.setDisplayCode(couponCode);
+            // For gift cards, the public coupon code is also the redeemable code. This keeps the
+            // code shown in tenant web, guest app and website widget fully unified.
+            entitlement.setEntitlementCode(couponCode);
+        } else {
+            int seq = (int) (entitlements.countByProductId(product.getId()) + 1);
+            entitlement.setDisplaySeq(seq);
+            entitlement.setDisplayCode(buildDisplayCode(product, seq));
+            entitlement.setEntitlementCode(generateUniqueEntitlementCode());
+        }
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("autoRenews", product.isAutoRenews());
         metadata.put("listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue());
@@ -534,6 +550,30 @@ public class GuestEntitlementService {
             return "/course-access/" + token;
         }
         return base + "/course-access/" + token;
+    }
+
+
+    private void lockCompanyForGiftCardNumber(Long companyId) {
+        if (companyId == null || companies == null) return;
+        companies.findByIdForUpdate(companyId);
+    }
+
+    private int nextGiftCardSequence(Long companyId) {
+        if (companyId == null) return 1;
+        Integer currentMax = entitlements.maxDisplaySeqByCompanyIdAndEntitlementType(companyId, EntitlementType.GIFT_CARD);
+        return (currentMax == null ? 0 : currentMax) + 1;
+    }
+
+    private String generateUniqueGiftCardCouponCode(Long companyId) {
+        for (int attempt = 0; attempt < 24; attempt++) {
+            String code = "GC-" + randomOpaqueCode(4) + "-" + randomOpaqueCode(4);
+            boolean usedAsEntitlementCode = entitlements.existsByEntitlementCode(code);
+            boolean usedAsDisplayCode = companyId != null && entitlements.existsByCompanyIdAndDisplayCodeIgnoreCase(companyId, code);
+            if (!usedAsEntitlementCode && !usedAsDisplayCode) {
+                return code;
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not generate gift card coupon code.");
     }
 
 

@@ -16,7 +16,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -139,7 +138,7 @@ public class BillingGiftCardController {
         if (clientName.isBlank() && client != null) clientName = safeText(client.getEmail());
         return new GiftCardBillingResponse(
                 entitlement.getId(),
-                "GB-" + String.format(Locale.ROOT, "%05d", entitlement.getId() == null ? 0 : entitlement.getId()),
+                giftCardNumber(entitlement),
                 firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), ""),
                 entitlement.getProduct() == null ? "" : safeText(entitlement.getProduct().getName()),
                 client == null ? null : client.getId(),
@@ -155,6 +154,15 @@ public class BillingGiftCardController {
                 bill == null ? null : bill.getBillNumber(),
                 order == null ? null : order.getReferenceCode()
         );
+    }
+
+    private String giftCardNumber(GuestEntitlement entitlement) {
+        if (entitlement == null) return "DB-0";
+        Integer seq = entitlement.getDisplaySeq();
+        if (seq != null && seq > 0) {
+            return "DB-" + seq;
+        }
+        return "DB-" + (entitlement.getId() == null ? 0 : entitlement.getId());
     }
 
     private boolean isGiftCard(GuestEntitlement entitlement) {

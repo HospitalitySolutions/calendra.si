@@ -57,11 +57,11 @@ public class GuestEntitlement extends BaseEntity {
     @Column(name = "visit_count", nullable = false)
     private int visitCount = 0;
 
-    /** Human-friendly code shown in the mobile wallet (e.g. "CM8-425-001"). */
+    /** Human-friendly code shown in wallets. For gift cards this is the public coupon code. */
     @Column(name = "display_code", length = 32)
     private String displayCode;
 
-    /** Per-product running sequence used to derive {@link #displayCode}. */
+    /** Running sequence. For gift cards this is the per-tenant internal DB number sequence. */
     @Column(name = "display_seq")
     private Integer displaySeq;
 

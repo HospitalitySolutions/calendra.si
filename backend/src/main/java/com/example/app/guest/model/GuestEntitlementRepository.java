@@ -33,6 +33,19 @@ public interface GuestEntitlementRepository extends JpaRepository<GuestEntitleme
     Optional<GuestEntitlement> findFirstByDisplayCodeAndCompanyIdOrderByCreatedAtDesc(String displayCode, Long companyId);
     Optional<GuestEntitlement> findByCourseAccessToken(String courseAccessToken);
     boolean existsByEntitlementCode(String entitlementCode);
+
+    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM GuestEntitlement e "
+            + "WHERE e.company.id = :companyId AND LOWER(e.displayCode) = LOWER(:displayCode)")
+    boolean existsByCompanyIdAndDisplayCodeIgnoreCase(
+            @Param("companyId") Long companyId,
+            @Param("displayCode") String displayCode);
+
+    @Query("SELECT COALESCE(MAX(e.displaySeq), 0) FROM GuestEntitlement e "
+            + "WHERE e.company.id = :companyId AND e.entitlementType = :entitlementType")
+    Integer maxDisplaySeqByCompanyIdAndEntitlementType(
+            @Param("companyId") Long companyId,
+            @Param("entitlementType") EntitlementType entitlementType);
+
     long countByProductId(Long productId);
 
     @EntityGraph(attributePaths = {"client", "product", "sourceOrder", "sourceOrder.guestUser"})
