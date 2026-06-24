@@ -63,7 +63,6 @@ export type GuestBookingRulesForm = {
 };
 
 export type GuestAppSubtab = "general" | "bookingRules" | "paymentMethods" | "qrCode";
-export type WebsiteSubtab = "general" | "paymentMethods";
 
 export type WebsiteWidgetSettingsForm = {
   employeeSelectionStep: boolean;
@@ -189,14 +188,6 @@ export function guestAppSubtabs(
   ];
 }
 
-export function websiteSubtabs(
-  t: (key: string) => string,
-): { id: WebsiteSubtab; label: string }[] {
-  return [
-    { id: "general", label: t("configGuestSubtabGeneral") },
-    { id: "paymentMethods", label: t("configGuestSubtabPaymentMethods") },
-  ];
-}
 export const GUEST_PRODUCT_TYPES = [
   "SESSION_SINGLE",
   "CLASS_TICKET",

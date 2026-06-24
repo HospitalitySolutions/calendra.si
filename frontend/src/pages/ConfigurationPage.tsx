@@ -133,8 +133,7 @@ import {
   serializeGuestAppSettings,
   serializeGuestBookingRules,
   serializeWebsiteBookingRules,
-  serializeWebsiteWidgetSettings,
-  websiteSubtabs
+  serializeWebsiteWidgetSettings
 } from "./configuration/guestWebsiteSettings";
 import type {
   GuestAppAssetField,
@@ -147,7 +146,6 @@ import type {
   StripeConnectTenantStatus,
   TenantConfigType,
   WebsiteBookingRulesForm,
-  WebsiteSubtab,
   WebsiteWidgetSettingsForm
 } from "./configuration/guestWebsiteSettings";
 
@@ -830,7 +828,6 @@ export function ConfigurationPage() {
   >(null);
   const [guestAppSubtab, setGuestAppSubtab] =
     useState<GuestAppSubtab>("general");
-  const [websiteSubtab, setWebsiteSubtab] = useState<WebsiteSubtab>("general");
   const [startingPaypalOnboarding, setStartingPaypalOnboarding] =
     useState(false);
   const [startingStripeOnboarding, setStartingStripeOnboarding] =
@@ -2139,12 +2136,6 @@ export function ConfigurationPage() {
     ) {
       setGuestAppSubtab(subtabQuery);
     }
-    if (
-      q === "website" &&
-      (subtabQuery === "general" || subtabQuery === "paymentMethods")
-    ) {
-      setWebsiteSubtab(subtabQuery);
-    }
   }, [
     query,
     navigate,
@@ -2276,17 +2267,7 @@ export function ConfigurationPage() {
     }
     setTab(next);
     if (next === "integrations") setIntegrationSubtab("status");
-    if (next === "website") setWebsiteSubtab("general");
     navigate(`/configuration?tab=${next}`);
-  };
-
-  const setWebsiteSubtabAndUrl = (next: WebsiteSubtab) => {
-    setWebsiteSubtab(next);
-    navigate(
-      next === "general"
-        ? "/configuration?tab=website"
-        : `/configuration?tab=website&subtab=${next}`,
-    );
   };
 
   const setAccountSubtabAndUrl = (next: typeof accountSubtab) => {
@@ -11124,28 +11105,6 @@ export function ConfigurationPage() {
                             <GuestField
                               label={
                                 locale === "sl"
-                                  ? "Korak izbire zaposlenega"
-                                  : "Employee selection step"
-                              }
-                              hint={
-                                locale === "sl"
-                                  ? "Ko je VKLOPLJENO, gost po izbiri storitve v mobilni aplikaciji in spletnem gradniku izbere zaposlenega."
-                                  : "When ON, guest clients pick an employee after choosing the service in the mobile app and website booking widget."
-                              }
-                            >
-                              <GuestSegmentedToggle
-                                value={guestAppSettings.employeeSelectionStep}
-                                onChange={(value) =>
-                                  setGuestAppSettings({
-                                    ...guestAppSettings,
-                                    employeeSelectionStep: value,
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
-                              label={
-                                locale === "sl"
                                   ? "Uporabi kontakt zaposlenega"
                                   : "Use employee contact"
                               }
@@ -12042,81 +12001,8 @@ export function ConfigurationPage() {
               .website-settings-card .gapp-panel { padding: 22px; }
             }
           `}</style>
-                  <div
-                    className="gapp-subtabs"
-                    role="tablist"
-                    aria-label={
-                      locale === "sl"
-                        ? "Website nastavitve"
-                        : "Website settings"
-                    }
-                  >
-                    {websiteSubtabs(t).map((entry) => (
-                      <button
-                        key={entry.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={websiteSubtab === entry.id}
-                        className={
-                          websiteSubtab === entry.id
-                            ? "gapp-subtab active"
-                            : "gapp-subtab"
-                        }
-                        onClick={() => setWebsiteSubtabAndUrl(entry.id)}
-                      >
-                        {entry.label}
-                      </button>
-                    ))}
-                  </div>
                   <div className="gapp-panel">
-                    {websiteSubtab === "general" ? (
-                      <>
-                        <div className="gapp-section-heading">
-                          <h3>Splošno</h3>
-                          <p>
-                            Nastavite potek javnega booking widgeta na spletni
-                            strani.
-                          </p>
-                        </div>
-                        <div className="gapp-payment-toggle-card">
-                          <div className="gapp-toggle-head">
-                            <div>
-                              <span className="gapp-label">
-                                Korak izbire zaposlenega
-                              </span>
-                              <span className="gapp-hint">
-                                Ko je izklopljeno, obiskovalec preskoči izbiro
-                                zaposlenega in nadaljuje neposredno na izbiro
-                                termina.
-                              </span>
-                            </div>
-                            <GuestSegmentedToggle
-                              value={websiteSettings.employeeSelectionStep}
-                              onChange={(value) =>
-                                setWebsiteSettings({
-                                  ...websiteSettings,
-                                  employeeSelectionStep: value,
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="gapp-savebar">
-                          <button
-                            type="button"
-                            className="gapp-primary-button"
-                            onClick={saveWebsiteConfiguration}
-                            disabled={savingSettings}
-                          >
-                            <GuestSaveIcon />
-                            {savingSettings
-                              ? t("formSaving")
-                              : t("configSaveConfiguration")}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
+                    <>
                         <div className="gapp-grid gapp-payment-layout">
                           <div className="gapp-pane">
                             <div className="gapp-section-heading">
@@ -12249,8 +12135,7 @@ export function ConfigurationPage() {
                               : t("configSaveConfiguration")}
                           </button>
                         </div>
-                      </>
-                    )}
+                    </>
                   </div>
                 </Card>
               ) : tab === "notifications" ? (
