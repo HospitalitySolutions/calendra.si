@@ -1,0 +1,18 @@
+IDE stale working directory cleanup
+
+Problem:
+- JetBrains IDE can keep local run/module state in .idea/workspace.xml, .idea/modules.xml, .idea/gradle.xml, .idea/runConfigurations, or .run files.
+- The repository no longer contains @capacitor-community/speech-recognition and the uploaded project does not contain a committed reference to frontend/node_modules/@capacitor-community/speech-recognition.
+- The popup is therefore coming from local IDE state, not from application source code.
+
+Added:
+- scripts/repair-jetbrains-stale-workdir.ps1
+
+How to use on Windows:
+1. Close IntelliJ/WebStorm/Android Studio.
+2. From the project root, run:
+   powershell -ExecutionPolicy Bypass -File .\scripts\repair-jetbrains-stale-workdir.ps1 -Force
+3. Reopen the project from the repository root: C:\DEVELOPMENT\Projects\calendra.si
+4. If the popup still appears, run File > Invalidate Caches / Restart.
+
+The script backs up and disables only JetBrains IDE files that still reference @capacitor-community/speech-recognition.

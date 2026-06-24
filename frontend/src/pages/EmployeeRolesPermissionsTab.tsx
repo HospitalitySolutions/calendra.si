@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { api } from '../api'
 import { Card, EmptyState } from '../components/ui'
 import { EMPLOYEE_PERMISSION_ACTION_KEYS, type EmployeePermission } from '../lib/employeePermissions'
+import { useLocale, type AppLocale } from '../locale'
 
 type PermissionAction = typeof EMPLOYEE_PERMISSION_ACTION_KEYS[number]
 
@@ -65,6 +66,143 @@ const fallbackPermissionGroups: PermissionGroup[] = [
   { key: 'INTEGRATIONS', label: 'Integrations', description: 'Manage third-party integrations and APIs' },
   { key: 'PLATFORM_FEATURES', label: 'Platform features', description: 'Access platform tools and advanced features' },
 ]
+
+const slPermissionGroups: Record<string, PermissionGroup> = {
+  CALENDAR_BOOKINGS: { key: 'CALENDAR_BOOKINGS', label: 'Koledar in rezervacije', description: 'Upravljanje terminov, razpoložljivosti in virov' },
+  CLIENTS: { key: 'CLIENTS', label: 'Stranke', description: 'Pregled in urejanje profilov ter podatkov strank' },
+  EMPLOYEES: { key: 'EMPLOYEES', label: 'Zaposleni', description: 'Upravljanje članov ekipe in njihovih dostopov' },
+  BILLING: { key: 'BILLING', label: 'Obračun', description: 'Računi, plačila, naročnine in vračila' },
+  WALLET: { key: 'WALLET', label: 'Denarnica', description: 'Upravljanje transakcij in stanj v denarnici' },
+  REPORTS: { key: 'REPORTS', label: 'Poročila', description: 'Pregled poročil in analitike' },
+  SETTINGS: { key: 'SETTINGS', label: 'Nastavitve', description: 'Nastavitve sistema, poslovanja in preferenc' },
+  INTEGRATIONS: { key: 'INTEGRATIONS', label: 'Integracije', description: 'Upravljanje zunanjih integracij in API povezav' },
+  PLATFORM_FEATURES: { key: 'PLATFORM_FEATURES', label: 'Funkcije platforme', description: 'Dostop do sistemskih orodij in naprednih funkcij' },
+}
+
+const roleCopy = {
+  en: {
+    loadError: 'Failed to load roles and permissions.',
+    membersLoadError: 'Failed to load role members.',
+    newRoleName: 'New custom role',
+    newRoleDescription: 'Custom permissions for a specific team role.',
+    createSuccess: 'Custom role created.',
+    createError: 'Failed to create role.',
+    duplicatePrefix: 'Copy of',
+    duplicateSuccess: 'Role duplicated as a custom role.',
+    duplicateError: 'Failed to duplicate role.',
+    saveSuccess: 'Role saved.',
+    saveError: 'Failed to save role.',
+    archiveConfirm: (name: string) => `Archive role "${name}"?`,
+    archiveSuccess: 'Role archived.',
+    archiveError: 'Failed to archive role.',
+    loading: 'Loading roles and permissions…',
+    emptyTitle: 'No roles yet',
+    emptyText: 'Create a role to start configuring permissions.',
+    statsAria: 'Roles summary',
+    roles: 'Roles',
+    usersAssigned: 'Users assigned',
+    customRoles: 'Custom roles',
+    rolesSectionAria: 'Roles',
+    newRole: 'New role',
+    showingRoles: (count: number) => `Showing ${count} of ${count} roles`,
+    selectedRoleAria: 'Selected role permissions',
+    systemRole: 'System role',
+    customRole: 'Custom role',
+    editCustomRole: 'Edit custom role',
+    roleName: 'Role name',
+    description: 'Description',
+    duplicateRole: 'Duplicate role',
+    archiveRole: 'Archive role',
+    saveChanges: 'Save changes',
+    systemArchiveTitle: 'System roles cannot be archived.',
+    systemSaveTitle: 'Duplicate a system role to customize it.',
+    permissionGroup: 'Permission group',
+    detailFoot: 'Changes to permissions will be applied to all users assigned to this custom role.',
+    assignedUsersEyebrow: 'Assigned users',
+    closeMembers: 'Close members list',
+    loadingMembers: 'Loading members…',
+    noMembers: 'No users are attached to this role.',
+    owner: 'Owner',
+    active: 'Active',
+    inactive: 'Inactive',
+    administrator: 'Administrator',
+    consultant: 'Consultant',
+    system: 'System',
+    custom: 'Custom',
+    member: (count: number) => `${count} ${count === 1 ? 'member' : 'members'}`,
+    userFallback: (id: number) => `User #${id}`,
+    systemAdministratorDescription: 'Full system access with all permissions across the platform.',
+    actionLabel: (action: PermissionAction) => action.toLowerCase().replace(/^./, (char) => char.toUpperCase()),
+  },
+  sl: {
+    loadError: 'Vlog in dovoljenj ni bilo mogoče naložiti.',
+    membersLoadError: 'Uporabnikov za to vlogo ni bilo mogoče naložiti.',
+    newRoleName: 'Nova prilagojena vloga',
+    newRoleDescription: 'Prilagojena dovoljenja za izbrano vlogo v ekipi.',
+    createSuccess: 'Prilagojena vloga je ustvarjena.',
+    createError: 'Vloge ni bilo mogoče ustvariti.',
+    duplicatePrefix: 'Kopija vloge',
+    duplicateSuccess: 'Vloga je podvojena kot prilagojena vloga.',
+    duplicateError: 'Vloge ni bilo mogoče podvojiti.',
+    saveSuccess: 'Vloga je shranjena.',
+    saveError: 'Vloge ni bilo mogoče shraniti.',
+    archiveConfirm: (name: string) => `Arhiviram vlogo »${name}«?`,
+    archiveSuccess: 'Vloga je arhivirana.',
+    archiveError: 'Vloge ni bilo mogoče arhivirati.',
+    loading: 'Nalaganje vlog in dovoljenj …',
+    emptyTitle: 'Ni še vlog',
+    emptyText: 'Ustvarite vlogo in začnite nastavljati dovoljenja.',
+    statsAria: 'Povzetek vlog',
+    roles: 'Vloge',
+    usersAssigned: 'Dodeljeni uporabniki',
+    customRoles: 'Prilagojene vloge',
+    rolesSectionAria: 'Vloge',
+    newRole: 'Nova vloga',
+    showingRoles: (count: number) => `Prikazano ${count} od ${count} vlog`,
+    selectedRoleAria: 'Dovoljenja izbrane vloge',
+    systemRole: 'Sistemska vloga',
+    customRole: 'Prilagojena vloga',
+    editCustomRole: 'Uredi prilagojeno vlogo',
+    roleName: 'Ime vloge',
+    description: 'Opis',
+    duplicateRole: 'Podvoji vlogo',
+    archiveRole: 'Arhiviraj vlogo',
+    saveChanges: 'Shrani spremembe',
+    systemArchiveTitle: 'Sistemskih vlog ni mogoče arhivirati.',
+    systemSaveTitle: 'Za prilagoditev sistemsko vlogo najprej podvojite.',
+    permissionGroup: 'Skupina dovoljenj',
+    detailFoot: 'Spremembe dovoljenj bodo uporabljene za vse uporabnike, ki so dodeljeni tej prilagojeni vlogi.',
+    assignedUsersEyebrow: 'Dodeljeni uporabniki',
+    closeMembers: 'Zapri seznam uporabnikov',
+    loadingMembers: 'Nalaganje uporabnikov …',
+    noMembers: 'Na to vlogo ni vezanih uporabnikov.',
+    owner: 'Lastnik',
+    active: 'Aktiven',
+    inactive: 'Neaktiven',
+    administrator: 'Administrator',
+    consultant: 'Zaposleni',
+    system: 'Sistemska',
+    custom: 'Prilagojena',
+    member: (count: number) => {
+      const n = Math.abs(count) % 100
+      const last = n % 10
+      if (n >= 11 && n <= 14) return `${count} uporabnikov`
+      if (last === 1) return `${count} uporabnik`
+      if (last === 2) return `${count} uporabnika`
+      if (last === 3 || last === 4) return `${count} uporabniki`
+      return `${count} uporabnikov`
+    },
+    userFallback: (id: number) => `Uporabnik #${id}`,
+    systemAdministratorDescription: 'Poln sistemski dostop z vsemi dovoljenji v platformi.',
+    actionLabel: (action: PermissionAction) => {
+      if (action === 'VIEW') return 'Pregled'
+      if (action === 'CREATE') return 'Ustvari'
+      if (action === 'EDIT') return 'Uredi'
+      if (action === 'DELETE') return 'Izbriši'
+      return action
+    },
+  },
+} satisfies Record<AppLocale, Record<string, unknown>>
 
 function RolePermissionIcon({ name }: { name: 'shield' | 'group' | 'calendar' | 'client' | 'employee' | 'billing' | 'wallet' | 'reports' | 'settings' | 'integrations' | 'platform' | 'copy' | 'archive' | 'save' | 'plus' | 'info' }) {
   if (name === 'shield') {
@@ -148,13 +286,18 @@ function sortRoles(roles: EmployeeRole[]): EmployeeRole[] {
   })
 }
 
-function memberLabel(count: number) {
-  return `${count} ${count === 1 ? 'member' : 'members'}`
+function localizePermissionGroup(group: PermissionGroup, locale: AppLocale): PermissionGroup {
+  if (locale !== 'sl') return group
+  return slPermissionGroups[group.key] ?? group
 }
 
-function memberName(member: RoleMember) {
+function memberLabel(count: number, locale: AppLocale) {
+  return roleCopy[locale].member(count)
+}
+
+function memberName(member: RoleMember, locale: AppLocale) {
   const name = `${member.firstName || ''} ${member.lastName || ''}`.trim()
-  return name || member.email || `User #${member.id}`
+  return name || member.email || roleCopy[locale].userFallback(member.id)
 }
 
 function memberInitials(member: RoleMember) {
@@ -163,12 +306,24 @@ function memberInitials(member: RoleMember) {
   return `${first}${last}`.toUpperCase()
 }
 
-function memberRoleLabel(member: RoleMember) {
+function memberRoleLabel(member: RoleMember, locale: AppLocale) {
   if (member.accessRoleName) return member.accessRoleName
-  return member.role === 'ADMIN' ? 'Administrator' : 'Consultant'
+  return member.role === 'ADMIN' ? roleCopy[locale].administrator : roleCopy[locale].consultant
+}
+
+function roleDisplayName(role: EmployeeRole, locale: AppLocale) {
+  if (role.systemKey === 'ADMINISTRATOR') return roleCopy[locale].administrator
+  return role.name
+}
+
+function roleDisplayDescription(role: EmployeeRole, locale: AppLocale) {
+  if (role.systemKey === 'ADMINISTRATOR') return roleCopy[locale].systemAdministratorDescription
+  return role.description
 }
 
 export function EmployeeRolesPermissionsTab() {
+  const { locale } = useLocale()
+  const copy = roleCopy[locale]
   const [overview, setOverview] = useState<RolesOverview | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [draftName, setDraftName] = useState('')
@@ -183,7 +338,10 @@ export function EmployeeRolesPermissionsTab() {
   const [successMessage, setSuccessMessage] = useState('')
 
   const roles = useMemo(() => sortRoles(overview?.roles ?? []), [overview])
-  const permissionGroups = overview?.permissionGroups?.length ? overview.permissionGroups : fallbackPermissionGroups
+  const permissionGroups = useMemo(
+    () => (overview?.permissionGroups?.length ? overview.permissionGroups : fallbackPermissionGroups).map((group) => localizePermissionGroup(group, locale)),
+    [locale, overview?.permissionGroups],
+  )
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0] ?? null
   const permissionSet = useMemo(() => new Set(draftPermissions), [draftPermissions])
 
@@ -213,7 +371,7 @@ export function EmployeeRolesPermissionsTab() {
       if (role) syncDraft(role)
     } catch (error: any) {
       console.error('Failed to load employee roles', error)
-      setErrorMessage(error?.response?.data?.message || 'Failed to load roles and permissions.')
+      setErrorMessage(error?.response?.data?.message || copy.loadError)
     } finally {
       setLoading(false)
     }
@@ -265,7 +423,7 @@ export function EmployeeRolesPermissionsTab() {
         role,
         members: [],
         loading: false,
-        error: error?.response?.data?.message || 'Failed to load role members.',
+        error: error?.response?.data?.message || copy.membersLoadError,
       })
     }
   }
@@ -276,14 +434,14 @@ export function EmployeeRolesPermissionsTab() {
     setSuccessMessage('')
     try {
       const { data } = await api.post<EmployeeRole>('/employee-roles', {
-        name: 'New custom role',
-        description: 'Custom permissions for a specific team role.',
+        name: copy.newRoleName,
+        description: copy.newRoleDescription,
         permissions: ['CALENDAR_BOOKINGS_VIEW', 'CLIENTS_VIEW'],
       })
-      setSuccessMessage('Custom role created.')
+      setSuccessMessage(copy.createSuccess)
       await loadRoles(data.id)
     } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || 'Failed to create role.')
+      setErrorMessage(error?.response?.data?.message || copy.createError)
     } finally {
       setSaving(false)
     }
@@ -297,12 +455,12 @@ export function EmployeeRolesPermissionsTab() {
     try {
       const { data } = await api.post<EmployeeRole>('/employee-roles/duplicate', {
         sourceRoleId: selectedRole.id,
-        name: `Copy of ${selectedRole.name}`,
+        name: `${copy.duplicatePrefix} ${roleDisplayName(selectedRole, locale)}`,
       })
-      setSuccessMessage('Role duplicated as a custom role.')
+      setSuccessMessage(copy.duplicateSuccess)
       await loadRoles(data.id)
     } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || 'Failed to duplicate role.')
+      setErrorMessage(error?.response?.data?.message || copy.duplicateError)
     } finally {
       setDuplicating(false)
     }
@@ -319,10 +477,10 @@ export function EmployeeRolesPermissionsTab() {
         description: draftDescription,
         permissions: draftPermissions,
       })
-      setSuccessMessage('Role saved.')
+      setSuccessMessage(copy.saveSuccess)
       await loadRoles(data.id)
     } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || 'Failed to save role.')
+      setErrorMessage(error?.response?.data?.message || copy.saveError)
     } finally {
       setSaving(false)
     }
@@ -330,48 +488,48 @@ export function EmployeeRolesPermissionsTab() {
 
   async function archiveSelectedRole() {
     if (!selectedRole || selectedRole.system || !selectedRole.customRoleId) return
-    const confirmed = window.confirm(`Archive role "${selectedRole.name}"?`)
+    const confirmed = window.confirm(copy.archiveConfirm(roleDisplayName(selectedRole, locale)))
     if (!confirmed) return
     setArchiving(true)
     setErrorMessage('')
     setSuccessMessage('')
     try {
       await api.delete(`/employee-roles/custom/${selectedRole.customRoleId}`)
-      setSuccessMessage('Role archived.')
+      setSuccessMessage(copy.archiveSuccess)
       await loadRoles()
     } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || 'Failed to archive role.')
+      setErrorMessage(error?.response?.data?.message || copy.archiveError)
     } finally {
       setArchiving(false)
     }
   }
 
   if (loading && !overview) {
-    return <Card className="employee-roles-card"><div className="muted">Loading roles and permissions…</div></Card>
+    return <Card className="employee-roles-card"><div className="muted">{copy.loading}</div></Card>
   }
 
   if (!loading && roles.length === 0) {
     return (
       <Card className="employee-roles-card">
-        <EmptyState title="No roles yet" text="Create a role to start configuring permissions." />
+        <EmptyState title={copy.emptyTitle} text={copy.emptyText} />
       </Card>
     )
   }
 
   return (
     <div className="employee-roles-page">
-      <div className="employee-roles-stats" aria-label="Roles summary">
+      <div className="employee-roles-stats" aria-label={copy.statsAria}>
         <div className="employee-roles-stat-card">
           <span className="employee-roles-stat-icon employee-roles-stat-icon--blue"><RolePermissionIcon name="group" /></span>
-          <div><strong>{roleCount}</strong><span>Roles</span></div>
+          <div><strong>{roleCount}</strong><span>{copy.roles}</span></div>
         </div>
         <div className="employee-roles-stat-card">
           <span className="employee-roles-stat-icon employee-roles-stat-icon--green"><RolePermissionIcon name="group" /></span>
-          <div><strong>{assignedUsers}</strong><span>Users assigned</span></div>
+          <div><strong>{assignedUsers}</strong><span>{copy.usersAssigned}</span></div>
         </div>
         <div className="employee-roles-stat-card">
           <span className="employee-roles-stat-icon employee-roles-stat-icon--purple"><RolePermissionIcon name="settings" /></span>
-          <div><strong>{customRoleCount}</strong><span>Custom roles</span></div>
+          <div><strong>{customRoleCount}</strong><span>{copy.customRoles}</span></div>
         </div>
       </div>
 
@@ -382,12 +540,12 @@ export function EmployeeRolesPermissionsTab() {
       )}
 
       <div className="employee-roles-layout">
-        <section className="employee-roles-list-card" aria-label="Roles">
+        <section className="employee-roles-list-card" aria-label={copy.rolesSectionAria}>
           <div className="employee-roles-list-head">
-            <h2>Roles</h2>
+            <h2>{copy.roles}</h2>
             <button type="button" className="employee-roles-primary-mini" onClick={() => void createNewRole()} disabled={saving}>
               <RolePermissionIcon name="plus" />
-              New role
+              {copy.newRole}
             </button>
           </div>
           <div className="employee-roles-list">
@@ -404,7 +562,7 @@ export function EmployeeRolesPermissionsTab() {
                   <RolePermissionIcon name={role.systemKey === 'ADMINISTRATOR' ? 'shield' : 'group'} />
                 </span>
                 <span className="employee-roles-list-copy">
-                  <strong>{role.name}</strong>
+                  <strong>{roleDisplayName(role, locale)}</strong>
                   <button
                     type="button"
                     className="employee-roles-member-link"
@@ -413,59 +571,59 @@ export function EmployeeRolesPermissionsTab() {
                       void openMembersDialog(role)
                     }}
                   >
-                    {memberLabel(role.memberCount)}
+                    {memberLabel(role.memberCount, locale)}
                   </button>
                 </span>
                 <span className={`employee-roles-role-type ${role.system ? 'employee-roles-role-type--system' : 'employee-roles-role-type--custom'}`}>
-                  {role.system ? 'System' : 'Custom'}
+                  {role.system ? copy.system : copy.custom}
                 </span>
               </div>
             ))}
           </div>
-          <p className="employee-roles-list-foot">Showing {roles.length} of {roles.length} roles</p>
+          <p className="employee-roles-list-foot">{copy.showingRoles(roles.length)}</p>
         </section>
 
         {selectedRole && (
-          <section className="employee-roles-detail-card" aria-label="Selected role permissions">
+          <section className="employee-roles-detail-card" aria-label={copy.selectedRoleAria}>
             <div className="employee-roles-detail-head">
               <div className="employee-roles-title-block">
                 <span className="employee-roles-title-icon"><RolePermissionIcon name={selectedRole.systemKey === 'ADMINISTRATOR' ? 'shield' : 'group'} /></span>
                 <div className="employee-roles-title-copy">
                   {selectedRole.system ? (
                     <>
-                      <div className="employee-roles-title-row"><h2>{selectedRole.name}</h2><span className="employee-roles-badge employee-roles-badge--system">System role</span></div>
-                      <p>{selectedRole.description}</p>
+                      <div className="employee-roles-title-row"><h2>{roleDisplayName(selectedRole, locale)}</h2><span className="employee-roles-badge employee-roles-badge--system">{copy.systemRole}</span></div>
+                      <p>{roleDisplayDescription(selectedRole, locale)}</p>
                     </>
                   ) : (
                     <div className="employee-roles-custom-fields">
-                      <div className="employee-roles-title-row"><h2>Edit custom role</h2><span className="employee-roles-badge employee-roles-badge--custom">Custom role</span></div>
+                      <div className="employee-roles-title-row"><h2>{copy.editCustomRole}</h2><span className="employee-roles-badge employee-roles-badge--custom">{copy.customRole}</span></div>
                       <label>
-                        <span>Role name</span>
+                        <span>{copy.roleName}</span>
                         <input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={120} />
                       </label>
                       <label>
-                        <span>Description</span>
+                        <span>{copy.description}</span>
                         <input value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} maxLength={500} />
                       </label>
                     </div>
                   )}
                   <button type="button" className="employee-roles-member-line employee-roles-member-line--button" onClick={() => void openMembersDialog(selectedRole)}>
-                    <RolePermissionIcon name="group" /> {memberLabel(selectedRole.memberCount)}
+                    <RolePermissionIcon name="group" /> {memberLabel(selectedRole.memberCount, locale)}
                   </button>
                 </div>
               </div>
               <div className="employee-roles-actions">
                 <button type="button" className="employee-roles-secondary-btn" onClick={() => void duplicateSelectedRole()} disabled={duplicating}>
                   <RolePermissionIcon name="copy" />
-                  Duplicate role
+                  {copy.duplicateRole}
                 </button>
-                <button type="button" className="employee-roles-danger-btn" onClick={() => void archiveSelectedRole()} disabled={selectedRole.system || archiving} title={selectedRole.system ? 'System roles cannot be archived.' : undefined}>
+                <button type="button" className="employee-roles-danger-btn" onClick={() => void archiveSelectedRole()} disabled={selectedRole.system || archiving} title={selectedRole.system ? copy.systemArchiveTitle : undefined}>
                   <RolePermissionIcon name="archive" />
-                  Archive role
+                  {copy.archiveRole}
                 </button>
-                <button type="button" className="employee-roles-primary-btn" onClick={() => void saveSelectedRole()} disabled={selectedRole.system || saving || !customRoleDirty} title={selectedRole.system ? 'Duplicate a system role to customize it.' : undefined}>
+                <button type="button" className="employee-roles-primary-btn" onClick={() => void saveSelectedRole()} disabled={selectedRole.system || saving || !customRoleDirty} title={selectedRole.system ? copy.systemSaveTitle : undefined}>
                   <RolePermissionIcon name="save" />
-                  Save changes
+                  {copy.saveChanges}
                 </button>
               </div>
             </div>
@@ -474,8 +632,8 @@ export function EmployeeRolesPermissionsTab() {
               <table className="employee-roles-matrix">
                 <thead>
                   <tr>
-                    <th>Permission group</th>
-                    {EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => <th key={action}>{toTitleCase(action)}</th>)}
+                    <th>{copy.permissionGroup}</th>
+                    {EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => <th key={action}>{copy.actionLabel(action)}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -498,7 +656,7 @@ export function EmployeeRolesPermissionsTab() {
                                 checked={checked}
                                 disabled={selectedRole.system}
                                 onChange={() => togglePermission(group.key, action)}
-                                aria-label={`${group.label} ${toTitleCase(action)}`}
+                                aria-label={`${group.label} ${copy.actionLabel(action)}`}
                               />
                               <span aria-hidden>{checked ? '✓' : '—'}</span>
                             </label>
@@ -510,7 +668,7 @@ export function EmployeeRolesPermissionsTab() {
                 </tbody>
               </table>
             </div>
-            <div className="employee-roles-detail-foot"><RolePermissionIcon name="info" /> Changes to permissions will be applied to all users assigned to this custom role.</div>
+            <div className="employee-roles-detail-foot"><RolePermissionIcon name="info" /> {copy.detailFoot}</div>
           </section>
         )}
       </div>
@@ -520,33 +678,33 @@ export function EmployeeRolesPermissionsTab() {
           <div className="employee-roles-members-modal" role="dialog" aria-modal="true" aria-labelledby="employee-role-members-title" onClick={(event) => event.stopPropagation()}>
             <div className="employee-roles-members-head">
               <div>
-                <span className="employee-roles-members-eyebrow">Assigned users</span>
-                <h2 id="employee-role-members-title">{membersDialog.role.name}</h2>
-                <p>{memberLabel(membersDialog.members.length || membersDialog.role.memberCount)}</p>
+                <span className="employee-roles-members-eyebrow">{copy.assignedUsersEyebrow}</span>
+                <h2 id="employee-role-members-title">{roleDisplayName(membersDialog.role, locale)}</h2>
+                <p>{memberLabel(membersDialog.members.length || membersDialog.role.memberCount, locale)}</p>
               </div>
-              <button type="button" className="employee-roles-members-close" onClick={() => setMembersDialog(null)} aria-label="Close members list">×</button>
+              <button type="button" className="employee-roles-members-close" onClick={() => setMembersDialog(null)} aria-label={copy.closeMembers}>×</button>
             </div>
 
             {membersDialog.loading ? (
-              <div className="employee-roles-members-state">Loading members…</div>
+              <div className="employee-roles-members-state">{copy.loadingMembers}</div>
             ) : membersDialog.error ? (
               <div className="employee-roles-alert employee-roles-alert--error">{membersDialog.error}</div>
             ) : membersDialog.members.length === 0 ? (
-              <div className="employee-roles-members-state">No users are attached to this role.</div>
+              <div className="employee-roles-members-state">{copy.noMembers}</div>
             ) : (
               <div className="employee-roles-members-list">
                 {membersDialog.members.map((member) => (
                   <article key={member.id} className="employee-roles-member-card">
                     <span className="employee-roles-member-avatar" aria-hidden>{memberInitials(member)}</span>
                     <div className="employee-roles-member-copy">
-                      <strong>{memberName(member)}</strong>
+                      <strong>{memberName(member, locale)}</strong>
                       <span>{member.email}</span>
                     </div>
                     <div className="employee-roles-member-badges">
-                      {member.tenantOwner && <span className="employee-roles-member-badge employee-roles-member-badge--owner">Owner</span>}
-                      <span className="employee-roles-member-badge">{memberRoleLabel(member)}</span>
+                      {member.tenantOwner && <span className="employee-roles-member-badge employee-roles-member-badge--owner">{copy.owner}</span>}
+                      <span className="employee-roles-member-badge">{memberRoleLabel(member, locale)}</span>
                       <span className={`employee-roles-member-badge ${member.active ? 'employee-roles-member-badge--active' : 'employee-roles-member-badge--inactive'}`}>
-                        {member.active ? 'Active' : 'Inactive'}
+                        {member.active ? copy.active : copy.inactive}
                       </span>
                     </div>
                   </article>
@@ -560,6 +718,3 @@ export function EmployeeRolesPermissionsTab() {
   )
 }
 
-function toTitleCase(value: string) {
-  return value.toLowerCase().replace(/^./, (char) => char.toUpperCase())
-}

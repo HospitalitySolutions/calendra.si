@@ -1,41 +1,61 @@
-.employee-page-tabs {
+.employees-page-tabs-shell {
+    width: 100%;
+    justify-content: flex-start;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.employee-page-tabs.clients-session-tabs.clients-entity-tabs {
     display: flex;
     align-items: center;
-    gap: 26px;
-    padding: 0 4px 4px;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    width: 100%;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 0;
+    border-bottom: 1px solid #edf2f7;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
-.employee-page-tab {
-    position: relative;
+.employee-page-tabs .employee-page-tab.clients-session-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-width: 0;
+    min-height: 44px;
+    height: auto;
+    padding: 10px 14px;
     border: 0;
+    border-radius: 10px;
     background: transparent;
-    color: #64748b;
-    min-height: 42px;
-    padding: 0 0 12px;
+    color: #334155;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.2;
     box-shadow: none !important;
-    font-size: 0.94rem;
-    font-weight: 800;
+    transition: color .18s ease, background .18s ease, box-shadow .18s ease;
 }
 
-.employee-page-tab:hover {
-    color: #1672f3;
-    background: transparent;
+.employee-page-tabs .employee-page-tab.clients-session-tab:hover {
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22), 0 6px 16px rgba(15, 23, 42, 0.08) !important;
 }
 
-.employee-page-tab--active {
-    color: #1672f3;
+.employee-page-tabs .employee-page-tab.clients-session-tab.active,
+.employee-page-tabs .employee-page-tab.clients-session-tab.employee-page-tab--active {
+    background: #eaf2ff;
+    color: var(--color-primary);
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16), 0 3px 10px rgba(37, 99, 235, 0.18) !important;
 }
 
-.employee-page-tab--active::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 3px;
-    border-radius: 999px 999px 0 0;
-    background: #1672f3;
+.employee-page-tabs .employee-page-tab svg {
+    flex: 0 0 auto;
 }
 
 .employee-roles-page {

@@ -41,6 +41,26 @@ function EmployeeModernIcon({ name }: { name: 'search' | 'plus' }) {
   )
 }
 
+function EmployeePageTabIcon({ name }: { name: 'employees' | 'roles' }) {
+  if (name === 'roles') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3.5 19 6v5.3c0 4.4-2.8 7.9-7 9.2-4.2-1.3-7-4.8-7-9.2V6l7-2.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M9.25 12.2 11 13.95l3.9-4.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9.75 11.25a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M3.75 20a6 6 0 0 1 12 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M16.9 11.8a2.8 2.8 0 1 0 0-5.6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M17.8 18.8a4.4 4.4 0 0 0-2.7-3.7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 
 function EmployeeFormIcon({ name }: { name: 'person' | 'clock' | 'calendar' | 'eye' | 'trash' }) {
   if (name === 'person') {
@@ -727,28 +747,32 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       {selfService && loadingSelfProfile && <div className="muted">{t('employeesSelfProfileLoading')}</div>}
       {selfService && !loadingSelfProfile && !showFormPanel && errorMessage && <div className="error">{errorMessage}</div>}
       {!selfService && (
-        <div className="employee-page-tabs" role="tablist" aria-label="Employees sections">
+        <div className="employees-page-tabs-shell clients-entity-tabs-shell">
+        <div className="employee-page-tabs clients-session-tabs clients-entity-tabs" role="tablist" aria-label={t('employeesSubtabsAria')}>
           <button
             type="button"
             role="tab"
             aria-selected={employeesTab === 'employees'}
-            className={`employee-page-tab${employeesTab === 'employees' ? ' employee-page-tab--active' : ''}`}
+            className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
             onClick={() => {
               setEmployeesTab('employees')
               void loadConsultants()
             }}
           >
-            Employees
+            <EmployeePageTabIcon name="employees" />
+            <span>{t('employeesSubtabEmployees')}</span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={employeesTab === 'roles'}
-            className={`employee-page-tab${employeesTab === 'roles' ? ' employee-page-tab--active' : ''}`}
+            className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
             onClick={() => setEmployeesTab('roles')}
           >
-            Roles & Permissions
+            <EmployeePageTabIcon name="roles" />
+            <span>{t('employeesSubtabRolesPermissions')}</span>
           </button>
+        </div>
         </div>
       )}
       {!selfService && employeesTab === 'roles' && <EmployeeRolesPermissionsTab />}
