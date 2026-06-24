@@ -2006,7 +2006,7 @@
                     ${allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
-                ${allowed.giftCard ? `
+                ${allowed.giftCard && this.state.paymentMethod === 'GIFT_CARD' ? `
                   <div class="gift-card-code-field">
                     <span>${escapeHtml(t.giftCardCodeLabel || t.paymentMethodGiftCard)}</span>
                     <div class="gift-card-code-input-row">
