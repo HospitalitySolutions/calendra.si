@@ -577,6 +577,12 @@ public class ReminderService {
         }
 
         Optional<NotificationEmailTemplate> templateOpt = loadNotificationEmailTemplate(companyId, kind);
+        if (templateOpt.isEmpty() && isWebsiteWidgetBookingSource(booking) && kind == NotificationKind.NEW_SESSION) {
+            // Website-widget guests must always receive a transactional booking confirmation
+            // when email notifications are enabled, even if the tenant has not configured a
+            // custom notification template yet. Invoice emails remain a separate billing flow.
+            templateOpt = Optional.of(defaultWebsiteWidgetBookingConfirmationTemplate());
+        }
         if (templateOpt.isEmpty()) {
             log.debug("Skipping {} booking email for company {}: template disabled or not configured", kind, companyId);
             return;
@@ -655,6 +661,25 @@ public class ReminderService {
 
     private static String smsSubject(NotificationKind kind) {
         return kind == null ? "SMS notification" : "SMS " + kind.name().replace('_', ' ').toLowerCase(Locale.ROOT);
+    }
+
+    private NotificationEmailTemplate defaultWebsiteWidgetBookingConfirmationTemplate() {
+        String subject = "Potrditev rezervacije pri {{companyName}}";
+        String bodyHtml = """
+                <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55">
+                  <h2 style="margin:0 0 12px;color:#07122f">Termin je potrjen</h2>
+                  <p style="margin:0 0 12px">Pozdravljeni {{clientFirstName}},</p>
+                  <p style="margin:0 0 16px">vaša rezervacija je bila uspešno potrjena.</p>
+                  <table style="border-collapse:collapse;margin:0 0 16px;width:100%;max-width:520px">
+                    <tr><td style="padding:6px 0;color:#6b7280">Storitev</td><td style="padding:6px 0;font-weight:700">{{serviceName}}</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280">Datum</td><td style="padding:6px 0;font-weight:700">{{date}}</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280">Ura</td><td style="padding:6px 0;font-weight:700">{{time}}</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280">Izvajalec</td><td style="padding:6px 0;font-weight:700">{{consultantName}}</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280">Lokacija</td><td style="padding:6px 0;font-weight:700">{{locationAddress}}</td></tr>
+                  </table>
+                </div>
+                """;
+        return new NotificationEmailTemplate(subject, bodyHtml);
     }
 
     private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind) {

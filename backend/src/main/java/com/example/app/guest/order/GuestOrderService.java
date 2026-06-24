@@ -212,7 +212,7 @@ public class GuestOrderService {
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(orderSubtotal);
         order.setReferenceCode(nextGuestOrderReferenceCode(link));
-        order.setMetadataJson(buildMetadataJson(request.slotId(), product, request.entitlementId()));
+        order.setMetadataJson(buildMetadataJson(request.slotId(), product, request.entitlementId(), channel));
         order = orders.save(order);
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
@@ -788,7 +788,7 @@ public class GuestOrderService {
         return "ORD-" + UUID.randomUUID().toString().toUpperCase(Locale.ROOT);
     }
 
-    private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product, String entitlementId) {
+    private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product, String entitlementId, PaymentChannel channel) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", slotId);
@@ -799,6 +799,8 @@ public class GuestOrderService {
             map.put("sessionTypeId", product.sessionType() == null ? null : product.sessionType().getId());
             map.put("currency", product.currency());
             map.put("priceGross", product.priceGross() == null ? null : product.priceGross().doubleValue());
+            map.put("channel", channel == null ? PaymentChannel.GUEST.name() : channel.name());
+            map.put("sourceChannel", sourceChannelForChannel(channel));
             return JSON.writeValueAsString(map);
         } catch (Exception ex) {
             return "{}";
@@ -1302,6 +1304,36 @@ public class GuestOrderService {
                 : null;
     }
 
+    private static String sourceChannelForChannel(PaymentChannel channel) {
+        return channel == PaymentChannel.WEBSITE ? "WEBSITE_WIDGET" : "GUEST_APP";
+    }
+
+    private String sourceChannelForOrder(GuestOrder order) {
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) {
+            return "GUEST_APP";
+        }
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object explicitSource = map.get("sourceChannel");
+            if (explicitSource != null && !String.valueOf(explicitSource).isBlank()) {
+                String value = String.valueOf(explicitSource).trim();
+                return "WEBSITE_WIDGET".equalsIgnoreCase(value) ? "WEBSITE_WIDGET" : "GUEST_APP";
+            }
+            Object channel = map.get("channel");
+            if (channel != null && "WEBSITE".equalsIgnoreCase(String.valueOf(channel).trim())) {
+                return "WEBSITE_WIDGET";
+            }
+        } catch (Exception ignored) {
+        }
+        return "GUEST_APP";
+    }
+
+    private String bookingNotesForOrder(GuestOrder order) {
+        return "WEBSITE_WIDGET".equalsIgnoreCase(sourceChannelForOrder(order))
+                ? "Booked via website widget"
+                : "Booked via guest mobile app";
+    }
+
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {
         try {
             if (slotContext.groupSessionId() != null) {
@@ -1309,7 +1341,7 @@ public class GuestOrderService {
                         order.getCompany().getId(),
                         slotContext.groupSessionId(),
                         order.getClient().getId(),
-                        "GUEST_APP",
+                        sourceChannelForOrder(order),
                         String.valueOf(order.getId()),
                         String.valueOf(order.getGuestUser().getId()),
                         status,
@@ -1325,12 +1357,12 @@ public class GuestOrderService {
                     slotContext.endsAt(),
                     null,
                     slotContext.sessionTypeId(),
-                    "Booked via guest mobile app",
+                    bookingNotesForOrder(order),
                     null,
                     false,
                     null,
                     false,
-                    "GUEST_APP",
+                    sourceChannelForOrder(order),
                     String.valueOf(order.getId()),
                     String.valueOf(order.getGuestUser().getId()),
                     status,
