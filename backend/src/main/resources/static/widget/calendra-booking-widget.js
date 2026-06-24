@@ -1082,7 +1082,10 @@
 
     formatMoneyAmount(amount, priceInfo) {
       const normalized = Math.max(0, Number(amount) || 0);
-      const decimals = priceInfo?.decimals ?? (Math.round(normalized) === normalized ? 0 : 2);
+      const hasFraction = Math.round(normalized * 100) % 100 !== 0;
+      const decimals = priceInfo?.decimals != null
+        ? Math.max(priceInfo.decimals, hasFraction ? 2 : 0)
+        : (hasFraction ? 2 : 0);
       const formatted = new Intl.NumberFormat(this.intlLocale(), { minimumFractionDigits: decimals, maximumFractionDigits: 2 }).format(normalized);
       if (priceInfo?.prefix) return `${priceInfo.prefix}${formatted}`;
       if (priceInfo?.suffix) return `${formatted} ${priceInfo.suffix}`;

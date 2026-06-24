@@ -1006,14 +1006,39 @@ public class PublicBookingWidgetService {
         }
     }
 
+    /**
+     * Session types store linked transaction-service prices as net values. The public
+     * website widget must display the same customer-facing amount as checkout: the
+     * total gross price of all linked transaction services, including VAT.
+     */
     private String toPriceLabel(SessionType type) {
-        BigDecimal min = type.getLinkedServices() == null ? null : type.getLinkedServices().stream()
-                .map(link -> link.getPrice())
-                .filter(price -> price != null)
-                .min(BigDecimal::compareTo)
-                .orElse(null);
-        if (min == null) return null;
-        return "€" + min.stripTrailingZeros().toPlainString();
+        BigDecimal gross = sessionTypePriceGross(type);
+        if (gross == null) return null;
+        return "€" + gross.stripTrailingZeros().toPlainString();
+    }
+
+    private BigDecimal sessionTypePriceGross(SessionType type) {
+        if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) {
+            return null;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        boolean hasPrice = false;
+        for (var link : type.getLinkedServices()) {
+            if (link == null || link.getTransactionService() == null) {
+                continue;
+            }
+            BigDecimal net = link.getPrice() != null ? link.getPrice() : link.getTransactionService().getNetPrice();
+            if (net == null) {
+                continue;
+            }
+            BigDecimal multiplier = link.getTransactionService().getTaxRate() == null
+                    ? BigDecimal.ZERO
+                    : link.getTransactionService().getTaxRate().multiplier;
+            BigDecimal gross = net.add(net.multiply(multiplier)).setScale(2, java.math.RoundingMode.HALF_UP);
+            total = total.add(gross);
+            hasPrice = true;
+        }
+        return hasPrice ? total.setScale(2, java.math.RoundingMode.HALF_UP) : null;
     }
 
     private WidgetConfig loadConfig(Long companyId) {
