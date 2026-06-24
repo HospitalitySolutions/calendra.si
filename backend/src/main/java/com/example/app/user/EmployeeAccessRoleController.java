@@ -27,29 +27,33 @@ public class EmployeeAccessRoleController {
 
     private final EmployeeAccessRoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final TenantOwnerAccessService tenantOwnerAccessService;
     private final ObjectMapper objectMapper;
 
     public EmployeeAccessRoleController(
             EmployeeAccessRoleRepository roleRepository,
             UserRepository userRepository,
+            TenantOwnerAccessService tenantOwnerAccessService,
             ObjectMapper objectMapper
     ) {
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
+        this.tenantOwnerAccessService = tenantOwnerAccessService;
         this.objectMapper = objectMapper;
     }
 
     @GetMapping
-    @Transactional(readOnly = true)
+    @Transactional
     public RolesOverviewResponse list(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        tenantOwnerAccessService.ensureTenantOwnerAdministrator(companyId);
         var roles = new ArrayList<EmployeeRoleResponse>();
 
         // Only real built-in application roles are returned here. Custom roles are loaded from the database below.
-        roles.add(systemRole("ADMINISTRATOR", "Administrator", "Full system access with all permissions across the platform.", systemPermissions("ADMINISTRATOR"), userRepository.countByCompanyIdAndActiveTrueAndRole(companyId, Role.ADMIN)));
+        roles.add(systemRole("ADMINISTRATOR", "Administrator", "Full system access with all permissions across the platform.", systemPermissions("ADMINISTRATOR"), userRepository.countByCompanyIdAndRole(companyId, Role.ADMIN)));
 
         for (EmployeeAccessRole role : roleRepository.findAllByCompanyIdAndArchivedFalseOrderByNameAsc(companyId)) {
-            roles.add(customRole(role, userRepository.countActiveByCompanyIdAndEmployeeAccessRoleId(companyId, role.getId())));
+            roles.add(customRole(role, userRepository.countByCompanyIdAndEmployeeAccessRoleId(companyId, role.getId())));
         }
 
         long assignedUsers = roles.stream().mapToLong(EmployeeRoleResponse::memberCount).sum();
@@ -98,7 +102,7 @@ public class EmployeeAccessRoleController {
                         userRepository.saveAll(assignedUsers);
                     }
 
-                    return ResponseEntity.ok(customRole(saved, assignedUsers.stream().filter(User::isActive).count()));
+                    return ResponseEntity.ok(customRole(saved, assignedUsers.size()));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found.")));
     }
@@ -133,7 +137,7 @@ public class EmployeeAccessRoleController {
         Long companyId = me.getCompany().getId();
         return roleRepository.findByIdAndCompanyIdAndArchivedFalse(id, companyId)
                 .<ResponseEntity<?>>map(existing -> {
-                    long assignedUsers = userRepository.countActiveByCompanyIdAndEmployeeAccessRoleId(companyId, existing.getId());
+                    long assignedUsers = userRepository.countByCompanyIdAndEmployeeAccessRoleId(companyId, existing.getId());
                     if (assignedUsers > 0) {
                         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "Remove this role from assigned users before archiving it."));
                     }
@@ -144,6 +148,36 @@ public class EmployeeAccessRoleController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found.")));
     }
 
+    @GetMapping("/{roleId:.+}/members")
+    @Transactional
+    public ResponseEntity<?> members(@PathVariable String roleId, @AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.ensureTenantOwnerAdministrator(companyId);
+        EmployeeRoleSnapshot snapshot = findRoleSnapshot(roleId, companyId);
+        if (snapshot == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found."));
+        }
+
+        List<User> members;
+        if (roleId.startsWith(SYSTEM_PREFIX)) {
+            String key = roleId.substring(SYSTEM_PREFIX.length()).toUpperCase(Locale.ROOT);
+            if (!"ADMINISTRATOR".equals(key)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found."));
+            }
+            members = userRepository.findAllByCompanyIdAndRoleOrderByFirstNameAscLastNameAscIdAsc(companyId, Role.ADMIN);
+        } else if (roleId.startsWith(CUSTOM_PREFIX) && snapshot.customRoleId() != null) {
+            members = userRepository.findAllRoleMembersByCompanyIdAndEmployeeAccessRoleId(companyId, snapshot.customRoleId());
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found."));
+        }
+
+        return ResponseEntity.ok(new RoleMembersResponse(
+                snapshot.id(),
+                snapshot.name(),
+                members.stream().map(member -> roleMember(member, tenantOwnerId)).toList()
+        ));
+    }
+
     private EmployeeRoleSnapshot findRoleSnapshot(String roleId, Long companyId) {
         if (roleId == null || roleId.isBlank()) return null;
         if (roleId.startsWith(SYSTEM_PREFIX)) {
@@ -151,14 +185,14 @@ public class EmployeeAccessRoleController {
             if (!"ADMINISTRATOR".equals(key)) {
                 return null;
             }
-            return new EmployeeRoleSnapshot(roleId, systemName(key), systemDescription(key), systemPermissions(key));
+            return new EmployeeRoleSnapshot(roleId, null, systemName(key), systemDescription(key), systemPermissions(key));
         }
         if (roleId.startsWith(CUSTOM_PREFIX)) {
             String rawId = roleId.substring(CUSTOM_PREFIX.length());
             try {
                 Long id = Long.valueOf(rawId);
                 return roleRepository.findByIdAndCompanyIdAndArchivedFalse(id, companyId)
-                        .map(role -> new EmployeeRoleSnapshot(roleId, role.getName(), role.getDescription(), parsePermissionsJson(role.getPermissionsJson())))
+                        .map(role -> new EmployeeRoleSnapshot(roleId, role.getId(), role.getName(), role.getDescription(), parsePermissionsJson(role.getPermissionsJson())))
                         .orElse(null);
             } catch (NumberFormatException ignored) {
                 return null;
@@ -278,6 +312,20 @@ public class EmployeeAccessRoleController {
         }
     }
 
+    private RoleMemberResponse roleMember(User user, Long tenantOwnerId) {
+        return new RoleMemberResponse(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getEmail(),
+                user.getRole(),
+                user.isActive(),
+                user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getId(),
+                user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getName(),
+                tenantOwnerAccessService.isTenantOwner(user, tenantOwnerId)
+        );
+    }
+
     public record RolesOverviewResponse(
             List<EmployeeRoleResponse> roles,
             long assignedUsers,
@@ -298,9 +346,23 @@ public class EmployeeAccessRoleController {
 
     public record PermissionGroupResponse(String key, String label, String description) {}
 
+    public record RoleMembersResponse(String roleId, String roleName, List<RoleMemberResponse> members) {}
+
+    public record RoleMemberResponse(
+            Long id,
+            String firstName,
+            String lastName,
+            String email,
+            Role role,
+            boolean active,
+            Long accessRoleId,
+            String accessRoleName,
+            boolean tenantOwner
+    ) {}
+
     public record SaveRoleRequest(@NotBlank String name, String description, List<String> permissions) {}
 
     public record DuplicateRoleRequest(@NotBlank String sourceRoleId, String name) {}
 
-    private record EmployeeRoleSnapshot(String id, String name, String description, List<String> permissions) {}
+    private record EmployeeRoleSnapshot(String id, Long customRoleId, String name, String description, List<String> permissions) {}
 }

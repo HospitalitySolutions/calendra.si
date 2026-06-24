@@ -174,6 +174,7 @@ type Consultant = {
   permissions?: string[]
   accessRoleId?: number | null
   accessRoleName?: string | null
+  tenantOwner?: boolean
 }
 
 type AccessRoleOption = {
@@ -491,7 +492,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       lastName: c.lastName,
       email: c.email,
       password: '',
-      role: c.role,
+      role: c.tenantOwner ? 'ADMIN' : c.role,
       consultant: c.consultant ?? c.role === 'CONSULTANT',
       vatId: c.vatId ?? '',
       phone: c.phone ?? c.whatsappSenderNumber ?? '',
@@ -507,7 +508,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             byDay: {},
           },
       permissions: normalizeEmployeePermissions(c.permissions),
-      accessRoleId: c.accessRoleId == null ? '' : String(c.accessRoleId),
+      accessRoleId: c.tenantOwner || c.accessRoleId == null ? '' : String(c.accessRoleId),
     }
     setForm(next)
     formBaselineRef.current = cloneConsultantForm(next)
@@ -586,18 +587,19 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         return
       }
 
+      const effectiveRole = editing?.tenantOwner ? 'ADMIN' : form.role
       const payload: Record<string, unknown> = {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim().toLowerCase(),
         password: form.password || null,
-        role: form.role,
-        consultant: form.consultant || form.role === 'CONSULTANT',
+        role: effectiveRole,
+        consultant: form.consultant || effectiveRole === 'CONSULTANT',
         vatId: form.vatId.trim() || null,
         phone: form.phone.trim() || null,
         workingHours: normalizeWorkingHoursForApi(form.workingHours),
         permissions: form.permissions,
-        accessRoleId: form.accessRoleId ? Number(form.accessRoleId) : null,
+        accessRoleId: editing?.tenantOwner ? null : form.accessRoleId ? Number(form.accessRoleId) : null,
       }
 
       if (editing) {
@@ -682,15 +684,20 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     : `Your package allows ${employeeLimitAllowedLabel} active users. Upgrade or increase your user count to add more. You can change this in Account management → Subscription.`
   const employeeLimitButtonLabel = locale === 'sl' ? 'Odpri Naročnino' : 'Open Subscription'
   const employeeLimitCloseLabel = locale === 'sl' ? 'Zapri' : 'Close'
+  const isEditingTenantOwner = !!editing?.tenantOwner
+  const ownerRoleLockHint = locale === 'sl'
+    ? 'Glavni uporabnik najemnika mora vedno ostati Administrator.'
+    : 'The tenant owner must always keep the Administrator role.'
   const openSubscriptionSettings = () => {
     setEmployeeLimitDialog(null)
     setShowFormPanel(false)
     navigate('/configuration?tab=company&subtab=subscription')
   }
 
-  const employeeRoleSelectValue = form.accessRoleId ? `CUSTOM:${form.accessRoleId}` : form.role
+  const employeeRoleSelectValue = isEditingTenantOwner ? 'ADMIN' : form.accessRoleId ? `CUSTOM:${form.accessRoleId}` : form.role
 
   const applyEmployeeRoleSelection = (value: string) => {
+    if (isEditingTenantOwner) return
     if (value.startsWith('CUSTOM:')) {
       const accessRoleId = value.substring('CUSTOM:'.length)
       const selectedRole = accessRoleOptions.find((role) => String(role.customRoleId) === accessRoleId)
@@ -850,8 +857,10 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                               }}
                               disabled={
                                 activatingEmployeeId === c.id ||
+                                !!c.tenantOwner ||
                                 (myUserId != null && c.id === myUserId && c.active !== false)
                               }
+                              title={c.tenantOwner ? ownerRoleLockHint : undefined}
                             >
                               <span />
                               {c.active === false ? inactiveStatusLabel : activeStatusLabel}
@@ -923,8 +932,10 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                               }}
                               disabled={
                                 activatingEmployeeId === c.id ||
+                                !!c.tenantOwner ||
                                 (myUserId != null && c.id === myUserId && c.active !== false)
                               }
+                              title={c.tenantOwner ? ownerRoleLockHint : undefined}
                             >
                               <span />
                               {c.active === false ? inactiveStatusLabel : activeStatusLabel}
@@ -995,10 +1006,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 </Field>
                 {!selfService && (
                   <>
-                    <Field label={t('employeesFormRole')}>
+                    <Field label={t('employeesFormRole')} hint={isEditingTenantOwner ? ownerRoleLockHint : undefined}>
                       <select
                         value={employeeRoleSelectValue}
                         onChange={(e) => applyEmployeeRoleSelection(e.target.value)}
+                        disabled={isEditingTenantOwner}
                       >
                         <option value="CONSULTANT">{t('employeesFormRoleOptionConsultant')}</option>
                         <option value="ADMIN">{t('employeesFormRoleOptionAdmin')}</option>
@@ -1225,7 +1237,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
               </form>
               <div className="form-actions booking-side-panel-footer consultant-form-footer employees-form-popup-footer">
                 <div className="employees-form-footer-left">
-                  {editing && !selfService ? (
+                  {editing && !selfService && !isEditingTenantOwner ? (
                     <button type="button" className="danger secondary employees-form-delete-btn" disabled={saving || deleting} onClick={() => void removeEditing()}>
                       <EmployeeFormIcon name="trash" />
                       {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}

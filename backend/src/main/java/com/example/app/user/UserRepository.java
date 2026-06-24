@@ -19,12 +19,26 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByCompanyId(Long companyId);
     long countByCompanyIdAndActiveTrue(Long companyId);
     long countByCompanyIdAndActiveTrueAndRole(Long companyId, Role role);
+    long countByCompanyIdAndRole(Long companyId, Role role);
 
     @Query("select count(u) from User u where u.company.id = :companyId and u.employeeAccessRole.id = :accessRoleId and u.active = true")
     long countActiveByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
 
+    @Query("select count(u) from User u where u.company.id = :companyId and u.employeeAccessRole.id = :accessRoleId")
+    long countByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
+
     @Query("select u from User u where u.company.id = :companyId and u.employeeAccessRole.id = :accessRoleId")
     List<User> findAllByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
+
+    List<User> findAllByCompanyIdAndRoleOrderByFirstNameAscLastNameAscIdAsc(Long companyId, Role role);
+
+    @Query("""
+            select u from User u
+            where u.company.id = :companyId
+              and u.employeeAccessRole.id = :accessRoleId
+            order by lower(u.firstName), lower(u.lastName), u.id
+            """)
+    List<User> findAllRoleMembersByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
 
     Optional<User> findByIdAndCompanyId(Long id, Long companyId);
     Optional<User> findByIdAndCompanyIdAndActiveTrue(Long id, Long companyId);

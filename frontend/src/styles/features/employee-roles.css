@@ -665,3 +665,233 @@
         width: 100%;
     }
 }
+
+.employee-roles-list-item {
+    cursor: pointer;
+}
+
+.employee-roles-member-link {
+    width: fit-content;
+    min-height: 0;
+    margin-top: 3px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #64748b;
+    box-shadow: none !important;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 750;
+    text-align: left;
+    text-decoration: none;
+}
+
+.employee-roles-member-link:hover,
+.employee-roles-member-line--button:hover {
+    color: #1672f3;
+    background: transparent;
+    text-decoration: underline;
+}
+
+.employee-roles-member-line--button {
+    width: fit-content;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.employee-roles-members-backdrop.modal-backdrop {
+    z-index: 10020;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+}
+
+.employee-roles-members-modal {
+    width: min(620px, 100%);
+    max-height: min(760px, calc(100vh - 44px));
+    overflow: hidden;
+    border-radius: 24px;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+    background: #fff;
+    box-shadow: 0 28px 86px rgba(15, 23, 42, 0.22);
+    display: flex;
+    flex-direction: column;
+}
+
+.employee-roles-members-head {
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.employee-roles-members-eyebrow {
+    display: block;
+    margin-bottom: 6px;
+    color: #1672f3;
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.employee-roles-members-head h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    font-weight: 950;
+    letter-spacing: -0.035em;
+}
+
+.employee-roles-members-head p {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 750;
+}
+
+.employee-roles-members-close {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border-radius: 12px;
+    border: 1px solid #dbe4ef;
+    color: #475569;
+    background: #fff;
+    box-shadow: 0 5px 12px rgba(15, 23, 42, 0.04);
+    font-size: 1.45rem;
+    line-height: 1;
+}
+
+.employee-roles-members-list {
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.employee-roles-member-card {
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+}
+
+.employee-roles-member-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #1672f3;
+    background: #eff6ff;
+    font-size: 0.84rem;
+    font-weight: 950;
+}
+
+.employee-roles-member-copy {
+    min-width: 0;
+}
+
+.employee-roles-member-copy strong,
+.employee-roles-member-copy span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.employee-roles-member-copy strong {
+    color: #0f172a;
+    font-size: 0.94rem;
+    font-weight: 900;
+}
+
+.employee-roles-member-copy span {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.employee-roles-member-badges {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.employee-roles-member-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 5px 8px;
+    color: #475569;
+    background: #f1f5f9;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.employee-roles-member-badge--owner {
+    color: #1672f3;
+    background: #dbeafe;
+}
+
+.employee-roles-member-badge--active {
+    color: #15803d;
+    background: #dcfce7;
+}
+
+.employee-roles-member-badge--inactive {
+    color: #b45309;
+    background: #fef3c7;
+}
+
+.employee-roles-members-state {
+    margin: 12px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 22px;
+    color: #64748b;
+    background: #f8fafc;
+    text-align: center;
+    font-size: 0.92rem;
+    font-weight: 750;
+}
+
+@media (max-width: 640px) {
+    .employee-roles-members-backdrop.modal-backdrop {
+        padding: 12px;
+    }
+
+    .employee-roles-members-modal {
+        max-height: calc(100vh - 24px);
+        border-radius: 20px;
+    }
+
+    .employee-roles-member-card {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .employee-roles-member-badges {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
+}

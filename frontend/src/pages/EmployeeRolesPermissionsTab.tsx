@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { api } from '../api'
 import { Card, EmptyState } from '../components/ui'
 import { EMPLOYEE_PERMISSION_ACTION_KEYS, type EmployeePermission } from '../lib/employeePermissions'
@@ -20,6 +20,31 @@ type EmployeeRole = {
   description?: string | null
   permissions: string[]
   memberCount: number
+}
+
+type RoleMember = {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  role: 'ADMIN' | 'CONSULTANT' | string
+  active: boolean
+  accessRoleId?: number | null
+  accessRoleName?: string | null
+  tenantOwner?: boolean
+}
+
+type RoleMembersResponse = {
+  roleId: string
+  roleName: string
+  members: RoleMember[]
+}
+
+type RoleMembersDialog = {
+  role: EmployeeRole
+  members: RoleMember[]
+  loading: boolean
+  error: string
 }
 
 type RolesOverview = {
@@ -127,6 +152,22 @@ function memberLabel(count: number) {
   return `${count} ${count === 1 ? 'member' : 'members'}`
 }
 
+function memberName(member: RoleMember) {
+  const name = `${member.firstName || ''} ${member.lastName || ''}`.trim()
+  return name || member.email || `User #${member.id}`
+}
+
+function memberInitials(member: RoleMember) {
+  const first = (member.firstName || member.email || '?').trim()[0] || '?'
+  const last = (member.lastName || '').trim()[0] || ''
+  return `${first}${last}`.toUpperCase()
+}
+
+function memberRoleLabel(member: RoleMember) {
+  if (member.accessRoleName) return member.accessRoleName
+  return member.role === 'ADMIN' ? 'Administrator' : 'Consultant'
+}
+
 export function EmployeeRolesPermissionsTab() {
   const [overview, setOverview] = useState<RolesOverview | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
@@ -137,6 +178,7 @@ export function EmployeeRolesPermissionsTab() {
   const [saving, setSaving] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [archiving, setArchiving] = useState(false)
+  const [membersDialog, setMembersDialog] = useState<RoleMembersDialog | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -204,6 +246,28 @@ export function EmployeeRolesPermissionsTab() {
     setDraftPermissions((current) => current.includes(key)
       ? current.filter((permission) => permission !== key)
       : [...current, key])
+  }
+
+  function selectRoleByKeyboard(event: KeyboardEvent<HTMLDivElement>, roleId: string) {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    setSelectedRoleId(roleId)
+  }
+
+  async function openMembersDialog(role: EmployeeRole) {
+    setMembersDialog({ role, members: [], loading: true, error: '' })
+    try {
+      const { data } = await api.get<RoleMembersResponse>(`/employee-roles/${encodeURIComponent(role.id)}/members`)
+      setMembersDialog({ role, members: data.members ?? [], loading: false, error: '' })
+    } catch (error: any) {
+      setMembersDialog({
+        role,
+        members: [],
+        loading: false,
+        error: error?.response?.data?.message || 'Failed to load role members.',
+      })
+    }
   }
 
   async function createNewRole() {
@@ -328,23 +392,34 @@ export function EmployeeRolesPermissionsTab() {
           </div>
           <div className="employee-roles-list">
             {roles.map((role) => (
-              <button
+              <div
                 key={role.id}
-                type="button"
                 className={`employee-roles-list-item${role.id === selectedRole?.id ? ' employee-roles-list-item--active' : ''}`}
                 onClick={() => setSelectedRoleId(role.id)}
+                onKeyDown={(event) => selectRoleByKeyboard(event, role.id)}
+                role="button"
+                tabIndex={0}
               >
                 <span className={`employee-roles-list-icon employee-roles-list-icon--${role.system ? role.systemKey?.toLowerCase() || 'system' : 'custom'}`}>
                   <RolePermissionIcon name={role.systemKey === 'ADMINISTRATOR' ? 'shield' : 'group'} />
                 </span>
                 <span className="employee-roles-list-copy">
                   <strong>{role.name}</strong>
-                  <span>{memberLabel(role.memberCount)}</span>
+                  <button
+                    type="button"
+                    className="employee-roles-member-link"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void openMembersDialog(role)
+                    }}
+                  >
+                    {memberLabel(role.memberCount)}
+                  </button>
                 </span>
                 <span className={`employee-roles-role-type ${role.system ? 'employee-roles-role-type--system' : 'employee-roles-role-type--custom'}`}>
                   {role.system ? 'System' : 'Custom'}
                 </span>
-              </button>
+              </div>
             ))}
           </div>
           <p className="employee-roles-list-foot">Showing {roles.length} of {roles.length} roles</p>
@@ -374,7 +449,9 @@ export function EmployeeRolesPermissionsTab() {
                       </label>
                     </div>
                   )}
-                  <div className="employee-roles-member-line"><RolePermissionIcon name="group" /> {memberLabel(selectedRole.memberCount)}</div>
+                  <button type="button" className="employee-roles-member-line employee-roles-member-line--button" onClick={() => void openMembersDialog(selectedRole)}>
+                    <RolePermissionIcon name="group" /> {memberLabel(selectedRole.memberCount)}
+                  </button>
                 </div>
               </div>
               <div className="employee-roles-actions">
@@ -437,6 +514,48 @@ export function EmployeeRolesPermissionsTab() {
           </section>
         )}
       </div>
+
+      {membersDialog && (
+        <div className="modal-backdrop employee-roles-members-backdrop" onClick={() => setMembersDialog(null)}>
+          <div className="employee-roles-members-modal" role="dialog" aria-modal="true" aria-labelledby="employee-role-members-title" onClick={(event) => event.stopPropagation()}>
+            <div className="employee-roles-members-head">
+              <div>
+                <span className="employee-roles-members-eyebrow">Assigned users</span>
+                <h2 id="employee-role-members-title">{membersDialog.role.name}</h2>
+                <p>{memberLabel(membersDialog.members.length || membersDialog.role.memberCount)}</p>
+              </div>
+              <button type="button" className="employee-roles-members-close" onClick={() => setMembersDialog(null)} aria-label="Close members list">×</button>
+            </div>
+
+            {membersDialog.loading ? (
+              <div className="employee-roles-members-state">Loading members…</div>
+            ) : membersDialog.error ? (
+              <div className="employee-roles-alert employee-roles-alert--error">{membersDialog.error}</div>
+            ) : membersDialog.members.length === 0 ? (
+              <div className="employee-roles-members-state">No users are attached to this role.</div>
+            ) : (
+              <div className="employee-roles-members-list">
+                {membersDialog.members.map((member) => (
+                  <article key={member.id} className="employee-roles-member-card">
+                    <span className="employee-roles-member-avatar" aria-hidden>{memberInitials(member)}</span>
+                    <div className="employee-roles-member-copy">
+                      <strong>{memberName(member)}</strong>
+                      <span>{member.email}</span>
+                    </div>
+                    <div className="employee-roles-member-badges">
+                      {member.tenantOwner && <span className="employee-roles-member-badge employee-roles-member-badge--owner">Owner</span>}
+                      <span className="employee-roles-member-badge">{memberRoleLabel(member)}</span>
+                      <span className={`employee-roles-member-badge ${member.active ? 'employee-roles-member-badge--active' : 'employee-roles-member-badge--inactive'}`}>
+                        {member.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

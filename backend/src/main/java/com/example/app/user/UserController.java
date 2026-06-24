@@ -38,28 +38,34 @@ public class UserController {
     private final ObjectMapper objectMapper;
     private final PackageAccessService packageAccessService;
     private final TenantFileS3Service fileStorage;
+    private final TenantOwnerAccessService tenantOwnerAccessService;
 
-    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService) {
         this.userRepository = userRepository;
         this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
         this.objectMapper = objectMapper;
         this.packageAccessService = packageAccessService;
         this.fileStorage = fileStorage;
+        this.tenantOwnerAccessService = tenantOwnerAccessService;
     }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     public List<UserResponse> findAll(@AuthenticationPrincipal User me) {
-        return userRepository.findAllByCompanyId(me.getCompany().getId())
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.ensureTenantOwnerAdministrator(companyId);
+        return userRepository.findAllByCompanyId(companyId)
+                .stream().map(user -> toResponse(user, tenantOwnerId)).collect(Collectors.toList());
     }
 
     /** Current user's full row (for consultant self-service profile editor). */
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> getProfile(@AuthenticationPrincipal User me) {
-        return ResponseEntity.ok(toResponse(me));
+        Long tenantOwnerId = me.getCompany() == null ? null : tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
+        return ResponseEntity.ok(toResponse(me, tenantOwnerId));
     }
 
     /** Consultant-only: update own name, contact, working hours, optional password (role unchanged). */
@@ -103,7 +109,8 @@ public class UserController {
                     }
                     try {
                         User saved = userRepository.save(existing);
-                        return ResponseEntity.ok(toResponse(saved));
+                        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+                        return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                     } catch (DataIntegrityViolationException ex) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(Map.of("message", "A consultant with this email already exists."));
@@ -127,8 +134,10 @@ public class UserController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> findById(@PathVariable Long id, @AuthenticationPrincipal User me) {
-        return userRepository.findByIdAndCompanyId(id, me.getCompany().getId())
-                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(toResponse(user)))
+        Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+        return userRepository.findByIdAndCompanyId(id, companyId)
+                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(toResponse(user, tenantOwnerId)))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("message", "Consultant not found.")));
     }
@@ -180,7 +189,8 @@ public class UserController {
 
         try {
             User saved = userRepository.save(user);
-            return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved));
+            Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, tenantOwnerId));
         } catch (DataIntegrityViolationException ex) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("message", "A consultant with this email already exists."));
@@ -204,13 +214,23 @@ public class UserController {
                                 .body(Map.of("message", "A consultant with this email already exists."));
                     }
 
+                    Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+                    boolean tenantOwner = tenantOwnerAccessService.isTenantOwner(existing, tenantOwnerId);
+
                     existing.setFirstName(request.firstName().trim());
                     existing.setLastName(request.lastName().trim());
                     existing.setEmail(normalizedEmail);
-                    existing.setRole(request.role());
-                    existing.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
-                    EmployeeAccessRole accessRole = resolveAccessRole(request.accessRoleId(), companyId);
-                    existing.setEmployeeAccessRole(accessRole);
+                    EmployeeAccessRole accessRole = null;
+                    if (tenantOwner) {
+                        existing.setRole(Role.ADMIN);
+                        existing.setConsultant(request.consultant());
+                        existing.setEmployeeAccessRole(null);
+                    } else {
+                        existing.setRole(request.role());
+                        existing.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
+                        accessRole = resolveAccessRole(request.accessRoleId(), companyId);
+                        existing.setEmployeeAccessRole(accessRole);
+                    }
                     existing.setUpdatedAt(Instant.now());
 
                     existing.setVatId(request.vatId() == null || request.vatId().isBlank() ? null : request.vatId().trim());
@@ -244,7 +264,7 @@ public class UserController {
 
                     try {
                         User saved = userRepository.save(existing);
-                        return ResponseEntity.ok(toResponse(saved));
+                        return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                     } catch (DataIntegrityViolationException ex) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(Map.of("message", "A consultant with this email already exists."));
@@ -257,7 +277,13 @@ public class UserController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
-        if (userRepository.findByIdAndCompanyId(id, me.getCompany().getId()).isEmpty()) {
+        Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+        if (tenantOwnerId != null && tenantOwnerId.equals(id)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "The tenant owner must remain an active administrator."));
+        }
+        if (userRepository.findByIdAndCompanyId(id, companyId).isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", "Consultant not found."));
         }
@@ -275,6 +301,11 @@ public class UserController {
                     .body(Map.of("message", "You cannot deactivate your own account."));
         }
         Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+        if (tenantOwnerId != null && tenantOwnerId.equals(id)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "The tenant owner must remain an active administrator."));
+        }
         return userRepository.findByIdAndCompanyId(id, companyId)
                 .<ResponseEntity<?>>map(target -> {
                     if (target.getRole() == Role.ADMIN && target.isActive()) {
@@ -286,7 +317,7 @@ public class UserController {
                     }
                     target.setActive(false);
                     target.setUpdatedAt(Instant.now());
-                    return ResponseEntity.ok(toResponse(userRepository.save(target)));
+                    return ResponseEntity.ok(toResponse(userRepository.save(target), tenantOwnerId));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("message", "Consultant not found.")));
@@ -297,14 +328,19 @@ public class UserController {
     @Transactional
     public ResponseEntity<?> activateUser(@PathVariable Long id, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
         return userRepository.findByIdAndCompanyId(id, companyId)
                 .<ResponseEntity<?>>map(target -> {
                     if (!target.isActive()) {
                         packageAccessService.requireCanCreateUser(me);
                     }
                     target.setActive(true);
+                    if (tenantOwnerAccessService.isTenantOwner(target, tenantOwnerId)) {
+                        target.setRole(Role.ADMIN);
+                        target.setEmployeeAccessRole(null);
+                    }
                     target.setUpdatedAt(Instant.now());
-                    return ResponseEntity.ok(toResponse(userRepository.save(target)));
+                    return ResponseEntity.ok(toResponse(userRepository.save(target), tenantOwnerId));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("message", "Consultant not found.")));
@@ -328,7 +364,8 @@ public class UserController {
                     if (previousKey != null && !previousKey.isBlank() && !previousKey.equals(stored.objectKey())) {
                         fileStorage.deleteQuietly(previousKey);
                     }
-                    return ResponseEntity.ok(toResponse(saved));
+                    Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
+                    return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "User not found.")));
     }
@@ -412,6 +449,7 @@ public class UserController {
             List<String> permissions,
             Long accessRoleId,
             String accessRoleName,
+            boolean tenantOwner,
             String avatarPath,
             Instant createdAt,
             Instant updatedAt
@@ -426,6 +464,11 @@ public class UserController {
     }
 
     private UserResponse toResponse(User user) {
+        Long tenantOwnerId = user.getCompany() == null ? null : tenantOwnerAccessService.tenantOwnerId(user.getCompany().getId());
+        return toResponse(user, tenantOwnerId);
+    }
+
+    private UserResponse toResponse(User user, Long tenantOwnerId) {
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),
@@ -442,6 +485,7 @@ public class UserController {
                 SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()),
                 user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getId(),
                 user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getName(),
+                tenantOwnerAccessService.isTenantOwner(user, tenantOwnerId),
                 user.getAvatarS3Key() == null || user.getAvatarS3Key().isBlank()
                         ? null
                         : "/api/users/" + user.getId() + "/avatar?v=" + (user.getUpdatedAt() == null ? 0 : user.getUpdatedAt().toEpochMilli()),
