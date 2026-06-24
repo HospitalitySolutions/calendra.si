@@ -179,6 +179,7 @@ type Tab =
   | "guestApp"
   | "website"
   | "notifications"
+  | "reservationRules"
   | "deliveryLogs"
   | "integrations"
   | "whatsapp"
@@ -205,6 +206,7 @@ type ConfigNavIcon =
   | "guestApp"
   | "website"
   | "notifications"
+  | "reservationRules"
   | "deliveryLogs"
   | "integrations"
   | "googleCalendar"
@@ -258,6 +260,7 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
   "guestApp",
   "website",
   "notifications",
+  "reservationRules",
   "deliveryLogs",
   "integrations",
   "whatsapp",
@@ -272,6 +275,7 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   guestApp: "tabGuestApp",
   website: "tabWebsite",
   notifications: "tabNotifications",
+  reservationRules: "tabReservationRules",
   deliveryLogs: "tabDeliveryLogs",
   integrations: "tabIntegrations",
   whatsapp: "tabWhatsapp",
@@ -448,6 +452,28 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
       </svg>
     );
   }
+  if (kind === "reservationRules") {
+    return (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4" />
+        <path d="M8 2v4" />
+        <path d="M3 10h18" />
+        <path d="m9 16 2 2 4-4" />
+      </svg>
+    );
+  }
+
   if (kind === "notifications") {
     return (
       <svg
@@ -1975,6 +2001,7 @@ export function ConfigurationPage() {
     if (tabId === "guestApp") return hasEmployeePermission(me, 'GUEST_MOBILE_APP_VIEW');
     if (tabId === "website") return hasEmployeePermission(me, 'WEBSITE_WIDGET_VIEW');
     if (tabId === "notifications") return hasEmployeePermission(me, 'NOTIFICATIONS_VIEW');
+    if (tabId === "reservationRules") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "deliveryLogs") return hasEmployeePermission(me, 'DELIVERY_LOGS_VIEW');
     if (tabId === "integrations") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
     if (tabId === "whatsapp" || tabId === "viber") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
@@ -1984,7 +2011,7 @@ export function ConfigurationPage() {
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
-    if (tabId === "company" || tabId === "modules" || tabId === "integrations")
+    if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
     if (tabId === "billing") return billingEnabledCommitted;
@@ -2600,6 +2627,7 @@ export function ConfigurationPage() {
       { id: "guestApp", icon: "guestApp" },
       { id: "website", icon: "website" },
       { id: "notifications", icon: "notifications" },
+      { id: "reservationRules", icon: "reservationRules" },
       { id: "deliveryLogs", icon: "deliveryLogs" },
       { id: "integrations", icon: "integrations" },
       { id: "whatsapp", icon: "whatsapp" },
@@ -12827,15 +12855,18 @@ export function ConfigurationPage() {
                   t={t}
                   globallyEnabled={inboxGlobalCapabilities.viberEnabled}
                 />
+              ) : tab === "reservationRules" ? (
+                <Card className="settings-card modules-design-card reservation-rules-page-card">
+                  <ReservationRulesSettingsSection
+                    settings={settings}
+                    setSettings={setSettings}
+                    saving={savingSettings}
+                    onSave={() => saveSettings()}
+                  />
+                </Card>
               ) : tab === "modules" && modulesDraftDisplay ? (
                 <Card className="settings-card modules-design-card">
                   <div className="modules-design-shell">
-                    <ReservationRulesSettingsSection
-                      settings={settings}
-                      setSettings={setSettings}
-                      saving={savingSettings}
-                      onSave={() => saveSettings({ applyModulesDraft: true })}
-                    />
                     <div className="modules-design-grid">
                       {[
                         ["booking", "services"],
