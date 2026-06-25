@@ -5,7 +5,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import type { Bill, BillingService, Booking, Client, Company, OpenBill, PaymentMethod, PaymentSplit, User } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
-import { Card, EmptyState, Field, PageHeader } from '../components/ui'
+import { Card, EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
@@ -8982,53 +8982,115 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       )}
 
       {fiscalLogBill && (
-        <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { setFiscalLogBill(null); setDetailFolioBill(null) }}>
-          <div className="modal large-modal booking-side-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="booking-side-panel-header">
-              <PageHeader
-                title={detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}
-                subtitle={`${detailFolioBill?.billingTarget === 'COMPANY' ? (detailFolioBill?.recipientCompany?.name || '—') : (detailFolioBill?.client ? fullName(detailFolioBill.client) : '—')} · ${formatDate(detailFolioBill?.issueDate || '')}`}
-                actions={<button type="button" className="secondary booking-side-panel-close" onClick={() => { setFiscalLogBill(null); setDetailFolioBill(null) }} aria-label="Close">×</button>}
-              />
-            </div>
-            <div className="booking-side-panel-body">
-              <div className="booking-type-switcher" style={{ marginBottom: 12 }}>
-                <button type="button" className={folioPanelTab === 'invoice' ? 'booking-type-btn active' : 'booking-type-btn'} onClick={() => setFolioPanelTab('invoice')}>Invoice</button>
-                <button type="button" className={folioPanelTab === 'fiscal' ? 'booking-type-btn active' : 'booking-type-btn'} onClick={() => setFolioPanelTab('fiscal')}>Fiscal</button>
+        <div
+          className="modal-backdrop billing-folio-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setFiscalLogBill(null)
+              setDetailFolioBill(null)
+            }
+          }}
+          role="presentation"
+        >
+          <div className="modal billing-folio-detail-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="billing-folio-detail-head">
+              <div>
+                <h2>{detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}</h2>
+                <p>
+                  {detailFolioBill?.billingTarget === 'COMPANY'
+                    ? (detailFolioBill?.recipientCompany?.name || '—')
+                    : (detailFolioBill?.client ? fullName(detailFolioBill.client) : '—')}
+                  {' · '}
+                  {formatDate(detailFolioBill?.issueDate || '')}
+                </p>
               </div>
+              <button
+                type="button"
+                className="billing-folio-detail-close"
+                onClick={() => { setFiscalLogBill(null); setDetailFolioBill(null) }}
+                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="billing-folio-tabs" role="tablist" aria-label={locale === 'sl' ? 'Podrobnosti računa' : 'Invoice details'}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={folioPanelTab === 'invoice'}
+                className={folioPanelTab === 'invoice' ? 'billing-folio-tab billing-folio-tab--active' : 'billing-folio-tab'}
+                onClick={() => setFolioPanelTab('invoice')}
+              >
+                {locale === 'sl' ? 'Račun' : 'Invoice'}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={folioPanelTab === 'fiscal'}
+                className={folioPanelTab === 'fiscal' ? 'billing-folio-tab billing-folio-tab--active' : 'billing-folio-tab'}
+                onClick={() => setFolioPanelTab('fiscal')}
+              >
+                {locale === 'sl' ? 'Fiskalizacija' : 'Fiscal'}
+              </button>
+            </div>
+
+            <div className="billing-folio-modal-body">
               {folioPanelTab === 'invoice' ? (
                 detailFolioBill ? (
-                  <div className="stack gap-sm">
-                    <div className="summary-box">
-                      <strong>{`Folio #${detailFolioBill.billNumber || detailFolioBill.id}`}</strong>
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        {detailFolioBill.billingTarget === 'COMPANY'
-                          ? (detailFolioBill.recipientCompany?.name || '—')
-                          : (detailFolioBill.client ? fullName(detailFolioBill.client) : '—')}
+                  <div className="billing-folio-invoice-view">
+                    {detailFolioBill.refundReference ? (
+                      <div className="billing-folio-reference-note">{detailFolioBill.refundReference}</div>
+                    ) : null}
+
+                    <div className="billing-folio-detail-grid">
+                      <div className="billing-folio-detail-field">
+                        <span>{locale === 'sl' ? 'Order ID' : 'Order ID'}</span>
+                        <strong>{displayInvoiceOrderId(detailFolioBill)}</strong>
                       </div>
-                      {detailFolioBill.refundReference ? (
-                        <div className="muted" style={{ marginTop: 6 }}>{detailFolioBill.refundReference}</div>
-                      ) : null}
+                      <div className="billing-folio-detail-field">
+                        <span>{locale === 'sl' ? 'Izdano' : 'Issued'}</span>
+                        <strong>{formatDate(detailFolioBill.issueDate)}</strong>
+                      </div>
+                      <div className="billing-folio-detail-field">
+                        <span>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</span>
+                        <strong>{fullName(detailFolioBill.consultant)}</strong>
+                      </div>
+                      <div className="billing-folio-detail-field">
+                        <span>{locale === 'sl' ? 'Posvetovanje' : 'Session'}</span>
+                        <strong>{formatBillingSessionIdDisplay(detailFolioBill.sessionId)}</strong>
+                      </div>
+                      <div className="billing-folio-detail-field">
+                        <span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span>
+                        <strong>{detailFolioBill.paymentMethod ? detailFolioBill.paymentMethod.name : '—'}</strong>
+                      </div>
+                      <div className="billing-folio-detail-field billing-folio-detail-field--status">
+                        <span>{locale === 'sl' ? 'Status plačila' : 'Payment status'}</span>
+                        <strong>
+                          <span className={`billing-status-pill billing-status-pill--${paymentStatusClass(detailFolioBill.paymentStatus)}`}>
+                            {paymentStatusLabel(detailFolioBill.paymentStatus)}
+                          </span>
+                        </strong>
+                      </div>
                     </div>
-                    <div className="inline-form" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                      <Field label="Order ID"><input readOnly value={displayInvoiceOrderId(detailFolioBill)} /></Field>
-                      <Field label="Issued"><input readOnly value={formatDate(detailFolioBill.issueDate)} /></Field>
+
+                    <div className="billing-folio-total-card">
+                      <span>{locale === 'sl' ? 'Skupaj bruto' : 'Total gross'}</span>
+                      <strong>{currency(detailFolioBill.totalGross)}</strong>
                     </div>
-                    <div className="inline-form" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                      <Field label="Consultant"><input readOnly value={fullName(detailFolioBill.consultant)} /></Field>
-                      <Field label="Session"><input readOnly value={formatBillingSessionIdDisplay(detailFolioBill.sessionId)} /></Field>
-                    </div>
-                    <div className="inline-form" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                      <Field label="Payment method"><input readOnly value={detailFolioBill.paymentMethod ? detailFolioBill.paymentMethod.name : '—'} /></Field>
-                      <Field label="Payment status"><input readOnly value={detailFolioBill.paymentStatus || 'open'} /></Field>
-                    </div>
-                    <div className="summary-box">Total gross: <strong>{currency(detailFolioBill.totalGross)}</strong></div>
-                    <div className="simple-table-wrap">
+
+                    <div className="billing-folio-items-table-wrap">
                       <table>
-                        <thead><tr><th>Service</th><th>Qty</th><th>Gross</th></tr></thead>
+                        <thead>
+                          <tr>
+                            <th>{locale === 'sl' ? 'Storitev' : 'Service'}</th>
+                            <th>{locale === 'sl' ? 'Kol.' : 'Qty'}</th>
+                            <th>{locale === 'sl' ? 'Bruto' : 'Gross'}</th>
+                          </tr>
+                        </thead>
                         <tbody>
-                          {detailFolioBill.items?.map((item) => (
-                            <tr key={item.id}>
+                          {detailFolioBill.items?.map((item, index) => (
+                            <tr key={item.id ?? `${item.transactionService?.id || 'service'}-${index}`}>
                               <td>{billingServiceDisplayLabel(item.transactionService)}</td>
                               <td>{item.quantity}</td>
                               <td>{currency(item.grossPrice)}</td>
@@ -9037,35 +9099,69 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         </tbody>
                       </table>
                     </div>
-                    <div className="form-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+
+                    <div className="billing-folio-actions">
                       {canRefundBill(detailFolioBill) && (
-                        <button type="button" className="danger secondary" onClick={() => refundBill(detailFolioBill)} disabled={refundingBillId === detailFolioBill.id}>
-                          {refundingBillId === detailFolioBill.id ? 'Refunding…' : 'Refund'}
+                        <button
+                          type="button"
+                          className="billing-folio-action-btn billing-folio-action-btn--danger"
+                          onClick={() => refundBill(detailFolioBill)}
+                          disabled={refundingBillId === detailFolioBill.id}
+                        >
+                          <span aria-hidden>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 7v6h6" />
+                              <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+                            </svg>
+                          </span>
+                          {refundingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Vračilo…' : 'Refunding…') : (locale === 'sl' ? 'Vračilo' : 'Refund')}
                         </button>
                       )}
-                      <button type="button" className="secondary" onClick={() => printFolioPdf(detailFolioBill)} disabled={printingBillId === detailFolioBill.id}>
+                      <button
+                        type="button"
+                        className="billing-folio-action-btn billing-folio-action-btn--secondary"
+                        onClick={() => printFolioPdf(detailFolioBill)}
+                        disabled={printingBillId === detailFolioBill.id}
+                      >
+                        <span aria-hidden>
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 9V2h12v7" />
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                            <path d="M6 14h12v8H6z" />
+                          </svg>
+                        </span>
                         {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam tiskanje…' : 'Preparing print…') : (locale === 'sl' ? 'Natisni račun' : 'Print invoice')}
                       </button>
-                      <button type="button" className="primary" onClick={() => downloadFolioPdf(detailFolioBill)}>
+                      <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary" onClick={() => downloadFolioPdf(detailFolioBill)}>
+                        <span aria-hidden>
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <path d="M7 10l5 5 5-5" />
+                            <path d="M12 15V3" />
+                          </svg>
+                        </span>
                         {locale === 'sl' ? 'Prenesi PDF računa' : 'Download invoice PDF'}
                       </button>
                     </div>
                   </div>
                 ) : null
               ) : loadingFiscalLog ? (
-                <p className="muted">Loading fiscal log…</p>
+                <p className="billing-folio-muted">{locale === 'sl' ? 'Nalaganje fiskalizacijskega dnevnika…' : 'Loading fiscal log…'}</p>
               ) : fiscalLogRows.length === 0 ? (
-                <EmptyState title="No fiscal log yet" text="Run Retry fiscal to capture transmission details." />
+                <EmptyState
+                  title={locale === 'sl' ? 'Fiskalizacijskega dnevnika še ni' : 'No fiscal log yet'}
+                  text={locale === 'sl' ? 'Za prikaz podrobnosti zaženite ponovno fiskalizacijo.' : 'Run Retry fiscal to capture transmission details.'}
+                />
               ) : (
-                <div className="stack gap-sm">
-                  <div className="simple-table-wrap">
+                <div className="billing-folio-fiscal-view">
+                  <div className="billing-folio-items-table-wrap billing-folio-items-table-wrap--fiscal">
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ width: 70 }}>Step</th>
-                          <th>Status</th>
-                          <th style={{ width: 190 }}>Time</th>
-                          <th>Details</th>
+                          <th style={{ width: 70 }}>{locale === 'sl' ? 'Korak' : 'Step'}</th>
+                          <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
+                          <th style={{ width: 190 }}>{locale === 'sl' ? 'Čas' : 'Time'}</th>
+                          <th>{locale === 'sl' ? 'Podrobnosti' : 'Details'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -9080,11 +9176,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </tbody>
                     </table>
                   </div>
-                  <Field label="Request">
-                    <textarea rows={8} readOnly value={fiscalLogRequestBody || 'No request captured yet.'} />
+                  <Field label={locale === 'sl' ? 'Zahteva' : 'Request'}>
+                    <textarea rows={8} readOnly value={fiscalLogRequestBody || (locale === 'sl' ? 'Zahteva še ni zabeležena.' : 'No request captured yet.')} />
                   </Field>
-                  <Field label="Response">
-                    <textarea rows={8} readOnly value={fiscalLogResponseBody || 'No response captured yet.'} />
+                  <Field label={locale === 'sl' ? 'Odgovor' : 'Response'}>
+                    <textarea rows={8} readOnly value={fiscalLogResponseBody || (locale === 'sl' ? 'Odgovor še ni zabeležen.' : 'No response captured yet.')} />
                   </Field>
                 </div>
               )}

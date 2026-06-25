@@ -3577,8 +3577,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Cena' : 'Price'}</span><strong>{selectedWalletProduct ? currency(walletProductPrice(selectedWalletProduct)) : '—'}</strong></div>
                               <div className="clients-wallet-summary-info"><span aria-hidden>i</span>{locale === 'sl' ? 'Račun se odpre v novem obrazcu odprtega računa z možnostjo Zaključi račun.' : 'The bill opens in the open-bill form with the option to close the bill.'}</div>
                             </div>
-                            <div className="clients-wallet-drawer-footer">
-                              <button type="button" className="secondary" onClick={closeWalletPurchaseDrawer}>{locale === 'sl' ? 'Nazaj' : 'Back'}</button>
+                            <div className="clients-wallet-drawer-footer clients-wallet-drawer-footer--single-action">
                               <button type="button" className="clients-wallet-open-bill-button" onClick={continueWalletPurchaseOpenBill} disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}>
                                 {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Odpri nov račun' : 'Open new bill')}
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

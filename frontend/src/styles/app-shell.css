@@ -60,6 +60,33 @@
     box-shadow: 8px 0 28px rgba(15, 39, 77, 0.28);
 }
 
+
+.sidebar-brand {
+    width: 100%;
+    min-height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 0 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.sidebar-brand-logo {
+    display: block;
+    width: min(154px, calc(var(--sidebar-rail-expanded) - 40px));
+    max-width: calc(var(--sidebar-width) - 20px);
+    height: auto;
+    object-fit: contain;
+    opacity: 0.98;
+    transition: max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-shell:hover .sidebar-brand-logo {
+    max-width: calc(var(--sidebar-rail-expanded) - 40px);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .sidebar-shell {
         transition: none;
@@ -107,7 +134,7 @@
     align-items: stretch;
     align-self: stretch;
     width: 100%;
-    margin-top: 42px;
+    margin-top: 18px;
 }
 
 .sidebar a.sidebar-rail-link,

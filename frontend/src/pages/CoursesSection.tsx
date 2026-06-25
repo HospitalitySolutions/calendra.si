@@ -204,11 +204,41 @@ function courseBunnyLabel(course: Course, locale: string) {
 }
 
 function courseStatusLabel(course: Course, locale: string) {
-  if (course.active === false) return locale === 'sl' ? 'Neaktivno' : 'Inactive'
-  if (course.status === 'DRAFT') return 'DRAFT'
-  if (course.status === 'PROCESSING') return locale === 'sl' ? 'Obdelava' : 'Processing'
-  if (course.status === 'HIDDEN') return locale === 'sl' ? 'Skrito' : 'Hidden'
-  return locale === 'sl' ? 'Aktivno' : 'Active'
+  return course.active === false
+    ? (locale === 'sl' ? 'Neaktivno' : 'Inactive')
+    : (locale === 'sl' ? 'Aktivno' : 'Active')
+}
+
+function CourseModalIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="m10 9 5 3-5 3V9z" />
+    </svg>
+  )
+}
+
+function CourseUploadIcon() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 16V7" />
+      <path d="m8 11 4-4 4 4" />
+      <path d="M20 16.5A4.5 4.5 0 0 0 15.5 12h-.76A6 6 0 1 0 6 17.32" />
+      <path d="M6 20h12" />
+    </svg>
+  )
+}
+
+function formatCourseUploadSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
 export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionProps>(function CoursesSection(
@@ -495,10 +525,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                     <strong>{courseBunnyLabel(course, locale)}</strong>
                   </div>
                   <div>
-                    <span>{locale === 'sl' ? 'Dostop' : 'Access'}</span>
-                    <strong>{course.guestVisible ? (locale === 'sl' ? 'Viden gostom' : 'Guest visible') : (locale === 'sl' ? 'Skrit gostom' : 'Hidden from guests')}</strong>
-                  </div>
-                  <div>
                     <span>{locale === 'sl' ? 'Status' : 'Status'}</span>
                     <strong>
                       <button
@@ -526,7 +552,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                   <th><CourseSortableHeader>{locale === 'sl' ? 'Naziv' : 'Name'}</CourseSortableHeader></th>
                   <th><CourseSortableHeader>{locale === 'sl' ? 'Tip' : 'Type'}</CourseSortableHeader></th>
                   <th><CourseSortableHeader>Bunny</CourseSortableHeader></th>
-                  <th><CourseSortableHeader>{locale === 'sl' ? 'Dostop' : 'Access'}</CourseSortableHeader></th>
                   <th><CourseSortableHeader>{locale === 'sl' ? 'Status' : 'Status'}</CourseSortableHeader></th>
                   <th>{locale === 'sl' ? 'Dejanja' : 'Actions'}</th>
                 </tr>
@@ -549,9 +574,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                     <td><CourseNameCell course={course} index={index} locale={locale} /></td>
                     <td className="clients-muted service-config-category-cell">{courseMediaLabel(course, locale)}</td>
                     <td className="clients-muted service-config-category-cell">{courseBunnyLabel(course, locale)}</td>
-                    <td className="clients-muted service-config-category-cell">
-                      {course.guestVisible ? (locale === 'sl' ? 'Viden gostom' : 'Guest visible') : (locale === 'sl' ? 'Skrit gostom' : 'Hidden from guests')}
-                    </td>
                     <td>
                       <button
                         type="button"
@@ -598,89 +620,166 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       )}
 
       {showModal && (
-        <div className="modal-backdrop booking-side-panel-backdrop" role="presentation" onMouseDown={() => setShowModal(false)}>
-          <div className="modal large-modal booking-side-panel session-type-config-modal" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="session-type-config-modal-header">
-              <div className="session-type-config-modal-heading">
-                <span className="session-type-config-modal-icon" aria-hidden>▶</span>
-                <div><h2>{editingId ? (locale === 'sl' ? 'Uredi tečaj' : 'Edit course') : (locale === 'sl' ? 'Nov tečaj' : 'New course')}</h2></div>
+        <div
+          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop course-edit-modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setShowModal(false)}
+        >
+          <div
+            className="modal large-modal booking-side-panel session-type-config-modal course-edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="course-edit-modal-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="session-type-config-modal-header course-edit-modal-header">
+              <div className="session-type-config-modal-heading course-edit-modal-heading">
+                <span className="session-type-config-modal-icon course-edit-modal-icon" aria-hidden><CourseModalIcon /></span>
+                <div>
+                  <h2 id="course-edit-modal-title">
+                    {editingId ? (locale === 'sl' ? 'Uredi tečaj' : 'Edit course') : (locale === 'sl' ? 'Nov tečaj' : 'New course')}
+                  </h2>
+                </div>
               </div>
-              <button type="button" className="secondary session-type-config-modal-close" onClick={() => setShowModal(false)}>×</button>
+              <button
+                type="button"
+                className="secondary session-type-config-modal-close course-edit-modal-close"
+                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+                onClick={() => setShowModal(false)}
+              >
+                ×
+              </button>
             </div>
             <form
               id="course-edit-form"
-              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body"
+              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body course-edit-modal-body"
               onSubmit={submit}
             >
-              <section className="session-type-config-section">
-                <div className="form-grid two">
+              <section className="session-type-config-section course-edit-card">
+                <div className="form-grid two course-edit-grid course-edit-grid--two">
                   <Field label={locale === 'sl' ? 'Naslov tečaja *' : 'Course title *'}>
-                    <input required value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+                    <input
+                      required
+                      value={form.title}
+                      onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                    />
                   </Field>
                   <Field label={locale === 'sl' ? 'Tip medija' : 'Media type'}>
-                    <select value={form.mediaType} onChange={(e) => setForm((f) => ({ ...f, mediaType: e.target.value as CourseMediaType }))}>
-                      <option value="VIDEO">Video</option>
-                      <option value="AUDIO">Audio</option>
-                    </select>
+                    <span className="course-edit-select-wrap">
+                      <span className="course-edit-select-icon" aria-hidden><CourseModalIcon /></span>
+                      <select
+                        className="course-edit-select"
+                        value={form.mediaType}
+                        onChange={(e) => setForm((f) => ({ ...f, mediaType: e.target.value as CourseMediaType }))}
+                      >
+                        <option value="VIDEO">Video</option>
+                        <option value="AUDIO">Audio</option>
+                      </select>
+                    </span>
                   </Field>
-                  <Field label="Bunny upload">
+                </div>
+
+                <div className="field course-edit-upload-field">
+                  <span className="field-label">Bunny upload</span>
+                  <label
+                    className={`course-edit-upload-dropzone${uploadFile ? ' has-file' : ''}`}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setUploadFile(e.dataTransfer.files?.[0] ?? null)
+                    }}
+                  >
                     <input
+                      className="course-edit-file-input"
                       type="file"
                       accept={form.mediaType === 'AUDIO' ? 'audio/*' : 'video/*'}
                       onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
                     />
-                    {existingMediaLabel && (
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        {locale === 'sl' ? 'Trenutna Bunny datoteka' : 'Current Bunny file'}: {existingMediaLabel}
-                      </div>
-                    )}
-                    {uploadFile && (
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        {form.mediaType === 'VIDEO'
-                          ? (locale === 'sl' ? 'Video se bo naložil neposredno v Bunny Stream.' : 'Video will upload directly to Bunny Stream.')
-                          : (locale === 'sl' ? 'Audio se naloži prek zaščitenega Calendra nalaganja.' : 'Audio uploads through protected Calendra upload.')}
-                      </div>
-                    )}
-                    {editingId && uploadFile && editingCourseHasMedia && (
-                      <label className="checkbox-row" style={{ marginTop: 8 }}>
-                        <input
-                          type="checkbox"
-                          checked={deleteOldMediaOnReplace}
-                          onChange={(e) => setDeleteOldMediaOnReplace(e.target.checked)}
-                        />
+                    <span className="course-edit-upload-icon" aria-hidden><CourseUploadIcon /></span>
+                    <span className="course-edit-upload-copy">
+                      <strong>
+                        {uploadFile
+                          ? uploadFile.name
+                          : (locale === 'sl' ? 'Povlecite datoteko sem ali kliknite za izbiro' : 'Drag a file here or click to choose')}
+                      </strong>
+                      <span>
+                        {uploadFile
+                          ? formatCourseUploadSize(uploadFile.size)
+                          : (form.mediaType === 'VIDEO'
+                            ? (locale === 'sl' ? 'Podprti formati: MP4, MOV, WebM, AVI (največ 2 GB)' : 'Supported formats: MP4, MOV, WebM, AVI (max 2 GB)')
+                            : (locale === 'sl' ? 'Podprti formati: MP3, WAV, M4A, AAC' : 'Supported formats: MP3, WAV, M4A, AAC'))}
+                      </span>
+                    </span>
+                    <span className="course-edit-upload-button">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 3v12" />
+                        <path d="m7 8 5-5 5 5" />
+                        <path d="M5 21h14" />
+                      </svg>
+                      {locale === 'sl' ? 'Izberi datoteko' : 'Choose file'}
+                    </span>
+                  </label>
+                  {existingMediaLabel && (
+                    <div className="course-edit-upload-note">
+                      <strong>{locale === 'sl' ? 'Trenutna Bunny datoteka' : 'Current Bunny file'}:</strong> {existingMediaLabel}
+                    </div>
+                  )}
+                  {uploadFile && (
+                    <div className="course-edit-upload-note">
+                      {form.mediaType === 'VIDEO'
+                        ? (locale === 'sl' ? 'Video se bo naložil neposredno v Bunny Stream.' : 'Video will upload directly to Bunny Stream.')
+                        : (locale === 'sl' ? 'Audio se naloži prek zaščitenega Calendra nalaganja.' : 'Audio uploads through protected Calendra upload.')}
+                    </div>
+                  )}
+                  {editingId && uploadFile && editingCourseHasMedia && (
+                    <label className="course-edit-replace-media-option">
+                      <input
+                        type="checkbox"
+                        checked={deleteOldMediaOnReplace}
+                        onChange={(e) => setDeleteOldMediaOnReplace(e.target.checked)}
+                      />
+                      <span>
                         {locale === 'sl'
                           ? 'Ob zamenjavi izbriši prejšnjo Bunny datoteko'
                           : 'Delete previous Bunny file when replacing media'}
-                      </label>
-                    )}
-                    {editingId && uploadFile && editingCourseHasMedia && deleteOldMediaOnReplace && (
-                      <div className="muted" style={{ marginTop: 4 }}>
-                        {locale === 'sl'
-                          ? 'Stari audio/video bo odstranjen iz Bunny, zato ga ne bo treba brisati ročno.'
-                          : 'The old audio/video will be removed from Bunny so you do not need to delete it manually.'}
-                      </div>
-                    )}
-                    {uploadProgress != null && (
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        {locale === 'sl' ? 'Nalaganje' : 'Uploading'}: {Math.max(0, Math.min(100, uploadProgress)).toFixed(0)}%
-                      </div>
-                    )}
-                  </Field>
+                      </span>
+                    </label>
+                  )}
+                  {editingId && uploadFile && editingCourseHasMedia && deleteOldMediaOnReplace && (
+                    <div className="course-edit-upload-note">
+                      {locale === 'sl'
+                        ? 'Stari audio/video bo odstranjen iz Bunny, zato ga ne bo treba brisati ročno.'
+                        : 'The old audio/video will be removed from Bunny so you do not need to delete it manually.'}
+                    </div>
+                  )}
+                  {uploadProgress != null && (
+                    <div className="course-edit-upload-progress" aria-label={locale === 'sl' ? 'Napredek nalaganja' : 'Upload progress'}>
+                      <span style={{ width: `${Math.max(0, Math.min(100, uploadProgress))}%` }} />
+                      <strong>{Math.max(0, Math.min(100, uploadProgress)).toFixed(0)}%</strong>
+                    </div>
+                  )}
                 </div>
+
                 <Field label={locale === 'sl' ? 'Opis' : 'Description'}>
-                  <textarea rows={4} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+                  <span className="course-edit-textarea-wrap">
+                    <textarea
+                      rows={5}
+                      maxLength={1000}
+                      placeholder={locale === 'sl' ? 'Vnesite opis tečaja ...' : 'Enter course description ...'}
+                      value={form.description}
+                      onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    />
+                    <span className="course-edit-character-count">{form.description.length} / 1000</span>
+                  </span>
                 </Field>
-                <div className="form-grid two">
-                  <label className="checkbox-row"><input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} /> {locale === 'sl' ? 'Aktivno' : 'Active'}</label>
-                  <label className="checkbox-row"><input type="checkbox" checked={form.guestVisible} onChange={(e) => setForm((f) => ({ ...f, guestVisible: e.target.checked }))} /> {locale === 'sl' ? 'Na voljo za dostop' : 'Available for access'}</label>
-                </div>
+
               </section>
             </form>
-            <div className="booking-side-panel-footer session-type-config-modal-footer">
+            <div className="booking-side-panel-footer session-type-config-modal-footer course-edit-modal-footer">
               <button
                 form="course-edit-form"
                 type="submit"
-                className="gapp-primary-button"
+                className="gapp-primary-button course-edit-save-button"
                 disabled={saving || uploadingId != null}
               >
                 <GuestConfigSaveIcon />

@@ -11,6 +11,7 @@ import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendar
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
 import { OnboardingTour } from './OnboardingTour'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
+import loginLogo from '../assets/login-logo.png'
 
 function AndroidNavIconCalendar() {
   return (
@@ -1105,6 +1106,9 @@ function ShellInner({ children }: PropsWithChildren) {
       {avatarUploadInput}
       <div className="sidebar-shell">
         <aside className="sidebar">
+          <div className="sidebar-brand" aria-label="Calendra">
+            <img className="sidebar-brand-logo" src={loginLogo} alt="Calendra" />
+          </div>
           {isPlatformAdmin && (
             <NavLink
               className={({ isActive }) => `sidebar-platform-admin sidebar-rail-link${isActive ? ' active' : ''}`}

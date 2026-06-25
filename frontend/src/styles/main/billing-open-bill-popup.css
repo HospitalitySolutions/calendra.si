@@ -6041,3 +6041,409 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Modern popup for Folio / invoice history details. */
+.billing-folio-modal-backdrop.modal-backdrop {
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+}
+
+.billing-folio-detail-modal.modal {
+  width: min(720px, calc(100vw - 40px));
+  max-width: min(720px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  border-radius: 24px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.26);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@supports (max-height: 100dvh) {
+  .billing-folio-detail-modal.modal {
+    max-height: calc(100dvh - 40px);
+  }
+}
+
+.billing-folio-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 26px 28px 16px;
+}
+
+.billing-folio-detail-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.45rem;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  font-weight: 900;
+}
+
+.billing-folio-detail-head p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.billing-folio-detail-close {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.billing-folio-detail-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.billing-folio-tabs {
+  margin: 0 28px 22px;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.billing-folio-tab {
+  min-height: 44px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+.billing-folio-tab--active {
+  background: #ffffff;
+  color: var(--color-primary, #1672f3);
+  box-shadow: 0 0 0 1px rgba(22, 114, 243, 0.36), 0 8px 22px rgba(15, 23, 42, 0.07);
+}
+
+.billing-folio-modal-body {
+  padding: 0 28px 26px;
+  overflow: auto;
+}
+
+.billing-folio-invoice-view,
+.billing-folio-fiscal-view {
+  display: grid;
+  gap: 18px;
+}
+
+.billing-folio-reference-note {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.billing-folio-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.billing-folio-detail-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.billing-folio-detail-field > span {
+  color: #0f172a;
+  font-size: 0.79rem;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+
+.billing-folio-detail-field > strong {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 13px;
+  border: 1px solid #dbe3ef;
+  border-radius: 13px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.94rem;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.billing-folio-detail-field--status > strong {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.billing-folio-total-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(22, 114, 243, 0.13), rgba(96, 165, 250, 0.18));
+  color: var(--color-primary, #1672f3);
+  font-weight: 900;
+}
+
+.billing-folio-total-card span {
+  color: var(--color-primary, #1672f3);
+  font-size: 0.94rem;
+}
+
+.billing-folio-total-card strong {
+  color: var(--color-primary, #1672f3);
+  font-size: 1.08rem;
+}
+
+.billing-folio-items-table-wrap {
+  overflow: auto;
+}
+
+.billing-folio-items-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #0f172a;
+}
+
+.billing-folio-items-table-wrap th {
+  padding: 0 8px 12px;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.billing-folio-items-table-wrap th:nth-child(2),
+.billing-folio-items-table-wrap td:nth-child(2) {
+  text-align: center;
+  width: 90px;
+}
+
+.billing-folio-items-table-wrap th:last-child,
+.billing-folio-items-table-wrap td:last-child {
+  text-align: right;
+}
+
+.billing-folio-items-table-wrap td {
+  padding: 15px 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.billing-folio-items-table-wrap--fiscal th:nth-child(2),
+.billing-folio-items-table-wrap--fiscal td:nth-child(2) {
+  text-align: left;
+  width: auto;
+}
+
+.billing-folio-items-table-wrap--fiscal th:last-child,
+.billing-folio-items-table-wrap--fiscal td:last-child {
+  text-align: left;
+}
+
+.billing-folio-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.billing-folio-action-btn {
+  min-height: 46px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font: inherit;
+  font-size: 0.94rem;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.billing-folio-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.billing-folio-action-btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.billing-folio-action-btn--danger {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fecaca;
+}
+
+.billing-folio-action-btn--danger:hover:not(:disabled) {
+  box-shadow: 0 12px 22px rgba(239, 68, 68, 0.14);
+}
+
+.billing-folio-action-btn--secondary {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #e2e8f0;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.billing-folio-action-btn--secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.09);
+}
+
+.billing-folio-action-btn--primary {
+  background: var(--color-primary, #1672f3);
+  color: #ffffff;
+  border-color: var(--color-primary, #1672f3);
+  box-shadow: 0 12px 28px rgba(22, 114, 243, 0.28);
+}
+
+.billing-folio-action-btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover, #1d4ed8);
+  border-color: var(--color-primary-hover, #1d4ed8);
+  box-shadow: 0 16px 32px rgba(22, 114, 243, 0.34);
+}
+
+.billing-folio-muted {
+  margin: 0;
+  color: #64748b;
+  font-weight: 750;
+}
+
+.billing-folio-fiscal-view .field {
+  display: grid;
+  gap: 8px;
+}
+
+.billing-folio-fiscal-view textarea {
+  width: 100%;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  padding: 12px 14px;
+  font: 0.86rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  resize: vertical;
+}
+
+@media (max-width: 760px) {
+  .billing-folio-modal-backdrop.modal-backdrop {
+    padding: 14px;
+  }
+
+  .billing-folio-detail-modal.modal {
+    width: min(100%, calc(100vw - 28px));
+    max-width: min(100%, calc(100vw - 28px));
+    border-radius: 20px;
+  }
+
+  .billing-folio-detail-head {
+    padding: 22px 20px 14px;
+  }
+
+  .billing-folio-tabs {
+    margin: 0 20px 18px;
+  }
+
+  .billing-folio-modal-body {
+    padding: 0 20px 22px;
+  }
+
+  .billing-folio-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-folio-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .billing-folio-action-btn {
+    width: 100%;
+  }
+}
+
+[data-theme="dark"] .billing-folio-detail-modal.modal {
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .billing-folio-detail-head h2,
+[data-theme="dark"] .billing-folio-detail-field > span,
+[data-theme="dark"] .billing-folio-detail-field > strong,
+[data-theme="dark"] .billing-folio-items-table-wrap table,
+[data-theme="dark"] .billing-folio-action-btn--secondary,
+[data-theme="dark"] .billing-folio-fiscal-view textarea {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .billing-folio-detail-head p,
+[data-theme="dark"] .billing-folio-muted,
+[data-theme="dark"] .billing-folio-items-table-wrap th {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .billing-folio-detail-close,
+[data-theme="dark"] .billing-folio-tabs,
+[data-theme="dark"] .billing-folio-reference-note,
+[data-theme="dark"] .billing-folio-detail-field > strong,
+[data-theme="dark"] .billing-folio-action-btn--secondary,
+[data-theme="dark"] .billing-folio-fiscal-view textarea {
+  background: #111c31;
+  border-color: #243247;
+}
+
+[data-theme="dark"] .billing-folio-tab--active {
+  background: #17213a;
+}
+
+[data-theme="dark"] .billing-folio-items-table-wrap th,
+[data-theme="dark"] .billing-folio-items-table-wrap td {
+  border-bottom-color: #243247;
+}

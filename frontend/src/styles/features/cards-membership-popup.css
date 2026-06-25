@@ -416,3 +416,351 @@ button.cards-product-delete-btn {
 .service-config-table-wrap .cards-product-row-delete {
     white-space: nowrap;
 }
+
+/* Standardized Ugodnosti modal refinements — aligned with Tečaji popup */
+.cards-product-modal.modal.large-modal.booking-side-panel {
+    width: min(1040px, calc(100vw - 56px));
+    max-width: min(1040px, calc(100vw - 56px));
+    border-radius: 22px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.30);
+}
+
+.cards-product-modal-header {
+    align-items: center;
+    padding: 28px 32px 26px;
+    background: rgba(255, 255, 255, 0.98);
+}
+
+.cards-product-modal-heading {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.cards-product-modal-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: #1672f3;
+    background: linear-gradient(135deg, rgba(22, 114, 243, 0.10) 0%, rgba(22, 114, 243, 0.04) 100%);
+    border: 1px solid rgba(22, 114, 243, 0.20);
+}
+
+.cards-product-modal-title {
+    min-width: 0;
+}
+
+.cards-product-modal-heading h2 {
+    font-size: 1.75rem;
+    letter-spacing: -0.04em;
+}
+
+.cards-product-modal-close.booking-side-panel-close,
+button.cards-product-modal-close.booking-side-panel-close {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.cards-product-modal-close.booking-side-panel-close:hover,
+button.cards-product-modal-close.booking-side-panel-close:hover {
+    background: #eef4ff;
+    color: #1672f3;
+}
+
+.cards-product-modal-body.booking-side-panel-body.form-grid {
+    gap: 18px 34px;
+    padding: 26px 32px 0;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.cards-product-modal-body .field.full-span,
+.cards-product-courses-field {
+    grid-column: 1 / -1;
+}
+
+.cards-product-modal input:not([type='checkbox']):not([type='file']),
+.cards-product-modal select,
+.cards-product-modal textarea {
+    min-height: 58px;
+    padding: 0 18px;
+    border-radius: 14px;
+    border-color: rgba(148, 163, 184, 0.36);
+    color: #0f172a;
+    font-size: 1rem;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.cards-product-modal textarea {
+    min-height: 88px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    line-height: 1.5;
+}
+
+.cards-product-switch-field {
+    min-width: 0;
+    align-self: stretch;
+}
+
+.cards-product-toggle-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    min-height: 74px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.cards-product-toggle-card:hover,
+.cards-product-toggle-card.is-on {
+    border-color: rgba(22, 114, 243, 0.26);
+    background: linear-gradient(135deg, rgba(239, 246, 255, 0.78) 0%, rgba(255, 255, 255, 0.98) 100%);
+}
+
+.cards-product-switch.session-type-config-switch,
+.cards-product-switch .session-type-config-switch-track {
+    width: 58px;
+    height: 32px;
+}
+
+.cards-product-switch.session-type-config-switch input[type='checkbox'] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    border: 0;
+    cursor: pointer;
+}
+
+.cards-product-switch .session-type-config-switch-thumb {
+    width: 24px;
+    height: 24px;
+}
+
+.cards-product-switch input:checked + .session-type-config-switch-track .session-type-config-switch-thumb {
+    transform: translateX(26px);
+}
+
+.cards-product-toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.cards-product-toggle-copy strong {
+    color: #111827;
+    font-size: 0.98rem;
+    font-weight: 820;
+    line-height: 1.2;
+}
+
+.cards-product-toggle-copy span {
+    color: #667085;
+    font-size: 0.86rem;
+    line-height: 1.35;
+}
+
+.cards-product-courses-field {
+    margin-top: 4px;
+}
+
+.cards-product-course-picker {
+    display: grid;
+    gap: 8px;
+    max-height: 238px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.cards-product-course-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-height: 58px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.cards-product-course-option:hover,
+.cards-product-course-option.is-selected {
+    border-color: rgba(22, 114, 243, 0.42);
+    background: linear-gradient(135deg, rgba(239, 246, 255, 0.74) 0%, rgba(255, 255, 255, 0.98) 100%);
+}
+
+.cards-product-course-checkbox {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+}
+
+.cards-product-course-checkbox input[type='checkbox'] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    border: 0;
+    cursor: pointer;
+}
+
+.cards-product-course-checkmark {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.cards-product-course-checkbox input[type='checkbox']:checked + .cards-product-course-checkmark {
+    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb 0%, #1672f3 100%);
+    border-color: transparent;
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
+}
+
+.cards-product-course-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.cards-product-course-copy strong {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: #172033;
+    font-size: 0.96rem;
+    font-weight: 820;
+    line-height: 1.25;
+}
+
+.cards-product-course-copy strong span {
+    color: #667085;
+    font-size: 0.88rem;
+    font-weight: 680;
+}
+
+.cards-product-course-copy small {
+    color: #667085;
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.cards-product-empty-courses {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+    background: #fbfdff;
+}
+
+.cards-product-modal-footer.booking-side-panel-footer {
+    padding: 18px 0 28px;
+}
+
+.cards-product-modal-footer .gapp-primary-button {
+    min-width: 230px;
+    height: 50px;
+    border-radius: 12px;
+    box-shadow: 0 16px 32px rgba(22, 114, 243, 0.24);
+}
+
+[data-theme="dark"] .cards-product-modal-icon {
+    background: rgba(30, 64, 175, 0.22);
+    border-color: rgba(96, 165, 250, 0.28);
+}
+
+[data-theme="dark"] .cards-product-toggle-card,
+[data-theme="dark"] .cards-product-course-option,
+[data-theme="dark"] .cards-product-empty-courses {
+    background: #111c31;
+    border-color: rgba(148, 163, 184, 0.26);
+}
+
+[data-theme="dark"] .cards-product-toggle-card:hover,
+[data-theme="dark"] .cards-product-toggle-card.is-on,
+[data-theme="dark"] .cards-product-course-option:hover,
+[data-theme="dark"] .cards-product-course-option.is-selected {
+    background: rgba(30, 64, 175, 0.20);
+}
+
+[data-theme="dark"] .cards-product-toggle-copy strong,
+[data-theme="dark"] .cards-product-course-copy strong {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .cards-product-toggle-copy span,
+[data-theme="dark"] .cards-product-course-copy small,
+[data-theme="dark"] .cards-product-course-copy strong span {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .cards-product-course-checkmark {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+@media (max-width: 760px) {
+    .cards-product-modal-heading {
+        gap: 14px;
+    }
+
+    .cards-product-modal-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+    }
+
+    .cards-product-modal-body .field.full-span,
+    .cards-product-courses-field {
+        grid-column: auto;
+    }
+
+    .cards-product-toggle-card {
+        min-height: 76px;
+        padding: 14px;
+    }
+
+    .cards-product-course-picker {
+        max-height: none;
+    }
+}
