@@ -18,6 +18,7 @@
         <shedlock.version>6.3.1</shedlock.version>
         <testcontainers.version>1.20.6</testcontainers.version>
         <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
+        <flyway.version>12.10.0</flyway.version>
     </properties>
 
     <dependencyManagement>
