@@ -49,82 +49,9 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        seedSuperAdmin();
-        seedTenant("Tenant 1", "tenancy1@terminko.eu");
-        seedTenant("Tenant 2", "tenancy2@terminko.eu");
-        seedTenant("Tenant 3", "tenancy3@terminko.eu");
-        seedTenant("CoreGym", "aholcman@calendra.si");
-        seedTenant("Nejc Bracko s.p.", "nbracko@calendra.si");
-        seedTenant("Inštitut AVISENSA", "nina@avisensa.com");
-        seedTenant("Rudi Inc.", "astraus81@gmail.com");
-        seedTenant("Zoom Marketplace", "marketplace@zoom.us");
-        seedTenant("Facebook", "developers@facebook.com");
 
         // Backfill tenant codes for any existing companies created before tenant-code generation was wired into the seeder.
         companies.findAll().forEach(companyProvisioningService::ensureTenantCode);
-    }
-
-    private void seedSuperAdmin() {
-        final String superAdminEmail = "info@calendra.si";
-        final String superAdminPassword = "Admin123!";
-        Company platformCompany = companies.findAll().stream()
-                .filter(c -> c.getName() != null && c.getName().equalsIgnoreCase("Platform Admin"))
-                .findFirst()
-                .orElseGet(() -> {
-                    var c = new Company();
-                    c.setName("Platform Admin");
-                    return companies.save(c);
-                });
-
-        platformCompany = companyProvisioningService.ensureTenantCode(platformCompany);
-
-        Company finalPlatformCompany = platformCompany;
-        Company finalPlatformCompany1 = platformCompany;
-        users.findByEmailIgnoreCase(superAdminEmail).ifPresentOrElse(existing -> {
-            boolean dirty = false;
-            if (existing.getCompany() == null || !existing.getCompany().getId().equals(finalPlatformCompany.getId())) {
-                existing.setCompany(finalPlatformCompany);
-                dirty = true;
-            }
-            if (existing.getRole() != Role.SUPER_ADMIN) {
-                existing.setRole(Role.SUPER_ADMIN);
-                dirty = true;
-            }
-            if (!encoder.matches(superAdminPassword, existing.getPasswordHash())) {
-                existing.setPasswordHash(encoder.encode(superAdminPassword));
-                dirty = true;
-            }
-            if (!existing.isActive()) {
-                existing.setActive(true);
-                dirty = true;
-            }
-            if (existing.isConsultant()) {
-                existing.setConsultant(false);
-                dirty = true;
-            }
-            if (dirty) users.save(existing);
-        }, () -> {
-            var u = new User();
-            u.setCompany(finalPlatformCompany1);
-            u.setFirstName("Platform");
-            u.setLastName("Admin");
-            u.setEmail(superAdminEmail);
-            u.setPasswordHash(encoder.encode(superAdminPassword));
-            u.setRole(Role.SUPER_ADMIN);
-            u.setActive(true);
-            u.setConsultant(false);
-            users.save(u);
-        });
-
-        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL, "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices");
-        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL, "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices/register");
-        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL, "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices");
-        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL, "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices/register");
-        seedSetting(platformCompany, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, "false");
-        seedSetting(platformCompany, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false");
-        seedSetting(platformCompany, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true");
-        seedSetting(platformCompany, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false");
-        seedSetting(platformCompany, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "false");
     }
 
     private void seedTenant(String tenantName, String adminEmail) {
