@@ -16,7 +16,7 @@ services:
       - backend
 
   db:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-calendradb}
@@ -25,7 +25,7 @@ services:
       # Recommended: scripts/docker-compose-with-aws-secrets.sh production up -d --build
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be loaded from AWS Secrets Manager for production}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calendra} -d ${POSTGRES_DB:-calendradb}"]
       interval: 5s

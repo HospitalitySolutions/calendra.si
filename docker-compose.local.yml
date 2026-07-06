@@ -5,7 +5,7 @@
 # Manager imports. Do not use this file for staging or production.
 services:
   db:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: calendradb
@@ -14,7 +14,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data_local:/var/lib/postgresql/data
+      - postgres_data_local:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U calendra -d calendradb"]
       interval: 5s
