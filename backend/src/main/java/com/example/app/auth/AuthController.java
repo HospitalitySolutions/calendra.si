@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -175,10 +176,10 @@ public class AuthController {
         String normalizedEmail = request.email().trim().toLowerCase();
         List<User> candidates = users.findAllByEmailIgnoreCase(normalizedEmail);
 
-        User user = candidates.stream()
+        List<User> passwordMatches = candidates.stream()
                 .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
-                .findFirst()
-                .orElse(null);
+                .toList();
+        User user = chooseStaffLoginCandidate(normalizedEmail, passwordMatches);
 
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -207,6 +208,45 @@ public class AuthController {
         authCookieService.writeAuthCookie(httpRequest, httpResponse, token);
 
         return ResponseEntity.ok(authSuccessResponse(user, token, httpRequest));
+    }
+
+    private User chooseStaffLoginCandidate(String normalizedEmail, List<User> passwordMatches) {
+        if (passwordMatches.isEmpty()) {
+            return null;
+        }
+        if (passwordMatches.size() == 1) {
+            return passwordMatches.get(0);
+        }
+
+        List<User> activeMatches = passwordMatches.stream()
+                .filter(User::isActive)
+                .toList();
+        List<User> selectableMatches = activeMatches.isEmpty() ? passwordMatches : activeMatches;
+
+        List<User> superAdminMatches = selectableMatches.stream()
+                .filter(user -> user.getRole() == Role.SUPER_ADMIN)
+                .toList();
+        if (!superAdminMatches.isEmpty()) {
+            if (superAdminMatches.size() > 1) {
+                log.warn(
+                        "Multiple SUPER_ADMIN accounts matched one login email. email={}, count={}. Selecting lowest user id.",
+                        normalizedEmail,
+                        superAdminMatches.size()
+                );
+            }
+            return superAdminMatches.stream()
+                    .min(Comparator.comparing(User::getId))
+                    .orElse(superAdminMatches.get(0));
+        }
+
+        log.warn(
+                "Multiple staff accounts matched one login email without a SUPER_ADMIN match. email={}, count={}. Selecting lowest active user id.",
+                normalizedEmail,
+                selectableMatches.size()
+        );
+        return selectableMatches.stream()
+                .min(Comparator.comparing(User::getId))
+                .orElse(selectableMatches.get(0));
     }
 
     @GetMapping("/csrf")
