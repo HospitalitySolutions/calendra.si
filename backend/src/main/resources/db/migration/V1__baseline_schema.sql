@@ -1446,12 +1446,9 @@ BEGIN
                  ON public_booking_manage_tokens (token_hash, revoked_at, expires_at)';
     END IF;
 
-    IF to_regclass('public.guest_device_tokens') IS NOT NULL THEN
-        EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_device_tokens_push_token
-                 ON guest_device_tokens (push_token)';
-        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_guest_device_tokens_guest_updated
-                 ON guest_device_tokens (guest_user_id, updated_at DESC)';
-    END IF;
+    -- guest_device_tokens indexes are created directly after the table definition above.
+    -- Do not create them again here, otherwise a clean production migration logs
+    -- duplicate-index warnings even though the migration succeeds.
 END $$;
 
 DO $$
@@ -1717,14 +1714,12 @@ CREATE INDEX IF NOT EXISTS idx_guest_entitlements_source_order_created_id
 CREATE INDEX IF NOT EXISTS idx_guest_entitlement_usages_entitlement_used_id
     ON guest_entitlement_usages (entitlement_id, used_at DESC, id DESC);
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_companies_lower_tenant_code
-    ON company (lower(tenant_code))
-    WHERE tenant_code IS NOT NULL AND trim(tenant_code) <> '';
-CREATE UNIQUE INDEX IF NOT EXISTS ux_app_settings_company_key
-    ON app_settings (company_id, key);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_orders_reference_code
-    ON guest_orders (reference_code)
-    WHERE reference_code IS NOT NULL;
+-- The following uniqueness guarantees are created in the guarded data-cleanliness
+-- block above so production bootstrap remains warning-free on a clean database and
+-- safer on any pre-existing database that may contain duplicate legacy rows.
+--   ux_companies_lower_tenant_code
+--   ux_app_settings_company_key
+--   ux_guest_orders_reference_code
 CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_entitlements_entitlement_code
     ON guest_entitlements (entitlement_code)
     WHERE entitlement_code IS NOT NULL AND trim(entitlement_code) <> '';
