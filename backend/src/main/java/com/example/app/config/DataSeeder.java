@@ -15,9 +15,18 @@ import com.example.app.user.UserRepository;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+/**
+ * Development-only demo data seeder.
+ *
+ * This creates demo tenants/users with known credentials and must never be active
+ * in staging or production. Keep the profile restriction narrow and covered by
+ * DataSeederProductionProfileTest.
+ */
+@Profile({"local", "dev"})
 @Component
 public class DataSeeder implements CommandLineRunner {
     private final UserRepository users;
