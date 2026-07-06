@@ -35,6 +35,14 @@ spring:
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  bootstrap:
+    superadmin:
+      enabled: ${APP_BOOTSTRAP_SUPERADMIN_ENABLED:false}
+      email: ${APP_BOOTSTRAP_SUPERADMIN_EMAIL:}
+      password: ${APP_BOOTSTRAP_SUPERADMIN_PASSWORD:}
+      first-name: ${APP_BOOTSTRAP_SUPERADMIN_FIRST_NAME:Platform}
+      last-name: ${APP_BOOTSTRAP_SUPERADMIN_LAST_NAME:Admin}
+      platform-company-name: ${APP_BOOTSTRAP_SUPERADMIN_COMPANY_NAME:Platform Admin}
   settings:
     # Must be provided by AWS Secrets Manager/env in production. Backend fails startup if blank/default/too short.
     encryption-key: ${APP_SETTINGS_ENCRYPTION_KEY:}

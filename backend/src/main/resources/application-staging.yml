@@ -33,6 +33,14 @@ spring:
         static: ${AWS_REGION:eu-central-1}
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  bootstrap:
+    superadmin:
+      enabled: ${APP_BOOTSTRAP_SUPERADMIN_ENABLED:false}
+      email: ${APP_BOOTSTRAP_SUPERADMIN_EMAIL:}
+      password: ${APP_BOOTSTRAP_SUPERADMIN_PASSWORD:}
+      first-name: ${APP_BOOTSTRAP_SUPERADMIN_FIRST_NAME:Platform}
+      last-name: ${APP_BOOTSTRAP_SUPERADMIN_LAST_NAME:Admin}
+      platform-company-name: ${APP_BOOTSTRAP_SUPERADMIN_COMPANY_NAME:Platform Admin}
   security:
     rate-limit:
       backend: ${APP_RATE_LIMIT_BACKEND:auto}
