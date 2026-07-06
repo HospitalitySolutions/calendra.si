@@ -22,7 +22,7 @@ spring:
       ddl-auto: validate
   config:
     # Override with AWS_PRODUCTION_SECRET_ID to force exact lookup (recommended: full ARN).
-    import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra-app},optional:aws-secretsmanager:/${AWS_PRODUCTION_SECRET_ID:calendra-app}
+    import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra-app}
   cloud:
     aws:
       region:
