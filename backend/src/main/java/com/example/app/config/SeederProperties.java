@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration;
 public class SeederProperties {
     private boolean enabled = true;
     private boolean demoTenantsEnabled = true;
-    private boolean superAdminEnabled = true;
     private String demoAdminPassword = "Admin123!";
 
     public boolean isEnabled() {
@@ -25,30 +24,6 @@ public class SeederProperties {
 
     public void setDemoTenantsEnabled(boolean demoTenantsEnabled) {
         this.demoTenantsEnabled = demoTenantsEnabled;
-    }
-
-    public boolean isSuperAdminEnabled() {
-        return superAdminEnabled;
-    }
-
-    public void setSuperAdminEnabled(boolean superAdminEnabled) {
-        this.superAdminEnabled = superAdminEnabled;
-    }
-
-    public String getSuperAdminEmail() {
-        return superAdminEmail;
-    }
-
-    public void setSuperAdminEmail(String superAdminEmail) {
-        this.superAdminEmail = superAdminEmail;
-    }
-
-    public String getSuperAdminPassword() {
-        return superAdminPassword;
-    }
-
-    public void setSuperAdminPassword(String superAdminPassword) {
-        this.superAdminPassword = superAdminPassword;
     }
 
     public String getDemoAdminPassword() {
