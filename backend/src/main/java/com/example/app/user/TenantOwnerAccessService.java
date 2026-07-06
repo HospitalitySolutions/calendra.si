@@ -27,7 +27,11 @@ public class TenantOwnerAccessService {
         return users.findFirstByCompanyIdOrderByIdAsc(companyId)
                 .map(owner -> {
                     boolean changed = false;
-                    if (owner.getRole() != Role.ADMIN) {
+
+                    // The platform admin account also belongs to a company row, but it must never be
+                    // downgraded into a tenant ADMIN when tenant employee/role screens are loaded.
+                    // Keep SUPER_ADMIN intact and only normalize non-security tenant-owner fields.
+                    if (owner.getRole() != Role.SUPER_ADMIN && owner.getRole() != Role.ADMIN) {
                         owner.setRole(Role.ADMIN);
                         changed = true;
                     }
