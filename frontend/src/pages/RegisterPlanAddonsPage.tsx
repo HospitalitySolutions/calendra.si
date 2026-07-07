@@ -190,6 +190,14 @@ export function RegisterPlanAddonsPage() {
             </button>
             <button
               type="button"
+              className={locale === 'sr' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'sr'}
+              onClick={() => setLocale('sr')}
+            >
+              SR
+            </button>
+            <button
+              type="button"
               className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
               aria-pressed={locale === 'en'}
               onClick={() => setLocale('en')}

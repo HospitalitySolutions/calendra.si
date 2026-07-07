@@ -13,6 +13,7 @@ const FOLIO_IMAGE_MAX_MB = 2
 type LocalizedText = {
   en?: string
   sl?: string
+  sr?: string
 }
 
 type DateFormat = 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'DD.MM.YYYY' | 'YYYY-MM-DD HH:mm' | 'DD-MM-YYYY HH:mm' | 'DD.MM.YYYY HH:mm'
@@ -169,13 +170,13 @@ const DEFAULT_LOGO: LogoConfig = { x: 400, y: 40, width: 120, height: 60, visibl
 const DEFAULT_SIGNATURE: SignatureConfig = { x: 50, y: 464, width: 120, height: 50, visible: true }
 const DEFAULT_PAYMENT_QR: PaymentQrConfig = { x: 395, y: 356, width: 120, height: 120, visible: true }
 const DEFAULT_FISCAL_QR: PaymentQrConfig = { x: 395, y: 484, width: 95, height: 95, visible: true }
-const PAYMENT_QR_CAPTION: Record<AppLocale, string> = { en: 'Scan and pay.', sl: 'Skeniraj in plačaj.' }
+const PAYMENT_QR_CAPTION: Record<AppLocale, string> = { en: 'Scan and pay.', sl: 'Skeniraj in plačaj.', sr: 'Skeniraj i plati.' }
 const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 286, width: 300, headerHeight: 14, rowHeight: 14, headerFontSize: 7, bodyFontSize: 7, visible: true }
 const SERVICE_TABLE_PREVIEW_ROWS = 1
 const LEGACY_SERVICE_TABLE_PREVIEW_ROWS = 3
 const VAT_SAMPLE_ROWS = 3
 const ADVANCE_PAYMENT_SAMPLE_ROWS = 1
-const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en' }
+const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en', sr: 'sl' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
 const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate', 'recipientVatId'])
 const DATE_FORMAT_OPTIONS: DateFormat[] = ['YYYY-MM-DD', 'DD-MM-YYYY', 'DD.MM.YYYY', 'YYYY-MM-DD HH:mm', 'DD-MM-YYYY HH:mm', 'DD.MM.YYYY HH:mm']
@@ -220,7 +221,7 @@ function isLegacyFolioNumberPrefix(value: string | undefined): boolean {
 }
 
 function folioNumberSamplePrefix(locale: AppLocale): string {
-  return locale === 'sl' ? 'Račun:' : 'Invoice:'
+  return locale === 'sl' ? 'Račun:' : locale === 'sr' ? 'Račun:' : 'Invoice:'
 }
 
 function resolveLocalizedText(i18n: LocalizedText | undefined, legacy: string | undefined, locale: AppLocale): string {

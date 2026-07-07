@@ -5846,6 +5846,7 @@ export function PlatformAdminPage() {
                       onChange={(e) => updateManualTenantField("language", e.target.value)}
                     >
                       <option value="sl">Slovenian</option>
+                      <option value="sr">Serbian</option>
                       <option value="en">English</option>
                     </select>
                   </div>

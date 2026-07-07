@@ -63,6 +63,13 @@ export function ForgotPasswordPage() {
             </button>
             <button
               type="button"
+              className={locale === 'sr' ? 'login-lang-btn active' : 'login-lang-btn'}
+              onClick={() => setLocale('sr')}
+            >
+              SR
+            </button>
+            <button
+              type="button"
               className={locale === 'en' ? 'login-lang-btn active' : 'login-lang-btn'}
               onClick={() => setLocale('en')}
             >

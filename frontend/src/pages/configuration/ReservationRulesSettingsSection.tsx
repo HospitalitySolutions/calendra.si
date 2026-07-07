@@ -61,7 +61,7 @@ type Copy = {
   saving: string;
 };
 
-const TEXT: Record<AppLocale, Copy> = {
+const TEXT: Record<'en' | 'sl', Copy> = {
   en: {
     title: "Reservation rules",
     subtitle: "Shared rules for guest bookings in the mobile app and website widget.",
@@ -197,7 +197,7 @@ export function ReservationRulesSettingsSection({
   onSave,
 }: ReservationRulesSettingsSectionProps) {
   const { locale } = useLocale();
-  const text = TEXT[locale];
+  const text = TEXT[locale === 'sr' ? 'sl' : locale];
   const rules = useMemo(
     () => parseTenantReservationRules(settings[TENANT_RESERVATION_RULES_KEY]),
     [settings],

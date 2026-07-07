@@ -1,3 +1,4 @@
+import type { AppLocale } from '../locale'
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction, type SVGProps } from 'react'
 
 type Props = {
@@ -6,7 +7,7 @@ type Props = {
   savingSettings: boolean
   onSave: () => Promise<void> | void
   t: (key: string) => string
-  locale: 'en' | 'sl'
+  locale: AppLocale
 }
 
 const ENABLED_KEY = 'INVOICE_DELIVERY_EMAIL_ENABLED'

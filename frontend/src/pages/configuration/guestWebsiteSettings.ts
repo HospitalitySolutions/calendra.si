@@ -19,7 +19,7 @@ export type GuestAppSettingsForm = {
   cardImageUrl: string;
   logoImageUrl: string;
   iconImageUrl: string;
-  defaultLanguage: "sl" | "en";
+  defaultLanguage: "sl" | "en" | "sr";
   employeeSelectionStep: boolean;
   useEmployeeContact: boolean;
   acceptedPaymentMethodIds: GuestPaymentMethodId[];
@@ -648,7 +648,7 @@ export const parseGuestAppSettings = (
       cardImageUrl: String(parsed?.cardImageUrl || ""),
       logoImageUrl: String(parsed?.logoImageUrl || ""),
       iconImageUrl: String(parsed?.iconImageUrl || ""),
-      defaultLanguage: parsed?.defaultLanguage === "en" ? "en" : "sl",
+      defaultLanguage: parsed?.defaultLanguage === "en" || parsed?.defaultLanguage === "sr" ? parsed.defaultLanguage : "sl",
       employeeSelectionStep: parsed?.employeeSelectionStep === true,
       useEmployeeContact: parsed?.useEmployeeContact === true,
       acceptedPaymentMethodIds: normalizeGuestPaymentMethods(

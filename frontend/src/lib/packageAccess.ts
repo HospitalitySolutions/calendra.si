@@ -1,4 +1,5 @@
 import type { PackageType } from './types'
+import type { AppLocale } from '../locale'
 
 export function normalizePackageType(raw?: string | null): PackageType {
   const normalized = String(raw || '').trim().toUpperCase().replace(/[- ]/g, '_')
@@ -38,17 +39,17 @@ export function getDefaultAllowedRoute(packageType?: string | null) {
   return '/calendar'
 }
 
-export function getPackageLabel(packageType: string | null | undefined, locale: 'en' | 'sl') {
+export function getPackageLabel(packageType: string | null | undefined, locale: AppLocale) {
   switch (normalizePackageType(packageType)) {
     case 'TRIAL':
-      return locale === 'sl' ? 'Preizkus' : 'Trial'
+      return locale === 'sl' ? 'Preizkus' : locale === 'sr' ? 'Probni period' : 'Trial'
     case 'BASIC':
-      return locale === 'sl' ? 'Osnovni' : 'Basic'
+      return locale === 'sl' ? 'Osnovni' : locale === 'sr' ? 'Osnovni' : 'Basic'
     case 'PROFESSIONAL':
-      return locale === 'sl' ? 'Profesionalni' : 'Professional'
+      return locale === 'sl' ? 'Profesionalni' : locale === 'sr' ? 'Profesionalni' : 'Professional'
     case 'PREMIUM':
       return 'Premium'
     default:
-      return locale === 'sl' ? 'Po meri' : 'Custom'
+      return locale === 'sl' ? 'Po meri' : locale === 'sr' ? 'Po meri' : 'Custom'
   }
 }

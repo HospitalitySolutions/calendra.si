@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { PageHeader } from './ui'
-import { useLocale } from '../locale'
+import { useLocale, type AppLocale } from '../locale'
 import type { ReactNode } from 'react'
 
 type Props = { onClose: () => void }
@@ -80,12 +80,26 @@ function FlagSi() {
   )
 }
 
+function FlagRs() {
+  return (
+    <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden>
+      <rect width="22" height="16" fill="#C6363C" rx="2" />
+      <rect width="22" height="10.67" y="5.33" fill="#0C4076" />
+      <rect width="22" height="5.33" y="10.67" fill="#fff" />
+      <circle cx="7" cy="8" r="2.45" fill="#C6363C" stroke="#fff" strokeWidth="0.45" />
+      <path d="M5.6 7.25h2.8v1.8c0 .75-.63 1.25-1.4 1.55-.77-.3-1.4-.8-1.4-1.55Z" fill="#fff" />
+      <path d="M7 6.05l.42.85.94.14-.68.66.16.93L7 8.19l-.84.44.16-.93-.68-.66.94-.14Z" fill="#F5D02B" />
+    </svg>
+  )
+}
+
 export function LanguageModal({ onClose }: Props) {
   const { locale, setLocale, t } = useLocale()
 
-  const rows: { code: 'en' | 'sl'; flag: ReactNode; title: string; hint: string }[] = [
+  const rows: { code: AppLocale; flag: ReactNode; title: string; hint: string }[] = [
     { code: 'en', flag: <FlagUk />, title: 'English', hint: t('langPickEnglishHint') },
     { code: 'sl', flag: <FlagSi />, title: 'Slovenščina', hint: t('langPickSlovenianHint') },
+    { code: 'sr', flag: <FlagRs />, title: 'Srpski', hint: t('langPickSerbianHint') },
   ]
 
   return (

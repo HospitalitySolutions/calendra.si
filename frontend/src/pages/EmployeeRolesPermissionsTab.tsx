@@ -226,7 +226,12 @@ const roleCopy = {
       return action
     },
   },
-} satisfies Record<AppLocale, Record<string, unknown>>
+}
+
+
+function roleCopyForLocale(locale: AppLocale) {
+  return roleCopy[locale === 'sr' ? 'sl' : locale]
+}
 
 function RolePermissionIcon({ name }: { name: 'shield' | 'group' | 'calendar' | 'client' | 'employee' | 'billing' | 'wallet' | 'reports' | 'settings' | 'integrations' | 'platform' | 'copy' | 'archive' | 'save' | 'plus' | 'info' }) {
   if (name === 'shield') {
@@ -327,12 +332,12 @@ function localizePermissionGroup(group: PermissionGroup, locale: AppLocale): Per
 }
 
 function memberLabel(count: number, locale: AppLocale) {
-  return roleCopy[locale].member(count)
+  return roleCopyForLocale(locale).member(count)
 }
 
 function memberName(member: RoleMember, locale: AppLocale) {
   const name = `${member.firstName || ''} ${member.lastName || ''}`.trim()
-  return name || member.email || roleCopy[locale].userFallback(member.id)
+  return name || member.email || roleCopyForLocale(locale).userFallback(member.id)
 }
 
 function memberInitials(member: RoleMember) {
@@ -343,22 +348,22 @@ function memberInitials(member: RoleMember) {
 
 function memberRoleLabel(member: RoleMember, locale: AppLocale) {
   if (member.accessRoleName) return member.accessRoleName
-  return member.role === 'ADMIN' ? roleCopy[locale].administrator : roleCopy[locale].consultant
+  return member.role === 'ADMIN' ? roleCopyForLocale(locale).administrator : roleCopyForLocale(locale).consultant
 }
 
 function roleDisplayName(role: EmployeeRole, locale: AppLocale) {
-  if (role.systemKey === 'ADMINISTRATOR') return roleCopy[locale].administrator
+  if (role.systemKey === 'ADMINISTRATOR') return roleCopyForLocale(locale).administrator
   return role.name
 }
 
 function roleDisplayDescription(role: EmployeeRole, locale: AppLocale) {
-  if (role.systemKey === 'ADMINISTRATOR') return roleCopy[locale].systemAdministratorDescription
+  if (role.systemKey === 'ADMINISTRATOR') return roleCopyForLocale(locale).systemAdministratorDescription
   return role.description
 }
 
 export function EmployeeRolesPermissionsTab() {
   const { locale } = useLocale()
-  const copy = roleCopy[locale]
+  const copy = roleCopyForLocale(locale)
   const [overview, setOverview] = useState<RolesOverview | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [draftName, setDraftName] = useState('')

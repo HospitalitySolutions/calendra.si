@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { api, ensureCsrfToken } from '../api'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useLocale } from '../locale'
+import { useLocale, type AppLocale } from '../locale'
 import loginLogo from '../assets/login-logo.png'
 import { MfaChallengeCard } from '../components/MfaChallengeCard'
 import { consumePostLoginRedirect, sanitizeNextPath, setPostLoginRedirect, storeAuthenticatedSession } from '../lib/session'
 
-function localizeOauthErrorMessage(message: string, locale: 'en' | 'sl', t: (key: string) => string) {
+function localizeOauthErrorMessage(message: string, locale: AppLocale, t: (key: string) => string) {
   const normalized = message.trim()
-  if (locale !== 'sl') return normalized
+  if (locale !== 'sl' && locale !== 'sr') return normalized
 
   if (normalized.toLowerCase() === 'no account exists for this email. please sign up first or contact your administrator.') {
     return t('loginOAuthNoAccountForEmail')
@@ -157,6 +157,13 @@ export function LoginPage() {
               onClick={() => setLocale('sl')}
             >
               SL
+            </button>
+            <button
+              type="button"
+              className={locale === 'sr' ? 'login-lang-btn active' : 'login-lang-btn'}
+              onClick={() => setLocale('sr')}
+            >
+              SR
             </button>
             <button
               type="button"

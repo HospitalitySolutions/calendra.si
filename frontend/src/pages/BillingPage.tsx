@@ -86,12 +86,12 @@ function escapePdfWindowHtml(value: string | number | null | undefined): string 
     .replace(/'/g, '&#39;')
 }
 
-const BANK_TRANSFER_QR_FIELD_LABELS: Record<BankTransferQrSettingKey, { sl: string; en: string }> = {
-  COMPANY_NAME: { sl: 'Naziv podjetja', en: 'Company name' },
-  COMPANY_ADDRESS: { sl: 'Naslov podjetja', en: 'Company address' },
-  COMPANY_POSTAL_CODE: { sl: 'Poštna številka', en: 'Postal code' },
-  COMPANY_CITY: { sl: 'Mesto', en: 'City' },
-  COMPANY_IBAN: { sl: 'IBAN', en: 'IBAN' },
+const BANK_TRANSFER_QR_FIELD_LABELS: Record<BankTransferQrSettingKey, { sl: string; sr: string; en: string }> = {
+  COMPANY_NAME: { sl: 'Naziv podjetja', sr: 'Naziv kompanije', en: 'Company name' },
+  COMPANY_ADDRESS: { sl: 'Naslov podjetja', sr: 'Adresa kompanije', en: 'Company address' },
+  COMPANY_POSTAL_CODE: { sl: 'Poštna številka', sr: 'Poštanski broj', en: 'Postal code' },
+  COMPANY_CITY: { sl: 'Mesto', sr: 'Grad', en: 'City' },
+  COMPANY_IBAN: { sl: 'IBAN', sr: 'IBAN', en: 'IBAN' },
 }
 
 function readBillingApiMessage(error: any): string {
