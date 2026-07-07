@@ -14,21 +14,21 @@ const ENABLED_KEY = 'INVOICE_DELIVERY_EMAIL_ENABLED'
 const SUBJECT_KEY = 'INVOICE_DELIVERY_EMAIL_SUBJECT'
 const BODY_KEY = 'INVOICE_DELIVERY_EMAIL_BODY'
 
-const TOKEN_OPTIONS = [
-  '{{guestName}}',
-  '{{invoiceNumber}}',
-  '{{invoiceDate}}',
-  '{{dueDate}}',
-  '{{amount}}',
-  '{{companyName}}',
-  '{{guestEmail}}',
-  '{{reservationNumber}}',
-  '{{propertyName}}',
-  '{{propertyAddress}}',
-  '{{paymentLink}}',
-  '{{companyEmail}}',
-  '{{companyPhone}}',
-  '{{companyWebsite}}',
+const TOKEN_OPTIONS: Array<{ token: string; label: Record<AppLocale, string> }> = [
+  { token: '{{guestName}}', label: { en: 'Guest name', sl: 'Ime gosta', sr: 'Ime gosta' } },
+  { token: '{{invoiceNumber}}', label: { en: 'Invoice number', sl: 'Številka računa', sr: 'Broj računa' } },
+  { token: '{{invoiceDate}}', label: { en: 'Invoice date', sl: 'Datum računa', sr: 'Datum računa' } },
+  { token: '{{dueDate}}', label: { en: 'Due date', sl: 'Datum zapadlosti', sr: 'Datum dospeća' } },
+  { token: '{{amount}}', label: { en: 'Amount', sl: 'Znesek', sr: 'Iznos' } },
+  { token: '{{companyName}}', label: { en: 'Company name', sl: 'Ime podjetja', sr: 'Naziv kompanije' } },
+  { token: '{{guestEmail}}', label: { en: 'Guest email', sl: 'E-pošta gosta', sr: 'E-pošta gosta' } },
+  { token: '{{reservationNumber}}', label: { en: 'Reservation number', sl: 'Številka rezervacije', sr: 'Broj rezervacije' } },
+  { token: '{{propertyName}}', label: { en: 'Property name', sl: 'Ime lokacije', sr: 'Naziv lokacije' } },
+  { token: '{{propertyAddress}}', label: { en: 'Property address', sl: 'Naslov lokacije', sr: 'Adresa lokacije' } },
+  { token: '{{paymentLink}}', label: { en: 'Payment link', sl: 'Povezava za plačilo', sr: 'Link za plaćanje' } },
+  { token: '{{companyEmail}}', label: { en: 'Company email', sl: 'E-pošta podjetja', sr: 'E-pošta kompanije' } },
+  { token: '{{companyPhone}}', label: { en: 'Company phone', sl: 'Telefon podjetja', sr: 'Telefon kompanije' } },
+  { token: '{{companyWebsite}}', label: { en: 'Company website', sl: 'Spletna stran podjetja', sr: 'Veb-sajt kompanije' } },
 ]
 
 const DEFAULT_SUBJECT = 'Invoice {{invoiceNumber}} from {{companyName}}'
@@ -252,8 +252,18 @@ export function ConfigurationInvoiceDeliverySection({
     return Object.entries(replacements).reduce((text, [token, value]) => text.split(token).join(value), htmlToPlainText(body))
   }, [body])
 
-  const saveLabel = savingSettings ? t('formSaving') : (locale === 'sl' ? 'Shrani spremembe' : 'Save changes')
-  const normalLabel = locale === 'sl' ? 'Normalno' : 'Normal'
+  const saveLabel = savingSettings
+    ? t('formSaving')
+    : locale === 'sr'
+      ? 'Sačuvaj izmene'
+      : locale === 'sl'
+        ? 'Shrani spremembe'
+        : 'Save changes'
+  const normalLabel = locale === 'sr' ? 'Normalno' : locale === 'sl' ? 'Normalno' : 'Normal'
+  const headingLabel = locale === 'sr' ? 'Naslov' : locale === 'sl' ? 'Naslov' : 'Heading'
+  const quoteLabel = locale === 'sr' ? 'Citat' : locale === 'sl' ? 'Citat' : 'Quote'
+  const toolbarLabel = locale === 'sr' ? 'Traka sa alatkama predloška' : locale === 'sl' ? 'Orodna vrstica predloge' : 'Template toolbar'
+  const underlineLabel = locale === 'sr' ? 'Podvučeno' : locale === 'sl' ? 'Podčrtano' : 'Underline'
 
   return (
     <div className="invoice-delivery-modern-card">
@@ -592,7 +602,7 @@ export function ConfigurationInvoiceDeliverySection({
       <div className="invoice-delivery-field">
         <span className="invoice-delivery-label">{t('configInvoiceDeliveryContentLabel')}</span>
         <div className="invoice-delivery-editor">
-          <div className="invoice-delivery-toolbar" role="toolbar" aria-label={locale === 'sl' ? 'Orodna vrstica predloge' : 'Template toolbar'}>
+          <div className="invoice-delivery-toolbar" role="toolbar" aria-label={toolbarLabel}>
             <select
               className="invoice-delivery-format"
               aria-label={normalLabel}
@@ -601,18 +611,18 @@ export function ConfigurationInvoiceDeliverySection({
               onMouseDown={(e) => e.stopPropagation()}
             >
               <option value="p">{normalLabel}</option>
-              <option value="h2">{locale === 'sl' ? 'Naslov' : 'Heading'}</option>
-              <option value="blockquote">{locale === 'sl' ? 'Citat' : 'Quote'}</option>
+              <option value="h2">{headingLabel}</option>
+              <option value="blockquote">{quoteLabel}</option>
             </select>
             <span className="invoice-delivery-divider" aria-hidden />
             <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('bold')} title={t('configNotifyEditorBold')}>B</button>
             <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('italic')} title={t('configNotifyEditorItalic')}><em>I</em></button>
-            <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('underline')} title={locale === 'sl' ? 'Podčrtano' : 'Underline'}><span style={{ textDecoration: 'underline' }}>U</span></button>
+            <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('underline')} title={underlineLabel}><span style={{ textDecoration: 'underline' }}>U</span></button>
             <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={insertLink} title={t('configNotifyEditorLink')}><IconLink /></button>
             <span className="invoice-delivery-divider" aria-hidden />
             <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('insertUnorderedList')} title={t('configNotifyEditorUl')}><IconListBullet /></button>
             <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('insertOrderedList')} title={t('configNotifyEditorOl')}><IconListNumbered /></button>
-            <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('formatBlock', 'blockquote')} title={locale === 'sl' ? 'Citat' : 'Quote'}><IconQuote /></button>
+            <button type="button" className="invoice-delivery-tool" onMouseDown={(e) => e.preventDefault()} onClick={() => execBodyCommand('formatBlock', 'blockquote')} title={quoteLabel}><IconQuote /></button>
             <span className="invoice-delivery-toolbar-spacer" />
             <button
               type="button"
@@ -641,9 +651,15 @@ export function ConfigurationInvoiceDeliverySection({
 
       <p className="invoice-delivery-tags-label">{t('configInvoiceDeliveryAvailableTags')}</p>
       <div className="invoice-delivery-tags">
-        {TOKEN_OPTIONS.map((token) => (
-          <button key={token} type="button" className="invoice-delivery-tag" onClick={() => insertToken(token)}>
-            {token}
+        {TOKEN_OPTIONS.map(({ token, label }) => (
+          <button
+            key={token}
+            type="button"
+            className="invoice-delivery-tag"
+            onClick={() => insertToken(token)}
+            title={token}
+          >
+            {label[locale]}
           </button>
         ))}
       </div>

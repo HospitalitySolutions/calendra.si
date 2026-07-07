@@ -200,6 +200,14 @@ type IntegrationSubtab = "status" | "googleCalendar";
 type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "security" | "legal";
 type PersonalTaskPreset = { id: string; name: string; color: string };
 
+const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 800;
+const BILLING_MOBILE_HIDDEN_SUBTABS: BillingSubtab[] = [
+  "giftCard",
+  "folioLayout",
+];
+const isBillingSubtabHiddenOnMobile = (subtab: BillingSubtab) =>
+  BILLING_MOBILE_HIDDEN_SUBTABS.includes(subtab);
+
 type ConfigNavIcon =
   | "general"
   | "company"
@@ -973,6 +981,11 @@ export function ConfigurationPage() {
   const [isCompactConfigViewport, setIsCompactConfigViewport] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(max-width: 920px)").matches
+      : false,
+  );
+  const [isMobileBillingViewport, setIsMobileBillingViewport] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia(`(max-width: ${BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH}px)`).matches
       : false,
   );
 
@@ -2136,6 +2149,15 @@ export function ConfigurationPage() {
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
             replace: true,
           });
+      } else if (
+        isMobileBillingViewport &&
+        isBillingSubtabHiddenOnMobile(subtabQuery)
+      ) {
+        setBillingSubtab("paymentMethods");
+        if (q === "billing")
+          navigate("/configuration?tab=billing&subtab=paymentMethods", {
+            replace: true,
+          });
       } else {
         setBillingSubtab(subtabQuery);
       }
@@ -2156,6 +2178,7 @@ export function ConfigurationPage() {
     settingsLoaded,
     inboxCapabilitiesLoaded,
     paymentCapabilitiesLoaded,
+    isMobileBillingViewport,
     paymentGlobalCapabilities.paypalEnabled,
     stripePaymentsAvailableCommitted,
     billingEnabledCommitted,
@@ -2260,16 +2283,27 @@ export function ConfigurationPage() {
   }, [tab, settings, guestAppSettings]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 800px)");
-    const onNarrow = () => {
-      if (mq.matches)
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    )
+      return;
+
+    const mq = window.matchMedia(
+      `(max-width: ${BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH}px)`,
+    );
+    const syncMobileBillingViewport = () => {
+      setIsMobileBillingViewport(mq.matches);
+      if (mq.matches) {
         setBillingSubtab((cur) =>
-          cur === "folioLayout" ? "paymentMethods" : cur,
+          isBillingSubtabHiddenOnMobile(cur) ? "paymentMethods" : cur,
         );
+      }
     };
-    onNarrow();
-    mq.addEventListener("change", onNarrow);
-    return () => mq.removeEventListener("change", onNarrow);
+
+    syncMobileBillingViewport();
+    mq.addEventListener("change", syncMobileBillingViewport);
+    return () => mq.removeEventListener("change", syncMobileBillingViewport);
   }, []);
 
   const setTabAndUrl = (next: Tab) => {
@@ -4171,6 +4205,9 @@ export function ConfigurationPage() {
       label: locale === "sl" ? "Postavitev računa" : "Invoice layout",
     },
   ];
+  const visibleBillingSubtabs = isMobileBillingViewport
+    ? billingSubtabs.filter((entry) => !isBillingSubtabHiddenOnMobile(entry.id))
+    : billingSubtabs;
 
   useEffect(() => {
     if (!stripePaymentsAvailableCommitted && billingSubtab === "stripe") {
@@ -9485,7 +9522,7 @@ export function ConfigurationPage() {
                         role="tablist"
                         aria-label="Billing settings"
                       >
-                        {billingSubtabs.map((entry) => (
+                        {visibleBillingSubtabs.map((entry) => (
                           <button
                             key={entry.id}
                             type="button"
