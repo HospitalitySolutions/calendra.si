@@ -2178,14 +2178,14 @@ export function ConfigurationPage() {
         );
         if (cancelled || !data) return;
         setInboxGlobalCapabilities({
-          whatsappEnabled: data.whatsappEnabled !== false,
-          viberEnabled: data.viberEnabled !== false,
+          whatsappEnabled: data.whatsappEnabled === true,
+          viberEnabled: data.viberEnabled === true,
         });
       } catch {
         if (!cancelled) {
           setInboxGlobalCapabilities({
-            whatsappEnabled: true,
-            viberEnabled: true,
+            whatsappEnabled: false,
+            viberEnabled: false,
           });
         }
       } finally {

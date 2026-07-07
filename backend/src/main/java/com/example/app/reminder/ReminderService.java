@@ -570,7 +570,7 @@ public class ReminderService {
 
     private void sendImmediateTemplateEmail(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
         boolean websiteWidgetTransactionalEmail = isWebsiteWidgetTransactionalEmail(booking, kind);
-        if (!websiteWidgetTransactionalEmail && !isEmailChannelEnabled(companyId)) {
+        if (!isEmailChannelEnabled(companyId)) {
             return;
         }
         if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) {
@@ -579,10 +579,11 @@ public class ReminderService {
         }
 
         Optional<NotificationEmailTemplate> templateOpt = loadNotificationEmailTemplate(companyId, kind);
-        if (templateOpt.isEmpty() && isWebsiteWidgetBookingSource(booking)) {
-            // Website-widget guests must always receive transactional booking emails
-            // when email notifications are enabled, even if the tenant has not configured
-            // custom notification templates yet. Invoice emails remain a separate billing flow.
+        if (templateOpt.isEmpty()
+                && websiteWidgetTransactionalEmail
+                && isTemplateExplicitlyEnabled(companyId, "email", kind)) {
+            // Website-widget booking emails may use a built-in body, but only after
+            // the tenant explicitly enables the matching notification event.
             templateOpt = switch (kind) {
                 case NEW_SESSION -> Optional.of(defaultWebsiteWidgetBookingConfirmationTemplate());
                 case CHANGE_SESSION -> Optional.of(defaultWebsiteWidgetBookingRescheduledTemplate());
@@ -759,6 +760,20 @@ public class ReminderService {
         } catch (Exception e) {
             log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
             return Optional.empty();
+        }
+    }
+
+    private boolean isTemplateExplicitlyEnabled(Long companyId, String channel, NotificationKind kind) {
+        if (companyId == null || channel == null || kind == null) {
+            return false;
+        }
+        try {
+            return notificationNode(loadNotificationSettingsRoot(companyId), channel, kind)
+                    .path("enabled")
+                    .asBoolean(false);
+        } catch (Exception e) {
+            log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
+            return false;
         }
     }
 

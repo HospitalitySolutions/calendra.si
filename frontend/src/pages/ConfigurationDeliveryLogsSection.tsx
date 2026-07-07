@@ -105,10 +105,10 @@ function isDeliveryChannelVisible(
     return notificationsOn && settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false";
   }
   if (normalized === "WHATSAPP") {
-    return !messagingProvidersLoaded || messagingProviders.whatsappEnabled !== false;
+    return messagingProvidersLoaded && messagingProviders.whatsappEnabled === true;
   }
   if (normalized === "VIBER") {
-    return !messagingProvidersLoaded || messagingProviders.viberEnabled !== false;
+    return messagingProvidersLoaded && messagingProviders.viberEnabled === true;
   }
   return true;
 }

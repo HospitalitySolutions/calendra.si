@@ -103,12 +103,17 @@ function notificationReminderKey(
   return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${reminder.toUpperCase()}_REMINDER_TIME`;
 }
 
+const NOTIFICATION_EVENT_DEFAULT_ENABLED = false;
+
 function getNotificationEnabled(
   settings: Record<string, string>,
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
-  return settings[notificationEnabledKey(channel, id)] !== "false";
+  const value = settings[notificationEnabledKey(channel, id)];
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return NOTIFICATION_EVENT_DEFAULT_ENABLED;
 }
 
 function getReminderValue(

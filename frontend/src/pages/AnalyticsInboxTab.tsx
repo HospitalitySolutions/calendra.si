@@ -793,8 +793,8 @@ export function AnalyticsInboxTab() {
     },
   })
 
-  const globalWhatsAppEnabled = capabilitiesQuery.data?.whatsappEnabled !== false
-  const globalViberEnabled = capabilitiesQuery.data?.viberEnabled !== false
+  const globalWhatsAppEnabled = capabilitiesQuery.data?.whatsappEnabled === true
+  const globalViberEnabled = capabilitiesQuery.data?.viberEnabled === true
   const globalGuestAppEnabled = useMemo(() => {
     const raw = guestSettingsQuery.data?.GUEST_APP_SETTINGS_JSON
     if (!raw) return true

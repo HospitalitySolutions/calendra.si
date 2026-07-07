@@ -1197,7 +1197,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   async function loadInboxGlobalCapabilities() {
     try {
       const response = await api.get<InboxGlobalCapabilities>('/inbox/global-capabilities')
-      setGlobalWhatsAppEnabled(response.data?.whatsappEnabled !== false)
+      setGlobalWhatsAppEnabled(response.data?.whatsappEnabled === true)
     } catch {
       setGlobalWhatsAppEnabled(false)
     }
