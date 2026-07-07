@@ -26,7 +26,7 @@ public class FiscalSettingsService {
 
     public FiscalSettings forCompany(Long companyId) {
         FiscalEnvironment env = FiscalEnvironment.fromRaw(get(companyId, SettingKey.FISCAL_ENVIRONMENT, "TEST"));
-        String companyVatId = normalizeTaxNumber(get(companyId, SettingKey.COMPANY_VAT_ID, ""));
+        String fiscalTaxNumber = normalizeTaxNumber(get(companyId, SettingKey.FISCAL_TAX_NUMBER, ""));
         String invoiceUrl = env == FiscalEnvironment.PROD
                 ? getGlobal(SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL, PROD_INVOICE_DEFAULT)
                 : getGlobal(SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL, TEST_INVOICE_DEFAULT);
@@ -36,7 +36,7 @@ public class FiscalSettingsService {
 
         return new FiscalSettings(
                 env,
-                companyVatId,
+                fiscalTaxNumber,
                 get(companyId, SettingKey.FISCAL_BUSINESS_PREMISE_ID, ""),
                 get(companyId, SettingKey.FISCAL_DEVICE_ID, ""),
                 get(companyId, SettingKey.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER, ""),

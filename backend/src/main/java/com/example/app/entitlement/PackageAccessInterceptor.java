@@ -29,10 +29,15 @@ public class PackageAccessInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/billing")) {
             packageAccessService.requireBillingAccess(user);
         }
-        if (path.startsWith("/api/inbox")) {
+        if (path.startsWith("/api/inbox") && !isInboxCapabilityProbe(path)) {
             packageAccessService.requireInboxAccess(user);
         }
         return true;
+    }
+
+    private static boolean isInboxCapabilityProbe(String path) {
+        return "/api/inbox/global-capabilities".equals(path)
+                || "/api/inbox/global-capabilities/".equals(path);
     }
 
     private static User currentUser() {

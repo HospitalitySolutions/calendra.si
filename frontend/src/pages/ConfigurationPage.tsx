@@ -10383,11 +10383,13 @@ export function ConfigurationPage() {
                               </span>
                               <input
                                 className="billing-input"
-                                value={(settings.COMPANY_VAT_ID || "").replace(
-                                  /^SI/i,
-                                  "",
-                                )}
-                                readOnly
+                                value={settings.FISCAL_TAX_NUMBER || ""}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    FISCAL_TAX_NUMBER: e.target.value,
+                                  })
+                                }
                               />
                             </label>
                             <div className="billing-field full-span">
