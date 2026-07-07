@@ -3,12 +3,15 @@ package com.example.app.analytics;
 import com.example.app.billing.Bill;
 import com.example.app.billing.BillItem;
 import com.example.app.billing.BillRepository;
+import com.example.app.billing.BillPaymentStatus;
+import com.example.app.billing.BillType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.common.TimeService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingStatus;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -125,6 +128,64 @@ public class AnalyticsService {
             List<UsageRanking> topSpaces
     ) {}
 
+    public record InvoiceReportSummary(
+            long issuedInvoices,
+            BigDecimal grossTotal,
+            BigDecimal netTotal,
+            BigDecimal vatTotal,
+            BigDecimal paidTotal,
+            BigDecimal openTotal,
+            BigDecimal refundedTotal
+    ) {}
+
+    public record InvoiceReportRow(
+            String invoiceNumber,
+            String client,
+            String date,
+            String status,
+            String type,
+            String paymentMethod,
+            String consultant,
+            BigDecimal netTotal,
+            BigDecimal grossTotal,
+            BigDecimal vatTotal
+    ) {}
+
+    public record RevenueInvoicesReportResponse(
+            String rangeStart,
+            String rangeEnd,
+            InvoiceReportSummary summary,
+            List<RankedAmount> revenueByPaymentMethod,
+            List<RankedAmount> revenueByConsultant,
+            List<RankedAmount> revenueByService,
+            List<InvoiceReportRow> invoices
+    ) {}
+
+    public record BookingReportSummary(
+            long reservedBookings,
+            long completedSessions,
+            long cancelledSessions,
+            long noShows,
+            long onlineSessions,
+            long onsiteSessions
+    ) {}
+
+    public record CountRanking(
+            String label,
+            long count,
+            long minutes
+    ) {}
+
+    public record BookingsAttendanceReportResponse(
+            String rangeStart,
+            String rangeEnd,
+            BookingReportSummary summary,
+            List<CountRanking> sourceBreakdown,
+            List<CountRanking> busiestDaysTimes,
+            List<UsageRanking> consultantHours,
+            List<UsageRanking> roomHours
+    ) {}
+
     private static final class Bucket {
         long sessionsTotal = 0;
         final Set<Long> clientIds = new HashSet<>();
@@ -144,6 +205,11 @@ public class AnalyticsService {
         long count = 0;
         long minutes = 0;
         long sessionsTotal = 0;
+    }
+
+    private static final class CountBucket {
+        long count = 0;
+        long minutes = 0;
     }
 
     @Transactional(readOnly = true)
@@ -313,6 +379,203 @@ public class AnalyticsService {
                 toRankedAmounts(consultantRevenueRanking, 5),
                 toRankedAmounts(clientRevenueRanking, 5),
                 toUsageRankings(spaceUsageRanking, 5)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public RevenueInvoicesReportResponse revenueInvoicesReport(
+            User me,
+            String periodRaw,
+            LocalDate fromParam,
+            LocalDate toParam,
+            Long consultantIdParam,
+            String paymentStatusRaw,
+            Long paymentMethodId,
+            String clientQueryRaw,
+            String billTypeRaw
+    ) {
+        Long consultantFilter = resolveConsultantFilter(me, consultantIdParam);
+        Long companyId = me.getCompany().getId();
+        ZoneId zone = ZoneId.of(remindersTimezone);
+        DateRange range = resolveRange(normalizePeriod(periodRaw), fromParam, toParam, zone);
+        List<Bill> bills = billRepository.findAnalyticsByCompanyIdAndIssueDateRange(
+                companyId,
+                range.from(),
+                range.to(),
+                consultantFilter
+        );
+
+        String normalizedPaymentStatus = normalizeInvoicePaymentStatusFilter(paymentStatusRaw);
+        String normalizedBillType = normalizeInvoiceTypeFilter(billTypeRaw);
+        String clientQuery = clientQueryRaw == null ? "" : clientQueryRaw.trim().toLowerCase(Locale.ROOT);
+
+        List<Bill> filtered = bills.stream()
+                .filter(bill -> paymentMethodId == null
+                        || (bill.getPaymentMethod() != null && paymentMethodId.equals(bill.getPaymentMethod().getId())))
+                .filter(bill -> matchesInvoicePaymentStatusFilter(bill, normalizedPaymentStatus))
+                .filter(bill -> matchesInvoiceTypeFilter(bill, normalizedBillType))
+                .filter(bill -> clientQuery.isBlank() || invoiceClientSearchText(bill).contains(clientQuery))
+                .toList();
+
+        BigDecimal grossTotal = BigDecimal.ZERO;
+        BigDecimal netTotal = BigDecimal.ZERO;
+        BigDecimal paidTotal = BigDecimal.ZERO;
+        BigDecimal openTotal = BigDecimal.ZERO;
+        BigDecimal refundedTotal = BigDecimal.ZERO;
+        Map<String, RankedBucket> paymentRanking = new HashMap<>();
+        Map<String, RankedBucket> consultantRanking = new HashMap<>();
+        Map<String, RankedBucket> serviceRanking = new HashMap<>();
+        List<InvoiceReportRow> invoiceRows = new ArrayList<>();
+
+        for (Bill bill : filtered) {
+            BigDecimal net = money(bill.getTotalNet());
+            BigDecimal gross = money(bill.getTotalGross());
+            BigDecimal vat = gross.subtract(net);
+            boolean refund = isRefundBill(bill);
+            grossTotal = grossTotal.add(gross);
+            netTotal = netTotal.add(net);
+            if (refund) {
+                refundedTotal = refundedTotal.add(gross.abs());
+            } else if (BillPaymentStatus.PAID.equalsIgnoreCase(safeString(bill.getPaymentStatus()))) {
+                paidTotal = paidTotal.add(gross);
+            } else if (BillPaymentStatus.OPEN.equalsIgnoreCase(safeString(bill.getPaymentStatus()))
+                    || BillPaymentStatus.PAYMENT_PENDING.equalsIgnoreCase(safeString(bill.getPaymentStatus()))) {
+                openTotal = openTotal.add(gross);
+            }
+
+            accumulateAmount(paymentRanking, safePaymentMethodLabel(bill), gross, 1);
+            accumulateAmount(consultantRanking, safeConsultantLabel(bill.getConsultant()), gross, 1);
+            for (BillItem item : bill.getItems()) {
+                if (item == null) continue;
+                long quantity = item.getQuantity() == null ? 1 : item.getQuantity();
+                BigDecimal lineGross = item.getGrossPrice() == null
+                        ? BigDecimal.ZERO
+                        : item.getGrossPrice().multiply(BigDecimal.valueOf(quantity));
+                accumulateAmount(serviceRanking, safeServiceLabel(item), lineGross, Math.max(quantity, 0));
+            }
+
+            invoiceRows.add(new InvoiceReportRow(
+                    bill.getBillNumber(),
+                    safeBillClientLabel(bill),
+                    bill.getIssueDate() == null ? null : bill.getIssueDate().toString(),
+                    refund ? "REFUNDED" : normalizeInvoicePaymentStatusValue(bill.getPaymentStatus()),
+                    invoiceTypeForBill(bill),
+                    safePaymentMethodLabel(bill),
+                    safeConsultantLabel(bill.getConsultant()),
+                    net,
+                    gross,
+                    vat
+            ));
+        }
+
+        InvoiceReportSummary summary = new InvoiceReportSummary(
+                filtered.size(),
+                grossTotal,
+                netTotal,
+                grossTotal.subtract(netTotal),
+                paidTotal,
+                openTotal,
+                refundedTotal
+        );
+        return new RevenueInvoicesReportResponse(
+                range.from().toString(),
+                range.to().toString(),
+                summary,
+                toRankedAmounts(paymentRanking, 20),
+                toRankedAmounts(consultantRanking, 20),
+                toRankedAmounts(serviceRanking, 20),
+                invoiceRows
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public BookingsAttendanceReportResponse bookingsAttendanceReport(
+            User me,
+            String periodRaw,
+            LocalDate fromParam,
+            LocalDate toParam,
+            Long consultantIdParam,
+            Long spaceId,
+            Long typeId,
+            String bookingStatusRaw,
+            String sourceChannelRaw,
+            String deliveryModeRaw
+    ) {
+        Long consultantFilter = resolveConsultantFilter(me, consultantIdParam);
+        Long companyId = me.getCompany().getId();
+        ZoneId zone = ZoneId.of(remindersTimezone);
+        DateRange range = resolveRange(normalizePeriod(periodRaw), fromParam, toParam, zone);
+        LocalDateTime rangeStart = range.from().atStartOfDay();
+        LocalDateTime rangeEndExclusive = range.to().plusDays(1).atStartOfDay();
+        List<SessionBooking> bookings = bookingRepository.findAnalyticsByCompanyIdAndRange(
+                companyId,
+                rangeStart,
+                rangeEndExclusive,
+                consultantFilter,
+                spaceId,
+                typeId
+        );
+
+        String requestedStatus = normalizeBookingStatusFilter(bookingStatusRaw);
+        String requestedSource = sourceChannelRaw == null ? "ALL" : sourceChannelRaw.trim().toUpperCase(Locale.ROOT);
+        String deliveryMode = deliveryModeRaw == null ? "ALL" : deliveryModeRaw.trim().toUpperCase(Locale.ROOT);
+        LocalDateTime now = timeService.localDateTime(zone, companyId);
+
+        Map<String, CountBucket> sourceBuckets = new HashMap<>();
+        Map<String, CountBucket> dayTimeBuckets = new HashMap<>();
+        Map<String, RankedBucket> consultantHours = new HashMap<>();
+        Map<String, RankedBucket> roomHours = new HashMap<>();
+        long reserved = 0;
+        long completed = 0;
+        long cancelled = 0;
+        long noShows = 0;
+        long online = 0;
+        long onsite = 0;
+
+        for (SessionBooking booking : bookings) {
+            boolean isOnline = booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank();
+            String source = normalizeSourceChannelValue(booking.getSourceChannel());
+            String effectiveStatus = SessionBookingStatus.deriveLifecycleStatus(
+                    booking.getStartTime(),
+                    booking.getEndTime(),
+                    booking.getBookingStatus(),
+                    now
+            );
+            if (!"ALL".equals(requestedStatus) && !requestedStatus.equals(effectiveStatus)) continue;
+            if (!"ALL".equals(requestedSource) && !requestedSource.equals(source)) continue;
+            if ("ONLINE".equals(deliveryMode) && !isOnline) continue;
+            if ("ONSITE".equals(deliveryMode) && isOnline) continue;
+
+            long minutes = durationMinutes(booking);
+            switch (effectiveStatus) {
+                case SessionBookingStatus.CHECKED_OUT -> completed++;
+                case SessionBookingStatus.CANCELLED -> cancelled++;
+                case SessionBookingStatus.NO_SHOW -> noShows++;
+                default -> reserved++;
+            }
+            if (isOnline) online++; else onsite++;
+            addCount(sourceBuckets, source, minutes);
+            addCount(dayTimeBuckets, dayTimeLabel(booking.getStartTime()), minutes);
+            if (booking.getConsultant() != null) {
+                RankedBucket bucket = consultantHours.computeIfAbsent(safeConsultantLabel(booking.getConsultant()), key -> new RankedBucket());
+                bucket.minutes += minutes;
+                bucket.sessionsTotal++;
+            }
+            if (booking.getSpace() != null && booking.getSpace().getName() != null && !booking.getSpace().getName().isBlank()) {
+                RankedBucket bucket = roomHours.computeIfAbsent(booking.getSpace().getName().trim(), key -> new RankedBucket());
+                bucket.minutes += minutes;
+                bucket.sessionsTotal++;
+            }
+        }
+
+        return new BookingsAttendanceReportResponse(
+                range.from().toString(),
+                range.to().toString(),
+                new BookingReportSummary(reserved, completed, cancelled, noShows, online, onsite),
+                toCountRankings(sourceBuckets, 20),
+                toCountRankings(dayTimeBuckets, 10),
+                toUsageRankings(consultantHours, 20),
+                toUsageRankings(roomHours, 20)
         );
     }
 
@@ -500,6 +763,125 @@ public class AnalyticsService {
             }
         }
         return "Service";
+    }
+
+    private BigDecimal money(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private String safeString(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean isRefundBill(Bill bill) {
+        return bill != null && (bill.getRefundOfBillId() != null
+                || (bill.getRefundReference() != null && !bill.getRefundReference().isBlank())
+                || money(bill.getTotalGross()).signum() < 0);
+    }
+
+    private String normalizeInvoicePaymentStatusFilter(String raw) {
+        if (raw == null || raw.isBlank()) return "all";
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "paid", "open", "refunded", "all" -> normalized;
+            default -> "all";
+        };
+    }
+
+    private boolean matchesInvoicePaymentStatusFilter(Bill bill, String statusFilter) {
+        if ("all".equals(statusFilter)) return true;
+        boolean refund = isRefundBill(bill);
+        if ("refunded".equals(statusFilter)) return refund;
+        if (refund) return false;
+        String paymentStatus = safeString(bill.getPaymentStatus()).toLowerCase(Locale.ROOT);
+        if ("paid".equals(statusFilter)) return BillPaymentStatus.PAID.equals(paymentStatus);
+        if ("open".equals(statusFilter)) {
+            return BillPaymentStatus.OPEN.equals(paymentStatus) || BillPaymentStatus.PAYMENT_PENDING.equals(paymentStatus);
+        }
+        return true;
+    }
+
+    private String normalizeInvoiceTypeFilter(String raw) {
+        if (raw == null || raw.isBlank()) return "ALL";
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "INVOICE", "ADVANCE", "REFUND", "ALL" -> normalized;
+            default -> "ALL";
+        };
+    }
+
+    private boolean matchesInvoiceTypeFilter(Bill bill, String typeFilter) {
+        if ("ALL".equals(typeFilter)) return true;
+        String billType = invoiceTypeForBill(bill);
+        return typeFilter.equals(billType);
+    }
+
+    private String invoiceTypeForBill(Bill bill) {
+        if (isRefundBill(bill)) return "REFUND";
+        BillType billType = bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
+        return billType.name();
+    }
+
+    private String normalizeInvoicePaymentStatusValue(String raw) {
+        String value = safeString(raw).toLowerCase(Locale.ROOT);
+        if (value.isBlank()) return BillPaymentStatus.OPEN;
+        return value;
+    }
+
+    private String invoiceClientSearchText(Bill bill) {
+        return String.join(" ",
+                safeString(safeBillClientLabel(bill)),
+                safeString(bill.getRecipientCompanyNameSnapshot()),
+                safeString(bill.getRecipientPersonEmailSnapshot()),
+                safeString(bill.getRecipientCompanyEmailSnapshot()),
+                safeString(bill.getBillNumber())
+        ).toLowerCase(Locale.ROOT);
+    }
+
+    private String safePaymentMethodLabel(Bill bill) {
+        if (bill != null && bill.getPaymentMethod() != null && bill.getPaymentMethod().getName() != null && !bill.getPaymentMethod().getName().isBlank()) {
+            return bill.getPaymentMethod().getName().trim();
+        }
+        return "Payment method";
+    }
+
+    private String normalizeBookingStatusFilter(String raw) {
+        if (raw == null || raw.isBlank()) return "ALL";
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "RESERVED", "CANCELLED", "NO_SHOW", "CHECKED_OUT", "ALL" -> normalized;
+            default -> "ALL";
+        };
+    }
+
+    private String normalizeSourceChannelValue(String raw) {
+        if (raw == null || raw.isBlank()) return "STAFF";
+        return raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String dayTimeLabel(LocalDateTime startTime) {
+        if (startTime == null) return "Unknown";
+        String day = startTime.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+        return day + " " + String.format(Locale.ROOT, "%02d:00", startTime.getHour());
+    }
+
+    private void addCount(Map<String, CountBucket> buckets, String label, long minutes) {
+        if (label == null || label.isBlank()) return;
+        CountBucket bucket = buckets.computeIfAbsent(label, key -> new CountBucket());
+        bucket.count++;
+        bucket.minutes += Math.max(minutes, 0);
+    }
+
+    private List<CountRanking> toCountRankings(Map<String, CountBucket> source, int limit) {
+        return source.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+                .map(entry -> new CountRanking(entry.getKey(), entry.getValue().count, entry.getValue().minutes))
+                .sorted(Comparator
+                        .comparing(CountRanking::count, Comparator.reverseOrder())
+                        .thenComparing(CountRanking::minutes, Comparator.reverseOrder())
+                        .thenComparing(CountRanking::label))
+                .limit(limit)
+                .toList();
     }
 
     private String normalizePeriod(String raw) {

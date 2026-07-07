@@ -47,6 +47,39 @@ public class AnalyticsController {
         return analyticsService.overview(me, period, from, to, consultantId, spaceId, typeId);
     }
 
+    @GetMapping("/reports/revenue-invoices")
+    public AnalyticsService.RevenueInvoicesReportResponse revenueInvoicesReport(
+            @AuthenticationPrincipal User me,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) Long consultantId,
+            @RequestParam(required = false) String paymentStatus,
+            @RequestParam(required = false) Long paymentMethodId,
+            @RequestParam(required = false) String clientQuery,
+            @RequestParam(required = false) String billType
+    ) {
+        return analyticsService.revenueInvoicesReport(
+                me, period, from, to, consultantId, paymentStatus, paymentMethodId, clientQuery, billType);
+    }
+
+    @GetMapping("/reports/bookings-attendance")
+    public AnalyticsService.BookingsAttendanceReportResponse bookingsAttendanceReport(
+            @AuthenticationPrincipal User me,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) Long consultantId,
+            @RequestParam(required = false) Long spaceId,
+            @RequestParam(required = false) Long typeId,
+            @RequestParam(required = false) String bookingStatus,
+            @RequestParam(required = false) String sourceChannel,
+            @RequestParam(required = false) String deliveryMode
+    ) {
+        return analyticsService.bookingsAttendanceReport(
+                me, period, from, to, consultantId, spaceId, typeId, bookingStatus, sourceChannel, deliveryMode);
+    }
+
     @PostMapping("/report/send")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> sendReport(
