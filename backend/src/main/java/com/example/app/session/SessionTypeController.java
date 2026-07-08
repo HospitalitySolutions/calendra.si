@@ -56,7 +56,38 @@ public class SessionTypeController {
             Boolean active,
             List<String> guestLimitUserEmails,
             List<TypeServiceItem> services
-    ) {}
+    ) {
+        public TypeRequest(
+                String code,
+                String description,
+                Integer durationMinutes,
+                Integer breakMinutes,
+                Integer maxParticipantsPerSession,
+                Boolean groupBookingEnabled,
+                Boolean widgetGroupBookingEnabled,
+                Boolean guestBookingEnabled,
+                SessionPriceCalculationMode priceCalculationMode,
+                Boolean active,
+                List<String> guestLimitUserEmails,
+                List<TypeServiceItem> services
+        ) {
+            this(
+                    code,
+                    description,
+                    null,
+                    durationMinutes,
+                    breakMinutes,
+                    maxParticipantsPerSession,
+                    groupBookingEnabled,
+                    widgetGroupBookingEnabled,
+                    guestBookingEnabled,
+                    priceCalculationMode,
+                    active,
+                    guestLimitUserEmails,
+                    services
+            );
+        }
+    }
     /** {@code price} is net override on the type–service link (null = use transaction service net). {@code unitGross} is derived for guest-card pricing UI. */
     public record ServiceLinkDto(
             Long id,
