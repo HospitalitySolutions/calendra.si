@@ -29,6 +29,7 @@ import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.settings.AppSetting;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.PageRequest;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -139,8 +140,21 @@ public class BillingController {
     }
 
     @ModelAttribute
-    public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me) {
+    public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me, HttpServletRequest request) {
+        if (isTransactionServiceEndpoint(request)) {
+            return;
+        }
         billingModuleAccess.assertBillingEnabled(me);
+    }
+
+    private boolean isTransactionServiceEndpoint(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return "/api/billing/services".equals(path)
+                || "/api/billing/services/".equals(path)
+                || (path != null && path.startsWith("/api/billing/services/"));
     }
 
     private void assertAdvanceBillingEnabled(Long companyId) {

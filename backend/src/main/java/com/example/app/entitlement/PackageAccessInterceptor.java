@@ -26,7 +26,7 @@ public class PackageAccessInterceptor implements HandlerInterceptor {
         if (user == null) {
             return true;
         }
-        if (path.startsWith("/api/billing")) {
+        if (path.startsWith("/api/billing") && !isTransactionServiceEndpoint(path)) {
             packageAccessService.requireBillingAccess(user);
         }
         if (path.startsWith("/api/inbox") && !isInboxCapabilityProbe(path)) {
@@ -38,6 +38,12 @@ public class PackageAccessInterceptor implements HandlerInterceptor {
     private static boolean isInboxCapabilityProbe(String path) {
         return "/api/inbox/global-capabilities".equals(path)
                 || "/api/inbox/global-capabilities/".equals(path);
+    }
+
+    private static boolean isTransactionServiceEndpoint(String path) {
+        return "/api/billing/services".equals(path)
+                || "/api/billing/services/".equals(path)
+                || path.startsWith("/api/billing/services/");
     }
 
     private static User currentUser() {
