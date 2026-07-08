@@ -161,13 +161,28 @@ function blendHexColor(base: string, target: string, targetWeight: number): stri
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
 }
 
+function buildCalendarSessionPalette(color: string | null) {
+  const normalized = normalizeCalendarHexColor(color) || CALENDAR_DEFAULT_BOOKED_COLOR
+
+  // Calendar blocks should hint the selected service colour without becoming loud.
+  // Keep the real service colour as the small accent, but render the tile itself as a soft pastel.
+  return {
+    accent: blendHexColor(normalized, '#0F172A', 0.08),
+    bg: blendHexColor(normalized, '#FFFFFF', 0.78),
+    bgStrong: blendHexColor(normalized, '#FFFFFF', 0.64),
+    border: blendHexColor(normalized, '#FFFFFF', 0.38),
+    muted: blendHexColor(normalized, '#0F172A', 0.46),
+  }
+}
+
 function applyCalendarSessionColor(el: HTMLElement, color: string | null) {
   if (!color) return
-  el.style.setProperty('--calendar-session-bg', color)
-  el.style.setProperty('--calendar-session-bg-strong', blendHexColor(color, '#FFFFFF', 0.28))
-  el.style.setProperty('--calendar-session-border', blendHexColor(color, '#0F172A', 0.18))
-  el.style.setProperty('--calendar-session-accent', blendHexColor(color, '#0F172A', 0.42))
-  el.style.setProperty('--calendar-session-muted', blendHexColor(color, '#0F172A', 0.55))
+  const palette = buildCalendarSessionPalette(color)
+  el.style.setProperty('--calendar-session-bg', palette.bg)
+  el.style.setProperty('--calendar-session-bg-strong', palette.bgStrong)
+  el.style.setProperty('--calendar-session-border', palette.border)
+  el.style.setProperty('--calendar-session-accent', palette.accent)
+  el.style.setProperty('--calendar-session-muted', palette.muted)
 }
 
 function CalendarPaymentPersonIcon({ className }: { className?: string }) {
@@ -3065,6 +3080,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const maskedBooked = !isTenantAdmin && bookedOwnerId !== user.id
         const breakRange = getBookingBreakRange({ ...b, type: { ...b.type, breakMinutes: typeBreakMinutes } })
         const serviceColor = normalizeCalendarHexColor(b.type?.color) || CALENDAR_DEFAULT_BOOKED_COLOR
+        const servicePalette = buildCalendarSessionPalette(serviceColor)
         const breakConflict = !!breakRange && (
           bookedBase.some((other: any) => {
             if (other?.id === b.id) return false
@@ -3092,7 +3108,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           title: maskedBooked ? '' : formatBookingClientsLabel(b),
           start: b.startTime,
           end: b.endTime,
-          color: serviceColor,
+          color: servicePalette.bg,
+          backgroundColor: servicePalette.bg,
+          borderColor: servicePalette.border,
+          textColor: '#0F172A',
           order: 1,
           editable: !maskedBooked && !isViewOnly,
           extendedProps: {
@@ -3100,6 +3119,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             kind: 'booked',
             type: b.type ? { ...b.type, durationMinutes: typeDurationMinutes, breakMinutes: typeBreakMinutes } : b.type,
             color: serviceColor,
+            softColor: servicePalette.bg,
+            colorBorder: servicePalette.border,
             masked: maskedBooked,
             breakConflict,
             breakMinutes: typeBreakMinutes,
