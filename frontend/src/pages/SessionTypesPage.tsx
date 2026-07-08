@@ -2587,7 +2587,7 @@ export function SessionTypesPage() {
                   {
                     key: "services" as const,
                     icon: "services" as const,
-                    label: locale === "sl" ? "Transakcijske storitve" : "Transaction services",
+                    label: locale === "sl" ? "Obračunske storitve" : "Billing services",
                   },
                   {
                     key: "booking" as const,
@@ -2769,18 +2769,7 @@ export function SessionTypesPage() {
 
                 {typeModalActiveTab === "services" ? (
                 <div className="session-type-config-subsection config-type-panel-services session-type-config-services-section">
-                  <div className="session-type-config-section-title session-type-config-section-title--with-action">
-                    <span
-                      className="session-type-config-section-icon"
-                      aria-hidden
-                    >
-                      <ServiceConfigTabIcon name="services" />
-                    </span>
-                    <h3>
-                      {locale === "sl"
-                        ? "Transakcijske storitve"
-                        : "Transaction services"}
-                    </h3>
+                  <div className="session-type-config-services-toolbar">
                     <button
                       type="button"
                       className="secondary small-btn session-type-config-add-service"
@@ -2829,8 +2818,8 @@ export function SessionTypesPage() {
                       }
                       text={
                         locale === "sl"
-                          ? "Dodajte eno ali več transakcijskih storitev."
-                          : "Add one or more transaction services."
+                          ? "Dodajte eno ali več obračunskih storitev."
+                          : "Add one or more billing services."
                       }
                     />
                   ) : (

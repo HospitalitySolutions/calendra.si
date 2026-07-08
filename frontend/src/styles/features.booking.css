@@ -2115,6 +2115,14 @@ button.session-type-color-swatch span {
     min-height: 78px;
 }
 
+
+.session-type-config-services-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
 .session-type-config-add-service,
 button.session-type-config-add-service {
     display: inline-flex;
@@ -2286,6 +2294,10 @@ button.session-type-config-add-service {
 
     .session-type-config-section-title--with-action {
         grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .session-type-config-services-toolbar {
+        margin-bottom: 14px;
     }
 
     .session-type-config-add-service {
