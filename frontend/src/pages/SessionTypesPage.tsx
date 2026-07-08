@@ -63,6 +63,8 @@ function normalizeServiceTypeColorForUi(raw?: string | null): string {
 
 type TypeServiceLine = { transactionServiceId: number; price: string };
 
+type ServiceTypeModalTab = "basic" | "services" | "booking" | "group";
+
 type PriceCalculationMode = "PER_CLIENT" | "TOTAL";
 
 /** Maps to widget + guest-app booleans on the API (see flagsFromGuestBookingMode). */
@@ -432,6 +434,7 @@ type ServiceConfigTabIconName =
   | "types"
   | "services"
   | "cards"
+  | "group"
   | "search"
   | "plus";
 
@@ -475,6 +478,16 @@ function ServiceConfigTabIcon({ name }: { name: ServiceConfigTabIconName }) {
         <path d="M8 8h6" />
         <path d="M8 12h6" />
         <path d="M8 16h4" />
+      </svg>
+    );
+  }
+  if (name === "group") {
+    return (
+      <svg {...common}>
+        <path d="M16 11a3 3 0 1 0-2.9-3.7" />
+        <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path d="M2.8 19c.6-3.1 2.4-4.7 5.2-4.7s4.6 1.6 5.2 4.7" />
+        <path d="M13.5 15c2.1.3 3.4 1.6 3.9 4" />
       </svg>
     );
   }
@@ -687,6 +700,8 @@ export function SessionTypesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [editingType, setEditingType] = useState<SessionTypeT | null>(null);
   const [showTypeModal, setShowTypeModal] = useState(false);
+  const [typeModalActiveTab, setTypeModalActiveTab] =
+    useState<ServiceTypeModalTab>("basic");
   const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [serviceForm, setServiceForm] = useState<ServiceFormState>({
@@ -839,9 +854,9 @@ export function SessionTypesPage() {
   }, []);
 
   useLayoutEffect(() => {
-    if (!showTypeModal) return;
+    if (!showTypeModal || typeModalActiveTab !== "basic") return;
     syncSessionTypeDescriptionHeight();
-  }, [showTypeModal, typeForm.description, syncSessionTypeDescriptionHeight]);
+  }, [showTypeModal, typeModalActiveTab, typeForm.description, syncSessionTypeDescriptionHeight]);
 
   useEffect(() => {
     if (!guestBookingPickerOpen) return;
@@ -1149,6 +1164,7 @@ export function SessionTypesPage() {
 
   useEffect(() => {
     if (groupBookingModuleEnabled) return;
+    setTypeModalActiveTab((prev) => (prev === "group" ? "basic" : prev));
     setTypeForm((prev) => {
       if (
         prev.groupBookingEnabled !== true &&
@@ -1165,6 +1181,13 @@ export function SessionTypesPage() {
       };
     });
   }, [groupBookingModuleEnabled]);
+
+  const selectTypeModalTab = useCallback((tab: ServiceTypeModalTab) => {
+    setGuestBookingPickerOpen(false);
+    setPriceCalculationPickerOpen(false);
+    setGuestLimitPickerOpen(false);
+    setTypeModalActiveTab(tab);
+  }, []);
 
   const submitType = async (e: FormEvent) => {
     e.preventDefault();
@@ -1518,6 +1541,7 @@ export function SessionTypesPage() {
       ...next,
       serviceLines: next.serviceLines.map((l) => ({ ...l })),
     });
+    setTypeModalActiveTab("basic");
     setGuestLimitPickerOpen(false);
     setGuestLimitClientQuery("");
     setShowTypeModal(true);
@@ -2065,6 +2089,7 @@ export function SessionTypesPage() {
     };
     setTypeForm(empty);
     setTypeFormSnapshot({ ...empty, serviceLines: [] });
+    setTypeModalActiveTab("basic");
     setGuestLimitPickerOpen(false);
     setGuestLimitClientQuery("");
     setShowTypeModal(true);
@@ -2089,6 +2114,7 @@ export function SessionTypesPage() {
     setShowTypeModal(false);
     setEditingType(null);
     setTypeFormSnapshot(null);
+    setTypeModalActiveTab("basic");
     setGuestLimitPickerOpen(false);
     setGuestLimitClientQuery("");
   };
@@ -2551,7 +2577,53 @@ export function SessionTypesPage() {
               className="booking-side-panel-body config-type-panel-form session-type-config-modal-body"
               onSubmit={submitType}
             >
-              <section className="session-type-config-section">
+              <div className="session-type-config-modal-tabs" role="tablist" aria-label={locale === "sl" ? "Nastavitve storitve" : "Service settings"}>
+                {([
+                  {
+                    key: "basic" as const,
+                    icon: "types" as const,
+                    label: locale === "sl" ? "Osnovni podatki" : "Basic information",
+                  },
+                  {
+                    key: "services" as const,
+                    icon: "services" as const,
+                    label: locale === "sl" ? "Transakcijske storitve" : "Transaction services",
+                  },
+                  {
+                    key: "booking" as const,
+                    icon: "cards" as const,
+                    label: locale === "sl" ? "Pravila rezervacij" : "Booking rules",
+                  },
+                  ...(groupBookingModuleEnabled
+                    ? [
+                        {
+                          key: "group" as const,
+                          icon: "group" as const,
+                          label: locale === "sl" ? "Skupina" : "Group",
+                        },
+                      ]
+                    : []),
+                ]).map((tab) => {
+                  const selected = typeModalActiveTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      className={`session-type-config-modal-tab${selected ? " is-active" : ""}`}
+                      onClick={() => selectTypeModalTab(tab.key)}
+                    >
+                      <ServiceConfigTabIcon name={tab.icon} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <section className="session-type-config-section session-type-config-section--tab-panel">
+                {typeModalActiveTab === "basic" ? (
+                  <div className="session-type-config-tab-content session-type-config-tab-content--basic">
                 <div className="session-type-config-section-title">
                   <span
                     className="session-type-config-section-icon"
@@ -2667,7 +2739,12 @@ export function SessionTypesPage() {
                           aria-checked={selected}
                           aria-label={color}
                           className={`session-type-color-swatch${selected ? " is-selected" : ""}`}
-                          style={{ backgroundColor: color } as CSSProperties}
+                          style={
+                            {
+                              "--session-type-color": color,
+                              background: color,
+                            } as CSSProperties
+                          }
                           onClick={() =>
                             setTypeForm({
                               ...typeForm,
@@ -2680,7 +2757,17 @@ export function SessionTypesPage() {
                       );
                     })}
                   </div>
+                  <p className="session-type-color-picker__hint">
+                    <span aria-hidden>ⓘ</span>
+                    {locale === "sl"
+                      ? "Izbrana barva bo uporabljena za prikaz termina v koledarju."
+                      : "The selected color will be used for this service on the calendar."}
+                  </p>
                 </div>
+                  </div>
+                ) : null}
+
+                {typeModalActiveTab === "services" ? (
                 <div className="session-type-config-subsection config-type-panel-services session-type-config-services-section">
                   <div className="session-type-config-section-title session-type-config-section-title--with-action">
                     <span
@@ -2821,6 +2908,9 @@ export function SessionTypesPage() {
                   )}
                 </div>
 
+                ) : null}
+
+                {typeModalActiveTab === "booking" ? (
                 <div className="session-type-config-subsection session-type-config-booking-section">
                 <div className="session-type-config-section-title">
                   <span
@@ -3009,11 +3099,11 @@ export function SessionTypesPage() {
                 </Field>
                 </div>
 
+                ) : null}
+
+                {typeModalActiveTab === "group" && groupBookingModuleEnabled ? (
                 <div
                   className={`session-type-config-group-card${typeForm.groupBookingEnabled ? " is-on" : ""}`}
-                  style={
-                    groupBookingModuleEnabled ? undefined : { display: "none" }
-                  }
                 >
                   <label className="session-type-config-group-toggle">
                     <span
@@ -3283,6 +3373,7 @@ export function SessionTypesPage() {
                     </div>
                   ) : null}
                 </div>
+                ) : null}
               </section>
 
 
