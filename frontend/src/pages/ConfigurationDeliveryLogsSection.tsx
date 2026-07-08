@@ -167,7 +167,6 @@ export function ConfigurationDeliveryLogsSection({
       total30: sl ? "Skupaj zadnjih 30 dni" : "Total last 30 days",
       successful: sl ? "Uspešno" : "Successful",
       failed: sl ? "Napake" : "Failed",
-      skipped: sl ? "Preskočeno" : "Skipped",
       filters: sl ? "Filtri" : "Filters",
       search: sl ? "Išči prejemnika, zadevo ali napako" : "Search recipient, subject or error",
       from: sl ? "Od" : "From",
@@ -245,8 +244,6 @@ export function ConfigurationDeliveryLogsSection({
   const successCount =
     Number(summary.byStatus?.SENT || 0) + Number(summary.byStatus?.DELIVERED || 0);
   const failedCount = Number(summary.byStatus?.FAILED || 0);
-  const skippedCount = Number(summary.byStatus?.SKIPPED || 0);
-
   return (
     <section className="delivery-logs-shell">
       <style>{deliveryLogsStyles}</style>
@@ -264,7 +261,6 @@ export function ConfigurationDeliveryLogsSection({
         <MetricCard label={copy.total30} value={summary.totalLast30Days || 0} icon="total" />
         <MetricCard label={copy.successful} value={successCount} icon="success" />
         <MetricCard label={copy.failed} value={failedCount} icon="failed" />
-        <MetricCard label={copy.skipped} value={skippedCount} icon="skipped" />
       </div>
 
       <div className="delivery-logs-channel-strip" aria-label={sl ? "Pregled po kanalih" : "Channel overview"}>
@@ -395,7 +391,7 @@ export function ConfigurationDeliveryLogsSection({
   );
 }
 
-function MetricCard({ label, value, icon }: { label: string; value: number; icon: "total" | "success" | "failed" | "skipped" }) {
+function MetricCard({ label, value, icon }: { label: string; value: number; icon: "total" | "success" | "failed" }) {
   return (
     <div className={`delivery-metric-card ${icon}`}>
       <span className="delivery-metric-icon" aria-hidden>{metricIcon(icon)}</span>
@@ -475,10 +471,9 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function metricIcon(icon: "total" | "success" | "failed" | "skipped") {
+function metricIcon(icon: "total" | "success" | "failed") {
   if (icon === "success") return "✓";
   if (icon === "failed") return "!";
-  if (icon === "skipped") return "↷";
   return "✉";
 }
 
@@ -491,7 +486,7 @@ const deliveryLogsStyles = `
 .delivery-logs-refresh, .delivery-logs-details-button, .delivery-logs-pagination button, .delivery-logs-modal-head button { border:1px solid #d7e2f0; background:#fff; color:#1f3f75; border-radius:12px; min-height:38px; padding:0 14px; font-weight:800; cursor:pointer; }
 .delivery-logs-refresh:hover, .delivery-logs-details-button:hover, .delivery-logs-pagination button:hover, .delivery-logs-modal-head button:hover { border-color:#b9c9de; box-shadow:0 8px 24px rgba(15,23,42,.08); }
 .delivery-logs-refresh:disabled, .delivery-logs-pagination button:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
-.delivery-logs-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+.delivery-logs-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
 .delivery-metric-card { border:1px solid var(--dl-line); border-radius:22px; background:#fff; padding:18px; box-shadow:0 18px 50px rgba(15,23,42,.06); display:grid; grid-template-columns:auto 1fr; gap:6px 13px; align-items:center; }
 .delivery-metric-icon { width:42px; height:42px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; font-weight:950; background:#eaf2ff; color:#2563eb; grid-row:span 2; }
 .delivery-metric-card.success .delivery-metric-icon { background:#dcfce7; color:#15803d; }
