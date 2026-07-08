@@ -2009,6 +2009,8 @@ export function ConfigurationPage() {
     settingsLoaded && settings.WEBSITE_WIDGET_ENABLED !== "false";
   const googleCalendarModuleEnabledCommitted =
     settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== "false";
+  const spacesEnabledCommitted =
+    settingsLoaded && settings.SPACES_ENABLED === "true";
 
   const hasConfigTabViewPermission = (tabId: Tab) => {
     if (tabId === "company") return hasEmployeePermission(me, 'SETTINGS_VIEW');
@@ -2030,6 +2032,7 @@ export function ConfigurationPage() {
     if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
+    if (tabId === "booking") return spacesEnabledCommitted;
     if (tabId === "billing") return billingEnabledCommitted;
     if (tabId === "notifications") return notificationsEnabledCommitted;
     if (tabId === "whatsapp")
@@ -2042,7 +2045,7 @@ export function ConfigurationPage() {
   };
 
   const getUnavailableConfigTabFallback = (tabId: Tab): Tab => {
-    if (tabId === "billing" && isConfigTabAvailable("modules")) return "modules";
+    if ((tabId === "billing" || tabId === "booking") && isConfigTabAvailable("modules")) return "modules";
     return firstAvailableConfigTab();
   };
 
@@ -2266,6 +2269,7 @@ export function ConfigurationPage() {
     websiteWidgetEnabledCommitted,
     billingEnabledCommitted,
     notificationsEnabledCommitted,
+    spacesEnabledCommitted,
     navigate,
   ]);
 
@@ -2672,6 +2676,7 @@ export function ConfigurationPage() {
     websiteWidgetEnabledCommitted,
     billingEnabledCommitted,
     notificationsEnabledCommitted,
+    spacesEnabledCommitted,
   ]);
 
   useEffect(() => {
