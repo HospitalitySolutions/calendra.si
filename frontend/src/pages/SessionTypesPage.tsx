@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -40,6 +41,25 @@ import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 const SESSION_TYPES_SUBTAB_CARDS = "cards-memberships";
 const SESSION_TYPES_SUBTAB_COURSES = "courses";
+
+const SERVICE_TYPE_DEFAULT_COLOR = "#D7DFF0";
+const SERVICE_TYPE_COLOR_PALETTE = [
+  "#E8A4B8",
+  "#F2E9C9",
+  "#7ED39A",
+  "#D7DFF0",
+  "#FFD35C",
+  "#B6E3EC",
+  "#D9F24D",
+] as const;
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+function normalizeServiceTypeColorForUi(raw?: string | null): string {
+  const value = String(raw || "").trim();
+  return HEX_COLOR_PATTERN.test(value)
+    ? value.toUpperCase()
+    : SERVICE_TYPE_DEFAULT_COLOR;
+}
 
 type TypeServiceLine = { transactionServiceId: number; price: string };
 
@@ -177,6 +197,7 @@ function normalizeOptionalParticipantsField(raw: string): string {
 type TypeFormState = {
   name: string;
   description: string;
+  color: string;
   durationMinutes: number;
   breakMinutes: number;
   maxParticipantsPerSession: string;
@@ -190,6 +211,11 @@ type TypeFormState = {
 function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.name !== b.name) return false;
   if (a.description !== b.description) return false;
+  if (
+    normalizeServiceTypeColorForUi(a.color) !==
+    normalizeServiceTypeColorForUi(b.color)
+  )
+    return false;
   if (a.durationMinutes !== b.durationMinutes) return false;
   if (a.breakMinutes !== b.breakMinutes) return false;
   if (a.groupBookingEnabled !== b.groupBookingEnabled) return false;
@@ -677,6 +703,7 @@ export function SessionTypesPage() {
   const [typeForm, setTypeForm] = useState<TypeFormState>({
     name: "",
     description: "",
+    color: SERVICE_TYPE_DEFAULT_COLOR,
     durationMinutes: 60,
     breakMinutes: 0,
     maxParticipantsPerSession: "",
@@ -1165,6 +1192,7 @@ export function SessionTypesPage() {
     const payload = {
       name: normalizedTypeCode,
       description: typeForm.description,
+      color: normalizeServiceTypeColorForUi(typeForm.color),
       durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
       breakMinutes: clampSessionTypeInt0to999(typeForm.breakMinutes),
       maxParticipantsPerSession: effectiveGroupBookingEnabled
@@ -1201,6 +1229,7 @@ export function SessionTypesPage() {
       setTypeForm({
         name: "",
         description: "",
+        color: SERVICE_TYPE_DEFAULT_COLOR,
         durationMinutes: 60,
         breakMinutes: 0,
         maxParticipantsPerSession: "",
@@ -1238,6 +1267,7 @@ export function SessionTypesPage() {
       await api.put(`/types/${type.id}`, {
         name: normalizeServiceTypeCode(type.name),
         description: type.description || "",
+        color: normalizeServiceTypeColorForUi(type.color),
         active: nextActive,
         durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
         breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
@@ -1443,6 +1473,7 @@ export function SessionTypesPage() {
     const next: TypeFormState = {
       name: type.name,
       description: type.description || "",
+      color: normalizeServiceTypeColorForUi(type.color),
       durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
       breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
       maxParticipantsPerSession:
@@ -2022,6 +2053,7 @@ export function SessionTypesPage() {
     const empty: TypeFormState = {
       name: "",
       description: "",
+      color: SERVICE_TYPE_DEFAULT_COLOR,
       durationMinutes: 60,
       breakMinutes: 0,
       maxParticipantsPerSession: "",
@@ -2611,6 +2643,43 @@ export function SessionTypesPage() {
                       }
                     />
                   </Field>
+                </div>
+
+                <div className="session-type-color-picker">
+                  <div className="session-type-color-picker__label">
+                    {locale === "sl" ? "Barva storitve" : "Service color"}
+                  </div>
+                  <div
+                    className="session-type-color-picker__swatches"
+                    role="radiogroup"
+                    aria-label={
+                      locale === "sl" ? "Barva storitve" : "Service color"
+                    }
+                  >
+                    {SERVICE_TYPE_COLOR_PALETTE.map((color) => {
+                      const selected =
+                        normalizeServiceTypeColorForUi(typeForm.color) === color;
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          aria-label={color}
+                          className={`session-type-color-swatch${selected ? " is-selected" : ""}`}
+                          style={{ backgroundColor: color } as CSSProperties}
+                          onClick={() =>
+                            setTypeForm({
+                              ...typeForm,
+                              color,
+                            })
+                          }
+                        >
+                          {selected ? <span aria-hidden>✓</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="session-type-config-subsection config-type-panel-services session-type-config-services-section">
                   <div className="session-type-config-section-title session-type-config-section-title--with-action">

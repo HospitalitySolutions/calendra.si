@@ -1087,6 +1087,7 @@ CREATE TABLE IF NOT EXISTS session_type (
     company_id BIGINT NOT NULL,
     name VARCHAR(255) NOT NULL,
     description VARCHAR(255),
+    color VARCHAR(20),
     duration_minutes INTEGER,
     break_minutes INTEGER,
     max_participants_per_session INTEGER,

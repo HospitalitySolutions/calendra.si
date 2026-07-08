@@ -113,6 +113,7 @@ export type SessionType = {
   id: number
   name: string
   description?: string
+  color?: string | null
   active?: boolean
   durationMinutes?: number
   breakMinutes?: number

@@ -25,6 +25,12 @@ public class SessionType extends BaseEntity {
     private String description;
 
     /**
+     * Pastel HEX colour used to visually distinguish this service on the calendar.
+     */
+    @Column(name = "color", length = 20)
+    private String color;
+
+    /**
      * How long a booked session of this type should be (minutes).
      * If missing/older rows, treat as 60 minutes at the API layer.
      */

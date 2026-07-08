@@ -140,6 +140,36 @@ const EmbeddedClientsPage = lazy(() =>
   import('../ClientsPage').then((module) => ({ default: module.ClientsPage })),
 )
 
+const CALENDAR_DEFAULT_BOOKED_COLOR = '#16A34A'
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
+
+function normalizeCalendarHexColor(raw?: unknown): string | null {
+  const value = String(raw ?? '').trim()
+  return HEX_COLOR_RE.test(value) ? value.toUpperCase() : null
+}
+
+function blendHexColor(base: string, target: string, targetWeight: number): string {
+  const normalizedBase = normalizeCalendarHexColor(base)
+  const normalizedTarget = normalizeCalendarHexColor(target)
+  if (!normalizedBase || !normalizedTarget) return normalizedBase || CALENDAR_DEFAULT_BOOKED_COLOR
+  const weight = Math.max(0, Math.min(1, targetWeight))
+  const read = (hex: string, offset: number) => Number.parseInt(hex.slice(offset, offset + 2), 16)
+  const toHex = (n: number) => Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, '0').toUpperCase()
+  const r = read(normalizedBase, 1) * (1 - weight) + read(normalizedTarget, 1) * weight
+  const g = read(normalizedBase, 3) * (1 - weight) + read(normalizedTarget, 3) * weight
+  const b = read(normalizedBase, 5) * (1 - weight) + read(normalizedTarget, 5) * weight
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function applyCalendarSessionColor(el: HTMLElement, color: string | null) {
+  if (!color) return
+  el.style.setProperty('--calendar-session-bg', color)
+  el.style.setProperty('--calendar-session-bg-strong', blendHexColor(color, '#FFFFFF', 0.28))
+  el.style.setProperty('--calendar-session-border', blendHexColor(color, '#0F172A', 0.18))
+  el.style.setProperty('--calendar-session-accent', blendHexColor(color, '#0F172A', 0.42))
+  el.style.setProperty('--calendar-session-muted', blendHexColor(color, '#0F172A', 0.55))
+}
+
 function CalendarPaymentPersonIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -3034,6 +3064,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const bookedOwnerId = b.consultant?.id ?? null
         const maskedBooked = !isTenantAdmin && bookedOwnerId !== user.id
         const breakRange = getBookingBreakRange({ ...b, type: { ...b.type, breakMinutes: typeBreakMinutes } })
+        const serviceColor = normalizeCalendarHexColor(b.type?.color) || CALENDAR_DEFAULT_BOOKED_COLOR
         const breakConflict = !!breakRange && (
           bookedBase.some((other: any) => {
             if (other?.id === b.id) return false
@@ -3061,13 +3092,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           title: maskedBooked ? '' : formatBookingClientsLabel(b),
           start: b.startTime,
           end: b.endTime,
-          color: '#16A34A',
+          color: serviceColor,
           order: 1,
           editable: !maskedBooked && !isViewOnly,
           extendedProps: {
             ...b,
             kind: 'booked',
             type: b.type ? { ...b.type, durationMinutes: typeDurationMinutes, breakMinutes: typeBreakMinutes } : b.type,
+            color: serviceColor,
             masked: maskedBooked,
             breakConflict,
             breakMinutes: typeBreakMinutes,
@@ -4338,6 +4370,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       .map((booking: any) => {
         const typeDurationMinutes = getTypeDurationMinutes(booking.type?.id)
         const typeBreakMinutes = getTypeBreakMinutes(booking.type?.id)
+        const serviceColor = normalizeCalendarHexColor(booking.type?.color) || CALENDAR_DEFAULT_BOOKED_COLOR
         return {
           ...booking,
           eventId: `b-${booking.id}`,
@@ -4345,7 +4378,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           start: booking.startTime,
           end: booking.endTime,
           title: formatBookingClientsLabel(booking),
-          color: '#16A34A',
+          color: serviceColor,
           resourceId: bookingsUseResourceColumns ? CONSULTANT_RESOURCE_UNASSIGNED_ID : SPACE_RESOURCE_UNASSIGNED_ID,
           type: booking.type
             ? { ...booking.type, durationMinutes: typeDurationMinutes, breakMinutes: typeBreakMinutes }
@@ -10537,6 +10570,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             ;(info.el.style as any).webkitUserDrag = 'none'
             ;(info.el.style as any).webkitTouchCallout = 'none'
             const k = info.event.extendedProps?.kind
+            if (k === 'booked') {
+              applyCalendarSessionColor(
+                info.el,
+                normalizeCalendarHexColor(info.event.extendedProps?.type?.color)
+                  || normalizeCalendarHexColor(info.event.extendedProps?.color)
+                  || normalizeCalendarHexColor(info.event.backgroundColor),
+              )
+            }
 
             const isResourceTimeGrid =
               info.view.type === 'resourceTimeGridWeek' ||

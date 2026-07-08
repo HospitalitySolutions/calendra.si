@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/types")
 public class SessionTypeController {
     private static final int SESSION_TYPE_CODE_MAX_LENGTH = 12;
+    private static final String DEFAULT_SESSION_TYPE_COLOR = "#D7DFF0";
+    private static final java.util.regex.Pattern HEX_COLOR_PATTERN = java.util.regex.Pattern.compile("^#[0-9A-Fa-f]{6}$");
     private final SessionTypeRepository repo;
     private final TransactionServiceRepository txRepo;
     private final SessionBookingRepository bookingRepo;
@@ -43,6 +45,7 @@ public class SessionTypeController {
     public record TypeRequest(
             @JsonProperty("name") @JsonAlias("code") String code,
             String description,
+            String color,
             Integer durationMinutes,
             Integer breakMinutes,
             Integer maxParticipantsPerSession,
@@ -67,6 +70,7 @@ public class SessionTypeController {
             Long id,
             @JsonProperty("name") String name,
             String description,
+            String color,
             Integer durationMinutes,
             Integer breakMinutes,
             Integer maxParticipantsPerSession,
@@ -97,6 +101,7 @@ public class SessionTypeController {
         type.setCompany(me.getCompany());
         type.setName(normalizedCode);
         type.setDescription(req.description());
+        type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         type.setBreakMinutes(req.breakMinutes() != null ? req.breakMinutes() : 0);
         type.setMaxParticipantsPerSession(normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession()));
@@ -128,6 +133,7 @@ public class SessionTypeController {
         ensureSessionTypeCodeUnique(companyId, normalizedCode, id);
         type.setName(normalizedCode);
         type.setDescription(req.description());
+        type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         type.setBreakMinutes(req.breakMinutes() != null ? req.breakMinutes() : 0);
         type.setMaxParticipantsPerSession(normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession()));
@@ -264,6 +270,7 @@ public class SessionTypeController {
                 t.getId(),
                 t.getName(),
                 t.getDescription(),
+                normalizeSessionTypeColor(t.getColor()),
                 duration,
                 breakMinutes,
                 t.getMaxParticipantsPerSession(),
@@ -306,6 +313,15 @@ public class SessionTypeController {
         if (value < 1 || value > 999) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Max participants per session must be between 1 and 999.");
+        }
+        return value;
+    }
+
+    private String normalizeSessionTypeColor(String raw) {
+        if (raw == null || raw.isBlank()) return DEFAULT_SESSION_TYPE_COLOR;
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        if (!HEX_COLOR_PATTERN.matcher(value).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service color must be a HEX value like #D7DFF0.");
         }
         return value;
     }
