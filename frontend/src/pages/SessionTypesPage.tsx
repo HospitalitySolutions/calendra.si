@@ -30,6 +30,10 @@ import {
 } from "../components/ui";
 import { currency, formatDate } from "../lib/format";
 import { useLocale, type AppLocale } from "../locale";
+import {
+  GUEST_APP_SETTINGS_KEY,
+  parseGuestAppSettings,
+} from "./configuration/guestWebsiteSettings";
 import { getDefaultAllowedRoute } from "../lib/packageAccess";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import {
@@ -123,6 +127,54 @@ function guestBookingOptionMeta(mode: GuestBookingMode, locale: AppLocale) {
     locale === "sl" ? GUEST_BOOKING_OPTIONS_SL : GUEST_BOOKING_OPTIONS_EN;
   return (
     options.find((o) => o.value === mode) ?? options[0]
+  );
+}
+
+function isGuestBookingModeAvailable(
+  mode: GuestBookingMode,
+  websiteWidgetEnabled: boolean,
+  guestAppEnabled: boolean,
+): boolean {
+  switch (mode) {
+    case "ALL":
+      return websiteWidgetEnabled && guestAppEnabled;
+    case "WEBSITE":
+      return websiteWidgetEnabled;
+    case "GUEST":
+      return guestAppEnabled;
+    case "DISABLED":
+      return true;
+  }
+}
+
+function normalizeGuestBookingModeForModules(
+  mode: GuestBookingMode,
+  websiteWidgetEnabled: boolean,
+  guestAppEnabled: boolean,
+): GuestBookingMode {
+  if (isGuestBookingModeAvailable(mode, websiteWidgetEnabled, guestAppEnabled)) {
+    return mode;
+  }
+  if (mode === "ALL") {
+    if (websiteWidgetEnabled) return "WEBSITE";
+    if (guestAppEnabled) return "GUEST";
+  }
+  return "DISABLED";
+}
+
+function guestBookingOptionsForModules(
+  locale: AppLocale,
+  websiteWidgetEnabled: boolean,
+  guestAppEnabled: boolean,
+): { value: GuestBookingMode; label: string; line: string }[] {
+  const options =
+    locale === "sl" ? GUEST_BOOKING_OPTIONS_SL : GUEST_BOOKING_OPTIONS_EN;
+  return options.filter((option) =>
+    isGuestBookingModeAvailable(
+      option.value,
+      websiteWidgetEnabled,
+      guestAppEnabled,
+    ),
   );
 }
 
@@ -694,6 +746,12 @@ export function SessionTypesPage() {
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
   const coursesModuleEnabled = settings.COURSES_ENABLED !== "false";
   const giftCardsModuleEnabled = settings.BILLING_GIFT_CARDS_ENABLED === "true";
+  const websiteWidgetModuleEnabled = settings.WEBSITE_WIDGET_ENABLED !== "false";
+  const guestAppModuleEnabled = parseGuestAppSettings(
+    settings[GUEST_APP_SETTINGS_KEY],
+  ).guestAppEnabled;
+  const guestBookingDisabledByModules =
+    !websiteWidgetModuleEnabled && !guestAppModuleEnabled;
   const showCourses = showCoursesParam && coursesModuleEnabled;
   const [types, setTypes] = useState<SessionTypeT[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
@@ -723,7 +781,11 @@ export function SessionTypesPage() {
     breakMinutes: 0,
     maxParticipantsPerSession: "",
     groupBookingEnabled: false,
-    guestBookingMode: "ALL",
+    guestBookingMode: normalizeGuestBookingModeForModules(
+      "ALL",
+      websiteWidgetModuleEnabled,
+      guestAppModuleEnabled,
+    ),
     priceCalculationMode: "PER_CLIENT",
     guestLimitUserEmailsText: "",
     serviceLines: [],
@@ -741,6 +803,15 @@ export function SessionTypesPage() {
   const [taxRatePickerOpen, setTaxRatePickerOpen] = useState(false);
   const taxRateSelectRef = useRef<HTMLDivElement>(null);
   const sessionTypeDescriptionRef = useRef<HTMLTextAreaElement>(null);
+  const guestBookingOptions = useMemo(
+    () =>
+      guestBookingOptionsForModules(
+        locale,
+        websiteWidgetModuleEnabled,
+        guestAppModuleEnabled,
+      ),
+    [locale, websiteWidgetModuleEnabled, guestAppModuleEnabled],
+  );
 
   const [isSessionTypesNarrow, setIsSessionTypesNarrow] = useState(() =>
     typeof window !== "undefined"
@@ -1182,6 +1253,20 @@ export function SessionTypesPage() {
     });
   }, [groupBookingModuleEnabled]);
 
+  useEffect(() => {
+    setGuestBookingPickerOpen(false);
+    setTypeForm((prev) => {
+      const nextMode = normalizeGuestBookingModeForModules(
+        prev.guestBookingMode,
+        websiteWidgetModuleEnabled,
+        guestAppModuleEnabled,
+      );
+      return nextMode === prev.guestBookingMode
+        ? prev
+        : { ...prev, guestBookingMode: nextMode };
+    });
+  }, [websiteWidgetModuleEnabled, guestAppModuleEnabled]);
+
   const selectTypeModalTab = useCallback((tab: ServiceTypeModalTab) => {
     setGuestBookingPickerOpen(false);
     setPriceCalculationPickerOpen(false);
@@ -1198,8 +1283,13 @@ export function SessionTypesPage() {
       window.alert("Service code is required.");
       return;
     }
+    const effectiveGuestBookingMode = normalizeGuestBookingModeForModules(
+      typeForm.guestBookingMode,
+      websiteWidgetModuleEnabled,
+      guestAppModuleEnabled,
+    );
     const { widgetGroupBookingEnabled, guestBookingEnabled } =
-      flagsFromGuestBookingMode(typeForm.guestBookingMode);
+      flagsFromGuestBookingMode(effectiveGuestBookingMode);
     const maxParticipantsTrimmed = typeForm.maxParticipantsPerSession.trim();
     const effectiveGroupBookingEnabled =
       groupBookingModuleEnabled && typeForm.groupBookingEnabled;
@@ -1257,7 +1347,11 @@ export function SessionTypesPage() {
         breakMinutes: 0,
         maxParticipantsPerSession: "",
         groupBookingEnabled: false,
-        guestBookingMode: "ALL",
+        guestBookingMode: normalizeGuestBookingModeForModules(
+          "ALL",
+          websiteWidgetModuleEnabled,
+          guestAppModuleEnabled,
+        ),
         priceCalculationMode: "PER_CLIENT",
         guestLimitUserEmailsText: "",
         serviceLines: [],
@@ -1285,6 +1379,16 @@ export function SessionTypesPage() {
 
   const toggleTypeActive = async (type: SessionTypeT, nextActive: boolean) => {
     if (!isAdmin) return;
+    const effectiveGuestBookingMode = normalizeGuestBookingModeForModules(
+      guestBookingModeFromFlags(
+        type.widgetGroupBookingEnabled === true,
+        type.guestBookingEnabled !== false,
+      ),
+      websiteWidgetModuleEnabled,
+      guestAppModuleEnabled,
+    );
+    const { widgetGroupBookingEnabled, guestBookingEnabled } =
+      flagsFromGuestBookingMode(effectiveGuestBookingMode);
     setActivatingSessionTypeId(type.id);
     try {
       await api.put(`/types/${type.id}`, {
@@ -1300,8 +1404,8 @@ export function SessionTypesPage() {
             : null,
         groupBookingEnabled:
           groupBookingModuleEnabled && type.groupBookingEnabled === true,
-        widgetGroupBookingEnabled: type.widgetGroupBookingEnabled === true,
-        guestBookingEnabled: type.guestBookingEnabled !== false,
+        widgetGroupBookingEnabled,
+        guestBookingEnabled,
         priceCalculationMode: type.priceCalculationMode ?? "PER_CLIENT",
         guestLimitUserEmails:
           groupBookingModuleEnabled && type.groupBookingEnabled === true
@@ -1509,9 +1613,13 @@ export function SessionTypesPage() {
           : "",
       groupBookingEnabled:
         groupBookingModuleEnabled && type.groupBookingEnabled === true,
-      guestBookingMode: guestBookingModeFromFlags(
-        type.widgetGroupBookingEnabled === true,
-        type.guestBookingEnabled !== false,
+      guestBookingMode: normalizeGuestBookingModeForModules(
+        guestBookingModeFromFlags(
+          type.widgetGroupBookingEnabled === true,
+          type.guestBookingEnabled !== false,
+        ),
+        websiteWidgetModuleEnabled,
+        guestAppModuleEnabled,
       ),
       priceCalculationMode: type.priceCalculationMode ?? "PER_CLIENT",
       guestLimitUserEmailsText: guestLimitUserEmailsTextFromApi(
@@ -2082,7 +2190,11 @@ export function SessionTypesPage() {
       breakMinutes: 0,
       maxParticipantsPerSession: "",
       groupBookingEnabled: false,
-      guestBookingMode: "ALL",
+      guestBookingMode: normalizeGuestBookingModeForModules(
+        "ALL",
+        websiteWidgetModuleEnabled,
+        guestAppModuleEnabled,
+      ),
       priceCalculationMode: "PER_CLIENT",
       guestLimitUserEmailsText: "",
       serviceLines: [],
@@ -2997,95 +3109,94 @@ export function SessionTypesPage() {
                     ) : null}
                   </div>
                 </Field>
-                <Field label={locale === "sl" ? "Rezervacija gostov" : "Guest booking"}>
-                  <div
-                    className={`guest-booking-select${guestBookingPickerOpen ? " is-open" : ""}`}
-                    ref={guestBookingSelectRef}
-                  >
-                    <button
-                      type="button"
-                      className="guest-booking-select-trigger"
-                      aria-haspopup="listbox"
-                      aria-expanded={guestBookingPickerOpen}
-                      onClick={() => setGuestBookingPickerOpen((o) => !o)}
+                {!guestBookingDisabledByModules ? (
+                  <Field label={locale === "sl" ? "Rezervacija gostov" : "Guest booking"}>
+                    <div
+                      className={`guest-booking-select${guestBookingPickerOpen ? " is-open" : ""}`}
+                      ref={guestBookingSelectRef}
                     >
-                      <span className="guest-booking-select-trigger-main">
-                        <span className="guest-booking-select-value">
-                          {
-                            guestBookingOptionMeta(
-                              typeForm.guestBookingMode,
-                              locale,
-                            )
-                              .label
-                          }
-                        </span>
-                        <span className="guest-booking-select-line">
-                          {
-                            guestBookingOptionMeta(
-                              typeForm.guestBookingMode,
-                              locale,
-                            )
-                              .line
-                          }
-                        </span>
-                      </span>
-                      <span
-                        className="guest-booking-select-chevron"
-                        aria-hidden
+                      <button
+                        type="button"
+                        className="guest-booking-select-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={guestBookingPickerOpen}
+                        onClick={() => setGuestBookingPickerOpen((o) => !o)}
                       >
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 20 20"
-                          fill="none"
+                        <span className="guest-booking-select-trigger-main">
+                          <span className="guest-booking-select-value">
+                            {
+                              guestBookingOptionMeta(
+                                typeForm.guestBookingMode,
+                                locale,
+                              )
+                                .label
+                            }
+                          </span>
+                          <span className="guest-booking-select-line">
+                            {
+                              guestBookingOptionMeta(
+                                typeForm.guestBookingMode,
+                                locale,
+                              )
+                                .line
+                            }
+                          </span>
+                        </span>
+                        <span
+                          className="guest-booking-select-chevron"
+                          aria-hidden
                         >
-                          <path
-                            d="M5.5 8.25 10 12.75 14.5 8.25"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </span>
-                    </button>
-                    {guestBookingPickerOpen ? (
-                      <ul className="guest-booking-select-menu" role="listbox">
-                        {(locale === "sl"
-                          ? GUEST_BOOKING_OPTIONS_SL
-                          : GUEST_BOOKING_OPTIONS_EN
-                        ).map((opt) => {
-                          const selected =
-                            typeForm.guestBookingMode === opt.value;
-                          return (
-                            <li key={opt.value} role="presentation">
-                              <button
-                                type="button"
-                                role="option"
-                                aria-selected={selected}
-                                className={`guest-booking-select-option${selected ? " is-selected" : ""}`}
-                                onClick={() => {
-                                  setTypeForm({
-                                    ...typeForm,
-                                    guestBookingMode: opt.value,
-                                  });
-                                  setGuestBookingPickerOpen(false);
-                                }}
-                              >
-                                <span className="guest-booking-select-option-label">
-                                  {opt.label}
-                                </span>
-                                <span className="guest-booking-select-option-line">
-                                  {opt.line}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                  </div>
-                </Field>
+                          <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                          >
+                            <path
+                              d="M5.5 8.25 10 12.75 14.5 8.25"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                      {guestBookingPickerOpen ? (
+                        <ul className="guest-booking-select-menu" role="listbox">
+                          {guestBookingOptions.map((opt) => {
+                            const selected =
+                              typeForm.guestBookingMode === opt.value;
+                            return (
+                              <li key={opt.value} role="presentation">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  className={`guest-booking-select-option${selected ? " is-selected" : ""}`}
+                                  onClick={() => {
+                                    setTypeForm({
+                                      ...typeForm,
+                                      guestBookingMode: opt.value,
+                                    });
+                                    setGuestBookingPickerOpen(false);
+                                  }}
+                                >
+                                  <span className="guest-booking-select-option-label">
+                                    {opt.label}
+                                  </span>
+                                  <span className="guest-booking-select-option-line">
+                                    {opt.line}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </Field>
+                ) : null}
                 </div>
 
                 ) : null}
