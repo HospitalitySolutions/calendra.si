@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
 import loginLogo from '../assets/login-logo.png'
+import { AuthLanguageDropdown } from '../components/AuthLanguageDropdown'
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate()
@@ -53,29 +54,7 @@ export function ForgotPasswordPage() {
               <img src={loginLogo} alt="" />
             </div>
           </div>
-          <div className="login-lang-switch" role="group" aria-label={t('language')}>
-            <button
-              type="button"
-              className={locale === 'sl' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('sl')}
-            >
-              SL
-            </button>
-            <button
-              type="button"
-              className={locale === 'sr' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('sr')}
-            >
-              SR
-            </button>
-            <button
-              type="button"
-              className={locale === 'en' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('en')}
-            >
-              EN
-            </button>
-          </div>
+          <AuthLanguageDropdown locale={locale} setLocale={setLocale} ariaLabel={t('language')} />
         </div>
 
         {step === 'request' ? (
