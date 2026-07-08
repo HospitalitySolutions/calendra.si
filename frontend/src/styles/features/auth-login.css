@@ -181,6 +181,152 @@
     box-shadow: none;
 }
 
+.login-language-dropdown {
+    position: relative;
+    z-index: 20;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.login-language-trigger {
+    min-width: 112px;
+    height: 38px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1px solid rgba(203, 213, 225, 0.95);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.84);
+    color: #1f2937;
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, background 0.16s ease;
+}
+
+.login-language-trigger:hover,
+.login-language-trigger[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(148, 163, 184, 0.95);
+    box-shadow: 0 8px 20px rgba(22, 114, 243, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.login-language-trigger:active {
+    transform: translateY(1px);
+}
+
+.login-language-globe,
+.login-language-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #4b5563;
+    line-height: 1;
+}
+
+.login-language-current {
+    min-width: 22px;
+    text-align: center;
+}
+
+.login-language-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 132px;
+    padding: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid rgba(226, 232, 240, 0.94);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 6px 14px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+}
+
+.login-language-option {
+    width: 100%;
+    min-height: 39px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: #1f2937;
+    font-size: 0.96rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: none;
+    text-align: left;
+}
+
+.login-language-option:hover,
+.login-language-option.active:hover {
+    background: rgba(239, 246, 255, 0.92);
+    box-shadow: none;
+}
+
+.login-language-option.active {
+    color: #1f2937;
+    background: transparent;
+}
+
+.login-language-flag {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    font-size: 1.28rem;
+    line-height: 1;
+    filter: saturate(1.05);
+}
+
+.login-language-option-label {
+    line-height: 1;
+}
+
+[data-theme="dark"] .login-language-trigger {
+    border-color: rgba(96, 165, 250, 0.24);
+    background: rgba(15, 23, 42, 0.86);
+    color: #e5edff;
+    box-shadow: 0 4px 12px rgba(2, 6, 23, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .login-language-trigger:hover,
+[data-theme="dark"] .login-language-trigger[aria-expanded="true"] {
+    background: rgba(15, 23, 42, 0.96);
+    border-color: rgba(96, 165, 250, 0.42);
+}
+
+[data-theme="dark"] .login-language-globe,
+[data-theme="dark"] .login-language-chevron {
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .login-language-menu {
+    border-color: rgba(96, 165, 250, 0.18);
+    background: rgba(15, 23, 42, 0.98);
+    box-shadow: 0 20px 42px rgba(2, 6, 23, 0.56), 0 6px 14px rgba(2, 6, 23, 0.34);
+}
+
+[data-theme="dark"] .login-language-option,
+[data-theme="dark"] .login-language-option.active {
+    color: #e5edff;
+}
+
+[data-theme="dark"] .login-language-option:hover,
+[data-theme="dark"] .login-language-option.active:hover {
+    background: rgba(37, 99, 235, 0.18);
+}
+
 .login-social-separator {
     display: flex;
     align-items: center;
@@ -248,6 +394,19 @@
         gap: 12px;
     }
 
+    .login-language-trigger {
+        min-width: 104px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 15px;
+        font-size: 0.86rem;
+    }
+
+    .login-language-menu {
+        width: 126px;
+        top: calc(100% + 7px);
+    }
+
     .login-brand-inline .login-modern-logo-mark {
         width: clamp(128px, 42vw, 170px);
     }
@@ -307,6 +466,33 @@
     .login-lang-btn {
         padding: 4px 8px;
         font-size: 0.68rem;
+    }
+
+    .login-language-trigger {
+        min-width: 96px;
+        height: 34px;
+        padding: 0 10px;
+        gap: 8px;
+        border-radius: 14px;
+        font-size: 0.82rem;
+    }
+
+    .login-language-menu {
+        width: 122px;
+        padding: 10px 0;
+    }
+
+    .login-language-option {
+        min-height: 36px;
+        padding: 0 14px;
+        gap: 10px;
+        font-size: 0.9rem;
+    }
+
+    .login-language-flag {
+        width: 22px;
+        height: 22px;
+        font-size: 1.16rem;
     }
 
     .login-modern-label {

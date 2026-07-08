@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { api, ensureCsrfToken } from '../api'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -6,6 +6,13 @@ import { useLocale, type AppLocale } from '../locale'
 import loginLogo from '../assets/login-logo.png'
 import { MfaChallengeCard } from '../components/MfaChallengeCard'
 import { consumePostLoginRedirect, sanitizeNextPath, setPostLoginRedirect, storeAuthenticatedSession } from '../lib/session'
+
+
+const loginLanguageOptions: Array<{ code: AppLocale; label: string; flag: string }> = [
+  { code: 'sl', label: 'SL', flag: '🇸🇮' },
+  { code: 'sr', label: 'SR', flag: '🇷🇸' },
+  { code: 'en', label: 'EN', flag: '🇬🇧' },
+]
 
 function localizeOauthErrorMessage(message: string, locale: AppLocale, t: (key: string) => string) {
   const normalized = message.trim()
@@ -27,12 +34,36 @@ export function LoginPage() {
   const [success, setSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [loginPasswordVisible, setLoginPasswordVisible] = useState(false)
+  const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [pendingToken, setPendingToken] = useState('')
+  const languageDropdownRef = useRef<HTMLDivElement | null>(null)
   const nextPath = sanitizeNextPath(new URLSearchParams(location.search).get('next'))
 
   useEffect(() => {
     void ensureCsrfToken().catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    if (!languageDropdownOpen) return
+
+    const closeOnOutsideInteraction = (event: MouseEvent | TouchEvent) => {
+      if (!languageDropdownRef.current?.contains(event.target as Node)) {
+        setLanguageDropdownOpen(false)
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLanguageDropdownOpen(false)
+    }
+
+    document.addEventListener('mousedown', closeOnOutsideInteraction)
+    document.addEventListener('touchstart', closeOnOutsideInteraction)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideInteraction)
+      document.removeEventListener('touchstart', closeOnOutsideInteraction)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [languageDropdownOpen])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -118,6 +149,7 @@ export function LoginPage() {
   }
 
   const forgotPasswordUrl = `/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`
+  const selectedLanguage = loginLanguageOptions.find((option) => option.code === locale) ?? loginLanguageOptions[0]
 
   if (pendingToken) {
     return (
@@ -150,28 +182,49 @@ export function LoginPage() {
               <img src={loginLogo} alt="" />
             </div>
           </div>
-          <div className="login-lang-switch" role="group" aria-label={t('language')}>
+          <div className="login-language-dropdown" ref={languageDropdownRef}>
             <button
               type="button"
-              className={locale === 'sl' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('sl')}
+              className="login-language-trigger"
+              aria-label={t('language')}
+              aria-haspopup="listbox"
+              aria-expanded={languageDropdownOpen}
+              onClick={() => setLanguageDropdownOpen((open) => !open)}
             >
-              SL
+              <span className="login-language-globe" aria-hidden>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z" />
+                </svg>
+              </span>
+              <span className="login-language-current">{selectedLanguage.label}</span>
+              <span className="login-language-chevron" aria-hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
             </button>
-            <button
-              type="button"
-              className={locale === 'sr' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('sr')}
-            >
-              SR
-            </button>
-            <button
-              type="button"
-              className={locale === 'en' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('en')}
-            >
-              EN
-            </button>
+            {languageDropdownOpen && (
+              <div className="login-language-menu" role="listbox" aria-label={t('language')}>
+                {loginLanguageOptions.map((option) => (
+                  <button
+                    key={option.code}
+                    type="button"
+                    className={option.code === locale ? 'login-language-option active' : 'login-language-option'}
+                    role="option"
+                    aria-selected={option.code === locale}
+                    onClick={() => {
+                      setLocale(option.code)
+                      setLanguageDropdownOpen(false)
+                    }}
+                  >
+                    <span className="login-language-flag" aria-hidden>{option.flag}</span>
+                    <span className="login-language-option-label">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <label className="login-modern-label" htmlFor="login-email">{t('loginEmailLabel')}</label>
