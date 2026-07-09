@@ -27,6 +27,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedEntitlementScanningLockRef = useRef(false)
   const bookedEntitlementWalletRequestRef = useRef(0)
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
+  const allDayDateRangeLabels = {
+    startLabel: locale === 'sl' ? 'Od datuma' : 'From date',
+    endLabel: locale === 'sl' ? 'Do datuma' : 'To date',
+  }
+  const allDayRangeStartTime = (ymd: string) => normalizeToLocalDateTime(`${ymd}T00:00:00`)
+  const allDayRangeEndTime = (ymd: string) => normalizeToLocalDateTime(`${ymd}T23:59:59`)
   const advanceBillingEnabled = settings?.BILLING_ADVANCE_ENABLED !== 'false'
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
@@ -1954,11 +1960,25 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       prev
                         ? {
                             ...prev,
-                            startTime: normalizeToLocalDateTime(`${ymd}T00:00:00`),
-                            endTime: normalizeToLocalDateTime(`${ymd}T23:59:59`),
+                            startTime: allDayRangeStartTime(ymd),
+                            endTime: allDayRangeEndTime(ymd),
                           }
                         : prev,
                     )
+                  }}
+                  allDayDateRange={{
+                    ...allDayDateRangeLabels,
+                    onCommitRange: (startYmd, endYmd) => {
+                      setSelectedBookedSession((prev: any) =>
+                        prev
+                          ? {
+                              ...prev,
+                              startTime: allDayRangeStartTime(startYmd),
+                              endTime: allDayRangeEndTime(endYmd),
+                            }
+                          : prev,
+                      )
+                    },
                   }}
                 />
               </div>
@@ -3026,11 +3046,25 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       prev
                         ? {
                             ...prev,
-                            startTime: normalizeToLocalDateTime(`${ymd}T00:00:00`),
-                            endTime: normalizeToLocalDateTime(`${ymd}T23:59:59`),
+                            startTime: allDayRangeStartTime(ymd),
+                            endTime: allDayRangeEndTime(ymd),
                           }
                         : prev,
                     )
+                  }}
+                  allDayDateRange={{
+                    ...allDayDateRangeLabels,
+                    onCommitRange: (startYmd, endYmd) => {
+                      setSelectedPersonalBlock((prev: any) =>
+                        prev
+                          ? {
+                              ...prev,
+                              startTime: allDayRangeStartTime(startYmd),
+                              endTime: allDayRangeEndTime(endYmd),
+                            }
+                          : prev,
+                      )
+                    },
                   }}
                 />
               </div>
@@ -3368,8 +3402,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
                             return {
                               ...prev,
-                              startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
-                              endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
+                              startTime: allDayRangeStartTime(d),
+                              endTime: allDayRangeEndTime(d),
+                              rangeStartDate: d,
+                              rangeEndDate: d,
                             }
                           })
                         },
@@ -3381,11 +3417,29 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           prev
                             ? {
                                 ...prev,
-                                startTime: normalizeToLocalDateTime(`${ymd}T00:00:00`),
-                                endTime: normalizeToLocalDateTime(`${ymd}T23:59:59`),
+                                startTime: allDayRangeStartTime(ymd),
+                                endTime: allDayRangeEndTime(ymd),
+                                rangeStartDate: ymd,
+                                rangeEndDate: ymd,
                               }
                             : prev,
                         )
+                      }}
+                      allDayDateRange={{
+                        ...allDayDateRangeLabels,
+                        onCommitRange: (startYmd, endYmd) => {
+                          setAvailabilitySelection((prev: any) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  startTime: allDayRangeStartTime(startYmd),
+                                  endTime: allDayRangeEndTime(endYmd),
+                                  rangeStartDate: startYmd,
+                                  rangeEndDate: endYmd,
+                                }
+                              : prev,
+                          )
+                        },
                       }}
                     />
                   </div>
@@ -3412,7 +3466,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </div>
                     </div>
                   </div>
-                  {!availabilitySelection.indefinite && (
+                  {!availabilitySelection.indefinite && !isLocalBookingAllDay(availabilitySelection.startTime, availabilitySelection.endTime) && (
                     <div className="form-row form-row-timespan">
                       <div className="calendar-timespan-row calendar-timespan-row--two calendar-availability-datum-row">
                         <div className="calendar-timespan-field calendar-timespan-field--date">
@@ -3539,9 +3593,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       onCommitAllDayDate={(ymd) => {
                         setForm((f: any) => ({
                           ...f,
-                          startTime: normalizeToLocalDateTime(`${ymd}T00:00:00`),
-                          endTime: normalizeToLocalDateTime(`${ymd}T23:59:59`),
+                          startTime: allDayRangeStartTime(ymd),
+                          endTime: allDayRangeEndTime(ymd),
                         }))
+                      }}
+                      allDayDateRange={{
+                        ...allDayDateRangeLabels,
+                        onCommitRange: (startYmd, endYmd) => {
+                          setForm((f: any) => ({
+                            ...f,
+                            startTime: allDayRangeStartTime(startYmd),
+                            endTime: allDayRangeEndTime(endYmd),
+                          }))
+                        },
                       }}
                     />
                   </div>
@@ -4015,9 +4079,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     bookingEndEditedManuallyRef.current = true
                     setForm((f: any) => ({
                       ...f,
-                      startTime: normalizeToLocalDateTime(`${ymd}T00:00:00`),
-                      endTime: normalizeToLocalDateTime(`${ymd}T23:59:59`),
+                      startTime: allDayRangeStartTime(ymd),
+                      endTime: allDayRangeEndTime(ymd),
                     }))
+                  }}
+                  allDayDateRange={{
+                    ...allDayDateRangeLabels,
+                    onCommitRange: (startYmd, endYmd) => {
+                      bookingEndEditedManuallyRef.current = true
+                      setForm((f: any) => ({
+                        ...f,
+                        startTime: allDayRangeStartTime(startYmd),
+                        endTime: allDayRangeEndTime(endYmd),
+                      }))
+                    },
                   }}
                 />
               </div>

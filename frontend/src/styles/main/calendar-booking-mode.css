@@ -1705,3 +1705,23 @@
         padding-inline: 6px !important;
     }
 }
+
+/* All-day date ranges: when Cel dan is ON, show Od/Do date fields side by side. */
+.calendar-edit-session-panel .calendar-timespan-row--all-day-range,
+.calendar-edit-session-panel--availability .calendar-timespan-row--all-day-range {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.calendar-edit-session-panel .calendar-timespan-row--all-day-range .calendar-timespan-field--date,
+.calendar-edit-session-panel--availability .calendar-timespan-row--all-day-range .calendar-timespan-field--date {
+    grid-column: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+@media (max-width: 520px) {
+    .calendar-edit-session-panel .calendar-timespan-row--all-day-range,
+    .calendar-edit-session-panel--availability .calendar-timespan-row--all-day-range {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+}

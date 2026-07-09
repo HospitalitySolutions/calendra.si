@@ -39,7 +39,7 @@ export function normalizeLocalDateTimeInputForAllDay(value: string): string {
   return v.length === 16 ? `${v}:00` : v
 }
 
-/** Whole-day bookings: local midnight through 23:59:59 on the same calendar date. */
+/** Whole-day bookings: local midnight through 23:59:59, including multi-day date ranges. */
 export function isLocalBookingAllDay(startVal: string | undefined, endVal: string | undefined): boolean {
   if (!startVal || !endVal) return false
   const ns = normalizeLocalDateTimeInputForAllDay(startVal)
@@ -47,7 +47,7 @@ export function isLocalBookingAllDay(startVal: string | undefined, endVal: strin
   const sm = ns.match(/^(\d{4}-\d{2}-\d{2})T00:00:00/)
   const em = ne.match(/^(\d{4}-\d{2}-\d{2})T23:59:59/)
   if (!sm || !em) return false
-  return sm[1] === em[1]
+  return em[1] >= sm[1]
 }
 
 /** Todo (single `startTime`): all-day when stored at local midnight on that calendar day. */

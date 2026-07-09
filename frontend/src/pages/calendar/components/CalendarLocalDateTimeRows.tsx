@@ -1,6 +1,12 @@
 import { ModernTimePicker } from '../../../components/ModernTimePicker'
 import { localTodayYmd, scrollIntoViewForAndroidPicker, splitLocalDateTimeParts } from '../calendarDateTime'
 
+type AllDayDateRangeConfig = {
+  startLabel: string
+  endLabel: string
+  onCommitRange: (startYmd: string, endYmd: string) => void
+}
+
 /** One row: time from | time to | date (date last). */
 export function CalendarLocalTimespanRow({
   startValue,
@@ -11,6 +17,7 @@ export function CalendarLocalTimespanRow({
   labels,
   allDayToggle,
   onCommitAllDayDate,
+  allDayDateRange,
 }: {
   startValue: string | undefined
   endValue: string | undefined
@@ -22,16 +29,31 @@ export function CalendarLocalTimespanRow({
   allDayToggle?: { checked: boolean; onToggle: () => void; label: string; captionId: string }
   /** Used when all-day is on so start/end are updated together (avoids partial updates from split commits). */
   onCommitAllDayDate?: (ymd: string) => void
+  /** When set, all-day mode uses a from/to date range instead of a single date. */
+  allDayDateRange?: AllDayDateRangeConfig
 }) {
   const sp = splitLocalDateTimeParts(startValue)
   const ep = splitLocalDateTimeParts(endValue)
   const date = sp.date || ep.date || localTodayYmd()
+  const endDate = ep.date || date
   const startTime = sp.time || '09:00'
   const endTime = ep.time || '10:00'
   const allDay = !!allDayToggle?.checked
+  const showAllDayDateRange = allDay && !!allDayDateRange
+  const dateRangeStart = date
+  const dateRangeEnd = endDate < dateRangeStart ? dateRangeStart : endDate
 
   return (
-    <div className={['calendar-timespan-row', allDayToggle ? 'calendar-timespan-row--with-all-day' : '', allDay ? 'calendar-timespan-row--all-day' : ''].filter(Boolean).join(' ')}>
+    <div
+      className={[
+        'calendar-timespan-row',
+        allDayToggle ? 'calendar-timespan-row--with-all-day' : '',
+        allDay ? 'calendar-timespan-row--all-day' : '',
+        showAllDayDateRange ? 'calendar-timespan-row--all-day-range' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {!allDay && (
         <>
           <div className="calendar-timespan-field">
@@ -64,48 +86,108 @@ export function CalendarLocalTimespanRow({
           </div>
         </>
       )}
-      <div className="calendar-timespan-field calendar-timespan-field--date">
-        <div className="calendar-timespan-input-inner">
-          <div className={['calendar-timespan-date-head', allDayToggle ? 'calendar-timespan-date-head--with-all-day' : ''].filter(Boolean).join(' ')}>
-            <span className="calendar-timespan-label">{labels.date}</span>
-            {allDayToggle && (
-              <div className="calendar-timespan-all-day-line" role="group" aria-label={allDayToggle.label}>
-                <label
-                  className="repeats-toggle-switch online-live-repeats-switch calendar-timespan-all-day-switch"
-                  title={allDayToggle.label}
-                >
-                  <input
-                    type="checkbox"
-                    checked={allDayToggle.checked}
-                    aria-labelledby={allDayToggle.captionId}
-                    onChange={() => allDayToggle.onToggle()}
-                  />
-                  <span className="repeats-toggle-slider" />
-                </label>
-                <span id={allDayToggle.captionId} className="calendar-timespan-all-day-caption">
-                  {allDayToggle.label}
-                </span>
+      {showAllDayDateRange ? (
+        <>
+          <div className="calendar-timespan-field calendar-timespan-field--date calendar-timespan-field--date-range">
+            <div className="calendar-timespan-input-inner">
+              <div className={['calendar-timespan-date-head', allDayToggle ? 'calendar-timespan-date-head--with-all-day' : ''].filter(Boolean).join(' ')}>
+                <span className="calendar-timespan-label">{allDayDateRange.startLabel}</span>
+                {allDayToggle && (
+                  <div className="calendar-timespan-all-day-line" role="group" aria-label={allDayToggle.label}>
+                    <label
+                      className="repeats-toggle-switch online-live-repeats-switch calendar-timespan-all-day-switch"
+                      title={allDayToggle.label}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={allDayToggle.checked}
+                        aria-labelledby={allDayToggle.captionId}
+                        onChange={() => allDayToggle.onToggle()}
+                      />
+                      <span className="repeats-toggle-slider" />
+                    </label>
+                    <span id={allDayToggle.captionId} className="calendar-timespan-all-day-caption">
+                      {allDayToggle.label}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+              <input
+                type="date"
+                value={dateRangeStart}
+                onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+                onChange={(e) => {
+                  const nextStart = e.target.value
+                  if (!nextStart) return
+                  const nextEnd = dateRangeEnd < nextStart ? nextStart : dateRangeEnd
+                  allDayDateRange.onCommitRange(nextStart, nextEnd)
+                }}
+                aria-label={allDayDateRange.startLabel}
+              />
+            </div>
           </div>
-          <input
-            type="date"
-            value={date}
-            onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
-            onChange={(e) => {
-              const d = e.target.value
-              if (!d) return
-              if (allDay && onCommitAllDayDate) {
-                onCommitAllDayDate(d)
-              } else {
-                onCommitStart(normalize(`${d}T${startTime}`))
-                onCommitEnd(normalize(`${d}T${endTime}`))
-              }
-            }}
-            aria-label={labels.date}
-          />
+          <div className="calendar-timespan-field calendar-timespan-field--date calendar-timespan-field--date-range">
+            <div className="calendar-timespan-input-inner">
+              <span className="calendar-timespan-label">{allDayDateRange.endLabel}</span>
+              <input
+                type="date"
+                value={dateRangeEnd}
+                min={dateRangeStart}
+                onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+                onChange={(e) => {
+                  const nextEnd = e.target.value
+                  if (!nextEnd) return
+                  allDayDateRange.onCommitRange(dateRangeStart, nextEnd < dateRangeStart ? dateRangeStart : nextEnd)
+                }}
+                aria-label={allDayDateRange.endLabel}
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="calendar-timespan-field calendar-timespan-field--date">
+          <div className="calendar-timespan-input-inner">
+            <div className={['calendar-timespan-date-head', allDayToggle ? 'calendar-timespan-date-head--with-all-day' : ''].filter(Boolean).join(' ')}>
+              <span className="calendar-timespan-label">{labels.date}</span>
+              {allDayToggle && (
+                <div className="calendar-timespan-all-day-line" role="group" aria-label={allDayToggle.label}>
+                  <label
+                    className="repeats-toggle-switch online-live-repeats-switch calendar-timespan-all-day-switch"
+                    title={allDayToggle.label}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allDayToggle.checked}
+                      aria-labelledby={allDayToggle.captionId}
+                      onChange={() => allDayToggle.onToggle()}
+                    />
+                    <span className="repeats-toggle-slider" />
+                  </label>
+                  <span id={allDayToggle.captionId} className="calendar-timespan-all-day-caption">
+                    {allDayToggle.label}
+                  </span>
+                </div>
+              )}
+            </div>
+            <input
+              type="date"
+              value={date}
+              onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+              onChange={(e) => {
+                const d = e.target.value
+                if (!d) return
+                if (allDay && onCommitAllDayDate) {
+                  onCommitAllDayDate(d)
+                } else {
+                  onCommitStart(normalize(`${d}T${startTime}`))
+                  onCommitEnd(normalize(`${d}T${endTime}`))
+                }
+              }}
+              aria-label={labels.date}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
