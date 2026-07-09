@@ -6921,3 +6921,15 @@ button.course-edit-save-button.gapp-primary-button {
         min-width: 0;
     }
 }
+
+.calendar-personal-visibility-head {
+  width: 100%;
+}
+
+.calendar-personal-visibility-line {
+  margin-left: auto;
+}
+
+.calendar-personal-field-with-visibility .form-field-inline-control {
+  width: 100%;
+}

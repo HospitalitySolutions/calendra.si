@@ -26,8 +26,8 @@ public class PersonalCalendarBlockController {
         this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
     }
 
-    public record PersonalBlockRequest(String startTime, String endTime, String task, String notes, Long consultantId) {}
-    public record PersonalBlockResponse(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes) {}
+    public record PersonalBlockRequest(String startTime, String endTime, String task, String notes, Long consultantId, Boolean visibleToAdmins) {}
+    public record PersonalBlockResponse(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes, boolean visibleToAdmins) {}
 
     @PostMapping
     @Transactional
@@ -53,6 +53,7 @@ public class PersonalCalendarBlockController {
         block.setEndTime(end);
         block.setTask(req.task().trim());
         block.setNotes(req.notes() != null ? req.notes().trim() : null);
+        block.setVisibleToAdmins(Boolean.TRUE.equals(req.visibleToAdmins()));
         block = repo.save(block);
         googleCalendarSyncQueueService.enqueueUpsert(block.getCompany(), block.getOwner().getId(), GoogleCalendarEntityType.PERSONAL_SESSION, block.getId());
         return toResponse(block);
@@ -76,6 +77,7 @@ public class PersonalCalendarBlockController {
         block.setEndTime(end);
         block.setTask(req.task().trim());
         block.setNotes(req.notes() != null ? req.notes().trim() : null);
+        block.setVisibleToAdmins(Boolean.TRUE.equals(req.visibleToAdmins()));
         block = repo.save(block);
         googleCalendarSyncQueueService.enqueueUpsert(block.getCompany(), block.getOwner().getId(), GoogleCalendarEntityType.PERSONAL_SESSION, block.getId());
         return toResponse(block);
@@ -94,7 +96,7 @@ public class PersonalCalendarBlockController {
     }
 
     private static PersonalBlockResponse toResponse(PersonalCalendarBlock b) {
-        return new PersonalBlockResponse(b.getId(), b.getOwner().getId(), b.getStartTime(), b.getEndTime(), b.getTask(), b.getNotes());
+        return new PersonalBlockResponse(b.getId(), b.getOwner().getId(), b.getStartTime(), b.getEndTime(), b.getTask(), b.getNotes(), b.isVisibleToAdmins());
     }
 
     private static LocalDateTime parseToLocalDateTime(String value) {

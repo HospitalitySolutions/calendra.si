@@ -34,4 +34,9 @@ public class PersonalCalendarBlock extends BaseEntity {
 
     @Column(length = 1000)
     private String notes;
+
+    /** When enabled, administrators can see the real personal block instead of only using it as busy time. */
+    @Column(nullable = false)
+    private boolean visibleToAdmins = false;
 }
+

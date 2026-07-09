@@ -524,8 +524,8 @@ public class SessionBookingController {
         repo.flush();
     }
 
-    public record PersonalBlockSummary(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes) {}
-    public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes, String visibilityScope, List<Long> visibleUserIds) {}
+    public record PersonalBlockSummary(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes, boolean visibleToAdmins, boolean masked) {}
+    public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes) {}
 
     @GetMapping("/calendar")
     @Transactional(readOnly = true)
@@ -554,24 +554,22 @@ public class SessionBookingController {
             if (AvailabilityBlockMetadata.isRecurringAvailabilityBlock(block)) {
                 continue;
             }
-            personal.add(new PersonalBlockSummary(block.getId(), block.getOwner().getId(), block.getStartTime(), block.getEndTime(), block.getTask(), block.getNotes()));
+            personal.add(toPersonalBlockSummary(block, me));
         }
         for (var block : recurringAvailabilityRows) {
             if (!AvailabilityBlockMetadata.isRecurringAvailabilityBlock(block)) {
                 continue;
             }
             for (var occurrence : AvailabilityBlockMetadata.expand(block, from, to)) {
-                personal.add(new PersonalBlockSummary(block.getId(), block.getOwner().getId(), occurrence.startTime(), occurrence.endTime(), block.getTask(), block.getNotes()));
+                personal.add(toPersonalBlockSummary(block, me, occurrence.startTime(), occurrence.endTime()));
             }
         }
         personal.sort((a, b) -> a.startTime().compareTo(b.startTime()));
         var todos = (SecurityUtils.isAdmin(me)
                 ? calendarTodos.findByCompanyAndDateRange(companyId, rangeStart, rangeEnd)
-                : calendarTodos.findVisibleByUserAndDateRange(me.getId(), companyId, rangeStart, rangeEnd, TodoVisibilityScope.ALL)).stream()
-                .map(SessionBookingController::toTodoSummary)
+                : calendarTodos.findByOwnerAndDateRange(me.getId(), companyId, rangeStart, rangeEnd)).stream()
+                .map(t -> new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes()))
                 .toList();
-
-
         result.put("booked", bookings);
         result.put("bookable", slots);
         result.put("personal", personal);
@@ -579,18 +577,24 @@ public class SessionBookingController {
         return result;
     }
 
-    private static TodoSummary toTodoSummary(CalendarTodo t) {
-        var scope = t.getVisibilityScope() == null ? TodoVisibilityScope.SELECTED : t.getVisibilityScope();
-        var visibleUserIds = scope == TodoVisibilityScope.ALL || t.getVisibleUsers() == null
-                ? List.<Long>of()
-                : t.getVisibleUsers().stream()
-                        .map(User::getId)
-                        .sorted()
-                        .toList();
-        if (scope == TodoVisibilityScope.SELECTED && visibleUserIds.isEmpty() && t.getOwner() != null) {
-            visibleUserIds = List.of(t.getOwner().getId());
-        }
-        return new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes(), scope.name(), visibleUserIds);
+    private static PersonalBlockSummary toPersonalBlockSummary(PersonalCalendarBlock block, User me) {
+        return toPersonalBlockSummary(block, me, block.getStartTime(), block.getEndTime());
+    }
+
+    private static PersonalBlockSummary toPersonalBlockSummary(PersonalCalendarBlock block, User me, LocalDateTime startTime, LocalDateTime endTime) {
+        boolean owner = block.getOwner() != null && block.getOwner().getId().equals(me.getId());
+        boolean adminCanSee = SecurityUtils.isAdmin(me) && block.isVisibleToAdmins();
+        boolean masked = !owner && !adminCanSee && !AvailabilityBlockMetadata.isAvailabilityBlock(block);
+        return new PersonalBlockSummary(
+                block.getId(),
+                block.getOwner().getId(),
+                startTime,
+                endTime,
+                masked ? "" : block.getTask(),
+                masked ? null : block.getNotes(),
+                block.isVisibleToAdmins(),
+                masked
+        );
     }
 
     private List<SessionBooking> loadBookingsForRange(User me, Long companyId, LocalDateTime rangeStart, LocalDateTime rangeEnd) {
