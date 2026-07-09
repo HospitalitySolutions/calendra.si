@@ -250,6 +250,29 @@ export default function CalendarPage() {
   /** Hide Storitev (+ bundled Online on web) when no session types exist. */
   const showBookingTypeRow = settings.TYPES_ENABLED !== 'false' && selectableMetaTypes.length > 0
   const metaGroups: any[] = Array.isArray(meta.groups) ? meta.groups : EMPTY_ARR
+  const defaultTodoVisibilityFields = () => ({
+    visibilityScope: 'SELECTED',
+    visibleUserIds: Number.isFinite(Number(user.id)) ? [Number(user.id)] : [],
+  })
+  const normalizeTodoVisibleUserIds = (ids: any): number[] => {
+    const seen = new Set<number>()
+    if (Array.isArray(ids)) {
+      ids.forEach((raw) => {
+        const id = Number(raw)
+        if (Number.isFinite(id) && id > 0) seen.add(id)
+      })
+    }
+    if (seen.size === 0 && Number.isFinite(Number(user.id))) seen.add(Number(user.id))
+    return Array.from(seen)
+  }
+  const buildTodoVisibilityPayload = (source: any) => {
+    if (!isTenantAdmin) return defaultTodoVisibilityFields()
+    const scope = source?.visibilityScope === 'ALL' ? 'ALL' : 'SELECTED'
+    return {
+      visibilityScope: scope,
+      visibleUserIds: scope === 'ALL' ? [] : normalizeTodoVisibleUserIds(source?.visibleUserIds),
+    }
+  }
   const [groupSearch, setGroupSearch] = useState('')
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false)
   const [editingGroupSearch, setEditingGroupSearch] = useState(false)
@@ -2397,7 +2420,7 @@ export default function CalendarPage() {
       setAvailabilitySelection(null)
       setAvailabilityError(null)
       setAvailabilitySaving(false)
-      setForm((f: any) => ({ ...f, todo: true, personal: false, online: false, consultantId: user.id }))
+      setForm((f: any) => ({ ...f, todo: true, personal: false, online: false, consultantId: user.id, ...defaultTodoVisibilityFields() }))
       return
     }
     const start = form.startTime || selection?.start
@@ -5478,6 +5501,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           task: '',
           todo: true,
           outsideBookable: false,
+          ...defaultTodoVisibilityFields(),
         })
         lastHydratedFormRouteKeyRef.current = fullKey
         return
@@ -6609,6 +6633,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           startTime: form.startTime,
           task: form.task.trim(),
           notes: form.notes || '',
+          ...buildTodoVisibilityPayload(form),
         })
       } else if (form.personal) {
         await api.post('/bookings/personal-blocks', {
@@ -8311,6 +8336,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       startTime: selectedTodo.startTime,
       task: selectedTodo.task,
       notes: selectedTodo.notes || '',
+      ...buildTodoVisibilityPayload(selectedTodo),
     })
     setSelectedTodo(null)
     load()
@@ -8420,6 +8446,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       startTime: newStartStr,
       task: todo.task,
       notes: todo.notes || '',
+      ...buildTodoVisibilityPayload(todo),
     })
   }
 

@@ -22,10 +22,48 @@ public interface CalendarTodoRepository extends JpaRepository<CalendarTodo, Long
             @Param("rangeStart") LocalDateTime rangeStart,
             @Param("rangeEnd") LocalDateTime rangeEnd);
 
+    @Query("""
+            SELECT DISTINCT t FROM CalendarTodo t
+            LEFT JOIN t.visibleUsers vu
+            WHERE t.company.id = :companyId
+              AND t.startTime >= :rangeStart
+              AND t.startTime < :rangeEnd
+              AND (
+                    t.owner.id = :userId
+                    OR t.visibilityScope = :allScope
+                    OR vu.id = :userId
+                  )
+            ORDER BY t.startTime
+            """)
+    List<CalendarTodo> findVisibleByUserAndDateRange(
+            @Param("userId") Long userId,
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd,
+            @Param("allScope") TodoVisibilityScope allScope);
+
     @Query("SELECT t FROM CalendarTodo t WHERE t.owner.id = :ownerId AND t.company.id = :companyId " +
             "AND t.startTime < :now ORDER BY t.startTime")
     List<CalendarTodo> findOverdueByOwner(
             @Param("ownerId") Long ownerId,
             @Param("companyId") Long companyId,
             @Param("now") LocalDateTime now);
+
+    @Query("""
+            SELECT DISTINCT t FROM CalendarTodo t
+            LEFT JOIN t.visibleUsers vu
+            WHERE t.company.id = :companyId
+              AND t.startTime < :now
+              AND (
+                    t.owner.id = :userId
+                    OR t.visibilityScope = :allScope
+                    OR vu.id = :userId
+                  )
+            ORDER BY t.startTime
+            """)
+    List<CalendarTodo> findOverdueVisibleByUser(
+            @Param("userId") Long userId,
+            @Param("companyId") Long companyId,
+            @Param("now") LocalDateTime now,
+            @Param("allScope") TodoVisibilityScope allScope);
 }

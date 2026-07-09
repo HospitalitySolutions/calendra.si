@@ -525,7 +525,7 @@ public class SessionBookingController {
     }
 
     public record PersonalBlockSummary(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes) {}
-    public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes) {}
+    public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes, String visibilityScope, List<Long> visibleUserIds) {}
 
     @GetMapping("/calendar")
     @Transactional(readOnly = true)
@@ -567,14 +567,30 @@ public class SessionBookingController {
         personal.sort((a, b) -> a.startTime().compareTo(b.startTime()));
         var todos = (SecurityUtils.isAdmin(me)
                 ? calendarTodos.findByCompanyAndDateRange(companyId, rangeStart, rangeEnd)
-                : calendarTodos.findByOwnerAndDateRange(me.getId(), companyId, rangeStart, rangeEnd)).stream()
-                .map(t -> new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes()))
+                : calendarTodos.findVisibleByUserAndDateRange(me.getId(), companyId, rangeStart, rangeEnd, TodoVisibilityScope.ALL)).stream()
+                .map(SessionBookingController::toTodoSummary)
                 .toList();
+
+
         result.put("booked", bookings);
         result.put("bookable", slots);
         result.put("personal", personal);
         result.put("todos", todos);
         return result;
+    }
+
+    private static TodoSummary toTodoSummary(CalendarTodo t) {
+        var scope = t.getVisibilityScope() == null ? TodoVisibilityScope.SELECTED : t.getVisibilityScope();
+        var visibleUserIds = scope == TodoVisibilityScope.ALL || t.getVisibleUsers() == null
+                ? List.<Long>of()
+                : t.getVisibleUsers().stream()
+                        .map(User::getId)
+                        .sorted()
+                        .toList();
+        if (scope == TodoVisibilityScope.SELECTED && visibleUserIds.isEmpty() && t.getOwner() != null) {
+            visibleUserIds = List.of(t.getOwner().getId());
+        }
+        return new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes(), scope.name(), visibleUserIds);
     }
 
     private List<SessionBooking> loadBookingsForRange(User me, Long companyId, LocalDateTime rangeStart, LocalDateTime rangeEnd) {

@@ -33,6 +33,110 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
   const allDayRangeStartTime = (ymd: string) => normalizeToLocalDateTime(`${ymd}T00:00:00`)
   const allDayRangeEndTime = (ymd: string) => normalizeToLocalDateTime(`${ymd}T23:59:59`)
+  const isTenantAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
+  const todoVisibilityUsers = (Array.isArray(metaUsers) ? metaUsers : [])
+    .filter((u: any) => u && u.active !== false)
+    .sort((a: any, b: any) => fullName(a).localeCompare(fullName(b), locale === 'sl' ? 'sl' : 'en'))
+  const normalizeTodoVisibleUserIdsForUi = (source: any): number[] => {
+    const seen = new Set<number>()
+    const rawIds = Array.isArray(source?.visibleUserIds) ? source.visibleUserIds : []
+    rawIds.forEach((raw: any) => {
+      const id = Number(raw)
+      if (Number.isFinite(id) && id > 0) seen.add(id)
+    })
+    const ownerId = Number(source?.ownerId)
+    if (seen.size === 0 && Number.isFinite(ownerId) && ownerId > 0) seen.add(ownerId)
+    const currentId = Number(user?.id)
+    if (seen.size === 0 && Number.isFinite(currentId) && currentId > 0) seen.add(currentId)
+    return Array.from(seen)
+  }
+  const renderTodoVisibilityPicker = (target: 'form' | 'edit') => {
+    if (!isTenantAdmin) return null
+    const source = target === 'form' ? form : selectedTodo
+    if (!source) return null
+    const scope = source.visibilityScope === 'ALL' ? 'ALL' : 'SELECTED'
+    const selectedIds = normalizeTodoVisibleUserIdsForUi(source)
+    const selectedUsers = selectedIds
+      .map((id) => todoVisibilityUsers.find((u: any) => Number(u?.id) === Number(id)) || (Number(user?.id) === Number(id) ? user : null))
+      .filter(Boolean)
+    const availableUsers = todoVisibilityUsers.filter((u: any) => !selectedIds.includes(Number(u?.id)))
+    const update = (patch: any) => {
+      if (target === 'form') setForm((prev: any) => ({ ...prev, ...patch }))
+      else setSelectedTodo((prev: any) => (prev ? { ...prev, ...patch } : prev))
+    }
+    const setSelectedScope = () => update({ visibilityScope: 'SELECTED', visibleUserIds: selectedIds.length ? selectedIds : [Number(user?.id)].filter((id) => Number.isFinite(id) && id > 0) })
+    return (
+      <div className="form-row form-row-infield stretch todo-visibility-row">
+        <span className="form-field-inline-label">{t('formTodoVisibleTo')}</span>
+        <div className="form-field-inline-control">
+          <div className="todo-visibility-card">
+            <div className="todo-visibility-toggle" role="group" aria-label={t('formTodoVisibleTo')}>
+              <button
+                type="button"
+                className={`todo-visibility-choice${scope === 'ALL' ? ' todo-visibility-choice--active' : ''}`}
+                aria-pressed={scope === 'ALL'}
+                onClick={() => update({ visibilityScope: 'ALL', visibleUserIds: [] })}
+              >
+                {t('formTodoVisibleAll')}
+              </button>
+              <button
+                type="button"
+                className={`todo-visibility-choice${scope !== 'ALL' ? ' todo-visibility-choice--active' : ''}`}
+                aria-pressed={scope !== 'ALL'}
+                onClick={setSelectedScope}
+              >
+                {t('formTodoVisibleSelected')}
+              </button>
+            </div>
+            {scope !== 'ALL' && (
+              <div className="todo-visibility-people">
+                <div className="todo-visibility-chips">
+                  {selectedUsers.map((u: any) => {
+                    const id = Number(u?.id)
+                    const label = fullName(u) || u?.email || `#${id}`
+                    const canRemove = selectedIds.length > 1
+                    return (
+                      <span key={id} className="todo-visibility-chip">
+                        <span className="todo-visibility-chip__label">{label}</span>
+                        <button
+                          type="button"
+                          className="todo-visibility-chip__remove"
+                          disabled={!canRemove}
+                          aria-label={`${t('formDelete')} ${label}`}
+                          onClick={() => {
+                            if (!canRemove) return
+                            update({ visibleUserIds: selectedIds.filter((x) => Number(x) !== id), visibilityScope: 'SELECTED' })
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )
+                  })}
+                  <select
+                    className="todo-visibility-add-select"
+                    value=""
+                    onChange={(e) => {
+                      const id = Number(e.target.value)
+                      if (!Number.isFinite(id) || id <= 0) return
+                      update({ visibleUserIds: Array.from(new Set([...selectedIds, id])), visibilityScope: 'SELECTED' })
+                    }}
+                  >
+                    <option value="">+ {t('formTodoAddPerson')}</option>
+                    {availableUsers.map((u: any) => (
+                      <option key={u.id} value={u.id}>{fullName(u) || u.email || `#${u.id}`}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="todo-visibility-help">{t('formTodoVisibleSelectedHelp')}</div>
+              </div>
+            )}
+            {scope === 'ALL' && <div className="todo-visibility-help">{t('formTodoVisibleAllHelp')}</div>}
+          </div>
+        </div>
+      </div>
+    )
+  }
   const advanceBillingEnabled = settings?.BILLING_ADVANCE_ENABLED !== 'false'
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
@@ -3148,6 +3252,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <input value={selectedTodo.task || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, task: e.target.value })} />
                   </div>
                 </div>
+                {renderTodoVisibilityPicker('edit')}
                 <div className="form-row form-row-timespan">
                   <CalendarLocalTimeDateRow
                     value={selectedTodo.startTime}
@@ -3505,6 +3610,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <input placeholder={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
                     </div>
                   </div>
+                  {renderTodoVisibilityPicker('form')}
                   <div className="form-row form-row-timespan">
                     <CalendarLocalTimeDateRow
                       value={form.startTime}
@@ -4214,7 +4320,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <span className="form-field-inline-label">{t('formOptions')}</span>
                     <div className="form-field-inline-control">
                     <div className="checkbox-row book-session-checkbox-row">
-                      {todosModuleEnabled && <label><input type="checkbox" checked={!!form.todo} onChange={(e) => setForm({ ...form, todo: e.target.checked, personal: false, online: false, consultantId: e.target.checked ? user.id : form.consultantId })} /> {t('formTodo')}</label>}
+                      {todosModuleEnabled && <label><input type="checkbox" checked={!!form.todo} onChange={(e) => setForm({ ...form, todo: e.target.checked, personal: false, online: false, consultantId: e.target.checked ? user.id : form.consultantId, ...(e.target.checked ? { visibilityScope: 'SELECTED', visibleUserIds: [Number(user.id)].filter((id) => Number.isFinite(id) && id > 0) } : {}) })} /> {t('formTodo')}</label>}
                       {personalModuleEnabled && <label><input type="checkbox" checked={!!form.personal} onChange={(e) => setForm({ ...form, personal: e.target.checked, todo: false, consultantId: e.target.checked ? user.id : form.consultantId })} disabled={!!form.todo} /> {t('formPersonal')}</label>}
                       {onlineSessionBookingEnabled && <label><input type="checkbox" checked={!!form.online} onChange={(e) => { const on = e.target.checked; if (on) { setForm({ ...form, online: true }); setMeetingPickerCancelUnchecksOnline(true); setMeetingProviderPickerTarget('create'); setMeetingProviderPickerOpen(true) } else { setForm({ ...form, online: false }); setMeetingProviderPickerOpen(false); setMeetingProviderPickerTarget(null); setMeetingPickerCancelUnchecksOnline(false) } }} disabled={!!form.personal || !!form.todo} /> {t('formOnline')}</label>}
                     </div>

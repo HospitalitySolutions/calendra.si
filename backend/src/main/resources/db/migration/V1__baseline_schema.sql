@@ -963,8 +963,20 @@ CREATE TABLE IF NOT EXISTS calendar_todos (
     owner_id BIGINT NOT NULL,
     start_time TIMESTAMP NOT NULL,
     task VARCHAR(200) NOT NULL,
-    notes VARCHAR(1000)
+    notes VARCHAR(1000),
+    visibility_scope VARCHAR(20) NOT NULL DEFAULT 'SELECTED'
 );
+
+CREATE TABLE IF NOT EXISTS calendar_todo_visible_users (
+    todo_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    PRIMARY KEY (todo_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_todo_visible_users_user
+    ON calendar_todo_visible_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_todo_visible_users_todo
+    ON calendar_todo_visible_users(todo_id);
 
 -- backend/src/main/java/com/example/app/session/PersonalCalendarBlock.java
 CREATE TABLE IF NOT EXISTS personal_calendar_block (
