@@ -1917,6 +1917,14 @@ export default function CalendarPage() {
   const pad2 = (n: number) => String(n).padStart(2, '0')
   const toLocalDateTimeString = (date: Date) =>
     `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+  const toLocalDateString = (date: Date) =>
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+  const addDaysToLocalYmd = (ymd: string, days: number) => {
+    const match = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!match) return ymd
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days)
+    return toLocalDateString(date)
+  }
   const normalizeToLocalDateTime = (value: string) => {
     if (!value) return value
     // If it includes timezone offset or Z, normalize it to local (no offset) for backend LocalDateTime.
@@ -1925,6 +1933,32 @@ export default function CalendarPage() {
     }
     // If it already looks like local datetime, keep it.
     return value.length === 16 ? `${value}:00` : value
+  }
+  const getContinuousAllDayCalendarRange = (startValue?: string | null, endValue?: string | null) => {
+    if (!startValue || !endValue) return null
+    const startLocal = normalizeToLocalDateTime(String(startValue))
+    const endLocal = normalizeToLocalDateTime(String(endValue))
+    if (!isLocalBookingAllDay(startLocal, endLocal)) return null
+    const startDate = splitLocalDateTimeParts(startLocal).date
+    const endDate = splitLocalDateTimeParts(endLocal).date
+    if (!startDate || !endDate || endDate < startDate) return null
+    return {
+      start: startDate,
+      end: addDaysToLocalYmd(endDate, 1),
+      allDay: true,
+    }
+  }
+  const toAllDayStartString = (start?: Date | null) => {
+    if (!start || !Number.isFinite(start.getTime())) return ''
+    const allDayStart = new Date(start)
+    allDayStart.setHours(0, 0, 0, 0)
+    return toLocalDateTimeString(allDayStart)
+  }
+  const toInclusiveAllDayEndString = (exclusiveEnd?: Date | null) => {
+    if (!exclusiveEnd || !Number.isFinite(exclusiveEnd.getTime())) return ''
+    const inclusiveEnd = new Date(exclusiveEnd.getTime() - 1)
+    inclusiveEnd.setHours(23, 59, 59, 0)
+    return toLocalDateTimeString(inclusiveEnd)
   }
 
   const fallbackSessionLengthMinutes = Number(settings.SESSION_LENGTH_MINUTES || 60)
@@ -3103,11 +3137,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               && overlaps(breakRange.startMs, breakRange.endMs, otherStartMs, otherEndMs)
           })
         )
+        const allDayRange = getContinuousAllDayCalendarRange(b.startTime, b.endTime)
         const ev: any = {
           id: `b-${b.id}`,
           title: maskedBooked ? '' : formatBookingClientsLabel(b),
-          start: b.startTime,
-          end: b.endTime,
+          start: allDayRange?.start ?? b.startTime,
+          end: allDayRange?.end ?? b.endTime,
+          ...(allDayRange ? { allDay: true } : {}),
           color: servicePalette.bg,
           backgroundColor: servicePalette.bg,
           borderColor: servicePalette.border,
@@ -3124,6 +3160,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             masked: maskedBooked,
             breakConflict,
             breakMinutes: typeBreakMinutes,
+            continuousAllDay: Boolean(allDayRange),
           },
         }
         if (spacesUseResourceColumns) {
@@ -3143,6 +3180,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const bookedBreakBackground = isMonthGridView
       ? []
       : booked.flatMap((ev: any) => {
+          if (ev?.extendedProps?.continuousAllDay) return []
           const breakRange = getBookingBreakRange(ev.extendedProps)
           if (!breakRange) return []
           const breakEv: any = {
@@ -3582,15 +3620,17 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         if (String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK) return null
         const taskName = String(p.task || '').trim().toLowerCase()
         const presetColor = personalTaskPresetColorByName.get(taskName)
+        const allDayRange = getContinuousAllDayCalendarRange(p.startTime, p.endTime)
         const ev: any = {
           id: `p-${p.id}`,
           title: p.task || t('formPersonal'),
-          start: p.startTime,
-          end: p.endTime,
+          start: allDayRange?.start ?? p.startTime,
+          end: allDayRange?.end ?? p.endTime,
+          ...(allDayRange ? { allDay: true } : {}),
           color: presetColor || '#F97316',
           order: 2,
           editable: !isViewOnly,
-          extendedProps: { ...p, kind: 'personal', masked: false },
+          extendedProps: { ...p, kind: 'personal', masked: false, continuousAllDay: Boolean(allDayRange) },
         }
         if (calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid) {
           ev.resourceId = String(user.id)
@@ -3737,17 +3777,22 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 ? '#ef4444'
                 : '#14b8a6'
               : '#16A34A'
+      const allDayRange = draftKind === 'booked' || draftKind === 'personal'
+        ? getContinuousAllDayCalendarRange(startNorm, endNorm)
+        : null
       const ev: any = {
         id: 'session-draft-preview',
         title: '\u00a0',
-        start: startNorm,
-        end: endNorm,
+        start: allDayRange?.start ?? startNorm,
+        end: allDayRange?.end ?? endNorm,
+        ...(allDayRange ? { allDay: true } : {}),
         color,
         display: 'auto',
         order: 9,
         extendedProps: {
           kind: 'draft-preview',
           draftKind,
+          continuousAllDay: Boolean(allDayRange),
           ...(draftKind === 'availability' ? { availabilityIntent } : {}),
         },
         editable: false,
@@ -3766,6 +3811,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const sessionEvents = inputEvents.filter((ev: any) => {
         const kind = ev?.extendedProps?.kind
         if (kind !== 'booked' && kind !== 'personal' && kind !== 'todo') return false
+        if (ev?.allDay || ev?.extendedProps?.continuousAllDay) return false
         if (ev?.extendedProps?.masked) return false
         if (ev?.display === 'background') return false
         const startMs = new Date(ev.start).getTime()
@@ -4095,6 +4141,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         void bucketKey
         const eligible = bucketEvents.filter((ev: any) => {
           const kind = ev?.extendedProps?.kind
+          if (ev?.allDay || ev?.extendedProps?.continuousAllDay) return false
           return kind === 'booked' || kind === 'personal'
         })
         for (const ev of eligible) {
@@ -4229,6 +4276,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     t,
     locale,
   ])
+
+  const calendarHasContinuousAllDaySessions = useMemo(
+    () => (events as any[]).some((ev: any) => {
+      const kind = ev?.extendedProps?.kind
+      return Boolean(ev?.allDay || ev?.extendedProps?.continuousAllDay)
+        && (kind === 'booked' || kind === 'personal' || kind === 'draft-preview')
+    }),
+    [events],
+  )
 
 
   const activeOverlapGroup = useMemo(() => {
@@ -8385,7 +8441,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       Number.isFinite(partialOriginalStartMs) && Number.isFinite(partialOriginalEndMs) && partialOriginalEndMs > partialOriginalStartMs
         ? partialOriginalEndMs - partialOriginalStartMs
         : NaN
-    const newStartStr = toLocalDateTimeString(newStart)
+    const isContinuousAllDayMove = Boolean(props.continuousAllDay || info.event.allDay)
+    const newStartStr = isContinuousAllDayMove ? toAllDayStartString(newStart) : toLocalDateTimeString(newStart)
 
     // Extract resource change info early so all checks below can use the TARGET resource
     const rawResourceId = info.newResource?.id ?? info.event.getResources?.()[0]?.id
@@ -8419,7 +8476,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const newEnd = Number.isFinite(partialOriginalDurationMs)
         ? new Date(newStart.getTime() + partialOriginalDurationMs)
         : (info.event.end || new Date(newStart.getTime() + 60 * 60000))
-      const newEndStr = toLocalDateTimeString(newEnd)
+      const newEndStr = isContinuousAllDayMove ? toInclusiveAllDayEndString(newEnd) : toLocalDateTimeString(newEnd)
       setCalendarData((prev: any) => ({ ...prev, personal: (prev.personal || []).map((p: any) => p.id === props.id ? { ...p, startTime: newStartStr, endTime: newEndStr } : p) }))
       if (selectedPersonalBlock?.id === props.id) setSelectedPersonalBlock({ ...selectedPersonalBlock, startTime: newStartStr, endTime: newEndStr })
       cleanupDragArtifacts()
@@ -8475,7 +8532,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const newEnd = Number.isFinite(partialOriginalDurationMs)
       ? new Date(newStart.getTime() + partialOriginalDurationMs)
       : (info.event.end || new Date(newStart.getTime() + Number(typeDuration) * 60000))
-    const newEndStr = toLocalDateTimeString(newEnd)
+    const newEndStr = isContinuousAllDayMove ? toInclusiveAllDayEndString(newEnd) : toLocalDateTimeString(newEnd)
 
     const typeBreakMinutes = props.type?.breakMinutes ?? getTypeBreakMinutes(props.type?.id)
     const overlapping = findOverlappingBooked(newStart, newEnd, props.id, consultantIdOverride, typeBreakMinutes)
@@ -8576,8 +8633,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }
       const newStart = info.event.start!
       const newEnd = info.event.end || new Date(newStart.getTime() + 60 * 60000)
-      const newStartStr = toLocalDateTimeString(newStart)
-      const newEndStr = toLocalDateTimeString(newEnd)
+      const isContinuousAllDayResize = Boolean(props.continuousAllDay || info.event.allDay)
+      const newStartStr = isContinuousAllDayResize ? toAllDayStartString(newStart) : toLocalDateTimeString(newStart)
+      const newEndStr = isContinuousAllDayResize ? toInclusiveAllDayEndString(newEnd) : toLocalDateTimeString(newEnd)
       setCalendarData((prev: any) => ({
         ...prev,
         personal: (prev.personal || []).map((p: any) =>
@@ -8608,8 +8666,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const newStart = info.event.start!
     const typeDuration = props.type?.durationMinutes ?? fallbackSessionLengthMinutes ?? 60
     const newEnd = info.event.end || new Date(newStart.getTime() + Number(typeDuration) * 60000)
-    const newStartStr = toLocalDateTimeString(newStart)
-    const newEndStr = toLocalDateTimeString(newEnd)
+    const isContinuousAllDayResize = Boolean(props.continuousAllDay || info.event.allDay)
+    const newStartStr = isContinuousAllDayResize ? toAllDayStartString(newStart) : toLocalDateTimeString(newStart)
+    const newEndStr = isContinuousAllDayResize ? toInclusiveAllDayEndString(newEnd) : toLocalDateTimeString(newEnd)
 
     const typeBreakMinutes = props.type?.breakMinutes ?? getTypeBreakMinutes(props.type?.id)
     const overlapping = findOverlappingBooked(newStart, newEnd, props.id, undefined, typeBreakMinutes)
@@ -10312,39 +10371,39 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           {...(isNativeAndroid
             ? {
                 views: {
-                  timeGridWeek: { allDaySlot: false },
-                  timeGridDay: { allDaySlot: false },
+                  timeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
+                  timeGridDay: { allDaySlot: calendarHasContinuousAllDaySessions },
                   timeGridThreeDay: {
                     type: 'timeGrid',
                     duration: { days: 3 },
                     dateAlignment: 'day',
-                    allDaySlot: false,
+                    allDaySlot: calendarHasContinuousAllDaySessions,
                   },
                   dayGridMonth: { dayHeaders: false, showNonCurrentDates: false, fixedWeekCount: false },
                 },
               }
             : {
                 views: {
-                  timeGridDay: { dayHeaderFormat: { weekday: 'long' }, allDaySlot: false },
-                  timeGridWeek: { allDaySlot: false },
+                  timeGridDay: { dayHeaderFormat: { weekday: 'long' }, allDaySlot: calendarHasContinuousAllDaySessions },
+                  timeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
                   timeGridThreeDay: {
                     type: 'timeGrid',
                     duration: { days: 3 },
                     dateAlignment: 'day',
-                    allDaySlot: false,
+                    allDaySlot: calendarHasContinuousAllDaySessions,
                   },
                   dayGridMonth: { dayHeaderFormat: { weekday: 'long' } },
                   resourceTimeGridDay: {
                     dayHeaderFormat: { weekday: 'long' },
-                    allDaySlot: false,
+                    allDaySlot: calendarHasContinuousAllDaySessions,
                     datesAboveResources: true,
                   },
-                  resourceTimeGridWeek: { allDaySlot: false },
+                  resourceTimeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
                   resourceTimeGridThreeDay: {
                     type: 'resourceTimeGrid',
                     duration: { days: 3 },
                     dateAlignment: 'day',
-                    allDaySlot: false,
+                    allDaySlot: calendarHasContinuousAllDaySessions,
                     datesAboveResources: true,
                   },
                   resourceDayGridMonth: { dayHeaderFormat: { weekday: 'long' } },
@@ -10804,6 +10863,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 'calendar-event-booked-visual',
                 ...(sessionQuickActions?.eventKey === String(arg.event.id ?? `booked-${arg.event.extendedProps?.id ?? ''}`) ? ['calendar-event-quick-actions-active'] : []),
                 ...(arg.event.extendedProps?.breakConflict ? ['calendar-event-booked-break-conflict'] : []),
+                ...(arg.event.extendedProps?.continuousAllDay ? ['calendar-event-continuous-all-day'] : []),
                 ...(arg.event.extendedProps?.partialOverlapGroupId ? ['calendar-event-partial-overlap-visual', `calendar-event-partial-overlap-${arg.event.extendedProps.partialOverlapPlacement || 'crosses-main'}`] : []),
                 ...(Number(arg.event.extendedProps?.partialOverlapCount || 0) > 0 ? ['calendar-event-overlap-main-has-partial'] : []),
                 ...(arg.event.extendedProps?.overlapGroupId && arg.event.extendedProps?.overlapGroupId === overlapDrawerGroupId ? ['calendar-event-overlap-main-active'] : []),
@@ -10820,6 +10880,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 'calendar-event-hover-scale',
                 'calendar-event-personal-visual',
                 ...(sessionQuickActions?.eventKey === String(arg.event.id ?? `personal-${arg.event.extendedProps?.id ?? ''}`) ? ['calendar-event-quick-actions-active'] : []),
+                ...(arg.event.extendedProps?.continuousAllDay ? ['calendar-event-continuous-all-day'] : []),
                 ...(arg.event.extendedProps?.partialOverlapGroupId ? ['calendar-event-partial-overlap-visual', `calendar-event-partial-overlap-${arg.event.extendedProps.partialOverlapPlacement || 'crosses-main'}`] : []),
                 ...(Number(arg.event.extendedProps?.partialOverlapCount || 0) > 0 ? ['calendar-event-overlap-main-has-partial'] : []),
                 ...(arg.event.extendedProps?.overlapGroupId && arg.event.extendedProps?.overlapGroupId === overlapDrawerGroupId ? ['calendar-event-overlap-main-active'] : []),
@@ -11002,9 +11063,16 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             const eventDurationMinutes = Number.isFinite(eventStartMs) && Number.isFinite(eventEndMs)
               ? Math.max(0, Math.round((eventEndMs - eventStartMs) / 60000))
               : 0
-            const mainStartTime = props.partialOriginalStart ? formatCalendarClock(props.partialOriginalStart) : (arg.event.start ? formatCalendarClock(arg.event.start.toISOString()) : '')
-            const mainEndTime = props.partialOriginalEnd ? formatCalendarClock(props.partialOriginalEnd) : (arg.event.end ? formatCalendarClock(arg.event.end.toISOString()) : '')
-            const mainTimeRange = mainStartTime && mainEndTime ? `${mainStartTime} – ${mainEndTime}` : (mainStartTime || mainEndTime || '')
+            const isContinuousAllDayEvent = Boolean(props.continuousAllDay || arg.event.allDay)
+            const mainStartTime = isContinuousAllDayEvent
+              ? ''
+              : props.partialOriginalStart ? formatCalendarClock(props.partialOriginalStart) : (arg.event.start ? formatCalendarClock(arg.event.start.toISOString()) : '')
+            const mainEndTime = isContinuousAllDayEvent
+              ? ''
+              : props.partialOriginalEnd ? formatCalendarClock(props.partialOriginalEnd) : (arg.event.end ? formatCalendarClock(arg.event.end.toISOString()) : '')
+            const mainTimeRange = isContinuousAllDayEvent
+              ? (locale === 'sl' ? 'Cel dan' : 'All day')
+              : mainStartTime && mainEndTime ? `${mainStartTime} – ${mainEndTime}` : (mainStartTime || mainEndTime || '')
             const maxInlineOverlapSessions = eventDurationMinutes >= 120
               ? 4
               : eventDurationMinutes >= 90

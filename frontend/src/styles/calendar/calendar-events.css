@@ -3357,3 +3357,33 @@
         border-top-color: rgba(255, 255, 255, 0.24);
     }
 }
+
+/* Multi-day all-day booked/personal sessions: render as one continuous bar in the FullCalendar all-day lane. */
+.calendar-fc-shell .fc .calendar-event-continuous-all-day {
+    border-radius: 10px !important;
+    min-height: 28px;
+    overflow: hidden !important;
+}
+
+.calendar-fc-shell .fc .calendar-event-continuous-all-day .fc-event-main,
+.calendar-fc-shell .fc .calendar-event-continuous-all-day .fc-event-main-frame {
+    align-items: center;
+    min-height: 26px;
+    padding: 2px 6px !important;
+}
+
+.calendar-fc-shell .fc .fc-timegrid-allday .calendar-event-continuous-all-day {
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+.calendar-fc-shell .fc .fc-timegrid-allday-cushion,
+.calendar-fc-shell .fc .fc-timegrid-axis-cushion.fc-scrollgrid-shrink-cushion {
+    font-weight: 800;
+    color: #64748b;
+}
+
+[data-theme="dark"] .calendar-fc-shell .fc .fc-timegrid-allday-cushion,
+[data-theme="dark"] .calendar-fc-shell .fc .fc-timegrid-axis-cushion.fc-scrollgrid-shrink-cushion {
+    color: #94a3b8;
+}
