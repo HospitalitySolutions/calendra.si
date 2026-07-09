@@ -968,20 +968,6 @@ CREATE TABLE IF NOT EXISTS calendar_todos (
     CONSTRAINT chk_calendar_todos_visibility_scope CHECK (visibility_scope IN ('SELECTED', 'ALL'))
 );
 
--- backend/src/main/java/com/example/app/session/CalendarTodo.java visibleUsers join table
-CREATE TABLE IF NOT EXISTS calendar_todo_visible_users (
-    todo_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    PRIMARY KEY (todo_id, user_id),
-    CONSTRAINT fk_calendar_todo_visible_users_todo
-        FOREIGN KEY (todo_id) REFERENCES calendar_todos(id) ON DELETE CASCADE,
-    CONSTRAINT fk_calendar_todo_visible_users_user
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_calendar_todo_visible_users_user
-    ON calendar_todo_visible_users (user_id);
-
 CREATE INDEX IF NOT EXISTS idx_calendar_todos_company_time_visibility
     ON calendar_todos (company_id, start_time, visibility_scope);
 
@@ -1201,6 +1187,21 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_s3_key VARCHAR(512),
     avatar_content_type VARCHAR(120)
 );
+
+-- backend/src/main/java/com/example/app/session/CalendarTodo.java visibleUsers join table
+-- Must be created after both calendar_todos and users exist because it has FKs to both.
+CREATE TABLE IF NOT EXISTS calendar_todo_visible_users (
+    todo_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    PRIMARY KEY (todo_id, user_id),
+    CONSTRAINT fk_calendar_todo_visible_users_todo
+        FOREIGN KEY (todo_id) REFERENCES calendar_todos(id) ON DELETE CASCADE,
+    CONSTRAINT fk_calendar_todo_visible_users_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_todo_visible_users_user
+    ON calendar_todo_visible_users (user_id);
 
 -- backend/src/main/java/com/example/app/widget/WidgetBookingIdempotencyRecord.java
 CREATE TABLE IF NOT EXISTS widget_booking_idempotency (
