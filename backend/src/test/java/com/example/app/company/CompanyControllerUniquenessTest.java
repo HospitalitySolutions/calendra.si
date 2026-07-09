@@ -66,6 +66,7 @@ class CompanyControllerUniquenessTest {
                 null,
                 "dup@example.com",
                 null,
+                null,
                 null);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.create(req, me));
@@ -87,6 +88,7 @@ class CompanyControllerUniquenessTest {
                 null,
                 "x@y.z",
                 null,
+                null,
                 null);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.create(req, me));
@@ -98,7 +100,7 @@ class CompanyControllerUniquenessTest {
     void create_allowsMultipleCompaniesWithBlankEmailAndVat() {
         when(companies.save(org.mockito.ArgumentMatchers.any(ClientCompany.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var req = new CompanyController.CompanyRequest("No billing ids", null, null, null, null, null, null, null, null);
+        var req = new CompanyController.CompanyRequest("No billing ids", null, null, null, null, null, null, null, null, null);
 
         assertDoesNotThrow(() -> controller.create(req, me));
         assertDoesNotThrow(() -> controller.create(req, me));
@@ -128,6 +130,7 @@ class CompanyControllerUniquenessTest {
                 "VAT999",
                 null,
                 "same@example.com",
+                null,
                 null,
                 null);
 

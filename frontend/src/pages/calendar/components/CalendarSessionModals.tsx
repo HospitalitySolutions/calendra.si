@@ -20,6 +20,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [bookedEntitlementWalletOptions, setBookedEntitlementWalletOptions] = useState<any[]>([])
   const [bookedEntitlementWalletLoading, setBookedEntitlementWalletLoading] = useState(false)
   const [bookedEntitlementCameraActive, setBookedEntitlementCameraActive] = useState(false)
+  const [calendarNewClientEditField, setCalendarNewClientEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | null>('firstName')
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
   const bookedEntitlementScannerControlsRef = useRef<any>(null)
   const bookedEntitlementQrReaderRef = useRef<any>(null)
@@ -185,6 +186,76 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   useEffect(() => stopBookedEntitlementCamera, [])
+
+  useEffect(() => {
+    if (showAddClientModal) {
+      setCalendarNewClientEditField('firstName')
+    }
+  }, [showAddClientModal])
+
+  const closeCalendarAddClientModal = () => {
+    setShowAddClientModal(false)
+    setCalendarNewClientEditField('firstName')
+  }
+
+  const calendarNewClientDisplayName = [newClientForm.firstName, newClientForm.lastName]
+    .filter((value: string) => String(value ?? '').trim())
+    .join(' ')
+    .trim() || (locale === 'sl' ? 'Nova stranka' : 'New client')
+  const calendarNewClientActiveLabel = locale === 'sl' ? 'Aktivna' : 'Active'
+  const calendarCreateClientLabel = locale === 'sl' ? 'Ustvari stranko' : 'Create client'
+  const calendarCreateClientDisabled = savingClient || !String(newClientForm.firstName ?? '').trim() || !String(newClientForm.lastName ?? '').trim()
+
+  const renderCalendarNewClientEditableField = (
+    key: 'firstName' | 'lastName' | 'email' | 'phone',
+    label: string,
+    wide = false,
+    inputType: 'text' | 'email' = 'text',
+  ) => {
+    const isEditing = calendarNewClientEditField === key
+    return (
+      <div
+        className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
+        onClick={() => {
+          if (calendarNewClientEditField !== key) setCalendarNewClientEditField(key)
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          if (calendarNewClientEditField === key) return
+          e.preventDefault()
+          setCalendarNewClientEditField(key)
+        }}
+      >
+        <span>{label}</span>
+        {!isEditing ? (
+          <strong>{(newClientForm[key] ?? '').trim() || '—'}</strong>
+        ) : (
+          <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
+            <input
+              autoFocus
+              type={inputType}
+              value={String(newClientForm[key] ?? '')}
+              onChange={(e) => setNewClientForm({ ...newClientForm, [key]: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (key === 'firstName') setCalendarNewClientEditField('lastName')
+                  else if (key === 'lastName') setCalendarNewClientEditField('email')
+                  else if (key === 'email') setCalendarNewClientEditField('phone')
+                  else setCalendarNewClientEditField(null)
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setCalendarNewClientEditField(null)
+                }
+              }}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const bookedEntitlementErrorMessage = (result?: string | null, message?: string | null) => {
     if (message) return message
@@ -4267,76 +4338,56 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
       {showAddClientModal && (
         <div
-          className="modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement"
-          onClick={() => setShowAddClientModal(false)}
+          className={`modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeCalendarAddClientModal()
+          }}
+          role="presentation"
         >
-          <div className="modal large-modal clients-create-popup calendar-client-create-popup clients-detail-panel-modern clients-create-modal calendar-create-entry-modal calendar-create-entry-modal--client-only" onClick={(e) => e.stopPropagation()}>
-            <div className="calendar-create-entry-header" {...getSessionPopupDragHandleProps()}>
-              <div className="calendar-create-entry-mobile-handle" aria-hidden="true" />
-              <button type="button" className="calendar-create-entry-close" onClick={() => setShowAddClientModal(false)} aria-label={t('mobileNavClose')}>×</button>
-              <div className="calendar-create-entry-title-copy">
-                <h2>{locale === 'sl' ? 'Dodaj novo stranko' : 'Add new client'}</h2>
-                <p>{locale === 'sl' ? 'Ustvari novo stranko in jo poveži s terminom.' : 'Create a new client and attach it to this session.'}</p>
-              </div>
-              <button
-                type="button"
-                className="calendar-create-entry-mobile-submit"
-                onClick={() => void createClientFromBooking()}
-                disabled={savingClient}
-                aria-label={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="calendar-create-entry-body">
-              <div className="calendar-create-entry-grid calendar-create-entry-grid--client">
-                <label className="calendar-create-entry-field">
-                  <span>{locale === 'sl' ? 'Ime' : 'First name'} <i aria-hidden /></span>
-                  <input
-                    value={newClientForm.firstName}
-                    onChange={(e) => setNewClientForm({ ...newClientForm, firstName: e.target.value })}
-                    placeholder={locale === 'sl' ? 'Vnesite ime' : 'Enter first name'}
-                    required
-                  />
-                </label>
-                <label className="calendar-create-entry-field">
-                  <span>{locale === 'sl' ? 'Priimek' : 'Last name'} <i aria-hidden /></span>
-                  <input
-                    value={newClientForm.lastName}
-                    onChange={(e) => setNewClientForm({ ...newClientForm, lastName: e.target.value })}
-                    placeholder={locale === 'sl' ? 'Vnesite priimek' : 'Enter last name'}
-                    required
-                  />
-                </label>
-                <label className="calendar-create-entry-field calendar-create-entry-field--wide">
-                  <span>{locale === 'sl' ? 'E-pošta' : 'Email'} <i aria-hidden /></span>
-                  <input
-                    type="email"
-                    value={newClientForm.email}
-                    onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
-                    placeholder={locale === 'sl' ? 'Vnesite e-pošto' : 'Enter email'}
-                  />
-                </label>
-                <label className="calendar-create-entry-field calendar-create-entry-field--wide">
-                  <span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span>
-                  <input
-                    value={newClientForm.phone}
-                    onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
-                    placeholder={locale === 'sl' ? 'Vnesite telefonsko številko' : 'Enter phone number'}
-                  />
-                </label>
+          <div
+            className="modal large-modal calendar-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <form
+              className="clients-create-modal-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!calendarCreateClientDisabled) void createClientFromBooking()
+              }}
+            >
+              <div className="clients-action-workspace-header">
+                <div className="clients-action-workspace-client">
+                  <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
+                    {newClientInitials(String(newClientForm.firstName ?? ''), String(newClientForm.lastName ?? ''))}
+                  </span>
+                  <div className="clients-name-stack clients-action-workspace-title-stack">
+                    <span className="clients-name">{calendarNewClientDisplayName}</span>
+                    <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {calendarNewClientActiveLabel}</span>
+                  </div>
+                </div>
+                <button type="button" className="secondary clients-action-workspace-close" onClick={closeCalendarAddClientModal} aria-label={t('mobileNavClose')}>
+                  ×
+                </button>
               </div>
 
-              {clientError && <div className="error calendar-create-entry-error">{clientError}</div>}
-            </div>
+              <div className="clients-action-workspace-body">
+                <div className="clients-detail-shell clients-action-workspace-shell">
+                  <div className="clients-detail-fields clients-create-fields clients-action-workspace-settings-grid">
+                    {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
+                    {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
+                    {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
+                    {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true)}
+                  </div>
+                  {clientError && <div className="error">{clientError}</div>}
+                </div>
+              </div>
 
-            <div className="calendar-create-entry-footer">
-              <button type="button" className="secondary calendar-create-entry-secondary" onClick={() => setShowAddClientModal(false)}>{t('cancel')}</button>
-              <button type="button" className="calendar-create-entry-primary" onClick={() => void createClientFromBooking()} disabled={savingClient}>{savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : (locale === 'sl' ? 'Ustvari' : 'Create')}</button>
-            </div>
+              <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
+                <button type="submit" className="clients-gapp-save-button" disabled={calendarCreateClientDisabled}>
+                  {savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateClientLabel}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
