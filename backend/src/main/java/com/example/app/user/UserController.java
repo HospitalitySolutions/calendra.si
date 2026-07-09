@@ -1,5 +1,6 @@
 package com.example.app.user;
 
+import com.example.app.auth.PasswordResetService;
 import com.example.app.entitlement.PackageAccessService;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
@@ -26,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -42,8 +44,9 @@ public class UserController {
     private final PackageAccessService packageAccessService;
     private final TenantFileS3Service fileStorage;
     private final TenantOwnerAccessService tenantOwnerAccessService;
+    private final PasswordResetService passwordResetService;
 
-    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService) {
         this.userRepository = userRepository;
         this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -51,6 +54,7 @@ public class UserController {
         this.packageAccessService = packageAccessService;
         this.fileStorage = fileStorage;
         this.tenantOwnerAccessService = tenantOwnerAccessService;
+        this.passwordResetService = passwordResetService;
     }
 
     @GetMapping
@@ -162,7 +166,7 @@ public class UserController {
         user.setFirstName(request.firstName().trim());
         user.setLastName(request.lastName().trim());
         user.setEmail(normalizedEmail);
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setPasswordHash(passwordEncoder.encode(temporaryPassword()));
         user.setRole(request.role());
         user.setActive(true);
         user.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
@@ -193,6 +197,7 @@ public class UserController {
 
         try {
             User saved = userRepository.save(user);
+            passwordResetService.sendEmployeeAccountCreatedEmail(saved);
             Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, tenantOwnerId));
         } catch (DataIntegrityViolationException ex) {
@@ -401,7 +406,7 @@ public class UserController {
             @NotBlank String firstName,
             @NotBlank String lastName,
             @NotBlank @Email String email,
-            @NotBlank String password,
+            String password,
             @NotNull Role role,
             @NotNull Boolean consultant,
             String vatId,
@@ -565,6 +570,10 @@ public class UserController {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private String temporaryPassword() {
+        return "Temp#" + UUID.randomUUID().toString().replace("-", "");
     }
 
     private String trimToNull(String value) {

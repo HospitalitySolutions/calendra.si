@@ -685,3 +685,39 @@
     border-color: rgba(148, 163, 184, 0.22);
     color: #e2e8f0;
 }
+
+.employees-password-email-notice {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.employees-password-email-notice strong {
+    color: #1e40af;
+    font-size: 0.95rem;
+}
+
+.employees-password-email-notice span {
+    color: #334155;
+}
+
+[data-theme="dark"] .employees-password-email-notice {
+    border-color: rgba(96, 165, 250, 0.35);
+    background: rgba(30, 64, 175, 0.18);
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .employees-password-email-notice strong {
+    color: #dbeafe;
+}
+
+[data-theme="dark"] .employees-password-email-notice span {
+    color: #cbd5e1;
+}

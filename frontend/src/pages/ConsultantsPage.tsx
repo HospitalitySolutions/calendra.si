@@ -647,8 +647,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         await api.put(`/users/${editing.id}`, payload)
         setSuccessMessage('Consultant updated successfully.')
       } else {
-        await api.post(`/users`, { ...payload, password: form.password })
-        setSuccessMessage('Consultant created successfully.')
+        await api.post(`/users`, payload)
+        setSuccessMessage(locale === 'sl' ? 'Zaposleni je ustvarjen. E-pošta za nastavitev gesla je bila poslana.' : locale === 'sr' ? 'Zaposleni je kreiran. E-pošta za podešavanje lozinke je poslata.' : 'Employee created successfully. Password setup email was sent.')
       }
 
       setEditing(null)
@@ -1027,26 +1027,32 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 <Field label={t('loginEmailLabel')}>
                   <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite e-pošto' : 'Enter email'} />
                 </Field>
-                <Field label={t('employeesFormPassword')} hint={editing || selfService ? t('employeesFormPasswordHintEdit') : undefined}>
-                  <div className="employees-password-input-wrap">
-                    <input
-                      required={!editing && !selfService}
-                      type={passwordVisible ? 'text' : 'password'}
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      placeholder={editing || selfService ? (locale === 'sl' ? 'Vnesite novo geslo' : 'Enter new password') : (locale === 'sl' ? 'Vnesite geslo' : 'Enter password')}
-                    />
-                    <button
-                      type="button"
-                      className="employees-password-toggle"
-                      aria-label={passwordVisible ? (locale === 'sl' ? 'Skrij geslo' : 'Hide password') : (locale === 'sl' ? 'Prikaži geslo' : 'Show password')}
-                      aria-pressed={passwordVisible}
-                      onClick={() => setPasswordVisible((visible) => !visible)}
-                    >
-                      <EmployeeFormIcon name="eye" />
-                    </button>
+                {(editing || selfService) ? (
+                  <Field label={t('employeesFormPassword')} hint={t('employeesFormPasswordHintEdit')}>
+                    <div className="employees-password-input-wrap">
+                      <input
+                        type={passwordVisible ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        placeholder={locale === 'sl' ? 'Vnesite novo geslo' : 'Enter new password'}
+                      />
+                      <button
+                        type="button"
+                        className="employees-password-toggle"
+                        aria-label={passwordVisible ? (locale === 'sl' ? 'Skrij geslo' : 'Hide password') : (locale === 'sl' ? 'Prikaži geslo' : 'Show password')}
+                        aria-pressed={passwordVisible}
+                        onClick={() => setPasswordVisible((visible) => !visible)}
+                      >
+                        <EmployeeFormIcon name="eye" />
+                      </button>
+                    </div>
+                  </Field>
+                ) : (
+                  <div className="employees-password-email-notice full-span">
+                    <strong>{t('employeesFormPasswordEmailTitle')}</strong>
+                    <span>{t('employeesFormPasswordEmailText')}</span>
                   </div>
-                </Field>
+                )}
                 <Field label={t('employeesFormPhone')}>
                   <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t('employeesFormPhonePlaceholder')} />
                 </Field>

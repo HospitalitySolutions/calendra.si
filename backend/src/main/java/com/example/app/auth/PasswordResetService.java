@@ -12,6 +12,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,15 +73,17 @@ public class PasswordResetService {
             return;
         }
         User user = matches.get(0);
-        invalidatePreviousTokens(user);
-        String token = generateToken();
-        PasswordResetToken row = new PasswordResetToken();
-        row.setUser(user);
-        row.setToken(token);
-        row.setExpiresAt(Instant.now().plusSeconds(TOKEN_TTL_SECONDS));
-        row.setActive(true);
-        resetTokens.save(row);
+        String token = createResetToken(user);
         sendResetEmail(user, token);
+    }
+
+    @Transactional
+    public void sendEmployeeAccountCreatedEmail(User user) {
+        if (user == null || user.getId() == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        String token = createResetToken(user);
+        sendEmployeeAccountCreatedEmail(user, token);
     }
 
     @Transactional(readOnly = true)
@@ -124,6 +127,18 @@ public class PasswordResetService {
             s.setValue("false");
             appSettings.save(s);
         });
+    }
+
+    private String createResetToken(User user) {
+        invalidatePreviousTokens(user);
+        String token = generateToken();
+        PasswordResetToken row = new PasswordResetToken();
+        row.setUser(user);
+        row.setToken(token);
+        row.setExpiresAt(Instant.now().plusSeconds(TOKEN_TTL_SECONDS));
+        row.setActive(true);
+        resetTokens.save(row);
+        return token;
     }
 
     private void invalidatePreviousTokens(User user) {
@@ -177,6 +192,126 @@ public class PasswordResetService {
         } catch (Exception e) {
             log.warn("Failed sending password reset email to {}: {}", LogSanitizer.emailHash(user.getEmail()), e.getMessage());
         }
+    }
+
+    private void sendEmployeeAccountCreatedEmail(User user, String token) {
+        if (!mailConfigured) {
+            log.warn("Employee account created for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(user.getEmail()));
+            return;
+        }
+        String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
+        String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
+        String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail;
+        String subject = "Your Calendra account has been created";
+        String html = buildEmployeeAccountCreatedHtml(user, resetUrl);
+        String plainText = buildEmployeeAccountCreatedText(user, resetUrl);
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(mailFrom);
+            helper.setTo(user.getEmail());
+            helper.setSubject(subject);
+            helper.setText(plainText, html);
+            mailSender.send(message);
+            log.info("Employee account created email sent to {}", LogSanitizer.emailHash(user.getEmail()));
+        } catch (Exception e) {
+            log.warn("Failed sending employee account created email to {}: {}", LogSanitizer.emailHash(user.getEmail()), e.getMessage());
+        }
+    }
+
+    private String buildEmployeeAccountCreatedText(User user, String resetUrl) {
+        String firstName = user.getFirstName() == null || user.getFirstName().isBlank() ? "there" : user.getFirstName().trim();
+        String companyName = user.getCompany() == null || user.getCompany().getName() == null || user.getCompany().getName().isBlank()
+                ? "your company"
+                : user.getCompany().getName().trim();
+        return """
+                Hi %s,
+
+                A user account has been created for you in Calendra for %s.
+                To finish setup, create your password using this secure link:
+
+                %s
+
+                This link expires in 1 hour. For security reasons, Calendra does not send passwords by email.
+                If you were not expecting this account, you can ignore this email.
+                """.formatted(firstName, companyName, resetUrl);
+    }
+
+    private String buildEmployeeAccountCreatedHtml(User user, String resetUrl) {
+        String firstName = user.getFirstName() == null || user.getFirstName().isBlank() ? "there" : escapeHtml(user.getFirstName().trim());
+        String companyName = user.getCompany() == null || user.getCompany().getName() == null || user.getCompany().getName().isBlank()
+                ? "Calendra"
+                : escapeHtml(user.getCompany().getName().trim());
+        String email = escapeHtml(user.getEmail() == null ? "" : user.getEmail().trim().toLowerCase(Locale.ROOT));
+        String role = escapeHtml(formatRole(user));
+        String accessRole = escapeHtml(user.getEmployeeAccessRole() == null || user.getEmployeeAccessRole().getName() == null || user.getEmployeeAccessRole().getName().isBlank()
+                ? "—"
+                : user.getEmployeeAccessRole().getName().trim());
+        String safeResetUrl = escapeHtml(resetUrl);
+
+        return """
+                <!doctype html>
+                <html>
+                <body style="margin:0;background:#f3f6fb;font-family:Arial,sans-serif;color:#0f172a;">
+                  <div style="max-width:640px;margin:32px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:32px;box-shadow:0 18px 45px rgba(15,23,42,.08);">
+                    <div style="font-size:26px;font-weight:800;letter-spacing:-.03em;color:#0f172a;margin-bottom:28px;">Calendra</div>
+                    <div style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:20px;">New user account</div>
+                    <h1 style="font-size:30px;line-height:1.15;margin:0 0 18px;">Welcome to Calendra</h1>
+                    <p style="font-size:16px;line-height:1.65;margin:0 0 14px;">Hi %s,</p>
+                    <p style="font-size:16px;line-height:1.65;margin:0 0 24px;color:#334155;">A user account has been created for you in Calendra for <strong>%s</strong>. To finish setup, please create your password using the secure link below.</p>
+                    <a href="%s" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;border-radius:14px;padding:16px 24px;margin-bottom:24px;">Set your password</a>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px;margin:0 0 26px;">
+                      <strong>This link expires in 1 hour.</strong><br>
+                      <span style="color:#64748b;">If you were not expecting this account, you can ignore this email.</span>
+                    </div>
+                    <h2 style="font-size:18px;margin:0 0 14px;">Account details</h2>
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 10px;">
+                      %s
+                      %s
+                      %s
+                      %s
+                    </table>
+                    <p style="font-size:14px;line-height:1.6;color:#64748b;margin:22px 0 0;">For security reasons, Calendra does not send passwords by email. You will choose your own password on the setup page.</p>
+                  </div>
+                </body>
+                </html>
+                """.formatted(
+                firstName,
+                companyName,
+                safeResetUrl,
+                accountDetailRow("Company", companyName),
+                accountDetailRow("Login email", email),
+                accountDetailRow("Role", role),
+                accountDetailRow("Access role", accessRole)
+        );
+    }
+
+    private String accountDetailRow(String label, String value) {
+        return "<tr>"
+                + "<td style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;color:#64748b;font-weight:700;\">" + escapeHtml(label) + "</td>"
+                + "<td style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;text-align:right;font-weight:700;\">" + value + "</td>"
+                + "</tr>";
+    }
+
+    private String formatRole(User user) {
+        if (user.getRole() == null) {
+            return "Employee";
+        }
+        return switch (user.getRole()) {
+            case ADMIN -> "Administrator";
+            case CONSULTANT -> "Employee";
+            case SUPER_ADMIN -> "Super admin";
+        };
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     private String generateToken() {
