@@ -41,6 +41,7 @@ export type Client = {
   anonymizedAt?: string | null
   active?: boolean
   batchPaymentEnabled?: boolean
+  suppressInvoiceEmails?: boolean
   assignedTo?: User | null
   billingCompany?: CompanySummary | null
   preferredSlots: PreferredSlot[]
@@ -55,6 +56,7 @@ export type CompanySummary = {
   name: string
   active?: boolean
   batchPaymentEnabled?: boolean
+  suppressInvoiceEmails?: boolean
   address?: string | null
   postalCode?: string | null
   city?: string | null

@@ -189,6 +189,12 @@
     background: linear-gradient(180deg, rgba(20, 184, 166, 0.10), rgba(20, 184, 166, 0.04));
 }
 
+.calendar-edit-session-panel .online-live-switch-row--binary .online-live-switch-choice--block.online-live-switch-choice--active,
+.calendar-edit-session-panel--availability .online-live-switch-row--binary .online-live-switch-choice--block.online-live-switch-choice--active {
+    color: #b91c1c;
+    background: linear-gradient(180deg, rgba(220, 38, 38, 0.12), rgba(220, 38, 38, 0.04));
+}
+
 @media (max-width: 980px) {
     .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--client,
     .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant,

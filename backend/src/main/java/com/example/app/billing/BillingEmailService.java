@@ -1,6 +1,8 @@
 package com.example.app.billing;
 
 import com.example.app.client.Client;
+import com.example.app.company.ClientCompany;
+import com.example.app.company.ClientCompanyRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.delivery.MessageDeliveryChannel;
@@ -40,6 +42,7 @@ public class BillingEmailService {
 
     private final JavaMailSender mailSender;
     private final AppSettingRepository appSettingRepository;
+    private final ClientCompanyRepository clientCompanyRepository;
     private final String mailFrom;
     private final String fallbackFrom;
     private final boolean mailConfigured;
@@ -50,12 +53,14 @@ public class BillingEmailService {
     public BillingEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
             AppSettingRepository appSettingRepository,
+            ClientCompanyRepository clientCompanyRepository,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername
     ) {
         this.mailSender = mailSender;
         this.appSettingRepository = appSettingRepository;
+        this.clientCompanyRepository = clientCompanyRepository;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.mailConfigured = mailSender != null && mailHost != null && !mailHost.isBlank();
@@ -383,11 +388,44 @@ public class BillingEmailService {
     }
 
     private boolean isInvoiceDeliveryEnabled(Bill bill) {
+        if (!isGlobalInvoiceDeliveryEnabled(bill)) {
+            return false;
+        }
+        return !isRecipientInvoiceEmailSuppressed(bill);
+    }
+
+    private boolean isGlobalInvoiceDeliveryEnabled(Bill bill) {
         Long companyId = bill.getCompany() != null ? bill.getCompany().getId() : null;
         String raw = settingValue(companyId, SettingKey.INVOICE_DELIVERY_EMAIL_ENABLED);
         if (raw == null || raw.isBlank()) return true;
         String normalized = raw.trim().toLowerCase(java.util.Locale.ROOT);
         return !("false".equals(normalized) || "0".equals(normalized) || "off".equals(normalized) || "no".equals(normalized));
+    }
+
+    /**
+     * Per-recipient override: a client or client company can opt out of invoice emails entirely,
+     * suppressing delivery even when the tenant-wide setting is enabled. Read from live entities
+     * (not bill snapshots) so toggling the flag also affects resends.
+     */
+    private boolean isRecipientInvoiceEmailSuppressed(Bill bill) {
+        Client client = bill.getClient();
+        if (client != null && client.isSuppressInvoiceEmails()) {
+            return true;
+        }
+        Long ownerCompanyId = bill.getCompany() != null ? bill.getCompany().getId() : null;
+        Long recipientCompanyId = bill.getRecipientCompanyIdSnapshot();
+        if (recipientCompanyId != null && ownerCompanyId != null) {
+            ClientCompany company = clientCompanyRepository
+                    .findByIdAndOwnerCompanyId(recipientCompanyId, ownerCompanyId)
+                    .orElse(null);
+            if (company != null && company.isSuppressInvoiceEmails()) {
+                return true;
+            }
+        } else if (client != null && client.getBillingCompany() != null
+                && client.getBillingCompany().isSuppressInvoiceEmails()) {
+            return true;
+        }
+        return false;
     }
 
     private String resolveRecipientEmail(Bill bill) {

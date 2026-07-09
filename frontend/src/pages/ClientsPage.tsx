@@ -37,6 +37,8 @@ type CompanyForm = {
   telephone: string
   /** Detail panel only; create-company form ignores this when posting. */
   batchPaymentEnabled: boolean
+  /** Detail panel only; suppresses invoice emails to this company. */
+  suppressInvoiceEmails: boolean
 }
 
 type ClientSession = {
@@ -316,6 +318,7 @@ const emptyCompanyForm: CompanyForm = {
   email: '',
   telephone: '',
   batchPaymentEnabled: false,
+  suppressInvoiceEmails: false,
 }
 
 
@@ -675,6 +678,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     whatsappOptIn: 'WhatsApp opt-in',
     linkedCompany: 'Povezano podjetje',
     batchPayment: 'Paketno plačilo',
+    suppressInvoiceEmails: 'Ne pošiljaj računov po e-pošti',
     sessions: 'Termini',
     future: 'Prihodnji',
     past: 'Pretekli',
@@ -836,6 +840,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     whatsappOptIn: 'WhatsApp opt-in',
     linkedCompany: 'Linked company',
     batchPayment: 'Batch payment',
+    suppressInvoiceEmails: 'Do not send invoice emails',
     sessions: 'Sessions',
     future: 'Future',
     past: 'Past',
@@ -1025,6 +1030,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     phone: string
     whatsappOptIn: boolean
     batchPaymentEnabled: boolean
+    suppressInvoiceEmails: boolean
     billingCompanyId: number | null
     assignedToId: number | null
   }>({
@@ -1034,6 +1040,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     phone: '',
     whatsappOptIn: false,
     batchPaymentEnabled: false,
+    suppressInvoiceEmails: false,
     billingCompanyId: null,
     assignedToId: null,
   })
@@ -1133,6 +1140,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [giftCardMessage, setGiftCardMessage] = useState('')
   const groupBookingEnabled = settings.GROUP_BOOKING_ENABLED === 'true'
   const giftCardsFeatureEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
+  const invoiceEmailDeliveryEnabled = settings.INVOICE_DELIVERY_EMAIL_ENABLED !== 'false'
   const giftCardDisplaySettings = parseGiftCardDisplaySettings(settings[GIFT_CARD_SETTINGS_KEY])
 
   const companyInvoiceStatusPill = (bill: CompanyBillSummary): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
@@ -1774,6 +1782,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (detailEditDraft.phone ?? '') !== (detailClient.phone ?? '')
       || (detailEditDraft.whatsappOptIn ?? false) !== (detailClient.whatsappOptIn ?? false)
       || (detailEditDraft.batchPaymentEnabled ?? false) !== (detailClient.batchPaymentEnabled ?? false)
+      || (detailEditDraft.suppressInvoiceEmails ?? false) !== (detailClient.suppressInvoiceEmails ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
       || (isAdmin && (detailEditDraft.assignedToId ?? null) !== (detailClient.assignedTo?.id ?? null))
   }, [detailClient, detailEditDraft, isAdmin])
@@ -1789,6 +1798,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (companyDetailEditDraft.email ?? '') !== (detailCompany.email ?? '')
       || (companyDetailEditDraft.telephone ?? '') !== (detailCompany.telephone ?? '')
       || (companyDetailEditDraft.batchPaymentEnabled ?? false) !== (detailCompany.batchPaymentEnabled ?? false)
+      || (companyDetailEditDraft.suppressInvoiceEmails ?? false) !== (detailCompany.suppressInvoiceEmails ?? false)
   }, [detailCompany, companyDetailEditDraft])
 
   const openNewModal = () => {
@@ -1808,6 +1818,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       phone: c.phone ?? '',
       whatsappOptIn: c.whatsappOptIn ?? false,
       batchPaymentEnabled: c.batchPaymentEnabled ?? false,
+      suppressInvoiceEmails: c.suppressInvoiceEmails ?? false,
       billingCompanyId: c.billingCompany?.id ?? null,
       assignedToId: c.assignedTo?.id ?? null,
     })
@@ -1863,6 +1874,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       email: company.email ?? '',
       telephone: company.telephone ?? '',
       batchPaymentEnabled: company.batchPaymentEnabled ?? false,
+      suppressInvoiceEmails: company.suppressInvoiceEmails ?? false,
     })
     setCompanyFileSearch('')
   }
@@ -2076,6 +2088,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         whatsappOptIn: detailEditDraft.whatsappOptIn,
         billingCompanyId: detailEditDraft.billingCompanyId,
         batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
+        suppressInvoiceEmails: detailEditDraft.suppressInvoiceEmails ?? false,
         ...(isAdmin ? { assignedToId: detailEditDraft.assignedToId ?? null } : {}),
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
@@ -2088,6 +2101,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         phone: response.data.phone ?? '',
         whatsappOptIn: response.data.whatsappOptIn ?? false,
         batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
+        suppressInvoiceEmails: response.data.suppressInvoiceEmails ?? false,
         billingCompanyId: response.data.billingCompany?.id ?? null,
         assignedToId: response.data.assignedTo?.id ?? null,
       })
@@ -2115,6 +2129,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         email: companyDetailEditDraft.email.trim() || null,
         telephone: companyDetailEditDraft.telephone.trim() || null,
         batchPaymentEnabled: companyDetailEditDraft.batchPaymentEnabled ?? false,
+        suppressInvoiceEmails: companyDetailEditDraft.suppressInvoiceEmails ?? false,
       }
       const response = await api.put<Company>(`/companies/${detailCompany.id}`, payload)
       setDetailCompany(response.data)
@@ -2128,6 +2143,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         email: response.data.email ?? '',
         telephone: response.data.telephone ?? '',
         batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
+        suppressInvoiceEmails: response.data.suppressInvoiceEmails ?? false,
       })
       setCompanies((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setCompanyDetailEditField(null)
@@ -2427,6 +2443,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           phone: updated.phone ?? '',
           whatsappOptIn: updated.whatsappOptIn ?? false,
           batchPaymentEnabled: updated.batchPaymentEnabled ?? false,
+          suppressInvoiceEmails: updated.suppressInvoiceEmails ?? false,
           billingCompanyId: updated.billingCompany?.id ?? null,
           assignedToId: updated.assignedTo?.id ?? null,
         })
@@ -3768,6 +3785,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           {detailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                         </button>
                       </div>
+                      {invoiceEmailDeliveryEnabled && (
+                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                          <span>{clientsCopy.suppressInvoiceEmails}</span>
+                          <button
+                            type="button"
+                            className={`clients-batch-switch${detailEditDraft.suppressInvoiceEmails ? ' clients-batch-switch--on' : ''}`}
+                            onClick={() =>
+                              setDetailEditDraft({ ...detailEditDraft, suppressInvoiceEmails: !detailEditDraft.suppressInvoiceEmails })
+                            }
+                            aria-pressed={detailEditDraft.suppressInvoiceEmails}
+                          >
+                            {detailEditDraft.suppressInvoiceEmails ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -3982,6 +4014,24 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         {companyDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                       </button>
                     </div>
+                    {invoiceEmailDeliveryEnabled && (
+                      <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                        <span>{clientsCopy.suppressInvoiceEmails}</span>
+                        <button
+                          type="button"
+                          className={`clients-batch-switch${companyDetailEditDraft.suppressInvoiceEmails ? ' clients-batch-switch--on' : ''}`}
+                          onClick={() =>
+                            setCompanyDetailEditDraft({
+                              ...companyDetailEditDraft,
+                              suppressInvoiceEmails: !companyDetailEditDraft.suppressInvoiceEmails,
+                            })
+                          }
+                          aria-pressed={companyDetailEditDraft.suppressInvoiceEmails}
+                        >
+                          {companyDetailEditDraft.suppressInvoiceEmails ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   </div>
                 )}

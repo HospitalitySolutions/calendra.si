@@ -3038,7 +3038,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             <div className="booking-side-panel-body">
               <div className="form-row-layout">
                 <div className="form-row form-row-infield">
-                  <span className="form-field-inline-label">{t('formTask')}</span>
+                  <span className="form-field-inline-label">{t('formTodo')}</span>
                   <div className="form-field-inline-control">
                   <input value={selectedTodo.task || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, task: e.target.value })} />
                   </div>
@@ -3255,7 +3255,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </button>
                         <button
                           type="button"
-                          className={`online-live-switch-choice${availabilityIntent === 'block' ? ' online-live-switch-choice--active' : ''}`}
+                          className={`online-live-switch-choice online-live-switch-choice--block${availabilityIntent === 'block' ? ' online-live-switch-choice--active' : ''}`}
                           aria-pressed={availabilityIntent === 'block'}
                           onClick={() => setAvailabilityIntent('block')}
                         >
@@ -3375,7 +3375,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               ) : form.todo ? (
                 <>
                   <div className="form-row form-row-infield">
-                    <span className="form-field-inline-label">{t('formTask')}</span>
+                    <span className="form-field-inline-label">{t('formTodo')}</span>
                     <div className="form-field-inline-control">
                     <input placeholder={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
                     </div>
@@ -4182,7 +4182,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         ? t('formBlockAvailabilityShort')
                         : availabilitySelection.slotId
                           ? t('formSaveChanges')
-                          : t('formAvailabilityFooterAdd')}
+                          : t('formAvailabilityOpenShort')}
                   </span>
                 </button>
               </div>

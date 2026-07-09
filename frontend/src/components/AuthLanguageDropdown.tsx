@@ -13,8 +13,8 @@ type LanguageOption = {
 }
 
 const languageOptions: LanguageOption[] = [
-  { code: 'sl', label: 'SL' },
-  { code: 'sr', label: 'SR' },
+  { code: 'sl', label: 'SI' },
+  { code: 'sr', label: 'RS' },
   { code: 'en', label: 'EN' },
 ]
 

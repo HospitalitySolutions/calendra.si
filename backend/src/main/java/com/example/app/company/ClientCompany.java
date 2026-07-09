@@ -45,6 +45,10 @@ public class ClientCompany extends BaseEntity {
     @Column(nullable = false)
     private boolean batchPaymentEnabled = false;
 
+    /** When true, invoice emails are never sent to this company, overriding the tenant-wide delivery setting. */
+    @Column(nullable = false)
+    private boolean suppressInvoiceEmails = false;
+
     /** Trim, remove whitespace, uppercase, empty → null — consistent uniqueness checks per tenant. */
     public static String normalizeVatIdStorage(String vatId) {
         if (vatId == null) {

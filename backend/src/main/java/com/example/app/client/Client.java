@@ -46,6 +46,10 @@ public class Client extends BaseEntity {
     @Column(nullable = false)
     private boolean batchPaymentEnabled = false;
 
+    /** When true, invoice emails are never sent to this client, overriding the tenant-wide delivery setting. */
+    @Column(nullable = false)
+    private boolean suppressInvoiceEmails = false;
+
     /** Inbox: conversation is starred (folder "Označeno"). */
     @Column(nullable = false)
     private boolean inboxStarred = false;

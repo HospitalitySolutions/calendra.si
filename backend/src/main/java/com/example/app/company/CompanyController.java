@@ -64,7 +64,8 @@ public class CompanyController {
             String iban,
             String email,
             String telephone,
-            Boolean batchPaymentEnabled
+            Boolean batchPaymentEnabled,
+            Boolean suppressInvoiceEmails
     ) {}
 
     public record CompanyResponse(
@@ -78,6 +79,7 @@ public class CompanyController {
             String email,
             String telephone,
             boolean batchPaymentEnabled,
+            boolean suppressInvoiceEmails,
             boolean active,
             Instant createdAt,
             Instant updatedAt
@@ -282,6 +284,7 @@ public class CompanyController {
                 c.getEmail(),
                 c.getTelephone(),
                 c.isBatchPaymentEnabled(),
+                c.isSuppressInvoiceEmails(),
                 c.isActive(),
                 c.getCreatedAt(),
                 c.getUpdatedAt()
@@ -304,6 +307,11 @@ public class CompanyController {
             row.setBatchPaymentEnabled(req.batchPaymentEnabled());
         } else if (row.getId() == null) {
             row.setBatchPaymentEnabled(false);
+        }
+        if (req.suppressInvoiceEmails() != null) {
+            row.setSuppressInvoiceEmails(req.suppressInvoiceEmails());
+        } else if (row.getId() == null) {
+            row.setSuppressInvoiceEmails(false);
         }
     }
 

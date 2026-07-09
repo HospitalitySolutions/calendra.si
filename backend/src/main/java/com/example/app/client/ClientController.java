@@ -106,6 +106,7 @@ public class ClientController {
             Long assignedToId,
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
+            Boolean suppressInvoiceEmails,
             List<PreferredSlotRequest> preferredSlots
     ) {}
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
@@ -135,6 +136,7 @@ public class ClientController {
             Instant anonymizedAt,
             boolean active,
             boolean batchPaymentEnabled,
+            boolean suppressInvoiceEmails,
             UserSummary assignedTo,
             CompanySummary billingCompany,
             Instant createdAt,
@@ -530,6 +532,11 @@ public class ClientController {
         } else if (c.getId() == null) {
             c.setBatchPaymentEnabled(false);
         }
+        if (req.suppressInvoiceEmails() != null) {
+            c.setSuppressInvoiceEmails(req.suppressInvoiceEmails());
+        } else if (c.getId() == null) {
+            c.setSuppressInvoiceEmails(false);
+        }
         if (SecurityUtils.isAdmin(me)) {
             if (req.assignedToId() == null) {
                 c.setAssignedTo(null);
@@ -592,6 +599,7 @@ public class ClientController {
                 c.getAnonymizedAt(),
                 c.isActive(),
                 c.isBatchPaymentEnabled(),
+                c.isSuppressInvoiceEmails(),
                 assignedSummary,
                 toCompanySummary(c),
                 c.getCreatedAt(),
