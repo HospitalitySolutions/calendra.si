@@ -1996,6 +1996,8 @@ export function ConfigurationPage() {
     settingsLoaded && settings.BILLING_ENABLED !== "false";
   const giftCardsEnabledCommitted =
     billingEnabledCommitted && settings.BILLING_GIFT_CARDS_ENABLED === "true";
+  const fiscalCashRegisterEnabledCommitted =
+    billingEnabledCommitted && settings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true";
   const stripeModuleEnabledCommitted =
     billingEnabledCommitted &&
     settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "false";
@@ -2152,6 +2154,12 @@ export function ConfigurationPage() {
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
             replace: true,
           });
+      } else if (subtabQuery === "fiscal" && !fiscalCashRegisterEnabledCommitted) {
+        setBillingSubtab("paymentMethods");
+        if (q === "billing")
+          navigate("/configuration?tab=billing&subtab=paymentMethods", {
+            replace: true,
+          });
       } else if (
         isMobileBillingViewport &&
         isBillingSubtabHiddenOnMobile(subtabQuery)
@@ -2186,6 +2194,7 @@ export function ConfigurationPage() {
     stripePaymentsAvailableCommitted,
     billingEnabledCommitted,
     giftCardsEnabledCommitted,
+    fiscalCashRegisterEnabledCommitted,
     notificationsEnabledCommitted,
     guestAppEnabledCommitted,
     websiteWidgetEnabledCommitted,
@@ -2746,6 +2755,7 @@ export function ConfigurationPage() {
           modulesDraftForSave.BILLING_BANK_TRANSFER_ENABLED = "false";
           modulesDraftForSave.BILLING_PAYPAL_ENABLED = "false";
           modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED = "false";
+          modulesDraftForSave.BILLING_FISCAL_CASH_REGISTER_ENABLED = "false";
           modulesDraftForSave.BILLING_ADVANCE_ENABLED = "false";
         }
         if (!modulesDraftForSave.guestAppEnabled) {
@@ -2785,6 +2795,8 @@ export function ConfigurationPage() {
           BILLING_PAYPAL_ENABLED: modulesDraftForSave.BILLING_PAYPAL_ENABLED,
           BILLING_GIFT_CARDS_ENABLED:
             modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED,
+          BILLING_FISCAL_CASH_REGISTER_ENABLED:
+            modulesDraftForSave.BILLING_FISCAL_CASH_REGISTER_ENABLED,
           BILLING_ADVANCE_ENABLED: modulesDraftForSave.BILLING_ADVANCE_ENABLED,
           COMMUNICATION_ENABLED: modulesDraftForSave.COMMUNICATION_ENABLED,
           NOTIFICATIONS_ENABLED: modulesDraftForSave.NOTIFICATIONS_ENABLED,
@@ -4195,7 +4207,14 @@ export function ConfigurationPage() {
           },
         ]
       : []),
-    { id: "fiscal", label: t("configBillingFiscalTab") },
+    ...(fiscalCashRegisterEnabledCommitted
+      ? [
+          { id: "fiscal", label: t("configBillingFiscalTab") } satisfies {
+            id: BillingSubtab;
+            label: string;
+          },
+        ]
+      : []),
     { id: "invoiceDelivery", label: t("configBillingInvoiceDeliveryTab") },
     ...(giftCardsEnabledCommitted
       ? [
@@ -4227,9 +4246,13 @@ export function ConfigurationPage() {
     if (!giftCardsEnabledCommitted && billingSubtab === "giftCard") {
       setBillingSubtab("paymentMethods");
     }
+    if (!fiscalCashRegisterEnabledCommitted && billingSubtab === "fiscal") {
+      setBillingSubtab("paymentMethods");
+    }
   }, [
     billingSubtab,
     giftCardsEnabledCommitted,
+    fiscalCashRegisterEnabledCommitted,
     paymentGlobalCapabilities.paypalEnabled,
     stripePaymentsAvailableCommitted,
   ]);
@@ -4332,6 +4355,9 @@ export function ConfigurationPage() {
           BILLING_GIFT_CARDS_ENABLED: checked
             ? d.BILLING_GIFT_CARDS_ENABLED
             : "false",
+          BILLING_FISCAL_CASH_REGISTER_ENABLED: checked
+            ? d.BILLING_FISCAL_CASH_REGISTER_ENABLED
+            : "false",
           BILLING_ADVANCE_ENABLED: checked
             ? d.BILLING_ADVANCE_ENABLED
             : "false",
@@ -4376,6 +4402,7 @@ export function ConfigurationPage() {
         next.BILLING_BANK_TRANSFER_ENABLED = "false";
         next.BILLING_PAYPAL_ENABLED = "false";
         next.BILLING_GIFT_CARDS_ENABLED = "false";
+        next.BILLING_FISCAL_CASH_REGISTER_ENABLED = "false";
       }
       if (next.NOTIFICATIONS_ENABLED !== "true") {
         next.NOTIFICATIONS_EMAIL_ALERTS_ENABLED = "false";
@@ -4470,6 +4497,7 @@ export function ConfigurationPage() {
     "BILLING_BANK_TRANSFER_ENABLED",
     "BILLING_PAYPAL_ENABLED",
     "BILLING_GIFT_CARDS_ENABLED",
+    "BILLING_FISCAL_CASH_REGISTER_ENABLED",
     "BILLING_ADVANCE_ENABLED",
   ];
   const servicesModuleKeys: ModulesStringKey[] = [
@@ -4712,6 +4740,25 @@ export function ConfigurationPage() {
               disabled: !moduleOn("BILLING_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("BILLING_GIFT_CARDS_ENABLED", checked),
+            },
+            {
+              id: "billing-fiscal-cash-register",
+              ...moduleVisibilityProps("BILLING_FISCAL_CASH_REGISTER_ENABLED"),
+              icon: "invoice",
+              title: locale === "sl" ? "Davčna blagajna" : "Fiscal cash register",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči davčno potrjevanje računov in fiskalne statuse."
+                  : "Enable tax confirmation of invoices and fiscal statuses.",
+              checked:
+                moduleOn("BILLING_ENABLED") &&
+                moduleOn("BILLING_FISCAL_CASH_REGISTER_ENABLED"),
+              disabled: !moduleOn("BILLING_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting(
+                  "BILLING_FISCAL_CASH_REGISTER_ENABLED",
+                  checked,
+                ),
             },
             {
               id: "billing-stripe",
@@ -9152,6 +9199,10 @@ export function ConfigurationPage() {
               gap: 20px;
               align-items: center;
             }
+            .billing-method-head--no-fiscal,
+            .billing-method-row--no-fiscal {
+              grid-template-columns: minmax(240px, 1.2fr) minmax(150px, .7fr) 180px;
+            }
             .billing-method-head {
               padding: 18px 18px 12px;
               color: #475569;
@@ -9681,17 +9732,19 @@ export function ConfigurationPage() {
                             </div>
                           ) : (
                             <div className="billing-method-table">
-                              <div className="billing-method-head" aria-hidden>
+                              <div className={fiscalCashRegisterEnabledCommitted ? "billing-method-head" : "billing-method-head billing-method-head--no-fiscal"} aria-hidden>
                                 <span>
                                   {locale === "sl" ? "Naziv" : "Name"}
                                 </span>
                                 <span>{locale === "sl" ? "Tip" : "Type"}</span>
-                                <span className="billing-head-with-info">
-                                  {locale === "sl"
-                                    ? "Fiskalizacija"
-                                    : "Fiscalization"}{" "}
-                                  <BillingInfoIcon />
-                                </span>
+                                {fiscalCashRegisterEnabledCommitted ? (
+                                  <span className="billing-head-with-info">
+                                    {locale === "sl"
+                                      ? "Davčno potrjevanje"
+                                      : "Tax confirmation"}{" "}
+                                    <BillingInfoIcon />
+                                  </span>
+                                ) : null}
                                 <span>
                                   {locale === "sl" ? "Dejanja" : "Actions"}
                                 </span>
@@ -9699,7 +9752,7 @@ export function ConfigurationPage() {
                               <div className="billing-method-table-body">
                                 {inlineEditingPaymentMethodId === -1 &&
                                 inlinePaymentMethodForm ? (
-                                  <div className="billing-method-row">
+                                  <div className={fiscalCashRegisterEnabledCommitted ? "billing-method-row" : "billing-method-row billing-method-row--no-fiscal"}>
                                     <div className="billing-method-name">
                                       <span
                                         className={`billing-method-icon billing-method-icon--${inlinePaymentMethodForm.paymentType.toLowerCase().replace("_", "-")}`}
@@ -9747,34 +9800,36 @@ export function ConfigurationPage() {
                                       </option>
                                       <option value="OTHER">OTHER</option>
                                     </select>
-                                    <button
-                                      type="button"
-                                      className="billing-fiscal-toggle-button"
-                                      onClick={() =>
-                                        setInlinePaymentMethodForm({
-                                          ...inlinePaymentMethodForm,
-                                          fiscalized:
-                                            !inlinePaymentMethodForm.fiscalized,
-                                        })
-                                      }
-                                    >
-                                      <span
-                                        className={
-                                          inlinePaymentMethodForm.fiscalized
-                                            ? "billing-pill billing-pill--success"
-                                            : "billing-pill billing-pill--danger"
+                                    {fiscalCashRegisterEnabledCommitted ? (
+                                      <button
+                                        type="button"
+                                        className="billing-fiscal-toggle-button"
+                                        onClick={() =>
+                                          setInlinePaymentMethodForm({
+                                            ...inlinePaymentMethodForm,
+                                            fiscalized:
+                                              !inlinePaymentMethodForm.fiscalized,
+                                          })
                                         }
                                       >
-                                        <span className="billing-status-dot" />
-                                        {inlinePaymentMethodForm.fiscalized
-                                          ? locale === "sl"
-                                            ? "Vklopljeno"
-                                            : "On"
-                                          : locale === "sl"
-                                            ? "Izklopljeno"
-                                            : "Off"}
-                                      </span>
-                                    </button>
+                                        <span
+                                          className={
+                                            inlinePaymentMethodForm.fiscalized
+                                              ? "billing-pill billing-pill--success"
+                                              : "billing-pill billing-pill--danger"
+                                          }
+                                        >
+                                          <span className="billing-status-dot" />
+                                          {inlinePaymentMethodForm.fiscalized
+                                            ? locale === "sl"
+                                              ? "Vklopljeno"
+                                              : "On"
+                                            : locale === "sl"
+                                              ? "Izklopljeno"
+                                              : "Off"}
+                                        </span>
+                                      </button>
+                                    ) : null}
                                     <div className="billing-row-actions">
                                       <button
                                         type="button"
@@ -9813,7 +9868,7 @@ export function ConfigurationPage() {
                                   return (
                                     <div
                                       key={method.id}
-                                      className="billing-method-row"
+                                      className={fiscalCashRegisterEnabledCommitted ? "billing-method-row" : "billing-method-row billing-method-row--no-fiscal"}
                                     >
                                       <div className="billing-method-name">
                                         <span
@@ -9842,48 +9897,50 @@ export function ConfigurationPage() {
                                       <span className="billing-pill billing-pill--neutral">
                                         {methodTypeLabel}
                                       </span>
-                                      <button
-                                        type="button"
-                                        className="billing-fiscal-toggle-button"
-                                        onClick={() => {
-                                          if (!isInlineEditing) {
-                                            void togglePaymentMethodFiscalized(
-                                              method,
-                                            );
-                                          } else {
-                                            setInlinePaymentMethodForm({
-                                              ...inlinePaymentMethodForm,
-                                              fiscalized:
-                                                !inlinePaymentMethodForm.fiscalized,
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        <span
-                                          className={
-                                            (
+                                      {fiscalCashRegisterEnabledCommitted ? (
+                                        <button
+                                          type="button"
+                                          className="billing-fiscal-toggle-button"
+                                          onClick={() => {
+                                            if (!isInlineEditing) {
+                                              void togglePaymentMethodFiscalized(
+                                                method,
+                                              );
+                                            } else {
+                                              setInlinePaymentMethodForm({
+                                                ...inlinePaymentMethodForm,
+                                                fiscalized:
+                                                  !inlinePaymentMethodForm.fiscalized,
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          <span
+                                            className={
+                                              (
+                                                isInlineEditing
+                                                  ? inlinePaymentMethodForm.fiscalized
+                                                  : method.fiscalized
+                                              )
+                                                ? "billing-pill billing-pill--success"
+                                                : "billing-pill billing-pill--danger"
+                                            }
+                                          >
+                                            <span className="billing-status-dot" />
+                                            {(
                                               isInlineEditing
                                                 ? inlinePaymentMethodForm.fiscalized
                                                 : method.fiscalized
                                             )
-                                              ? "billing-pill billing-pill--success"
-                                              : "billing-pill billing-pill--danger"
-                                          }
-                                        >
-                                          <span className="billing-status-dot" />
-                                          {(
-                                            isInlineEditing
-                                              ? inlinePaymentMethodForm.fiscalized
-                                              : method.fiscalized
-                                          )
-                                            ? locale === "sl"
-                                              ? "Vklopljeno"
-                                              : "On"
-                                            : locale === "sl"
-                                              ? "Izklopljeno"
-                                              : "Off"}
-                                        </span>
-                                      </button>
+                                              ? locale === "sl"
+                                                ? "Vklopljeno"
+                                                : "On"
+                                              : locale === "sl"
+                                                ? "Izklopljeno"
+                                                : "Off"}
+                                          </span>
+                                        </button>
+                                      ) : null}
                                       <div className="billing-row-actions">
                                         {isInlineEditing ? (
                                           <>

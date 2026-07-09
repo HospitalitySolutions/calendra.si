@@ -3,6 +3,10 @@ package com.example.app.company;
 import com.example.app.billing.PaymentMethod;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
+import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -12,15 +16,28 @@ public class CompanyProvisioningService {
     private final CompanyRepository companies;
     private final PaymentMethodRepository paymentMethods;
     private final TenantCodeService tenantCodeService;
+    private final AppSettingRepository settings;
 
+    @Autowired
+    public CompanyProvisioningService(
+            CompanyRepository companies,
+            PaymentMethodRepository paymentMethods,
+            TenantCodeService tenantCodeService,
+            AppSettingRepository settings
+    ) {
+        this.companies = companies;
+        this.paymentMethods = paymentMethods;
+        this.tenantCodeService = tenantCodeService;
+        this.settings = settings;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
     public CompanyProvisioningService(
             CompanyRepository companies,
             PaymentMethodRepository paymentMethods,
             TenantCodeService tenantCodeService
     ) {
-        this.companies = companies;
-        this.paymentMethods = paymentMethods;
-        this.tenantCodeService = tenantCodeService;
+        this(companies, paymentMethods, tenantCodeService, null);
     }
 
     @Transactional
@@ -48,11 +65,20 @@ public class CompanyProvisioningService {
     public void ensureDefaultPaymentMethods(Company company) {
         if (company == null || company.getId() == null) return;
         List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
-        ensureDefaultPaymentMethod(all, company, "Cash", PaymentType.CASH, true, false, false, 0);
-        ensureDefaultPaymentMethod(all, company, "Stripe", PaymentType.CARD, true, true, true, 1);
+        boolean fiscalCashRegisterEnabled = isFiscalCashRegisterEnabled(company.getId());
+        ensureDefaultPaymentMethod(all, company, "Cash", PaymentType.CASH, fiscalCashRegisterEnabled, false, false, 0);
+        ensureDefaultPaymentMethod(all, company, "Stripe", PaymentType.CARD, fiscalCashRegisterEnabled, true, true, 1);
         ensureDefaultPaymentMethod(all, company, "Bank Transfer", PaymentType.BANK_TRANSFER, false, false, true, 2);
         ensureDefaultPaymentMethod(all, company, "PayPal", PaymentType.OTHER, false, false, true, 3);
         ensureDefaultPaymentMethod(all, company, "Advance", PaymentType.ADVANCE, false, false, false, 4);
+    }
+
+    private boolean isFiscalCashRegisterEnabled(Long companyId) {
+        if (settings == null || companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
     }
 
     private void ensureDefaultPaymentMethod(

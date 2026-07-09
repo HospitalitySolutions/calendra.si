@@ -4,6 +4,9 @@ import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillRepository;
 import com.example.app.user.User;
 import com.example.app.settings.BillingModuleAccessService;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import java.io.ByteArrayInputStream;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
@@ -31,24 +34,38 @@ public class FiscalController {
     private final BillRepository bills;
     private final FiscalCertificateRepository certificates;
     private final BillingModuleAccessService billingModuleAccess;
+    private final AppSettingRepository settings;
 
     public FiscalController(
             FiscalizationService fiscalizationService,
             FiscalSettingsService fiscalSettingsService,
             BillRepository bills,
             FiscalCertificateRepository certificates,
-            BillingModuleAccessService billingModuleAccess
+            BillingModuleAccessService billingModuleAccess,
+            AppSettingRepository settings
     ) {
         this.fiscalizationService = fiscalizationService;
         this.fiscalSettingsService = fiscalSettingsService;
         this.bills = bills;
         this.certificates = certificates;
         this.billingModuleAccess = billingModuleAccess;
+        this.settings = settings;
     }
 
     @ModelAttribute
     public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me) {
         billingModuleAccess.assertBillingEnabled(me);
+        if (me == null || me.getCompany() == null || !isFiscalCashRegisterEnabled(me.getCompany().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Davčna blagajna is disabled for this tenant.");
+        }
+    }
+
+    private boolean isFiscalCashRegisterEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
     }
 
     public record FiscalInvoiceStatusResponse(

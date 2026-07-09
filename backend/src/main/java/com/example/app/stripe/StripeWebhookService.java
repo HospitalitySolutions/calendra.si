@@ -391,10 +391,11 @@ public class StripeWebhookService {
     private void finalizeBillPayment(Bill bill) {
         bills.save(bill);
         Bill fiscalized = bill;
-        if (bill.getFiscalStatus() == null
+        if (isFiscalCashRegisterEnabled(bill.getCompany().getId())
+                && (bill.getFiscalStatus() == null
                 || bill.getFiscalStatus() == com.example.app.billing.BillFiscalStatus.NOT_SENT
                 || bill.getFiscalStatus() == com.example.app.billing.BillFiscalStatus.PENDING
-                || bill.getFiscalStatus() == com.example.app.billing.BillFiscalStatus.FAILED) {
+                || bill.getFiscalStatus() == com.example.app.billing.BillFiscalStatus.FAILED)) {
             fiscalized = fiscalizationService.fiscalizeBill(bill, bill.getCompany().getId());
         }
         byte[] pdf = billFolioPdfService.generate(fiscalized, fiscalized.getCompany().getId());
@@ -403,6 +404,14 @@ public class StripeWebhookService {
         if (guestOrderService != null) {
             guestOrderService.onWalletBillPaid(fiscalized.getId());
         }
+    }
+
+    private boolean isFiscalCashRegisterEnabled(Long companyId) {
+        if (appSettings == null || companyId == null) return false;
+        return appSettings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED)
+                .map(setting -> setting.getValue())
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
     }
 
     private Long parseLong(String value, String label) {

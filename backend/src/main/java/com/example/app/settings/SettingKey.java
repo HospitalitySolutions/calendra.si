@@ -24,6 +24,8 @@ public enum SettingKey {
     BILLING_BANK_TRANSFER_ENABLED,
     BILLING_PAYPAL_ENABLED,
     BILLING_GIFT_CARDS_ENABLED,
+    /** Enables Slovenian fiscal cash register / tax confirmation features for the tenant. */
+    BILLING_FISCAL_CASH_REGISTER_ENABLED,
     /** Enables advance/deposit billing features (Predplačilo) for the tenant. */
     BILLING_ADVANCE_ENABLED,
     COMMUNICATION_ENABLED,

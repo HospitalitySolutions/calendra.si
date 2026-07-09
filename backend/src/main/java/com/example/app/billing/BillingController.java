@@ -559,6 +559,7 @@ public class BillingController {
     public List<PaymentMethodResponse> paymentMethods(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
         boolean advanceEnabled = isAdvanceBillingEnabled(companyId);
+        boolean fiscalCashRegisterEnabled = isFiscalCashRegisterEnabled(companyId);
         if (advanceEnabled) {
             ensureAdvancePaymentMethod(companyId, me.getCompany());
         }
@@ -570,7 +571,7 @@ public class BillingController {
                         pm.getId(),
                         pm.getName(),
                         pm.getPaymentType(),
-                        pm.isFiscalized(),
+                        fiscalCashRegisterEnabled && pm.isFiscalized(),
                         pm.isStripeEnabled(),
                         pm.isGuestEnabled(),
                         pm.isWidgetEnabled(),
@@ -635,7 +636,7 @@ public class BillingController {
         pm.setCompany(me.getCompany());
         pm.setName(req.name().trim());
         pm.setPaymentType(req.paymentType());
-        applyPaymentMethodFlags(pm, req);
+        applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
         var saved = paymentMethodRepo.save(pm);
         return new PaymentMethodResponse(
                 saved.getId(),
@@ -664,7 +665,7 @@ public class BillingController {
         }
         pm.setName(req.name().trim());
         pm.setPaymentType(req.paymentType());
-        applyPaymentMethodFlags(pm, req);
+        applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
         var saved = paymentMethodRepo.save(pm);
         return new PaymentMethodResponse(
                 saved.getId(),
@@ -2113,7 +2114,7 @@ public class BillingController {
         requireBankTransferQrSettingsIfNeeded(bill, companyId);
         invoiceOrderIdService.assignIfMissing(bill);
         var saved = billRepo.saveAndFlush(bill);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
         linkSourceGuestOrderToCreatedBill(open, saved, companyId);
@@ -3537,7 +3538,7 @@ public class BillingController {
         invoiceOrderIdService.assignIfMissing(bill);
         // Ensure we map within an open session. Items are cascade-persisted.
         var saved = billRepo.save(bill);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
 
@@ -3611,7 +3612,7 @@ public class BillingController {
         invoiceOrderIdService.assignIfMissing(refund);
 
         Bill saved = billRepo.saveAndFlush(refund);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
@@ -5249,8 +5250,8 @@ public class BillingController {
         return ResponseEntity.noContent().build();
     }
 
-    private static void applyPaymentMethodFlags(PaymentMethod pm, PaymentMethodRequest req) {
-        pm.setFiscalized(req.fiscalized() != null ? req.fiscalized() : defaultFiscalized(req.paymentType()));
+    private static void applyPaymentMethodFlags(PaymentMethod pm, PaymentMethodRequest req, boolean fiscalCashRegisterEnabled) {
+        pm.setFiscalized(fiscalCashRegisterEnabled && (req.fiscalized() != null ? req.fiscalized() : defaultFiscalized(req.paymentType())));
         boolean stripeEnabled = req.paymentType() == PaymentType.CARD
                 && (req.stripeEnabled() != null ? req.stripeEnabled() : defaultStripeEnabled(req.paymentType()));
         pm.setStripeEnabled(stripeEnabled);
@@ -5397,8 +5398,16 @@ public class BillingController {
         }
     }
 
-    private static boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod) {
-        return paymentMethod != null && paymentMethod.isFiscalized();
+    private boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod, Long companyId) {
+        return paymentMethod != null && paymentMethod.isFiscalized() && isFiscalCashRegisterEnabled(companyId);
+    }
+
+    private boolean isFiscalCashRegisterEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
     }
 
     private static String resolveInitialPaymentStatus(Bill bill) {

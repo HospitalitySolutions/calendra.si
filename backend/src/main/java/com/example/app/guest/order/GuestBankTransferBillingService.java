@@ -152,7 +152,7 @@ public class GuestBankTransferBillingService {
         }
 
         Bill saved = bills.saveAndFlush(bill);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
         deliverAdvance(saved, companyId, order.getId());
@@ -179,7 +179,7 @@ public class GuestBankTransferBillingService {
             existing.setPaidAt(paidAt == null ? OffsetDateTime.now() : paidAt);
         }
         Bill saved = bills.saveAndFlush(existing);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), saved.getCompany().getId())
                 && (saved.getFiscalStatus() == null
                 || saved.getFiscalStatus() == BillFiscalStatus.NOT_SENT
                 || saved.getFiscalStatus() == BillFiscalStatus.PENDING
@@ -408,8 +408,16 @@ public class GuestBankTransferBillingService {
         bill.setClientLastNameSnapshot(client.getLastName() == null ? "" : client.getLastName());
     }
 
-    private static boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod) {
-        return paymentMethod != null && paymentMethod.isFiscalized();
+    private boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod, Long companyId) {
+        return paymentMethod != null && paymentMethod.isFiscalized() && isFiscalCashRegisterEnabled(companyId);
+    }
+
+    private boolean isFiscalCashRegisterEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
     }
 
 }

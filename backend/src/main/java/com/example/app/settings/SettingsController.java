@@ -1,6 +1,7 @@
 package com.example.app.settings;
 
 import com.example.app.company.PlatformTenantAccountLinkService;
+import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.files.TenantFileS3Service;
 import java.util.Locale;
 import java.util.Arrays;
@@ -56,6 +57,7 @@ public class SettingsController {
             SettingKey.BILLING_BANK_TRANSFER_ENABLED.name(),
             SettingKey.BILLING_PAYPAL_ENABLED.name(),
             SettingKey.BILLING_GIFT_CARDS_ENABLED.name(),
+            SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED.name(),
             SettingKey.BILLING_ADVANCE_ENABLED.name(),
             SettingKey.COMMUNICATION_ENABLED.name(),
             SettingKey.INBOX_ENABLED.name(),
@@ -87,6 +89,7 @@ public class SettingsController {
     private final CourseModuleAccessService courseModuleAccessService;
     private final TenantSmsQuotaService tenantSmsQuotaService;
     private final TenantReservationRulesService tenantReservationRulesService;
+    private final PaymentMethodRepository paymentMethodRepository;
 
     @Autowired
     public SettingsController(
@@ -98,7 +101,8 @@ public class SettingsController {
             PlatformTenantAccountLinkService platformTenantAccountLinkService,
             CourseModuleAccessService courseModuleAccessService,
             TenantSmsQuotaService tenantSmsQuotaService,
-            TenantReservationRulesService tenantReservationRulesService
+            TenantReservationRulesService tenantReservationRulesService,
+            PaymentMethodRepository paymentMethodRepository
     ) {
         this.repository = repository;
         this.crypto = crypto;
@@ -109,6 +113,7 @@ public class SettingsController {
         this.courseModuleAccessService = courseModuleAccessService;
         this.tenantSmsQuotaService = tenantSmsQuotaService;
         this.tenantReservationRulesService = tenantReservationRulesService;
+        this.paymentMethodRepository = paymentMethodRepository;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -120,7 +125,7 @@ public class SettingsController {
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
-        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null);
+        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null, null);
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
@@ -211,6 +216,7 @@ public class SettingsController {
                 repository.save(s);
             }
         });
+        disablePaymentMethodFiscalizationIfNeeded(companyId, normalizedPayload);
         synchronizeReservationRuleSettings(me, companyId, normalizedPayload);
         platformTenantAccountLinkService.syncFromTenantSettings(me.getCompany(), normalizedPayload);
         return all(me);
@@ -318,6 +324,24 @@ public class SettingsController {
         repository.save(setting);
     }
 
+
+    private void disablePaymentMethodFiscalizationIfNeeded(Long companyId, Map<String, String> payload) {
+        if (paymentMethodRepository == null || companyId == null || payload == null) return;
+        String raw = payload.get(SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED.name());
+        if (!"false".equalsIgnoreCase(String.valueOf(raw).trim())) return;
+        var methods = paymentMethodRepository.findAllByCompanyIdOrderByNameAsc(companyId);
+        boolean dirty = false;
+        for (var method : methods) {
+            if (method.isFiscalized()) {
+                method.setFiscalized(false);
+                dirty = true;
+            }
+        }
+        if (dirty) {
+            paymentMethodRepository.saveAll(methods);
+        }
+    }
+
     private java.util.Optional<String> latestGlobalSettingValue(SettingKey key) {
         return repository.findAllByKey(key).stream()
                 .max((a, b) -> {
@@ -375,6 +399,7 @@ public class SettingsController {
                     "BILLING_BANK_TRANSFER_ENABLED",
                     "BILLING_PAYPAL_ENABLED",
                     "BILLING_GIFT_CARDS_ENABLED",
+                    "BILLING_FISCAL_CASH_REGISTER_ENABLED",
                     "BILLING_ADVANCE_ENABLED",
                     "SPACES_ENABLED",
                     "MULTIPLE_SESSIONS_PER_SPACE_ENABLED",

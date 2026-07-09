@@ -55,6 +55,7 @@ public class ManualTenantService {
             new FeatureDefinition("BILLING_BANK_TRANSFER_ENABLED", "Bank transfer payments", SettingKey.BILLING_BANK_TRANSFER_ENABLED),
             new FeatureDefinition("BILLING_PAYPAL_ENABLED", "PayPal payments", SettingKey.BILLING_PAYPAL_ENABLED),
             new FeatureDefinition("BILLING_GIFT_CARDS_ENABLED", "Gift cards", SettingKey.BILLING_GIFT_CARDS_ENABLED),
+            new FeatureDefinition("BILLING_FISCAL_CASH_REGISTER_ENABLED", "Fiscal cash register", SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED),
             new FeatureDefinition("BILLING_ADVANCE_ENABLED", "Advance payments", SettingKey.BILLING_ADVANCE_ENABLED),
             new FeatureDefinition("COMMUNICATION_ENABLED", "Communication", SettingKey.COMMUNICATION_ENABLED),
             new FeatureDefinition("NOTIFICATIONS_ENABLED", "Notifications", SettingKey.NOTIFICATIONS_ENABLED),
@@ -297,6 +298,7 @@ public class ManualTenantService {
         guest.put("inboxEnabled", selected.contains("guestInboxEnabled"));
         seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, toJsonObject(guest));
         seedSetting(company, SettingKey.WEBSITE_WIDGET_SETTINGS_JSON, "{}");
+        companyProvisioningService.ensureDefaultPaymentMethods(company);
     }
 
     private Set<String> defaultFeaturesFor(String packageName) {
@@ -338,6 +340,7 @@ public class ManualTenantService {
         seedSetting(company, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_BANK_TRANSFER_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_PAYPAL_ENABLED, "false");
+        seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, "false");
         seedDefaultTransactionService(company);
     }
 

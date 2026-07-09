@@ -287,7 +287,7 @@ public class PlatformSubscriptionBillingService {
             saved.setPaidAt(OffsetDateTime.now());
         }
         saved = bills.saveAndFlush(saved);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), saved.getCompany().getId())) {
             saved = fiscalizationService.fiscalizeBill(saved, platformCompany.getId());
         }
         byte[] pdf = generateAndArchive(saved, platformCompany.getId());
@@ -1264,8 +1264,16 @@ public class PlatformSubscriptionBillingService {
         return v + "1";
     }
 
-    private static boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod) {
-        return paymentMethod != null && paymentMethod.isFiscalized();
+    private boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod, Long companyId) {
+        return paymentMethod != null && paymentMethod.isFiscalized() && isFiscalCashRegisterEnabled(companyId);
+    }
+
+    private boolean isFiscalCashRegisterEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
     }
 
     private static void setBillClientSnapshot(Bill bill, Client client) {

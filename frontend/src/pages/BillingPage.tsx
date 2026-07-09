@@ -1218,6 +1218,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
   const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
+  const fiscalCashRegisterEnabled = settings.BILLING_FISCAL_CASH_REGISTER_ENABLED === 'true'
   const stripeBillingEnabled = settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const visiblePaymentMethods = useMemo(
     () => {
@@ -1235,7 +1236,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (!giftCardsEnabled && billingTab === 'giftCards') {
       setBillingTab('open')
     }
-  }, [advanceBillingEnabled, giftCardsEnabled, billingTab])
+    if (!fiscalCashRegisterEnabled && historyFiscalStatusFilter !== 'all') {
+      setHistoryFiscalStatusFilter('all')
+    }
+    if (!fiscalCashRegisterEnabled && folioPanelTab === 'fiscal') {
+      setFolioPanelTab('invoice')
+    }
+  }, [advanceBillingEnabled, giftCardsEnabled, fiscalCashRegisterEnabled, billingTab, historyFiscalStatusFilter, folioPanelTab])
 
   const embeddedCreateKey = embeddedCreateBill
     ? [
@@ -1946,7 +1953,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const byStatus = historyStatusFilter === 'all'
       ? byDate
       : byDate.filter((bill) => (bill.paymentStatus || 'open') === historyStatusFilter)
-    const byFiscalStatus = historyFiscalStatusFilter === 'all'
+    const byFiscalStatus = !fiscalCashRegisterEnabled || historyFiscalStatusFilter === 'all'
       ? byStatus
       : byStatus.filter((bill) => (bill.fiscalStatus || 'NOT_SENT') === historyFiscalStatusFilter)
     const byBillType =
@@ -1975,7 +1982,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         method.includes(q)
       )
     })
-  }, [bills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter])
+  }, [bills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, fiscalCashRegisterEnabled])
 
   const sortedHistoryBills = useMemo(() => {
     const list = [...filteredHistoryBills]
@@ -7334,6 +7341,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const openFiscalLog = async (bill: Bill) => {
     setFiscalLogBill(bill)
+    if (!fiscalCashRegisterEnabled) {
+      setFiscalLogRows([])
+      setFiscalLogRequestBody('')
+      setFiscalLogResponseBody('')
+      setLoadingFiscalLog(false)
+      return
+    }
     setLoadingFiscalLog(true)
     setFiscalLogRequestBody('')
     setFiscalLogResponseBody('')
@@ -7361,7 +7375,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const openFolioPanel = async (bill: Bill, tab: 'invoice' | 'fiscal' = 'invoice') => {
     setDetailFolioBill(normalizeBill(bill))
-    setFolioPanelTab(tab)
+    setFolioPanelTab(fiscalCashRegisterEnabled ? tab : 'invoice')
     await openFiscalLog(bill)
   }
 
@@ -8186,17 +8200,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <option value="open">{billingCopy.historyStatusOpen}</option>
                     <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
                   </select>
-                  <select
-                    className="billing-history-filter-select"
-                    aria-label={billingCopy.historyFilterFiscalStatusAria}
-                    value={historyFiscalStatusFilter}
-                    onChange={(e) => setHistoryFiscalStatusFilter(e.target.value as HistoryFiscalStatusFilter)}
-                  >
-                    <option value="all">{billingCopy.historyFiscalStatusAll}</option>
-                    <option value="SENT">{billingCopy.historyFiscalStatusSent}</option>
-                    <option value="FAILED">{billingCopy.historyFiscalStatusFailed}</option>
-                    <option value="NOT_SENT">{billingCopy.historyFiscalStatusNotSent}</option>
-                  </select>
+                  {fiscalCashRegisterEnabled ? (
+                    <select
+                      className="billing-history-filter-select"
+                      aria-label={billingCopy.historyFilterFiscalStatusAria}
+                      value={historyFiscalStatusFilter}
+                      onChange={(e) => setHistoryFiscalStatusFilter(e.target.value as HistoryFiscalStatusFilter)}
+                    >
+                      <option value="all">{billingCopy.historyFiscalStatusAll}</option>
+                      <option value="SENT">{billingCopy.historyFiscalStatusSent}</option>
+                      <option value="FAILED">{billingCopy.historyFiscalStatusFailed}</option>
+                      <option value="NOT_SENT">{billingCopy.historyFiscalStatusNotSent}</option>
+                    </select>
+                  ) : null}
                   <select
                     className="billing-history-filter-select"
                     aria-label={billingCopy.historyFilterBillTypeAria}
@@ -8249,7 +8265,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           <th>{locale === 'sl' ? 'Datum izdaje' : 'Issue Date'}</th>
                           <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
                           <th>{locale === 'sl' ? 'Status plačila' : 'Payment Status'}</th>
-                          <th>{locale === 'sl' ? 'Fiskalni status' : 'Fiscal Status'}</th>
+                          {fiscalCashRegisterEnabled ? <th>{locale === 'sl' ? 'Fiskalni status' : 'Fiscal Status'}</th> : null}
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
@@ -8272,7 +8288,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             </td>
                             <td className="billing-modern-amount">{currency(bill.totalGross)}</td>
                             <td><span className={`billing-status-pill billing-status-pill--${paymentStatusClass(bill.paymentStatus)}`}>{paymentStatusLabel(bill.paymentStatus)}</span></td>
-                            <td><span className={`billing-status-pill billing-status-pill--${fiscalStatusClass(bill)}`}>{fiscalStatusLabel(bill)}</span></td>
+                            {fiscalCashRegisterEnabled ? <td><span className={`billing-status-pill billing-status-pill--${fiscalStatusClass(bill)}`}>{fiscalStatusLabel(bill)}</span></td> : null}
                             <td className="billing-modern-actions billing-modern-actions--history" onClick={(e) => e.stopPropagation()}>
                               <button type="button" className="billing-action-btn billing-action-btn--danger" onClick={() => refundBill(bill)} disabled={!canRefundBill(bill) || refundingBillId === bill.id}>{refundingBillId === bill.id ? (locale === 'sl' ? 'Vračilo…' : 'Refunding…') : (locale === 'sl' ? 'Vračilo' : 'Refund')}</button>
                               <button type="button" className="billing-action-btn" onClick={() => sendCheckoutLink(bill)} disabled={creatingCheckoutBillId === bill.id}>{creatingCheckoutBillId === bill.id ? (locale === 'sl' ? 'Pošiljanje…' : 'Sending…') : (locale === 'sl' ? 'Pošlji' : 'Send')}</button>
@@ -9024,15 +9040,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               >
                 {locale === 'sl' ? 'Račun' : 'Invoice'}
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={folioPanelTab === 'fiscal'}
-                className={folioPanelTab === 'fiscal' ? 'billing-folio-tab billing-folio-tab--active' : 'billing-folio-tab'}
-                onClick={() => setFolioPanelTab('fiscal')}
-              >
-                {locale === 'sl' ? 'Fiskalizacija' : 'Fiscal'}
-              </button>
+              {fiscalCashRegisterEnabled ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={folioPanelTab === 'fiscal'}
+                  className={folioPanelTab === 'fiscal' ? 'billing-folio-tab billing-folio-tab--active' : 'billing-folio-tab'}
+                  onClick={() => setFolioPanelTab('fiscal')}
+                >
+                  {locale === 'sl' ? 'Davčno potrjevanje' : 'Tax confirmation'}
+                </button>
+              ) : null}
             </div>
 
             <div className="billing-folio-modal-body">
