@@ -3,6 +3,7 @@ package com.example.app.user;
 import com.example.app.entitlement.PackageAccessService;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
+import com.example.app.company.Company;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+    private static final String DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME = "Calendar access";
+    private static final String DEFAULT_EMPLOYEE_ACCESS_ROLE_DESCRIPTION = "Default employee role with calendar visibility.";
 
     private final UserRepository userRepository;
     private final EmployeeAccessRoleRepository accessRoleRepository;
@@ -144,6 +147,7 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     public ResponseEntity<?> create(@RequestBody CreateUserRequest request, @AuthenticationPrincipal User me) {
         packageAccessService.requireCanCreateUser(me);
         String normalizedEmail = request.email().trim().toLowerCase();
@@ -162,7 +166,7 @@ public class UserController {
         user.setRole(request.role());
         user.setActive(true);
         user.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
-        EmployeeAccessRole accessRole = resolveAccessRole(request.accessRoleId(), me.getCompany().getId());
+        EmployeeAccessRole accessRole = resolveEmployeeAccessRole(request.role(), request.accessRoleId(), me.getCompany());
         user.setEmployeeAccessRole(accessRole);
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
@@ -199,6 +203,7 @@ public class UserController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody UpdateUserRequest request, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         return userRepository.findByIdAndCompanyId(id, companyId)
@@ -228,7 +233,7 @@ public class UserController {
                     } else {
                         existing.setRole(request.role());
                         existing.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
-                        accessRole = resolveAccessRole(request.accessRoleId(), companyId);
+                        accessRole = resolveEmployeeAccessRole(request.role(), request.accessRoleId(), me.getCompany());
                         existing.setEmployeeAccessRole(accessRole);
                     }
                     existing.setUpdatedAt(Instant.now());
@@ -498,6 +503,49 @@ public class UserController {
         if (accessRoleId == null) return null;
         return accessRoleRepository.findByIdAndCompanyIdAndArchivedFalse(accessRoleId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected access role was not found."));
+    }
+
+    private EmployeeAccessRole resolveEmployeeAccessRole(Role requestedRole, Long accessRoleId, Company company) {
+        if (requestedRole != Role.CONSULTANT) {
+            return null;
+        }
+        EmployeeAccessRole selectedRole = resolveAccessRole(accessRoleId, company.getId());
+        return selectedRole != null ? selectedRole : ensureDefaultEmployeeAccessRole(company);
+    }
+
+    private EmployeeAccessRole ensureDefaultEmployeeAccessRole(Company company) {
+        Long companyId = company.getId();
+        return accessRoleRepository.findFirstByCompanyIdAndArchivedFalseAndNameIgnoreCase(companyId, DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME)
+                .map(existing -> {
+                    List<String> existingPermissions = SecurityUtils.permissionsForClientResponse(existing.getPermissionsJson());
+                    if (!existingPermissions.contains(SecurityUtils.PERMISSION_CALENDAR_BOOKINGS_VIEW)) {
+                        var merged = new java.util.ArrayList<>(existingPermissions);
+                        merged.addAll(SecurityUtils.defaultEmployeePermissions());
+                        existing.setPermissionsJson(writePermissionsJson(merged));
+                        existing.setDescription(existing.getDescription() == null || existing.getDescription().isBlank()
+                                ? DEFAULT_EMPLOYEE_ACCESS_ROLE_DESCRIPTION
+                                : existing.getDescription());
+                        existing.setUpdatedAt(Instant.now());
+                        return accessRoleRepository.save(existing);
+                    }
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    var role = new EmployeeAccessRole();
+                    role.setCompany(company);
+                    role.setName(DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME);
+                    role.setDescription(DEFAULT_EMPLOYEE_ACCESS_ROLE_DESCRIPTION);
+                    role.setArchived(false);
+                    role.setPermissionsJson(writePermissionsJson(SecurityUtils.defaultEmployeePermissions()));
+                    role.setCreatedAt(Instant.now());
+                    role.setUpdatedAt(Instant.now());
+                    try {
+                        return accessRoleRepository.save(role);
+                    } catch (DataIntegrityViolationException ex) {
+                        return accessRoleRepository.findFirstByCompanyIdAndArchivedFalseAndNameIgnoreCase(companyId, DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME)
+                                .orElseThrow(() -> ex);
+                    }
+                });
     }
 
     private String writePermissionsJson(List<String> permissions) {

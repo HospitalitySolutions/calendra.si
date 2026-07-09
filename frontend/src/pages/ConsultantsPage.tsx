@@ -207,6 +207,8 @@ type AccessRoleOption = {
   permissions: string[]
 }
 
+const DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME = 'Calendar access'
+
 type UserQuota = {
   activeUsers: number
   maxUsers: number | null
@@ -498,8 +500,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       return
     }
     setEditing(null)
+    const defaultAccessRole = accessRoleOptions.find(
+      (role) => role.name.trim().toLowerCase() === DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME.toLowerCase() && role.customRoleId != null,
+    )
     const next: ConsultantForm = {
       ...emptyForm,
+      permissions: defaultAccessRole ? normalizeEmployeePermissions(defaultAccessRole.permissions) : [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS],
+      accessRoleId: defaultAccessRole?.customRoleId == null ? '' : String(defaultAccessRole.customRoleId),
       workingHours: {
         sameForAllDays: true,
         allDays: { start: '09:00', end: '17:00' },

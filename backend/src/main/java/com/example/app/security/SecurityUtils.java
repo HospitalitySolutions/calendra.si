@@ -13,6 +13,7 @@ import java.util.Set;
 public final class SecurityUtils {
     public static final String PERMISSIONS_VERSION_MARKER = "__EMPLOYEE_PERMISSIONS_V2";
     public static final String PERMISSION_WALLET_ENTITLEMENT_SCAN = "WALLET_ENTITLEMENT_SCAN";
+    public static final String PERMISSION_CALENDAR_BOOKINGS_VIEW = "CALENDAR_BOOKINGS_VIEW";
     public static final String PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE = "BILLING_ADVANCE_INVOICE_ISSUE";
     public static final String PERMISSION_BILLING_OPEN_INVOICE_ISSUE = "BILLING_OPEN_INVOICE_ISSUE";
     public static final String PERMISSION_BILLING_REFUND_ISSUE = "BILLING_REFUND_ISSUE";
@@ -52,6 +53,7 @@ public final class SecurityUtils {
     public static final Set<String> ALLOWED_EMPLOYEE_PERMISSIONS = buildAllowedEmployeePermissions();
 
     public static final Set<String> DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS = Set.of(
+            PERMISSION_CALENDAR_BOOKINGS_VIEW,
             PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE,
             PERMISSION_BILLING_OPEN_INVOICE_ISSUE,
             PERMISSION_BILLING_REFUND_ISSUE
