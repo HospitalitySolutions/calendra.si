@@ -1069,7 +1069,7 @@ public class ReminderService {
 
     private void sendHtmlMail(String to, String subject, String html) throws MessagingException {
         String safeSubject = subject == null || subject.isBlank() ? " " : subject;
-        String safeBody = html == null || html.isBlank() ? " " : html;
+        String safeBody = normalizeEmailTemplateHtml(html);
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
         helper.setFrom(resolveFromAddress());
@@ -1077,6 +1077,49 @@ public class ReminderService {
         helper.setSubject(safeSubject);
         helper.setText(safeBody, true);
         mailSender.send(message);
+    }
+
+    private static String normalizeEmailTemplateHtml(String value) {
+        if (value == null || value.isBlank()) {
+            return " ";
+        }
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n').strip();
+        if (normalized.isBlank()) {
+            return " ";
+        }
+
+        if (containsHtmlMarkup(normalized)) {
+            return normalized;
+        }
+
+        String escaped = escapeHtml(normalized);
+        StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;color:#111827;line-height:1.55\">");
+        String[] paragraphs = escaped.split("\\n{2,}");
+        for (String paragraph : paragraphs) {
+            String line = paragraph.strip();
+            if (line.isEmpty()) {
+                continue;
+            }
+            html.append("<p style=\"margin:0 0 12px\">")
+                    .append(line.replace("\n", "<br>"))
+                    .append("</p>");
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private static boolean containsHtmlMarkup(String value) {
+        return value != null && value.matches("(?s).*<[a-zA-Z][^>]*>.*");
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     private String resolveFromAddress() {
