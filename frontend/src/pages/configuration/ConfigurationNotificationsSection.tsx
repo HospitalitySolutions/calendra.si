@@ -4,6 +4,7 @@ import { GuestConfigSaveIcon as GuestSaveIcon } from "../../components/GuestConf
 import { GuestSwitch } from "./ConfigurationVisualComponents";
 
 type NotificationChannel = "email" | "sms" | "guestApp";
+type NotificationTemplateVariant = "regular" | "online";
 type NotificationEventKind =
   | "newSession"
   | "sessionChanged"
@@ -144,6 +145,27 @@ function notificationTemplateBodyKey(
   return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_TEMPLATE_BODY`;
 }
 
+function notificationOnlineEnabledKey(
+  channel: NotificationChannel,
+  id: NotificationEventKind,
+) {
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_ONLINE_ENABLED`;
+}
+
+function notificationOnlineTemplateTitleKey(
+  channel: NotificationChannel,
+  id: NotificationEventKind,
+) {
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_ONLINE_TEMPLATE_TITLE`;
+}
+
+function notificationOnlineTemplateBodyKey(
+  channel: NotificationChannel,
+  id: NotificationEventKind,
+) {
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_ONLINE_TEMPLATE_BODY`;
+}
+
 type NotificationTemplateDefaults = Record<
   NotificationEventKind,
   { title: string; body: string }
@@ -227,6 +249,78 @@ const notificationTemplateDefaults: Record<
   guestApp: guestAppTemplateDefaults,
 };
 
+const onlineTemplateDefaults: Record<
+  NotificationChannel,
+  NotificationTemplateDefaults
+> = {
+  email: {
+    newSession: {
+      title: "Potrditev online rezervacije",
+      body: "Pozdravljeni {{ime_stranke}},\n\nvaša online rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena.\n\nPovezava do srečanja: {{online_povezava}}\n\nVeselimo se srečanja z vami.\n{{ime_podjetja}}",
+    },
+    sessionChanged: {
+      title: "Sprememba online rezervacije",
+      body: "Pozdravljeni {{ime_stranke}},\n\npodrobnosti vaše online rezervacije so bile spremenjene. Nov termin je {{datum}} ob {{cas}}.\n\nPovezava do srečanja: {{online_povezava}}\n\n{{ime_podjetja}}",
+    },
+    sessionCancelled: {
+      title: "Preklic online rezervacije",
+      body: "Pozdravljeni {{ime_stranke}},\n\nvaša online rezervacija za {{ime_storitve}} je bila preklicana.\n\n{{ime_podjetja}}",
+    },
+    beforeSession: {
+      title: "Opomnik pred online terminom",
+      body: "Pozdravljeni {{ime_stranke}},\n\nspomnimo vas na online termin {{ime_storitve}} dne {{datum}} ob {{cas}}.\n\nPovezava do srečanja: {{online_povezava}}\n\n{{ime_podjetja}}",
+    },
+    afterSession: {
+      title: "Hvala za online srečanje",
+      body: "Pozdravljeni {{ime_stranke}},\n\nhvala za udeležbo na online srečanju. Veseli bomo vaših povratnih informacij.\n\n{{ime_podjetja}}",
+    },
+  },
+  sms: {
+    newSession: {
+      title: "Nova online seja",
+      body: "Pozdravljeni {{ime_stranke}}, vaša online rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena. Povezava: {{online_povezava}}",
+    },
+    sessionChanged: {
+      title: "Sprememba online seje",
+      body: "Pozdravljeni {{ime_stranke}}, vaš online termin je bil spremenjen na {{datum}} ob {{cas}}. Povezava: {{online_povezava}}",
+    },
+    sessionCancelled: {
+      title: "Preklic online seje",
+      body: "Pozdravljeni {{ime_stranke}}, vaša online rezervacija za {{ime_storitve}} je bila preklicana.",
+    },
+    beforeSession: {
+      title: "Opomnik pred online sejo",
+      body: "Pozdravljeni {{ime_stranke}}, opomnik na online termin {{ime_storitve}} dne {{datum}} ob {{cas}}. Povezava: {{online_povezava}}",
+    },
+    afterSession: {
+      title: "Po online seji",
+      body: "Hvala za online srečanje, {{ime_stranke}}. Veselimo se vaših povratnih informacij.",
+    },
+  },
+  guestApp: {
+    newSession: {
+      title: "Nova online seja",
+      body: "Vaša online rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena. Povezava: {{online_povezava}}",
+    },
+    sessionChanged: {
+      title: "Sprememba online seje",
+      body: "Podrobnosti vaše online seje so bile spremenjene. Nov termin je {{datum}} ob {{cas}}. Povezava: {{online_povezava}}",
+    },
+    sessionCancelled: {
+      title: "Preklic online seje",
+      body: "Vaša online rezervacija za {{ime_storitve}} je bila preklicana.",
+    },
+    beforeSession: {
+      title: "Opomnik pred online sejo",
+      body: "Opomnik: vaš online termin {{ime_storitve}} je dne {{datum}} ob {{cas}}. Povezava: {{online_povezava}}",
+    },
+    afterSession: {
+      title: "Po online seji",
+      body: "Hvala za online srečanje. Veseli bomo vaših povratnih informacij.",
+    },
+  },
+};
+
 export const NOTIFICATION_SETTINGS_KEY = "NOTIFICATION_SETTINGS_JSON";
 
 const notificationChannels = ["email", "sms", "guestApp"] as const;
@@ -260,11 +354,15 @@ export function applyNotificationModuleAvailability(
   }
 
   notificationChannels.forEach((channel) => {
-    if (!isNotificationChannelAvailable(next, channel)) {
-      notificationEvents.forEach((event) => {
+    const channelAvailable = isNotificationChannelAvailable(next, channel);
+    notificationEvents.forEach((event) => {
+      if (!channelAvailable) {
         next[notificationEnabledKey(channel, event.id)] = "false";
-      });
-    }
+      }
+      if (next.ONLINE_SESSION_BOOKING_ENABLED === "false") {
+        next[notificationOnlineEnabledKey(channel, event.id)] = "false";
+      }
+    });
   });
 
   return next;
@@ -283,12 +381,21 @@ function notificationJsonEventKey(id: NotificationEventKind) {
 
 function parseNotificationOffset(value: string, reminder: "before" | "after") {
   const normalized = String(value || "").toLowerCase();
-  if (reminder === "after" && (normalized.includes("takoj") || normalized.includes("immediate"))) {
+  if (
+    reminder === "after" &&
+    (normalized.includes("takoj") || normalized.includes("immediate"))
+  ) {
     return { offsetValue: 1, offsetUnit: "minutes" };
   }
-  if (normalized.includes("15")) return { offsetValue: 15, offsetUnit: "minutes" };
-  if (normalized.includes("30")) return { offsetValue: 30, offsetUnit: "minutes" };
-  if (normalized.includes("24") || normalized.includes("day") || normalized.includes("dan")) {
+  if (normalized.includes("15"))
+    return { offsetValue: 15, offsetUnit: "minutes" };
+  if (normalized.includes("30"))
+    return { offsetValue: 30, offsetUnit: "minutes" };
+  if (
+    normalized.includes("24") ||
+    normalized.includes("day") ||
+    normalized.includes("dan")
+  ) {
     return { offsetValue: 24, offsetUnit: "hours" };
   }
   if (normalized.includes("2")) return { offsetValue: 2, offsetUnit: "hours" };
@@ -302,12 +409,11 @@ function offsetToReminderValue(
 ) {
   const value = Number(offsetValue);
   const unit = String(offsetUnit || "hours").toLowerCase();
-  const minutes =
-    unit.startsWith("day")
-      ? value * 24 * 60
-      : unit.startsWith("minute")
-        ? value
-        : value * 60;
+  const minutes = unit.startsWith("day")
+    ? value * 24 * 60
+    : unit.startsWith("minute")
+      ? value
+      : value * 60;
 
   if (reminder === "after") {
     if (!Number.isFinite(minutes) || minutes <= 1) return "Takoj po seji";
@@ -324,15 +430,25 @@ function offsetToReminderValue(
   return "24 ur pred terminom";
 }
 
-export function buildNotificationSettingsJson(settings: Record<string, string>) {
+export function buildNotificationSettingsJson(
+  settings: Record<string, string>,
+) {
   const normalizedSettings = applyNotificationModuleAvailability(settings);
   const root: Record<string, Record<string, Record<string, unknown>>> = {};
 
   notificationChannels.forEach((channel) => {
     root[channel] = {};
     notificationEvents.forEach((event) => {
-      const title = getNotificationTemplateTitle(normalizedSettings, channel, event.id);
-      const body = getNotificationTemplateBody(normalizedSettings, channel, event.id);
+      const title = getNotificationTemplateTitle(
+        normalizedSettings,
+        channel,
+        event.id,
+      );
+      const body = getNotificationTemplateBody(
+        normalizedSettings,
+        channel,
+        event.id,
+      );
       const channelEnabled = isNotificationChannelAvailable(
         normalizedSettings,
         channel,
@@ -343,15 +459,41 @@ export function buildNotificationSettingsJson(settings: Record<string, string>) 
           getNotificationEnabled(normalizedSettings, channel, event.id),
       };
 
+      const onlineEnabled =
+        normalizedSettings.ONLINE_SESSION_BOOKING_ENABLED !== "false" &&
+        channelEnabled &&
+        getNotificationEnabled(normalizedSettings, channel, event.id) &&
+        getNotificationOnlineEnabled(normalizedSettings, channel, event.id);
+      const onlineTitle = getNotificationTemplateTitle(
+        normalizedSettings,
+        channel,
+        event.id,
+        "online",
+      );
+      const onlineBody = getNotificationTemplateBody(
+        normalizedSettings,
+        channel,
+        event.id,
+        "online",
+      );
+
+      node.onlineEnabled = onlineEnabled;
+
       if (channel === "email") {
         node.subject = title;
         node.bodyHtml = body;
+        node.onlineSubject = onlineTitle;
+        node.onlineBodyHtml = onlineBody;
       } else if (channel === "sms") {
         node.title = title;
         node.body = body;
+        node.onlineTitle = onlineTitle;
+        node.onlineBody = onlineBody;
       } else {
         node.title = title;
         node.body = body;
+        node.onlineTitle = onlineTitle;
+        node.onlineBody = onlineBody;
       }
 
       if (event.reminder) {
@@ -371,12 +513,17 @@ export function buildNotificationSettingsJson(settings: Record<string, string>) 
   return JSON.stringify(root);
 }
 
-export function mergeNotificationSettingsJsonIntoFlat(settings: Record<string, string>): Record<string, string> {
+export function mergeNotificationSettingsJsonIntoFlat(
+  settings: Record<string, string>,
+): Record<string, string> {
   const raw = settings[NOTIFICATION_SETTINGS_KEY];
   if (!raw) return settings;
 
   try {
-    const parsed = JSON.parse(raw) as Record<string, Record<string, Record<string, unknown>>>;
+    const parsed = JSON.parse(raw) as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
     const next = { ...settings };
 
     notificationChannels.forEach((channel) => {
@@ -391,17 +538,50 @@ export function mergeNotificationSettingsJsonIntoFlat(settings: Record<string, s
         }
 
         const title = String(
-          channel === "email" ? node.subject || node.title || "" : node.title || "",
+          channel === "email"
+            ? node.subject || node.title || ""
+            : node.title || "",
         );
         const body = String(
-          channel === "email" ? node.bodyHtml || node.body || "" : node.body || "",
+          channel === "email"
+            ? node.bodyHtml || node.body || ""
+            : node.body || "",
         );
-        if (title) next[notificationTemplateTitleKey(channel, event.id)] = title;
+        if (title)
+          next[notificationTemplateTitleKey(channel, event.id)] = title;
         if (body) next[notificationTemplateBodyKey(channel, event.id)] = body;
+
+        if (typeof node.onlineEnabled === "boolean") {
+          next[notificationOnlineEnabledKey(channel, event.id)] =
+            node.onlineEnabled ? "true" : "false";
+        }
+
+        const onlineTitle = String(
+          channel === "email"
+            ? node.onlineSubject || node.onlineTitle || ""
+            : node.onlineTitle || "",
+        );
+        const onlineBody = String(
+          channel === "email"
+            ? node.onlineBodyHtml || node.onlineBody || ""
+            : node.onlineBody || "",
+        );
+        if (onlineTitle) {
+          next[notificationOnlineTemplateTitleKey(channel, event.id)] =
+            onlineTitle;
+        }
+        if (onlineBody) {
+          next[notificationOnlineTemplateBodyKey(channel, event.id)] =
+            onlineBody;
+        }
 
         if (event.reminder) {
           next[notificationReminderKey(channel, event.reminder)] =
-            offsetToReminderValue(node.offsetValue, node.offsetUnit, event.reminder);
+            offsetToReminderValue(
+              node.offsetValue,
+              node.offsetUnit,
+              event.reminder,
+            );
         }
       });
     });
@@ -429,11 +609,35 @@ const notificationTemplateTags = [
   { label: "Datum in čas prvotnega termina", token: "{{prvotni_termin}}" },
 ];
 
-function getNotificationTemplateTitle(
+const onlineNotificationTemplateTags = [
+  ...notificationTemplateTags,
+  { label: "Povezava do online srečanja", token: "{{online_povezava}}" },
+  { label: "Tip izvedbe", token: "{{tip_izvedbe}}" },
+];
+
+function getNotificationOnlineEnabled(
   settings: Record<string, string>,
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
+  const value = settings[notificationOnlineEnabledKey(channel, id)];
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return false;
+}
+
+function getNotificationTemplateTitle(
+  settings: Record<string, string>,
+  channel: NotificationChannel,
+  id: NotificationEventKind,
+  variant: NotificationTemplateVariant = "regular",
+) {
+  if (variant === "online") {
+    return (
+      settings[notificationOnlineTemplateTitleKey(channel, id)] ||
+      onlineTemplateDefaults[channel][id].title
+    );
+  }
   return (
     settings[notificationTemplateTitleKey(channel, id)] ||
     notificationTemplateDefaults[channel][id].title
@@ -444,7 +648,14 @@ function getNotificationTemplateBody(
   settings: Record<string, string>,
   channel: NotificationChannel,
   id: NotificationEventKind,
+  variant: NotificationTemplateVariant = "regular",
 ) {
+  if (variant === "online") {
+    return (
+      settings[notificationOnlineTemplateBodyKey(channel, id)] ||
+      onlineTemplateDefaults[channel][id].body
+    );
+  }
   return (
     settings[notificationTemplateBodyKey(channel, id)] ||
     notificationTemplateDefaults[channel][id].body
@@ -764,6 +975,8 @@ export function ConfigurationNotificationsSection({
   const [editingEvent, setEditingEvent] =
     useState<NotificationEventKind | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState(false);
+  const [templateVariant, setTemplateVariant] =
+    useState<NotificationTemplateVariant>("regular");
   const templateBodyRef = useRef<HTMLDivElement | null>(null);
 
   const channelCopy: Record<
@@ -808,18 +1021,40 @@ export function ConfigurationNotificationsSection({
   useEffect(() => {
     setEditingEvent(null);
     setPreviewTemplate(false);
+    setTemplateVariant("regular");
   }, [channel]);
 
   useEffect(() => {
     setPreviewTemplate(false);
+    setTemplateVariant("regular");
   }, [editingEvent]);
 
   const selectedEvent = editingEvent
     ? notificationEvents.find((event) => event.id === editingEvent) || null
     : null;
+  const onlineSessionBookingEnabled =
+    settings.ONLINE_SESSION_BOOKING_ENABLED !== "false";
+  const selectedOnlineTemplateEnabled = selectedEvent
+    ? getNotificationOnlineEnabled(settings, channel, selectedEvent.id)
+    : false;
+  const selectedTemplateVariant: NotificationTemplateVariant =
+    onlineSessionBookingEnabled && selectedOnlineTemplateEnabled
+      ? templateVariant
+      : "regular";
   const selectedTemplateBody = selectedEvent
-    ? getNotificationTemplateBody(settings, channel, selectedEvent.id)
+    ? getNotificationTemplateBody(
+        settings,
+        channel,
+        selectedEvent.id,
+        selectedTemplateVariant,
+      )
     : "";
+
+  useEffect(() => {
+    if (!onlineSessionBookingEnabled || !selectedOnlineTemplateEnabled) {
+      setTemplateVariant("regular");
+    }
+  }, [onlineSessionBookingEnabled, selectedOnlineTemplateEnabled]);
 
   useEffect(() => {
     if (!selectedEvent) return;
@@ -857,17 +1092,40 @@ export function ConfigurationNotificationsSection({
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const setTemplateTitle = (id: NotificationEventKind, value: string) => {
+  const setOnlineTemplateEnabled = (
+    id: NotificationEventKind,
+    checked: boolean,
+  ) => {
+    const key = notificationOnlineEnabledKey(channel, id);
+    setSettings((prev) => ({ ...prev, [key]: checked ? "true" : "false" }));
+    if (!checked) {
+      setTemplateVariant("regular");
+    }
+  };
+
+  const setTemplateTitle = (
+    id: NotificationEventKind,
+    value: string,
+    variant: NotificationTemplateVariant = selectedTemplateVariant,
+  ) => {
     setSettings((prev) => ({
       ...prev,
-      [notificationTemplateTitleKey(channel, id)]: value,
+      [variant === "online"
+        ? notificationOnlineTemplateTitleKey(channel, id)
+        : notificationTemplateTitleKey(channel, id)]: value,
     }));
   };
 
-  const setTemplateBody = (id: NotificationEventKind, value: string) => {
+  const setTemplateBody = (
+    id: NotificationEventKind,
+    value: string,
+    variant: NotificationTemplateVariant = selectedTemplateVariant,
+  ) => {
     setSettings((prev) => ({
       ...prev,
-      [notificationTemplateBodyKey(channel, id)]: value,
+      [variant === "online"
+        ? notificationOnlineTemplateBodyKey(channel, id)
+        : notificationTemplateBodyKey(channel, id)]: value,
     }));
   };
 
@@ -936,6 +1194,9 @@ export function ConfigurationNotificationsSection({
       "{{ime_izvajalca}}": "Ana",
       "{{telefon_izvajalca}}": "+386 41 555 111",
       "{{prvotni_termin}}": "10. junij 2026 ob 10:00",
+      "{{online_povezava}}": "https://meet.google.com/abc-defg-hij",
+      "{{online_link}}": "https://meet.google.com/abc-defg-hij",
+      "{{tip_izvedbe}}": "Online",
     };
     const plain = body
       .replace(/<br\s*\/?>/gi, "\n")
@@ -957,7 +1218,12 @@ export function ConfigurationNotificationsSection({
     if (element.innerHTML !== nextHtml) {
       element.innerHTML = nextHtml;
     }
-  }, [selectedEvent, previewTemplate, selectedTemplateBody]);
+  }, [
+    selectedEvent,
+    previewTemplate,
+    selectedTemplateBody,
+    selectedTemplateVariant,
+  ]);
 
   return (
     <section className="notif-page-shell">
@@ -1297,6 +1563,58 @@ export function ConfigurationNotificationsSection({
           background: #ddf3e7;
           border-color: rgba(18, 148, 74, 0.32);
           transform: translateY(-1px);
+        }
+        .notif-online-toggle-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin: 0 0 18px;
+          padding: 14px 16px;
+          border: 1px solid #e1e8f3;
+          border-radius: 14px;
+          background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        }
+        .notif-online-toggle-copy {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+        .notif-online-toggle-copy strong {
+          color: var(--notif-ink);
+          font-size: 14px;
+          font-weight: 850;
+        }
+        .notif-online-toggle-copy span {
+          color: var(--notif-muted);
+          font-size: 13px;
+          line-height: 1.35;
+        }
+        .notif-template-variant-tabs {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px;
+          margin: 0 0 18px;
+          padding: 4px;
+          border: 1px solid #dce3ef;
+          border-radius: 14px;
+          background: #f6f9ff;
+        }
+        .notif-template-variant-tab {
+          border: 0;
+          border-radius: 10px;
+          background: transparent;
+          color: #46566f;
+          min-height: 38px;
+          padding: 0 12px;
+          font-size: 13px;
+          font-weight: 850;
+          cursor: pointer;
+        }
+        .notif-template-variant-tab.is-active {
+          background: #ffffff;
+          color: var(--notif-blue);
+          box-shadow: 0 5px 14px rgba(15, 98, 254, 0.13), inset 0 0 0 1px rgba(15, 98, 254, 0.14);
         }
         .notif-template-field {
           display: grid;
@@ -1791,6 +2109,13 @@ export function ConfigurationNotificationsSection({
           .notif-template-subtitle {
             display: none;
           }
+          .notif-online-toggle-row {
+            margin-bottom: 12px;
+            padding: 12px 13px;
+          }
+          .notif-template-variant-tabs {
+            margin-bottom: 12px;
+          }
           .notif-template-toolbar {
             gap: 3px;
             overflow-x: auto;
@@ -2057,19 +2382,77 @@ export function ConfigurationNotificationsSection({
                           ? "Uredite kratko SMS sporočilo, ki bo poslano gostu ob izbranem dogodku."
                           : "Uredite obvestilo, ki se prikaže gostu v aplikaciji."}
                     </p>
+                    {onlineSessionBookingEnabled ? (
+                      <div className="notif-online-toggle-row">
+                        <span className="notif-online-toggle-copy">
+                          <strong>Online</strong>
+                          <span>
+                            Uporabi posebno predlogo za online termine.
+                          </span>
+                        </span>
+                        <NotificationSwitch
+                          checked={selectedOnlineTemplateEnabled}
+                          onChange={(checked) =>
+                            setOnlineTemplateEnabled(selectedEvent.id, checked)
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {onlineSessionBookingEnabled &&
+                    selectedOnlineTemplateEnabled ? (
+                      <div
+                        className="notif-template-variant-tabs"
+                        role="tablist"
+                        aria-label="Vrsta predloge"
+                      >
+                        <button
+                          type="button"
+                          className={
+                            selectedTemplateVariant === "regular"
+                              ? "notif-template-variant-tab is-active"
+                              : "notif-template-variant-tab"
+                          }
+                          onClick={() => {
+                            setPreviewTemplate(false);
+                            setTemplateVariant("regular");
+                          }}
+                          role="tab"
+                          aria-selected={selectedTemplateVariant === "regular"}
+                        >
+                          Običajna seja
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            selectedTemplateVariant === "online"
+                              ? "notif-template-variant-tab is-active"
+                              : "notif-template-variant-tab"
+                          }
+                          onClick={() => {
+                            setPreviewTemplate(false);
+                            setTemplateVariant("online");
+                          }}
+                          role="tab"
+                          aria-selected={selectedTemplateVariant === "online"}
+                        >
+                          Online seja
+                        </button>
+                      </div>
+                    ) : null}
                     <div className="notif-template-field">
                       <label
-                        htmlFor={`notif-template-title-${channel}-${selectedEvent.id}`}
+                        htmlFor={`notif-template-title-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
                       >
                         Naslov
                       </label>
                       <input
-                        id={`notif-template-title-${channel}-${selectedEvent.id}`}
+                        id={`notif-template-title-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
                         className="notif-template-input"
                         value={getNotificationTemplateTitle(
                           settings,
                           channel,
                           selectedEvent.id,
+                          selectedTemplateVariant,
                         )}
                         onChange={(event) =>
                           setTemplateTitle(selectedEvent.id, event.target.value)
@@ -2078,7 +2461,7 @@ export function ConfigurationNotificationsSection({
                     </div>
                     <div className="notif-template-field">
                       <label
-                        htmlFor={`notif-template-body-${channel}-${selectedEvent.id}`}
+                        htmlFor={`notif-template-body-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
                       >
                         Vsebina
                       </label>
@@ -2248,6 +2631,7 @@ export function ConfigurationNotificationsSection({
                                 settings,
                                 channel,
                                 selectedEvent.id,
+                                selectedTemplateVariant,
                               ).trim()
                                 ? "notif-template-preview-pane"
                                 : "notif-template-preview-pane notif-template-preview-empty"
@@ -2257,12 +2641,14 @@ export function ConfigurationNotificationsSection({
                               settings,
                               channel,
                               selectedEvent.id,
+                              selectedTemplateVariant,
                             ).trim()
                               ? getTemplatePreviewText(
                                   getNotificationTemplateBody(
                                     settings,
                                     channel,
                                     selectedEvent.id,
+                                    selectedTemplateVariant,
                                   ),
                                 )
                               : "Predloga je prazna."}
@@ -2270,7 +2656,7 @@ export function ConfigurationNotificationsSection({
                         ) : (
                           <div
                             ref={templateBodyRef}
-                            id={`notif-template-body-${channel}-${selectedEvent.id}`}
+                            id={`notif-template-body-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
                             className="notif-template-textarea"
                             contentEditable
                             suppressContentEditableWarning
@@ -2287,7 +2673,10 @@ export function ConfigurationNotificationsSection({
                     <div className="notif-template-tags">
                       Razpoložljive oznake
                       <div className="notif-template-tag-list">
-                        {notificationTemplateTags.map((tag) => (
+                        {(selectedTemplateVariant === "online"
+                          ? onlineNotificationTemplateTags
+                          : notificationTemplateTags
+                        ).map((tag) => (
                           <button
                             key={tag.token}
                             type="button"
@@ -2323,4 +2712,3 @@ export function ConfigurationNotificationsSection({
     </section>
   );
 }
-

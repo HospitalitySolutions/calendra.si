@@ -203,8 +203,9 @@ public class ReminderService {
         if (!node.path("enabled").asBoolean(false)) {
             return;
         }
-        String subject = node.path("subject").asText("");
-        String bodyHtml = node.path("bodyHtml").asText("");
+        NotificationEmailTemplate template = selectEmailTemplateFromNode(companyId, booking, node);
+        String subject = template.subject();
+        String bodyHtml = template.bodyHtml();
         if (subject.isBlank() && bodyHtml.isBlank()) {
             return;
         }
@@ -232,7 +233,7 @@ public class ReminderService {
         if (!node.path("enabled").asBoolean(false)) {
             return;
         }
-        String body = node.path("body").asText("");
+        String body = selectSmsBodyFromNode(companyId, booking, node);
         if (body.isBlank()) {
             return;
         }
@@ -279,8 +280,9 @@ public class ReminderService {
         if (!node.path("enabled").asBoolean(false)) {
             return;
         }
-        String title = node.path("title").asText("");
-        String body = node.path("body").asText("");
+        NotificationGuestAppTemplate template = selectGuestAppTemplateFromNode(companyId, booking, node);
+        String title = template.title();
+        String body = template.body();
         if (title.isBlank() && body.isBlank()) {
             return;
         }
@@ -318,8 +320,9 @@ public class ReminderService {
                 log.debug("Skipping {} guest app notification for company {}: template disabled", kind, companyId);
                 return;
             }
-            String title = node.path("title").asText("");
-            String body = node.path("body").asText("");
+            NotificationGuestAppTemplate template = selectGuestAppTemplateFromNode(companyId, booking, node);
+            String title = template.title();
+            String body = template.body();
             if (title.isBlank() && body.isBlank()) {
                 log.debug("Skipping {} guest app notification for company {}: empty title and body", kind, companyId);
                 return;
@@ -578,7 +581,7 @@ public class ReminderService {
             return;
         }
 
-        Optional<NotificationEmailTemplate> templateOpt = loadNotificationEmailTemplate(companyId, kind);
+        Optional<NotificationEmailTemplate> templateOpt = loadNotificationEmailTemplate(companyId, kind, booking);
         if (templateOpt.isEmpty()
                 && websiteWidgetTransactionalEmail
                 && isTemplateExplicitlyEnabled(companyId, "email", kind)) {
@@ -624,7 +627,7 @@ public class ReminderService {
             return;
         }
 
-        Optional<NotificationSmsTemplate> templateOpt = loadNotificationSmsTemplate(companyId, kind);
+        Optional<NotificationSmsTemplate> templateOpt = loadNotificationSmsTemplate(companyId, kind, booking);
         if (templateOpt.isEmpty()) {
             log.debug("Skipping {} booking SMS for company {}: template disabled or not configured", kind, companyId);
             return;
@@ -728,7 +731,7 @@ public class ReminderService {
         return new NotificationEmailTemplate(subject, bodyHtml);
     }
 
-    private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind) {
+    private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind, SessionBooking booking) {
         if (!isEmailChannelEnabled(companyId)) {
             return Optional.empty();
         }
@@ -737,16 +740,14 @@ public class ReminderService {
             if (!node.path("enabled").asBoolean(false)) {
                 return Optional.empty();
             }
-            String subject = node.path("subject").asText("");
-            String bodyHtml = node.path("bodyHtml").asText("");
-            return Optional.of(new NotificationEmailTemplate(subject, bodyHtml));
+            return Optional.of(selectEmailTemplateFromNode(companyId, booking, node));
         } catch (Exception e) {
             log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
             return Optional.empty();
         }
     }
 
-    private Optional<NotificationSmsTemplate> loadNotificationSmsTemplate(Long companyId, NotificationKind kind) {
+    private Optional<NotificationSmsTemplate> loadNotificationSmsTemplate(Long companyId, NotificationKind kind, SessionBooking booking) {
         if (!isSmsChannelEnabled(companyId)) {
             return Optional.empty();
         }
@@ -755,12 +756,93 @@ public class ReminderService {
             if (!node.path("enabled").asBoolean(false)) {
                 return Optional.empty();
             }
-            String body = node.path("body").asText("");
+            String body = selectSmsBodyFromNode(companyId, booking, node);
             return Optional.of(new NotificationSmsTemplate(body));
         } catch (Exception e) {
             log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
             return Optional.empty();
         }
+    }
+
+    private NotificationEmailTemplate selectEmailTemplateFromNode(Long companyId, SessionBooking booking, JsonNode node) {
+        if (shouldUseOnlineTemplate(companyId, booking, node)) {
+            String onlineSubject = firstNonBlank(
+                    node.path("onlineSubject").asText(""),
+                    node.path("onlineTitle").asText("")
+            );
+            String onlineBodyHtml = firstNonBlank(
+                    node.path("onlineBodyHtml").asText(""),
+                    node.path("onlineBody").asText("")
+            );
+            if (!onlineSubject.isBlank() || !onlineBodyHtml.isBlank()) {
+                return new NotificationEmailTemplate(onlineSubject, onlineBodyHtml);
+            }
+        }
+        return new NotificationEmailTemplate(
+                node.path("subject").asText(""),
+                node.path("bodyHtml").asText("")
+        );
+    }
+
+    private String selectSmsBodyFromNode(Long companyId, SessionBooking booking, JsonNode node) {
+        if (shouldUseOnlineTemplate(companyId, booking, node)) {
+            String onlineBody = firstNonBlank(
+                    node.path("onlineBody").asText(""),
+                    node.path("onlineBodyHtml").asText("")
+            );
+            if (!onlineBody.isBlank()) {
+                return onlineBody;
+            }
+        }
+        return node.path("body").asText("");
+    }
+
+    private NotificationGuestAppTemplate selectGuestAppTemplateFromNode(Long companyId, SessionBooking booking, JsonNode node) {
+        if (shouldUseOnlineTemplate(companyId, booking, node)) {
+            String onlineTitle = firstNonBlank(
+                    node.path("onlineTitle").asText(""),
+                    node.path("onlineSubject").asText("")
+            );
+            String onlineBody = firstNonBlank(
+                    node.path("onlineBody").asText(""),
+                    node.path("onlineBodyHtml").asText("")
+            );
+            if (!onlineTitle.isBlank() || !onlineBody.isBlank()) {
+                return new NotificationGuestAppTemplate(onlineTitle, onlineBody);
+            }
+        }
+        return new NotificationGuestAppTemplate(
+                node.path("title").asText(""),
+                node.path("body").asText("")
+        );
+    }
+
+    private boolean shouldUseOnlineTemplate(Long companyId, SessionBooking booking, JsonNode node) {
+        return companyId != null
+                && isOnlineSessionBookingEnabled(companyId)
+                && isOnlineBooking(booking)
+                && node != null
+                && node.path("onlineEnabled").asBoolean(false);
+    }
+
+    private boolean isOnlineSessionBookingEnabled(Long companyId) {
+        return booleanSetting(companyId, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, true);
+    }
+
+    private static boolean isOnlineBooking(SessionBooking booking) {
+        return booking != null
+                && booking.getMeetingLink() != null
+                && !booking.getMeetingLink().isBlank();
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private boolean isTemplateExplicitlyEnabled(Long companyId, String channel, NotificationKind kind) {
@@ -816,6 +898,8 @@ public class ReminderService {
                 ? ""
                 : (nz(consultant.getFirstName()) + " " + nz(consultant.getLastName())).trim();
         String consultantPhone = consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "";
+        String onlineMeetingLink = booking.getMeetingLink() != null ? booking.getMeetingLink().trim() : "";
+        String deliveryType = onlineMeetingLink.isBlank() ? "V živo" : "Online";
         String rescheduleLink = buildRescheduleLink(company);
         String originalAppointmentDateTime;
         if (originalStart != null) {
@@ -843,6 +927,10 @@ public class ReminderService {
         m.put("{{manageBookingLink}}", rescheduleLink);
         m.put("{{cancelBookingLink}}", "");
         m.put("{{originalAppointmentDateTime}}", originalAppointmentDateTime);
+        m.put("{{onlineMeetingLink}}", onlineMeetingLink);
+        m.put("{{onlineLink}}", onlineMeetingLink);
+        m.put("{{online_link}}", onlineMeetingLink);
+        m.put("{{deliveryType}}", deliveryType);
 
         // Slovenian aliases used by Configuration -> Notifications template tags.
         m.put("{{ime_podjetja}}", companyName);
@@ -861,6 +949,8 @@ public class ReminderService {
         m.put("{{ime_izvajalca}}", consultantName);
         m.put("{{telefon_izvajalca}}", consultantPhone);
         m.put("{{prvotni_termin}}", originalAppointmentDateTime);
+        m.put("{{online_povezava}}", onlineMeetingLink);
+        m.put("{{tip_izvedbe}}", deliveryType);
 
         return m;
     }
@@ -1033,6 +1123,8 @@ public class ReminderService {
     private record NotificationEmailTemplate(String subject, String bodyHtml) {}
 
     private record NotificationSmsTemplate(String body) {}
+
+    private record NotificationGuestAppTemplate(String title, String body) {}
 
     private void sendSmsViaGateway(String to, String body, Long companyId, String customId) {
         if (!smsConfigured || smsGateway == null) {
