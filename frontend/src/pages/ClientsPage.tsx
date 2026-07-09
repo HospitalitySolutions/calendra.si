@@ -6,7 +6,7 @@ import { api, getApiErrorMessage } from '../api'
 import { getStoredUser } from '../auth'
 import { useLocale } from '../locale'
 import { useCalendarFiltersBottomBar, useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
-import type { Client, ClientGroup, Company, CompanySummary, CompanyBillSummary, Role, StoredFile, User } from '../lib/types'
+import type { Client, ClientGroup, Company, CompanySummary, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Role, StoredFile, User } from '../lib/types'
 import { Card, EmptyState, PageHeader } from '../components/ui'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
@@ -117,6 +117,69 @@ type WalletPurchaseOpenBillResponse = {
   openBillId: number
   orderId: number
   productId: number
+}
+
+
+type CustomFieldValueState = Record<string, string>
+
+function normalizeCustomFieldValues(values: Record<string, string> | Record<number, string> | null | undefined): CustomFieldValueState {
+  const result: CustomFieldValueState = {}
+  Object.entries(values ?? {}).forEach(([key, value]) => {
+    if (value == null) return
+    result[String(key)] = String(value)
+  })
+  return result
+}
+
+function activeCustomFields(definitions: CustomFieldDefinition[], appliesTo: CustomFieldAppliesTo): CustomFieldDefinition[] {
+  return definitions
+    .filter((field) => field.appliesTo === appliesTo && field.active !== false)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.name ?? '').localeCompare(b.name ?? '') || a.id - b.id)
+}
+
+function listCustomFields(definitions: CustomFieldDefinition[], appliesTo: CustomFieldAppliesTo): CustomFieldDefinition[] {
+  return activeCustomFields(definitions, appliesTo).filter((field) => field.showInList)
+}
+
+function parseMultiSelectCustomValue(value: string | null | undefined): string[] {
+  if (!value?.trim()) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map((item) => String(item)).filter(Boolean) : []
+  } catch {
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+}
+
+function serializeMultiSelectCustomValue(values: string[]): string {
+  return JSON.stringify(Array.from(new Set(values.filter(Boolean))))
+}
+
+function displayCustomFieldValue(field: CustomFieldDefinition, values: Record<string, string> | null | undefined): string {
+  const raw = values?.[String(field.id)]
+  if (!raw?.trim()) return '—'
+  if (field.fieldType === 'CHECKBOX') return raw === 'true' ? '✓' : '—'
+  if (field.fieldType === 'MULTI_SELECT') return parseMultiSelectCustomValue(raw).join(', ') || '—'
+  return raw
+}
+
+
+function customFieldMapsEqual(a: Record<string, string> | null | undefined, b: Record<string, string> | null | undefined): boolean {
+  const left = normalizeCustomFieldValues(a)
+  const right = normalizeCustomFieldValues(b)
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)])
+  for (const key of keys) {
+    if ((left[key] ?? '') !== (right[key] ?? '')) return false
+  }
+  return true
+}
+
+function inputTypeForCustomField(type: CustomFieldType): string {
+  if (type === 'NUMBER') return 'number'
+  if (type === 'DATE') return 'date'
+  if (type === 'EMAIL') return 'email'
+  if (type === 'PHONE') return 'tel'
+  return 'text'
 }
 
 const GIFT_CARD_SETTINGS_KEY = 'BILLING_GIFT_CARD_SETTINGS_JSON'
@@ -1134,6 +1197,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [addingMember, setAddingMember] = useState(false)
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null)
   const [settings, setSettings] = useState<Record<string, string>>({})
+  const [customFieldDefinitions, setCustomFieldDefinitions] = useState<CustomFieldDefinition[]>([])
+  const [clientCustomValues, setClientCustomValues] = useState<CustomFieldValueState>({})
+  const [companyCustomValues, setCompanyCustomValues] = useState<CustomFieldValueState>({})
+  const [groupCustomValues, setGroupCustomValues] = useState<CustomFieldValueState>({})
+  const [detailClientCustomValues, setDetailClientCustomValues] = useState<CustomFieldValueState>({})
+  const [detailCompanyCustomValues, setDetailCompanyCustomValues] = useState<CustomFieldValueState>({})
+  const [detailGroupCustomValues, setDetailGroupCustomValues] = useState<CustomFieldValueState>({})
   const [globalWhatsAppEnabled, setGlobalWhatsAppEnabled] = useState(false)
   const [giftCardPersonalizationOpen, setGiftCardPersonalizationOpen] = useState(false)
   const [giftCardRecipientName, setGiftCardRecipientName] = useState('')
@@ -1142,6 +1212,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const giftCardsFeatureEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
   const invoiceEmailDeliveryEnabled = settings.INVOICE_DELIVERY_EMAIL_ENABLED !== 'false'
   const giftCardDisplaySettings = parseGiftCardDisplaySettings(settings[GIFT_CARD_SETTINGS_KEY])
+  const clientCustomFieldDefs = useMemo(() => activeCustomFields(customFieldDefinitions, 'CLIENT'), [customFieldDefinitions])
+  const companyCustomFieldDefs = useMemo(() => activeCustomFields(customFieldDefinitions, 'COMPANY'), [customFieldDefinitions])
+  const groupCustomFieldDefs = useMemo(() => activeCustomFields(customFieldDefinitions, 'GROUP'), [customFieldDefinitions])
+  const clientListCustomFieldDefs = useMemo(() => listCustomFields(customFieldDefinitions, 'CLIENT'), [customFieldDefinitions])
+  const companyListCustomFieldDefs = useMemo(() => listCustomFields(customFieldDefinitions, 'COMPANY'), [customFieldDefinitions])
+  const groupListCustomFieldDefs = useMemo(() => listCustomFields(customFieldDefinitions, 'GROUP'), [customFieldDefinitions])
 
   const companyInvoiceStatusPill = (bill: CompanyBillSummary): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
     if (bill.fiscalStatus === 'FAILED') return { label: 'FAILED', variant: 'fiscal-failed' }
@@ -1202,6 +1278,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } catch { /* ignore */ }
   }
 
+  async function loadCustomFieldDefinitions() {
+    try {
+      const response = await api.get<CustomFieldDefinition[]>('/custom-fields')
+      setCustomFieldDefinitions(response.data ?? [])
+    } catch {
+      setCustomFieldDefinitions([])
+    }
+  }
+
   async function loadInboxGlobalCapabilities() {
     try {
       const response = await api.get<InboxGlobalCapabilities>('/inbox/global-capabilities')
@@ -1214,6 +1299,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   useEffect(() => {
     loadClients()
     loadSettings()
+    loadCustomFieldDefinitions()
     loadInboxGlobalCapabilities()
   }, [])
 
@@ -1756,7 +1842,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (groupDetailEditDraft.batchPaymentEnabled ?? false) !== (detailGroup.batchPaymentEnabled ?? false)
       || (groupDetailEditDraft.individualPaymentEnabled ?? false) !== (detailGroup.individualPaymentEnabled ?? false)
       || (groupDetailEditDraft.billingCompanyId ?? null) !== (detailGroup.billingCompany?.id ?? null)
-  }, [detailGroup, groupDetailEditDraft])
+      || !customFieldMapsEqual(detailGroupCustomValues, detailGroup.customFieldValues)
+  }, [detailGroup, groupDetailEditDraft, detailGroupCustomValues])
 
   const groupMemberCandidates = useMemo(() => {
     if (!detailGroup) return []
@@ -1785,7 +1872,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (detailEditDraft.suppressInvoiceEmails ?? false) !== (detailClient.suppressInvoiceEmails ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
       || (isAdmin && (detailEditDraft.assignedToId ?? null) !== (detailClient.assignedTo?.id ?? null))
-  }, [detailClient, detailEditDraft, isAdmin])
+      || !customFieldMapsEqual(detailClientCustomValues, detailClient.customFieldValues)
+  }, [detailClient, detailEditDraft, isAdmin, detailClientCustomValues])
 
   const companyDetailHasChanges = useMemo(() => {
     if (!detailCompany) return false
@@ -1799,10 +1887,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (companyDetailEditDraft.telephone ?? '') !== (detailCompany.telephone ?? '')
       || (companyDetailEditDraft.batchPaymentEnabled ?? false) !== (detailCompany.batchPaymentEnabled ?? false)
       || (companyDetailEditDraft.suppressInvoiceEmails ?? false) !== (detailCompany.suppressInvoiceEmails ?? false)
-  }, [detailCompany, companyDetailEditDraft])
+      || !customFieldMapsEqual(detailCompanyCustomValues, detailCompany.customFieldValues)
+  }, [detailCompany, companyDetailEditDraft, detailCompanyCustomValues])
 
   const openNewModal = () => {
     setForm(emptyClientForm)
+    setClientCustomValues({})
     setNewClientEditField('firstName')
     setErrorMessage('')
     setShowModal(true)
@@ -1811,6 +1901,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const openDetailModal = (c: Client, initialTab: 'sessions' | 'wallet' | 'files' | 'settings' = 'sessions') => {
     setDetailClient(c);
     setDetailEditField(null)
+    setDetailClientCustomValues(normalizeCustomFieldValues(c.customFieldValues))
     setDetailEditDraft({
       firstName: c.firstName ?? '',
       lastName: c.lastName ?? '',
@@ -1861,6 +1952,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const openCompanyDetailModal = (company: Company) => {
     setDetailCompany(company)
+    setDetailCompanyCustomValues(normalizeCustomFieldValues(company.customFieldValues))
     setCompanyDetailEditField(null)
     setCompanyDetailMainTab('datoteke')
     setCompanyDetailDatotekeSubTab('splosno')
@@ -1881,6 +1973,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const openGroupDetailModal = (group: ClientGroup) => {
     setDetailGroup(group)
+    setDetailGroupCustomValues(normalizeCustomFieldValues(group.customFieldValues))
     setGroupDetailEditField(null)
     setGroupDetailEditDraft({
       name: group.name ?? '',
@@ -1943,10 +2036,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         billingCompanyId: groupDetailEditDraft.billingCompanyId,
         batchPaymentEnabled: groupDetailEditDraft.batchPaymentEnabled,
         individualPaymentEnabled: groupDetailEditDraft.individualPaymentEnabled,
+        customFieldValues: detailGroupCustomValues,
       }
       const response = await api.put<ClientGroup>(`/groups/${detailGroup.id}`, payload)
       const updated = response.data
       setDetailGroup(updated)
+      setDetailGroupCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch {
@@ -1994,6 +2089,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       const response = await api.delete<ClientGroup>(`/groups/${detailGroup.id}/members/${clientId}`)
       const updated = response.data
       setDetailGroup(updated)
+      setDetailGroupCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch { /* ignore */ } finally {
@@ -2006,9 +2102,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setSavingGroup(true)
     setGroupErrorMessage('')
     try {
-      await api.post('/groups', { name: groupForm.name.trim(), email: groupForm.email.trim() || null })
+      await api.post('/groups', { name: groupForm.name.trim(), email: groupForm.email.trim() || null, customFieldValues: groupCustomValues })
       setShowGroupModal(false)
       setGroupForm({ name: '', email: '' })
+      setGroupCustomValues({})
       loadGroups()
     } catch {
       setGroupErrorMessage('Failed to create group.')
@@ -2086,6 +2183,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         email: detailEditDraft.email.trim() || null,
         phone: detailEditDraft.phone.trim() || null,
         whatsappOptIn: detailEditDraft.whatsappOptIn,
+        customFieldValues: detailClientCustomValues,
         billingCompanyId: detailEditDraft.billingCompanyId,
         batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: detailEditDraft.suppressInvoiceEmails ?? false,
@@ -2093,6 +2191,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
       setDetailClient(response.data)
+      setDetailClientCustomValues(normalizeCustomFieldValues(response.data.customFieldValues))
       if (embeddedClientDetailMode) await onEmbeddedSaved?.()
       setDetailEditDraft({
         firstName: response.data.firstName ?? '',
@@ -2128,11 +2227,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         iban: companyDetailEditDraft.iban.trim() || null,
         email: companyDetailEditDraft.email.trim() || null,
         telephone: companyDetailEditDraft.telephone.trim() || null,
+        customFieldValues: detailCompanyCustomValues,
         batchPaymentEnabled: companyDetailEditDraft.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: companyDetailEditDraft.suppressInvoiceEmails ?? false,
       }
       const response = await api.put<Company>(`/companies/${detailCompany.id}`, payload)
       setDetailCompany(response.data)
+      setDetailCompanyCustomValues(normalizeCustomFieldValues(response.data.customFieldValues))
       setCompanyDetailEditDraft({
         name: response.data.name ?? '',
         address: response.data.address ?? '',
@@ -2419,9 +2520,92 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     )
   }
 
+
+
+  const renderCustomFieldInputs = (
+    definitions: CustomFieldDefinition[],
+    values: CustomFieldValueState,
+    onChange: (fieldId: string, value: string) => void,
+  ) => {
+    if (definitions.length === 0) return null
+    return definitions.map((field) => {
+      const fieldId = String(field.id)
+      const value = values[fieldId] ?? ''
+      const label = `${field.name}${field.required ? ' *' : ''}`
+      const commonClass = 'clients-detail-field-card clients-detail-field-card--wide clients-custom-field-card'
+      if (field.fieldType === 'CHECKBOX') {
+        return (
+          <label key={field.id} className={`${commonClass} clients-detail-batch-switch-row`}>
+            <span>{label}</span>
+            <button
+              type="button"
+              className={`clients-batch-switch${value === 'true' ? ' clients-batch-switch--on' : ''}`}
+              onClick={() => onChange(fieldId, value === 'true' ? 'false' : 'true')}
+              aria-pressed={value === 'true'}
+            >
+              {value === 'true' ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+            </button>
+          </label>
+        )
+      }
+      if (field.fieldType === 'DROPDOWN') {
+        return (
+          <label key={field.id} className={commonClass}>
+            <span>{label}</span>
+            <select value={value} onChange={(e) => onChange(fieldId, e.target.value)} required={field.required}>
+              <option value="">—</option>
+              {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+        )
+      }
+      if (field.fieldType === 'MULTI_SELECT') {
+        const selected = parseMultiSelectCustomValue(value)
+        return (
+          <label key={field.id} className={commonClass}>
+            <span>{label}</span>
+            <select
+              multiple
+              value={selected}
+              onChange={(e) => {
+                const next = Array.from(e.currentTarget.selectedOptions).map((option) => option.value)
+                onChange(fieldId, serializeMultiSelectCustomValue(next))
+              }}
+            >
+              {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+        )
+      }
+      if (field.fieldType === 'LONG_TEXT') {
+        return (
+          <label key={field.id} className={commonClass}>
+            <span>{label}</span>
+            <textarea value={value} onChange={(e) => onChange(fieldId, e.target.value)} required={field.required} />
+          </label>
+        )
+      }
+      return (
+        <label key={field.id} className={commonClass}>
+          <span>{label}</span>
+          <input
+            type={inputTypeForCustomField(field.fieldType)}
+            value={value}
+            onChange={(e) => onChange(fieldId, e.target.value)}
+            required={field.required}
+          />
+        </label>
+      )
+    })
+  }
+
+  const renderCustomFieldListCells = (definitions: CustomFieldDefinition[], values: Record<string, string> | null | undefined) =>
+    definitions.map((field) => <td key={field.id} className="clients-muted">{displayCustomFieldValue(field, values)}</td>)
+
   const closeModal = () => {
     setShowModal(false)
     setForm(emptyClientForm)
+    setClientCustomValues({})
     setNewClientEditField('firstName')
     setErrorMessage('')
   }
@@ -2447,6 +2631,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           billingCompanyId: updated.billingCompany?.id ?? null,
           assignedToId: updated.assignedTo?.id ?? null,
         })
+        setDetailClientCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
       }
       await loadClients()
       setOpenClientMenuId(null)
@@ -2496,6 +2681,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const openNewCompanyModal = () => {
     setCompanyForm(emptyCompanyForm)
+    setCompanyCustomValues({})
     setCompanyErrorMessage('')
     setShowCompanyModal(true)
   }
@@ -2503,6 +2689,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const closeCompanyModal = () => {
     setShowCompanyModal(false)
     setCompanyForm(emptyCompanyForm)
+    setCompanyCustomValues({})
     setCompanyErrorMessage('')
   }
 
@@ -2526,6 +2713,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
         preferredSlots: [],
+        customFieldValues: clientCustomValues,
       }
       await api.post('/clients', payload)
 
@@ -2556,6 +2744,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         iban: companyForm.iban.trim() || null,
         email: companyForm.email.trim() || null,
         telephone: companyForm.telephone.trim() || null,
+        customFieldValues: companyCustomValues,
       }
       await api.post('/companies', payload)
       closeCompanyModal()
@@ -2943,6 +3132,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     if (entityTab === 'clients') return openNewModal()
     if (entityTab === 'companies') return openNewCompanyModal()
     setGroupForm({ name: '', email: '' })
+    setGroupCustomValues({})
     setGroupErrorMessage('')
     setShowGroupModal(true)
   }
@@ -3086,6 +3276,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <th>{clientNameHeader}</th>
                         <th>{clientsCopy.email}</th>
                         <th>{clientsCopy.tableHeaderPhone}</th>
+                        {clientListCustomFieldDefs.map((field) => <th key={field.id}>{field.name}</th>)}
                         {isAdmin && <th>{assignedOwnerHeader}</th>}
                         <th>{statusHeader}</th>
                         <th>{clientsCopy.tableHeaderCreated}</th>
@@ -3113,6 +3304,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           </td>
                           <td className="clients-muted">{c.email?.trim() ? <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.email.trim()}</a> : '—'}</td>
                           <td className="clients-muted">{c.phone?.trim() ? <a href={contactTelHref(c.phone)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.phone.trim()}</a> : '—'}</td>
+                          {renderCustomFieldListCells(clientListCustomFieldDefs, c.customFieldValues)}
                           {isAdmin && <td className="clients-muted">{c.assignedTo ? <span className="clients-owner-chip"><span className="clients-owner-avatar">{c.assignedTo.avatarPath ? <img className="clients-owner-avatar-image" src={c.assignedTo.avatarPath} alt="" /> : initials(c.assignedTo.firstName, c.assignedTo.lastName)}</span>{fullName(c.assignedTo)}</span> : clientsCopy.unassignedConsultant}</td>}
                           <td>
                             <button
@@ -3187,6 +3379,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <th>{clientsCopy.email}</th>
                         <th>{clientsCopy.telephone}</th>
                         <th>{clientsCopy.city}</th>
+                        {companyListCustomFieldDefs.map((field) => <th key={field.id}>{field.name}</th>)}
                         <th>{statusHeader}</th>
                         <th>{clientsCopy.tableHeaderCreated}</th>
                         <th>{actionsHeader}</th>
@@ -3208,6 +3401,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           <td className="clients-muted">{c.email?.trim() ? <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.email.trim()}</a> : '—'}</td>
                           <td className="clients-muted">{c.telephone?.trim() ? <a href={contactTelHref(c.telephone)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.telephone.trim()}</a> : '—'}</td>
                           <td className="clients-muted">{c.city || '—'}</td>
+                          {renderCustomFieldListCells(companyListCustomFieldDefs, c.customFieldValues)}
                           <td>
                             <button
                               type="button"
@@ -3284,6 +3478,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <th>{clientsCopy.groupName}</th>
                         <th>{groupDescriptionHeader}</th>
                         <th>{groupMembersHeader}</th>
+                        {groupListCustomFieldDefs.map((field) => <th key={field.id}>{field.name}</th>)}
                         <th>{statusHeader}</th>
                         <th>{clientsCopy.tableHeaderCreated}</th>
                         <th>{actionsHeader}</th>
@@ -3303,6 +3498,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           </td>
                           <td className="clients-muted">{g.email || '—'}</td>
                           <td className="clients-muted"><span className="clients-member-count">{(g.members ?? []).length}</span></td>
+                          {renderCustomFieldListCells(groupListCustomFieldDefs, g.customFieldValues)}
                           <td>
                             <button
                               type="button"
@@ -3382,6 +3578,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   {renderClientEditableField('lastName', clientsCopy.lastName)}
                   {renderClientEditableField('email', clientsCopy.email, true)}
                   {renderClientEditableField('phone', clientsCopy.phone, true)}
+                  {renderCustomFieldInputs(clientCustomFieldDefs, detailClientCustomValues, (fieldId, value) =>
+                    setDetailClientCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                  )}
                 </div>
 
                 <div className="clients-detail-main-tabs clients-action-workspace-tabs" onClick={(e) => e.stopPropagation()}>
@@ -3968,6 +4167,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
                   {renderCompanyEditableField('email', clientsCopy.email, true)}
                   {renderCompanyEditableField('telephone', clientsCopy.telephone, true)}
+                  {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
+                    setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                  )}
                 </div>
 
                 <div className="clients-detail-main-tabs clients-action-workspace-tabs" onClick={(e) => e.stopPropagation()}>
@@ -4337,6 +4539,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       <span>{clientsCopy.city}</span>
                       <input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
                     </label>
+                    {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
+                      setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                    )}
                   </div>
 
                   {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
@@ -4379,6 +4584,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 <div className="clients-detail-fields clients-action-workspace-profile-fields">
                   {renderGroupEditableField('name', clientsCopy.groupName, true)}
                   {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
+                  {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
+                    setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                  )}
                 </div>
 
                 <div className="clients-detail-main-tabs clients-action-workspace-tabs" onClick={(e) => e.stopPropagation()}>
@@ -4739,6 +4947,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       <span>{clientsCopy.groupEmail}</span>
                       <input type="email" value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
                     </label>
+                    {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
+                      setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                    )}
                   </div>
 
                   {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}

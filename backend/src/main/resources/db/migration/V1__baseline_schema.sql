@@ -2103,3 +2103,41 @@ ALTER TABLE clients
 
 ALTER TABLE client_companies
     ADD COLUMN IF NOT EXISTS suppress_invoice_emails BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Custom fields / UDF definitions and values
+CREATE TABLE IF NOT EXISTS custom_field_definitions (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    company_id BIGINT NOT NULL,
+    applies_to VARCHAR(24) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    field_type VARCHAR(24) NOT NULL,
+    required BOOLEAN NOT NULL DEFAULT FALSE,
+    show_in_list BOOLEAN NOT NULL DEFAULT FALSE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    options_json VARCHAR(4000),
+    CONSTRAINT fk_custom_field_definitions_company FOREIGN KEY (company_id) REFERENCES company(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS custom_field_values (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    company_id BIGINT NOT NULL,
+    field_definition_id BIGINT NOT NULL,
+    entity_type VARCHAR(24) NOT NULL,
+    entity_id BIGINT NOT NULL,
+    value_text VARCHAR(4000),
+    CONSTRAINT uk_custom_field_values_definition_entity UNIQUE (field_definition_id, entity_id),
+    CONSTRAINT fk_custom_field_values_company FOREIGN KEY (company_id) REFERENCES company(id) ON DELETE CASCADE,
+    CONSTRAINT fk_custom_field_values_definition FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_field_definitions_company_applies
+    ON custom_field_definitions(company_id, applies_to, active, sort_order, name, id);
+CREATE INDEX IF NOT EXISTS idx_custom_field_values_company_entity
+    ON custom_field_values(company_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_custom_field_values_definition
+    ON custom_field_values(field_definition_id);

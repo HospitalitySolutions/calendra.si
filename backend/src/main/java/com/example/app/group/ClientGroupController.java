@@ -4,6 +4,8 @@ import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
+import com.example.app.customfield.CustomFieldAppliesTo;
+import com.example.app.customfield.CustomFieldService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
@@ -28,17 +30,20 @@ public class ClientGroupController {
     private final ClientRepository clients;
     private final ClientCompanyRepository clientCompanies;
     private final SessionBookingRepository bookings;
+    private final CustomFieldService customFieldService;
 
     public ClientGroupController(
             ClientGroupRepository groups,
             ClientRepository clients,
             ClientCompanyRepository clientCompanies,
-            SessionBookingRepository bookings
+            SessionBookingRepository bookings,
+            CustomFieldService customFieldService
     ) {
         this.groups = groups;
         this.clients = clients;
         this.clientCompanies = clientCompanies;
         this.bookings = bookings;
+        this.customFieldService = customFieldService;
     }
 
     public record GroupRequest(
@@ -46,7 +51,8 @@ public class ClientGroupController {
             String email,
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
-            Boolean individualPaymentEnabled
+            Boolean individualPaymentEnabled,
+            Map<Long, String> customFieldValues
     ) {}
 
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
@@ -63,7 +69,8 @@ public class ClientGroupController {
             CompanySummary billingCompany,
             List<ClientSummary> members,
             Instant createdAt,
-            Instant updatedAt
+            Instant updatedAt,
+            Map<Long, String> customFieldValues
     ) {}
 
     public record GroupSessionResponse(
@@ -86,7 +93,11 @@ public class ClientGroupController {
         var rows = (search == null || search.isBlank())
                 ? groups.findAllByCompanyIdOrderByNameAsc(companyId)
                 : groups.searchByCompanyId(companyId, search.trim());
-        return rows.stream().map(ClientGroupController::toResponse).toList();
+        Map<Long, Map<Long, String>> customValues = customFieldService.valuesForEntities(
+                companyId,
+                CustomFieldAppliesTo.GROUP,
+                rows.stream().map(ClientGroup::getId).toList());
+        return rows.stream().map(group -> toResponse(group, customValues.get(group.getId()))).toList();
     }
 
     @GetMapping("/{id}")
@@ -106,7 +117,9 @@ public class ClientGroupController {
         var row = new ClientGroup();
         row.setCompany(me.getCompany());
         apply(row, req, me);
-        return toResponse(groups.save(row));
+        ClientGroup saved = groups.save(row);
+        customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.GROUP, saved.getId(), req.customFieldValues());
+        return toResponse(saved);
     }
 
     @PutMapping("/{id}")
@@ -115,7 +128,9 @@ public class ClientGroupController {
         var row = groups.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         apply(row, req, me);
-        return toResponse(groups.save(row));
+        ClientGroup saved = groups.save(row);
+        customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.GROUP, saved.getId(), req.customFieldValues());
+        return toResponse(saved);
     }
 
     @PatchMapping("/{id}/deactivate")
@@ -141,6 +156,7 @@ public class ClientGroupController {
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var row = groups.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        customFieldService.deleteValuesForEntity(me.getCompany().getId(), CustomFieldAppliesTo.GROUP, row.getId());
         try {
             groups.delete(row);
         } catch (DataIntegrityViolationException ex) {
@@ -222,7 +238,11 @@ public class ClientGroupController {
         }
     }
 
-    static GroupResponse toResponse(ClientGroup g) {
+    private GroupResponse toResponse(ClientGroup g) {
+        return toResponse(g, null);
+    }
+
+    private GroupResponse toResponse(ClientGroup g, Map<Long, String> prefetchedCustomValues) {
         CompanySummary bc = null;
         if (g.getBillingCompany() != null) {
             bc = new CompanySummary(g.getBillingCompany().getId(), g.getBillingCompany().getName(), g.getBillingCompany().isActive());
@@ -240,7 +260,8 @@ public class ClientGroupController {
                 bc,
                 members,
                 g.getCreatedAt(),
-                g.getUpdatedAt()
+                g.getUpdatedAt(),
+                prefetchedCustomValues != null ? prefetchedCustomValues : customFieldService.valuesForEntity(g.getCompany().getId(), CustomFieldAppliesTo.GROUP, g.getId())
         );
     }
 

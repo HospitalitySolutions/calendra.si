@@ -1,6 +1,8 @@
 package com.example.app.client;
 
 import com.example.app.company.ClientCompanyRepository;
+import com.example.app.customfield.CustomFieldAppliesTo;
+import com.example.app.customfield.CustomFieldService;
 import com.example.app.files.ClientFileRepository;
 import com.example.app.files.ClientFileUploadPolicy;
 import com.example.app.files.StoredFileResponse;
@@ -28,6 +30,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +62,7 @@ public class ClientController {
     private final GuestTenantLinkRepository guestTenantLinks;
     private final GuestOrderService guestOrderService;
     private final ClientRemovalGuard clientRemovalGuard;
+    private final CustomFieldService customFieldService;
 
     @Autowired(required = false)
     private GuestNotificationService guestNotifications;
@@ -78,6 +82,28 @@ public class ClientController {
             GuestOrderService guestOrderService,
             ClientRemovalGuard clientRemovalGuard
     ) {
+        this(repository, users, bookings, anonymizationService, clientCompanies, clientFiles, fileStorage,
+                guestEntitlements, guestEntitlementUsages, guestEntitlementService, guestTenantLinks,
+                guestOrderService, clientRemovalGuard, null);
+    }
+
+    @Autowired
+    public ClientController(
+            ClientRepository repository,
+            UserRepository users,
+            SessionBookingRepository bookings,
+            ClientAnonymizationService anonymizationService,
+            ClientCompanyRepository clientCompanies,
+            ClientFileRepository clientFiles,
+            TenantFileS3Service fileStorage,
+            GuestEntitlementRepository guestEntitlements,
+            GuestEntitlementUsageRepository guestEntitlementUsages,
+            GuestEntitlementService guestEntitlementService,
+            GuestTenantLinkRepository guestTenantLinks,
+            GuestOrderService guestOrderService,
+            ClientRemovalGuard clientRemovalGuard,
+            CustomFieldService customFieldService
+    ) {
         this.repository = repository;
         this.users = users;
         this.bookings = bookings;
@@ -91,6 +117,7 @@ public class ClientController {
         this.guestTenantLinks = guestTenantLinks;
         this.guestOrderService = guestOrderService;
         this.clientRemovalGuard = clientRemovalGuard;
+        this.customFieldService = customFieldService;
     }
 
     public record PreferredSlotRequest(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {}
@@ -107,7 +134,8 @@ public class ClientController {
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
             Boolean suppressInvoiceEmails,
-            List<PreferredSlotRequest> preferredSlots
+            List<PreferredSlotRequest> preferredSlots,
+            Map<Long, String> customFieldValues
     ) {}
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
     public record CompanySummary(
@@ -141,7 +169,8 @@ public class ClientController {
             CompanySummary billingCompany,
             Instant createdAt,
             Instant updatedAt,
-            boolean removalBlocked
+            boolean removalBlocked,
+            Map<Long, String> customFieldValues
     ) {}
 
     public record ClientSessionResponse(
@@ -208,7 +237,13 @@ public class ClientController {
         Set<Long> blockedIds = clientRemovalGuard.clientIdsWithRemovalBlock(
                 companyId,
                 rows.stream().map(Client::getId).toList());
-        return rows.stream().map(c -> toResponse(c, blockedIds.contains(c.getId()))).toList();
+        Map<Long, Map<Long, String>> customValues = customFieldService == null
+                ? Map.of()
+                : customFieldService.valuesForEntities(
+                        companyId,
+                        CustomFieldAppliesTo.CLIENT,
+                        rows.stream().map(Client::getId).toList());
+        return rows.stream().map(c -> toResponse(c, blockedIds.contains(c.getId()), customValues.get(c.getId()))).toList();
     }
 
     @GetMapping("/{id}")
@@ -222,7 +257,11 @@ public class ClientController {
     public ClientResponse create(@RequestBody ClientRequest req, @AuthenticationPrincipal User me) {
         var c = new Client();
         apply(c, req, me);
-        return toResponse(repository.save(c));
+        Client saved = repository.save(c);
+        if (customFieldService != null) {
+            customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.CLIENT, saved.getId(), req.customFieldValues());
+        }
+        return toResponse(saved);
     }
 
     @PutMapping("/{id}")
@@ -234,7 +273,11 @@ public class ClientController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         apply(c, req, me);
-        return toResponse(repository.save(c));
+        Client saved = repository.save(c);
+        if (customFieldService != null) {
+            customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.CLIENT, saved.getId(), req.customFieldValues());
+        }
+        return toResponse(saved);
     }
 
     @DeleteMapping("/{id}")
@@ -247,6 +290,9 @@ public class ClientController {
                     "This client has upcoming sessions or active wallet entitlements. Resolve those before deleting.");
         }
         clientFiles.findAllByClientId(c.getId()).forEach(file -> fileStorage.deleteQuietly(file.getS3ObjectKey()));
+        if (customFieldService != null) {
+            customFieldService.deleteValuesForEntity(me.getCompany().getId(), CustomFieldAppliesTo.CLIENT, c.getId());
+        }
         repository.delete(c);
     }
 
@@ -566,10 +612,14 @@ public class ClientController {
 
     private ClientResponse toResponse(Client c) {
         boolean blocked = clientRemovalGuard.isRemovalBlocked(c.getId(), c.getCompany().getId());
-        return toResponse(c, blocked);
+        return toResponse(c, blocked, null);
     }
 
     private ClientResponse toResponse(Client c, boolean removalBlocked) {
+        return toResponse(c, removalBlocked, null);
+    }
+
+    private ClientResponse toResponse(Client c, boolean removalBlocked, Map<Long, String> prefetchedCustomValues) {
         var assigned = c.getAssignedTo();
         UserSummary assignedSummary = assigned == null ? null : new UserSummary(
                 assigned.getId(),
@@ -604,7 +654,12 @@ public class ClientController {
                 toCompanySummary(c),
                 c.getCreatedAt(),
                 c.getUpdatedAt(),
-                removalBlocked
+                removalBlocked,
+                prefetchedCustomValues != null
+                        ? prefetchedCustomValues
+                        : customFieldService == null
+                                ? Map.of()
+                                : customFieldService.valuesForEntity(c.getCompany().getId(), CustomFieldAppliesTo.CLIENT, c.getId())
         );
     }
 

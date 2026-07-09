@@ -153,6 +153,8 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM calendar_todos WHERE company_id = ?", companyId);
 
         // CRM
+        exec("DELETE FROM custom_field_values WHERE company_id = ?", companyId);
+        exec("DELETE FROM custom_field_definitions WHERE company_id = ?", companyId);
         exec("DELETE FROM client_messages WHERE company_id = ?", companyId);
         exec(
                 """

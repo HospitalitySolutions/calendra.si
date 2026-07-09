@@ -2,6 +2,8 @@ package com.example.app.company;
 
 import com.example.app.billing.BillRepository;
 import com.example.app.client.Client;
+import com.example.app.customfield.CustomFieldAppliesTo;
+import com.example.app.customfield.CustomFieldService;
 import com.example.app.files.CompanyFile;
 import com.example.app.files.CompanyFileRepository;
 import com.example.app.files.StoredFileResponse;
@@ -11,6 +13,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -40,6 +44,7 @@ public class CompanyController {
     private final CompanyFileRepository companyFiles;
     private final TenantFileS3Service fileStorage;
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
+    private final CustomFieldService customFieldService;
 
     public CompanyController(
             ClientCompanyRepository companies,
@@ -48,11 +53,24 @@ public class CompanyController {
             TenantFileS3Service fileStorage,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
+        this(companies, bills, companyFiles, fileStorage, platformTenantAccountLinkService, null);
+    }
+
+    @Autowired
+    public CompanyController(
+            ClientCompanyRepository companies,
+            BillRepository bills,
+            CompanyFileRepository companyFiles,
+            TenantFileS3Service fileStorage,
+            PlatformTenantAccountLinkService platformTenantAccountLinkService,
+            CustomFieldService customFieldService
+    ) {
         this.companies = companies;
         this.bills = bills;
         this.companyFiles = companyFiles;
         this.fileStorage = fileStorage;
         this.platformTenantAccountLinkService = platformTenantAccountLinkService;
+        this.customFieldService = customFieldService;
     }
 
     public record CompanyRequest(
@@ -65,8 +83,24 @@ public class CompanyController {
             String email,
             String telephone,
             Boolean batchPaymentEnabled,
-            Boolean suppressInvoiceEmails
-    ) {}
+            Boolean suppressInvoiceEmails,
+            Map<Long, String> customFieldValues
+    ) {
+        public CompanyRequest(
+                String name,
+                String address,
+                String postalCode,
+                String city,
+                String vatId,
+                String iban,
+                String email,
+                String telephone,
+                Boolean batchPaymentEnabled,
+                Boolean suppressInvoiceEmails
+        ) {
+            this(name, address, postalCode, city, vatId, iban, email, telephone, batchPaymentEnabled, suppressInvoiceEmails, null);
+        }
+    }
 
     public record CompanyResponse(
             Long id,
@@ -82,7 +116,8 @@ public class CompanyController {
             boolean suppressInvoiceEmails,
             boolean active,
             Instant createdAt,
-            Instant updatedAt
+            Instant updatedAt,
+            Map<Long, String> customFieldValues
     ) {}
 
     public record CompanyBillSummary(
@@ -107,7 +142,13 @@ public class CompanyController {
         var rows = (search == null || search.isBlank())
                 ? companies.findAllByOwnerCompanyIdOrderByNameAsc(ownerCompanyId)
                 : companies.searchByOwnerCompanyId(ownerCompanyId, search.trim());
-        return rows.stream().map(CompanyController::toResponse).toList();
+        Map<Long, Map<Long, String>> customValues = customFieldService == null
+                ? Map.of()
+                : customFieldService.valuesForEntities(
+                        ownerCompanyId,
+                        CustomFieldAppliesTo.COMPANY,
+                        rows.stream().map(ClientCompany::getId).toList());
+        return rows.stream().map(row -> toResponse(row, customValues.get(row.getId()))).toList();
     }
 
     @GetMapping("/{id}")
@@ -125,7 +166,11 @@ public class CompanyController {
         row.setOwnerCompany(me.getCompany());
         apply(row, req);
         assertUniqueCompanyFields(me.getCompany().getId(), row, null);
-        return toResponse(companies.save(row));
+        ClientCompany saved = companies.save(row);
+        if (customFieldService != null) {
+            customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.COMPANY, saved.getId(), req.customFieldValues());
+        }
+        return toResponse(saved);
     }
 
     @PutMapping("/{id}")
@@ -136,6 +181,9 @@ public class CompanyController {
         apply(row, req);
         assertUniqueCompanyFields(me.getCompany().getId(), row, row.getId());
         ClientCompany saved = companies.save(row);
+        if (customFieldService != null) {
+            customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.COMPANY, saved.getId(), req.customFieldValues());
+        }
         platformTenantAccountLinkService.syncFromPlatformPayeeCompany(saved);
         return toResponse(saved);
     }
@@ -150,6 +198,9 @@ public class CompanyController {
                     fileStorage.deleteQuietly(file.getS3ObjectKey());
                     companyFiles.delete(file);
                 });
+        if (customFieldService != null) {
+            customFieldService.deleteValuesForEntity(me.getCompany().getId(), CustomFieldAppliesTo.COMPANY, row.getId());
+        }
         try {
             companies.delete(row);
         } catch (DataIntegrityViolationException ex) {
@@ -272,7 +323,11 @@ public class CompanyController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
-    private static CompanyResponse toResponse(ClientCompany c) {
+    private CompanyResponse toResponse(ClientCompany c) {
+        return toResponse(c, null);
+    }
+
+    private CompanyResponse toResponse(ClientCompany c, Map<Long, String> prefetchedCustomValues) {
         return new CompanyResponse(
                 c.getId(),
                 c.getName(),
@@ -287,7 +342,12 @@ public class CompanyController {
                 c.isSuppressInvoiceEmails(),
                 c.isActive(),
                 c.getCreatedAt(),
-                c.getUpdatedAt()
+                c.getUpdatedAt(),
+                prefetchedCustomValues != null
+                        ? prefetchedCustomValues
+                        : customFieldService == null
+                                ? Map.of()
+                                : customFieldService.valuesForEntity(c.getOwnerCompany().getId(), CustomFieldAppliesTo.COMPANY, c.getId())
         );
     }
 

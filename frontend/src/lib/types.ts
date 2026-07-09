@@ -1,6 +1,26 @@
 export type Role = 'ADMIN' | 'CONSULTANT' | 'SUPER_ADMIN'
 export type PackageType = 'TRIAL' | 'BASIC' | 'PROFESSIONAL' | 'PREMIUM' | 'CUSTOM'
 
+
+export type CustomFieldAppliesTo = 'CLIENT' | 'COMPANY' | 'GROUP'
+export type CustomFieldType = 'TEXT' | 'LONG_TEXT' | 'NUMBER' | 'DATE' | 'CHECKBOX' | 'DROPDOWN' | 'MULTI_SELECT' | 'EMAIL' | 'PHONE'
+
+export type CustomFieldDefinition = {
+  id: number
+  name: string
+  appliesTo: CustomFieldAppliesTo
+  fieldType: CustomFieldType
+  required: boolean
+  showInList: boolean
+  sortOrder: number
+  active: boolean
+  options?: string[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type CustomFieldValueMap = Record<string, string>
+
 export type User = {
   id: number
   firstName: string
@@ -49,6 +69,7 @@ export type Client = {
   updatedAt?: string
   /** True when upcoming/live bookings or usable wallet entitlements block deactivate/delete. */
   removalBlocked?: boolean
+  customFieldValues?: CustomFieldValueMap | null
 }
 
 export type CompanySummary = {
@@ -69,6 +90,7 @@ export type CompanySummary = {
 export type Company = CompanySummary & {
   createdAt?: string
   updatedAt?: string
+  customFieldValues?: CustomFieldValueMap | null
 }
 
 export type ClientGroup = {
@@ -82,6 +104,7 @@ export type ClientGroup = {
   members?: Client[]
   createdAt?: string
   updatedAt?: string
+  customFieldValues?: CustomFieldValueMap | null
 }
 
 export type StoredFile = {
