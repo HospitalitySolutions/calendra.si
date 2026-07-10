@@ -443,6 +443,29 @@ function initials(...parts: Array<string | null | undefined>) {
   return letters || 'N'
 }
 
+function assignedUsersForClient(client: Pick<Client, 'assignedUsers' | 'assignedTo'> | null | undefined): UserSummary[] {
+  const unique = new Map<number, UserSummary>()
+  ;(client?.assignedUsers ?? []).forEach((user) => {
+    if (user?.id) unique.set(user.id, user)
+  })
+  if (unique.size === 0 && client?.assignedTo?.id) {
+    unique.set(client.assignedTo.id, client.assignedTo)
+  }
+  return Array.from(unique.values())
+}
+
+function sortedNumberValues(values: Array<number | null | undefined>) {
+  return values
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b)
+}
+
+function sameNumberSet(a: Array<number | null | undefined>, b: Array<number | null | undefined>) {
+  const left = sortedNumberValues(a)
+  const right = sortedNumberValues(b)
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
 function formatFileSize(bytes?: number | null) {
   const size = typeof bytes === 'number' && Number.isFinite(bytes) ? bytes : 0
   if (size < 1024) return `${size} B`
@@ -781,6 +804,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     noLinkedCompany: 'Brez povezanega podjetja',
     unassignedConsultant: 'Nedodeljen',
     assignedConsultant: 'Dodeljeni zaposleni',
+    assignedConsultantsHint: 'Izberete lahko več zaposlenih.',
+    assignedConsultantsSearch: 'Išči zaposlene ...',
+    assignedConsultantsSelected: (count: number) => `${count} izbrani zaposleni`,
     createClient: 'Ustvari stranko',
     newCompanyTitle: 'Novo podjetje',
     newCompanyName: 'Novo podjetje',
@@ -943,6 +969,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     noLinkedCompany: 'No linked company',
     unassignedConsultant: 'Unassigned',
     assignedConsultant: 'Assigned consultant',
+    assignedConsultantsHint: 'You can select multiple employees.',
+    assignedConsultantsSearch: 'Search employees ...',
+    assignedConsultantsSelected: (count: number) => `${count} selected employees`,
     createClient: 'Create client',
     newCompanyTitle: 'New company',
     newCompanyName: 'New company',
@@ -1086,6 +1115,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive'>('active')
   const [companyActiveFilter, setCompanyActiveFilter] = useState<'active' | 'inactive'>('active')
   const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId' | null>(null)
+  const [assignedEmployeeSearch, setAssignedEmployeeSearch] = useState('')
   const [detailEditDraft, setDetailEditDraft] = useState<{
     firstName: string
     lastName: string
@@ -1096,6 +1126,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     suppressInvoiceEmails: boolean
     billingCompanyId: number | null
     assignedToId: number | null
+    assignedToIds: number[]
   }>({
     firstName: '',
     lastName: '',
@@ -1106,6 +1137,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     suppressInvoiceEmails: false,
     billingCompanyId: null,
     assignedToId: null,
+    assignedToIds: [],
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
   const [companyDetailEditField, setCompanyDetailEditField] = useState<'name' | 'address' | 'postalCode' | 'city' | 'vatId' | 'iban' | 'email' | 'telephone' | null>(null)
@@ -1871,7 +1903,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (detailEditDraft.batchPaymentEnabled ?? false) !== (detailClient.batchPaymentEnabled ?? false)
       || (detailEditDraft.suppressInvoiceEmails ?? false) !== (detailClient.suppressInvoiceEmails ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
-      || (isAdmin && (detailEditDraft.assignedToId ?? null) !== (detailClient.assignedTo?.id ?? null))
+      || (isAdmin && !sameNumberSet(detailEditDraft.assignedToIds, assignedUsersForClient(detailClient).map((u) => u.id)))
       || !customFieldMapsEqual(detailClientCustomValues, detailClient.customFieldValues)
   }, [detailClient, detailEditDraft, isAdmin, detailClientCustomValues])
 
@@ -1912,9 +1944,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       suppressInvoiceEmails: c.suppressInvoiceEmails ?? false,
       billingCompanyId: c.billingCompany?.id ?? null,
       assignedToId: c.assignedTo?.id ?? null,
+      assignedToIds: assignedUsersForClient(c).map((u) => u.id),
     })
     setSessionTab('future')
     setClientDetailMainTab(initialTab)
+    setAssignedEmployeeSearch('')
     setWalletFilter('all')
     setClientFileSearch('')
     setWalletPurchaseDrawerOpen(false)
@@ -2157,6 +2191,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setDetailSessionsError('')
     setDetailClientFilesError('')
     setDetailEditField(null)
+    setAssignedEmployeeSearch('')
     setHighlightedEntitlementId(null)
     setClientFileSearch('')
     setWalletFilter('all')
@@ -2187,7 +2222,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         billingCompanyId: detailEditDraft.billingCompanyId,
         batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: detailEditDraft.suppressInvoiceEmails ?? false,
-        ...(isAdmin ? { assignedToId: detailEditDraft.assignedToId ?? null } : {}),
+        ...(isAdmin ? { assignedToIds: detailEditDraft.assignedToIds } : {}),
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
       setDetailClient(response.data)
@@ -2203,6 +2238,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         suppressInvoiceEmails: response.data.suppressInvoiceEmails ?? false,
         billingCompanyId: response.data.billingCompany?.id ?? null,
         assignedToId: response.data.assignedTo?.id ?? null,
+        assignedToIds: assignedUsersForClient(response.data).map((u) => u.id),
       })
       setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setDetailEditField(null)
@@ -2267,6 +2303,84 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setCompanyFilesDropActive(false)
   }
 
+  const assignedEmployeeById = useMemo(() => {
+    const map = new Map<number, UserSummary>()
+    consultants.forEach((user) => map.set(user.id, user))
+    assignedUsersForClient(detailClient).forEach((user) => map.set(user.id, user))
+    return map
+  }, [consultants, detailClient])
+
+  const selectedAssignedEmployees = useMemo(() => {
+    return detailEditDraft.assignedToIds
+      .map((id) => assignedEmployeeById.get(id))
+      .filter((user): user is UserSummary => Boolean(user))
+  }, [assignedEmployeeById, detailEditDraft.assignedToIds])
+
+  const filteredAssignedEmployeeOptions = useMemo(() => {
+    const query = assignedEmployeeSearch.trim().toLowerCase()
+    return consultants.filter((user) => {
+      if (!query) return true
+      return `${fullName(user)} ${user.email ?? ''}`.toLowerCase().includes(query)
+    })
+  }, [assignedEmployeeSearch, consultants])
+
+  const toggleAssignedEmployee = (userId: number) => {
+    setDetailEditDraft((prev) => {
+      const exists = prev.assignedToIds.includes(userId)
+      const nextIds = exists
+        ? prev.assignedToIds.filter((id) => id !== userId)
+        : [...prev.assignedToIds, userId]
+      return {
+        ...prev,
+        assignedToId: nextIds[0] ?? null,
+        assignedToIds: nextIds,
+      }
+    })
+  }
+
+  const clearAssignedEmployees = () => {
+    setDetailEditDraft((prev) => ({ ...prev, assignedToId: null, assignedToIds: [] }))
+  }
+
+  const renderAssignedEmployeeSummary = (employees: UserSummary[], compact = false) => {
+    if (employees.length === 0) return clientsCopy.unassignedConsultant
+    if (compact) {
+      return (
+        <span className="clients-assigned-multi-summary">
+          <span className="clients-assigned-avatar-stack" aria-hidden>
+            {employees.slice(0, 3).map((user) => (
+              <span key={user.id} className="clients-assigned-avatar">{initials(user.firstName, user.lastName)}</span>
+            ))}
+          </span>
+          <span>{clientsCopy.assignedConsultantsSelected(employees.length)}</span>
+        </span>
+      )
+    }
+    return employees.map((user) => fullName(user)).join(', ')
+  }
+
+  const assignedEmployeesDisplayText = (client: Client) => {
+    const employees = assignedUsersForClient(client)
+    if (employees.length === 0) return clientsCopy.unassignedConsultant
+    if (employees.length === 1) return fullName(employees[0])
+    return clientsCopy.assignedConsultantsSelected(employees.length)
+  }
+
+  const renderClientAssignedOwnerChip = (client: Client) => {
+    const employees = assignedUsersForClient(client)
+    if (employees.length === 0) return clientsCopy.unassignedConsultant
+    return (
+      <span className="clients-owner-chip clients-owner-chip--multi">
+        <span className="clients-assigned-avatar-stack" aria-hidden>
+          {employees.slice(0, 3).map((user) => (
+            <span key={user.id} className="clients-owner-avatar">{initials(user.firstName, user.lastName)}</span>
+          ))}
+        </span>
+        {employees.length === 1 ? fullName(employees[0]) : clientsCopy.assignedConsultantsSelected(employees.length)}
+      </span>
+    )
+  }
+
   const renderClientEditableField = (
     key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId',
     label: string,
@@ -2296,9 +2410,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             {key === 'billingCompanyId'
               ? (detailClient?.billingCompany?.name || '—')
               : key === 'assignedToId'
-                ? (detailClient?.assignedTo
-                  ? `${fullName(detailClient.assignedTo)} (${detailClient.assignedTo.email})`
-                  : clientsCopy.unassignedConsultant)
+                ? renderAssignedEmployeeSummary(assignedUsersForClient(detailClient), true)
                 : ((detailClient?.[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
           </strong>
         ) : (
@@ -2315,30 +2427,62 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 ))}
               </select>
             ) : key === 'assignedToId' ? (
-              <select
-                autoFocus
-                value={detailEditDraft.assignedToId ?? ''}
-                onChange={(e) =>
-                  setDetailEditDraft({
-                    ...detailEditDraft,
-                    assignedToId: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
+              <div
+                className="clients-assigned-multi-editor"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void saveDetailClientInline()
-                  } else if (e.key === 'Escape') {
+                  if (e.key === 'Escape') {
                     e.preventDefault()
                     setDetailEditField(null)
                   }
                 }}
               >
-                <option value="">{clientsCopy.unassignedConsultant}</option>
-                {consultants.map((u) => (
-                  <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
-                ))}
-              </select>
+                <div className="clients-assigned-multi-control" aria-live="polite">
+                  {renderAssignedEmployeeSummary(selectedAssignedEmployees, true)}
+                  <span className="clients-assigned-multi-caret" aria-hidden>⌄</span>
+                </div>
+                <div className="clients-assigned-multi-hint">{clientsCopy.assignedConsultantsHint}</div>
+                <div className="clients-assigned-multi-menu">
+                  <label className="clients-assigned-multi-search">
+                    <span aria-hidden>⌕</span>
+                    <input
+                      autoFocus
+                      value={assignedEmployeeSearch}
+                      onChange={(e) => setAssignedEmployeeSearch(e.target.value)}
+                      placeholder={clientsCopy.assignedConsultantsSearch}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className={`clients-assigned-option${selectedAssignedEmployees.length === 0 ? ' clients-assigned-option--selected' : ''}`}
+                    onClick={clearAssignedEmployees}
+                    aria-pressed={selectedAssignedEmployees.length === 0}
+                  >
+                    <span className={`clients-assigned-checkbox${selectedAssignedEmployees.length === 0 ? ' clients-assigned-checkbox--checked' : ''}`} aria-hidden />
+                    <span className="clients-assigned-option-main">
+                      <strong>{clientsCopy.unassignedConsultant}</strong>
+                    </span>
+                  </button>
+                  {filteredAssignedEmployeeOptions.map((u) => {
+                    const checked = detailEditDraft.assignedToIds.includes(u.id)
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className={`clients-assigned-option${checked ? ' clients-assigned-option--selected' : ''}`}
+                        onClick={() => toggleAssignedEmployee(u.id)}
+                        aria-pressed={checked}
+                      >
+                        <span className={`clients-assigned-checkbox${checked ? ' clients-assigned-checkbox--checked' : ''}`} aria-hidden />
+                        <span className="clients-assigned-avatar" aria-hidden>{initials(u.firstName, u.lastName)}</span>
+                        <span className="clients-assigned-option-main">
+                          <strong>{fullName(u)}</strong>
+                          <small>{u.email}</small>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             ) : (
               <input
                 autoFocus
@@ -2630,6 +2774,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           suppressInvoiceEmails: updated.suppressInvoiceEmails ?? false,
           billingCompanyId: updated.billingCompany?.id ?? null,
           assignedToId: updated.assignedTo?.id ?? null,
+          assignedToIds: assignedUsersForClient(updated).map((u) => u.id),
         })
         setDetailClientCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
       }
@@ -3256,7 +3401,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               ) : null}
                               {c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}
                             </span>
-                            <span className="clients-id">ID #{c.id}{isAdmin ? clientsCopy.assignedToLine(c.assignedTo ? fullName(c.assignedTo) : clientsCopy.unassignedConsultant) : ''}</span>
+                            <span className="clients-id">ID #{c.id}{isAdmin ? clientsCopy.assignedToLine(assignedEmployeesDisplayText(c)) : ''}</span>
                           </div>
                         </div>
                         <ClientsMobileCardActionIcon kind="client" />
@@ -3305,7 +3450,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           <td className="clients-muted">{c.email?.trim() ? <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.email.trim()}</a> : '—'}</td>
                           <td className="clients-muted">{c.phone?.trim() ? <a href={contactTelHref(c.phone)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.phone.trim()}</a> : '—'}</td>
                           {renderCustomFieldListCells(clientListCustomFieldDefs, c.customFieldValues)}
-                          {isAdmin && <td className="clients-muted">{c.assignedTo ? <span className="clients-owner-chip"><span className="clients-owner-avatar">{c.assignedTo.avatarPath ? <img className="clients-owner-avatar-image" src={c.assignedTo.avatarPath} alt="" /> : initials(c.assignedTo.firstName, c.assignedTo.lastName)}</span>{fullName(c.assignedTo)}</span> : clientsCopy.unassignedConsultant}</td>}
+                          {isAdmin && <td className="clients-muted">{renderClientAssignedOwnerChip(c)}</td>}
                           <td>
                             <button
                               type="button"

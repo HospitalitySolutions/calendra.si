@@ -63,6 +63,7 @@ export type Client = {
   batchPaymentEnabled?: boolean
   suppressInvoiceEmails?: boolean
   assignedTo?: User | null
+  assignedUsers?: User[] | null
   billingCompany?: CompanySummary | null
   preferredSlots: PreferredSlot[]
   createdAt?: string

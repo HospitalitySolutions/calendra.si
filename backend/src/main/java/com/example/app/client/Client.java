@@ -7,8 +7,10 @@ import com.example.app.user.User;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -61,6 +63,14 @@ public class Client extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "assigned_to_id", nullable = true)
     private User assignedTo;
+
+    @ManyToMany
+    @JoinTable(
+            name = "client_assigned_users",
+            joinColumns = @JoinColumn(name = "client_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    private Set<User> assignedUsers = new LinkedHashSet<>();
 
     @ManyToOne
     @JoinColumn(name = "billing_company_id")

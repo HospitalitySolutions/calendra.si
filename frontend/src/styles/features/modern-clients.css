@@ -3550,3 +3550,16 @@
         align-items: stretch;
     }
 }
+
+.clients-owner-chip--multi .clients-assigned-avatar-stack {
+    margin-right: 0;
+}
+
+.clients-owner-chip--multi .clients-owner-avatar {
+    margin-left: -5px;
+    border: 1px solid #fff;
+}
+
+.clients-owner-chip--multi .clients-owner-avatar:first-child {
+    margin-left: 0;
+}

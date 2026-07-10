@@ -29,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -131,6 +132,7 @@ public class ClientController {
             String viberUserId,
             Boolean viberConnected,
             Long assignedToId,
+            List<Long> assignedToIds,
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
             Boolean suppressInvoiceEmails,
@@ -166,6 +168,7 @@ public class ClientController {
             boolean batchPaymentEnabled,
             boolean suppressInvoiceEmails,
             UserSummary assignedTo,
+            List<UserSummary> assignedUsers,
             CompanySummary billingCompany,
             Instant createdAt,
             Instant updatedAt,
@@ -584,17 +587,22 @@ public class ClientController {
             c.setSuppressInvoiceEmails(false);
         }
         if (SecurityUtils.isAdmin(me)) {
-            if (req.assignedToId() == null) {
-                c.setAssignedTo(null);
-            } else {
-                User assigned = users.findByIdAndCompanyId(req.assignedToId(), me.getCompany().getId())
+            List<Long> requestedAssignedIds = normalizedAssignedToIds(req);
+            c.getAssignedUsers().clear();
+            List<User> assignedUsers = new ArrayList<>();
+            for (Long assignedToId : requestedAssignedIds) {
+                User assigned = users.findByIdAndCompanyId(assignedToId, me.getCompany().getId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"));
-                if (!assigned.isConsultant()) {
+                if (!assigned.isConsultant() && assigned.getRole() != Role.CONSULTANT) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
                 }
-                c.setAssignedTo(assigned);
+                assignedUsers.add(assigned);
             }
+            c.getAssignedUsers().addAll(assignedUsers);
+            c.setAssignedTo(assignedUsers.isEmpty() ? null : assignedUsers.get(0));
         } else {
+            c.getAssignedUsers().clear();
+            c.getAssignedUsers().add(me);
             c.setAssignedTo(me);
         }
         c.getPreferredSlots().clear();
@@ -610,6 +618,45 @@ public class ClientController {
         }
     }
 
+    private List<Long> normalizedAssignedToIds(ClientRequest req) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (req.assignedToIds() != null) {
+            req.assignedToIds().stream()
+                    .filter(Objects::nonNull)
+                    .filter(id -> id > 0)
+                    .forEach(ids::add);
+        } else if (req.assignedToId() != null && req.assignedToId() > 0) {
+            ids.add(req.assignedToId());
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private List<User> assignedUsersForResponse(Client c) {
+        LinkedHashSet<User> assigned = new LinkedHashSet<>();
+        if (c.getAssignedUsers() != null) {
+            c.getAssignedUsers().stream()
+                    .filter(Objects::nonNull)
+                    .sorted(Comparator.comparing(User::getLastName, Comparator.nullsLast(String::compareToIgnoreCase))
+                            .thenComparing(User::getFirstName, Comparator.nullsLast(String::compareToIgnoreCase))
+                            .thenComparing(User::getId))
+                    .forEach(assigned::add);
+        }
+        if (assigned.isEmpty() && c.getAssignedTo() != null) {
+            assigned.add(c.getAssignedTo());
+        }
+        return new ArrayList<>(assigned);
+    }
+
+    private UserSummary toUserSummary(User user) {
+        return new UserSummary(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getEmail(),
+                user.getRole()
+        );
+    }
+
     private ClientResponse toResponse(Client c) {
         boolean blocked = clientRemovalGuard.isRemovalBlocked(c.getId(), c.getCompany().getId());
         return toResponse(c, blocked, null);
@@ -620,14 +667,10 @@ public class ClientController {
     }
 
     private ClientResponse toResponse(Client c, boolean removalBlocked, Map<Long, String> prefetchedCustomValues) {
-        var assigned = c.getAssignedTo();
-        UserSummary assignedSummary = assigned == null ? null : new UserSummary(
-                assigned.getId(),
-                assigned.getFirstName(),
-                assigned.getLastName(),
-                assigned.getEmail(),
-                assigned.getRole()
-        );
+        List<UserSummary> assignedUserSummaries = assignedUsersForResponse(c).stream()
+                .map(this::toUserSummary)
+                .toList();
+        UserSummary assignedSummary = assignedUserSummaries.isEmpty() ? null : assignedUserSummaries.get(0);
         boolean guestAppLinked = guestTenantLinks.existsByCompanyIdAndClientIdAndStatus(
                 c.getCompany().getId(),
                 c.getId(),
@@ -651,6 +694,7 @@ public class ClientController {
                 c.isBatchPaymentEnabled(),
                 c.isSuppressInvoiceEmails(),
                 assignedSummary,
+                assignedUserSummaries,
                 toCompanySummary(c),
                 c.getCreatedAt(),
                 c.getUpdatedAt(),

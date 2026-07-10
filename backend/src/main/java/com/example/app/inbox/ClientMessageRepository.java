@@ -14,7 +14,7 @@ public interface ClientMessageRepository extends JpaRepository<ClientMessage, Lo
 
 
     @Query("""
-            select m from ClientMessage m
+            select distinct m from ClientMessage m
             left join fetch m.client c
             left join fetch c.assignedTo
             left join fetch m.senderUser
@@ -24,12 +24,13 @@ public interface ClientMessageRepository extends JpaRepository<ClientMessage, Lo
     List<ClientMessage> findPageByCompanyIdOrderByCreatedAtDesc(@Param("companyId") Long companyId, Pageable pageable);
 
     @Query("""
-            select m from ClientMessage m
+            select distinct m from ClientMessage m
             left join fetch m.client c
             left join fetch c.assignedTo
+            left join c.assignedUsers assignedUser
             left join fetch m.senderUser
             where m.company.id = :companyId
-              and c.assignedTo.id = :assignedToId
+              and (c.assignedTo.id = :assignedToId or assignedUser.id = :assignedToId)
             order by m.createdAt desc, m.id desc
             """)
     List<ClientMessage> findPageByCompanyIdAndAssignedToIdOrderByCreatedAtDesc(
@@ -38,7 +39,7 @@ public interface ClientMessageRepository extends JpaRepository<ClientMessage, Lo
             Pageable pageable);
 
     @Query("""
-            select m from ClientMessage m
+            select distinct m from ClientMessage m
             left join fetch m.client c
             left join fetch c.assignedTo
             left join fetch m.senderUser
@@ -52,7 +53,7 @@ public interface ClientMessageRepository extends JpaRepository<ClientMessage, Lo
             Pageable pageable);
 
     @Query("""
-            select m from ClientMessage m
+            select distinct m from ClientMessage m
             left join fetch m.client c
             left join fetch c.assignedTo
             left join fetch m.senderUser

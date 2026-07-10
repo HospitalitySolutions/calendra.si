@@ -10,26 +10,40 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ClientRepository extends JpaRepository<Client, Long> {
-    @EntityGraph(attributePaths = {"assignedTo", "preferredSlots", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
     List<Client> findAll();
 
-    @EntityGraph(attributePaths = {"assignedTo", "preferredSlots", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
     List<Client> findAllByCompanyId(Long companyId);
 
-    @EntityGraph(attributePaths = {"assignedTo", "preferredSlots", "billingCompany"})
-    List<Client> findByAssignedToId(Long userId);
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
+    @Query("""
+            select distinct c from Client c
+            left join c.assignedUsers assignedUser
+            where c.assignedTo.id = :userId or assignedUser.id = :userId
+            order by c.lastName asc, c.firstName asc, c.id asc
+            """)
+    List<Client> findByAssignedToId(@Param("userId") Long userId);
 
-    @EntityGraph(attributePaths = {"assignedTo", "preferredSlots", "billingCompany"})
-    List<Client> findByAssignedToIdAndCompanyId(Long userId, Long companyId);
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
+    @Query("""
+            select distinct c from Client c
+            left join c.assignedUsers assignedUser
+            where c.company.id = :companyId
+              and (c.assignedTo.id = :userId or assignedUser.id = :userId)
+            order by c.lastName asc, c.firstName asc, c.id asc
+            """)
+    List<Client> findByAssignedToIdAndCompanyId(@Param("userId") Long userId, @Param("companyId") Long companyId);
 
     @Query("""
-            select c from Client c
+            select distinct c from Client c
             left join fetch c.assignedTo assignedTo
+            left join c.assignedUsers assignedUser
             left join fetch c.billingCompany
             where c.company.id = :companyId
               and c.createdAt >= :createdFrom
               and c.createdAt < :createdToExclusive
-              and (:assignedToId is null or assignedTo.id = :assignedToId)
+              and (:assignedToId is null or assignedTo.id = :assignedToId or assignedUser.id = :assignedToId)
             order by c.createdAt asc, c.id asc
             """)
     List<Client> findAnalyticsByCompanyIdAndCreatedAtRange(
@@ -39,7 +53,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("assignedToId") Long assignedToId
     );
 
-    @EntityGraph(attributePaths = {"assignedTo", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany"})
     @Query("""
             select c from Client c
             where c.company.id = :companyId
@@ -55,11 +69,12 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("search") String search,
             Pageable pageable);
 
-    @EntityGraph(attributePaths = {"assignedTo", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany"})
     @Query("""
-            select c from Client c
+            select distinct c from Client c
+            left join c.assignedUsers assignedUser
             where c.company.id = :companyId
-              and c.assignedTo.id = :assignedToId
+              and (c.assignedTo.id = :assignedToId or assignedUser.id = :assignedToId)
               and (:search is null or :search = ''
                    or lower(coalesce(c.firstName, '')) like lower(concat('%', :search, '%'))
                    or lower(coalesce(c.lastName, '')) like lower(concat('%', :search, '%'))
