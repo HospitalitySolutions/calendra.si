@@ -926,3 +926,20 @@
         justify-content: flex-start;
     }
 }
+
+.employee-roles-matrix th.employee-roles-all-column,
+.employee-roles-matrix td.employee-roles-all-column {
+    background: #f8fbff;
+    border-left: 1px solid rgba(219, 234, 254, 0.95);
+    border-right: 1px solid rgba(219, 234, 254, 0.95);
+}
+
+.employee-roles-matrix th.employee-roles-all-column {
+    color: #1672f3;
+}
+
+.employee-roles-check--all.employee-roles-check--partial {
+    color: #1672f3;
+    background: #eaf3ff;
+    border-color: #93c5fd;
+}

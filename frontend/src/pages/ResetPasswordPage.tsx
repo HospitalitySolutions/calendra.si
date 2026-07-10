@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import loginLogo from '../assets/login-logo.png'
 import { useLocale } from '../locale'
+import { AuthLanguageDropdown } from '../components/AuthLanguageDropdown'
 import { getPasswordRuleChecks, passwordMeetsRequirements } from '../lib/passwordRules'
 
 function PasswordVisibilityButton({
@@ -150,17 +151,7 @@ export function ResetPasswordPage() {
       </div>
       <div className="card login polished-login auth-flow-card" style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
         <div className="login-modern-header">
-          <div className="login-lang-switch" role="group" aria-label={t('language')}>
-            <button type="button" className={locale === 'sl' ? 'login-lang-btn active' : 'login-lang-btn'} onClick={() => setLocale('sl')}>
-              SL
-            </button>
-            <button type="button" className={locale === 'sr' ? 'login-lang-btn active' : 'login-lang-btn'} onClick={() => setLocale('sr')}>
-              SR
-            </button>
-            <button type="button" className={locale === 'en' ? 'login-lang-btn active' : 'login-lang-btn'} onClick={() => setLocale('en')}>
-              EN
-            </button>
-          </div>
+          <AuthLanguageDropdown locale={locale} setLocale={setLocale} ariaLabel={t('language')} />
         </div>
 
         {validating ? (

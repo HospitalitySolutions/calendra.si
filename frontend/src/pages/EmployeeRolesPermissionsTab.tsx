@@ -140,6 +140,7 @@ const roleCopy = {
     systemSaveTitle: 'Duplicate a system role to customize it.',
     viewRequiredTitle: 'View permission must be enabled before this action can be selected.',
     permissionGroup: 'Permission group',
+    all: 'All',
     detailFoot: 'Changes to permissions will be applied to all users assigned to this custom role.',
     assignedUsersEyebrow: 'Assigned users',
     closeMembers: 'Close members list',
@@ -195,6 +196,7 @@ const roleCopy = {
     systemSaveTitle: 'Za prilagoditev sistemsko vlogo najprej podvojite.',
     viewRequiredTitle: 'Najprej mora biti omogočen ogled, šele nato lahko izberete to dovoljenje.',
     permissionGroup: 'Skupina dovoljenj',
+    all: 'Vse',
     detailFoot: 'Spremembe dovoljenj bodo uporabljene za vse uporabnike, ki so dodeljeni tej prilagojeni vlogi.',
     assignedUsersEyebrow: 'Dodeljeni uporabniki',
     closeMembers: 'Zapri seznam uporabnikov',
@@ -488,6 +490,23 @@ export function EmployeeRolesPermissionsTab() {
     })
   }
 
+
+  function togglePermissionGroup(groupKey: string) {
+    if (!selectedRole || selectedRole.system) return
+    const groupPermissionKeys = EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(groupKey, action))
+    setDraftPermissions((current) => {
+      const next = new Set(enforceViewDependenciesForDraft(current))
+      const allSelected = groupPermissionKeys.every((key) => next.has(key))
+
+      groupPermissionKeys.forEach((key) => {
+        if (allSelected) next.delete(key)
+        else next.add(key)
+      })
+
+      return enforceViewDependenciesForDraft(Array.from(next))
+    })
+  }
+
   function selectRoleByKeyboard(event: KeyboardEvent<HTMLDivElement>, roleId: string) {
     if (event.target !== event.currentTarget) return
     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -715,6 +734,7 @@ export function EmployeeRolesPermissionsTab() {
                 <thead>
                   <tr>
                     <th>{copy.permissionGroup}</th>
+                    <th className="employee-roles-all-column">{copy.all}</th>
                     {EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => <th key={action}>{copy.actionLabel(action)}</th>)}
                   </tr>
                 </thead>
@@ -726,6 +746,25 @@ export function EmployeeRolesPermissionsTab() {
                           <span className={`employee-roles-group-icon employee-roles-group-icon--${group.key.toLowerCase().replace(/_/g, '-')}`}><RolePermissionIcon name={groupIconName(group.key)} /></span>
                           <div><strong>{group.label}</strong><span>{group.description}</span></div>
                         </div>
+                      </td>
+                      <td className="employee-roles-all-column">
+                        {(() => {
+                          const groupPermissionKeys = EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action))
+                          const allChecked = groupPermissionKeys.every((key) => permissionSet.has(key))
+                          const someChecked = groupPermissionKeys.some((key) => permissionSet.has(key))
+                          return (
+                            <label className={`employee-roles-check employee-roles-check--all${allChecked ? ' employee-roles-check--checked' : ''}${someChecked && !allChecked ? ' employee-roles-check--partial' : ''}${selectedRole.system ? ' employee-roles-check--disabled' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={allChecked}
+                                disabled={selectedRole.system}
+                                onChange={() => togglePermissionGroup(group.key)}
+                                aria-label={`${group.label} ${copy.all}`}
+                              />
+                              <span aria-hidden>{allChecked ? '✓' : someChecked ? '•' : '—'}</span>
+                            </label>
+                          )
+                        })()}
                       </td>
                       {EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => {
                         const key = permissionKey(group.key, action)

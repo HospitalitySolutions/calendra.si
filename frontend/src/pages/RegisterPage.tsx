@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import loginLogo from "../assets/login-logo.png";
 import { useToast } from "../components/Toast";
+import { AuthLanguageDropdown } from "../components/AuthLanguageDropdown";
 import { Field } from "../components/ui";
 import { useLocale } from "../locale";
 import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
@@ -549,38 +550,11 @@ export function RegisterPage() {
         </div>
 
         <div className="top-actions">
-          <div className="lang-switch" role="group" aria-label={t("language")}>
-            <button
-              type="button"
-              className={
-                locale === "sl" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "sl"}
-              onClick={() => setLocale("sl")}
-            >
-              SL
-            </button>
-            <button
-              type="button"
-              className={
-                locale === "sr" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "sr"}
-              onClick={() => setLocale("sr")}
-            >
-              SR
-            </button>
-            <button
-              type="button"
-              className={
-                locale === "en" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "en"}
-              onClick={() => setLocale("en")}
-            >
-              EN
-            </button>
-          </div>
+          <AuthLanguageDropdown
+            locale={locale}
+            setLocale={setLocale}
+            ariaLabel={t("language")}
+          />
         </div>
       </header>
 
