@@ -69,6 +69,7 @@ public class SignupService {
     private final JavaMailSender mailSender;
     private final String mailFrom;
     private final boolean mailConfigured;
+    private final SignupWelcomeEmailService welcomeEmailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -104,6 +105,7 @@ public class SignupService {
                 signupEmailIntents,
                 null,
                 objectMapper,
+                null,
                 mailSender,
                 mailFrom,
                 mailHost,
@@ -124,6 +126,7 @@ public class SignupService {
             SignupEmailIntentRepository signupEmailIntents,
             PlatformSubscriptionBillingService platformSubscriptionBillingService,
             ObjectMapper objectMapper,
+            @Autowired(required = false) SignupWelcomeEmailService welcomeEmailService,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
@@ -140,6 +143,7 @@ public class SignupService {
         this.signupEmailIntents = signupEmailIntents;
         this.platformSubscriptionBillingService = platformSubscriptionBillingService;
         this.objectMapper = objectMapper;
+        this.welcomeEmailService = welcomeEmailService;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom;
         this.mailConfigured = mailSender != null
@@ -639,6 +643,7 @@ public class SignupService {
             return ResponseEntity.ok(body);
         }
 
+        sendRegisteredTenantWelcomeEmailSafely(owner, companyName, normalizedPackageType, localeFromSignupRequest(request));
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         return ResponseEntity.ok(authSuccessResponse(owner, sessionToken, httpRequest));
@@ -786,6 +791,36 @@ public class SignupService {
         }
     }
 
+    private void sendRegisteredTenantWelcomeEmailSafely(User owner, String companyName, String packageName, String localeCode) {
+        if (welcomeEmailService == null || owner == null || owner.getEmail() == null || owner.getEmail().isBlank()) {
+            return;
+        }
+        try {
+            welcomeEmailService.sendRegisteredTenantWelcomeEmail(
+                    owner.getEmail(),
+                    owner.getFirstName(),
+                    companyName == null || companyName.isBlank()
+                            ? (owner.getCompany() == null ? "" : owner.getCompany().getName())
+                            : companyName,
+                    packageName,
+                    localeCode
+            );
+        } catch (Exception e) {
+            log.warn("Tenant welcome email skipped for {}: {}", LogSanitizer.emailHash(owner.getEmail()), e.getMessage());
+        }
+    }
+
+    private String localeFromSignupRequest(AuthController.SignupRequest request) {
+        String returnSearch = request == null ? null : request.returnSearch();
+        if (returnSearch != null) {
+            String normalized = returnSearch.toLowerCase(Locale.ROOT);
+            if (normalized.contains("lang=sl") || normalized.contains("locale=sl") || normalized.contains("language=sl")) return "sl";
+            if (normalized.contains("lang=sr") || normalized.contains("locale=sr") || normalized.contains("language=sr")) return "sr";
+            if (normalized.contains("lang=en") || normalized.contains("locale=en") || normalized.contains("language=en")) return "en";
+        }
+        return null;
+    }
+
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {
         for (SignupEmailIntent i : signupEmailIntents.findAllByEmailIgnoreCaseAndActiveTrue(normalizedEmail)) {
             i.setActive(false);
@@ -822,6 +857,7 @@ public class SignupService {
         owner.setPasswordHash(passwordEncoder.encode(password));
         users.save(owner);
         clearSignupOwnerPasswordPending(owner);
+        sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), null);
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Email verified sign-in").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
@@ -1284,6 +1320,7 @@ public class SignupService {
         }
         clearSignupOwnerPasswordPending(owner);
         deactivateSignupIntentsForEmail(normalizedEmail.trim().toLowerCase(Locale.ROOT));
+        sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), null);
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Google signup completion").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
@@ -1317,6 +1354,9 @@ public class SignupService {
     }
 
     private String packageTypeForCompany(Company company) {
+        if (company == null || company.getId() == null) {
+            return "CUSTOM";
+        }
         return settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_PACKAGE_NAME)
                 .map(AppSetting::getValue)
                 .map(value -> normalizePackageType(value, "CUSTOM"))

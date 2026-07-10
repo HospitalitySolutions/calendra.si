@@ -1,6 +1,7 @@
 package com.example.app.admin;
 
 import com.example.app.auth.PasswordResetService;
+import com.example.app.auth.SignupWelcomeEmailService;
 import com.example.app.billing.TaxRate;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
@@ -94,6 +95,7 @@ public class ManualTenantService {
     private final TransactionServiceRepository transactionServices;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetService passwordResetService;
+    private final SignupWelcomeEmailService signupWelcomeEmailService;
     private final PlatformSubscriptionBillingService subscriptionBillingService;
     private final PlatformTenancyAdminAuditLogRepository auditLogs;
     private final RegisterCatalogService registerCatalogService;
@@ -107,6 +109,7 @@ public class ManualTenantService {
             TransactionServiceRepository transactionServices,
             PasswordEncoder passwordEncoder,
             PasswordResetService passwordResetService,
+            SignupWelcomeEmailService signupWelcomeEmailService,
             PlatformSubscriptionBillingService subscriptionBillingService,
             PlatformTenancyAdminAuditLogRepository auditLogs,
             RegisterCatalogService registerCatalogService,
@@ -119,6 +122,7 @@ public class ManualTenantService {
         this.transactionServices = transactionServices;
         this.passwordEncoder = passwordEncoder;
         this.passwordResetService = passwordResetService;
+        this.signupWelcomeEmailService = signupWelcomeEmailService;
         this.subscriptionBillingService = subscriptionBillingService;
         this.auditLogs = auditLogs;
         this.registerCatalogService = registerCatalogService;
@@ -199,7 +203,7 @@ public class ManualTenantService {
         if (BillLike.isPaid(invoice.paymentStatus())) {
             seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAID");
         }
-        passwordResetService.requestReset(email);
+        sendManualTenantWelcomeEmailSafely(owner, companyName, packageName, request.language());
         audit(company, actor, "MANUAL_CREATE", "Manual tenant created", "Package: " + packageName + "\nPayment method: " + paymentMethod);
         return new ManualTenantResponse(company.getId(), company.getTenantCode(), company.getName(), email, invoice.billId(), invoice.billNumber(), invoice.checkoutUrl(), setting(company.getId(), SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"), setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT"));
     }
@@ -232,6 +236,29 @@ public class ManualTenantService {
         audit(company, actor, "MANAGE_ADDONS", "Subscription payment resent", "Bill: " + (invoice.billNumber() == null ? "—" : invoice.billNumber()));
         User owner = users.findFirstByCompanyIdOrderByIdAsc(company.getId()).orElse(null);
         return new ManualTenantResponse(company.getId(), company.getTenantCode(), company.getName(), owner == null ? "" : owner.getEmail(), invoice.billId(), invoice.billNumber(), invoice.checkoutUrl(), setting(company.getId(), SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"), setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT"));
+    }
+
+    private void sendManualTenantWelcomeEmailSafely(User owner, String companyName, String packageName, String localeCode) {
+        if (owner == null || owner.getEmail() == null || owner.getEmail().isBlank()) {
+            return;
+        }
+        String setupUrl = passwordResetService.createPasswordSetupUrl(owner, localeCode).orElse(null);
+        if (signupWelcomeEmailService == null) {
+            passwordResetService.requestReset(owner.getEmail(), localeCode);
+            return;
+        }
+        try {
+            signupWelcomeEmailService.sendManualTenantWelcomeEmail(
+                    owner.getEmail(),
+                    owner.getFirstName(),
+                    companyName,
+                    packageName,
+                    localeCode,
+                    setupUrl
+            );
+        } catch (Exception e) {
+            passwordResetService.requestReset(owner.getEmail(), localeCode);
+        }
     }
 
     private void seedBillingAndCompanySettings(Company company, ManualTenantRequest request, String packageName, String interval, int userCount, int smsCount, String paymentMethod, boolean initial) {

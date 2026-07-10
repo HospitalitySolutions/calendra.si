@@ -83,6 +83,18 @@ public class PasswordResetService {
     }
 
     @Transactional
+    public Optional<String> createPasswordSetupUrl(User user, String localeCode) {
+        if (user == null || user.getId() == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return Optional.empty();
+        }
+        String token = createResetToken(user);
+        String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
+        String encodedEmail = URLEncoder.encode(user.getEmail().trim().toLowerCase(Locale.ROOT), StandardCharsets.UTF_8);
+        String locale = normalizeSupportedLocale(localeCode);
+        return Optional.of(frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail + "&locale=" + locale);
+    }
+
+    @Transactional
     public void sendEmployeeAccountCreatedEmail(User user) {
         sendEmployeeAccountCreatedEmail(user, null);
     }
