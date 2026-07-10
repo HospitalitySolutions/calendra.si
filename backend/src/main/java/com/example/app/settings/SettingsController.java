@@ -3,6 +3,7 @@ package com.example.app.settings;
 import com.example.app.company.PlatformTenantAccountLinkService;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.files.TenantFileS3Service;
+import com.example.app.email.TenantEmailSenderResolver;
 import java.util.Locale;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -193,13 +194,16 @@ public class SettingsController {
     @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        Map<String, String> normalizedPayload = normalizeTenantReservationRulesPayload(payload);
+        Map<String, String> normalizedPayload = normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload));
         if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
         }
         Arrays.stream(SettingKey.values()).forEach(key -> {
             if (normalizedPayload.containsKey(key.name())) {
                 if (key == SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON && !isSuperAdmin(me)) {
+                    return;
+                }
+                if (key == SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS && !isSuperAdmin(me)) {
                     return;
                 }
                 String submittedValue = normalizedPayload.get(key.name());
@@ -286,6 +290,58 @@ public class SettingsController {
             normalized.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), json);
         }
         return normalized;
+    }
+
+    private Map<String, String> normalizeEmailSenderPayload(Long companyId, Map<String, String> payload) {
+        Map<String, String> normalized = new LinkedHashMap<>(payload == null ? Map.of() : payload);
+        normalizeEmailValue(normalized, SettingKey.EMAIL_CUSTOM_FROM_EMAIL);
+        normalizeEmailValue(normalized, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL);
+        if (normalized.containsKey(SettingKey.EMAIL_CUSTOM_DOMAIN.name())) {
+            normalized.put(SettingKey.EMAIL_CUSTOM_DOMAIN.name(),
+                    TenantEmailSenderResolver.normalizeDomain(normalized.get(SettingKey.EMAIL_CUSTOM_DOMAIN.name())));
+        }
+        if (normalized.containsKey(SettingKey.EMAIL_CUSTOM_FROM_NAME.name())) {
+            normalized.put(SettingKey.EMAIL_CUSTOM_FROM_NAME.name(),
+                    singleLine(normalized.get(SettingKey.EMAIL_CUSTOM_FROM_NAME.name()), 100));
+        }
+        String modeKey = SettingKey.EMAIL_SENDER_MODE.name();
+        if (normalized.containsKey(modeKey)) {
+            String mode = String.valueOf(normalized.get(modeKey)).trim().toUpperCase(Locale.ROOT);
+            normalized.put(modeKey, "CUSTOM_DOMAIN".equals(mode) ? "CUSTOM_DOMAIN" : "DEFAULT_CALENDRA");
+            if ("CUSTOM_DOMAIN".equals(normalized.get(modeKey)) && !emailCustomDomainReady(companyId, normalized)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Custom email sender cannot be enabled until the domain is verified and the from address matches it.");
+            }
+        }
+        return normalized;
+    }
+
+    private void normalizeEmailValue(Map<String, String> payload, SettingKey key) {
+        if (!payload.containsKey(key.name())) return;
+        payload.put(key.name(), singleLine(payload.get(key.name()), 320).toLowerCase(Locale.ROOT));
+    }
+
+    private String singleLine(String value, int maxLength) {
+        String normalized = value == null ? "" : value.replace("\r", " ").replace("\n", " ").trim();
+        return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
+    }
+
+    private boolean emailCustomDomainReady(Long companyId, Map<String, String> payload) {
+        String fromEmail = payloadOrStored(companyId, payload, SettingKey.EMAIL_CUSTOM_FROM_EMAIL);
+        String domain = payloadOrStored(companyId, payload, SettingKey.EMAIL_CUSTOM_DOMAIN);
+        String status = payloadOrStored(companyId, payload, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS);
+        if (domain == null || domain.isBlank()) {
+            domain = TenantEmailSenderResolver.domainOf(fromEmail);
+        }
+        String normalizedStatus = status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
+        return ("VERIFIED".equals(normalizedStatus) || "SUCCESS".equals(normalizedStatus))
+                && TenantEmailSenderResolver.isValidEmail(fromEmail)
+                && TenantEmailSenderResolver.emailBelongsToDomain(fromEmail, domain);
+    }
+
+    private String payloadOrStored(Long companyId, Map<String, String> payload, SettingKey key) {
+        if (payload != null && payload.containsKey(key.name())) return payload.get(key.name());
+        return repository.findByCompanyIdAndKey(companyId, key).map(AppSetting::getValue).orElse("");
     }
 
     private void synchronizeReservationRuleSettings(User me, Long companyId, Map<String, String> payload) {

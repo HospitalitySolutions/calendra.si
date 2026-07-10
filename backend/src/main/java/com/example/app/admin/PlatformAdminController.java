@@ -6,6 +6,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.register.RegisterCatalogService;
 import com.example.app.register.RegisterPriceCatalog;
+import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.session.SpaceRepository;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -47,7 +48,7 @@ public class PlatformAdminController {
     private static final String PROD_PREMISE_DEFAULT = "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices/register";
 
     private static final Set<String> ALLOWED_PLATFORM_TENANCY_AUDIT_ACTIONS = Set.of(
-            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE");
+            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE", "EMAIL_SENDER");
 
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
@@ -135,6 +136,14 @@ public class PlatformAdminController {
     public record CreatePlatformTenancyAuditRequest(String actionType, String summary, String detail, String reason) {}
 
     public record DeleteTenancyRequest(String reason) {}
+
+    public record TenantEmailSenderAdminDto(
+            String mode,
+            String fromName,
+            String fromEmail,
+            String replyToEmail,
+            String domain,
+            String verificationStatus) {}
 
     public record PlatformOverviewDto(
             long totalTenants,
@@ -323,6 +332,48 @@ public class PlatformAdminController {
         return buildTenancyDetails(company);
     }
 
+    @GetMapping("/tenancies/{id}/email-sender")
+    public TenantEmailSenderAdminDto tenancyEmailSender(@PathVariable Long id) {
+        Company company = companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return buildTenantEmailSender(company.getId());
+    }
+
+    @PutMapping("/tenancies/{id}/email-sender")
+    public TenantEmailSenderAdminDto saveTenancyEmailSender(
+            @PathVariable Long id,
+            @RequestBody TenantEmailSenderAdminDto body,
+            @AuthenticationPrincipal User actor) {
+        Company company = companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        TenantEmailSenderAdminDto normalized = normalizeTenantEmailSender(body);
+        if ("CUSTOM_DOMAIN".equals(normalized.mode())) {
+            boolean ready = isVerifiedEmailSenderStatus(normalized.verificationStatus())
+                    && TenantEmailSenderResolver.isValidEmail(normalized.fromEmail())
+                    && TenantEmailSenderResolver.emailBelongsToDomain(normalized.fromEmail(), normalized.domain());
+            if (!ready) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Custom email sender requires VERIFIED status and a from address matching the verified domain.");
+            }
+        }
+        saveTenantSetting(company, SettingKey.EMAIL_SENDER_MODE, normalized.mode());
+        saveTenantSetting(company, SettingKey.EMAIL_CUSTOM_FROM_NAME, normalized.fromName());
+        saveTenantSetting(company, SettingKey.EMAIL_CUSTOM_FROM_EMAIL, normalized.fromEmail());
+        saveTenantSetting(company, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL, normalized.replyToEmail());
+        saveTenantSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN, normalized.domain());
+        saveTenantSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS, normalized.verificationStatus());
+
+        PlatformTenancyAdminAuditLog row = new PlatformTenancyAdminAuditLog();
+        row.setCompany(company);
+        row.setActorUser(actor);
+        row.setActionType("EMAIL_SENDER");
+        row.setSummary("Updated tenant email sender");
+        row.setDetail("mode=" + normalized.mode()
+                + ", fromEmail=" + normalized.fromEmail()
+                + ", domain=" + normalized.domain()
+                + ", verificationStatus=" + normalized.verificationStatus());
+        tenancyAdminAuditLogs.save(row);
+        return buildTenantEmailSender(company.getId());
+    }
+
     /**
      * Immutable-style log of actions taken from the platform admin console for this tenancy (change plan, price
      * override, suspend, add-ons, etc.).
@@ -377,6 +428,72 @@ public class PlatformAdminController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reason is required");
         }
         tenancyDeletionService.deleteTenancy(id, actor, reason);
+    }
+
+    private TenantEmailSenderAdminDto buildTenantEmailSender(Long companyId) {
+        return new TenantEmailSenderAdminDto(
+                settingTrim(companyId, SettingKey.EMAIL_SENDER_MODE).isBlank()
+                        ? "DEFAULT_CALENDRA"
+                        : settingTrim(companyId, SettingKey.EMAIL_SENDER_MODE),
+                settingTrim(companyId, SettingKey.EMAIL_CUSTOM_FROM_NAME),
+                settingTrim(companyId, SettingKey.EMAIL_CUSTOM_FROM_EMAIL),
+                settingTrim(companyId, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL),
+                settingTrim(companyId, SettingKey.EMAIL_CUSTOM_DOMAIN),
+                settingTrim(companyId, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS).isBlank()
+                        ? "NOT_VERIFIED"
+                        : settingTrim(companyId, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS));
+    }
+
+    private TenantEmailSenderAdminDto normalizeTenantEmailSender(TenantEmailSenderAdminDto body) {
+        String mode = body == null || body.mode() == null ? "DEFAULT_CALENDRA" : body.mode().trim().toUpperCase(Locale.ROOT);
+        if (!"CUSTOM_DOMAIN".equals(mode)) {
+            mode = "DEFAULT_CALENDRA";
+        }
+        String fromName = clampText(body == null ? null : body.fromName(), 100).replace('\n', ' ').replace('\r', ' ').trim();
+        String fromEmail = oneLine(body == null ? null : body.fromEmail(), 320).toLowerCase(Locale.ROOT);
+        String replyTo = oneLine(body == null ? null : body.replyToEmail(), 320).toLowerCase(Locale.ROOT);
+        String domain = TenantEmailSenderResolver.normalizeDomain(body == null ? null : body.domain());
+        if (domain.isBlank()) {
+            domain = TenantEmailSenderResolver.domainOf(fromEmail);
+        }
+        String status = body == null || body.verificationStatus() == null
+                ? "NOT_VERIFIED"
+                : body.verificationStatus().trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("NOT_VERIFIED", "PENDING", "FAILED", "VERIFIED", "SUCCESS").contains(status)) {
+            status = "NOT_VERIFIED";
+        }
+        if (!fromEmail.isBlank() && !TenantEmailSenderResolver.isValidEmail(fromEmail)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid from email address.");
+        }
+        if (!replyTo.isBlank() && !TenantEmailSenderResolver.isValidEmail(replyTo)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid reply-to email address.");
+        }
+        if (!fromEmail.isBlank() && !domain.isBlank() && !TenantEmailSenderResolver.emailBelongsToDomain(fromEmail, domain)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "From email address must belong to the verified domain.");
+        }
+        return new TenantEmailSenderAdminDto(mode, fromName, fromEmail, replyTo, domain, status);
+    }
+
+    private static boolean isVerifiedEmailSenderStatus(String value) {
+        String status = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        return "VERIFIED".equals(status) || "SUCCESS".equals(status);
+    }
+
+    private static String oneLine(String value, int maxLength) {
+        String normalized = value == null ? "" : value.replace("\r", " ").replace("\n", " ").trim();
+        return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
+    }
+
+    private void saveTenantSetting(Company company, SettingKey key, String value) {
+        AppSetting s = settings.findByCompanyIdAndKey(company.getId(), key).orElseGet(() -> {
+            var ns = new AppSetting();
+            ns.setCompany(company);
+            ns.setKey(key.name());
+            return ns;
+        });
+        s.setKey(key.name());
+        s.setValue(value == null ? "" : value.trim());
+        settings.save(s);
     }
 
     private TenancySearchHit toSearchHit(Company company) {

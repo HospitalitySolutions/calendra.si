@@ -7,6 +7,7 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.logging.LogSanitizer;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +47,7 @@ public class BillingEmailService {
     private final String mailFrom;
     private final String fallbackFrom;
     private final boolean mailConfigured;
+    private final TenantEmailSenderResolver emailSenderResolver;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -54,6 +56,7 @@ public class BillingEmailService {
             @Autowired(required = false) JavaMailSender mailSender,
             AppSettingRepository appSettingRepository,
             ClientCompanyRepository clientCompanyRepository,
+            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername
@@ -64,6 +67,7 @@ public class BillingEmailService {
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.mailConfigured = mailSender != null && mailHost != null && !mailHost.isBlank();
+        this.emailSenderResolver = emailSenderResolver;
     }
 
     public void sendCheckoutLink(Bill bill, String checkoutUrl) {
@@ -130,7 +134,7 @@ public class BillingEmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(resolveFromAddress());
+            applyClientSender(helper, bill);
             helper.setTo(recipient);
             String subject = resolveInvoiceDeliverySubject(bill);
             String body = resolveInvoiceDeliveryBody(bill);
@@ -167,7 +171,7 @@ public class BillingEmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(resolveFromAddress());
+            applyClientSender(helper, bill);
             helper.setTo(recipient);
             String subject = resolveInvoiceDeliverySubject(bill);
             String body = resolveInvoiceDeliveryBody(bill);
@@ -211,7 +215,7 @@ public class BillingEmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(resolveFromAddress());
+            applyClientSender(helper, bill);
             helper.setTo(recipient);
             helper.setSubject(subject);
             helper.setText(body, false);
@@ -244,7 +248,7 @@ public class BillingEmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
-            helper.setFrom(resolveFromAddress());
+            applyClientSender(helper, bill);
             helper.setTo(recipient);
             helper.setSubject(subject);
             helper.setText(body, false);
@@ -277,7 +281,7 @@ public class BillingEmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(resolveFromAddress());
+            applyClientSender(helper, bill);
             helper.setTo(recipient);
             String subject = resolveInvoiceDeliverySubject(bill);
             String body = resolveInvoiceDeliveryBody(bill);
@@ -440,6 +444,15 @@ public class BillingEmailService {
             return bill.getRecipientCompanyEmailSnapshot().trim();
         }
         return null;
+    }
+
+    private void applyClientSender(MimeMessageHelper helper, Bill bill) throws jakarta.mail.MessagingException {
+        if (emailSenderResolver != null) {
+            emailSenderResolver.applyFrom(helper, bill == null ? null : bill.getCompany(), TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            emailSenderResolver.applyReplyTo(helper, bill == null ? null : bill.getCompany(), TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            return;
+        }
+        helper.setFrom(resolveFromAddress());
     }
 
     private String resolveFromAddress() {

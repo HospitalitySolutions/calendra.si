@@ -276,6 +276,7 @@ public class ManualTenantService {
         if (initial || setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_END, "").isBlank()) {
             seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_END, end.toString());
         }
+        seedDefaultEmailSenderSettings(company);
     }
 
     private void applyFeatureSelection(Company company, List<String> requestedFeatures, String packageName) {
@@ -329,6 +330,7 @@ public class ManualTenantService {
         seedSetting(company, SettingKey.COMPANY_EMAIL, "");
         seedSetting(company, SettingKey.COMPANY_TELEPHONE, "");
         seedSetting(company, SettingKey.PAYMENT_DEADLINE_DAYS, "15");
+        seedDefaultEmailSenderSettings(company);
         seedSetting(company, SettingKey.TENANCY_SMS_SENT_COUNT, "0");
         seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, "1");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
@@ -373,6 +375,15 @@ public class ManualTenantService {
                 + "\nSMS: " + setting(companyId, SettingKey.SIGNUP_SMS_COUNT, "")
                 + "\nAccess: " + setting(companyId, SettingKey.TENANCY_ACCESS_STATUS, "")
                 + "\nBilling: " + setting(companyId, SettingKey.BILLING_SUBSCRIPTION_STATUS, "");
+    }
+
+    private void seedDefaultEmailSenderSettings(Company company) {
+        seedSetting(company, SettingKey.EMAIL_SENDER_MODE, "DEFAULT_CALENDRA");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_FROM_NAME, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_FROM_EMAIL, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS, "NOT_VERIFIED");
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

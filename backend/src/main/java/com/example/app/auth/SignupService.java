@@ -1360,6 +1360,7 @@ public class SignupService {
         seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
         seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
         seedSetting(company, SettingKey.AI_BOOKING_ENABLED, "false");
+        seedDefaultEmailSenderSettings(company);
     }
 
     private void seedGuestAppTenantType(Company company, String tenantType) {
@@ -1410,6 +1411,7 @@ public class SignupService {
         seedSetting(company, SettingKey.COMPANY_EMAIL, "");
         seedSetting(company, SettingKey.COMPANY_TELEPHONE, "");
         seedSetting(company, SettingKey.PAYMENT_DEADLINE_DAYS, "15");
+        seedDefaultEmailSenderSettings(company);
 
         TransactionService tx = new TransactionService();
         tx.setCompany(company);
@@ -1418,6 +1420,15 @@ public class SignupService {
         tx.setTaxRate(TaxRate.VAT_22);
         tx.setNetPrice(new BigDecimal("50.00"));
         txServices.save(tx);
+    }
+
+    private void seedDefaultEmailSenderSettings(Company company) {
+        seedSetting(company, SettingKey.EMAIL_SENDER_MODE, "DEFAULT_CALENDRA");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_FROM_NAME, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_FROM_EMAIL, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN, "");
+        seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS, "NOT_VERIFIED");
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

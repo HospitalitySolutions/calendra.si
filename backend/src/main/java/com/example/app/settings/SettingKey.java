@@ -175,6 +175,14 @@ public enum SettingKey {
     /** JSON: custom email/SMS templates and toggles for booking notifications (see frontend parser). */
     NOTIFICATION_SETTINGS_JSON,
 
+    /** Tenant client-facing email sender settings. Platform/security emails still use the configured Calendra sender. */
+    EMAIL_SENDER_MODE,
+    EMAIL_CUSTOM_FROM_NAME,
+    EMAIL_CUSTOM_FROM_EMAIL,
+    EMAIL_CUSTOM_REPLY_TO_EMAIL,
+    EMAIL_CUSTOM_DOMAIN,
+    EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS,
+
     /** Inbox/omnichannel messaging settings. */
     INBOX_INFOBIP_BASE_URL,
     INBOX_INFOBIP_API_KEY,

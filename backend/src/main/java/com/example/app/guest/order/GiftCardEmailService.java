@@ -4,6 +4,7 @@ import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.model.GuestEntitlement;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestProduct;
@@ -62,6 +63,7 @@ public class GiftCardEmailService {
     private final String mailFrom;
     private final String fallbackFrom;
     private final boolean mailConfigured;
+    private final TenantEmailSenderResolver emailSenderResolver;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -71,13 +73,15 @@ public class GiftCardEmailService {
             AppSettingRepository settings,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
-            @Value("${spring.mail.username:}") String mailUsername
+            @Value("${spring.mail.username:}") String mailUsername,
+            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver
     ) {
         this.mailSender = mailSender;
         this.settings = settings;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.mailConfigured = mailSender != null && mailHost != null && !mailHost.isBlank();
+        this.emailSenderResolver = emailSenderResolver;
     }
 
     public void sendGiftCardEmail(GuestEntitlement entitlement) {
@@ -103,7 +107,7 @@ public class GiftCardEmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setTo(recipient.trim());
-            helper.setFrom(resolveFrom());
+            applyClientSender(helper, entitlement.getCompany());
             helper.setSubject(subject);
             helper.setText(body, false);
             helper.addAttachment(giftCardFileName(entitlement), new ByteArrayResource(pdfBytes), "application/pdf");
@@ -491,6 +495,15 @@ public class GiftCardEmailService {
         String safeCode = code == null ? "" : code.replaceAll("[^A-Za-z0-9._-]", "-");
         if (safeCode.isBlank()) safeCode = "bon";
         return "darilni-bon-" + safeCode + ".pdf";
+    }
+
+    private void applyClientSender(MimeMessageHelper helper, Company company) throws jakarta.mail.MessagingException {
+        if (emailSenderResolver != null) {
+            emailSenderResolver.applyFrom(helper, company, TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            emailSenderResolver.applyReplyTo(helper, company, TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            return;
+        }
+        helper.setFrom(resolveFrom());
     }
 
     private String resolveFrom() {

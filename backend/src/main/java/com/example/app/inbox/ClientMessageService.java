@@ -5,6 +5,7 @@ import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.GuestTenantLink;
 import com.example.app.guest.model.GuestTenantLinkRepository;
@@ -89,6 +90,7 @@ public class ClientMessageService {
     private final boolean smsConfigured;
     private final String mailFrom;
     private final String fallbackFrom;
+    private final TenantEmailSenderResolver emailSenderResolver;
     private final ObjectMapper objectMapper;
     private final GlobalMessagingProviderService globalMessagingProviders;
     private final GuestSettingsService guestSettingsService;
@@ -122,7 +124,8 @@ public class ClientMessageService {
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver
     ) {
         this.messages = messages;
         this.clients = clients;
@@ -146,6 +149,7 @@ public class ClientMessageService {
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.mailConfigured = mailSender != null && mailHost != null && !mailHost.isBlank();
+        this.emailSenderResolver = emailSenderResolver;
         this.objectMapper = objectMapper;
     }
 
@@ -1511,7 +1515,7 @@ public class ClientMessageService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, asHtml, StandardCharsets.UTF_8.name());
-            helper.setFrom(resolveFromAddress());
+            applyClientSender(helper, client.getCompany());
             helper.setTo(to);
             helper.setSubject(subject == null || subject.isBlank() ? defaultSubject(client) : subject);
             if (asHtml) {
@@ -1718,6 +1722,15 @@ public class ClientMessageService {
         if (!globalMessagingProviders.isWhatsAppEnabled()) return false;
         String configured = readSetting(companyId, SettingKey.INBOX_WHATSAPP_WEBHOOK_VERIFY_TOKEN);
         return configured != null && !configured.isBlank() && configured.trim().equals(verifyToken == null ? "" : verifyToken.trim());
+    }
+
+    private void applyClientSender(MimeMessageHelper helper, Company company) throws jakarta.mail.MessagingException {
+        if (emailSenderResolver != null) {
+            emailSenderResolver.applyFrom(helper, company, TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            emailSenderResolver.applyReplyTo(helper, company, TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            return;
+        }
+        helper.setFrom(resolveFromAddress());
     }
 
     private String resolveFromAddress() {

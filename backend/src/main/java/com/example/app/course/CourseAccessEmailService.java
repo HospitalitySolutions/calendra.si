@@ -3,6 +3,7 @@ package com.example.app.course;
 import com.example.app.guest.model.GuestEntitlement;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.model.GuestProduct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,16 +19,19 @@ public class CourseAccessEmailService {
 
     private final JavaMailSender mailSender;
     private final String from;
+    private final TenantEmailSenderResolver emailSenderResolver;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
 
     public CourseAccessEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
-            @Value("${app.mail.from:}") String from
+            @Value("${app.mail.from:}") String from,
+            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver
     ) {
         this.mailSender = mailSender;
         this.from = from;
+        this.emailSenderResolver = emailSenderResolver;
     }
 
     public void sendCourseAccessEmail(GuestEntitlement entitlement, String accessUrl) {
@@ -38,7 +42,11 @@ public class CourseAccessEmailService {
         String courseName = product == null ? "Course" : product.getName();
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
-            if (from != null && !from.isBlank()) msg.setFrom(from.trim());
+            if (emailSenderResolver != null) {
+                emailSenderResolver.applyFrom(msg, entitlement.getCompany(), TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            } else if (from != null && !from.isBlank()) {
+                msg.setFrom(from.trim());
+            }
             msg.setTo(email.trim());
             msg.setSubject("Your course is ready: " + courseName);
             msg.setText("Your course is now available in Calendra.\n\n" +

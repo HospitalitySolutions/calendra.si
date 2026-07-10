@@ -5,6 +5,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
 import com.example.app.guest.notifications.GuestNotificationService;
@@ -68,6 +69,7 @@ public class ReminderService {
     private final TenantSmsQuotaService smsQuotaService;
     private final String frontendBaseUrl;
     private final PublicBookingManageTokenService publicBookingManageTokenService;
+    private final TenantEmailSenderResolver emailSenderResolver;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -85,7 +87,8 @@ public class ReminderService {
             GuestNotificationService guestNotifications,
             GuestPushService guestPushService,
             TenantSmsQuotaService smsQuotaService,
-            @Autowired(required = false) PublicBookingManageTokenService publicBookingManageTokenService
+            @Autowired(required = false) PublicBookingManageTokenService publicBookingManageTokenService,
+            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
@@ -102,6 +105,7 @@ public class ReminderService {
         this.guestPushService = guestPushService;
         this.smsQuotaService = smsQuotaService;
         this.publicBookingManageTokenService = publicBookingManageTokenService;
+        this.emailSenderResolver = emailSenderResolver;
     }
 
     /**
@@ -213,7 +217,7 @@ public class ReminderService {
         try {
             String renderedSubject = replaceTokens(subject, tokens);
             String renderedBody = replaceTokens(bodyHtml, tokens);
-            sendHtmlMail(client.getEmail().trim(), renderedSubject, renderedBody);
+            sendHtmlMail(booking.getCompany(), client.getEmail().trim(), renderedSubject, renderedBody);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), renderedSubject, renderedBody);
             log.info("Sent {} scheduled booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking.getId(), client.getId(), LogSanitizer.emailHash(client.getEmail()));
         } catch (Exception e) {
@@ -609,7 +613,7 @@ public class ReminderService {
         bodyHtml = appendPublicBookingManageButtonsIfNeeded(booking, kind, bodyHtml);
 
         try {
-            sendHtmlMail(client.getEmail().trim(), subject, bodyHtml);
+            sendHtmlMail(booking == null ? null : booking.getCompany(), client.getEmail().trim(), subject, bodyHtml);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, bodyHtml);
             log.info("Sent {} booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking == null ? null : booking.getId(), client == null ? null : client.getId(), LogSanitizer.emailHash(client == null ? null : client.getEmail()));
         } catch (Exception e) {
@@ -1067,12 +1071,12 @@ public class ReminderService {
         return out;
     }
 
-    private void sendHtmlMail(String to, String subject, String html) throws MessagingException {
+    private void sendHtmlMail(Company company, String to, String subject, String html) throws MessagingException {
         String safeSubject = subject == null || subject.isBlank() ? " " : subject;
         String safeBody = normalizeEmailTemplateHtml(html);
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-        helper.setFrom(resolveFromAddress());
+        applyClientSender(helper, company);
         helper.setTo(to);
         helper.setSubject(safeSubject);
         helper.setText(safeBody, true);
@@ -1120,6 +1124,15 @@ public class ReminderService {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    private void applyClientSender(MimeMessageHelper helper, Company company) throws MessagingException {
+        if (emailSenderResolver != null) {
+            emailSenderResolver.applyFrom(helper, company, TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            emailSenderResolver.applyReplyTo(helper, company, TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
+            return;
+        }
+        helper.setFrom(resolveFromAddress());
     }
 
     private String resolveFromAddress() {

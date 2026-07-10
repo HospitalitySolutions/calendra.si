@@ -323,10 +323,53 @@ const onlineTemplateDefaults: Record<
 
 export const NOTIFICATION_SETTINGS_KEY = "NOTIFICATION_SETTINGS_JSON";
 
+const EMAIL_SENDER_MODE_KEY = "EMAIL_SENDER_MODE";
+const EMAIL_CUSTOM_FROM_NAME_KEY = "EMAIL_CUSTOM_FROM_NAME";
+const EMAIL_CUSTOM_FROM_EMAIL_KEY = "EMAIL_CUSTOM_FROM_EMAIL";
+const EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY = "EMAIL_CUSTOM_REPLY_TO_EMAIL";
+const EMAIL_CUSTOM_DOMAIN_KEY = "EMAIL_CUSTOM_DOMAIN";
+const EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS_KEY =
+  "EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS";
+
+type EmailSenderMode = "DEFAULT_CALENDRA" | "CUSTOM_DOMAIN";
+
 const notificationChannels = ["email", "sms", "guestApp"] as const;
 
 function notificationChannelSettingName(channel: NotificationChannel) {
   return channel === "guestApp" ? "GUEST_APP" : channel.toUpperCase();
+}
+
+function normalizeEmailSenderMode(value: string | undefined): EmailSenderMode {
+  return value === "CUSTOM_DOMAIN" ? "CUSTOM_DOMAIN" : "DEFAULT_CALENDRA";
+}
+
+function normalizeEmailDomain(value: string | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\.+/, "")
+    .replace(/\.+$/, "");
+}
+
+function emailDomainFromAddress(value: string | undefined) {
+  const email = String(value || "").trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? normalizeEmailDomain(email.slice(at + 1)) : "";
+}
+
+function emailSenderDomainMatches(email: string, domain: string) {
+  const emailDomain = emailDomainFromAddress(email);
+  const verifiedDomain = normalizeEmailDomain(domain);
+  return (
+    !!emailDomain &&
+    !!verifiedDomain &&
+    (emailDomain === verifiedDomain || emailDomain.endsWith(`.${verifiedDomain}`))
+  );
+}
+
+function isEmailSenderVerified(status: string | undefined) {
+  const normalized = String(status || "").trim().toUpperCase();
+  return normalized === "VERIFIED" || normalized === "SUCCESS";
 }
 
 function isNotificationChannelAvailable(
@@ -1050,6 +1093,35 @@ export function ConfigurationNotificationsSection({
       )
     : "";
 
+  const emailSenderMode = normalizeEmailSenderMode(
+    settings[EMAIL_SENDER_MODE_KEY],
+  );
+  const customFromName =
+    settings[EMAIL_CUSTOM_FROM_NAME_KEY] || settings.COMPANY_NAME || "";
+  const customFromEmail = settings[EMAIL_CUSTOM_FROM_EMAIL_KEY] || "";
+  const customReplyToEmail =
+    settings[EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY] || customFromEmail;
+  const customDomain =
+    settings[EMAIL_CUSTOM_DOMAIN_KEY] || emailDomainFromAddress(customFromEmail);
+  const customDomainStatus =
+    settings[EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS_KEY] || "NOT_VERIFIED";
+  const customSenderReady =
+    isEmailSenderVerified(customDomainStatus) &&
+    emailSenderDomainMatches(customFromEmail, customDomain);
+  const effectiveEmailSenderMode =
+    emailSenderMode === "CUSTOM_DOMAIN" && customSenderReady
+      ? "CUSTOM_DOMAIN"
+      : "DEFAULT_CALENDRA";
+
+  const setEmailSenderSetting = (key: string, value: string) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const selectEmailSenderMode = (mode: EmailSenderMode) => {
+    if (mode === "CUSTOM_DOMAIN" && !customSenderReady) return;
+    setEmailSenderSetting(EMAIL_SENDER_MODE_KEY, mode);
+  };
+
   useEffect(() => {
     if (!onlineSessionBookingEnabled || !selectedOnlineTemplateEnabled) {
       setTemplateVariant("regular");
@@ -1244,6 +1316,156 @@ export function ConfigurationNotificationsSection({
           color: var(--notif-ink);
           letter-spacing: -0.04em;
           font-weight: 800;
+        }
+        .notif-sender-card {
+          display: grid;
+          gap: 18px;
+          margin: 0 0 22px;
+          padding: 22px;
+          border: 1px solid #dce3ef;
+          border-radius: 20px;
+          background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+          box-shadow: 0 16px 34px rgba(8, 23, 58, 0.055);
+        }
+        .notif-sender-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        .notif-sender-head h3 {
+          margin: 0 0 5px;
+          color: var(--notif-ink);
+          font-size: 18px;
+          line-height: 1.2;
+          font-weight: 850;
+          letter-spacing: -0.02em;
+        }
+        .notif-sender-head p {
+          margin: 0;
+          color: var(--notif-muted);
+          font-size: 13px;
+          line-height: 1.45;
+        }
+        .notif-sender-status {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 30px;
+          padding: 0 12px;
+          border-radius: 999px;
+          background: #eef4ff;
+          color: var(--notif-blue);
+          font-size: 12px;
+          font-weight: 850;
+          white-space: nowrap;
+        }
+        .notif-sender-status.is-ready {
+          background: #e8f8ef;
+          color: #087443;
+        }
+        .notif-sender-options {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        .notif-sender-option {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 12px;
+          align-items: flex-start;
+          min-height: 86px;
+          padding: 15px;
+          border: 1px solid #dce3ef;
+          border-radius: 15px;
+          background: #fff;
+          color: var(--notif-ink);
+          text-align: left;
+          cursor: pointer;
+          transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        }
+        .notif-sender-option:hover {
+          border-color: rgba(15, 98, 254, 0.34);
+          box-shadow: 0 10px 24px rgba(15, 98, 254, 0.08);
+        }
+        .notif-sender-option.is-active {
+          border-color: rgba(15, 98, 254, 0.48);
+          background: #f3f7ff;
+          box-shadow: inset 0 0 0 1px rgba(15, 98, 254, 0.12);
+        }
+        .notif-sender-option.is-disabled {
+          opacity: 0.58;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+        .notif-sender-radio {
+          display: grid;
+          place-items: center;
+          width: 22px;
+          height: 22px;
+          margin-top: 1px;
+          border: 2px solid #b8c4d7;
+          border-radius: 999px;
+          background: #fff;
+        }
+        .notif-sender-option.is-active .notif-sender-radio {
+          border-color: var(--notif-blue);
+        }
+        .notif-sender-option.is-active .notif-sender-radio::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: var(--notif-blue);
+        }
+        .notif-sender-option strong {
+          display: block;
+          margin-bottom: 4px;
+          font-size: 14px;
+          font-weight: 850;
+        }
+        .notif-sender-option span:last-child {
+          display: block;
+          color: var(--notif-muted);
+          font-size: 12px;
+          line-height: 1.35;
+          word-break: break-word;
+        }
+        .notif-sender-fields {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        .notif-sender-field {
+          display: grid;
+          gap: 7px;
+        }
+        .notif-sender-field label {
+          color: var(--notif-ink);
+          font-size: 12px;
+          font-weight: 850;
+        }
+        .notif-sender-field input {
+          width: 100%;
+          min-height: 42px;
+          border: 1px solid #cfd8e7;
+          border-radius: 11px;
+          background: #fff;
+          color: var(--notif-ink);
+          padding: 0 12px;
+          font-size: 14px;
+          font-weight: 650;
+          outline: none;
+        }
+        .notif-sender-field input:focus {
+          border-color: rgba(15, 98, 254, 0.62);
+          box-shadow: 0 0 0 4px rgba(15, 98, 254, 0.10);
+        }
+        .notif-sender-note {
+          margin: -4px 0 0;
+          color: var(--notif-muted);
+          font-size: 12px;
+          line-height: 1.45;
         }
         .notif-tabs {
           display: flex;
@@ -1822,6 +2044,19 @@ export function ConfigurationNotificationsSection({
             display: grid;
             gap: 14px;
           }
+          .notif-sender-card {
+            margin: 0 0 16px;
+            padding: 16px;
+            border-radius: 14px;
+          }
+          .notif-sender-head {
+            display: grid;
+            gap: 10px;
+          }
+          .notif-sender-options,
+          .notif-sender-fields {
+            grid-template-columns: 1fr;
+          }
           .notif-tabs {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2177,6 +2412,131 @@ export function ConfigurationNotificationsSection({
       `}</style>
       <div className="notif-card">
         <div className="notif-card-content">
+          {channelAvailability.email ? (
+            <section className="notif-sender-card" aria-label="Pošiljatelj e-pošte">
+              <div className="notif-sender-head">
+                <span>
+                  <h3>Pošiljatelj e-pošte</h3>
+                  <p>
+                    Izberite, ali se e-poštna obvestila strankam pošiljajo iz
+                    Calendra domene ali iz preverjene domene najemnika.
+                  </p>
+                </span>
+                <span
+                  className={
+                    customSenderReady
+                      ? "notif-sender-status is-ready"
+                      : "notif-sender-status"
+                  }
+                >
+                  {customSenderReady ? "Domena preverjena" : "Domena ni preverjena"}
+                </span>
+              </div>
+              <div className="notif-sender-options">
+                <button
+                  type="button"
+                  className={
+                    effectiveEmailSenderMode === "DEFAULT_CALENDRA"
+                      ? "notif-sender-option is-active"
+                      : "notif-sender-option"
+                  }
+                  onClick={() => selectEmailSenderMode("DEFAULT_CALENDRA")}
+                >
+                  <span className="notif-sender-radio" aria-hidden />
+                  <span>
+                    <strong>Calendra domena</strong>
+                    <span>Calendra &lt;no-reply@calendra.si&gt;</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    effectiveEmailSenderMode === "CUSTOM_DOMAIN"
+                      ? "notif-sender-option is-active"
+                      : "notif-sender-option",
+                    customSenderReady ? "" : "is-disabled",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  disabled={!customSenderReady}
+                  onClick={() => selectEmailSenderMode("CUSTOM_DOMAIN")}
+                >
+                  <span className="notif-sender-radio" aria-hidden />
+                  <span>
+                    <strong>Lastna domena</strong>
+                    <span>
+                      {customFromName || "Naziv pošiljatelja"} &lt;
+                      {customFromEmail || "info@domena.si"}&gt;
+                    </span>
+                  </span>
+                </button>
+              </div>
+              <div className="notif-sender-fields">
+                <span className="notif-sender-field">
+                  <label htmlFor="notif-custom-from-name">Naziv pošiljatelja</label>
+                  <input
+                    id="notif-custom-from-name"
+                    value={customFromName}
+                    onChange={(event) =>
+                      setEmailSenderSetting(
+                        EMAIL_CUSTOM_FROM_NAME_KEY,
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Inštitut Avisensa"
+                  />
+                </span>
+                <span className="notif-sender-field">
+                  <label htmlFor="notif-custom-from-email">E-poštni naslov</label>
+                  <input
+                    id="notif-custom-from-email"
+                    value={customFromEmail}
+                    onChange={(event) =>
+                      setEmailSenderSetting(
+                        EMAIL_CUSTOM_FROM_EMAIL_KEY,
+                        event.target.value,
+                      )
+                    }
+                    placeholder="info@avisensa.com"
+                  />
+                </span>
+                <span className="notif-sender-field">
+                  <label htmlFor="notif-custom-reply-to">Odgovori na</label>
+                  <input
+                    id="notif-custom-reply-to"
+                    value={customReplyToEmail}
+                    onChange={(event) =>
+                      setEmailSenderSetting(
+                        EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY,
+                        event.target.value,
+                      )
+                    }
+                    placeholder="info@avisensa.com"
+                  />
+                </span>
+                <span className="notif-sender-field">
+                  <label htmlFor="notif-custom-domain">Preverjena domena</label>
+                  <input
+                    id="notif-custom-domain"
+                    value={customDomain}
+                    onChange={(event) =>
+                      setEmailSenderSetting(
+                        EMAIL_CUSTOM_DOMAIN_KEY,
+                        event.target.value,
+                      )
+                    }
+                    placeholder="avisensa.com"
+                  />
+                </span>
+              </div>
+              <p className="notif-sender-note">
+                Lastno domeno lahko izberete šele, ko je v SES označena kot
+                VERIFIED in se e-poštni naslov ujema s preverjeno domeno.
+                Varnostna in platformna sporočila ostanejo poslana iz Calendra
+                domene.
+              </p>
+            </section>
+          ) : null}
           <div className="notif-tabs" role="tablist" aria-label="Obvestila">
             {(
               [
