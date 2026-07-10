@@ -5562,11 +5562,35 @@ export function ConfigurationPage() {
             .account-company-form-grid {
               display: grid;
               grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+              align-items: start;
               gap: 24px;
               margin-bottom: 26px;
             }
+            .account-company-form-stack {
+              display: grid;
+              gap: 24px;
+              min-width: 0;
+            }
             .account-form-card {
               padding: 28px;
+            }
+            .account-form-card-subtitle {
+              margin: 8px 0 0;
+              color: var(--account-muted);
+              font-size: 14px;
+              line-height: 1.45;
+            }
+            .account-form-card-header.inline-switch {
+              align-items: flex-start;
+            }
+            .account-physical-toggle {
+              display: inline-flex;
+              align-items: center;
+              gap: 10px;
+              color: var(--account-muted);
+              font-size: 14px;
+              font-weight: 700;
+              white-space: nowrap;
             }
             .account-form-grid {
               display: grid;
@@ -5594,6 +5618,11 @@ export function ConfigurationPage() {
               font-size: 15px;
               color: var(--account-ink);
               outline: none;
+            }
+            .account-field-control:disabled {
+              background: #f8fafc;
+              color: #64748b;
+              cursor: not-allowed;
             }
             .account-company-footer {
               display: flex;
@@ -6542,11 +6571,12 @@ export function ConfigurationPage() {
                       </div>
 
                       <div className="account-company-form-grid">
-                        <section className="account-card account-form-card">
-                          <div className="account-form-card-header">
-                            <h3>Osnovni podatki</h3>
-                          </div>
-                          <div className="account-form-grid">
+                        <div className="account-company-form-stack">
+                          <section className="account-card account-form-card">
+                            <div className="account-form-card-header">
+                              <h3>Osnovni podatki</h3>
+                            </div>
+                            <div className="account-form-grid">
                             <label className="account-field">
                               <span className="account-field-label">
                                 Naziv podjetja
@@ -6664,8 +6694,122 @@ export function ConfigurationPage() {
                                 ))}
                               </select>
                             </label>
-                          </div>
-                        </section>
+                            </div>
+                          </section>
+
+                          <section className="account-card account-form-card">
+                            <div className="account-form-card-header inline-switch">
+                              <div>
+                                <h3>Fizični naslov</h3>
+                                <p className="account-form-card-subtitle">
+                                  Ta naslov se uporablja v obvestilih, dostavi računa in oznakah predlog.
+                                </p>
+                              </div>
+                              <div className="account-physical-toggle">
+                                <span>Enako kot naslov podjetja</span>
+                                <GuestSwitch
+                                  checked={Boolean(
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany,
+                                  )}
+                                  label="ON"
+                                  onChange={(checked) =>
+                                    updateSelectedCompanyProfile({
+                                      physicalAddressSameAsCompany: checked,
+                                      ...(checked
+                                        ? {
+                                            physicalAddress:
+                                              selectedCompanyProfile?.address || "",
+                                            physicalPostalCode:
+                                              selectedCompanyProfile?.postalCode || "",
+                                            physicalCity:
+                                              selectedCompanyProfile?.city || "",
+                                          }
+                                        : {}),
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="account-form-grid">
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Naslov
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany
+                                      ? selectedCompanyProfile?.address || ""
+                                      : selectedCompanyProfile?.physicalAddress || ""
+                                  }
+                                  disabled={Boolean(
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany,
+                                  )}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      physicalAddress: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">Mesto</span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany
+                                      ? selectedCompanyProfile?.city || ""
+                                      : selectedCompanyProfile?.physicalCity || ""
+                                  }
+                                  disabled={Boolean(
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany,
+                                  )}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      physicalCity: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Poštna številka
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany
+                                      ? selectedCompanyProfile?.postalCode || ""
+                                      : selectedCompanyProfile?.physicalPostalCode || ""
+                                  }
+                                  disabled={Boolean(
+                                    selectedCompanyProfile?.physicalAddressSameAsCompany,
+                                  )}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      physicalPostalCode: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">Država</span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    selectedCompanyProfile?.physicalCountry || ""
+                                  }
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      physicalCountry: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Slovenija"
+                                />
+                              </label>
+                            </div>
+                          </section>
+                        </div>
 
                         <section className="account-card account-form-card">
                           <div className="account-form-card-header">
@@ -12355,6 +12499,7 @@ export function ConfigurationPage() {
                   savingSettings={savingSettings}
                   onSave={saveSettings}
                   t={t}
+                  locale={locale}
                 />
               ) : tab === "deliveryLogs" ? (
                 <ConfigurationDeliveryLogsSection

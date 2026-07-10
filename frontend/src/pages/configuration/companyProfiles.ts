@@ -6,6 +6,11 @@ export type CompanyProfileForm = {
   address: string;
   postalCode: string;
   city: string;
+  physicalAddressSameAsCompany: boolean;
+  physicalAddress: string;
+  physicalPostalCode: string;
+  physicalCity: string;
+  physicalCountry: string;
   vatId: string;
   email: string;
   telephone: string;
@@ -31,6 +36,22 @@ export const sanitizeCompanyProfile = (
   address: typeof profile.address === "string" ? profile.address : "",
   postalCode: typeof profile.postalCode === "string" ? profile.postalCode : "",
   city: typeof profile.city === "string" ? profile.city : "",
+  physicalAddressSameAsCompany:
+    typeof profile.physicalAddressSameAsCompany === "boolean"
+      ? profile.physicalAddressSameAsCompany
+      : String((profile as any).physicalAddressSameAsCompany || "").toLowerCase() === "true",
+  physicalAddress:
+    typeof profile.physicalAddress === "string" ? profile.physicalAddress : "",
+  physicalPostalCode:
+    typeof profile.physicalPostalCode === "string"
+      ? profile.physicalPostalCode
+      : "",
+  physicalCity:
+    typeof profile.physicalCity === "string" ? profile.physicalCity : "",
+  physicalCountry:
+    typeof profile.physicalCountry === "string"
+      ? profile.physicalCountry
+      : "",
   vatId: typeof profile.vatId === "string" ? profile.vatId : "",
   email: typeof profile.email === "string" ? profile.email : "",
   telephone: typeof profile.telephone === "string" ? profile.telephone : "",
@@ -56,6 +77,12 @@ export const companyProfileFromSettings = (
     address: settings.COMPANY_ADDRESS || "",
     postalCode: settings.COMPANY_POSTAL_CODE || "",
     city: settings.COMPANY_CITY || "",
+    physicalAddressSameAsCompany:
+      settings.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY === "true",
+    physicalAddress: settings.COMPANY_PHYSICAL_ADDRESS || "",
+    physicalPostalCode: settings.COMPANY_PHYSICAL_POSTAL_CODE || "",
+    physicalCity: settings.COMPANY_PHYSICAL_CITY || "",
+    physicalCountry: settings.COMPANY_PHYSICAL_COUNTRY || "",
     vatId: settings.COMPANY_VAT_ID || "",
     email: settings.COMPANY_EMAIL || "",
     telephone: settings.COMPANY_TELEPHONE || "",
@@ -78,6 +105,19 @@ export const companyProfileToSettings = (
     COMPANY_ADDRESS: mainProfile.address,
     COMPANY_POSTAL_CODE: mainProfile.postalCode,
     COMPANY_CITY: mainProfile.city,
+    COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY: mainProfile.physicalAddressSameAsCompany
+      ? "true"
+      : "false",
+    COMPANY_PHYSICAL_ADDRESS: mainProfile.physicalAddressSameAsCompany
+      ? mainProfile.address
+      : mainProfile.physicalAddress,
+    COMPANY_PHYSICAL_POSTAL_CODE: mainProfile.physicalAddressSameAsCompany
+      ? mainProfile.postalCode
+      : mainProfile.physicalPostalCode,
+    COMPANY_PHYSICAL_CITY: mainProfile.physicalAddressSameAsCompany
+      ? mainProfile.city
+      : mainProfile.physicalCity,
+    COMPANY_PHYSICAL_COUNTRY: mainProfile.physicalCountry,
     COMPANY_VAT_ID: mainProfile.vatId,
     COMPANY_EMAIL: mainProfile.email,
     COMPANY_TELEPHONE: mainProfile.telephone,

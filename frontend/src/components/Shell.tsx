@@ -506,8 +506,7 @@ function ShellInner({ children }: PropsWithChildren) {
     }
   }
 
-  const tenantCode = String(user.tenantCode || '').trim()
-  const headerBrandLabel = tenantCode ? `${tenantCode} - ${companyName}` : companyName
+  const headerBrandLabel = companyName
 
   const mobileNavTrigger = (
     <button

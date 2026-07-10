@@ -497,6 +497,8 @@ public class BillingEmailService {
         LocalDate dueDate = issueDate == null ? null : issueDate.plusDays(resolvePaymentDeadlineDays(bill));
         String dueDateLabel = dueDate == null ? "" : dueDate.format(DATE_FORMAT);
         String amount = bill.getTotalGross() == null ? "EUR 0.00" : "EUR " + bill.getTotalGross().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+        Long companyId = bill.getCompany() != null ? bill.getCompany().getId() : null;
+        PhysicalAddress physicalAddress = resolvePhysicalAddress(companyId);
 
         Map<String, String> tokens = new LinkedHashMap<>();
         tokens.put("{{guestName}}", guestName);
@@ -505,6 +507,14 @@ public class BillingEmailService {
         tokens.put("{{dueDate}}", dueDateLabel);
         tokens.put("{{amount}}", amount);
         tokens.put("{{companyName}}", companyName);
+        tokens.put("{{companyEmail}}", defaultString(settingValue(companyId, SettingKey.COMPANY_EMAIL)));
+        tokens.put("{{companyPhone}}", defaultString(settingValue(companyId, SettingKey.COMPANY_TELEPHONE)));
+        tokens.put("{{physicalAddress}}", physicalAddress.address());
+        tokens.put("{{physicalPostalCode}}", physicalAddress.postalCode());
+        tokens.put("{{physicalCity}}", physicalAddress.city());
+        tokens.put("{{physicalCountry}}", physicalAddress.country());
+        tokens.put("{{physicalFullAddress}}", physicalAddress.fullAddress());
+        tokens.put("{{companyPhysicalAddress}}", physicalAddress.fullAddress());
 
         for (Map.Entry<String, String> entry : tokens.entrySet()) {
             text = text.replace(entry.getKey(), entry.getValue() == null ? "" : entry.getValue());
@@ -517,6 +527,56 @@ public class BillingEmailService {
         return appSettingRepository.findByCompanyIdAndKey(companyId, key)
                 .map(setting -> setting.getValue() == null ? null : setting.getValue().trim())
                 .orElse(null);
+    }
+
+    private PhysicalAddress resolvePhysicalAddress(Long companyId) {
+        if (companyId == null) {
+            return new PhysicalAddress("", "", "", "");
+        }
+        boolean sameAsCompany = "true".equalsIgnoreCase(defaultString(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY)));
+        String address = sameAsCompany
+                ? settingValue(companyId, SettingKey.COMPANY_ADDRESS)
+                : firstNonBlank(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS), settingValue(companyId, SettingKey.COMPANY_ADDRESS));
+        String postalCode = sameAsCompany
+                ? settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE)
+                : firstNonBlank(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_POSTAL_CODE), settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE));
+        String city = sameAsCompany
+                ? settingValue(companyId, SettingKey.COMPANY_CITY)
+                : firstNonBlank(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_CITY), settingValue(companyId, SettingKey.COMPANY_CITY));
+        String country = settingValue(companyId, SettingKey.COMPANY_PHYSICAL_COUNTRY);
+        return new PhysicalAddress(defaultString(address), defaultString(postalCode), defaultString(city), defaultString(country));
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return "";
+    }
+
+    private static String defaultString(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private record PhysicalAddress(String address, String postalCode, String city, String country) {
+        String fullAddress() {
+            StringBuilder sb = new StringBuilder();
+            if (address != null && !address.isBlank()) {
+                sb.append(address.trim());
+            }
+            if ((postalCode != null && !postalCode.isBlank()) || (city != null && !city.isBlank())) {
+                if (sb.length() > 0) sb.append(", ");
+                if (postalCode != null && !postalCode.isBlank()) sb.append(postalCode.trim());
+                if ((postalCode != null && !postalCode.isBlank()) && (city != null && !city.isBlank())) sb.append(" ");
+                if (city != null && !city.isBlank()) sb.append(city.trim());
+            }
+            if (country != null && !country.isBlank()) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(country.trim());
+            }
+            return sb.toString();
+        }
     }
 
     private int resolvePaymentDeadlineDays(Bill bill) {

@@ -180,10 +180,7 @@ export function LoginPage() {
             className="login-password-toggle"
             aria-label={t('loginShowPassword')}
             aria-pressed={loginPasswordVisible}
-            onMouseEnter={() => setLoginPasswordVisible(true)}
-            onMouseLeave={() => setLoginPasswordVisible(false)}
-            onFocus={() => setLoginPasswordVisible(true)}
-            onBlur={() => setLoginPasswordVisible(false)}
+            onClick={() => setLoginPasswordVisible((visible) => !visible)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               {loginPasswordVisible ? (

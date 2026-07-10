@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type * as React from "react";
+import type { AppLocale } from "../../locale";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../../components/GuestConfigSaveIcon";
 import { GuestSwitch } from "./ConfigurationVisualComponents";
 
@@ -31,6 +32,7 @@ type ConfigurationNotificationsSectionProps = {
   savingSettings: boolean;
   onSave: () => void | Promise<void>;
   t: (key: string) => string;
+  locale: AppLocale;
 };
 
 const escapeHtml = (value: string) =>
@@ -705,6 +707,11 @@ const notificationTemplateTags = [
   { label: "Datum", token: "{{datum}}" },
   { label: "Čas", token: "{{cas}}" },
   { label: "Naslov lokacije", token: "{{naslov_lokacije}}" },
+  { label: "Fizični naslov", token: "{{fizicni_naslov}}" },
+  { label: "Fizični naslov – ulica", token: "{{fizicni_naslov_ulica}}" },
+  { label: "Fizično mesto", token: "{{fizicno_mesto}}" },
+  { label: "Fizična poštna številka", token: "{{fizicna_postna_stevilka}}" },
+  { label: "Fizična država", token: "{{fizicna_drzava}}" },
   { label: "Ime lokacije", token: "{{ime_lokacije}}" },
   { label: "Telefonska številka lokacije", token: "{{telefon_lokacije}}" },
   { label: "Povezava za prenaročanje", token: "{{povezava_za_prenarocanje}}" },
@@ -720,19 +727,45 @@ const onlineNotificationTemplateTags = [
   { label: "Tip izvedbe", token: "{{tip_izvedbe}}" },
 ];
 
-const invoiceDeliveryTemplateTags = [
-  { label: "Številka računa", token: "{{invoiceNumber}}" },
-  { label: "Datum računa", token: "{{invoiceDate}}" },
-  { label: "Datum zapadlosti", token: "{{dueDate}}" },
-  { label: "Znesek", token: "{{amount}}" },
-  { label: "Ime gosta", token: "{{guestName}}" },
-  { label: "E-pošta gosta", token: "{{guestEmail}}" },
-  { label: "Ime podjetja", token: "{{companyName}}" },
-  { label: "E-pošta podjetja", token: "{{companyEmail}}" },
-  { label: "Telefon podjetja", token: "{{companyPhone}}" },
-  { label: "Spletna stran podjetja", token: "{{companyWebsite}}" },
-  { label: "Povezava za plačilo", token: "{{paymentLink}}" },
+const invoiceDeliveryTemplateTags: Array<{
+  token: string;
+  label: string;
+  localizedLabel: Record<AppLocale, string>;
+}> = [
+  { token: "{{guestName}}", label: "Ime gosta", localizedLabel: { en: "Guest name", sl: "Ime gosta", sr: "Ime gosta" } },
+  { token: "{{invoiceNumber}}", label: "Številka računa", localizedLabel: { en: "Invoice number", sl: "Številka računa", sr: "Broj računa" } },
+  { token: "{{invoiceDate}}", label: "Datum računa", localizedLabel: { en: "Invoice date", sl: "Datum računa", sr: "Datum računa" } },
+  { token: "{{dueDate}}", label: "Datum zapadlosti", localizedLabel: { en: "Due date", sl: "Datum zapadlosti", sr: "Datum dospeća" } },
+  { token: "{{amount}}", label: "Znesek", localizedLabel: { en: "Amount", sl: "Znesek", sr: "Iznos" } },
+  { token: "{{companyName}}", label: "Ime podjetja", localizedLabel: { en: "Company name", sl: "Ime podjetja", sr: "Naziv kompanije" } },
+  { token: "{{guestEmail}}", label: "E-pošta gosta", localizedLabel: { en: "Guest email", sl: "E-pošta gosta", sr: "E-pošta gosta" } },
+  { token: "{{reservationNumber}}", label: "Številka rezervacije", localizedLabel: { en: "Reservation number", sl: "Številka rezervacije", sr: "Broj rezervacije" } },
+  { token: "{{propertyName}}", label: "Ime lokacije", localizedLabel: { en: "Property name", sl: "Ime lokacije", sr: "Naziv lokacije" } },
+  { token: "{{propertyAddress}}", label: "Naslov lokacije", localizedLabel: { en: "Property address", sl: "Naslov lokacije", sr: "Adresa lokacije" } },
+  { token: "{{paymentLink}}", label: "Povezava za plačilo", localizedLabel: { en: "Payment link", sl: "Povezava za plačilo", sr: "Link za plaćanje" } },
+  { token: "{{companyEmail}}", label: "E-pošta podjetja", localizedLabel: { en: "Company email", sl: "E-pošta podjetja", sr: "E-pošta kompanije" } },
+  { token: "{{companyPhone}}", label: "Telefon podjetja", localizedLabel: { en: "Company phone", sl: "Telefon podjetja", sr: "Telefon kompanije" } },
+  { token: "{{physicalFullAddress}}", label: "Fizični naslov", localizedLabel: { en: "Physical address", sl: "Fizični naslov", sr: "Fizička adresa" } },
+  { token: "{{physicalAddress}}", label: "Fizični naslov – ulica", localizedLabel: { en: "Physical street address", sl: "Fizični naslov – ulica", sr: "Fizička adresa – ulica" } },
+  { token: "{{physicalPostalCode}}", label: "Fizična poštna številka", localizedLabel: { en: "Physical postal code", sl: "Fizična poštna številka", sr: "Fizički poštanski broj" } },
+  { token: "{{physicalCity}}", label: "Fizično mesto", localizedLabel: { en: "Physical city", sl: "Fizično mesto", sr: "Fizički grad" } },
+  { token: "{{physicalCountry}}", label: "Fizična država", localizedLabel: { en: "Physical country", sl: "Fizična država", sr: "Fizička država" } },
+  { token: "{{companyWebsite}}", label: "Spletna stran podjetja", localizedLabel: { en: "Company website", sl: "Spletna stran podjetja", sr: "Veb-sajt kompanije" } },
 ];
+
+function availableTagsLabel(locale: AppLocale) {
+  if (locale === "sl") return "Razpoložljive oznake";
+  if (locale === "sr") return "Dostupne oznake";
+  return "Available tags";
+}
+
+function templateTagButtonText(
+  tag: { token: string; localizedLabel?: Record<AppLocale, string> },
+  locale: AppLocale,
+) {
+  return tag.localizedLabel?.[locale] || tag.token;
+}
+
 
 function getNotificationOnlineEnabled(
   settings: Record<string, string>,
@@ -1107,6 +1140,7 @@ export function ConfigurationNotificationsSection({
   savingSettings,
   onSave,
   t,
+  locale,
 }: ConfigurationNotificationsSectionProps) {
   const [channel, setChannel] = useState<NotificationChannel>("email");
   const [editingEvent, setEditingEvent] =
@@ -1199,15 +1233,16 @@ export function ConfigurationNotificationsSection({
   const customFromEmail = settings[EMAIL_CUSTOM_FROM_EMAIL_KEY] || "";
   const customReplyToEmail =
     settings[EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY] || customFromEmail;
-  const customDomain =
-    settings[EMAIL_CUSTOM_DOMAIN_KEY] || emailDomainFromAddress(customFromEmail);
+  const customDomain = settings[EMAIL_CUSTOM_DOMAIN_KEY] || "";
   const customDomainStatus =
     settings[EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS_KEY] || "NOT_VERIFIED";
-  const customSenderReady =
-    isEmailSenderVerified(customDomainStatus) &&
-    emailSenderDomainMatches(customFromEmail, customDomain);
+  const customDomainVerified = isEmailSenderVerified(customDomainStatus);
+  const customSenderDomainMatches = emailSenderDomainMatches(
+    customFromEmail,
+    customDomain,
+  );
   const effectiveEmailSenderMode =
-    emailSenderMode === "CUSTOM_DOMAIN" && customSenderReady
+    emailSenderMode === "CUSTOM_DOMAIN" && customDomainVerified
       ? "CUSTOM_DOMAIN"
       : "DEFAULT_CALENDRA";
 
@@ -1216,9 +1251,18 @@ export function ConfigurationNotificationsSection({
   };
 
   const selectEmailSenderMode = (mode: EmailSenderMode) => {
-    if (mode === "CUSTOM_DOMAIN" && !customSenderReady) return;
+    if (mode === "CUSTOM_DOMAIN" && !customDomainVerified) return;
     setEmailSenderSetting(EMAIL_SENDER_MODE_KEY, mode);
   };
+
+  useEffect(() => {
+    if (emailSenderMode !== "CUSTOM_DOMAIN" || customDomainVerified) return;
+    setSettings((prev) =>
+      prev[EMAIL_SENDER_MODE_KEY] === "CUSTOM_DOMAIN"
+        ? { ...prev, [EMAIL_SENDER_MODE_KEY]: "DEFAULT_CALENDRA" }
+        : prev,
+    );
+  }, [customDomainVerified, emailSenderMode, setSettings]);
 
   useEffect(() => {
     if (!onlineSessionBookingEnabled || !selectedOnlineTemplateEnabled) {
@@ -1356,7 +1400,12 @@ export function ConfigurationNotificationsSection({
       "{{ime_storitve}}": "Individualni trening",
       "{{datum}}": "12. junij 2026",
       "{{cas}}": "09:30",
-      "{{naslov_lokacije}}": "Dunajska cesta 10",
+      "{{naslov_lokacije}}": "Cesta v Mestni log 55, 1000 Ljubljana",
+      "{{fizicni_naslov}}": "Cesta v Mestni log 55, 1000 Ljubljana, Slovenija",
+      "{{fizicni_naslov_ulica}}": "Cesta v Mestni log 55",
+      "{{fizicna_postna_stevilka}}": "1000",
+      "{{fizicno_mesto}}": "Ljubljana",
+      "{{fizicna_drzava}}": "Slovenija",
       "{{ime_lokacije}}": "Studio Center",
       "{{telefon_lokacije}}": "+386 40 123 456",
       "{{povezava_za_prenarocanje}}": "https://2ten.si/book/2TEN",
@@ -1376,6 +1425,11 @@ export function ConfigurationNotificationsSection({
       "{{companyName}}": "2TEN",
       "{{companyEmail}}": "info@2ten.si",
       "{{companyPhone}}": "+386 40 000 000",
+      "{{physicalFullAddress}}": "Cesta v Mestni log 55, 1000 Ljubljana, Slovenija",
+      "{{physicalAddress}}": "Cesta v Mestni log 55",
+      "{{physicalPostalCode}}": "1000",
+      "{{physicalCity}}": "Ljubljana",
+      "{{physicalCountry}}": "Slovenija",
       "{{companyWebsite}}": "2ten.si",
       "{{paymentLink}}": "https://2ten.si/placilo/inv-2026-0012",
     };
@@ -1569,6 +1623,11 @@ export function ConfigurationNotificationsSection({
         .notif-sender-field input:focus {
           border-color: rgba(15, 98, 254, 0.62);
           box-shadow: 0 0 0 4px rgba(15, 98, 254, 0.10);
+        }
+        .notif-sender-field input[readonly] {
+          background: #f6f9ff;
+          color: #4b5875;
+          cursor: default;
         }
         .notif-sender-note {
           margin: -4px 0 0;
@@ -2533,12 +2592,12 @@ export function ConfigurationNotificationsSection({
                 </span>
                 <span
                   className={
-                    customSenderReady
+                    customDomainVerified
                       ? "notif-sender-status is-ready"
                       : "notif-sender-status"
                   }
                 >
-                  {customSenderReady ? "Domena preverjena" : "Domena ni preverjena"}
+                  {customDomainVerified ? "Domena preverjena" : "Domena ni preverjena"}
                 </span>
               </div>
               <div className="notif-sender-options">
@@ -2563,11 +2622,11 @@ export function ConfigurationNotificationsSection({
                     effectiveEmailSenderMode === "CUSTOM_DOMAIN"
                       ? "notif-sender-option is-active"
                       : "notif-sender-option",
-                    customSenderReady ? "" : "is-disabled",
+                    customDomainVerified ? "" : "is-disabled",
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  disabled={!customSenderReady}
+                  disabled={!customDomainVerified}
                   onClick={() => selectEmailSenderMode("CUSTOM_DOMAIN")}
                 >
                   <span className="notif-sender-radio" aria-hidden />
@@ -2580,70 +2639,76 @@ export function ConfigurationNotificationsSection({
                   </span>
                 </button>
               </div>
-              <div className="notif-sender-fields">
-                <span className="notif-sender-field">
-                  <label htmlFor="notif-custom-from-name">Naziv pošiljatelja</label>
-                  <input
-                    id="notif-custom-from-name"
-                    value={customFromName}
-                    onChange={(event) =>
-                      setEmailSenderSetting(
-                        EMAIL_CUSTOM_FROM_NAME_KEY,
-                        event.target.value,
-                      )
-                    }
-                    placeholder="Inštitut Avisensa"
-                  />
-                </span>
-                <span className="notif-sender-field">
-                  <label htmlFor="notif-custom-from-email">E-poštni naslov</label>
-                  <input
-                    id="notif-custom-from-email"
-                    value={customFromEmail}
-                    onChange={(event) =>
-                      setEmailSenderSetting(
-                        EMAIL_CUSTOM_FROM_EMAIL_KEY,
-                        event.target.value,
-                      )
-                    }
-                    placeholder="info@avisensa.com"
-                  />
-                </span>
-                <span className="notif-sender-field">
-                  <label htmlFor="notif-custom-reply-to">Odgovori na</label>
-                  <input
-                    id="notif-custom-reply-to"
-                    value={customReplyToEmail}
-                    onChange={(event) =>
-                      setEmailSenderSetting(
-                        EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY,
-                        event.target.value,
-                      )
-                    }
-                    placeholder="info@avisensa.com"
-                  />
-                </span>
-                <span className="notif-sender-field">
-                  <label htmlFor="notif-custom-domain">Preverjena domena</label>
-                  <input
-                    id="notif-custom-domain"
-                    value={customDomain}
-                    onChange={(event) =>
-                      setEmailSenderSetting(
-                        EMAIL_CUSTOM_DOMAIN_KEY,
-                        event.target.value,
-                      )
-                    }
-                    placeholder="avisensa.com"
-                  />
-                </span>
-              </div>
-              <p className="notif-sender-note">
-                Lastno domeno lahko izberete šele, ko je v SES označena kot
-                VERIFIED in se e-poštni naslov ujema s preverjeno domeno.
-                Varnostna in platformna sporočila ostanejo poslana iz Calendra
-                domene.
-              </p>
+              {effectiveEmailSenderMode === "CUSTOM_DOMAIN" ? (
+                <>
+                  <div className="notif-sender-fields">
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-from-name">Naziv pošiljatelja</label>
+                      <input
+                        id="notif-custom-from-name"
+                        value={customFromName}
+                        onChange={(event) =>
+                          setEmailSenderSetting(
+                            EMAIL_CUSTOM_FROM_NAME_KEY,
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Inštitut Avisensa"
+                      />
+                    </span>
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-from-email">E-poštni naslov</label>
+                      <input
+                        id="notif-custom-from-email"
+                        value={customFromEmail}
+                        onChange={(event) =>
+                          setEmailSenderSetting(
+                            EMAIL_CUSTOM_FROM_EMAIL_KEY,
+                            event.target.value,
+                          )
+                        }
+                        placeholder="info@avisensa.com"
+                      />
+                    </span>
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-reply-to">Odgovori na</label>
+                      <input
+                        id="notif-custom-reply-to"
+                        value={customReplyToEmail}
+                        onChange={(event) =>
+                          setEmailSenderSetting(
+                            EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY,
+                            event.target.value,
+                          )
+                        }
+                        placeholder="info@avisensa.com"
+                      />
+                    </span>
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-domain">Preverjena domena</label>
+                      <input
+                        id="notif-custom-domain"
+                        value={customDomain}
+                        readOnly
+                        aria-readonly="true"
+                        placeholder="Domena ni nastavljena"
+                      />
+                    </span>
+                  </div>
+                  <p className="notif-sender-note">
+                    Preverjena domena je nastavljena v Platform Adminu in je v
+                    nastavitvah najemnika ni mogoče urejati. Varnostna in
+                    platformna sporočila ostanejo poslana iz Calendra domene.
+                    {!customSenderDomainMatches && customFromEmail ? (
+                      <>
+                        {" "}
+                        E-poštni naslov se mora ujemati s preverjeno domeno, da
+                        bo pošiljanje prek lastne domene uspešno.
+                      </>
+                    ) : null}
+                  </p>
+                </>
+              ) : null}
             </section>
           ) : null}
           <div className="notif-tabs" role="tablist" aria-label="Obvestila">
@@ -3143,7 +3208,7 @@ export function ConfigurationNotificationsSection({
                       </div>
                     </div>
                     <div className="notif-template-tags">
-                      Razpoložljive oznake
+                      {availableTagsLabel(locale)}
                       <div className="notif-template-tag-list">
                         {(selectedEvent.id === "invoiceDelivery"
                           ? invoiceDeliveryTemplateTags
@@ -3158,9 +3223,9 @@ export function ConfigurationNotificationsSection({
                             onClick={() =>
                               appendTemplateToken(selectedEvent.id, tag.token)
                             }
-                            title={tag.label}
+                            title={tag.token}
                           >
-                            {tag.token}
+                            {templateTagButtonText(tag, locale)}
                           </button>
                         ))}
                       </div>

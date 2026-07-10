@@ -894,7 +894,8 @@ public class ReminderService {
         String time = start.format(TAG_TIME) + "–" + end.format(TAG_TIME);
 
         String locationName = booking.getSpace() != null ? nz(booking.getSpace().getName()) : "";
-        String locationAddress = formatCompanyAddress(companyId);
+        PhysicalAddress physicalAddress = resolvePhysicalAddress(companyId);
+        String locationAddress = physicalAddress.fullAddress();
         String locationPhone = settingOr(companyId, SettingKey.COMPANY_TELEPHONE, "");
 
         User consultant = booking.getConsultant();
@@ -925,6 +926,12 @@ public class ReminderService {
         m.put("{{locationName}}", locationName);
         m.put("{{locationAddress}}", locationAddress);
         m.put("{{locationPhone}}", locationPhone);
+        m.put("{{physicalAddress}}", physicalAddress.address());
+        m.put("{{physicalPostalCode}}", physicalAddress.postalCode());
+        m.put("{{physicalCity}}", physicalAddress.city());
+        m.put("{{physicalCountry}}", physicalAddress.country());
+        m.put("{{physicalFullAddress}}", physicalAddress.fullAddress());
+        m.put("{{companyPhysicalAddress}}", physicalAddress.fullAddress());
         m.put("{{consultantName}}", consultantName);
         m.put("{{consultantPhone}}", consultantPhone);
         m.put("{{rescheduleLink}}", rescheduleLink);
@@ -946,6 +953,11 @@ public class ReminderService {
         m.put("{{naslov_lokacije}}", locationAddress);
         m.put("{{ime_lokacije}}", locationName);
         m.put("{{telefon_lokacije}}", locationPhone);
+        m.put("{{fizicni_naslov}}", physicalAddress.fullAddress());
+        m.put("{{fizicni_naslov_ulica}}", physicalAddress.address());
+        m.put("{{fizicna_postna_stevilka}}", physicalAddress.postalCode());
+        m.put("{{fizicno_mesto}}", physicalAddress.city());
+        m.put("{{fizicna_drzava}}", physicalAddress.country());
         m.put("{{povezava_za_prenarocanje}}", rescheduleLink);
         m.put("{{povezava_za_upravljanje_termina}}", rescheduleLink);
         m.put("{{povezava_za_odpoved_termina}}", "");
@@ -959,21 +971,39 @@ public class ReminderService {
         return m;
     }
 
-    private String formatCompanyAddress(Long companyId) {
-        String line1 = settingOr(companyId, SettingKey.COMPANY_ADDRESS, "").strip();
-        String pc = settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, "").strip();
-        String city = settingOr(companyId, SettingKey.COMPANY_CITY, "").strip();
-        StringBuilder sb = new StringBuilder();
-        if (!line1.isEmpty()) {
-            sb.append(line1);
+    private PhysicalAddress resolvePhysicalAddress(Long companyId) {
+        boolean sameAsCompany = "true".equalsIgnoreCase(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY, ""));
+        String address = sameAsCompany
+                ? settingOr(companyId, SettingKey.COMPANY_ADDRESS, "")
+                : firstNonBlank(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS, ""), settingOr(companyId, SettingKey.COMPANY_ADDRESS, ""));
+        String postalCode = sameAsCompany
+                ? settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, "")
+                : firstNonBlank(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_POSTAL_CODE, ""), settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, ""));
+        String city = sameAsCompany
+                ? settingOr(companyId, SettingKey.COMPANY_CITY, "")
+                : firstNonBlank(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_CITY, ""), settingOr(companyId, SettingKey.COMPANY_CITY, ""));
+        String country = settingOr(companyId, SettingKey.COMPANY_PHYSICAL_COUNTRY, "");
+        return new PhysicalAddress(address.strip(), postalCode.strip(), city.strip(), country.strip());
+    }
+
+    private record PhysicalAddress(String address, String postalCode, String city, String country) {
+        String fullAddress() {
+            StringBuilder sb = new StringBuilder();
+            if (address != null && !address.isBlank()) {
+                sb.append(address.strip());
+            }
+            if ((postalCode != null && !postalCode.isBlank()) || (city != null && !city.isBlank())) {
+                if (sb.length() > 0) sb.append(", ");
+                if (postalCode != null && !postalCode.isBlank()) sb.append(postalCode.strip());
+                if ((postalCode != null && !postalCode.isBlank()) && (city != null && !city.isBlank())) sb.append(" ");
+                if (city != null && !city.isBlank()) sb.append(city.strip());
+            }
+            if (country != null && !country.isBlank()) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(country.strip());
+            }
+            return sb.toString();
         }
-        if (!pc.isEmpty() || !city.isEmpty()) {
-            if (sb.length() > 0) sb.append(", ");
-            sb.append(pc);
-            if (!pc.isEmpty() && !city.isEmpty()) sb.append(" ");
-            sb.append(city);
-        }
-        return sb.toString();
     }
 
 

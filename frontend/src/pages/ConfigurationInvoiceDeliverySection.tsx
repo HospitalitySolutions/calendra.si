@@ -28,6 +28,11 @@ const TOKEN_OPTIONS: Array<{ token: string; label: Record<AppLocale, string> }> 
   { token: '{{paymentLink}}', label: { en: 'Payment link', sl: 'Povezava za plačilo', sr: 'Link za plaćanje' } },
   { token: '{{companyEmail}}', label: { en: 'Company email', sl: 'E-pošta podjetja', sr: 'E-pošta kompanije' } },
   { token: '{{companyPhone}}', label: { en: 'Company phone', sl: 'Telefon podjetja', sr: 'Telefon kompanije' } },
+  { token: '{{physicalFullAddress}}', label: { en: 'Physical address', sl: 'Fizični naslov', sr: 'Fizička adresa' } },
+  { token: '{{physicalAddress}}', label: { en: 'Physical street address', sl: 'Fizični naslov – ulica', sr: 'Fizička adresa – ulica' } },
+  { token: '{{physicalPostalCode}}', label: { en: 'Physical postal code', sl: 'Fizična poštna številka', sr: 'Fizički poštanski broj' } },
+  { token: '{{physicalCity}}', label: { en: 'Physical city', sl: 'Fizično mesto', sr: 'Fizički grad' } },
+  { token: '{{physicalCountry}}', label: { en: 'Physical country', sl: 'Fizična država', sr: 'Fizička država' } },
   { token: '{{companyWebsite}}', label: { en: 'Company website', sl: 'Spletna stran podjetja', sr: 'Veb-sajt kompanije' } },
 ]
 
@@ -247,6 +252,11 @@ export function ConfigurationInvoiceDeliverySection({
       '{{paymentLink}}': 'https://pay.example.com/inv-2026-0012',
       '{{companyEmail}}': 'billing@calendra.si',
       '{{companyPhone}}': '+386 40 000 000',
+      '{{physicalFullAddress}}': 'Cesta v Mestni log 55, 1000 Ljubljana, Slovenija',
+      '{{physicalAddress}}': 'Cesta v Mestni log 55',
+      '{{physicalPostalCode}}': '1000',
+      '{{physicalCity}}': 'Ljubljana',
+      '{{physicalCountry}}': 'Slovenija',
       '{{companyWebsite}}': 'calendra.si',
     }
     return Object.entries(replacements).reduce((text, [token, value]) => text.split(token).join(value), htmlToPlainText(body))
