@@ -3668,93 +3668,97 @@ export function SessionTypesPage() {
                 </Field>
               </div>
 
-              {advanceModuleEnabled && (
-              <label className="transaction-service-advance-card">
-                <span className="transaction-service-advance-icon" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M4.75 11.4 11.4 4.75h5.2a2.65 2.65 0 0 1 2.65 2.65v5.2l-6.65 6.65a2.2 2.2 0 0 1-3.1 0L4.75 14.5a2.2 2.2 0 0 1 0-3.1Z"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M15.8 8.2h.01"
-                      stroke="currentColor"
-                      strokeWidth="3.2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
-                <span className="transaction-service-advance-copy">
-                  <strong>{t("sessionTypesTxAdvanceSwitch")}</strong>
-                  <span>{t("sessionTypesTxAdvanceHint")}</span>
-                </span>
-                <span className="session-type-config-switch transaction-service-advance-switch">
-                  <input
-                    type="checkbox"
-                    checked={serviceForm.advanceDeduction}
-                    onChange={(e) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        advanceDeduction: e.target.checked,
-                      })
-                    }
-                    aria-label={t("sessionTypesTxAdvanceSwitch")}
-                  />
-                  <span className="session-type-config-switch-track" aria-hidden>
-                    <span className="session-type-config-switch-thumb">
-                      {serviceForm.advanceDeduction ? "✓" : ""}
-                    </span>
-                  </span>
-                </span>
-              </label>
-              )}
-
-              {noShowModuleEnabled && (
-                <label className="transaction-service-advance-card transaction-service-no-show-card">
-                  <span className="transaction-service-advance-icon" aria-hidden>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="8.2"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      />
-                      <path
-                        d="M12 7.8v5.3M12 16.4h.01"
-                        stroke="currentColor"
-                        strokeWidth="1.9"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                  <span className="transaction-service-advance-copy">
-                    <strong>{t("sessionTypesTxNoShowSwitch")}</strong>
-                    <span>{t("sessionTypesTxNoShowHint")}</span>
-                  </span>
-                  <span className="session-type-config-switch transaction-service-advance-switch">
-                    <input
-                      type="checkbox"
-                      checked={serviceForm.noShow}
-                      onChange={(e) =>
-                        setServiceForm({
-                          ...serviceForm,
-                          noShow: e.target.checked,
-                        })
-                      }
-                      aria-label={t("sessionTypesTxNoShowSwitch")}
-                    />
-                    <span className="session-type-config-switch-track" aria-hidden>
-                      <span className="session-type-config-switch-thumb">
-                        {serviceForm.noShow ? "✓" : ""}
+              {(advanceModuleEnabled || noShowModuleEnabled) && (
+                <div className="transaction-service-switch-list">
+                  {advanceModuleEnabled && (
+                    <label className="transaction-service-switch-row">
+                      <span className="transaction-service-switch-icon" aria-hidden>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                          <path
+                            d="M4.75 11.4 11.4 4.75h5.2a2.65 2.65 0 0 1 2.65 2.65v5.2l-6.65 6.65a2.2 2.2 0 0 1-3.1 0L4.75 14.5a2.2 2.2 0 0 1 0-3.1Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M15.8 8.2h.01"
+                            stroke="currentColor"
+                            strokeWidth="3.2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
                       </span>
-                    </span>
-                  </span>
-                </label>
+                      <span className="transaction-service-switch-copy">
+                        <strong>{t("sessionTypesTxAdvanceSwitch")}</strong>
+                        <span>{t("sessionTypesTxAdvanceHint")}</span>
+                      </span>
+                      <span className="session-type-config-switch transaction-service-option-switch">
+                        <input
+                          type="checkbox"
+                          checked={serviceForm.advanceDeduction}
+                          onChange={(e) =>
+                            setServiceForm({
+                              ...serviceForm,
+                              advanceDeduction: e.target.checked,
+                            })
+                          }
+                          aria-label={t("sessionTypesTxAdvanceSwitch")}
+                        />
+                        <span className="session-type-config-switch-track" aria-hidden>
+                          <span className="session-type-config-switch-thumb">
+                            {serviceForm.advanceDeduction ? "✓" : ""}
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  {noShowModuleEnabled && (
+                    <label className="transaction-service-switch-row transaction-service-switch-row--no-show">
+                      <span className="transaction-service-switch-icon" aria-hidden>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="8.2"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          />
+                          <path
+                            d="M12 7.8v5.3M12 16.4h.01"
+                            stroke="currentColor"
+                            strokeWidth="1.9"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="transaction-service-switch-copy">
+                        <strong>{t("sessionTypesTxNoShowSwitch")}</strong>
+                        <span>{t("sessionTypesTxNoShowHint")}</span>
+                      </span>
+                      <span className="session-type-config-switch transaction-service-option-switch">
+                        <input
+                          type="checkbox"
+                          checked={serviceForm.noShow}
+                          onChange={(e) =>
+                            setServiceForm({
+                              ...serviceForm,
+                              noShow: e.target.checked,
+                            })
+                          }
+                          aria-label={t("sessionTypesTxNoShowSwitch")}
+                        />
+                        <span className="session-type-config-switch-track" aria-hidden>
+                          <span className="session-type-config-switch-thumb">
+                            {serviceForm.noShow ? "✓" : ""}
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  )}
+                </div>
               )}
 
               <div className="transaction-service-net-field">
