@@ -710,43 +710,6 @@ function ShellInner({ children }: PropsWithChildren) {
               </span>
               <span className="mobile-nav-overlay-link-label">{t('language')}</span>
             </button>
-            <button
-              type="button"
-              className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
-              onClick={() => {
-                if (theme === 'light') setDarkMode()
-                else setLightMode()
-                setMobileNavOpen(false)
-              }}
-            >
-              <span className="mobile-nav-overlay-link-icon">
-                {theme === 'dark' ? (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <circle cx="12" cy="12" r="5" />
-                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                  </svg>
-                ) : (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z" />
-                  </svg>
-                )}
-              </span>
-              <span className="mobile-nav-overlay-link-label">{theme === 'dark' ? t('lightMode') : t('darkMode')}</span>
-            </button>
-            <NavLink
-              to="/help"
-              className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/help')}
-            >
-              <span className="mobile-nav-overlay-link-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              </span>
-              <span className="mobile-nav-overlay-link-label">{t('navHelp')}</span>
-            </NavLink>
           </div>
         </div>
         <footer className="mobile-nav-overlay-footer">
@@ -889,20 +852,6 @@ function ShellInner({ children }: PropsWithChildren) {
               }}
             >
               {t('language')}
-            </button>
-            <button
-              type="button"
-              className="config-dropdown-item"
-              onClick={() => {
-                if (theme === 'light') setDarkMode()
-                else setLightMode()
-                setConfigOpen(false)
-              }}
-            >
-              {theme === 'dark' ? t('lightMode') : t('darkMode')}
-            </button>
-            <button type="button" className="config-dropdown-item" onClick={() => { navigate('/help'); setConfigOpen(false) }}>
-              {t('navHelp')}
             </button>
           </div>
         )}
