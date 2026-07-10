@@ -701,7 +701,7 @@ public class ClientMessageService {
         } else {
             User assignee = users.findByIdAndCompanyId(userId, me.getCompany().getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant."));
-            if (!assignee.isConsultant() && assignee.getRole() != Role.CONSULTANT) {
+            if (!assignee.isConsultant()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant.");
             }
             client.setAssignedTo(assignee);

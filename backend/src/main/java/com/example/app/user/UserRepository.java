@@ -51,11 +51,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
             left join fetch u.types
             where u.company.id = :companyId
               and u.active = true
-              and (u.consultant = true or u.role = :consultantRole)
+              and u.consultant = true
             """)
-    List<User> findActiveBookableByCompanyId(
-            @Param("companyId") Long companyId,
-            @Param("consultantRole") Role consultantRole);
+    List<User> findActiveBookableByCompanyId(@Param("companyId") Long companyId);
 
     boolean existsByCompanyIdAndEmailIgnoreCase(Long companyId, String email);
     Optional<User> findByEmailIgnoreCaseAndCompanyId(String email, Long companyId);

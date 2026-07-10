@@ -1736,9 +1736,17 @@ button.session-type-config-modal-tab {
         box-shadow 0.16s ease;
 }
 
+.session-type-config-modal-tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
 .session-type-config-modal-tab svg {
     width: 18px;
     height: 18px;
+    display: block;
 }
 
 .session-type-config-modal-tab::after {

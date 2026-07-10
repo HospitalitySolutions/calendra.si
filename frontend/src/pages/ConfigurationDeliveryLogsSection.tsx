@@ -69,9 +69,6 @@ const STATUSES: Array<{ id: "" | DeliveryStatus; labelSl: string; labelEn: strin
   { id: "SENT", labelSl: "Poslano", labelEn: "Sent" },
   { id: "DELIVERED", labelSl: "Dostavljeno", labelEn: "Delivered" },
   { id: "FAILED", labelSl: "Napaka", labelEn: "Failed" },
-  { id: "SKIPPED", labelSl: "Preskočeno", labelEn: "Skipped" },
-  { id: "QUEUED", labelSl: "V čakalni vrsti", labelEn: "Queued" },
-  { id: "RETRYING", labelSl: "Ponovni poskus", labelEn: "Retrying" },
 ];
 
 const pageSize = 50;
@@ -160,10 +157,6 @@ export function ConfigurationDeliveryLogsSection({
 
   const copy = useMemo(
     () => ({
-      title: sl ? "Dnevniki pošiljanja" : "Delivery logs",
-      subtitle: sl
-        ? "Pregled statusa poslanih e-poštnih sporočil, SMS-ov, push obvestil in sporočil v aplikaciji za goste."
-        : "Review the delivery status of emails, SMS, push notifications and guest app messages.",
       total30: sl ? "Skupaj zadnjih 30 dni" : "Total last 30 days",
       successful: sl ? "Uspešno" : "Successful",
       failed: sl ? "Napake" : "Failed",
@@ -188,7 +181,7 @@ export function ConfigurationDeliveryLogsSection({
       technicalDetails: sl ? "Tehnične podrobnosti" : "Technical details",
       reference: sl ? "Referenca" : "Reference",
       provider: sl ? "Ponudnik" : "Provider",
-      errorReason: sl ? "Razlog napake / preskoka" : "Failure / skipped reason",
+      errorReason: sl ? "Razlog napake" : "Failure reason",
       hint: sl
         ? "To ni tehnični strežniški dnevnik. Prikazuje samo dogodke pošiljanja, ki so uporabni za tenant uporabnike."
         : "This is not a raw server log. It only shows tenant-friendly message delivery events.",
@@ -247,29 +240,24 @@ export function ConfigurationDeliveryLogsSection({
   return (
     <section className="delivery-logs-shell">
       <style>{deliveryLogsStyles}</style>
-      <div className="delivery-logs-header">
-        <div>
-          <h2>{copy.title}</h2>
-          <p>{copy.subtitle}</p>
-        </div>
-        <button type="button" className="delivery-logs-refresh" onClick={() => void load()} disabled={loading}>
-          {copy.refresh}
-        </button>
-      </div>
-
       <div className="delivery-logs-summary-grid">
         <MetricCard label={copy.total30} value={summary.totalLast30Days || 0} icon="total" />
         <MetricCard label={copy.successful} value={successCount} icon="success" />
         <MetricCard label={copy.failed} value={failedCount} icon="failed" />
       </div>
 
-      <div className="delivery-logs-channel-strip" aria-label={sl ? "Pregled po kanalih" : "Channel overview"}>
-        {visibleChannels.filter((entry) => entry.id).map((entry) => (
-          <span key={entry.id} className="delivery-channel-pill">
-            <span>{sl ? entry.labelSl : entry.labelEn}</span>
-            <strong>{Number(summary.byChannel?.[entry.id as DeliveryChannel] || 0)}</strong>
-          </span>
-        ))}
+      <div className="delivery-logs-channel-row">
+        <div className="delivery-logs-channel-strip" aria-label={sl ? "Pregled po kanalih" : "Channel overview"}>
+          {visibleChannels.filter((entry) => entry.id).map((entry) => (
+            <span key={entry.id} className="delivery-channel-pill">
+              <span>{sl ? entry.labelSl : entry.labelEn}</span>
+              <strong>{Number(summary.byChannel?.[entry.id as DeliveryChannel] || 0)}</strong>
+            </span>
+          ))}
+        </div>
+        <button type="button" className="delivery-logs-refresh" onClick={() => void load()} disabled={loading}>
+          {copy.refresh}
+        </button>
       </div>
 
       <div className="delivery-logs-card">
@@ -480,9 +468,6 @@ function metricIcon(icon: "total" | "success" | "failed") {
 const deliveryLogsStyles = `
 .delivery-logs-shell { --dl-blue:#2167ff; --dl-ink:#142655; --dl-muted:#66758f; --dl-line:#dbe5f2; --dl-soft:#f7f9fc; width:min(100%,1600px); color:var(--dl-ink); }
 .delivery-logs-shell button, .delivery-logs-shell input, .delivery-logs-shell select { font-family:inherit; }
-.delivery-logs-header { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:18px; }
-.delivery-logs-header h2 { margin:0 0 8px; font-size:clamp(28px,2.7vw,38px); line-height:1.05; letter-spacing:-.045em; font-weight:900; }
-.delivery-logs-header p { margin:0; color:var(--dl-muted); font-size:16px; line-height:1.5; max-width:860px; }
 .delivery-logs-refresh, .delivery-logs-details-button, .delivery-logs-pagination button, .delivery-logs-modal-head button { border:1px solid #d7e2f0; background:#fff; color:#1f3f75; border-radius:12px; min-height:38px; padding:0 14px; font-weight:800; cursor:pointer; }
 .delivery-logs-refresh:hover, .delivery-logs-details-button:hover, .delivery-logs-pagination button:hover, .delivery-logs-modal-head button:hover { border-color:#b9c9de; box-shadow:0 8px 24px rgba(15,23,42,.08); }
 .delivery-logs-refresh:disabled, .delivery-logs-pagination button:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
@@ -494,7 +479,8 @@ const deliveryLogsStyles = `
 .delivery-metric-card.skipped .delivery-metric-icon { background:#fef3c7; color:#b45309; }
 .delivery-metric-card span:not(.delivery-metric-icon) { color:var(--dl-muted); font-size:13px; font-weight:800; }
 .delivery-metric-card strong { font-size:30px; line-height:1; letter-spacing:-.04em; }
-.delivery-logs-channel-strip { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 18px; }
+.delivery-logs-channel-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 18px; }
+.delivery-logs-channel-strip { display:flex; flex:1 1 auto; flex-wrap:wrap; gap:10px; min-width:0; }
 .delivery-channel-pill { display:inline-flex; align-items:center; gap:10px; border:1px solid #dbe5f2; border-radius:999px; background:#fff; padding:8px 12px; color:#475569; font-size:13px; font-weight:800; }
 .delivery-channel-pill strong { color:#0f172a; }
 .delivery-logs-card { border:1px solid rgba(203,213,225,.82); border-radius:24px; background:rgba(255,255,255,.98); box-shadow:0 24px 70px rgba(15,23,42,.08); overflow:hidden; }
@@ -515,7 +501,7 @@ const deliveryLogsStyles = `
 .delivery-channel-badge { color:#1d4ed8; background:#eaf2ff; }
 .delivery-status-badge.sent, .delivery-status-badge.delivered { color:#15803d; background:#dcfce7; }
 .delivery-status-badge.failed { color:#b91c1c; background:#fee2e2; }
-.delivery-status-badge.skipped, .delivery-status-badge.retrying { color:#b45309; background:#fef3c7; }
+.delivery-status-badge.retrying { color:#b45309; background:#fef3c7; }
 .delivery-status-badge.queued, .delivery-status-badge.neutral { color:#64748b; background:#f1f5f9; }
 .delivery-logs-empty { text-align:center; padding:34px 16px !important; color:#64748b !important; }
 .delivery-logs-empty.is-error { color:#b91c1c !important; }
@@ -536,6 +522,6 @@ const deliveryLogsStyles = `
 .delivery-logs-preview-block p { margin:0; color:#334155; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
 .delivery-logs-preview-block.is-error { border-color:#fecaca; background:#fff7f7; }
 .delivery-logs-preview-block.is-error p { color:#991b1b; }
-@media (max-width: 980px) { .delivery-logs-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .delivery-logs-header { flex-direction:column; } }
+@media (max-width: 980px) { .delivery-logs-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .delivery-logs-channel-row { align-items:flex-start; flex-direction:column; } }
 @media (max-width: 640px) { .delivery-logs-summary-grid { grid-template-columns:1fr; } .delivery-logs-modal-grid { grid-template-columns:1fr; } .delivery-logs-filter-row { align-items:stretch; } .delivery-logs-filter-row select, .delivery-logs-filter-row input, .delivery-logs-filter-row label { width:100%; } }
 `;

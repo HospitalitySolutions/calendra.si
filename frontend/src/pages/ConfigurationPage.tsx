@@ -12766,17 +12766,6 @@ export function ConfigurationPage() {
                           ) : null}
                         </div>
                         <div className="integrations-desktop-status-layout">
-                          <div className="integrations-page-head">
-                            <h2>
-                              {locale === "sl" ? "Integracije" : "Integrations"}
-                            </h2>
-                            <p>
-                              {locale === "sl"
-                                ? "Pregled povezav za trenutni tenant. Klik na vrstico odpre stran, kjer nastavite posamezno povezavo."
-                                : "Connection overview for the current tenant. Click a row to open the setup page for that integration."}
-                            </p>
-                          </div>
-
                           <div className="integrations-card integrations-list-card">
                             <div className="integrations-section-heading">
                               <span>

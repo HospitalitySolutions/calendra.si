@@ -357,7 +357,7 @@ public class GuestCatalogService {
     }
 
     private boolean isBookableGuestConsultant(User user) {
-        return user.isConsultant() || user.getRole() == Role.CONSULTANT;
+        return user.isConsultant();
     }
 
     private List<User> supportedGuestConsultants(Long companyId, SessionType type) {
@@ -377,6 +377,7 @@ public class GuestCatalogService {
         List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
                 .filter(slot -> slot.getConsultant() != null)
                 .filter(slot -> slot.getConsultant().isActive())
+                .filter(slot -> slot.getConsultant().isConsultant())
                 .filter(slot -> requiredConsultantId == null
                         || Objects.equals(slot.getConsultant().getId(), requiredConsultantId))
                 .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
@@ -464,6 +465,7 @@ public class GuestCatalogService {
                 .filter(window -> window.getConsultant() != null)
                 .filter(window -> Objects.equals(window.getConsultant().getId(), consultant.getId()))
                 .filter(window -> window.getConsultant().isActive())
+                .filter(window -> window.getConsultant().isConsultant())
                 .filter(window -> window.getDayOfWeek() == dayOfWeek)
                 .filter(window -> window.isIndefinite() || withinBookableDateRange(window, date))
                 .filter(window -> consultantSupportsSessionType(window.getConsultant(), type))

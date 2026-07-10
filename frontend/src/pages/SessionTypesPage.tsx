@@ -2726,7 +2726,9 @@ export function SessionTypesPage() {
                       className={`session-type-config-modal-tab${selected ? " is-active" : ""}`}
                       onClick={() => selectTypeModalTab(tab.key)}
                     >
-                      <ServiceConfigTabIcon name={tab.icon} />
+                      <span className="session-type-config-modal-tab-icon" aria-hidden>
+                        <ServiceConfigTabIcon name={tab.icon} />
+                      </span>
                       <span>{tab.label}</span>
                     </button>
                   );

@@ -30,6 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/delivery-logs")
 @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
 public class MessageDeliveryLogController {
+    private static final EnumSet<MessageDeliveryStatus> TENANT_VISIBLE_STATUSES = EnumSet.of(
+            MessageDeliveryStatus.SENT,
+            MessageDeliveryStatus.DELIVERED,
+            MessageDeliveryStatus.FAILED
+    );
+
     private final MessageDeliveryLogRepository logs;
     private final AppSettingRepository appSettings;
     private final GlobalMessagingProviderService globalMessagingProviders;
@@ -115,6 +121,7 @@ public class MessageDeliveryLogController {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("company").get("id"), companyId));
+            predicates.add(root.get("status").in(TENANT_VISIBLE_STATUSES));
 
             if (visibleChannels == null || visibleChannels.isEmpty()) {
                 return cb.disjunction();
@@ -128,6 +135,9 @@ public class MessageDeliveryLogController {
                 predicates.add(root.get("channel").in(visibleChannels));
             }
             if (status != null) {
+                if (!TENANT_VISIBLE_STATUSES.contains(status)) {
+                    return cb.disjunction();
+                }
                 predicates.add(cb.equal(root.get("status"), status));
             }
             if (messageTypeLower != null) {
@@ -285,7 +295,7 @@ public class MessageDeliveryLogController {
                 Set<MessageDeliveryChannel> visibleChannels
         ) {
             Map<MessageDeliveryStatus, Long> statuses = new EnumMap<>(MessageDeliveryStatus.class);
-            for (MessageDeliveryStatus status : MessageDeliveryStatus.values()) {
+            for (MessageDeliveryStatus status : TENANT_VISIBLE_STATUSES) {
                 statuses.put(status, logs.count(tenantLogSpec(companyId, null, status, null, null, since, null, visibleChannels)));
             }
             Map<MessageDeliveryChannel, Long> channels = new EnumMap<>(MessageDeliveryChannel.class);

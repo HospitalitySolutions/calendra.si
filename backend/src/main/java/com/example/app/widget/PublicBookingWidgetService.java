@@ -942,14 +942,14 @@ public class PublicBookingWidgetService {
     }
 
     private List<User> supportedConsultants(Long companyId, SessionType type) {
-        return users.findActiveBookableByCompanyId(companyId, Role.CONSULTANT).stream()
+        return users.findActiveBookableByCompanyId(companyId).stream()
                 .filter(consultant -> consultantSupportsType(consultant, type))
                 .sorted(Comparator.comparing(this::consultantFullName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
     private boolean isBookableConsultant(User user) {
-        return user.isConsultant() || user.getRole() == Role.CONSULTANT;
+        return user.isConsultant();
     }
 
     private boolean consultantSupportsType(User consultant, SessionType type) {

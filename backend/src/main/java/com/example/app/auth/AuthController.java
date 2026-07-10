@@ -506,7 +506,7 @@ public class AuthController {
     ) {
     }
 
-    public record ForgotPasswordRequest(@NotBlank @Email String email) {}
+    public record ForgotPasswordRequest(@NotBlank @Email String email, String locale, String language) {}
 
     public record ResetPasswordRequest(@NotBlank String token, @NotBlank String password) {}
 
@@ -527,8 +527,9 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
         authRateLimiter.checkPasswordReset(httpRequest, request.email());
+        String locale = request.locale() != null ? request.locale() : request.language();
         // Respond 200 regardless of user existence to avoid account enumeration.
-        passwordResetService.requestReset(request.email());
+        passwordResetService.requestReset(request.email(), locale);
         return ResponseEntity.ok(Map.of("message", "If this email exists, a reset link has been sent."));
     }
 

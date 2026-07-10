@@ -4,6 +4,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
+import { GuestSwitch } from './configuration/ConfigurationVisualComponents'
 import { EmployeeRolesPermissionsTab } from './EmployeeRolesPermissionsTab'
 import { formatDate, fullName } from '../lib/format'
 import { dayOptions, type DayOfWeek, type WorkingHoursConfig } from '../lib/types'
@@ -231,11 +232,14 @@ type ConsultantForm = {
 
 type ConsultantFormSectionTab = 'workingHours'
 
-const defaultWh: WorkingHoursConfig = {
-  sameForAllDays: true,
-  allDays: { start: '09:00', end: '17:00' },
-  byDay: {},
+function defaultByDayWorkingHours(): WorkingHoursConfig {
+  const byDay: WorkingHoursConfig['byDay'] = {}
+  for (const day of dayOptions) {
+    byDay[day] = { start: '09:00', end: '17:00' }
+  }
+  return { sameForAllDays: false, allDays: null, byDay }
 }
+
 
 const emptyForm: ConsultantForm = {
   firstName: '',
@@ -246,7 +250,7 @@ const emptyForm: ConsultantForm = {
   consultant: true,
   vatId: '',
   phone: '',
-  workingHours: { ...defaultWh, allDays: { ...defaultWh.allDays! } },
+  workingHours: defaultByDayWorkingHours(),
   permissions: [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS],
   accessRoleId: '',
 }
@@ -507,11 +511,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       ...emptyForm,
       permissions: defaultAccessRole ? normalizeEmployeePermissions(defaultAccessRole.permissions) : [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS],
       accessRoleId: defaultAccessRole?.customRoleId == null ? '' : String(defaultAccessRole.customRoleId),
-      workingHours: {
-        sameForAllDays: true,
-        allDays: { start: '09:00', end: '17:00' },
-        byDay: {},
-      },
+      workingHours: defaultByDayWorkingHours(),
     }
     setForm(next)
     formBaselineRef.current = cloneConsultantForm(next)
@@ -635,7 +635,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         email: form.email.trim().toLowerCase(),
         password: form.password || null,
         role: effectiveRole,
-        consultant: form.consultant || effectiveRole === 'CONSULTANT',
+        consultant: form.consultant,
         vatId: form.vatId.trim() || null,
         phone: form.phone.trim() || null,
         workingHours: normalizeWorkingHoursForApi(form.workingHours),
@@ -664,8 +664,17 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
 
       const freshQuota = !editing ? await refreshUserQuota() : null
+      const activeBookingCount = Number(error?.response?.data?.activeBookingCount ?? 0)
       if (isUserQuotaError(error) || (!editing && hasReachedUserQuota(freshQuota))) {
         await showEmployeeLimitPopup(freshQuota ?? userQuota ?? fallbackUserQuota(consultants, error), error)
+      } else if (status === 409 && activeBookingCount > 0) {
+        setErrorMessage(
+          locale === 'sl'
+            ? `Zaposlenega ni mogoče izklopiti, ker ima ${activeBookingCount} aktivnih ali prihodnjih terminov. Najprej odstranite ali prerazporedite njegove termine.`
+            : locale === 'sr'
+              ? `Zaposlenog nije moguće isključiti jer ima ${activeBookingCount} aktivnih ili budućih termina. Najpre uklonite ili preraspodelite njegove termine.`
+              : `This employee cannot be switched off because they have ${activeBookingCount} active or upcoming bookings. Remove or reassign those bookings first.`,
+        )
       } else if (status === 403) {
         setErrorMessage(
           selfService
@@ -717,7 +726,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const closeLabel = locale === 'sl' ? 'Zapri' : 'Close'
   const formPrimaryLabel = saving ? t('employeesFormSaving') : editing ? t('employeesFormSaveChanges') : (locale === 'sl' ? 'Ustvari' : 'Create')
   const formPrimaryDisabled = saving || deleting || (!!editing && !isFormDirty)
-  const consultantToggleOn = form.consultant || form.role === 'CONSULTANT'
+  const consultantToggleOn = form.consultant
   const statusHeader = locale === 'sl' ? 'Status' : 'Status'
   const myUserId = user?.id
   const employeeLimitTitle = locale === 'sl' ? 'Dosegli ste največje število uporabnikov' : 'User limit reached'
@@ -748,7 +757,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       setForm({
         ...form,
         role: 'CONSULTANT',
-        consultant: true,
+        consultant: form.consultant,
         accessRoleId,
         permissions: selectedRole ? normalizeEmployeePermissions(selectedRole.permissions) : form.permissions,
       })
@@ -760,7 +769,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       ...form,
       role: nextRole,
       accessRoleId: '',
-      consultant: nextRole === 'CONSULTANT' ? true : form.consultant,
+      consultant: form.consultant,
       permissions: nextRole === 'CONSULTANT' ? [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS] : form.permissions,
     })
   }
@@ -1086,10 +1095,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       <button
                         type="button"
                         className={`employee-form-status-switch${consultantToggleOn ? ' employee-form-status-switch--on' : ''}`}
-                        disabled={form.role === 'CONSULTANT'}
                         aria-pressed={consultantToggleOn}
                         onClick={() => {
-                          if (form.role === 'CONSULTANT') return
                           setForm({ ...form, consultant: !form.consultant })
                         }}
                       >
@@ -1124,44 +1131,43 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                         <span className="consultant-wh-card-header-label" id="consultant-wh-same-hours-label">
                           {t('employeesFormSameHoursEveryDay')}
                         </span>
-                        <label className="consultant-wh-header-toggle repeats-toggle-switch">
-                          <input
-                            type="checkbox"
-                            role="switch"
-                            aria-labelledby="consultant-wh-same-hours-label"
-                            aria-checked={form.workingHours.sameForAllDays}
-                            checked={form.workingHours.sameForAllDays}
-                            onChange={(e) => {
-                              const same = e.target.checked
-                              setForm((f) => {
-                                const base = f.workingHours.allDays || { start: '09:00', end: '17:00' }
-                                if (same) {
-                                  return {
-                                    ...f,
-                                    workingHours: {
-                                      sameForAllDays: true,
-                                      allDays: { ...base },
-                                      byDay: {},
-                                    },
-                                  }
-                                }
-                                const byDay: WorkingHoursConfig['byDay'] = {}
-                                for (const d of dayOptions) {
-                                  byDay[d] = { start: base.start, end: base.end }
-                                }
+                        <GuestSwitch
+                          checked={form.workingHours.sameForAllDays}
+                          onChange={(same) => {
+                            setForm((f) => {
+                              const currentByDay = f.workingHours.byDay || {}
+                              const firstConfiguredDay = dayOptions
+                                .map((day) => currentByDay[day])
+                                .find((row) => row?.start && row?.end)
+                              const base = f.workingHours.allDays || firstConfiguredDay || { start: '09:00', end: '17:00' }
+                              if (same) {
                                 return {
                                   ...f,
                                   workingHours: {
-                                    sameForAllDays: false,
-                                    allDays: null,
-                                    byDay,
+                                    sameForAllDays: true,
+                                    allDays: { start: base.start, end: base.end },
+                                    byDay: {},
                                   },
                                 }
-                              })
-                            }}
-                          />
-                          <span className="repeats-toggle-slider" aria-hidden />
-                        </label>
+                              }
+                              const byDay: WorkingHoursConfig['byDay'] = {}
+                              for (const d of dayOptions) {
+                                const existing = currentByDay[d]
+                                byDay[d] = existing?.start && existing?.end
+                                  ? { start: existing.start, end: existing.end }
+                                  : { start: base.start, end: base.end }
+                              }
+                              return {
+                                ...f,
+                                workingHours: {
+                                  sameForAllDays: false,
+                                  allDays: null,
+                                  byDay,
+                                },
+                              }
+                            })
+                          }}
+                        />
                       </div>
                       <div className="consultant-wh-rows">
                         {form.workingHours.sameForAllDays ? (

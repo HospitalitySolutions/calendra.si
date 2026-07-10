@@ -850,7 +850,7 @@ public class VoiceBookingService {
     }
 
     private void requireConsultantForAvailability(User me, UiLang lang) {
-        if (!me.isConsultant() && me.getRole() != Role.CONSULTANT) {
+        if (!me.isConsultant()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     msg(lang,
                             "Razpoložljivost lahko glasovno ureja le uporabnik, ki je označen kot osebje/svetovalec.",
@@ -1274,7 +1274,7 @@ public class VoiceBookingService {
     }
 
     private Client createClientForVoice(String firstName, String lastName, User me, UiLang lang) {
-        if (SecurityUtils.isAdmin(me) && !me.isConsultant() && me.getRole() != Role.CONSULTANT) {
+        if (SecurityUtils.isAdmin(me) && !me.isConsultant()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     msg(lang,
                             "Glasovno rezerviranje ne more ustvariti nove stranke, ker vaš račun ni označen kot osebje. Stranko dodajte ročno ali uporabite račun svetovalca.",

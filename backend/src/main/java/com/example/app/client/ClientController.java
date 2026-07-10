@@ -589,7 +589,7 @@ public class ClientController {
             } else {
                 User assigned = users.findByIdAndCompanyId(req.assignedToId(), me.getCompany().getId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"));
-                if (!assigned.isConsultant() && assigned.getRole() != Role.CONSULTANT) {
+                if (!assigned.isConsultant()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
                 }
                 c.setAssignedTo(assigned);

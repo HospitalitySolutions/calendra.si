@@ -65,8 +65,13 @@ public class PasswordResetService {
 
     @Transactional
     public void requestReset(String email) {
+        requestReset(email, null);
+    }
+
+    @Transactional
+    public void requestReset(String email, String localeCode) {
         if (email == null || email.isBlank()) return;
-        String normalized = email.trim().toLowerCase();
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
         List<User> matches = users.findAllByEmailIgnoreCaseAndActiveTrue(normalized);
         if (matches.isEmpty()) {
             log.info("Password reset requested for non-active or unknown email={}", LogSanitizer.emailHash(normalized));
@@ -74,7 +79,7 @@ public class PasswordResetService {
         }
         User user = matches.get(0);
         String token = createResetToken(user);
-        sendResetEmail(user, token);
+        sendResetEmail(user, token, localeCode);
     }
 
     @Transactional
@@ -165,32 +170,44 @@ public class PasswordResetService {
         return row;
     }
 
-    private void sendResetEmail(User user, String token) {
+    private void sendResetEmail(User user, String token, String localeCode) {
         if (!mailConfigured) {
             log.warn("Password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(user.getEmail()));
             return;
         }
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
         String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
-        String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail;
-        String subject = "Reset your password";
+        String locale = normalizeSupportedLocale(localeCode);
+        String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail + "&locale=" + locale;
+        ResetEmailCopy copy = resetEmailCopy(locale);
+        String firstName = user.getFirstName() == null || user.getFirstName().isBlank()
+                ? copy.greetingFallback()
+                : user.getFirstName().trim();
         String body = """
-                Hello %s,
+                %s %s,
 
-                We received a request to reset your password.
-                Open this link to set a new one:
+                %s
+                %s
 
                 %s
 
-                This link expires in 1 hour.
-                If you did not request this, you can safely ignore this email.
-                """.formatted(user.getFirstName() == null ? "there" : user.getFirstName(), resetUrl);
+                %s
+                %s
+                """.formatted(
+                copy.greetingPrefix(),
+                firstName,
+                copy.requestText(),
+                copy.openLinkText(),
+                resetUrl,
+                copy.expiryText(),
+                copy.ignoreText()
+        );
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom);
             helper.setTo(user.getEmail());
-            helper.setSubject(subject);
+            helper.setSubject(copy.subject());
             helper.setText(body, false);
             mailSender.send(message);
             log.info("Password reset email sent to {}", LogSanitizer.emailHash(user.getEmail()));
@@ -206,7 +223,7 @@ public class PasswordResetService {
         }
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
         String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
-        String locale = normalizeEmployeeAccountLocale(localeCode);
+        String locale = normalizeSupportedLocale(localeCode);
         String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail + "&locale=" + locale;
         EmployeeAccountEmailCopy copy = employeeAccountEmailCopy(locale);
         String html = buildEmployeeAccountCreatedHtml(user, resetUrl, copy);
@@ -339,7 +356,7 @@ public class PasswordResetService {
         return accessRole;
     }
 
-    private String normalizeEmployeeAccountLocale(String localeCode) {
+    private String normalizeSupportedLocale(String localeCode) {
         if (localeCode == null || localeCode.isBlank()) {
             return "en";
         }
@@ -349,8 +366,40 @@ public class PasswordResetService {
         return "en";
     }
 
+    private ResetEmailCopy resetEmailCopy(String locale) {
+        return switch (normalizeSupportedLocale(locale)) {
+            case "sl" -> new ResetEmailCopy(
+                    "Nastavite novo geslo",
+                    "Pozdravljeni",
+                    "pozdravljeni",
+                    "Prejeli smo zahtevo za nastavitev novega gesla za vaš račun.",
+                    "Novo geslo nastavite prek varne povezave:",
+                    "Povezava poteče čez 1 uro.",
+                    "Če tega niste zahtevali, lahko to e-pošto prezrete."
+            );
+            case "sr" -> new ResetEmailCopy(
+                    "Podesite novu lozinku",
+                    "Zdravo",
+                    "zdravo",
+                    "Primili smo zahtev za podešavanje nove lozinke za vaš nalog.",
+                    "Novu lozinku podesite preko sigurne veze:",
+                    "Ova veza ističe za 1 sat.",
+                    "Ako ovo niste zatražili, možete ignorisati ovu e-poštu."
+            );
+            default -> new ResetEmailCopy(
+                    "Reset your password",
+                    "Hello",
+                    "there",
+                    "We received a request to reset your password.",
+                    "Open this link to set a new one:",
+                    "This link expires in 1 hour.",
+                    "If you did not request this, you can safely ignore this email."
+            );
+        };
+    }
+
     private EmployeeAccountEmailCopy employeeAccountEmailCopy(String locale) {
-        return switch (normalizeEmployeeAccountLocale(locale)) {
+        return switch (normalizeSupportedLocale(locale)) {
             case "sl" -> new EmployeeAccountEmailCopy(
                     "Vaš uporabniški račun Calendra je bil ustvarjen",
                     "Nov uporabniški račun",
@@ -437,6 +486,16 @@ public class PasswordResetService {
             );
         };
     }
+
+    private record ResetEmailCopy(
+            String subject,
+            String greetingPrefix,
+            String greetingFallback,
+            String requestText,
+            String openLinkText,
+            String expiryText,
+            String ignoreText
+    ) {}
 
     private record EmployeeAccountEmailCopy(
             String subject,

@@ -5,6 +5,7 @@ import com.example.app.entitlement.PackageAccessService;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
 import com.example.app.company.Company;
+import com.example.app.session.SessionBookingRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
@@ -45,8 +47,9 @@ public class UserController {
     private final TenantFileS3Service fileStorage;
     private final TenantOwnerAccessService tenantOwnerAccessService;
     private final PasswordResetService passwordResetService;
+    private final SessionBookingRepository sessionBookingRepository;
 
-    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository) {
         this.userRepository = userRepository;
         this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -55,6 +58,7 @@ public class UserController {
         this.fileStorage = fileStorage;
         this.tenantOwnerAccessService = tenantOwnerAccessService;
         this.passwordResetService = passwordResetService;
+        this.sessionBookingRepository = sessionBookingRepository;
     }
 
     @GetMapping
@@ -169,7 +173,7 @@ public class UserController {
         user.setPasswordHash(passwordEncoder.encode(temporaryPassword()));
         user.setRole(request.role());
         user.setActive(true);
-        user.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
+        user.setConsultant(Boolean.TRUE.equals(request.consultant()));
         EmployeeAccessRole accessRole = resolveEmployeeAccessRole(request.role(), request.accessRoleId(), me.getCompany());
         user.setEmployeeAccessRole(accessRole);
         user.setCreatedAt(Instant.now());
@@ -231,13 +235,26 @@ public class UserController {
                     existing.setLastName(request.lastName().trim());
                     existing.setEmail(normalizedEmail);
                     EmployeeAccessRole accessRole = null;
+                    boolean requestedConsultant = Boolean.TRUE.equals(request.consultant());
+                    if (existing.isConsultant() && !requestedConsultant) {
+                        long activeBookingCount = sessionBookingRepository.countActiveCurrentOrUpcomingByConsultantIdAndCompanyId(
+                                existing.getId(), companyId, LocalDateTime.now());
+                        if (activeBookingCount > 0) {
+                            return ResponseEntity.status(HttpStatus.CONFLICT)
+                                    .body(Map.of(
+                                            "message", "Remove or reassign this employee's active or upcoming bookings before switching off Zaposleni.",
+                                            "activeBookingCount", activeBookingCount
+                                    ));
+                        }
+                    }
+
                     if (tenantOwner) {
                         existing.setRole(Role.ADMIN);
-                        existing.setConsultant(request.consultant());
+                        existing.setConsultant(requestedConsultant);
                         existing.setEmployeeAccessRole(null);
                     } else {
                         existing.setRole(request.role());
-                        existing.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
+                        existing.setConsultant(requestedConsultant);
                         accessRole = resolveEmployeeAccessRole(request.role(), request.accessRoleId(), me.getCompany());
                         existing.setEmployeeAccessRole(accessRole);
                     }
@@ -486,7 +503,7 @@ public class UserController {
                 user.getLastName(),
                 user.getEmail(),
                 user.getRole(),
-                user.isConsultant() || user.getRole() == Role.CONSULTANT,
+                user.isConsultant(),
                 user.isActive(),
                 user.getVatId(),
                 user.getPhone(),

@@ -105,7 +105,7 @@ public class BookableSlotController {
                 ? users.findByIdAndCompanyId(req.consultantId(), me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST))
                 : me;
-        if (!consultant.isConsultant() && consultant.getRole() != Role.CONSULTANT) {
+        if (!consultant.isConsultant()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
         }
         s.setConsultant(consultant);

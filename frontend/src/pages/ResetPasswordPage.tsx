@@ -47,6 +47,7 @@ export function ResetPasswordPage() {
   const isGuestReset = params.get('guest') === '1'
   const resetValidateEndpoint = isGuestReset ? '/guest/auth/reset-password/validate' : '/auth/reset-password/validate'
   const resetSubmitEndpoint = isGuestReset ? '/guest/auth/reset-password' : '/auth/reset-password'
+  const forgotPasswordEndpoint = isGuestReset ? '/guest/auth/forgot-password' : '/auth/forgot-password'
   const initialEmail = useMemo(() => params.get('email')?.trim().toLowerCase() ?? '', [params])
   const [email, setEmail] = useState(initialEmail)
   const [validating, setValidating] = useState(true)
@@ -58,6 +59,8 @@ export function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [confirmVisible, setConfirmVisible] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendStatus, setResendStatus] = useState('')
   const passwordRules = useMemo(() => getPasswordRuleChecks(password), [password])
 
   useEffect(() => {
@@ -87,6 +90,27 @@ export function ResetPasswordPage() {
       })
       .finally(() => setValidating(false))
   }, [initialEmail, resetValidateEndpoint, t, token])
+
+
+  const resendSetupLink = async () => {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      setError(t('resetPasswordResendMissingEmail'))
+      setResendStatus('')
+      return
+    }
+    setResending(true)
+    setError('')
+    setResendStatus('')
+    try {
+      await api.post(forgotPasswordEndpoint, { email: normalizedEmail, locale })
+      setResendStatus(t('resetPasswordResendSent'))
+    } catch {
+      setError(t('resetPasswordResendFailed'))
+    } finally {
+      setResending(false)
+    }
+  }
 
   const goToLogin = () => {
     const q = new URLSearchParams()
@@ -179,7 +203,16 @@ export function ResetPasswordPage() {
             <div className="auth-flow-heading">
               <h1 className="login-modern-title">{t('resetPasswordTitle')}</h1>
               <p className="login-note auth-flow-note">{error || t('resetPasswordInvalidLink')}</p>
+              {email.trim() && !isGuestReset && (
+                <p className="login-note auth-flow-note">{t('resetPasswordExpiredResendHint')}</p>
+              )}
             </div>
+            {resendStatus && <div className="success auth-flow-feedback">{resendStatus}</div>}
+            {email.trim() && !isGuestReset && (
+              <button type="button" className="login-primary-btn" disabled={resending} onClick={() => void resendSetupLink()}>
+                {resending ? t('resetPasswordResendSending') : t('resetPasswordResendSetupLink')}
+              </button>
+            )}
             <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
               {t('resetPasswordBackToLogin')}
             </button>

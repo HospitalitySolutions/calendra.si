@@ -177,6 +177,19 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     List<SessionBooking> findAllByCompanyId(Long companyId);
     List<SessionBooking> findByConsultantIdAndCompanyId(Long consultantId, Long companyId);
+
+    @Query("""
+            SELECT COUNT(sb) FROM SessionBooking sb
+            WHERE sb.company.id = :companyId
+              AND sb.consultant.id = :consultantId
+              AND sb.endTime >= :now
+              AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')
+            """)
+    long countActiveCurrentOrUpcomingByConsultantIdAndCompanyId(
+            @Param("consultantId") Long consultantId,
+            @Param("companyId") Long companyId,
+            @Param("now") LocalDateTime now
+    );
     List<SessionBooking> findByConsultantIdAndCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(Long consultantId, Long companyId, LocalDateTime from, LocalDateTime to);
     List<SessionBooking> findByCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(Long companyId, LocalDateTime from, LocalDateTime to);
 

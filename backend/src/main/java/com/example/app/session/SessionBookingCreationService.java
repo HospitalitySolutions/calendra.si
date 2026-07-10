@@ -880,7 +880,7 @@ public class SessionBookingCreationService {
             } else {
                 User consultant = users.findByIdAndCompanyId(req.consultantId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"));
-                if (!consultant.isConsultant() && consultant.getRole() != Role.CONSULTANT) {
+                if (!consultant.isConsultant()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
                 }
                 booking.setConsultant(consultant);

@@ -84,8 +84,9 @@ public class MessageDeliveryLogService {
             Object referenceId,
             String reason
     ) {
-        return record(company, client, guestUser, channel, MessageDeliveryStatus.SKIPPED, messageType,
-                recipient, subject, preview, referenceType, referenceId, null, null, reason, null);
+        // Skipped delivery attempts are intentionally not stored in tenant-facing delivery logs.
+        // The UI only shows successful and failed delivery outcomes.
+        return null;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -107,6 +108,7 @@ public class MessageDeliveryLogService {
             String metadataJson
     ) {
         if (company == null || channel == null || status == null) return null;
+        if (status == MessageDeliveryStatus.SKIPPED) return null;
         MessageDeliveryLog log = new MessageDeliveryLog();
         log.setCompany(company);
         log.setClient(client);

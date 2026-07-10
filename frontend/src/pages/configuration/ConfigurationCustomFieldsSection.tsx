@@ -75,7 +75,6 @@ export function ConfigurationCustomFieldsSection() {
   const copy = locale === 'sl'
     ? {
         title: 'Polja po meri',
-        subtitle: 'Določite dodatna polja, ki jih bo tenant uporabljal na strankah, podjetjih in skupinah.',
         newField: 'Novo polje',
         fieldName: 'Ime polja',
         fieldType: 'Tip polja',
@@ -100,7 +99,6 @@ export function ConfigurationCustomFieldsSection() {
       }
     : {
         title: 'Custom fields',
-        subtitle: 'Define extra tenant-specific fields for clients, companies and groups.',
         newField: 'New field',
         fieldName: 'Field name',
         fieldType: 'Field type',
@@ -215,9 +213,6 @@ export function ConfigurationCustomFieldsSection() {
       <style>{`
         .custom-fields-settings { width: min(100%, 1120px); display: grid; gap: 16px; }
         .custom-fields-card { background: #fff; border: 1px solid #dbe5f2; border-radius: 24px; box-shadow: 0 18px 50px rgba(18, 38, 63, .08); overflow: hidden; }
-        .custom-fields-header { padding: 22px 24px 14px; border-bottom: 1px solid #e7edf6; }
-        .custom-fields-header h2 { margin: 0; font-size: 24px; color: #14213d; }
-        .custom-fields-header p { margin: 6px 0 0; color: #64748b; }
         .custom-fields-tabs { display: flex; gap: 8px; padding: 14px 16px 0; }
         .custom-fields-tab { border: 1px solid #dbe5f2; background: #f8fafc; color: #475569; border-radius: 12px; padding: 10px 14px; font-weight: 800; cursor: pointer; }
         .custom-fields-tab.active { background: #eaf2ff; border-color: #b8d2ff; color: #2167ff; box-shadow: 0 6px 16px rgba(33, 103, 255, .16); }
@@ -248,10 +243,6 @@ export function ConfigurationCustomFieldsSection() {
         @media (max-width: 880px) { .custom-fields-layout { grid-template-columns: 1fr; } .custom-fields-tabs { overflow-x: auto; } }
       `}</style>
       <div className="custom-fields-card">
-        <div className="custom-fields-header">
-          <h2>{copy.title}</h2>
-          <p>{copy.subtitle}</p>
-        </div>
         <div className="custom-fields-tabs" role="tablist" aria-label={copy.title}>
           {appliesTabs.map((tab) => (
             <button

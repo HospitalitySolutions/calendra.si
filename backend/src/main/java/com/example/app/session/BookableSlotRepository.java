@@ -19,6 +19,8 @@ public interface BookableSlotRepository extends JpaRepository<BookableSlot, Long
         join fetch s.consultant c
         left join fetch c.types
         where s.company.id = :companyId
+          and c.active = true
+          and c.consultant = true
         """)
     List<BookableSlot> findAllForWidgetByCompanyId(@Param("companyId") Long companyId);
 
@@ -29,6 +31,7 @@ public interface BookableSlotRepository extends JpaRepository<BookableSlot, Long
         where s.company.id = :companyId
           and s.dayOfWeek = :dayOfWeek
           and c.active = true
+          and c.consultant = true
           and (:consultantId is null or c.id = :consultantId)
           and (s.indefinite = true
                or ((s.startDate is null or s.startDate <= :date)
