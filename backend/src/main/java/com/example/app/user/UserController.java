@@ -197,7 +197,7 @@ public class UserController {
 
         try {
             User saved = userRepository.save(user);
-            passwordResetService.sendEmployeeAccountCreatedEmail(saved);
+            passwordResetService.sendEmployeeAccountCreatedEmail(saved, request.locale());
             Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, tenantOwnerId));
         } catch (DataIntegrityViolationException ex) {
@@ -413,7 +413,8 @@ public class UserController {
             String phone,
             JsonNode workingHours,
             List<String> permissions,
-            Long accessRoleId
+            Long accessRoleId,
+            String locale
     ) {
     }
 

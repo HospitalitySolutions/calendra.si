@@ -642,6 +642,9 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         permissions: form.permissions,
         accessRoleId: editing?.tenantOwner ? null : form.accessRoleId ? Number(form.accessRoleId) : null,
       }
+      if (!editing) {
+        payload.locale = locale
+      }
 
       if (editing) {
         await api.put(`/users/${editing.id}`, payload)

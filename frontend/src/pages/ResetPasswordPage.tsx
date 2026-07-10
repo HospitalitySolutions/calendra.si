@@ -61,6 +61,13 @@ export function ResetPasswordPage() {
   const passwordRules = useMemo(() => getPasswordRuleChecks(password), [password])
 
   useEffect(() => {
+    const requestedLocale = params.get('locale')?.trim().toLowerCase()
+    if ((requestedLocale === 'sl' || requestedLocale === 'sr' || requestedLocale === 'en') && requestedLocale !== locale) {
+      setLocale(requestedLocale)
+    }
+  }, [locale, params, setLocale])
+
+  useEffect(() => {
     if (!token) {
       setValidating(false)
       setValid(false)
