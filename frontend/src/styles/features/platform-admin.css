@@ -219,3 +219,61 @@
     .platform-admin-modal-backdrop{position:fixed;inset:0;background:rgba(23,37,61,.38);display:none;place-items:center;padding:20px;z-index:10}.platform-admin-modal-backdrop.platform-admin-visible{display:grid}.platform-admin-modal{max-width:560px;width:100%;border-radius:26px;background:#fff;border:1px solid #dfe7f5;box-shadow:0 28px 80px rgba(23,37,61,.28);padding:22px;display:grid;gap:16px}.platform-admin-modal h3{margin:0;font-size:1.55rem;letter-spacing:-.045em}.platform-admin-modal p{margin:0;color:var(--muted);line-height:1.5}.platform-admin-modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.platform-admin-select-row{display:grid;gap:8px}.platform-admin-select-row label{font-weight:900;color:#2a3a56}.platform-admin-select-row select,.platform-admin-select-row textarea,.platform-admin-select-row input[type=number],.platform-admin-select-row input[type=text]{width:100%;border:1px solid var(--border);border-radius:15px;background:#fff;color:var(--text);padding:12px 14px;font:inherit;outline:none}.platform-admin-select-row textarea{min-height:90px;resize:vertical}.platform-admin-plan-change-extras{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid #dce7fb;background:rgba(237,244,255,.6)}.platform-admin-price-override-extras{display:grid;gap:14px}.platform-admin-price-override-panel{display:grid;gap:10px}.platform-admin-price-current-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid #cddcff;font-weight:850;font-size:.92rem;color:var(--text)}.platform-admin-price-current-pill strong{font-weight:950}.platform-admin-checkbox-row{display:flex;align-items:flex-start;gap:10px;font-weight:800;font-size:.9rem;color:#40506c;line-height:1.35}.platform-admin-checkbox-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--primary)}.platform-admin-price-preview{font-size:.88rem;font-weight:800;color:var(--muted)}
     @media(max-width:1180px){.platform-admin-admin-workspace{flex-direction:column}.platform-admin-admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(223,231,245,.85);padding:12px 10px 14px}.platform-admin-admin-sidebar-title{width:100%}.platform-admin-hero{grid-template-columns:1fr}.platform-admin-tenant-card{position:static}.platform-admin-kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}.platform-admin-field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:720px){.platform-admin-topbar{padding-left:16px;padding-right:16px}.platform-admin-admin-main{padding-left:16px;padding-right:16px;padding-top:16px}.platform-admin-page-head{display:grid}.platform-admin-search-input{min-width:0;width:100%}.platform-admin-kpi-row,.platform-admin-field-grid,.platform-admin-status-grid{grid-template-columns:1fr}.platform-admin-panel{border-radius:24px}}
+.platform-admin-email-sender-grid{
+  display:grid;
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
+  gap:14px;
+  align-items:start;
+}
+.platform-admin-email-sender-editor{
+  display:grid;
+  gap:14px;
+  padding:16px;
+  border:1px solid #e6edf9;
+  border-radius:20px;
+  background:rgba(255,255,255,.86);
+}
+.platform-admin-email-sender-editor--readonly{
+  background:rgba(247,250,255,.76);
+}
+.platform-admin-email-sender-title{
+  display:grid;
+  gap:4px;
+}
+.platform-admin-email-sender-title strong{
+  font-size:.98rem;
+  letter-spacing:-.025em;
+}
+.platform-admin-email-sender-title span{
+  color:var(--muted);
+  font-size:.88rem;
+  font-weight:750;
+  line-height:1.45;
+}
+.platform-admin-email-sender-form-grid{
+  grid-template-columns:1fr;
+}
+.platform-admin-email-sender-preview-grid{
+  grid-template-columns:1fr;
+}
+.platform-admin-email-sender-readiness{
+  border-radius:16px;
+  font-size:.88rem;
+  font-weight:850;
+  line-height:1.45;
+  padding:12px 14px;
+}
+.platform-admin-email-sender-readiness--ok{
+  background:var(--success-soft);
+  border:1px solid color-mix(in srgb, var(--success-text) 28%, var(--border));
+  color:var(--success-text);
+}
+.platform-admin-email-sender-readiness--warn{
+  background:var(--warning-soft);
+  border:1px solid #f2dda0;
+  color:var(--warning-text);
+}
+
+@media(max-width:980px){
+  .platform-admin-email-sender-grid{grid-template-columns:1fr}
+}

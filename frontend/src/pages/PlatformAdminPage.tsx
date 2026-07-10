@@ -4415,6 +4415,104 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: "developer", label: "Developer tools" },
 ];
 
+
+type TenantEmailSenderMode = "DEFAULT_CALENDRA" | "CUSTOM_DOMAIN";
+type TenantEmailSenderVerificationStatus =
+  | "NOT_VERIFIED"
+  | "PENDING"
+  | "FAILED"
+  | "VERIFIED"
+  | "SUCCESS";
+
+type TenantEmailSenderAdminDto = {
+  mode: string;
+  fromName: string;
+  fromEmail: string;
+  replyToEmail: string;
+  domain: string;
+  verificationStatus: string;
+};
+
+const EMAIL_SENDER_STATUS_OPTIONS: Array<{
+  value: TenantEmailSenderVerificationStatus;
+  label: string;
+}> = [
+  { value: "NOT_VERIFIED", label: "Not verified" },
+  { value: "PENDING", label: "Pending" },
+  { value: "FAILED", label: "Failed" },
+  { value: "VERIFIED", label: "Verified" },
+  { value: "SUCCESS", label: "Success / verified" },
+];
+
+function normalizePlatformEmailDomain(value: string | undefined | null): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "")
+    .replace(/^\.+/, "")
+    .replace(/\.+$/, "");
+}
+
+function emailDomainFromPlatformAddress(value: string | undefined | null): string {
+  const email = String(value || "").trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? normalizePlatformEmailDomain(email.slice(at + 1)) : "";
+}
+
+function platformEmailBelongsToDomain(email: string, domain: string): boolean {
+  const emailDomain = emailDomainFromPlatformAddress(email);
+  const normalizedDomain = normalizePlatformEmailDomain(domain);
+  return (
+    !!emailDomain &&
+    !!normalizedDomain &&
+    (emailDomain === normalizedDomain || emailDomain.endsWith(`.${normalizedDomain}`))
+  );
+}
+
+function normalizePlatformEmailSenderDto(
+  value: Partial<TenantEmailSenderAdminDto> | null | undefined,
+): TenantEmailSenderAdminDto {
+  const fromEmail = String(value?.fromEmail || "").trim().toLowerCase();
+  const fallbackDomain = emailDomainFromPlatformAddress(fromEmail);
+  const domain = normalizePlatformEmailDomain(value?.domain || fallbackDomain);
+  const status = String(value?.verificationStatus || "NOT_VERIFIED")
+    .trim()
+    .toUpperCase();
+  return {
+    mode: value?.mode === "CUSTOM_DOMAIN" ? "CUSTOM_DOMAIN" : "DEFAULT_CALENDRA",
+    fromName: String(value?.fromName || "").replace(/[\r\n]+/g, " ").trim(),
+    fromEmail,
+    replyToEmail: String(value?.replyToEmail || fromEmail).trim().toLowerCase(),
+    domain,
+    verificationStatus: EMAIL_SENDER_STATUS_OPTIONS.some(
+      (option) => option.value === status,
+    )
+      ? status
+      : "NOT_VERIFIED",
+  };
+}
+
+function emailSenderStatusPillClass(status: string): string {
+  const normalized = status.trim().toUpperCase();
+  if (normalized === "VERIFIED" || normalized === "SUCCESS") {
+    return "platform-admin-pill platform-admin-success";
+  }
+  if (normalized === "FAILED") return "platform-admin-pill platform-admin-danger";
+  if (normalized === "PENDING") return "platform-admin-pill platform-admin-warning";
+  return "platform-admin-pill";
+}
+
+function emailSenderCustomReady(config: TenantEmailSenderAdminDto | null): boolean {
+  if (!config) return false;
+  const status = config.verificationStatus.trim().toUpperCase();
+  return (
+    (status === "VERIFIED" || status === "SUCCESS") &&
+    platformEmailBelongsToDomain(config.fromEmail, config.domain)
+  );
+}
+
 function AdminComingSoon({ title }: { title: string }) {
   return (
     <div className="platform-admin-admin-placeholder platform-admin-panel platform-admin-panel-pad">
@@ -4455,6 +4553,12 @@ export function PlatformAdminPage() {
   const [manualTenantSaving, setManualTenantSaving] = useState(false);
   const [manualTenantErr, setManualTenantErr] = useState<string | null>(null);
   const [manualTenantResult, setManualTenantResult] = useState<string | null>(null);
+  const [emailSender, setEmailSender] = useState<TenantEmailSenderAdminDto | null>(null);
+  const [emailSenderDraft, setEmailSenderDraft] = useState<TenantEmailSenderAdminDto | null>(null);
+  const [emailSenderLoading, setEmailSenderLoading] = useState(false);
+  const [emailSenderSaving, setEmailSenderSaving] = useState(false);
+  const [emailSenderErr, setEmailSenderErr] = useState<string | null>(null);
+  const [emailSenderOk, setEmailSenderOk] = useState<string | null>(null);
 
   selectedRef.current = selected;
 
@@ -4561,6 +4665,47 @@ export function PlatformAdminPage() {
         }
       } finally {
         if (!cancelled) setAuditLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setEmailSender(null);
+      setEmailSenderDraft(null);
+      setEmailSenderLoading(false);
+      setEmailSenderSaving(false);
+      setEmailSenderErr(null);
+      setEmailSenderOk(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const tenantId = selected.id;
+    setEmailSender(null);
+    setEmailSenderDraft(null);
+    setEmailSenderErr(null);
+    setEmailSenderOk(null);
+    void (async () => {
+      setEmailSenderLoading(true);
+      try {
+        const { data } = await api.get<TenantEmailSenderAdminDto>(
+          `/platform-admin/tenancies/${tenantId}/email-sender`,
+        );
+        if (cancelled) return;
+        const normalized = normalizePlatformEmailSenderDto(data);
+        setEmailSender(normalized);
+        setEmailSenderDraft(normalized);
+      } catch {
+        if (!cancelled) {
+          setEmailSenderErr("Could not load tenant email sender settings.");
+          setEmailSender(null);
+          setEmailSenderDraft(null);
+        }
+      } finally {
+        if (!cancelled) setEmailSenderLoading(false);
       }
     })();
     return () => {
@@ -4801,6 +4946,67 @@ export function PlatformAdminPage() {
         .filter((row): row is PlanHistoryRow => !!row),
     [auditLog],
   );
+
+  const customEmailSenderReady = emailSenderCustomReady(emailSenderDraft);
+
+  const updateEmailSenderDraft = useCallback(
+    (patch: Partial<TenantEmailSenderAdminDto>) => {
+      setEmailSenderDraft((current) =>
+        normalizePlatformEmailSenderDto({ ...(current || {}), ...patch }),
+      );
+      setEmailSenderErr(null);
+      setEmailSenderOk(null);
+    },
+    [],
+  );
+
+  const saveEmailSender = useCallback(async () => {
+    if (!selected?.id || !emailSenderDraft) return;
+    const normalized = normalizePlatformEmailSenderDto(emailSenderDraft);
+    const wantsCustom = normalized.mode === "CUSTOM_DOMAIN";
+    if (wantsCustom && !normalized.domain) {
+      setEmailSenderErr("Enter the verified custom domain before enabling it.");
+      return;
+    }
+    if (wantsCustom && !platformEmailBelongsToDomain(normalized.fromEmail, normalized.domain)) {
+      setEmailSenderErr(
+        "Tenant From email must belong to the custom domain before CUSTOM_DOMAIN can be enabled.",
+      );
+      return;
+    }
+    const status = normalized.verificationStatus.trim().toUpperCase();
+    if (wantsCustom && status !== "VERIFIED" && status !== "SUCCESS") {
+      setEmailSenderErr(
+        "Set verification status to VERIFIED before enabling custom-domain sending.",
+      );
+      return;
+    }
+    setEmailSenderSaving(true);
+    setEmailSenderErr(null);
+    setEmailSenderOk(null);
+    try {
+      const { data } = await api.put<TenantEmailSenderAdminDto>(
+        `/platform-admin/tenancies/${selected.id}/email-sender`,
+        normalized,
+      );
+      const saved = normalizePlatformEmailSenderDto(data);
+      setEmailSender(saved);
+      setEmailSenderDraft(saved);
+      setEmailSenderOk("Email sender domain settings saved.");
+      await reloadAuditForCurrentSelection();
+    } catch (e) {
+      let message = "Could not save email sender settings.";
+      if (axios.isAxiosError(e)) {
+        const data = e.response?.data as { message?: string; error?: string } | string | undefined;
+        if (typeof data === "string" && data.trim()) message = data;
+        else if (data && typeof data !== "string" && data.message) message = data.message;
+        else if (data && typeof data !== "string" && data.error) message = data.error;
+      }
+      setEmailSenderErr(message);
+    } finally {
+      setEmailSenderSaving(false);
+    }
+  }, [emailSenderDraft, reloadAuditForCurrentSelection, selected?.id]);
 
   const loadManualTenantOptions = useCallback(async () => {
     if (manualTenantOptions) return manualTenantOptions;
@@ -5227,6 +5433,13 @@ export function PlatformAdminPage() {
                               </button>
                               <button
                                 type="button"
+                                className={`platform-admin-nav-item${activeNav === "email-sender" ? " platform-admin-active" : ""}`}
+                                data-target="email-sender"
+                              >
+                                Email sender <span>›</span>
+                              </button>
+                              <button
+                                type="button"
                                 className={`platform-admin-nav-item${activeNav === "audit" ? " platform-admin-active" : ""}`}
                                 data-target="audit"
                               >
@@ -5531,6 +5744,164 @@ export function PlatformAdminPage() {
                                   </div>
                                 </div>
                               </div>
+                            </section>
+
+                            <section className="platform-admin-section-card" id="email-sender">
+                              <div className="platform-admin-section-head">
+                                <div className="platform-admin-section-title">
+                                  <strong>Custom email domain</strong>
+                                  <span>
+                                    Platform Admin verifies the sending domain.
+                                    Sender name, from email and reply-to stay
+                                    controlled by the tenant under Notifications.
+                                  </span>
+                                </div>
+                                {emailSenderDraft ? (
+                                  <span
+                                    className={emailSenderStatusPillClass(
+                                      emailSenderDraft.verificationStatus,
+                                    )}
+                                  >
+                                    {emailSenderDraft.verificationStatus || "NOT_VERIFIED"}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              {emailSenderLoading ? (
+                                <p className="platform-admin-muted">Loading email sender settings…</p>
+                              ) : null}
+                              {emailSenderErr ? (
+                                <div className="platform-admin-manual-error">{emailSenderErr}</div>
+                              ) : null}
+                              {emailSenderOk ? (
+                                <div className="platform-admin-manual-result">{emailSenderOk}</div>
+                              ) : null}
+
+                              {!emailSenderLoading && emailSenderDraft ? (
+                                <>
+                                  <div className="platform-admin-email-sender-grid">
+                                    <div className="platform-admin-email-sender-editor">
+                                      <div className="platform-admin-email-sender-title">
+                                        <strong>Platform Admin controls</strong>
+                                        <span>
+                                          Set the verified domain and status for this tenant.
+                                        </span>
+                                      </div>
+                                      <div className="platform-admin-manual-grid platform-admin-email-sender-form-grid">
+                                        <div className="platform-admin-manual-field">
+                                          <label>Mode</label>
+                                          <select
+                                            value={emailSenderDraft.mode === "CUSTOM_DOMAIN" ? "CUSTOM_DOMAIN" : "DEFAULT_CALENDRA"}
+                                            onChange={(e) =>
+                                              updateEmailSenderDraft({
+                                                mode: e.target.value as TenantEmailSenderMode,
+                                              })
+                                            }
+                                          >
+                                            <option value="DEFAULT_CALENDRA">Calendra domain</option>
+                                            <option value="CUSTOM_DOMAIN">Custom domain</option>
+                                          </select>
+                                        </div>
+                                        <div className="platform-admin-manual-field">
+                                          <label>Verified domain</label>
+                                          <input
+                                            placeholder="avisensa.com"
+                                            value={emailSenderDraft.domain}
+                                            onChange={(e) =>
+                                              updateEmailSenderDraft({ domain: e.target.value })
+                                            }
+                                          />
+                                        </div>
+                                        <div className="platform-admin-manual-field">
+                                          <label>Verification status</label>
+                                          <select
+                                            value={emailSenderDraft.verificationStatus as TenantEmailSenderVerificationStatus}
+                                            onChange={(e) =>
+                                              updateEmailSenderDraft({
+                                                verificationStatus:
+                                                  e.target.value as TenantEmailSenderVerificationStatus,
+                                              })
+                                            }
+                                          >
+                                            {EMAIL_SENDER_STATUS_OPTIONS.map((option) => (
+                                              <option key={option.value} value={option.value}>
+                                                {option.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </div>
+                                      <div
+                                        className={`platform-admin-email-sender-readiness${
+                                          customEmailSenderReady
+                                            ? " platform-admin-email-sender-readiness--ok"
+                                            : " platform-admin-email-sender-readiness--warn"
+                                        }`}
+                                      >
+                                        {customEmailSenderReady
+                                          ? "Ready: tenant From email matches the verified custom domain."
+                                          : "Not ready: set status to VERIFIED and make sure the tenant From email belongs to this domain."}
+                                      </div>
+                                      <div className="platform-admin-top-actions">
+                                        <button
+                                          className="platform-admin-button platform-admin-primary platform-admin-small"
+                                          type="button"
+                                          disabled={emailSenderSaving}
+                                          onClick={saveEmailSender}
+                                        >
+                                          {emailSenderSaving ? "Saving…" : "Save email sender"}
+                                        </button>
+                                        <button
+                                          className="platform-admin-button platform-admin-secondary platform-admin-small"
+                                          type="button"
+                                          disabled={emailSenderSaving || !emailSender}
+                                          onClick={() => {
+                                            setEmailSenderDraft(emailSender);
+                                            setEmailSenderErr(null);
+                                            setEmailSenderOk(null);
+                                          }}
+                                        >
+                                          Reset changes
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="platform-admin-email-sender-editor platform-admin-email-sender-editor--readonly">
+                                      <div className="platform-admin-email-sender-title">
+                                        <strong>Tenant-controlled sender identity</strong>
+                                        <span>
+                                          These values are read from the tenant Notifications screen.
+                                        </span>
+                                      </div>
+                                      <div className="platform-admin-field-grid platform-admin-email-sender-preview-grid">
+                                        <div className="platform-admin-field-card">
+                                          <div className="platform-admin-field-label">
+                                            <strong>From name</strong>
+                                            <span>{emailSenderDraft.fromName || "—"}</span>
+                                          </div>
+                                        </div>
+                                        <div className="platform-admin-field-card">
+                                          <div className="platform-admin-field-label">
+                                            <strong>From email</strong>
+                                            <span>{emailSenderDraft.fromEmail || "—"}</span>
+                                          </div>
+                                        </div>
+                                        <div className="platform-admin-field-card">
+                                          <div className="platform-admin-field-label">
+                                            <strong>Reply-to email</strong>
+                                            <span>{emailSenderDraft.replyToEmail || "—"}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p className="platform-admin-muted" style={{ margin: 0, fontWeight: 750 }}>
+                                    The save request uses PUT /api/platform-admin/tenancies/
+                                    {selected.id}/email-sender and preserves the tenant&apos;s
+                                    current sender fields in the request body.
+                                  </p>
+                                </>
+                              ) : null}
                             </section>
 
                             <section className="platform-admin-section-card" id="audit">

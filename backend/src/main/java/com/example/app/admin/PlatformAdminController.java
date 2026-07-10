@@ -344,7 +344,8 @@ public class PlatformAdminController {
             @RequestBody TenantEmailSenderAdminDto body,
             @AuthenticationPrincipal User actor) {
         Company company = companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        TenantEmailSenderAdminDto normalized = normalizeTenantEmailSender(body);
+        TenantEmailSenderAdminDto normalized = normalizeTenantEmailSender(
+                withExistingTenantSenderIdentity(buildTenantEmailSender(company.getId()), body));
         if ("CUSTOM_DOMAIN".equals(normalized.mode())) {
             boolean ready = isVerifiedEmailSenderStatus(normalized.verificationStatus())
                     && TenantEmailSenderResolver.isValidEmail(normalized.fromEmail())
@@ -442,6 +443,25 @@ public class PlatformAdminController {
                 settingTrim(companyId, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS).isBlank()
                         ? "NOT_VERIFIED"
                         : settingTrim(companyId, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS));
+    }
+
+    private TenantEmailSenderAdminDto withExistingTenantSenderIdentity(
+            TenantEmailSenderAdminDto existing,
+            TenantEmailSenderAdminDto incoming) {
+        if (incoming == null) {
+            return existing;
+        }
+        return new TenantEmailSenderAdminDto(
+                incoming.mode(),
+                isBlank(incoming.fromName()) ? existing.fromName() : incoming.fromName(),
+                isBlank(incoming.fromEmail()) ? existing.fromEmail() : incoming.fromEmail(),
+                isBlank(incoming.replyToEmail()) ? existing.replyToEmail() : incoming.replyToEmail(),
+                incoming.domain(),
+                incoming.verificationStatus());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isBlank();
     }
 
     private TenantEmailSenderAdminDto normalizeTenantEmailSender(TenantEmailSenderAdminDto body) {
