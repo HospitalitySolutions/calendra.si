@@ -18,7 +18,6 @@ import {
   ConfigurationViberSection,
   ConfigurationWhatsAppSection,
 } from "./ConfigurationInboxMessagingSections";
-import { ConfigurationInvoiceDeliverySection } from "./ConfigurationInvoiceDeliverySection";
 import { ConfigurationDeliveryLogsSection } from "./ConfigurationDeliveryLogsSection";
 import { ConfigurationGiftCardSection } from "./ConfigurationGiftCardSection";
 import {
@@ -195,7 +194,6 @@ type BillingSubtab =
   | "stripe"
   | "paypal"
   | "fiscal"
-  | "invoiceDelivery"
   | "giftCard"
   | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
@@ -2179,7 +2177,6 @@ export function ConfigurationPage() {
       subtabQuery === "stripe" ||
       subtabQuery === "paypal" ||
       subtabQuery === "fiscal" ||
-      subtabQuery === "invoiceDelivery" ||
       subtabQuery === "giftCard" ||
       subtabQuery === "folioLayout"
     ) {
@@ -4262,7 +4259,6 @@ export function ConfigurationPage() {
           },
         ]
       : []),
-    { id: "invoiceDelivery", label: t("configBillingInvoiceDeliveryTab") },
     ...(giftCardsEnabledCommitted
       ? [
           { id: "giftCard", label: locale === "sl" ? "Darilni bon" : "Gift card" } satisfies {
@@ -10812,15 +10808,6 @@ export function ConfigurationPage() {
                           </div>
                         </div>
                       </div>
-                    ) : billingSubtab === "invoiceDelivery" ? (
-                      <ConfigurationInvoiceDeliverySection
-                        settings={settings}
-                        setSettings={setSettings}
-                        savingSettings={savingSettings}
-                        onSave={() => saveSettings()}
-                        t={t}
-                        locale={locale}
-                      />
                     ) : billingSubtab === "giftCard" ? (
                       <ConfigurationGiftCardSection
                         settings={settings}

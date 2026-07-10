@@ -10,13 +10,14 @@ type NotificationEventKind =
   | "sessionChanged"
   | "sessionCancelled"
   | "beforeSession"
-  | "afterSession";
+  | "afterSession"
+  | "invoiceDelivery";
 
 type NotificationEventDefinition = {
   id: NotificationEventKind;
   title: string;
   description: string;
-  icon: "calendar" | "edit" | "x" | "bell" | "check" | "message";
+  icon: "calendar" | "edit" | "x" | "bell" | "check" | "message" | "mail";
   reminder?: "before" | "after";
 };
 
@@ -75,6 +76,13 @@ const notificationEvents: NotificationEventDefinition[] = [
   },
 ];
 
+const invoiceDeliveryEvent: NotificationEventDefinition = {
+  id: "invoiceDelivery",
+  title: "Dostava računa",
+  description: "Pošlje se, ko je račun pripravljen za dostavo.",
+  icon: "mail",
+};
+
 const reminderBeforeOptions = [
   "15 min pred terminom",
   "30 min pred terminom",
@@ -90,10 +98,29 @@ const reminderAfterOptions = [
   "24 ur po seji",
 ];
 
+const INVOICE_DELIVERY_EMAIL_ENABLED_KEY = "INVOICE_DELIVERY_EMAIL_ENABLED";
+const INVOICE_DELIVERY_EMAIL_SUBJECT_KEY = "INVOICE_DELIVERY_EMAIL_SUBJECT";
+const INVOICE_DELIVERY_EMAIL_BODY_KEY = "INVOICE_DELIVERY_EMAIL_BODY";
+
+const DEFAULT_INVOICE_DELIVERY_SUBJECT =
+  "Invoice {{invoiceNumber}} from {{companyName}}";
+const DEFAULT_INVOICE_DELIVERY_BODY = `Hello {{guestName}},
+
+Your invoice {{invoiceNumber}} dated {{invoiceDate}} is attached.
+Amount due: {{amount}}
+Due date: {{dueDate}}
+
+Thank you,
+{{companyName}}`;
+
+
 function notificationEnabledKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
+  if (channel === "email" && id === "invoiceDelivery") {
+    return INVOICE_DELIVERY_EMAIL_ENABLED_KEY;
+  }
   return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${id.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase()}_ENABLED`;
 }
 
@@ -114,6 +141,7 @@ function getNotificationEnabled(
   const value = settings[notificationEnabledKey(channel, id)];
   if (value === "true") return true;
   if (value === "false") return false;
+  if (channel === "email" && id === "invoiceDelivery") return true;
   return NOTIFICATION_EVENT_DEFAULT_ENABLED;
 }
 
@@ -135,6 +163,9 @@ function notificationTemplateTitleKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
+  if (channel === "email" && id === "invoiceDelivery") {
+    return INVOICE_DELIVERY_EMAIL_SUBJECT_KEY;
+  }
   return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_TEMPLATE_TITLE`;
 }
 
@@ -142,6 +173,9 @@ function notificationTemplateBodyKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
+  if (channel === "email" && id === "invoiceDelivery") {
+    return INVOICE_DELIVERY_EMAIL_BODY_KEY;
+  }
   return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_TEMPLATE_BODY`;
 }
 
@@ -192,6 +226,10 @@ const emailTemplateDefaults: NotificationTemplateDefaults = {
     title: "Hvala za obisk",
     body: "Pozdravljeni {{ime_stranke}},\n\nhvala za obisk. Veseli bomo vaših povratnih informacij.\n\n{{ime_podjetja}}",
   },
+  invoiceDelivery: {
+    title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
+    body: DEFAULT_INVOICE_DELIVERY_BODY,
+  },
 };
 
 const smsTemplateDefaults: NotificationTemplateDefaults = {
@@ -215,6 +253,10 @@ const smsTemplateDefaults: NotificationTemplateDefaults = {
     title: "Po seji",
     body: "Hvala za obisk, {{ime_stranke}}. Veselimo se vaših povratnih informacij.",
   },
+  invoiceDelivery: {
+    title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
+    body: DEFAULT_INVOICE_DELIVERY_BODY,
+  },
 };
 
 const guestAppTemplateDefaults: NotificationTemplateDefaults = {
@@ -237,6 +279,10 @@ const guestAppTemplateDefaults: NotificationTemplateDefaults = {
   afterSession: {
     title: "Po seji",
     body: "Hvala za obisk. Veseli bomo vaših povratnih informacij.",
+  },
+  invoiceDelivery: {
+    title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
+    body: DEFAULT_INVOICE_DELIVERY_BODY,
   },
 };
 
@@ -274,6 +320,10 @@ const onlineTemplateDefaults: Record<
       title: "Hvala za online srečanje",
       body: "Pozdravljeni {{ime_stranke}},\n\nhvala za udeležbo na online srečanju. Veseli bomo vaših povratnih informacij.\n\n{{ime_podjetja}}",
     },
+    invoiceDelivery: {
+      title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
+      body: DEFAULT_INVOICE_DELIVERY_BODY,
+    },
   },
   sms: {
     newSession: {
@@ -296,6 +346,10 @@ const onlineTemplateDefaults: Record<
       title: "Po online seji",
       body: "Hvala za online srečanje, {{ime_stranke}}. Veselimo se vaših povratnih informacij.",
     },
+    invoiceDelivery: {
+      title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
+      body: DEFAULT_INVOICE_DELIVERY_BODY,
+    },
   },
   guestApp: {
     newSession: {
@@ -317,6 +371,10 @@ const onlineTemplateDefaults: Record<
     afterSession: {
       title: "Po online seji",
       body: "Hvala za online srečanje. Veseli bomo vaših povratnih informacij.",
+    },
+    invoiceDelivery: {
+      title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
+      body: DEFAULT_INVOICE_DELIVERY_BODY,
     },
   },
 };
@@ -407,6 +465,10 @@ export function applyNotificationModuleAvailability(
       }
     });
   });
+
+  if (!isNotificationChannelAvailable(next, "email")) {
+    next[INVOICE_DELIVERY_EMAIL_ENABLED_KEY] = "false";
+  }
 
   return next;
 }
@@ -658,6 +720,20 @@ const onlineNotificationTemplateTags = [
   { label: "Tip izvedbe", token: "{{tip_izvedbe}}" },
 ];
 
+const invoiceDeliveryTemplateTags = [
+  { label: "Številka računa", token: "{{invoiceNumber}}" },
+  { label: "Datum računa", token: "{{invoiceDate}}" },
+  { label: "Datum zapadlosti", token: "{{dueDate}}" },
+  { label: "Znesek", token: "{{amount}}" },
+  { label: "Ime gosta", token: "{{guestName}}" },
+  { label: "E-pošta gosta", token: "{{guestEmail}}" },
+  { label: "Ime podjetja", token: "{{companyName}}" },
+  { label: "E-pošta podjetja", token: "{{companyEmail}}" },
+  { label: "Telefon podjetja", token: "{{companyPhone}}" },
+  { label: "Spletna stran podjetja", token: "{{companyWebsite}}" },
+  { label: "Povezava za plačilo", token: "{{paymentLink}}" },
+];
+
 function getNotificationOnlineEnabled(
   settings: Record<string, string>,
   channel: NotificationChannel,
@@ -824,6 +900,24 @@ function NotificationEventIcon({
       >
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    );
+  }
+  if (icon === "mail") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
       </svg>
     );
   }
@@ -1053,6 +1147,10 @@ export function ConfigurationNotificationsSection({
   const availableChannels = (["email", "sms", "guestApp"] as const).filter(
     (id) => channelAvailability[id],
   );
+  const visibleNotificationEvents =
+    channel === "email"
+      ? [...notificationEvents, invoiceDeliveryEvent]
+      : notificationEvents;
 
   useEffect(() => {
     if (availableChannels.length === 0) return;
@@ -1073,11 +1171,11 @@ export function ConfigurationNotificationsSection({
   }, [editingEvent]);
 
   const selectedEvent = editingEvent
-    ? notificationEvents.find((event) => event.id === editingEvent) || null
+    ? visibleNotificationEvents.find((event) => event.id === editingEvent) || null
     : null;
   const onlineSessionBookingEnabled =
     settings.ONLINE_SESSION_BOOKING_ENABLED !== "false";
-  const selectedOnlineTemplateEnabled = selectedEvent
+  const selectedOnlineTemplateEnabled = selectedEvent && selectedEvent.id !== "invoiceDelivery"
     ? getNotificationOnlineEnabled(settings, channel, selectedEvent.id)
     : false;
   const selectedTemplateVariant: NotificationTemplateVariant =
@@ -1269,6 +1367,17 @@ export function ConfigurationNotificationsSection({
       "{{online_povezava}}": "https://meet.google.com/abc-defg-hij",
       "{{online_link}}": "https://meet.google.com/abc-defg-hij",
       "{{tip_izvedbe}}": "Online",
+      "{{guestName}}": "Maja Novak",
+      "{{invoiceNumber}}": "INV-2026-0012",
+      "{{invoiceDate}}": "12. junij 2026",
+      "{{dueDate}}": "27. junij 2026",
+      "{{amount}}": "61,00 €",
+      "{{guestEmail}}": "maja.novak@example.com",
+      "{{companyName}}": "2TEN",
+      "{{companyEmail}}": "info@2ten.si",
+      "{{companyPhone}}": "+386 40 000 000",
+      "{{companyWebsite}}": "2ten.si",
+      "{{paymentLink}}": "https://2ten.si/placilo/inv-2026-0012",
     };
     const plain = body
       .replace(/<br\s*\/?>/gi, "\n")
@@ -2588,7 +2697,7 @@ export function ConfigurationNotificationsSection({
             >
               <div>
                 <div className="notif-event-list">
-                  {notificationEvents.map((event) => {
+                  {visibleNotificationEvents.map((event) => {
                     const checked = getNotificationEnabled(
                       settings,
                       channel,
@@ -2736,13 +2845,15 @@ export function ConfigurationNotificationsSection({
                       </span>
                     </div>
                     <p className="notif-template-subtitle">
-                      {channel === "email"
-                        ? "Uredite vsebino e-pošte, ki bo poslana gostu ob izbranem dogodku."
-                        : channel === "sms"
+                      {selectedEvent.id === "invoiceDelivery"
+                        ? "Uredite vsebino e-pošte, ki bo poslana gostu ob dostavi računa."
+                        : channel === "email"
+                          ? "Uredite vsebino e-pošte, ki bo poslana gostu ob izbranem dogodku."
+                          : channel === "sms"
                           ? "Uredite kratko SMS sporočilo, ki bo poslano gostu ob izbranem dogodku."
                           : "Uredite obvestilo, ki se prikaže gostu v aplikaciji."}
                     </p>
-                    {onlineSessionBookingEnabled ? (
+                    {onlineSessionBookingEnabled && selectedEvent.id !== "invoiceDelivery" ? (
                       <div className="notif-online-toggle-row">
                         <span className="notif-online-toggle-copy">
                           <strong>Online</strong>
@@ -2759,6 +2870,7 @@ export function ConfigurationNotificationsSection({
                       </div>
                     ) : null}
                     {onlineSessionBookingEnabled &&
+                    selectedEvent.id !== "invoiceDelivery" &&
                     selectedOnlineTemplateEnabled ? (
                       <div
                         className="notif-template-variant-tabs"
@@ -2803,7 +2915,7 @@ export function ConfigurationNotificationsSection({
                       <label
                         htmlFor={`notif-template-title-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
                       >
-                        Naslov
+                        {channel === "email" ? "Zadeva e-pošte" : "Naslov"}
                       </label>
                       <input
                         id={`notif-template-title-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
@@ -2823,7 +2935,7 @@ export function ConfigurationNotificationsSection({
                       <label
                         htmlFor={`notif-template-body-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
                       >
-                        Vsebina
+                        {channel === "email" ? "Vsebina e-pošte" : "Vsebina"}
                       </label>
                       <div className="notif-template-editor">
                         <div
@@ -3033,9 +3145,11 @@ export function ConfigurationNotificationsSection({
                     <div className="notif-template-tags">
                       Razpoložljive oznake
                       <div className="notif-template-tag-list">
-                        {(selectedTemplateVariant === "online"
-                          ? onlineNotificationTemplateTags
-                          : notificationTemplateTags
+                        {(selectedEvent.id === "invoiceDelivery"
+                          ? invoiceDeliveryTemplateTags
+                          : selectedTemplateVariant === "online"
+                            ? onlineNotificationTemplateTags
+                            : notificationTemplateTags
                         ).map((tag) => (
                           <button
                             key={tag.token}
