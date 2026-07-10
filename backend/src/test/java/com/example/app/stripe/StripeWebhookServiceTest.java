@@ -79,7 +79,6 @@ class StripeWebhookServiceTest {
         Bill bill = bill(100L, BillPaymentStatus.PAYMENT_PENDING, "cs_1");
         when(events.existsByEventId("evt_1")).thenReturn(false);
         when(bills.findById(100L)).thenReturn(Optional.of(bill));
-        when(fiscalizationService.fiscalizeBill(any(Bill.class), eq(1L))).thenAnswer(a -> a.getArgument(0));
         when(billFolioPdfService.generate(any(Bill.class), eq(1L))).thenReturn(new byte[] {1, 2, 3});
 
         service.handleWebhook(payload, signature(payload));
