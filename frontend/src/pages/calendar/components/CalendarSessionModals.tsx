@@ -1444,11 +1444,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             >
               ×
             </button>
-            <div className="calendar-recurring-delete-modal__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v8h-2V9Zm4 0h2v8h-2V9ZM7 9h2v8H7V9Zm-1 12a2 2 0 0 1-2-2V7h16v12a2 2 0 0 1-2 2H6Z" fill="currentColor"/>
-              </svg>
-            </div>
             <div className="calendar-recurring-delete-modal__content">
               <h3>{t('formDeleteRecurringSessionTitle')}</h3>
               <p>{t('formDeleteRecurringSessionQuestion')}</p>
@@ -1459,14 +1454,26 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 className="calendar-recurring-delete-modal__primary"
                 onClick={() => void deleteBookedSession('SINGLE')}
               >
-                {t('formDeleteOnlyThisSession')}
+                <span className="calendar-recurring-delete-modal__button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 3v3M17 3v3M4.75 9.25h14.5M7.2 21h9.6c1.54 0 2.2-.66 2.2-2.2V7.2C19 5.66 18.34 5 16.8 5H7.2C5.66 5 5 5.66 5 7.2v11.6C5 20.34 5.66 21 7.2 21Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+                <span>{t('formDeleteOnlyThisSession')}</span>
               </button>
               <button
                 type="button"
                 className="calendar-recurring-delete-modal__secondary"
                 onClick={() => void deleteBookedSession('THIS_AND_FOLLOWING')}
               >
-                {t('formDeleteThisAndFollowing')}
+                <span className="calendar-recurring-delete-modal__button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 3v3M17 3v3M4.75 9.25h14.5M8 21h4.5M7.2 21h4.1M7.2 21C5.66 21 5 20.34 5 18.8V7.2C5 5.66 5.66 5 7.2 5h9.6C18.34 5 19 5.66 19 7.2v4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M19.35 17.3a3.85 3.85 0 0 1-6.65 2.65M12.65 16.7a3.85 3.85 0 0 1 6.65-2.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M19.35 14.05V16.7h-2.65M12.65 19.95V17.3h2.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+                <span>{t('formDeleteThisAndFollowing')}</span>
               </button>
             </div>
           </div>
