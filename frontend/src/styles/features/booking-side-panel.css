@@ -1729,25 +1729,30 @@
 }
 
 .calendar-recurring-delete-modal {
-    width: min(560px, 100%);
-    padding: 32px;
+    width: min(620px, calc(100vw - 32px));
+    padding: 38px 40px 34px;
     display: grid;
-    gap: 18px;
+    gap: 22px;
+    border-radius: 30px;
+    box-shadow: 0 32px 90px rgba(15, 23, 42, 0.24);
 }
 
 .calendar-recurring-delete-modal__close {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 40px;
-    height: 40px;
+    top: 18px;
+    right: 18px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: 999px;
     background: transparent;
-    color: var(--color-text);
-    font-size: 1.9rem;
+    color: #0f172a;
+    font-size: 2rem;
     line-height: 1;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .calendar-recurring-delete-modal__close:hover {
@@ -1755,13 +1760,13 @@
 }
 
 .calendar-recurring-delete-modal__icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 20px;
+    width: 68px;
+    height: 68px;
+    border-radius: 22px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(37, 99, 235, 0.10);
+    background: #edf4ff;
     color: var(--color-primary, #1672f3);
 }
 
@@ -1772,63 +1777,78 @@
 
 .calendar-recurring-delete-modal__content {
     display: grid;
-    gap: 8px;
+    gap: 10px;
+    max-width: 440px;
 }
 
 .calendar-recurring-delete-modal__content h3 {
     margin: 0;
     font-size: 2rem;
-    line-height: 1.05;
-    letter-spacing: -0.04em;
-    color: var(--color-text);
+    line-height: 1.06;
+    letter-spacing: -0.05em;
+    color: #0f172a;
 }
 
 .calendar-recurring-delete-modal__content p {
     margin: 0;
+    max-width: 430px;
     font-size: 1.08rem;
-    line-height: 1.55;
-    color: var(--color-text-muted);
+    line-height: 1.5;
+    color: #55627b;
 }
 
 .calendar-recurring-delete-modal__actions {
     display: grid;
-    gap: 14px;
+    gap: 16px;
+    margin-top: 2px;
 }
 
 .calendar-recurring-delete-modal__primary,
 .calendar-recurring-delete-modal__secondary {
     width: 100%;
-    min-height: 58px;
-    border-radius: 18px;
-    font-size: 1.05rem;
+    min-height: 72px;
+    border-radius: 22px;
+    font-size: 1.08rem;
     font-weight: 800;
-    padding: 14px 20px;
+    padding: 18px 22px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     line-height: 1.2;
     appearance: none;
+    transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
 
 .calendar-recurring-delete-modal__primary {
     border: 1px solid var(--color-primary, #1672f3);
-    background: linear-gradient(135deg, var(--color-primary, #1672f3), var(--color-primary-hover, #1d4ed8));
+    background: linear-gradient(135deg, #2f80ff 0%, var(--color-primary, #1672f3) 45%, var(--color-primary-hover, #1d4ed8) 100%);
     color: #fff;
-    box-shadow: 0 18px 34px rgba(37, 99, 235, 0.18);
+    box-shadow: 0 20px 36px rgba(37, 99, 235, 0.20);
 }
 
 .calendar-recurring-delete-modal__primary:hover:not(:disabled) {
-    filter: brightness(1.03);
+    transform: translateY(-1px);
+    box-shadow: 0 24px 40px rgba(37, 99, 235, 0.24);
 }
 
 .calendar-recurring-delete-modal__secondary {
-    border: 1px solid color-mix(in srgb, var(--color-primary, #1672f3) 42%, var(--border));
-    background: var(--color-primary-soft, rgba(22, 114, 243, 0.12));
+    border: 1.5px solid #5d9dff;
+    background: #fff;
     color: var(--color-primary, #1672f3);
+    box-shadow: none;
 }
 
 .calendar-recurring-delete-modal__secondary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-primary, #1672f3) 16%, var(--color-surface));
+    background: #f8fbff;
+    border-color: var(--color-primary, #1672f3);
+}
+
+[data-theme="dark"] .calendar-recurring-delete-modal {
+    box-shadow: 0 32px 90px rgba(0, 0, 0, 0.46);
+}
+
+[data-theme="dark"] .calendar-recurring-delete-modal__close {
+    color: #e5eefc;
 }
 
 [data-theme="dark"] .calendar-recurring-delete-modal__close:hover {
@@ -1839,29 +1859,59 @@
     background: rgba(96, 165, 250, 0.18);
 }
 
+[data-theme="dark"] .calendar-recurring-delete-modal__content h3 {
+    color: #f5f8ff;
+}
+
+[data-theme="dark"] .calendar-recurring-delete-modal__content p {
+    color: #c2cde0;
+}
+
 [data-theme="dark"] .calendar-recurring-delete-modal__secondary {
-    border-color: rgba(96, 165, 250, 0.55);
-    background: rgba(96, 165, 250, 0.08);
-    color: #cfe0ff;
+    border-color: rgba(96, 165, 250, 0.6);
+    background: rgba(13, 21, 37, 0.72);
+    color: #d9e7ff;
+}
+
+[data-theme="dark"] .calendar-recurring-delete-modal__secondary:hover:not(:disabled) {
+    background: rgba(18, 30, 50, 0.92);
 }
 
 @media (max-width: 640px) {
     .calendar-recurring-delete-modal {
-        padding: 24px 20px 20px;
-        gap: 16px;
+        width: min(100%, calc(100vw - 24px));
+        padding: 24px 20px 22px;
+        gap: 18px;
+        border-radius: 24px;
+    }
+
+    .calendar-recurring-delete-modal__close {
+        top: 12px;
+        right: 12px;
+        width: 40px;
+        height: 40px;
+        font-size: 1.8rem;
+    }
+
+    .calendar-recurring-delete-modal__icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 18px;
     }
 
     .calendar-recurring-delete-modal__content h3 {
-        font-size: 1.6rem;
+        font-size: 1.72rem;
     }
 
     .calendar-recurring-delete-modal__content p {
         font-size: 1rem;
+        max-width: none;
     }
 
     .calendar-recurring-delete-modal__primary,
     .calendar-recurring-delete-modal__secondary {
-        min-height: 54px;
+        min-height: 60px;
+        border-radius: 18px;
         font-size: 1rem;
     }
 }
