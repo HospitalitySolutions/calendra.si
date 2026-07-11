@@ -2270,6 +2270,9 @@ export const registerPageStyles = `
   grid-template-rows: auto auto;
   gap: 14px 24px;
   align-items: start;
+  align-content: start;
+  min-height: 0;
+  height: auto;
 }
 
 .register-flow.register-plan-selection-page .layout > .register-stepper-row {
