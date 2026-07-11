@@ -121,7 +121,7 @@ function RegisterAddonIcon({ addonKey }: { addonKey: string }) {
   );
 }
 
-function RegisterFeatureIcon({ featureKey }: { featureKey: string }) {
+export function RegisterFeatureIcon({ featureKey }: { featureKey: string }) {
   const icon = (() => {
     switch (featureKey) {
       case "appointments":

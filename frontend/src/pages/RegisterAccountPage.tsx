@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import loginLogo from "../assets/login-logo.png";
+import { AuthLanguageDropdown } from "../components/AuthLanguageDropdown";
 import { useToast } from "../components/Toast";
 import { Field } from "../components/ui";
 import { api } from "../api";
@@ -19,7 +20,11 @@ import {
   selectionToSearch,
   type RegisterSelection,
 } from "./registerFlow";
-import { RegisterFooterChevron, RegisterFooterListIcon } from "./RegisterPage";
+import {
+  RegisterFeatureIcon,
+  RegisterFooterChevron,
+  RegisterFooterListIcon,
+} from "./RegisterPage";
 import {
   annualSaveBadgeText,
   buildRegisterFooterPill,
@@ -27,6 +32,8 @@ import {
   formatEuro,
   getActiveAddonKeys,
   getAnnualDiscountFactor,
+  getFeatureItems,
+  getPlanDisplay,
   getRegisterPlanPageCopy,
   getSelectionMonthlyAmounts,
   plansForLocale,
@@ -553,15 +560,435 @@ const registerAccountPageStyles = `
     max-width: 100%;
   }
 
+  /* Step 2 uses the same visual system and proportions as plan selection. */
+  .register-flow.register-account-page {
+    --max-width: 1240px;
+  }
+
+  .register-flow.register-account-page .content {
+    flex: 0 0 auto;
+    min-height: auto;
+    padding: 8px 0 150px;
+  }
+
+  .register-flow.register-account-page .register-account-main {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row {
+    width: 100%;
+    justify-content: center;
+    align-self: stretch;
+    margin: 2px 0 16px;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row .stepper {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, auto));
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row .stepper::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    left: 16.666%;
+    right: 16.666%;
+    height: 1px;
+    background: #dbe4f1;
+    z-index: 0;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row .step {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 3px 10px 8px;
+    border: 0;
+    border-radius: 0;
+    color: #8793a8;
+    background: transparent;
+    font-size: 0.84rem;
+    font-weight: 700;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row .step.step-done,
+  .register-flow.register-account-page .register-account-stepper-row .step.step-current {
+    border: 0;
+    background: transparent;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row .step.step-done {
+    color: #53647f;
+  }
+
+  .register-flow.register-account-page .register-account-stepper-row .step.step-current {
+    color: var(--blue);
+  }
+
+  .register-flow.register-account-page .register-account-step-number {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 999px;
+    border: 1px solid #d8e1ee;
+    background: #fff;
+    color: #7c899d;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .register-flow.register-account-page .step.step-done .register-account-step-number {
+    border-color: #bdd1fb;
+    color: var(--blue);
+  }
+
+  .register-flow.register-account-page .step.step-current .register-account-step-number {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: #fff;
+    box-shadow: 0 5px 14px rgba(36, 99, 235, 0.25);
+  }
+
+  .register-flow.register-account-page .register-account-step-label {
+    padding: 2px 5px;
+    background: #f8fbff;
+    white-space: nowrap;
+  }
+
+  .register-flow.register-account-page .register-account-page-stack {
+    width: 100%;
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.88fr);
+    gap: 24px;
+    align-items: start;
+    min-height: auto;
+  }
+
+  .register-flow.register-account-page .register-account-card {
+    width: 100%;
+    padding: 32px;
+    gap: 20px;
+    margin: 0;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(222, 231, 244, 0.98);
+    box-shadow: 0 16px 42px rgba(55, 83, 134, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .register-flow.register-account-page .register-account-trust {
+    padding: 7px 12px;
+    font-size: 0.8rem;
+  }
+
+  .register-flow.register-account-page .register-account-selection-chip {
+    padding: 7px 12px;
+    font-size: 0.8rem;
+    color: #17253d;
+  }
+
+  .register-flow.register-account-page .register-account-title-block {
+    gap: 11px;
+  }
+
+  .register-flow.register-account-page .register-account-title {
+    font-size: clamp(2rem, 3vw, 2.42rem);
+    line-height: 1.04;
+    letter-spacing: -0.052em;
+  }
+
+  .register-flow.register-account-page .register-account-copy {
+    max-width: 610px;
+    font-size: 0.96rem;
+    line-height: 1.55;
+  }
+
+  .register-flow.register-account-page .register-account-form-card,
+  .register-flow.register-account-page .register-account-verify-card {
+    padding: 20px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid #dfe7f5;
+    box-shadow: 0 8px 24px rgba(47, 109, 246, 0.055);
+  }
+
+  .register-flow.register-account-page .register-account-social-button {
+    min-height: 52px;
+    border-radius: 16px;
+    background: #fff;
+    border-color: #d9e2f0;
+  }
+
+  .register-flow.register-account-page .register-account-social-button:hover {
+    background: #f8fbff;
+    border-color: #c9d8ef;
+  }
+
+  .register-flow.register-account-page .register-account-google-mark {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .register-flow.register-account-page .register-account-field input {
+    height: 54px;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .register-flow.register-account-page .register-account-submit,
+  .register-flow.register-account-page .register-account-back-plan {
+    height: 54px;
+    border-radius: 13px;
+  }
+
+  .register-flow.register-account-page .register-account-summary-card {
+    position: sticky;
+    top: 16px;
+    min-width: 0;
+    padding: 22px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(222, 231, 244, 0.98);
+    box-shadow: 0 16px 42px rgba(55, 83, 134, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .register-flow.register-account-page .register-account-summary-heading {
+    margin: 0 0 16px;
+    font-size: 1.28rem;
+    line-height: 1.2;
+    letter-spacing: -0.035em;
+    color: #17253d;
+  }
+
+  .register-flow.register-account-page .register-account-summary-plan {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    margin-bottom: 8px;
+    border-radius: 15px;
+    border: 1px solid #dbe6f7;
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+  }
+
+  .register-flow.register-account-page .register-account-summary-plan-copy {
+    min-width: 0;
+  }
+
+  .register-flow.register-account-page .register-account-summary-plan-name {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 1.08rem;
+    font-weight: 900;
+    color: #17253d;
+  }
+
+  .register-flow.register-account-page .register-account-summary-plan-description {
+    margin: 0;
+    color: #70809b;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .register-flow.register-account-page .register-account-summary-price {
+    flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .register-flow.register-account-page .register-account-summary-price strong {
+    display: block;
+    color: #2054d4;
+    font-size: 1.18rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+  }
+
+  .register-flow.register-account-page .register-account-summary-price span {
+    display: block;
+    margin-top: 5px;
+    color: #7c899d;
+    font-size: 0.72rem;
+  }
+
+  .register-flow.register-account-page .register-account-feature-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .register-flow.register-account-page .register-account-feature-item {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    gap: 11px;
+    min-height: 58px;
+    padding: 10px 2px;
+    border-bottom: 1px solid #e7edf6;
+    color: #17253d;
+  }
+
+  .register-flow.register-account-page .register-account-feature-item:last-child {
+    border-bottom: 0;
+  }
+
+  .register-flow.register-account-page .register-account-feature-item.is-disabled {
+    opacity: 0.42;
+  }
+
+  .register-flow.register-account-page .register-account-feature-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: #edf4ff;
+    color: #2f6df6;
+  }
+
+  .register-flow.register-account-page .register-account-feature-icon svg {
+    display: block;
+    width: 17px;
+    height: 17px;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .register-flow.register-account-page .register-account-feature-name {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 0.84rem;
+    font-weight: 900;
+  }
+
+  .register-flow.register-account-page .register-account-feature-description {
+    display: block;
+    color: #70809b;
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .register-flow.register-account-page .register-fixed-footer {
+    bottom: 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .register-flow.register-account-page .register-fixed-footer.is-expanded {
+    box-shadow: none;
+  }
+
+  .register-flow.register-account-page .register-fixed-footer-inner.register-footer-panel {
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid rgba(219, 228, 241, 0.98);
+    border-radius: 17px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 16px 42px rgba(32, 57, 102, 0.16);
+    backdrop-filter: blur(16px);
+  }
+
+  .register-flow.register-account-page .register-footer-toolbar {
+    min-height: 56px;
+  }
+
+  .register-flow.register-account-page .register-footer-center-cluster,
+  .register-flow.register-account-page .register-footer-toolbar-mid {
+    width: 100%;
+    max-width: none;
+  }
+
+  .register-flow.register-account-page .register-footer-pill {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 11px;
+    background: #f8faff;
+  }
+
+  .register-flow.register-account-page .register-footer-pill:hover {
+    border-color: transparent;
+    background: #f3f7ff;
+    box-shadow: none;
+  }
+
+  .register-flow.register-account-page .register-footer-pill-title {
+    font-size: 0.8rem;
+  }
+
+  .register-flow.register-account-page .register-footer-pill-sub {
+    font-size: 0.66rem;
+  }
+
+  .register-flow.register-account-page .register-footer-pill-total-inline {
+    min-width: 128px;
+  }
+
+  .register-flow.register-account-page .register-footer-pill-total-inline .register-footer-total-value {
+    font-size: 1rem;
+  }
+
+  @media (min-width: 861px) {
+    .register-flow.register-account-page .register-footer-toolbar-lead {
+      visibility: hidden;
+    }
+  }
+
   @media (max-width: 1024px) {
     .register-flow.register-account-page .content {
-      padding-top: 24px;
+      padding-top: 14px;
+    }
+
+    .register-flow.register-account-page .register-account-page-stack {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+      gap: 18px;
+    }
+
+    .register-flow.register-account-page .register-account-card {
+      padding: 24px;
+    }
+
+    .register-flow.register-account-page .register-account-summary-card {
+      padding: 18px;
     }
   }
 
   @media (max-width: 860px) {
+    .register-flow.register-account-page .register-account-page-stack {
+      grid-template-columns: 1fr;
+    }
+
     .register-flow.register-account-page .register-account-card {
       padding: 22px 18px;
+    }
+
+    .register-flow.register-account-page .register-account-summary-card {
+      position: static;
     }
 
     .register-flow.register-account-page .register-account-field-grid {
@@ -580,7 +1007,10 @@ const registerAccountPageStyles = `
     }
 
     .register-flow.register-account-page .register-account-page-stack {
+      display: grid;
+      grid-template-columns: 1fr;
       align-items: stretch;
+      gap: 14px;
     }
 
     .register-flow.register-account-page .register-account-card {
@@ -592,6 +1022,11 @@ const registerAccountPageStyles = `
       box-shadow: none;
       margin-top: 0;
       margin-bottom: 0;
+    }
+
+    .register-flow.register-account-page .register-account-summary-card {
+      padding: 18px;
+      border-radius: 20px;
     }
 
     .register-flow.register-account-page .register-account-title-row {
@@ -825,7 +1260,7 @@ type AccountPageCopy = {
 const accountPageCopy: Record<"en" | "sl", AccountPageCopy> = {
   en: {
     trust: "Secure account setup",
-    selectionChip: "Plan selected",
+    selectionChip: "Selected plan",
     title: "Account setup",
     subtitle:
       "Continue with your work email or Google. Your selected plan and add-ons stay attached while you finish creating your account.",
@@ -896,7 +1331,7 @@ const accountPageCopy: Record<"en" | "sl", AccountPageCopy> = {
   },
   sl: {
     trust: "Varna nastavitev računa",
-    selectionChip: "Paket izbran",
+    selectionChip: "Izbrani paket",
     title: "Nastavitev računa",
     subtitle:
       "Nadaljujte s poslovnim e-mailom ali Google računom. Vaš izbrani paket in dodatki ostanejo povezani med ustvarjanjem računa.",
@@ -1030,6 +1465,17 @@ export function RegisterAccountPage() {
     () => plansForLocale(lang),
     [lang, registerCatalogRevision],
   );
+  const featureItems = useMemo(
+    () => getFeatureItems(lang),
+    [lang, registerCatalogRevision],
+  );
+  const selectedPlan = plans[selection.plan];
+  const selectedPlanDisplay = useMemo(
+    () => getPlanDisplay(selection.plan, selection.billing, lang),
+    [selection.plan, selection.billing, lang, registerCatalogRevision],
+  );
+  const selectedPlanLabel =
+    lang === "sl" ? `Paket ${selectedPlan.name}` : `${selectedPlan.name} plan`;
   const pm = lang === "sl" ? "/mes." : "/mo";
   const packageName =
     selection.plan === "basic"
@@ -1658,38 +2104,11 @@ export function RegisterAccountPage() {
         </div>
 
         <div className="top-actions">
-          <div className="lang-switch" role="group" aria-label={t("language")}>
-            <button
-              type="button"
-              className={
-                locale === "sl" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "sl"}
-              onClick={() => setLocale("sl")}
-            >
-              SL
-            </button>
-            <button
-              type="button"
-              className={
-                locale === "sr" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "sr"}
-              onClick={() => setLocale("sr")}
-            >
-              SR
-            </button>
-            <button
-              type="button"
-              className={
-                locale === "en" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "en"}
-              onClick={() => setLocale("en")}
-            >
-              EN
-            </button>
-          </div>
+          <AuthLanguageDropdown
+            locale={locale}
+            setLocale={setLocale}
+            ariaLabel={t("language")}
+          />
         </div>
       </header>
 
@@ -1699,9 +2118,27 @@ export function RegisterAccountPage() {
           <div className="register-account-main">
             <div className="register-stepper-row register-account-stepper-row">
               <div className="stepper" aria-label={registerShell.stepperAria}>
-                <div className="step step-done">{registerShell.step1} ✓</div>
-                <div className="step step-current">{registerShell.step2}</div>
-                <div className="step">{registerShell.step3}</div>
+                {[registerShell.step1, registerShell.step2, registerShell.step3].map(
+                  (step, index) => (
+                    <div
+                      key={step}
+                      className={
+                        index === 0
+                          ? "step step-done"
+                          : index === 1
+                            ? "step step-current"
+                            : "step"
+                      }
+                    >
+                      <span className="register-account-step-number" aria-hidden>
+                        {index === 0 ? "✓" : index + 1}
+                      </span>
+                      <span className="register-account-step-label">
+                        {step.replace(/^\d+\s*/, "")}
+                      </span>
+                    </div>
+                  ),
+                )}
               </div>
             </div>
             <div className="register-account-page-stack">
@@ -1947,13 +2384,15 @@ export function RegisterAccountPage() {
                   </>
                 ) : (
                   <>
-                    <div className="register-account-trust">{copy.trust}</div>
+                    <div className="register-account-trust">
+                      {copy.selectionChip}
+                    </div>
 
                     <div className="register-account-header">
                       <div className="register-account-title-row">
                         <div className="register-account-title-block">
                           <div className="register-account-selection-chip">
-                            {copy.selectionChip}
+                            {selectedPlanLabel}
                           </div>
                           <h1 className="register-account-title">
                             {copy.title}
@@ -2093,6 +2532,62 @@ export function RegisterAccountPage() {
                   </>
                 )}
               </section>
+
+              <aside
+                className="register-account-summary-card"
+                aria-labelledby="register-account-summary-heading"
+              >
+                <h2
+                  id="register-account-summary-heading"
+                  className="register-account-summary-heading"
+                >
+                  {registerShell.planPreviewHeading}
+                </h2>
+
+                <div className="register-account-summary-plan">
+                  <div className="register-account-summary-plan-copy">
+                    <strong className="register-account-summary-plan-name">
+                      {selectedPlan.name}
+                    </strong>
+                    <p className="register-account-summary-plan-description">
+                      {selectedPlan.description}
+                    </p>
+                  </div>
+                  <div className="register-account-summary-price">
+                    <strong>{selectedPlanDisplay.primary}</strong>
+                    <span>{selectedPlanDisplay.secondary}</span>
+                  </div>
+                </div>
+
+                <ul className="register-account-feature-list">
+                  {featureItems.map((feature) => {
+                    const enabled = selectedPlan.features.includes(feature.key);
+                    return (
+                      <li
+                        key={feature.key}
+                        className={`register-account-feature-item${
+                          enabled ? "" : " is-disabled"
+                        }`}
+                      >
+                        <span
+                          className="register-account-feature-icon"
+                          aria-hidden
+                        >
+                          <RegisterFeatureIcon featureKey={feature.key} />
+                        </span>
+                        <span>
+                          <span className="register-account-feature-name">
+                            {feature.name}
+                          </span>
+                          <span className="register-account-feature-description">
+                            {feature.description}
+                          </span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </aside>
             </div>
           </div>
         </main>
