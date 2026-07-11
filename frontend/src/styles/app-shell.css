@@ -1380,3 +1380,250 @@ a.credentials-popover-action-btn {
 @media (max-width: 480px) {
     .sidebar a { padding: 8px 12px; font-size: 0.8125rem; }
 }
+
+/* Support email provider chooser */
+.support-email-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 13000;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.48);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.support-email-modal {
+    width: min(100%, 500px);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 24px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 22px;
+    background: #ffffff;
+    color: var(--color-text);
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+    box-sizing: border-box;
+}
+
+.support-email-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.support-email-modal-header h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1.25rem;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+}
+
+.support-email-modal-header p {
+    margin: 7px 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.support-email-modal-close {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #f8fafc;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.support-email-modal-close:hover {
+    background: #eef2f7;
+    color: var(--color-text);
+}
+
+.support-email-modal-close:active {
+    transform: scale(0.96);
+}
+
+.support-email-address {
+    display: flex;
+    align-items: center;
+    margin-top: 18px;
+    padding: 11px 14px;
+    border: 1px solid rgba(37, 99, 235, 0.14);
+    border-radius: 12px;
+    background: rgba(37, 99, 235, 0.055);
+    color: #1d4ed8;
+    font-size: 0.875rem;
+    font-weight: 700;
+    word-break: break-all;
+}
+
+.support-email-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.support-email-option {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 13px;
+    width: 100%;
+    min-height: 66px;
+    padding: 10px 13px;
+    border: 1px solid #e2e8f0;
+    border-radius: 15px;
+    background: #ffffff;
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.support-email-option:hover {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: #fbfdff;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.09);
+    transform: translateY(-1px);
+}
+
+.support-email-option:focus-visible,
+.support-email-modal-close:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.22);
+    outline-offset: 2px;
+}
+
+.support-email-option-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.support-email-option-icon--gmail {
+    background: #fff1f2;
+    color: #dc2626;
+}
+
+.support-email-option-icon--outlook {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.support-email-option-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.support-email-option-text strong {
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: 0.925rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.support-email-option-text small {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.support-email-option-arrow {
+    color: #94a3b8;
+}
+
+.support-email-option-check {
+    color: #16a34a;
+}
+
+[data-theme="dark"] .support-email-modal {
+    border-color: var(--border);
+    background: var(--color-surface);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="dark"] .support-email-modal-close {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .support-email-modal-close:hover {
+    background: rgba(255, 255, 255, 0.09);
+}
+
+[data-theme="dark"] .support-email-address {
+    border-color: rgba(96, 165, 250, 0.22);
+    background: rgba(37, 99, 235, 0.14);
+    color: #93c5fd;
+}
+
+[data-theme="dark"] .support-email-option {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.035);
+}
+
+[data-theme="dark"] .support-email-option:hover {
+    border-color: rgba(96, 165, 250, 0.42);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="dark"] .support-email-option-icon {
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+}
+
+[data-theme="dark"] .support-email-option-icon--gmail {
+    background: rgba(239, 68, 68, 0.14);
+    color: #fca5a5;
+}
+
+@media (max-width: 560px) {
+    .support-email-modal-backdrop {
+        align-items: end;
+        padding: 12px;
+    }
+
+    .support-email-modal {
+        width: 100%;
+        max-height: calc(100vh - 24px);
+        padding: 20px 16px 16px;
+        border-radius: 20px;
+    }
+
+    .support-email-option {
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        min-height: 64px;
+        padding: 9px 11px;
+    }
+
+    .support-email-option-icon {
+        width: 42px;
+        height: 42px;
+    }
+}

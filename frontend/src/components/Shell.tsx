@@ -133,6 +133,155 @@ function SidebarIconPlatformAdmin() {
   )
 }
 
+
+const SUPPORT_EMAIL = 'info@calendra.si'
+
+function SupportEmailModal({ locale, onClose }: { locale: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+  const title = locale === 'sl'
+    ? 'Kje želite odpreti e-pošto?'
+    : locale === 'sr'
+      ? 'Gde želite da otvorite e-poštu?'
+      : 'Where would you like to open the email?'
+  const description = locale === 'sl'
+    ? 'Izberite ponudnika ali privzeto e-poštno aplikacijo.'
+    : locale === 'sr'
+      ? 'Izaberite provajdera ili podrazumevanu aplikaciju za e-poštu.'
+      : 'Choose a provider or your default email application.'
+  const defaultAppLabel = locale === 'sl'
+    ? 'Privzeta e-poštna aplikacija'
+    : locale === 'sr'
+      ? 'Podrazumevana aplikacija za e-poštu'
+      : 'Default email app'
+  const copyLabel = copied
+    ? (locale === 'sl' ? 'Kopirano' : locale === 'sr' ? 'Kopirano' : 'Copied')
+    : (locale === 'sl' ? 'Kopiraj e-poštni naslov' : locale === 'sr' ? 'Kopiraj adresu e-pošte' : 'Copy email address')
+  const closeLabel = locale === 'sl' ? 'Zapri' : locale === 'sr' ? 'Zatvori' : 'Close'
+  const subject = 'Calendra support'
+  const encodedEmail = encodeURIComponent(SUPPORT_EMAIL)
+  const encodedSubject = encodeURIComponent(subject)
+  const gmailHref = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedEmail}&su=${encodedSubject}`
+  const outlookHref = `https://outlook.office.com/mail/deeplink/compose?to=${encodedEmail}&subject=${encodedSubject}`
+  const mailtoHref = `mailto:${SUPPORT_EMAIL}?subject=${encodedSubject}`
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPPORT_EMAIL)
+    } catch {
+      const input = document.createElement('textarea')
+      input.value = SUPPORT_EMAIL
+      input.style.position = 'fixed'
+      input.style.opacity = '0'
+      document.body.appendChild(input)
+      input.select()
+      document.execCommand('copy')
+      document.body.removeChild(input)
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
+  }
+
+  return createPortal(
+    <div className="support-email-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="support-email-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="support-email-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="support-email-modal-header">
+          <div>
+            <h2 id="support-email-modal-title">{title}</h2>
+            <p>{description}</p>
+          </div>
+          <button type="button" className="support-email-modal-close" onClick={onClose} aria-label={closeLabel}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="support-email-address">
+          <span>{SUPPORT_EMAIL}</span>
+        </div>
+
+        <div className="support-email-options">
+          <a className="support-email-option" href={gmailHref} target="_blank" rel="noreferrer" onClick={onClose}>
+            <span className="support-email-option-icon support-email-option-icon--gmail" aria-hidden>G</span>
+            <span className="support-email-option-text">
+              <strong>Gmail</strong>
+              <small>{locale === 'sl' ? 'Odpri novo sporočilo v Gmailu' : locale === 'sr' ? 'Otvori novu poruku u Gmail-u' : 'Open a new message in Gmail'}</small>
+            </span>
+            <svg className="support-email-option-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </a>
+
+          <a className="support-email-option" href={outlookHref} target="_blank" rel="noreferrer" onClick={onClose}>
+            <span className="support-email-option-icon support-email-option-icon--outlook" aria-hidden>O</span>
+            <span className="support-email-option-text">
+              <strong>Outlook</strong>
+              <small>{locale === 'sl' ? 'Odpri novo sporočilo v Outlooku' : locale === 'sr' ? 'Otvori novu poruku u Outlook-u' : 'Open a new message in Outlook'}</small>
+            </span>
+            <svg className="support-email-option-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </a>
+
+          <a className="support-email-option" href={mailtoHref} onClick={onClose}>
+            <span className="support-email-option-icon" aria-hidden>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
+              </svg>
+            </span>
+            <span className="support-email-option-text">
+              <strong>{defaultAppLabel}</strong>
+              <small>{locale === 'sl' ? 'Uporabi aplikacijo, nastavljeno v brskalniku' : locale === 'sr' ? 'Koristi aplikaciju podešenu u pregledaču' : 'Use the app configured in your browser'}</small>
+            </span>
+            <svg className="support-email-option-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </a>
+
+          <button type="button" className="support-email-option" onClick={copyEmail}>
+            <span className="support-email-option-icon" aria-hidden>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </span>
+            <span className="support-email-option-text">
+              <strong>{copyLabel}</strong>
+              <small>{SUPPORT_EMAIL}</small>
+            </span>
+            {copied ? (
+              <svg className="support-email-option-arrow support-email-option-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m5 12 4 4L19 6" />
+              </svg>
+            ) : null}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 export function Shell({ children }: PropsWithChildren) {
   return (
     <CalendarShellHeaderProvider>
@@ -193,6 +342,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [accountOpen, setAccountOpen] = useState(false)
   const [, setSessionUserBump] = useState(0)
   const [languageModalOpen, setLanguageModalOpen] = useState(false)
+  const [supportEmailModalOpen, setSupportEmailModalOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const bellRef = useRef<HTMLDivElement>(null)
@@ -722,10 +872,13 @@ function ShellInner({ children }: PropsWithChildren) {
               <div className="mobile-nav-overlay-user-email">{user.email}</div>
             </div>
           </div>
-          <a
+          <button
+            type="button"
             className="mobile-nav-overlay-logout"
-            href="mailto:info@calendra.si"
-            onClick={() => setMobileNavOpen(false)}
+            onClick={() => {
+              setMobileNavOpen(false)
+              setSupportEmailModalOpen(true)
+            }}
             aria-label={t('supportEmailHint')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -733,7 +886,7 @@ function ShellInner({ children }: PropsWithChildren) {
               <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
             </svg>
             {t('support')}
-          </a>
+          </button>
           <button
             type="button"
             className="mobile-nav-overlay-logout"
@@ -922,17 +1075,20 @@ function ShellInner({ children }: PropsWithChildren) {
               <div className="credentials-popover-divider" aria-hidden />
               <div className="credentials-popover-actions">
                 <div className="credentials-popover-actions-title">{t('actions')}</div>
-                <a
+                <button
+                  type="button"
                   className="credentials-popover-action-btn"
-                  href="mailto:info@calendra.si"
-                  onClick={() => setAccountOpen(false)}
+                  onClick={() => {
+                    setAccountOpen(false)
+                    setSupportEmailModalOpen(true)
+                  }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
                     <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
                   </svg>
                   {t('support')}
-                </a>
+                </button>
                 <button
                   type="button"
                   className="credentials-popover-action-btn"
@@ -1259,6 +1415,7 @@ function ShellInner({ children }: PropsWithChildren) {
       {mobileNavOverlay}
       {globalVoiceButton}
       {languageModalOpen && <LanguageModal onClose={() => setLanguageModalOpen(false)} />}
+      {supportEmailModalOpen && <SupportEmailModal locale={locale} onClose={() => setSupportEmailModalOpen(false)} />}
       <OnboardingTour
         user={user}
         billingModuleEnabled={billingModuleEnabled}
