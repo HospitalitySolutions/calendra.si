@@ -2220,4 +2220,1010 @@ export const registerPageStyles = `
   }
 }
 
+
+/* --------------------------------------------------------------------------
+   Plan selection — modern Calendra registration layout
+   Scoped so the account and billing steps keep their existing form styling.
+   -------------------------------------------------------------------------- */
+.register-flow.register-plan-selection-page {
+  --max-width: 1280px;
+  --register-gutter: max(20px, env(safe-area-inset-left, 0px));
+  --register-gutter-right: max(20px, env(safe-area-inset-right, 0px));
+  --panel: #ffffff;
+  --border: #e3eaf5;
+  --text: #14213a;
+  --muted: #73819a;
+  --blue: #2463eb;
+  --blue-dark: #174dca;
+  --blue-soft: #edf4ff;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 9% 18%, rgba(59, 130, 246, 0.09), transparent 23%),
+    radial-gradient(circle at 91% 72%, rgba(59, 130, 246, 0.07), transparent 24%),
+    linear-gradient(180deg, #fbfdff 0%, #f4f8ff 100%);
+}
+
+.register-flow.register-plan-selection-page .topbar {
+  min-height: 68px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(222, 231, 244, 0.85);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(16px);
+}
+
+.register-flow.register-plan-selection-page .brand-logo {
+  width: 154px;
+  max-height: 48px;
+  object-position: left center;
+}
+
+.register-flow.register-plan-selection-page .content {
+  padding: 12px 0 138px;
+}
+
+.register-flow.register-plan-selection-page .register-plan-page-stack {
+  width: 100%;
+}
+
+.register-flow.register-plan-selection-page .layout {
+  grid-template-columns: minmax(0, 2.05fr) minmax(330px, 0.95fr);
+  grid-template-rows: auto auto;
+  gap: 14px 24px;
+  align-items: start;
+}
+
+.register-flow.register-plan-selection-page .layout > .register-stepper-row {
+  grid-column: 1 / -1;
+  justify-content: center;
+  margin: 0 0 2px;
+}
+
+.register-flow.register-plan-selection-page .layout > .right-panel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.register-flow.register-plan-selection-page .layout > .left-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.register-flow.register-plan-selection-page .stepper {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  width: min(100%, 560px);
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.register-flow.register-plan-selection-page .stepper::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: 16.666%;
+  right: 16.666%;
+  height: 1px;
+  background: #dbe4f1;
+  z-index: 0;
+}
+
+.register-flow.register-plan-selection-page .step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 3px 10px 8px;
+  border-radius: 0;
+  color: #8793a8;
+  font-size: 0.84rem;
+  font-weight: 700;
+  background: transparent;
+}
+
+.register-flow.register-plan-selection-page .step.active {
+  color: var(--blue);
+  background: transparent;
+}
+
+.register-flow.register-plan-selection-page .step-number {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 999px;
+  border: 1px solid #d8e1ee;
+  background: #fff;
+  color: #7c899d;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.register-flow.register-plan-selection-page .step.active .step-number {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(36, 99, 235, 0.25);
+}
+
+.register-flow.register-plan-selection-page .step-label {
+  background: #f8fbff;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+.register-flow.register-plan-selection-page .panel {
+  border: 1px solid rgba(222, 231, 244, 0.98);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 42px rgba(55, 83, 134, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.register-flow.register-plan-selection-page .right-panel {
+  padding: 18px;
+  gap: 16px;
+}
+
+.register-flow.register-plan-selection-page .left-panel {
+  top: 16px;
+  padding: 20px;
+}
+
+.register-flow.register-plan-selection-page .plan-preview-heading {
+  margin-bottom: 12px;
+  font-size: 1.15rem;
+  letter-spacing: -0.025em;
+}
+
+.register-flow.register-plan-selection-page .billing-toggle-wrap {
+  gap: 10px;
+}
+
+.register-flow.register-plan-selection-page .billing-toggle {
+  gap: 2px;
+  padding: 3px;
+  border-color: #dfe7f2;
+  box-shadow: none;
+}
+
+.register-flow.register-plan-selection-page .billing-option {
+  padding: 9px 16px;
+  font-size: 0.84rem;
+}
+
+.register-flow.register-plan-selection-page .billing-option.active {
+  box-shadow: 0 6px 16px rgba(36, 99, 235, 0.2);
+}
+
+.register-flow.register-plan-selection-page .annual-save {
+  padding: 7px 11px;
+  font-size: 0.75rem;
+}
+
+.register-flow.register-plan-selection-page .plans-grid {
+  gap: 12px;
+}
+
+.register-flow.register-plan-selection-page .plan-card {
+  min-height: 292px;
+  padding: 16px 14px 14px;
+  border-radius: 16px;
+  border-color: #e2e9f3;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(45, 72, 120, 0.05);
+  transform: none;
+}
+
+.register-flow.register-plan-selection-page .plan-card:hover,
+.register-flow.register-plan-selection-page .plan-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: #b9cdf9;
+  box-shadow: 0 12px 25px rgba(36, 99, 235, 0.11);
+}
+
+.register-flow.register-plan-selection-page .plan-card.recommended {
+  border: 1px solid #9eb9ff;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.register-flow.register-plan-selection-page .plan-card.active {
+  transform: none;
+  border: 1.5px solid var(--blue);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(36, 99, 235, 0.08), 0 12px 26px rgba(36, 99, 235, 0.12);
+}
+
+.register-flow.register-plan-selection-page .badge-row {
+  min-height: 22px;
+  margin-bottom: 8px;
+}
+
+.register-flow.register-plan-selection-page .badge {
+  padding: 5px 9px;
+  font-size: 0.68rem;
+}
+
+.register-flow.register-plan-selection-page .plan-name {
+  margin-bottom: 7px;
+  font-size: 1.12rem;
+  letter-spacing: -0.025em;
+}
+
+.register-flow.register-plan-selection-page .price-stack {
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.register-flow.register-plan-selection-page .price {
+  font-size: 1.8rem;
+  letter-spacing: -0.055em;
+}
+
+.register-flow.register-plan-selection-page .per {
+  margin-bottom: 2px;
+  font-size: 0.78rem;
+}
+
+.register-flow.register-plan-selection-page .old-price {
+  font-size: 0.8rem;
+}
+
+.register-flow.register-plan-selection-page .price-note {
+  min-height: 39px;
+  font-size: 0.77rem;
+  line-height: 1.42;
+}
+
+.register-flow.register-plan-selection-page .mini-points {
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.register-flow.register-plan-selection-page .mini-points div {
+  gap: 7px;
+  font-size: 0.79rem;
+  line-height: 1.35;
+}
+
+.register-flow.register-plan-selection-page .check {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  background: #eefbf3;
+  font-size: 0.7rem;
+}
+
+.register-flow.register-plan-selection-page .plan-button {
+  min-height: 38px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.79rem;
+}
+
+.register-flow.register-plan-selection-page .plan-button.unselected {
+  border-color: #cbdaf7;
+}
+
+.register-flow.register-plan-selection-page .plan-button.selected {
+  background: linear-gradient(90deg, #2868ef, #1d55d6);
+  box-shadow: 0 7px 17px rgba(36, 99, 235, 0.22);
+}
+
+.register-flow.register-plan-selection-page .custom-cta--inline {
+  position: relative;
+  margin: -2px 0 0;
+  padding: 10px 14px;
+  border-style: solid;
+  border-color: #e0e8f4;
+  border-radius: 11px;
+  background: #fbfdff;
+  font-size: 0.78rem;
+}
+
+.register-flow.register-plan-selection-page .custom-cta--inline::before {
+  content: "◫";
+  margin-right: 8px;
+  color: #687893;
+}
+
+.register-flow.register-plan-selection-page .selected-box {
+  gap: 12px;
+  padding: 13px 14px;
+  margin-bottom: 12px;
+  border-color: #dfe7f3;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.register-flow.register-plan-selection-page .selected-box strong {
+  font-size: 0.92rem;
+}
+
+.register-flow.register-plan-selection-page .selected-meta {
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.register-flow.register-plan-selection-page .selected-price {
+  font-size: 1.12rem;
+  letter-spacing: -0.035em;
+}
+
+.register-flow.register-plan-selection-page .selected-subprice {
+  font-size: 0.7rem;
+}
+
+.register-flow.register-plan-selection-page .feature-list {
+  gap: 0;
+}
+
+.register-flow.register-plan-selection-page .feature-item,
+.register-flow.register-plan-selection-page .feature-item.enabled {
+  gap: 11px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid #edf1f6;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.register-flow.register-plan-selection-page .feature-item:last-child {
+  border-bottom: 0;
+}
+
+.register-flow.register-plan-selection-page .feature-item .icon {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+  border: 1px solid #e6ebf3;
+  background: #f7f9fc;
+}
+
+.register-flow.register-plan-selection-page .feature-item .icon svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.register-flow.register-plan-selection-page .feature-item.enabled .icon {
+  border-color: #d8e6ff;
+  background: #edf4ff;
+  color: var(--blue);
+}
+
+.register-flow.register-plan-selection-page .feature-item .name {
+  font-size: 0.78rem;
+}
+
+.register-flow.register-plan-selection-page .feature-item .desc {
+  margin-top: 1px;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.register-flow.register-plan-selection-page .slider-section {
+  gap: 12px;
+  padding: 16px;
+  margin: 0;
+  border-radius: 15px;
+  border-color: #e3eaf4;
+  background: #fcfdff;
+}
+
+.register-flow.register-plan-selection-page .section-divider,
+.register-flow.register-plan-selection-page .addons-divider {
+  font-size: 0.67rem;
+  letter-spacing: 0.08em;
+}
+
+.register-flow.register-plan-selection-page .slider-stack {
+  gap: 0;
+  border: 1px solid #e7edf6;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.register-flow.register-plan-selection-page .slider-card {
+  gap: 10px;
+  padding: 14px;
+  border: 0;
+  border-bottom: 1px solid #edf1f6;
+  border-radius: 0;
+  background: #fff;
+}
+
+.register-flow.register-plan-selection-page .slider-card:last-child {
+  border-bottom: 0;
+}
+
+.register-flow .slider-heading-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+}
+
+.register-flow .register-usage-icon,
+.register-flow .register-addon-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: #edf4ff;
+  color: var(--blue);
+}
+
+.register-flow .register-usage-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.register-flow .register-addon-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.register-flow .register-usage-icon svg,
+.register-flow .register-addon-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.register-flow .register-quantity-control {
+  display: inline-grid;
+  grid-template-columns: 30px minmax(34px, auto) 30px;
+  align-items: center;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.register-flow .register-quantity-control button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.register-flow .register-quantity-control button:hover:not(:disabled) {
+  background: #f3f7ff;
+  color: var(--blue);
+}
+
+.register-flow .register-quantity-control button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.register-flow .register-quantity-control button:disabled {
+  color: #c9d1dd;
+  cursor: not-allowed;
+}
+
+.register-flow .register-quantity-control strong {
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  border-left: 1px solid #edf1f6;
+  border-right: 1px solid #edf1f6;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.register-flow.register-plan-selection-page .slider-meta {
+  gap: 2px;
+}
+
+.register-flow.register-plan-selection-page .slider-meta strong {
+  font-size: 0.82rem;
+}
+
+.register-flow.register-plan-selection-page .slider-meta span {
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.register-flow.register-plan-selection-page .slider-input-wrap {
+  gap: 4px;
+}
+
+.register-flow.register-plan-selection-page .slider-input-wrap input[type="range"] {
+  --slider-track-h: 5px;
+  --slider-thumb: 16px;
+  height: 20px;
+}
+
+.register-flow.register-plan-selection-page .slider-scale {
+  min-height: 21px;
+  font-size: 0.68rem;
+}
+
+.register-flow.register-plan-selection-page .slider-scale-thumb {
+  padding: 3px 7px;
+  border-radius: 7px;
+  font-size: 0.62rem;
+}
+
+.register-flow.register-plan-selection-page .slider-price-note {
+  padding-top: 7px;
+}
+
+.register-flow.register-plan-selection-page .slider-price-note span {
+  font-size: 0.67rem;
+}
+
+.register-flow.register-plan-selection-page .slider-price-note strong {
+  font-size: 0.76rem;
+}
+
+.register-flow.register-plan-selection-page .feature-addons-section {
+  gap: 8px;
+  margin: 0;
+}
+
+.register-flow.register-plan-selection-page .feature-addons-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card {
+  padding: 12px;
+  border-radius: 13px;
+  border-color: #e3eaf4;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card:hover {
+  transform: translateY(-1px);
+  border-color: #c9d8f6;
+  box-shadow: 0 8px 18px rgba(45, 72, 120, 0.07);
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card:has(input:checked) {
+  border-color: #9eb9ff;
+  background: #fbfdff;
+  box-shadow: 0 0 0 2px rgba(36, 99, 235, 0.07);
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card-label {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 3px;
+  align-items: center;
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card-label > .register-addon-icon {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card-label > .addon-meta {
+  grid-column: 2;
+  grid-row: 1;
+  gap: 2px;
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card-label > .addon-price {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  font-size: 0.72rem;
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card-label > input[type="checkbox"] {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  justify-self: end;
+  align-self: start;
+  width: 21px;
+  height: 21px;
+  border-width: 1.5px;
+  border-radius: 6px;
+}
+
+.register-flow.register-plan-selection-page .addon-name {
+  font-size: 0.76rem;
+}
+
+.register-flow.register-plan-selection-page .addon-desc {
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.register-flow.register-plan-selection-page .register-fixed-footer {
+  bottom: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.register-flow.register-plan-selection-page .register-fixed-footer.is-expanded {
+  box-shadow: none;
+}
+
+.register-flow.register-plan-selection-page .register-fixed-footer-inner.register-footer-panel {
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(219, 228, 241, 0.98);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 16px 42px rgba(32, 57, 102, 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.register-flow.register-plan-selection-page .register-footer-toolbar {
+  min-height: 56px;
+}
+
+.register-flow.register-plan-selection-page .register-footer-center-cluster {
+  width: 100%;
+  max-width: none;
+}
+
+.register-flow.register-plan-selection-page .register-footer-toolbar-mid {
+  width: 100%;
+}
+
+.register-flow.register-plan-selection-page .register-footer-pill {
+  width: 100%;
+  max-width: none;
+  min-height: 48px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: #f8faff;
+}
+
+.register-flow.register-plan-selection-page .register-footer-pill:hover {
+  border-color: transparent;
+  background: #f3f7ff;
+  box-shadow: none;
+}
+
+.register-flow.register-plan-selection-page .register-footer-pill-title {
+  font-size: 0.8rem;
+}
+
+.register-flow.register-plan-selection-page .register-footer-pill-sub {
+  font-size: 0.66rem;
+}
+
+.register-flow.register-plan-selection-page .register-footer-pill-total-inline {
+  min-width: 128px;
+}
+
+.register-flow.register-plan-selection-page .register-footer-pill-total-inline .register-footer-total-value {
+  font-size: 1rem;
+}
+
+.register-flow.register-plan-selection-page .continue-button {
+  min-height: 46px;
+  min-width: 230px;
+  padding: 12px 18px;
+  border-radius: 11px;
+  font-size: 0.8rem;
+  box-shadow: 0 8px 20px rgba(36, 99, 235, 0.23);
+}
+
+.register-flow.register-plan-selection-page .register-footer-continue .continue-button:not(.continue-button-scroll-hint)::after {
+  content: "→";
+  margin-left: 12px;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 1180px) {
+  .register-flow.register-plan-selection-page {
+    --max-width: 1080px;
+  }
+
+  .register-flow.register-plan-selection-page .layout {
+    grid-template-columns: minmax(0, 1.75fr) minmax(300px, 0.9fr);
+    gap: 14px 18px;
+  }
+
+  .register-flow.register-plan-selection-page .right-panel,
+  .register-flow.register-plan-selection-page .left-panel {
+    padding: 16px;
+  }
+
+  .register-flow.register-plan-selection-page .plan-card {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .register-flow.register-plan-selection-page {
+    --register-gutter: max(14px, env(safe-area-inset-left, 0px));
+    --register-gutter-right: max(14px, env(safe-area-inset-right, 0px));
+  }
+
+  .register-flow.register-plan-selection-page .content {
+    padding-bottom: 180px;
+  }
+
+  .register-flow.register-plan-selection-page .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .register-flow.register-plan-selection-page .layout > .register-stepper-row,
+  .register-flow.register-plan-selection-page .layout > .right-panel,
+  .register-flow.register-plan-selection-page .layout > .left-panel {
+    grid-column: 1;
+  }
+
+  .register-flow.register-plan-selection-page .layout > .register-stepper-row {
+    grid-row: 1;
+  }
+
+  .register-flow.register-plan-selection-page .layout > .right-panel {
+    grid-row: 2;
+  }
+
+  .register-flow.register-plan-selection-page .layout > .left-panel {
+    grid-row: 3;
+  }
+
+  .register-flow.register-plan-selection-page .panel {
+    border: 1px solid rgba(222, 231, 244, 0.98);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 12px 30px rgba(55, 83, 134, 0.07);
+  }
+
+  .register-flow.register-plan-selection-page .right-panel {
+    padding: 16px;
+  }
+
+  .register-flow.register-plan-selection-page .left-panel {
+    position: static;
+    padding: 16px;
+  }
+
+  .register-flow.register-plan-selection-page .stepper {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .register-flow.register-plan-selection-page .step {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .register-flow.register-plan-selection-page .step-label {
+    font-size: 0.72rem;
+  }
+
+  .register-flow.register-plan-selection-page .selected-box {
+    display: flex;
+  }
+
+  .register-flow.register-plan-selection-page .feature-addons-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .register-flow.register-plan-selection-page .register-fixed-footer {
+    bottom: 8px;
+    width: calc(100% - var(--register-gutter) - var(--register-gutter-right));
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-toolbar-lead {
+    display: none;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-center-cluster {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-continue {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .register-flow.register-plan-selection-page .continue-button {
+    min-width: 190px;
+  }
+}
+
+@media (max-width: 760px) {
+  .register-flow.register-plan-selection-page .topbar {
+    min-height: 60px;
+  }
+
+  .register-flow.register-plan-selection-page .brand-logo {
+    width: 132px;
+  }
+
+  .register-flow.register-plan-selection-page .stepper::before {
+    left: 13%;
+    right: 13%;
+  }
+
+  .register-flow.register-plan-selection-page .step {
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+
+  .register-flow.register-plan-selection-page .step-label {
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .register-flow.register-plan-selection-page .plans-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .register-flow.register-plan-selection-page .plan-card {
+    min-height: 0;
+  }
+
+  .register-flow.register-plan-selection-page .billing-toggle-wrap {
+    align-items: stretch;
+  }
+
+  .register-flow.register-plan-selection-page .billing-toggle {
+    width: 100%;
+  }
+
+  .register-flow.register-plan-selection-page .billing-option {
+    flex: 1 1 0;
+  }
+
+  .register-flow.register-plan-selection-page .annual-save {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .register-flow.register-plan-selection-page .feature-addons-list {
+    grid-template-columns: 1fr;
+  }
+
+  .register-flow.register-plan-selection-page .feature-addon-card-label {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    text-align: left;
+  }
+
+  .register-flow.register-plan-selection-page .feature-addon-card-label > .register-addon-icon {
+    grid-column: 1;
+  }
+
+  .register-flow.register-plan-selection-page .feature-addon-card-label > .addon-meta,
+  .register-flow.register-plan-selection-page .feature-addon-card-label > .addon-price {
+    grid-column: 2;
+    justify-self: start;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .register-flow.register-plan-selection-page .feature-addon-card-label > input[type="checkbox"] {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-pill-total-inline {
+    display: none;
+  }
+
+  .register-flow.register-plan-selection-page .continue-button {
+    min-width: 0;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .register-flow.register-plan-selection-page .content {
+    padding-top: 8px;
+    padding-bottom: 196px;
+  }
+
+  .register-flow.register-plan-selection-page .register-stepper-row {
+    margin-bottom: 0;
+  }
+
+  .register-flow.register-plan-selection-page .step-number {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+  }
+
+  .register-flow.register-plan-selection-page .stepper::before {
+    top: 14px;
+  }
+
+  .register-flow.register-plan-selection-page .right-panel,
+  .register-flow.register-plan-selection-page .left-panel {
+    padding: 13px;
+    border-radius: 15px;
+  }
+
+  .register-flow.register-plan-selection-page .slider-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .register-flow.register-plan-selection-page .slider-price-note {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .register-flow.register-plan-selection-page .register-fixed-footer-inner.register-footer-panel {
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-center-cluster,
+  .register-flow.register-plan-selection-page .register-footer-continue {
+    width: auto;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-pill {
+    min-height: 44px;
+    padding: 5px 8px;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-pill-title {
+    font-size: 0.72rem;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-pill-sub {
+    font-size: 0.61rem;
+  }
+
+  .register-flow.register-plan-selection-page .continue-button {
+    min-height: 44px;
+    font-size: 0.72rem;
+  }
+
+  .register-flow.register-plan-selection-page .register-footer-continue .continue-button:not(.continue-button-scroll-hint)::after {
+    display: none;
+  }
+}
+
 `

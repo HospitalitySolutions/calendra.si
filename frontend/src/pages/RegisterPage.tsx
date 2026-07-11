@@ -67,6 +67,95 @@ type RegisterPlanAddonSectionsProps = {
   addonsModalPresentation?: boolean;
 };
 
+function RegisterUsageIcon({ kind }: { kind: "users" | "sms" }) {
+  return (
+    <span className="register-usage-icon" aria-hidden>
+      {kind === "users" ? (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M16 20v-1.8a4.2 4.2 0 0 0-4.2-4.2H7.2A4.2 4.2 0 0 0 3 18.2V20" />
+          <circle cx="9.5" cy="7" r="3.5" />
+          <path d="M17 4.4a3.5 3.5 0 0 1 0 6.8M21 20v-1.8a4.2 4.2 0 0 0-3.2-4.1" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M21 14a4 4 0 0 1-4 4H8l-5 3v-14a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v7Z" />
+          <path d="M8 9h8M8 13h5" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+function RegisterAddonIcon({ addonKey }: { addonKey: string }) {
+  const icon = (() => {
+    switch (addonKey) {
+      case "voice":
+        return (
+          <>
+            <path d="M6 10v4M18 10v4" />
+            <path d="M4 12a8 8 0 0 1 16 0v4a2 2 0 0 1-2 2h-2v-7h4M4 11h4v7H6a2 2 0 0 1-2-2v-4Z" />
+          </>
+        );
+      case "billing":
+        return (
+          <>
+            <path d="M7 3h8l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+            <path d="M15 3v5h5M9 13h6M9 17h6" />
+          </>
+        );
+      case "whitelabel":
+        return (
+          <path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9L12 3Z" />
+        );
+      default:
+        return <path d="M12 3v18M3 12h18" />;
+    }
+  })();
+
+  return (
+    <span className="register-addon-icon" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none">
+        {icon}
+      </svg>
+    </span>
+  );
+}
+
+function RegisterFeatureIcon({ featureKey }: { featureKey: string }) {
+  const icon = (() => {
+    switch (featureKey) {
+      case "appointments":
+        return <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>;
+      case "staff":
+        return <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20M16 5.5a3 3 0 0 1 0 5.8M17 14a4.5 4.5 0 0 1 3.5 4.4V20" /></>;
+      case "group":
+        return <><circle cx="8" cy="8" r="3" /><circle cx="17" cy="8" r="3" /><path d="M2.5 20v-1.5A4.5 4.5 0 0 1 7 14h2a4.5 4.5 0 0 1 4.5 4.5V20M13 15a4.5 4.5 0 0 1 3-1h1a4.5 4.5 0 0 1 4.5 4.5V20" /></>;
+      case "resources":
+        return <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12v9" /></>;
+      case "payments":
+        return <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18M7 15h4" /></>;
+      case "reminders":
+        return <><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>;
+      case "ai":
+        return <><path d="m12 3 1.3 3.7L17 8l-3.7 1.3L12 13l-1.3-3.7L7 8l3.7-1.3L12 3Z" /><path d="m18.5 13 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" /><path d="M5 14v7M2 17.5h6" /></>;
+      case "integrations":
+        return <><path d="M8 3v4a2 2 0 0 1-2 2H3M16 3v4a2 2 0 0 0 2 2h3M8 21v-4a2 2 0 0 0-2-2H3M16 21v-4a2 2 0 0 1 2-2h3" /><rect x="8" y="8" width="8" height="8" rx="2" /></>;
+      case "reporting":
+        return <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>;
+      case "multilocation":
+        return <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>;
+      default:
+        return <path d="m5 12 4 4L19 6" />;
+    }
+  })();
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      {icon}
+    </svg>
+  );
+}
+
 function linearRangePercent(value: number, min: number, max: number): number {
   if (max <= min) return 0;
   return ((value - min) / (max - min)) * 100;
@@ -118,9 +207,58 @@ export function RegisterPlanAddonSections({
         <div className="slider-stack">
           <div className="slider-card">
             <div className="slider-head">
-              <div className="slider-meta">
-                <strong>{pageCopy.usersStrong}</strong>
-                <span>{pageCopy.usersHint}</span>
+              <div className="slider-heading-group">
+                <RegisterUsageIcon kind="users" />
+                <div className="slider-meta">
+                  <strong>{pageCopy.usersStrong}</strong>
+                  <span>{pageCopy.usersHint}</span>
+                </div>
+              </div>
+              <div
+                className="register-quantity-control"
+                aria-label={pageCopy.usersStrong}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelection((current) => ({
+                      ...current,
+                      additionalUsers: Math.max(
+                        1,
+                        current.additionalUsers - 1,
+                      ),
+                    }))
+                  }
+                  disabled={selection.additionalUsers <= 1}
+                  aria-label={
+                    locale === "sl"
+                      ? "Zmanjšaj število uporabnikov"
+                      : "Decrease users"
+                  }
+                >
+                  −
+                </button>
+                <strong>{selection.additionalUsers}</strong>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelection((current) => ({
+                      ...current,
+                      additionalUsers: Math.min(
+                        10,
+                        current.additionalUsers + 1,
+                      ),
+                    }))
+                  }
+                  disabled={selection.additionalUsers >= 10}
+                  aria-label={
+                    locale === "sl"
+                      ? "Povečaj število uporabnikov"
+                      : "Increase users"
+                  }
+                >
+                  +
+                </button>
               </div>
             </div>
 
@@ -172,9 +310,55 @@ export function RegisterPlanAddonSections({
 
           <div className="slider-card">
             <div className="slider-head">
-              <div className="slider-meta">
-                <strong>{pageCopy.smsStrong}</strong>
-                <span>{pageCopy.smsHint}</span>
+              <div className="slider-heading-group">
+                <RegisterUsageIcon kind="sms" />
+                <div className="slider-meta">
+                  <strong>{pageCopy.smsStrong}</strong>
+                  <span>{pageCopy.smsHint}</span>
+                </div>
+              </div>
+              <div
+                className="register-quantity-control"
+                aria-label={pageCopy.smsStrong}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelection((current) => ({
+                      ...current,
+                      additionalSms: Math.max(0, current.additionalSms - 50),
+                    }))
+                  }
+                  disabled={selection.additionalSms <= 0}
+                  aria-label={
+                    locale === "sl"
+                      ? "Zmanjšaj število SMS sporočil"
+                      : "Decrease SMS messages"
+                  }
+                >
+                  −
+                </button>
+                <strong>{selection.additionalSms}</strong>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelection((current) => ({
+                      ...current,
+                      additionalSms: Math.min(
+                        1000,
+                        current.additionalSms + 50,
+                      ),
+                    }))
+                  }
+                  disabled={selection.additionalSms >= 1000}
+                  aria-label={
+                    locale === "sl"
+                      ? "Povečaj število SMS sporočil"
+                      : "Increase SMS messages"
+                  }
+                >
+                  +
+                </button>
               </div>
             </div>
 
@@ -254,13 +438,14 @@ export function RegisterPlanAddonSections({
                       }))
                     }
                   />
-                  <span className="addon-price">
-                    +{formatEuro(addon.monthly)}
-                    {pm}
-                  </span>
+                  <RegisterAddonIcon addonKey={addonKey} />
                   <span className="addon-meta">
                     <span className="addon-name">{addon.name}</span>
                     <span className="addon-desc">{addon.description}</span>
+                  </span>
+                  <span className="addon-price">
+                    +{formatEuro(addon.monthly)}
+                    {pm}
                   </span>
                 </label>
               </div>
@@ -542,7 +727,7 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="register-flow">
+    <div className="register-flow register-plan-selection-page">
       <style>{registerPageStyles}</style>
       <header className="topbar">
         <div className="brand">
@@ -565,9 +750,19 @@ export function RegisterPage() {
             <section className="layout">
               <div className="register-stepper-row">
                 <div className="stepper" aria-label={pc.stepperAria}>
-                  <div className="step active">{pc.step1}</div>
-                  <div className="step">{pc.step2}</div>
-                  <div className="step">{pc.step3}</div>
+                  {[pc.step1, pc.step2, pc.step3].map((step, index) => (
+                    <div
+                      key={step}
+                      className={index === 0 ? "step active" : "step"}
+                    >
+                      <span className="step-number" aria-hidden>
+                        {index + 1}
+                      </span>
+                      <span className="step-label">
+                        {step.replace(/^\d+\s*/, "")}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -797,7 +992,9 @@ export function RegisterPage() {
                           enabled ? "feature-item enabled" : "feature-item"
                         }
                       >
-                        <span className="icon">{feature.index}</span>
+                        <span className="icon">
+                          <RegisterFeatureIcon featureKey={feature.key} />
+                        </span>
                         <span className="meta">
                           <span className="name">{feature.name}</span>
                           <span className="desc">{feature.description}</span>
