@@ -52,6 +52,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedSessionSaveDisabled = (!bookedSessionIsGroup && !bookedSessionHasClientDraft)
     || (bookedSessionIsGroup && !bookedSessionSelectedTypeAllowed)
 
+  const showRecurringDeleteDialog = Boolean(confirmDelete && selectedBookedSession?.recurrenceSeriesKey)
+
   const openBookedSessionClientDetail = (clientOrId?: any) => {
     const id = Number(typeof clientOrId === 'object' ? clientOrId?.id : clientOrId)
     if (!Number.isInteger(id) || id <= 0) return
@@ -1425,6 +1427,52 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         </div>
       )}
 
+      {showRecurringDeleteDialog && (
+        <div
+          className="modal-backdrop calendar-booking-supplement"
+          onClick={() => setConfirmDelete(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('formDeleteRecurringSessionTitle')}
+        >
+          <div className="modal confirm-modal calendar-recurring-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="calendar-recurring-delete-modal__close"
+              onClick={() => setConfirmDelete(false)}
+              aria-label={t('mobileNavClose')}
+            >
+              ×
+            </button>
+            <div className="calendar-recurring-delete-modal__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v8h-2V9Zm4 0h2v8h-2V9ZM7 9h2v8H7V9Zm-1 12a2 2 0 0 1-2-2V7h16v12a2 2 0 0 1-2 2H6Z" fill="currentColor"/>
+              </svg>
+            </div>
+            <div className="calendar-recurring-delete-modal__content">
+              <h3>{t('formDeleteRecurringSessionTitle')}</h3>
+              <p>{t('formDeleteRecurringSessionQuestion')}</p>
+            </div>
+            <div className="calendar-recurring-delete-modal__actions">
+              <button
+                type="button"
+                className="calendar-recurring-delete-modal__primary"
+                onClick={() => void deleteBookedSession('SINGLE')}
+              >
+                {t('formDeleteOnlyThisSession')}
+              </button>
+              <button
+                type="button"
+                className="calendar-recurring-delete-modal__secondary"
+                onClick={() => void deleteBookedSession('THIS_AND_FOLLOWING')}
+              >
+                {t('formDeleteThisAndFollowing')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedBookedSession && (
         <div
           className={useBookingSidePanel ? 'modal-backdrop booking-side-panel-backdrop' : 'calendar-session-popup-layer'}
@@ -2116,18 +2164,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             </div>
             </div>
             <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader && !confirmDelete ? ' booking-side-panel-footer--hidden' : ''}`}
+              className={`row gap booking-side-panel-footer${compactSessionEditHeader && !confirmDelete ? ' booking-side-panel-footer--hidden' : ''}${showRecurringDeleteDialog ? ' booking-side-panel-footer--hidden' : ''}`}
               style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
             >
               {confirmDelete ? (
-                selectedBookedSession.recurrenceSeriesKey ? (
-                  <>
-                    <span className="muted">{t('formDeleteRecurringSessionQuestion')}</span>
-                    <button className="danger" onClick={() => void deleteBookedSession('SINGLE')}>{t('formDeleteOnlyThisSession')}</button>
-                    <button className="danger" onClick={() => void deleteBookedSession('THIS_AND_FOLLOWING')}>{t('formDeleteThisAndFollowing')}</button>
-                    <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
-                  </>
-                ) : (
+                showRecurringDeleteDialog ? null : (
                   <>
                     <span className="muted">{t('formDeleteSessionQuestion')}</span>
                     <button className="danger" onClick={() => void deleteBookedSession('SINGLE')}>{t('formYesDelete')}</button>
