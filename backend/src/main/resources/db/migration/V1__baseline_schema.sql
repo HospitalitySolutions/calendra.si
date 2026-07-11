@@ -993,6 +993,7 @@ CREATE TABLE IF NOT EXISTS session_booking (
     company_id BIGINT NOT NULL,
     client_id BIGINT,
     booking_group_key VARCHAR(64),
+    recurrence_series_key VARCHAR(64),
     consultant_id BIGINT,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
@@ -1298,6 +1299,9 @@ BEGIN
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_session_booking_company_group_key
                  ON session_booking (company_id, booking_group_key, id)
                  WHERE booking_group_key IS NOT NULL';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_session_booking_company_recurrence_series
+                 ON session_booking (company_id, recurrence_series_key, start_time, id)
+                 WHERE recurrence_series_key IS NOT NULL';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_session_booking_company_source_order
                  ON session_booking (company_id, source_order_id)
                  WHERE source_order_id IS NOT NULL';

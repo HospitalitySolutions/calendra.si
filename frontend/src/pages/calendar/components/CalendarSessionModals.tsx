@@ -2120,11 +2120,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
             >
               {confirmDelete ? (
-                <>
-                  <span className="muted">{t('formDeleteSessionQuestion')}</span>
-                  <button className="danger" onClick={deleteBookedSession}>{t('formYesDelete')}</button>
-                  <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
-                </>
+                selectedBookedSession.recurrenceSeriesKey ? (
+                  <>
+                    <span className="muted">{t('formDeleteRecurringSessionQuestion')}</span>
+                    <button className="danger" onClick={() => void deleteBookedSession('SINGLE')}>{t('formDeleteOnlyThisSession')}</button>
+                    <button className="danger" onClick={() => void deleteBookedSession('THIS_AND_FOLLOWING')}>{t('formDeleteThisAndFollowing')}</button>
+                    <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="muted">{t('formDeleteSessionQuestion')}</span>
+                    <button className="danger" onClick={() => void deleteBookedSession('SINGLE')}>{t('formYesDelete')}</button>
+                    <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
+                  </>
+                )
               ) : (
                 <>
                   <div className="calendar-session-footer-tags">

@@ -337,6 +337,7 @@ public class SessionBookingCreationService {
             if (row == null) {
                 row = new SessionBooking();
                 row.setBookingGroupKey(groupKey);
+                row.setRecurrenceSeriesKey(representative.getRecurrenceSeriesKey());
                 created = true;
             } else {
                 previouslyBlockedAvailability = SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus());
@@ -523,6 +524,7 @@ public class SessionBookingCreationService {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -625,6 +627,7 @@ public class SessionBookingCreationService {
         joined.setCompany(representative.getCompany());
         joined.setClient(client);
         joined.setBookingGroupKey(SessionBookingController.groupKey(representative));
+        joined.setRecurrenceSeriesKey(representative.getRecurrenceSeriesKey());
         joined.setConsultant(representative.getConsultant());
         joined.setStartTime(representative.getStartTime());
         joined.setEndTime(representative.getEndTime());
@@ -874,6 +877,11 @@ public class SessionBookingCreationService {
     ) {
         booking.setCompany(me.getCompany());
 
+        String requestedRecurrenceSeriesKey = normalizeRecurrenceSeriesKey(req.recurrenceSeriesKey());
+        if (booking.getRecurrenceSeriesKey() == null && requestedRecurrenceSeriesKey != null) {
+            booking.setRecurrenceSeriesKey(requestedRecurrenceSeriesKey);
+        }
+
         if (SecurityUtils.isAdmin(me)) {
             if (req.consultantId() == null) {
                 booking.setConsultant(null);
@@ -920,6 +928,16 @@ public class SessionBookingCreationService {
         } else {
             booking.setMeetingProvider(null);
         }
+    }
+
+    private static String normalizeRecurrenceSeriesKey(String raw) {
+        if (raw == null) return null;
+        String value = raw.trim();
+        if (value.isEmpty()) return null;
+        if (value.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid recurrence series key.");
+        }
+        return value;
     }
 
     private List<SessionBooking> loadGroupedRows(SessionBooking booking, Long companyId) {
@@ -1216,6 +1234,11 @@ public class SessionBookingCreationService {
             String meetingLink,
             String bookingStatus) {
         ClientGroup group = existingRows.get(0).getClientGroup();
+        String existingRecurrenceSeriesKey = existingRows.stream()
+                .map(SessionBooking::getRecurrenceSeriesKey)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse(null);
         SessionBooking keep =
                 existingRows.stream().filter(row -> row.getClient() == null).findFirst().orElse(null);
         SessionBooking retainedRow = keep;
@@ -1250,6 +1273,7 @@ public class SessionBookingCreationService {
         if (keep == null) {
             keep = new SessionBooking();
             keep.setBookingGroupKey(groupKey);
+            keep.setRecurrenceSeriesKey(existingRecurrenceSeriesKey);
         }
         applySharedFields(keep, req, me, start, end, companyId, meetingLink, bookingStatus);
         keep.setBookingGroupKey(groupKey);

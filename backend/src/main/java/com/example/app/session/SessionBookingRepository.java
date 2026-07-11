@@ -171,6 +171,12 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     List<SessionBooking> findByBookingGroupKeyAndCompanyIdOrderByIdAsc(String bookingGroupKey, Long companyId);
 
+    List<SessionBooking> findByCompanyIdAndRecurrenceSeriesKeyAndStartTimeGreaterThanEqualOrderByStartTimeAscIdAsc(
+            Long companyId,
+            String recurrenceSeriesKey,
+            LocalDateTime startTime
+    );
+
     List<SessionBooking> findAllByBookingGroupKeyOrderByIdAsc(String bookingGroupKey);
 
     List<SessionBooking> findByConsultantId(Long consultantId);

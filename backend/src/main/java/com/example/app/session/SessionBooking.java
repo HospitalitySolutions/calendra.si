@@ -34,6 +34,14 @@ public class SessionBooking extends BaseEntity {
     @Column(name = "booking_group_key", length = 64)
     private String bookingGroupKey;
 
+    /**
+     * Stable key shared by all occurrences created from the same repeating booking action.
+     * Each occurrence still has its own bookingGroupKey because a logical session may contain
+     * multiple client rows.
+     */
+    @Column(name = "recurrence_series_key", length = 64)
+    private String recurrenceSeriesKey;
+
     /** Null = unassigned (admin-only pool in Bookings mode). */
     @ManyToOne(optional = true)
     @JoinColumn(name = "consultant_id", nullable = true)

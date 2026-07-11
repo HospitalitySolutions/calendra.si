@@ -144,6 +144,12 @@ const EmbeddedClientsPage = lazy(() =>
 const CALENDAR_DEFAULT_BOOKED_COLOR = '#16A34A'
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
 
+function createRecurrenceSeriesKey(): string {
+  const randomUuid = globalThis.crypto?.randomUUID?.()
+  if (randomUuid) return randomUuid
+  return `series-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 18)}`.slice(0, 64)
+}
+
 function normalizeCalendarHexColor(raw?: unknown): string | null {
   const value = String(raw ?? '').trim()
   return HEX_COLOR_RE.test(value) ? value.toUpperCase() : null
@@ -1875,6 +1881,7 @@ export default function CalendarPage() {
           groupEmailOverride: null,
           groupBillingCompanyIdOverride: null,
           bookingStatus: normalizeStoredBookingStatus(pending.bookingStatus),
+          recurrenceSeriesKey: pending.recurrenceSeriesKey ?? null,
           payees: Array.isArray(pending.payees) ? pending.payees : [],
           ...(pending.allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
         }
@@ -6672,6 +6679,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         }
         const groupBookingNoClients =
           bookingGroupMode && resolvedGroupId != null && resolvedClientIds.length === 0
+        const recurrenceSeriesKey = form.repeats ? createRecurrenceSeriesKey() : null
         const bookingPayloadBase = {
           ...(groupBookingNoClients
             ? { clientIds: [] as number[] }
@@ -6686,6 +6694,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           meetingProvider: form.meetingProvider || 'zoom',
           groupEmailOverride: null,
           groupBillingCompanyIdOverride: null,
+          recurrenceSeriesKey,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
           ...(skipPersonalOverlapConfirm ? { allowPersonalBlockOverlap: true } : {}),
         }
@@ -6761,9 +6770,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
   }
 
-  const deleteBookedSession = async () => {
+  const deleteBookedSession = async (scope: 'SINGLE' | 'THIS_AND_FOLLOWING' = 'SINGLE') => {
     if (!selectedBookedSession?.id) return
-    await api.delete(`/bookings/${selectedBookedSession.id}`)
+    await api.delete(`/bookings/${selectedBookedSession.id}`, {
+      params: scope === 'SINGLE' ? undefined : { scope },
+    })
     setSelectedBookedSession(null)
     setBookedStatusMenuOpen(false)
     setConfirmDelete(false)
@@ -8054,6 +8065,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       else if (Number.isFinite(persistedBooked.client?.id)) resolvedClientIds = [persistedBooked.client.id]
     }
     const requestedStoredStatus = bookingStatusOverride ?? normalizeStoredBookingStatus(selectedBookedSession.bookingStatus)
+    const recurrenceSeriesKey = selectedBookedSession.recurrenceSeriesKey
+      || (selectedBookedSession.repeats ? createRecurrenceSeriesKey() : null)
     const persistedDerivedStatus = persistedBooked
       ? deriveBookingStatus(persistedBooked.startTime, persistedBooked.endTime, persistedBooked.bookingStatus)
       : null
@@ -8116,6 +8129,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             meetingLink: selectedBookedSession.meetingLink ?? null,
             meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
             bookingStatus: requestedStoredStatus,
+            recurrenceSeriesKey,
             payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
           },
         })
@@ -8157,6 +8171,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           notes: selectedBookedSession.notes ?? '',
           meetingProvider: provider,
           bookingStatus: requestedStoredStatus,
+          recurrenceSeriesKey,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
           allowPersonalBlockOverlap,
         }))
@@ -8182,6 +8197,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         groupEmailOverride: null,
         groupBillingCompanyIdOverride: null,
         bookingStatus: requestedStoredStatus,
+        recurrenceSeriesKey,
         payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
         ...(allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
       })
@@ -8259,6 +8275,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             groupEmailOverride: null,
             groupBillingCompanyIdOverride: null,
             bookingStatus: requestedStoredStatus,
+            recurrenceSeriesKey,
             payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
           }, { headers: { 'X-Skip-Conflict-Toast': 'true' } })
         } catch { /* skip failed occurrences */ }
@@ -8848,6 +8865,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           notes: editPayload.notes ?? '',
           meetingProvider: provider,
           bookingStatus: editPayload.bookingStatus ?? 'RESERVED',
+          recurrenceSeriesKey: editPayload.recurrenceSeriesKey ?? null,
           payees: editPayload.payees ?? [],
           allowPersonalBlockOverlap: true,
         }))
@@ -8883,6 +8901,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         groupEmailOverride: null,
         groupBillingCompanyIdOverride: null,
         bookingStatus: editStatus,
+        recurrenceSeriesKey: editPayload.recurrenceSeriesKey ?? null,
         payees: editPayload.payees ?? [],
         allowPersonalBlockOverlap: true,
       })

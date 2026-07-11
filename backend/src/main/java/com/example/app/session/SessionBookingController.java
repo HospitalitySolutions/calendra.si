@@ -47,6 +47,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/bookings")
 public class SessionBookingController {
+    private static final String DELETE_SCOPE_SINGLE = "SINGLE";
+    private static final String DELETE_SCOPE_THIS_AND_FOLLOWING = "THIS_AND_FOLLOWING";
     private static final long DEFAULT_BOOKING_LIST_PAST_DAYS = 30;
     private static final long DEFAULT_BOOKING_LIST_FUTURE_DAYS = 62;
     private static final long MAX_BOOKING_QUERY_DAYS = 93;
@@ -121,7 +123,9 @@ public class SessionBookingController {
             Long groupBillingCompanyIdOverride,
             String bookingStatus,
             /** Optional per-client payer overrides for this booking. Null leaves existing values unchanged on update. */
-            List<BookingPayeeRequest> payees
+            List<BookingPayeeRequest> payees,
+            /** Stable key shared by occurrences created from the same repeating booking action. */
+            String recurrenceSeriesKey
     ) {}
 
     public record BookingPayeeRequest(
@@ -192,6 +196,7 @@ public class SessionBookingController {
     public record BookingResponse(
             Long id,
             String bookingGroupKey,
+            String recurrenceSeriesKey,
             ClientSummary client,
             List<ClientSummary> clients,
             UserSummary consultant,
@@ -491,22 +496,58 @@ public class SessionBookingController {
 
     @DeleteMapping("/{id}")
     @Transactional
-    public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
+    public void delete(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = DELETE_SCOPE_SINGLE) String scope,
+            @AuthenticationPrincipal User me
+    ) {
         var companyId = me.getCompany().getId();
         var booking = repo.findByIdAndCompanyId(id, companyId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        var grouped = loadGroupedRows(booking, companyId);
-        var representative = grouped.get(0);
-        if (!SecurityUtils.isAdmin(me)
-                && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        String normalizedScope = scope == null ? DELETE_SCOPE_SINGLE : scope.trim().toUpperCase(java.util.Locale.ROOT);
+        List<SessionBooking> rowsToDelete;
+        if (DELETE_SCOPE_THIS_AND_FOLLOWING.equals(normalizedScope)) {
+            String recurrenceSeriesKey = booking.getRecurrenceSeriesKey();
+            if (recurrenceSeriesKey == null || recurrenceSeriesKey.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking is not part of a repeating series.");
+            }
+            rowsToDelete = repo.findByCompanyIdAndRecurrenceSeriesKeyAndStartTimeGreaterThanEqualOrderByStartTimeAscIdAsc(
+                    companyId,
+                    recurrenceSeriesKey,
+                    booking.getStartTime()
+            );
+            if (rowsToDelete == null || rowsToDelete.isEmpty()) {
+                rowsToDelete = loadGroupedRows(booking, companyId);
+            }
+        } else if (DELETE_SCOPE_SINGLE.equals(normalizedScope)) {
+            rowsToDelete = loadGroupedRows(booking, companyId);
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported booking delete scope.");
         }
-        if (grouped.stream().anyMatch(row -> SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())))) {
-            consumableService.reverseSessionUsage(me, companyId, groupKey(representative));
+
+        deleteBookingRows(rowsToDelete, companyId, me);
+    }
+
+    private void deleteBookingRows(List<SessionBooking> rowsToDelete, Long companyId, User me) {
+        Map<String, List<SessionBooking>> groupedRows = new LinkedHashMap<>();
+        for (SessionBooking row : rowsToDelete) {
+            groupedRows.computeIfAbsent(groupKey(row), ignored -> new ArrayList<>()).add(row);
         }
-        for (var row : grouped) {
+
+        for (List<SessionBooking> grouped : groupedRows.values()) {
+            SessionBooking representative = grouped.get(0);
+            if (!SecurityUtils.isAdmin(me)
+                    && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            }
+            if (grouped.stream().anyMatch(row -> SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())))) {
+                consumableService.reverseSessionUsage(me, companyId, groupKey(representative));
+            }
+        }
+
+        for (var row : rowsToDelete) {
             reminderService.sendSessionCancelled(row);
         }
-        for (var row : grouped) {
+        for (var row : rowsToDelete) {
             bookingChangePublisher.publish(
                     companyId,
                     row.getId(),
@@ -515,12 +556,12 @@ public class SessionBookingController {
                     BookingChangePublisher.BOOKING_DELETED
             );
         }
-        bookingCreationService.restoreGuestCreditsForBookings(grouped);
+        bookingCreationService.restoreGuestCreditsForBookings(rowsToDelete);
         openBillSyncService.removeSessionRowsFromOpenBills(
                 companyId,
-                grouped.stream().map(SessionBooking::getId).filter(Objects::nonNull).toList()
+                rowsToDelete.stream().map(SessionBooking::getId).filter(Objects::nonNull).toList()
         );
-        repo.deleteAll(grouped);
+        repo.deleteAll(rowsToDelete);
         repo.flush();
     }
 
@@ -671,6 +712,7 @@ public class SessionBookingController {
         return new BookingResponse(
                 base.id(),
                 base.bookingGroupKey(),
+                base.recurrenceSeriesKey(),
                 base.client(),
                 base.clients(),
                 base.consultant(),
@@ -1066,6 +1108,7 @@ public class SessionBookingController {
         return new BookingResponse(
                 representative.getId(),
                 groupKey(representative),
+                representative.getRecurrenceSeriesKey(),
                 client,
                 clientSummaries,
                 consultant,

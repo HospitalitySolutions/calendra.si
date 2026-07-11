@@ -158,6 +158,7 @@ class SessionBookingCreationServiceSyncTriggerTest {
                 null,
                 null,
                 SessionBookingStatus.CHECKED_OUT,
+                null,
                 null
         );
 
@@ -204,6 +205,7 @@ class SessionBookingCreationServiceSyncTriggerTest {
                 null,
                 null,
                 SessionBookingStatus.CANCELLED,
+                null,
                 null
         );
 
@@ -249,6 +251,7 @@ class SessionBookingCreationServiceSyncTriggerTest {
                 null,
                 null,
                 SessionBookingStatus.CANCELLED,
+                null,
                 null
         );
 

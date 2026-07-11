@@ -286,6 +286,7 @@ public class VoiceBookingService {
                 null,
                 null,
                 null,
+                null,
                 null);
 
         long consultantForSlot = me.getId();
