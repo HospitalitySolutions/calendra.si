@@ -4997,25 +4997,37 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return clients.length > 1 ? `${first} +${clients.length - 1}` : first
   }
 
-  /** Desktop booked block label: LastName · ServiceType (never includes first name). */
+  /** Desktop booked block label: LastName FirstName · ServiceType. */
   function formatBookedBlockDesktopLabel(bookingLike: any, fallbackTitle: string) {
+    const explicitFirstName = String(
+      bookingLike?.client?.firstName || bookingLike?.clients?.[0]?.firstName || '',
+    ).trim()
     const explicitLastName = String(
       bookingLike?.client?.lastName || bookingLike?.clients?.[0]?.lastName || '',
     ).trim()
-    const fallback = String(fallbackTitle || '').trim()
-    const parsedLastName = (() => {
-      if (explicitLastName) return explicitLastName
+    const fallback = String(fallbackTitle || '').trim().replace(/\s+\+\d+$/, '')
+    const clientName = (() => {
+      const explicit = [explicitLastName, explicitFirstName].filter(Boolean).join(' ').trim()
+      if (explicit) return explicit
       if (!fallback) return '—'
       if (fallback.includes(',')) {
-        const left = String(fallback.split(',')[0] || '').trim()
-        if (left) return left
+        const [lastName, ...firstNameParts] = fallback.split(',')
+        const reordered = [String(lastName || '').trim(), firstNameParts.join(',').trim()]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+        if (reordered) return reordered
       }
       const tokens = fallback.split(/\s+/).filter(Boolean)
-      if (tokens.length > 1) return String(tokens[tokens.length - 1])
+      if (tokens.length > 1) {
+        const lastName = String(tokens[tokens.length - 1])
+        const firstName = tokens.slice(0, -1).join(' ')
+        return [lastName, firstName].filter(Boolean).join(' ')
+      }
       return fallback
     })()
     const typeName = String(bookingLike?.type?.name || '').trim()
-    return typeName ? `${parsedLastName} · ${typeName}` : parsedLastName
+    return typeName ? `${clientName} · ${typeName}` : clientName
   }
 
   /** FullCalendar draws a blue/teal `.fc-highlight` during select; we show a colored draft event instead. */
@@ -6032,8 +6044,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         </svg>
       </button>
     ) : null
+    // Between 940px and 1749px the centered date title is intentionally hidden by the
+    // compact shell layout. Keep the month visible in the left toolbar for the whole
+    // compact range, not only when the bottom filter bar/mobile header is active.
     const showWebToolbarMonthChip =
-      (calendarFiltersBottomBar || calendarMobileHeaderNav) && isCalendarViewWithToolbarMonthChip(view)
+      calendarHeaderCompact && isCalendarViewWithToolbarMonthChip(view)
     const toolbarMonthLabel = showWebToolbarMonthChip ? (
       <span className="calendar-toolbar-month-chip" aria-hidden="true">
         {calendarToolbarMonthLabel}
@@ -11410,12 +11425,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const resolvedLastName = ln || (titleParts.length > 1 ? titleParts[titleParts.length - 1] : fallbackTitle)
               const mobileLabel = fallbackTitle || [fn, ln].filter(Boolean).join(' ') || resolvedLastName
               const wide = formatBookedBlockDesktopLabel(props, fallbackTitle || mobileLabel)
+              const fullClientLabel = wide.split(' · ')[0] || mobileLabel || resolvedLastName || '—'
               const narrowTypeName = String(props?.type?.name || '').trim()
               const bookingClients = Array.isArray(props?.clients) ? props.clients : []
               const isMultiClient = bookingClients.length > 1
               const narrowPrimaryLabel = isMultiClient
-                ? (narrowTypeName || resolvedLastName || mobileLabel || '—')
-                : (resolvedLastName || mobileLabel || '—')
+                ? (narrowTypeName || fullClientLabel)
+                : fullClientLabel
               const showTimeBelowTitle = Boolean(mainTimeRange) && !overlapCompactContent && !overlapQueueIndicator
               if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                 return renderPartialOverlapContent(wide)
