@@ -69,6 +69,7 @@ import {
   ANDROID_PINCH_ZOOM_MIN,
   AVAILABILITY_BLOCK_TASK,
   AVAILABILITY_BLOCK_METADATA_PREFIX,
+  CALENDAR_AVAILABILITY_HORIZON_DAYS,
   CALENDAR_META_POLL_MS,
   CALENDAR_POLL_MS,
   CONSULTANT_RESOURCE_UNASSIGNED_ID,
@@ -626,18 +627,17 @@ export default function CalendarPage() {
   const computeCalendarFetchRange = () => {
     const apiCal = calendarRef.current?.getApi()
     let from = apiCal?.view?.activeStart ? new Date(apiCal.view.activeStart) : new Date()
-    let to = apiCal?.view?.activeEnd ? new Date(apiCal.view.activeEnd) : new Date()
+    let to = apiCal?.view?.activeEnd ? new Date(apiCal.view.activeEnd) : new Date(from)
     if (!apiCal?.view?.activeEnd) to.setDate(to.getDate() + 30)
+
+    // Fetch only the visible calendar period plus a small navigation buffer.
+    // Do not stretch future requests back to today: that can exceed the backend's
+    // maximum range when a user navigates several months ahead.
     from.setDate(from.getDate() - 7)
     to.setDate(to.getDate() + 7)
-    const today = new Date()
-    const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate())
-    const toDay = new Date(to.getFullYear(), to.getMonth(), to.getDate())
-    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    if (todayDay < fromDay) from = todayDay
-    if (todayDay > toDay) to = todayDay
-    const fromStr = from.toISOString().slice(0, 10)
-    const toStr = to.toISOString().slice(0, 10)
+
+    const fromStr = toIsoDateKey(from)
+    const toStr = toIsoDateKey(to)
     return { fromStr, toStr, key: `${fromStr}|${toStr}` }
   }
 
@@ -3203,6 +3203,33 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           return [breakEv]
         })
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const horizonEndExclusive = new Date(today)
+    horizonEndExclusive.setDate(horizonEndExclusive.getDate() + CALENDAR_AVAILABILITY_HORIZON_DAYS)
+
+    const apiView = calendarRef.current?.getApi()?.view
+    const fallbackVisibleEnd = new Date(today)
+    fallbackVisibleEnd.setDate(fallbackVisibleEnd.getDate() + 14)
+    const parseVisibleDay = (value: string | Date | undefined, fallback: Date) => {
+      const parsed = value ? new Date(value) : new Date(fallback)
+      const safe = Number.isFinite(parsed.getTime()) ? parsed : new Date(fallback)
+      safe.setHours(0, 0, 0, 0)
+      return safe
+    }
+    const visibleStartDay = parseVisibleDay(visibleRange?.start || apiView?.activeStart, today)
+    const visibleEndExclusiveDay = parseVisibleDay(visibleRange?.end || apiView?.activeEnd, fallbackVisibleEnd)
+    const availabilityStartDay = new Date(Math.max(today.getTime(), visibleStartDay.getTime()))
+    const availabilityEndExclusiveDay = new Date(Math.min(horizonEndExclusive.getTime(), visibleEndExclusiveDay.getTime()))
+    const availabilityDates: Date[] = []
+    for (
+      let cursor = new Date(availabilityStartDay);
+      cursor < availabilityEndExclusiveDay;
+      cursor.setDate(cursor.getDate() + 1)
+    ) {
+      availabilityDates.push(new Date(cursor))
+    }
+
     const dayMap: Record<string, number> = { SUNDAY: 0, MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6 }
     const visibleBookableSlots = !bookableEnabled ? [] : filterByConsultantRole(calendarData.bookable)
     const userHasWorkingHours = (u: any) => {
@@ -3287,10 +3314,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     const bookableFromSlots = slotsWithoutWh.flatMap((slot: any) => {
       const out: any[] = []
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(today)
-        date.setDate(today.getDate() + i)
-        const isoDate = date.toISOString().slice(0, 10)
+      for (const date of availabilityDates) {
+        const isoDate = toIsoDateKey(date)
         if (date.getDay() !== dayMap[slot.dayOfWeek]) continue
         if (!slot.indefinite && ((slot.startDate && isoDate < slot.startDate) || (slot.endDate && isoDate > slot.endDate))) continue
         const baseStartMs = new Date(`${isoDate}T${slot.startTime}`).getTime()
@@ -3336,10 +3361,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       ? []
       : consultantsForWhVisible.flatMap((cu: any) => {
           const out: any[] = []
-          for (let i = 0; i < 30; i++) {
-            const date = new Date(today)
-            date.setDate(today.getDate() + i)
-            const isoDate = date.toISOString().slice(0, 10)
+          for (const date of availabilityDates) {
+            const isoDate = toIsoDateKey(date)
             const w = consultantDayWindow(
               date.getFullYear(),
               date.getMonth(),
@@ -3506,10 +3529,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const dayEndMinutes = parseHmToMinutes(slotMaxTime)
         const out: any[] = []
         const prefix = resourceId ? `nb-${resourceId}` : 'nb'
-        for (let i = 0; i < 30; i++) {
-          const day = new Date(today)
-          day.setDate(today.getDate() + i)
-          const key = day.toISOString().slice(0, 10)
+        for (const availabilityDate of availabilityDates) {
+          const day = new Date(availabilityDate)
+          const key = toIsoDateKey(day)
           const dayStart = new Date(day)
           dayStart.setHours(Math.floor(dayStartMinutes / 60), dayStartMinutes % 60, 0, 0)
           const dayEnd = new Date(day)
@@ -4262,6 +4284,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     slotMinTime,
     slotMaxTime,
     view,
+    visibleRange,
     settings,
     modeSwitching,
     isViewOnly,

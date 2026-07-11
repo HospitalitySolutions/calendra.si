@@ -10,6 +10,9 @@ export const AVAILABILITY_BLOCK_METADATA_PREFIX = 'CALENDRA_AVAILABILITY_BLOCK_V
 export const CALENDAR_POLL_MS = 30000
 export const CALENDAR_META_POLL_MS = 180000
 export const DATE_SET_CALENDAR_DEBOUNCE_MS = 300
+
+/** Generate open/closed calendar availability for at most 90 calendar days from today. */
+export const CALENDAR_AVAILABILITY_HORIZON_DAYS = 90
 export const FULLCALENDAR_LOCALES = [enGbLocale, slLocale]
 
 /** FullCalendar resource id for bookings with no room (Spaces mode, ALL columns). */
