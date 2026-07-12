@@ -1,8 +1,5 @@
 package com.example.app.auth;
 
-import com.example.app.billing.TaxRate;
-import com.example.app.billing.TransactionService;
-import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
@@ -62,7 +59,6 @@ public class SignupService {
     private final CompanyProvisioningService companyProvisioningService;
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
-    private final TransactionServiceRepository txServices;
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
     private final SignupEmailIntentRepository signupEmailIntents;
@@ -85,7 +81,6 @@ public class SignupService {
             CompanyProvisioningService companyProvisioningService,
             CompanyRepository companies,
             AppSettingRepository settings,
-            TransactionServiceRepository txServices,
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService,
             SignupEmailIntentRepository signupEmailIntents,
@@ -101,7 +96,6 @@ public class SignupService {
                 companyProvisioningService,
                 companies,
                 settings,
-                txServices,
                 securityCenterService,
                 authCookieService,
                 signupEmailIntents,
@@ -122,7 +116,6 @@ public class SignupService {
             CompanyProvisioningService companyProvisioningService,
             CompanyRepository companies,
             AppSettingRepository settings,
-            TransactionServiceRepository txServices,
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService,
             SignupEmailIntentRepository signupEmailIntents,
@@ -139,7 +132,6 @@ public class SignupService {
         this.companyProvisioningService = companyProvisioningService;
         this.companies = companies;
         this.settings = settings;
-        this.txServices = txServices;
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
         this.signupEmailIntents = signupEmailIntents;
@@ -1489,14 +1481,6 @@ public class SignupService {
         seedSetting(company, SettingKey.COMPANY_TELEPHONE, "");
         seedSetting(company, SettingKey.PAYMENT_DEADLINE_DAYS, "15");
         seedDefaultEmailSenderSettings(company);
-
-        TransactionService tx = new TransactionService();
-        tx.setCompany(company);
-        tx.setCode("CONSULT-001");
-        tx.setDescription("Consultation");
-        tx.setTaxRate(TaxRate.VAT_22);
-        tx.setNetPrice(new BigDecimal("50.00"));
-        txServices.save(tx);
     }
 
     private void seedDefaultEmailSenderSettings(Company company) {

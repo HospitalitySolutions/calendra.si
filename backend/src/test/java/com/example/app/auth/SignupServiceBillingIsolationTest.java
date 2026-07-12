@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
@@ -43,7 +42,6 @@ class SignupServiceBillingIsolationTest {
     @Mock private CompanyProvisioningService companyProvisioningService;
     @Mock private CompanyRepository companies;
     @Mock private AppSettingRepository settings;
-    @Mock private TransactionServiceRepository txServices;
     @Mock private SecurityCenterService securityCenterService;
     @Mock private AuthCookieService authCookieService;
     @Mock private SignupEmailIntentRepository signupEmailIntents;
@@ -60,7 +58,6 @@ class SignupServiceBillingIsolationTest {
                 companyProvisioningService,
                 companies,
                 settings,
-                txServices,
                 securityCenterService,
                 authCookieService,
                 signupEmailIntents,

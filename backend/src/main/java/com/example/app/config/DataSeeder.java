@@ -1,8 +1,5 @@
 package com.example.app.config;
 
-import com.example.app.billing.TaxRate;
-import com.example.app.billing.TransactionService;
-import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
@@ -32,17 +29,14 @@ public class DataSeeder implements CommandLineRunner {
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final AppSettingRepository settings;
-    private final TransactionServiceRepository txServices;
     private final CompanyRepository companies;
     private final CompanyProvisioningService companyProvisioningService;
 
     public DataSeeder(UserRepository users, PasswordEncoder encoder, AppSettingRepository settings,
-                      TransactionServiceRepository txServices, CompanyRepository companies,
-                      CompanyProvisioningService companyProvisioningService) {
+                      CompanyRepository companies, CompanyProvisioningService companyProvisioningService) {
         this.users = users;
         this.encoder = encoder;
         this.settings = settings;
-        this.txServices = txServices;
         this.companies = companies;
         this.companyProvisioningService = companyProvisioningService;
     }
@@ -169,19 +163,6 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
 
         companyProvisioningService.ensureDefaultPaymentMethods(company);
-
-        // Ensure default billing transaction service exists for this tenant.
-        var txList = txServices.findAllByCompanyId(company.getId());
-        var tx = txList.stream().filter(s -> s.getCode().equalsIgnoreCase("CONSULT-001")).findFirst().orElse(null);
-        if (tx == null) {
-            var s = new TransactionService();
-            s.setCompany(company);
-            s.setCode("CONSULT-001");
-            s.setDescription("Consultation");
-            s.setTaxRate(TaxRate.VAT_22);
-            s.setNetPrice(new java.math.BigDecimal("50.00"));
-            tx = txServices.save(s);
-        }
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

@@ -955,14 +955,6 @@ public class DataSeeder implements CommandLineRunner {
             type.setDescription("Default therapy type");
             types.save(type);
         }
-        if (txServices.findAll().isEmpty()) {
-            var s = new TransactionService();
-            s.setCode("CONSULT-001");
-            s.setDescription("Consultation");
-            s.setTaxRate(TaxRate.VAT_22);
-            s.setNetPrice(new java.math.BigDecimal("50.00"));
-            txServices.save(s);
-        }
     }
 
     private void seedSetting(SettingKey key, String value) {

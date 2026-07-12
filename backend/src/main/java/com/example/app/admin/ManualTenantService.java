@@ -2,9 +2,6 @@ package com.example.app.admin;
 
 import com.example.app.auth.PasswordResetService;
 import com.example.app.auth.SignupWelcomeEmailService;
-import com.example.app.billing.TaxRate;
-import com.example.app.billing.TransactionService;
-import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
@@ -92,7 +89,6 @@ public class ManualTenantService {
     private final CompanyProvisioningService companyProvisioningService;
     private final UserRepository users;
     private final AppSettingRepository settings;
-    private final TransactionServiceRepository transactionServices;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetService passwordResetService;
     private final SignupWelcomeEmailService signupWelcomeEmailService;
@@ -106,7 +102,6 @@ public class ManualTenantService {
             CompanyProvisioningService companyProvisioningService,
             UserRepository users,
             AppSettingRepository settings,
-            TransactionServiceRepository transactionServices,
             PasswordEncoder passwordEncoder,
             PasswordResetService passwordResetService,
             SignupWelcomeEmailService signupWelcomeEmailService,
@@ -119,7 +114,6 @@ public class ManualTenantService {
         this.companyProvisioningService = companyProvisioningService;
         this.users = users;
         this.settings = settings;
-        this.transactionServices = transactionServices;
         this.passwordEncoder = passwordEncoder;
         this.passwordResetService = passwordResetService;
         this.signupWelcomeEmailService = signupWelcomeEmailService;
@@ -370,19 +364,6 @@ public class ManualTenantService {
         seedSetting(company, SettingKey.BILLING_BANK_TRANSFER_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_PAYPAL_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, "false");
-        seedDefaultTransactionService(company);
-    }
-
-    private void seedDefaultTransactionService(Company company) {
-        if (transactionServices.findByCompanyIdAndCodeIgnoreCase(company.getId(), "CONSULT-001").isPresent()) return;
-        TransactionService tx = new TransactionService();
-        tx.setCompany(company);
-        tx.setCode("CONSULT-001");
-        tx.setDescription("Consultation");
-        tx.setTaxRate(TaxRate.VAT_22);
-        tx.setNetPrice(new BigDecimal("50.00"));
-        tx.setActive(true);
-        transactionServices.save(tx);
     }
 
     private void audit(Company company, User actor, String action, String summary, String detail) {
