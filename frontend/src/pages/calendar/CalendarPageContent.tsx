@@ -31,6 +31,7 @@ import {
   CalendarHeaderViewDropdown,
   CalendarRailIconFilters,
   goToThreeDayViewWithTodayCentered,
+  goToWorkWeekView,
 } from '../../components/CalendarWebShellHeader'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -826,7 +827,9 @@ export default function CalendarPage() {
 
   const isWeekOrMonthView =
     view === 'timeGridWeek' ||
+    view === 'timeGridWorkWeek' ||
     view === 'resourceTimeGridWeek' ||
+    view === 'resourceTimeGridWorkWeek' ||
     view === 'dayGridMonth' ||
     view === 'resourceDayGridMonth'
 
@@ -1206,7 +1209,7 @@ export default function CalendarPage() {
   const updateCalendarHoverRow = useCallback((clientY: number) => {
     if (
       isNativeAndroid ||
-      (view !== 'timeGridWeek' && view !== 'timeGridDay' && view !== 'timeGridThreeDay') ||
+      (view !== 'timeGridWeek' && view !== 'timeGridWorkWeek' && view !== 'timeGridDay' && view !== 'timeGridThreeDay') ||
       calendarMode !== 'bookings'
     ) {
       clearForcedHoverRow()
@@ -1290,7 +1293,12 @@ export default function CalendarPage() {
       const api = calendarRef.current?.getApi()
       if (!root || !api) return
       root.querySelectorAll('.calendar-android-corner-nav').forEach((n) => n.remove())
-      if (viewType !== 'timeGridDay' && viewType !== 'timeGridWeek' && viewType !== 'timeGridThreeDay') return
+      if (
+        viewType !== 'timeGridDay' &&
+        viewType !== 'timeGridWeek' &&
+        viewType !== 'timeGridWorkWeek' &&
+        viewType !== 'timeGridThreeDay'
+      ) return
       const axisHeader = root.querySelector('.fc .fc-timegrid .fc-col-header tr th.fc-timegrid-axis')
       if (!axisHeader) return
       const btn = document.createElement('button')
@@ -2107,17 +2115,20 @@ export default function CalendarPage() {
       const toResource: Record<string, string> = {
         day: 'resourceTimeGridDay',
         week: 'resourceTimeGridWeek',
+        workWeek: 'resourceTimeGridWorkWeek',
         threeDay: 'resourceTimeGridThreeDay',
         month: 'resourceDayGridMonth',
       }
       const fromResource: Record<string, string> = {
         day: 'timeGridDay',
         week: 'timeGridWeek',
+        workWeek: 'timeGridWorkWeek',
         threeDay: 'timeGridThreeDay',
         month: 'dayGridMonth',
       }
-      const inferViewKind = (value: string): 'day' | 'week' | 'threeDay' | 'month' => {
+      const inferViewKind = (value: string): 'day' | 'week' | 'workWeek' | 'threeDay' | 'month' => {
         if (value === 'timeGridThreeDay' || value === 'resourceTimeGridThreeDay') return 'threeDay'
+        if (value === 'timeGridWorkWeek' || value === 'resourceTimeGridWorkWeek') return 'workWeek'
         if (value === 'dayGridMonth' || value === 'resourceDayGridMonth') return 'month'
         if (value === 'timeGridDay' || value === 'resourceTimeGridDay') return 'day'
         return 'week'
@@ -2927,6 +2938,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       } else if (k === '3') {
         e.preventDefault()
         goToThreeDayViewWithTodayCentered(calendarRef, res)
+      } else if (k === '5') {
+        e.preventDefault()
+        goToWorkWeekView(calendarRef, res)
       } else if (k === 'w') {
         e.preventDefault()
         api.changeView(res ? 'resourceTimeGridWeek' : 'timeGridWeek')
@@ -9510,8 +9524,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     if (
       viewType === 'timeGridWeek' ||
+      viewType === 'timeGridWorkWeek' ||
       viewType === 'timeGridThreeDay' ||
       viewType === 'resourceTimeGridWeek' ||
+      viewType === 'resourceTimeGridWorkWeek' ||
       viewType === 'resourceTimeGridThreeDay'
     ) {
       let x = rect.left - cardWidth - gap
@@ -10089,6 +10105,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               {androidScheduleOpen && (
                 <div className="config-dropdown" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 140, zIndex: 10 }}>
                   <button type="button" className="config-dropdown-item" onClick={() => { goToTodayAndroid(); setAndroidScheduleOpen(false) }}>{t('calendarToday')}</button>
+                  <button type="button" className="config-dropdown-item" onClick={() => { goToWorkWeekView(calendarRef); setAndroidScheduleOpen(false) }}>{t('viewWorkWeek')}</button>
                   <button type="button" className="config-dropdown-item" onClick={() => { calendarRef.current?.getApi().changeView('timeGridWeek'); setAndroidScheduleOpen(false) }}>{t('viewWeek')}</button>
                   <button type="button" className="config-dropdown-item" onClick={() => { calendarRef.current?.getApi().changeView('dayGridMonth'); setAndroidScheduleOpen(false) }}>{t('viewMonth')}</button>
                 </div>
@@ -10293,7 +10310,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const holidayName = holidaysByDate[toIsoDateKey(d)]
               const viewType = arg.view.type
               const isResourceWeekLike =
-                viewType === 'resourceTimeGridWeek' || viewType === 'resourceTimeGridThreeDay'
+                viewType === 'resourceTimeGridWeek' ||
+                viewType === 'resourceTimeGridWorkWeek' ||
+                viewType === 'resourceTimeGridThreeDay'
               const holidayPillText =
                 holidayName && isResourceWeekLike
                   ? truncateCalendarHolidayPillText(holidayName, 18)
@@ -10417,8 +10436,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               if (
                 vt === 'timeGridDay' ||
                 vt === 'timeGridThreeDay' ||
+                vt === 'timeGridWorkWeek' ||
                 vt === 'resourceTimeGridDay' ||
-                vt === 'resourceTimeGridThreeDay'
+                vt === 'resourceTimeGridThreeDay' ||
+                vt === 'resourceTimeGridWorkWeek'
               ) {
                 requestAnimationFrame(() => {
                   calendarRef.current?.getApi().updateSize()
@@ -10437,6 +10458,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             ? {
                 views: {
                   timeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
+                  timeGridWorkWeek: {
+                    type: 'timeGrid',
+                    duration: { weeks: 1 },
+                    dateAlignment: 'week',
+                    dateIncrement: { weeks: 1 },
+                    hiddenDays: [0, 6],
+                    allDaySlot: calendarHasContinuousAllDaySessions,
+                  },
                   timeGridDay: { allDaySlot: calendarHasContinuousAllDaySessions },
                   timeGridThreeDay: {
                     type: 'timeGrid',
@@ -10451,6 +10480,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 views: {
                   timeGridDay: { dayHeaderFormat: { weekday: 'long' }, allDaySlot: calendarHasContinuousAllDaySessions },
                   timeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
+                  timeGridWorkWeek: {
+                    type: 'timeGrid',
+                    duration: { weeks: 1 },
+                    dateAlignment: 'week',
+                    dateIncrement: { weeks: 1 },
+                    hiddenDays: [0, 6],
+                    allDaySlot: calendarHasContinuousAllDaySessions,
+                  },
                   timeGridThreeDay: {
                     type: 'timeGrid',
                     duration: { days: 3 },
@@ -10464,6 +10501,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     datesAboveResources: true,
                   },
                   resourceTimeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
+                  resourceTimeGridWorkWeek: {
+                    type: 'resourceTimeGrid',
+                    duration: { weeks: 1 },
+                    dateAlignment: 'week',
+                    dateIncrement: { weeks: 1 },
+                    hiddenDays: [0, 6],
+                    allDaySlot: calendarHasContinuousAllDaySessions,
+                    datesAboveResources: true,
+                  },
                   resourceTimeGridThreeDay: {
                     type: 'resourceTimeGrid',
                     duration: { days: 3 },
@@ -10567,9 +10613,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             }
             if (
               arg.view.type !== 'timeGridWeek' &&
+              arg.view.type !== 'timeGridWorkWeek' &&
               arg.view.type !== 'timeGridDay' &&
               arg.view.type !== 'timeGridThreeDay' &&
               arg.view.type !== 'resourceTimeGridWeek' &&
+              arg.view.type !== 'resourceTimeGridWorkWeek' &&
               arg.view.type !== 'resourceTimeGridDay' &&
               arg.view.type !== 'resourceTimeGridThreeDay'
             )
@@ -10726,6 +10774,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
             const isResourceTimeGrid =
               info.view.type === 'resourceTimeGridWeek' ||
+              info.view.type === 'resourceTimeGridWorkWeek' ||
               info.view.type === 'resourceTimeGridDay' ||
               info.view.type === 'resourceTimeGridThreeDay'
 
@@ -10734,6 +10783,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             if (
               !isResourceTimeGrid &&
               (info.view.type === 'timeGridWeek' ||
+                info.view.type === 'timeGridWorkWeek' ||
                 info.view.type === 'timeGridDay' ||
                 info.view.type === 'timeGridThreeDay') &&
               (k === 'booked' || k === 'personal' || k === 'todo' || k === 'draft-preview')
@@ -10876,7 +10926,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             requestAnimationFrame(() => {
               document
                 .querySelectorAll(
-                  '.fc-resourceTimeGridWeek-view .fc-timegrid-event-harness, .fc-resourceTimeGridDay-view .fc-timegrid-event-harness, .fc-resourceTimeGridThreeDay-view .fc-timegrid-event-harness',
+                  '.fc-resourceTimeGridWeek-view .fc-timegrid-event-harness, .fc-resourceTimeGridWorkWeek-view .fc-timegrid-event-harness, .fc-resourceTimeGridDay-view .fc-timegrid-event-harness, .fc-resourceTimeGridThreeDay-view .fc-timegrid-event-harness',
                 )
                 .forEach((el) => (el as HTMLElement).style.setProperty('right', '0', 'important'))
             })

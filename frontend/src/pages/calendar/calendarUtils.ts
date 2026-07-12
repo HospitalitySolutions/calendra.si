@@ -4,9 +4,11 @@ export function isWebTimeGridLikeView(v: string) {
     v === 'timeGridWeek' ||
     v === 'timeGridDay' ||
     v === 'timeGridThreeDay' ||
+    v === 'timeGridWorkWeek' ||
     v === 'resourceTimeGridWeek' ||
     v === 'resourceTimeGridDay' ||
-    v === 'resourceTimeGridThreeDay'
+    v === 'resourceTimeGridThreeDay' ||
+    v === 'resourceTimeGridWorkWeek'
   )
 }
 
@@ -15,7 +17,7 @@ export function isCalendarMonthGridView(v: string) {
   return v === 'dayGridMonth' || v === 'resourceDayGridMonth'
 }
 
-/** Compact month label beside hamburger: week/day/3-day and month views. */
+/** Compact month label beside hamburger: time-grid and month views. */
 export function isCalendarViewWithToolbarMonthChip(v: string) {
   return isWebTimeGridLikeView(v) || isCalendarMonthGridView(v)
 }
@@ -27,7 +29,7 @@ export function toIsoDateKey(date: Date) {
   return `${y}-${m}-${d}`
 }
 
-/** Resource week/three-day: keep holiday pill min-content small; full name stays in title. */
+/** Dense resource time grids: keep holiday pill min-content small; full name stays in title. */
 export function truncateCalendarHolidayPillText(name: string, maxChars: number) {
   const t = name.trim()
   if (t.length <= maxChars) return t

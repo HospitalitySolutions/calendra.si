@@ -23,6 +23,13 @@ export function goToThreeDayViewWithTodayCentered(calendarRef: CalendarApiRef, u
   api.changeView(useResourceViews ? 'resourceTimeGridThreeDay' : 'timeGridThreeDay')
 }
 
+/** Monday-Friday view. The custom FullCalendar view advances one whole week at a time. */
+export function goToWorkWeekView(calendarRef: CalendarApiRef, useResourceViews = false) {
+  const api = calendarRef.current?.getApi()
+  if (!api) return
+  api.changeView(useResourceViews ? 'resourceTimeGridWorkWeek' : 'timeGridWorkWeek')
+}
+
 function IconModeBookings() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -788,11 +795,13 @@ export function CalendarHeaderViewDropdown({
       ? t('viewDay')
       : view === 'timeGridThreeDay' || view === 'resourceTimeGridThreeDay'
         ? t('viewThreeDay')
-        : view === 'timeGridWeek' || view === 'resourceTimeGridWeek'
-          ? t('viewWeek')
-          : t('viewMonth')
+        : view === 'timeGridWorkWeek' || view === 'resourceTimeGridWorkWeek'
+          ? t('viewWorkWeek')
+          : view === 'timeGridWeek' || view === 'resourceTimeGridWeek'
+            ? t('viewWeek')
+            : t('viewMonth')
 
-  const pick = (kind: 'day' | 'threeDay' | 'week' | 'month') => {
+  const pick = (kind: 'day' | 'threeDay' | 'workWeek' | 'week' | 'month') => {
     const api = calendarRef.current?.getApi()
     if (!api) return
     if (kind === 'day') {
@@ -800,6 +809,8 @@ export function CalendarHeaderViewDropdown({
       api.today()
     } else if (kind === 'threeDay') {
       goToThreeDayViewWithTodayCentered(calendarRef, useResourceViews)
+    } else if (kind === 'workWeek') {
+      goToWorkWeekView(calendarRef, useResourceViews)
     } else if (kind === 'week') {
       api.changeView(useResourceViews ? 'resourceTimeGridWeek' : 'timeGridWeek')
     } else {
@@ -831,6 +842,10 @@ export function CalendarHeaderViewDropdown({
           <button type="button" className="calendar-view-dropdown-item" role="option" onClick={() => pick('threeDay')}>
             <span>{t('viewThreeDay')}</span>
             <span className="calendar-view-dropdown-kbd">3</span>
+          </button>
+          <button type="button" className="calendar-view-dropdown-item" role="option" onClick={() => pick('workWeek')}>
+            <span>{t('viewWorkWeek')}</span>
+            <span className="calendar-view-dropdown-kbd">5</span>
           </button>
           <button type="button" className="calendar-view-dropdown-item" role="option" onClick={() => pick('week')}>
             <span>{t('viewWeek')}</span>
