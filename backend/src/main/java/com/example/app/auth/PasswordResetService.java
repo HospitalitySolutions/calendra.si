@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +30,8 @@ public class PasswordResetService {
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
     private static final long TOKEN_TTL_SECONDS = 60L * 60L;
     private static final int TOKEN_BYTES = 32;
+    private static final String CALENDRA_LOGO_CONTENT_ID = "calendraLogo";
+    private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
 
     private final UserRepository users;
     private final PasswordResetTokenRepository resetTokens;
@@ -247,6 +250,11 @@ public class PasswordResetService {
             helper.setTo(user.getEmail());
             helper.setSubject(copy.subject());
             helper.setText(plainText, html);
+            helper.addInline(
+                    CALENDRA_LOGO_CONTENT_ID,
+                    new ClassPathResource(CALENDRA_LOGO_CLASSPATH),
+                    "image/png"
+            );
             mailSender.send(message);
             log.info("Employee account created email sent to {}", LogSanitizer.emailHash(user.getEmail()));
         } catch (Exception e) {
@@ -259,6 +267,7 @@ public class PasswordResetService {
         String companyName = user.getCompany() == null || user.getCompany().getName() == null || user.getCompany().getName().isBlank()
                 ? copy.companyFallback()
                 : user.getCompany().getName().trim();
+        String email = user.getEmail() == null ? "" : user.getEmail().trim().toLowerCase(Locale.ROOT);
         return """
                 %s %s,
 
@@ -267,7 +276,11 @@ public class PasswordResetService {
 
                 %s
 
-                %s %s
+                %s
+                %s: %s
+                %s: %s
+
+                %s
                 %s
                 """.formatted(
                 copy.plainGreetingPrefix(),
@@ -277,6 +290,10 @@ public class PasswordResetService {
                 copy.plainFinishSetup(),
                 resetUrl,
                 copy.expiryText(),
+                copy.companyLabel(),
+                companyName,
+                copy.loginEmailLabel(),
+                email,
                 copy.securityPlainText(),
                 copy.unexpectedText()
         );
@@ -288,37 +305,108 @@ public class PasswordResetService {
                 ? escapeHtml(copy.companyFallback())
                 : escapeHtml(user.getCompany().getName().trim());
         String email = escapeHtml(user.getEmail() == null ? "" : user.getEmail().trim().toLowerCase(Locale.ROOT));
-        String role = escapeHtml(formatRole(user, copy));
-        String accessRole = escapeHtml(formatAccessRole(user, copy));
         String safeResetUrl = escapeHtml(resetUrl);
 
         return """
                 <!doctype html>
-                <html>
-                <body style="margin:0;background:#f3f6fb;font-family:Arial,sans-serif;color:#0f172a;">
-                  <div style="max-width:640px;margin:32px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:32px;box-shadow:0 18px 45px rgba(15,23,42,.08);">
-                    <div style="font-size:26px;font-weight:800;letter-spacing:-.03em;color:#0f172a;margin-bottom:28px;">Calendra</div>
-                    <div style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:20px;">%s</div>
-                    <h1 style="font-size:30px;line-height:1.15;margin:0 0 18px;">%s</h1>
-                    <p style="font-size:16px;line-height:1.65;margin:0 0 14px;">%s %s,</p>
-                    <p style="font-size:16px;line-height:1.65;margin:0 0 24px;color:#334155;">%s <strong>%s</strong>. %s</p>
-                    <a href="%s" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;border-radius:14px;padding:16px 24px;margin-bottom:24px;">%s</a>
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px;margin:0 0 26px;">
-                      <strong>%s</strong><br>
-                      <span style="color:#64748b;">%s</span>
-                    </div>
-                    <h2 style="font-size:18px;margin:0 0 14px;">%s</h2>
-                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 10px;">
-                      %s
-                      %s
-                      %s
-                      %s
-                    </table>
-                    <p style="font-size:14px;line-height:1.6;color:#64748b;margin:22px 0 0;">%s</p>
-                  </div>
+                <html lang="en">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <meta name="color-scheme" content="light">
+                  <meta name="supported-color-schemes" content="light">
+                  <style>
+                    @media only screen and (max-width: 640px) {
+                      .email-shell { padding: 16px 10px !important; }
+                      .email-card { border-radius: 18px !important; }
+                      .email-content { padding: 28px 22px 24px !important; }
+                      .email-title { font-size: 27px !important; }
+                      .details-value { text-align: left !important; padding-top: 2px !important; }
+                    }
+                  </style>
+                </head>
+                <body style="margin:0;padding:0;background:#f3f6fb;font-family:Arial,'Helvetica Neue',sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+                  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">%s</div>
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="width:100%%;background:#f3f6fb;border-collapse:collapse;">
+                    <tr>
+                      <td align="center" class="email-shell" style="padding:34px 16px;">
+                        <table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" class="email-card" style="width:100%%;max-width:620px;background:#ffffff;border:1px solid #e5eaf2;border-radius:24px;border-collapse:separate;box-shadow:0 16px 42px rgba(15,23,42,0.08);overflow:hidden;">
+                          <tr>
+                            <td class="email-content" style="padding:32px 38px 28px;">
+                              <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="width:100%%;border-collapse:collapse;">
+                                <tr>
+                                  <td style="padding:0 0 18px;">
+                                    <img src="cid:%s" width="190" alt="Calendra" style="display:block;width:190px;max-width:62%%;height:auto;border:0;outline:none;text-decoration:none;">
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:0 0 16px;">
+                                    <span style="display:inline-block;background:#edf5ff;color:#1769e0;border-radius:999px;padding:7px 12px;font-size:12px;line-height:16px;font-weight:700;">%s</span>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:0;">
+                                    <h1 class="email-title" style="margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-0.5px;color:#101828;font-weight:800;">%s</h1>
+                                    <p style="margin:0 0 8px;font-size:15px;line-height:1.65;color:#344054;">%s %s,</p>
+                                    <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#344054;">%s <strong style="color:#101828;">%s</strong>. %s</p>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:0 0 18px;">
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;">
+                                      <tr>
+                                        <td align="center" bgcolor="#2563eb" style="border-radius:12px;background:#2563eb;box-shadow:0 6px 14px rgba(37,99,235,0.22);">
+                                          <a href="%s" style="display:inline-block;padding:14px 22px;color:#ffffff;font-size:14px;line-height:18px;font-weight:700;text-decoration:none;border-radius:12px;">%s</a>
+                                        </td>
+                                      </tr>
+                                    </table>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:0 0 22px;">
+                                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="width:100%%;background:#f7faff;border:1px solid #dce9fb;border-radius:12px;border-collapse:separate;">
+                                      <tr>
+                                        <td width="46" valign="top" style="padding:16px 0 16px 16px;">
+                                          <div style="width:24px;height:24px;line-height:24px;text-align:center;border:2px solid #3b82f6;border-radius:50%%;color:#2563eb;font-size:14px;font-weight:800;box-sizing:border-box;">i</div>
+                                        </td>
+                                        <td style="padding:15px 16px 15px 10px;">
+                                          <div style="font-size:13px;line-height:18px;color:#172033;font-weight:700;margin:0 0 2px;">%s</div>
+                                          <div style="font-size:12px;line-height:18px;color:#667085;">%s</div>
+                                        </td>
+                                      </tr>
+                                    </table>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="border-top:1px solid #edf0f5;padding:20px 0 12px;">
+                                    <h2 style="margin:0;font-size:16px;line-height:22px;color:#101828;font-weight:700;">%s</h2>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:0;">
+                                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="width:100%%;background:#ffffff;border:1px solid #e6eaf0;border-radius:12px;border-collapse:separate;overflow:hidden;">
+                                      %s
+                                      %s
+                                    </table>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td style="padding:22px 0 0;">
+                                    <p style="margin:0;font-size:12px;line-height:18px;color:#7b8798;">%s</p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
                 </body>
                 </html>
                 """.formatted(
+                copy.preheader(),
+                CALENDRA_LOGO_CONTENT_ID,
                 copy.badge(),
                 copy.title(),
                 copy.htmlGreetingPrefix(),
@@ -331,41 +419,28 @@ public class PasswordResetService {
                 copy.expiryText(),
                 copy.unexpectedText(),
                 copy.accountDetailsTitle(),
-                accountDetailRow(copy.companyLabel(), companyName),
-                accountDetailRow(copy.loginEmailLabel(), email),
-                accountDetailRow(copy.roleLabel(), role),
-                accountDetailRow(copy.accessRoleLabel(), accessRole),
+                accountDetailRow("&#9638;", copy.companyLabel(), companyName, false, false),
+                accountDetailRow("&#9993;", copy.loginEmailLabel(), email, true, true),
                 copy.securityHtmlText()
         );
     }
 
-    private String accountDetailRow(String label, String value) {
+    private String accountDetailRow(String icon, String label, String value, boolean valueIsLink, boolean addTopBorder) {
+        String renderedValue = valueIsLink
+                ? "<a href=\"mailto:" + value + "\" style=\"color:#2563eb;text-decoration:none;font-weight:700;\">" + value + "</a>"
+                : value;
         return "<tr>"
-                + "<td style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;color:#64748b;font-weight:700;\">" + escapeHtml(label) + "</td>"
-                + "<td style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;text-align:right;font-weight:700;\">" + value + "</td>"
+                + "<td colspan=\"2\" style=\"height:1px;padding:0;background:" + (addTopBorder ? "#edf0f5" : "#ffffff") + ";font-size:0;line-height:0;\">&nbsp;</td>"
+                + "</tr>"
+                + "<tr>"
+                + "<td valign=\"middle\" style=\"padding:12px 8px 12px 14px;\">"
+                + "<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"border-collapse:collapse;\"><tr>"
+                + "<td width=\"32\" height=\"32\" align=\"center\" valign=\"middle\" style=\"width:32px;height:32px;background:#edf5ff;border-radius:50%;color:#2563eb;font-size:16px;line-height:32px;font-weight:700;\">" + icon + "</td>"
+                + "<td style=\"padding-left:10px;font-size:13px;line-height:18px;color:#344054;font-weight:600;white-space:nowrap;\">" + escapeHtml(label) + "</td>"
+                + "</tr></table>"
+                + "</td>"
+                + "<td class=\"details-value\" align=\"right\" valign=\"middle\" style=\"padding:12px 14px 12px 8px;text-align:right;font-size:13px;line-height:18px;color:#101828;font-weight:700;\">" + renderedValue + "</td>"
                 + "</tr>";
-    }
-
-    private String formatRole(User user, EmployeeAccountEmailCopy copy) {
-        if (user.getRole() == null) {
-            return copy.employeeRoleLabel();
-        }
-        return switch (user.getRole()) {
-            case ADMIN -> copy.administratorRoleLabel();
-            case CONSULTANT -> copy.employeeRoleLabel();
-            case SUPER_ADMIN -> copy.superAdminRoleLabel();
-        };
-    }
-
-    private String formatAccessRole(User user, EmployeeAccountEmailCopy copy) {
-        if (user.getEmployeeAccessRole() == null || user.getEmployeeAccessRole().getName() == null || user.getEmployeeAccessRole().getName().isBlank()) {
-            return "—";
-        }
-        String accessRole = user.getEmployeeAccessRole().getName().trim();
-        if ("Calendar access".equalsIgnoreCase(accessRole)) {
-            return copy.defaultCalendarAccessRoleLabel();
-        }
-        return accessRole;
     }
 
     private String normalizeSupportedLocale(String localeCode) {
@@ -414,87 +489,72 @@ public class PasswordResetService {
         return switch (normalizeSupportedLocale(locale)) {
             case "sl" -> new EmployeeAccountEmailCopy(
                     "Vaš uporabniški račun Calendra je bil ustvarjen",
+                    "Vaš račun je pripravljen. Nastavite geslo in se prijavite v Calendro.",
                     "Nov uporabniški račun",
-                    "Dobrodošli v Calendri",
+                    "Dobrodošli v Calendri! 👋",
                     "Pozdravljeni",
                     "pozdravljeni",
                     "Pozdravljeni",
                     "pozdravljeni",
                     "Za vas je bil v Calendri ustvarjen uporabniški račun za",
                     "Za vas je bil v Calendri ustvarjen uporabniški račun za",
-                    "Za dokončanje nastavitve ustvarite geslo prek varne povezave spodaj.",
-                    "Za dokončanje nastavitve ustvarite geslo prek varne povezave spodaj.",
+                    "Za dokončanje nastavitve vašega gesla kliknite spodnji gumb.",
+                    "Za dokončanje nastavitve vašega gesla odprite spodnjo povezavo.",
                     "Nastavite geslo",
                     "Povezava poteče čez 1 uro.",
-                    "Če tega računa niste pričakovali, lahko to e-pošto prezrete.",
-                    "Zaradi varnosti Calendra gesel ne pošilja po e-pošti. Geslo boste izbrali sami na strani za nastavitev.",
-                    "Zaradi varnosti Calendra gesel ne pošilja po e-pošti.",
+                    "Če tega niste zahtevali, lahko to sporočilo varno ignorirate.",
+                    "Zaradi varnosti povezava deluje samo enkrat in je časovno omejena.",
+                    "Zaradi varnosti povezava deluje samo enkrat in je časovno omejena.",
                     "Podatki računa",
                     "Podjetje",
                     "E-pošta za prijavo",
-                    "Vloga",
-                    "Dostopna vloga",
-                    "vaše podjetje",
-                    "Administrator",
-                    "Zaposleni",
-                    "Super administrator",
-                    "Dostop do koledarja"
+                    "vaše podjetje"
             );
             case "sr" -> new EmployeeAccountEmailCopy(
                     "Vaš Calendra korisnički nalog je kreiran",
+                    "Vaš nalog je spreman. Podesite lozinku i prijavite se u Calendra.",
                     "Novi korisnički nalog",
-                    "Dobro došli u Calendra",
+                    "Dobro došli u Calendra! 👋",
                     "Zdravo",
                     "zdravo",
                     "Zdravo",
                     "zdravo",
                     "Za vas je kreiran korisnički nalog u Calendra za",
                     "Za vas je kreiran korisnički nalog u Calendra za",
-                    "Da završite podešavanje, kreirajte lozinku preko sigurne veze ispod.",
-                    "Da završite podešavanje, kreirajte lozinku preko sigurne veze ispod.",
+                    "Da završite podešavanje lozinke, kliknite na dugme ispod.",
+                    "Da završite podešavanje lozinke, otvorite vezu ispod.",
                     "Podesite lozinku",
                     "Ova veza ističe za 1 sat.",
-                    "Ako niste očekivali ovaj nalog, možete ignorisati ovu e-poštu.",
-                    "Iz bezbednosnih razloga, Calendra ne šalje lozinke e-poštom. Svoju lozinku ćete izabrati na stranici za podešavanje.",
-                    "Iz bezbednosnih razloga, Calendra ne šalje lozinke e-poštom.",
+                    "Ako ovo niste zatražili, možete bezbedno ignorisati ovu poruku.",
+                    "Iz bezbednosnih razloga, veza radi samo jednom i vremenski je ograničena.",
+                    "Iz bezbednosnih razloga, veza radi samo jednom i vremenski je ograničena.",
                     "Podaci naloga",
                     "Kompanija",
                     "E-pošta za prijavu",
-                    "Uloga",
-                    "Pristupna uloga",
-                    "vašu kompaniju",
-                    "Administrator",
-                    "Zaposleni",
-                    "Super administrator",
-                    "Pristup kalendaru"
+                    "vašu kompaniju"
             );
             default -> new EmployeeAccountEmailCopy(
                     "Your Calendra account has been created",
+                    "Your account is ready. Set your password and sign in to Calendra.",
                     "New user account",
-                    "Welcome to Calendra",
+                    "Welcome to Calendra! 👋",
                     "Hi",
                     "there",
                     "Hi",
                     "there",
                     "A user account has been created for you in Calendra for",
                     "A user account has been created for you in Calendra for",
-                    "To finish setup, please create your password using the secure link below.",
-                    "To finish setup, create your password using this secure link:",
+                    "To finish setting up your password, click the button below.",
+                    "To finish setting up your password, open the link below.",
                     "Set your password",
                     "This link expires in 1 hour.",
-                    "If you were not expecting this account, you can ignore this email.",
-                    "For security reasons, Calendra does not send passwords by email. You will choose your own password on the setup page.",
-                    "For security reasons, Calendra does not send passwords by email.",
+                    "If you did not request this, you can safely ignore this message.",
+                    "For security, this link works only once and is time-limited.",
+                    "For security, this link works only once and is time-limited.",
                     "Account details",
                     "Company",
                     "Login email",
-                    "Role",
-                    "Access role",
-                    "your company",
-                    "Administrator",
-                    "Employee",
-                    "Super admin",
-                    "Calendar access"
+                    "your company"
             );
         };
     }
@@ -511,6 +571,7 @@ public class PasswordResetService {
 
     private record EmployeeAccountEmailCopy(
             String subject,
+            String preheader,
             String badge,
             String title,
             String htmlGreetingPrefix,
@@ -529,13 +590,7 @@ public class PasswordResetService {
             String accountDetailsTitle,
             String companyLabel,
             String loginEmailLabel,
-            String roleLabel,
-            String accessRoleLabel,
-            String companyFallback,
-            String administratorRoleLabel,
-            String employeeRoleLabel,
-            String superAdminRoleLabel,
-            String defaultCalendarAccessRoleLabel
+            String companyFallback
     ) {}
 
     private static String escapeHtml(String value) {
