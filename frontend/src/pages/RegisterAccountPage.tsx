@@ -1218,6 +1218,14 @@ function resolveRegisterSelectionSearch(
   );
 }
 
+function registerReturnSearchWithLocale(search: string, locale: string) {
+  const params = new URLSearchParams((search || "").replace(/^\?/, ""));
+  params.delete("lang");
+  params.delete("language");
+  params.set("locale", locale === "sl" || locale === "sr" ? locale : "en");
+  return params.toString();
+}
+
 function queryWithRegisterSelection(
   currentSearch: string,
   payload?: SignupSelectionPayload | null,
@@ -1598,10 +1606,9 @@ export function RegisterAccountPage() {
         addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
-        returnSearch: resolveRegisterSelectionSearch(
-          null,
-          location.search,
-          selection,
+        returnSearch: registerReturnSearchWithLocale(
+          resolveRegisterSelectionSearch(null, location.search, selection),
+          locale,
         ),
       });
     } catch (e) {
@@ -1837,10 +1844,9 @@ export function RegisterAccountPage() {
         addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
-        returnSearch: resolveRegisterSelectionSearch(
-          null,
-          location.search,
-          selection,
+        returnSearch: registerReturnSearchWithLocale(
+          resolveRegisterSelectionSearch(null, location.search, selection),
+          locale,
         ),
       });
 

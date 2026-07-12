@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import loginLogo from "../assets/login-logo.png";
 import { api } from "../api";
 import { getStoredUser } from "../auth";
+import { AuthLanguageDropdown } from "../components/AuthLanguageDropdown";
 import { useToast } from "../components/Toast";
 import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
 import { markOnboardingTourPending } from "../lib/onboardingTour";
+import { useRegisterFooterClickOutside } from "../lib/useRegisterFooterClickOutside";
 import { useLocale } from "../locale";
 import { clearAuthStoragePreservingTheme } from "../theme";
 import { registerPageStyles } from "./registerPageStyles";
+import { RegisterFooterChevron, RegisterFooterListIcon } from "./RegisterPage";
 import {
   getBillingInterval,
   getEstimatedUserCount,
@@ -18,6 +21,7 @@ import {
   selectionToSearch,
 } from "./registerFlow";
 import {
+  buildRegisterFooterPill,
   buildSummary,
   getActiveAddonKeys,
   getRegisterPlanPageCopy,
@@ -53,6 +57,9 @@ function getSelectedAddonKeys(
 
 const registerBillingDetailsStyles = `
   .register-flow.register-billing-details-page {
+    --max-width: 1280px;
+    --register-gutter: max(20px, env(safe-area-inset-left, 0px));
+    --register-gutter-right: max(20px, env(safe-area-inset-right, 0px));
     --billing-card-radius: 18px;
     --billing-blue: #2f6df6;
     --billing-blue-dark: #155be7;
@@ -66,7 +73,7 @@ const registerBillingDetailsStyles = `
     display: flex;
     flex-direction: column;
     position: relative;
-    overflow-x: hidden;
+    overflow-x: clip;
     background:
       radial-gradient(circle at 86% 41%, rgba(47, 109, 246, 0.085), transparent 17%),
       radial-gradient(circle at 10% 68%, rgba(47, 109, 246, 0.070), transparent 23%),
@@ -96,40 +103,30 @@ const registerBillingDetailsStyles = `
     bottom: 170px;
   }
 
-  .register-flow.register-billing-details-page .topbar,
-  .register-flow.register-billing-details-page .app {
-    position: relative;
-    z-index: 1;
-  }
-
   .register-flow.register-billing-details-page .topbar {
-    width: min(100%, 1160px);
-    max-width: 1160px;
+    width: 100%;
+    max-width: var(--max-width);
+    min-height: 68px;
     margin: 0 auto;
-    padding: max(14px, calc(10px + env(safe-area-inset-top, 0px))) clamp(18px, 3vw, 28px) 12px;
-    background: rgba(255, 255, 255, 0.64);
-    border-bottom: 1px solid rgba(216, 226, 244, 0.86);
-    backdrop-filter: blur(10px);
+    padding: 10px 0;
+    position: relative;
+    z-index: 500;
+    overflow: visible;
+    background: rgba(255, 255, 255, 0.86);
+    border-bottom: 1px solid rgba(222, 231, 244, 0.85);
+    backdrop-filter: blur(16px);
   }
 
   .register-flow.register-billing-details-page .brand-logo {
-    width: 176px;
-    max-height: 54px;
+    width: 154px;
+    max-height: 48px;
     object-fit: contain;
-  }
-
-  .register-flow.register-billing-details-page .lang-switch {
-    padding: 4px;
-    border-radius: 999px;
-    box-shadow: 0 12px 26px rgba(45, 84, 156, 0.08), 0 1px 0 rgba(255,255,255,0.95) inset;
-  }
-
-  .register-flow.register-billing-details-page .lang-switch-btn {
-    padding: 6px 12px;
-    font-size: 0.78rem;
+    object-position: left center;
   }
 
   .register-flow.register-billing-details-page .app {
+    position: relative;
+    z-index: 1;
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
@@ -138,7 +135,11 @@ const registerBillingDetailsStyles = `
 
   .register-flow.register-billing-details-page .content {
     flex: 1 1 auto;
-    padding: 22px 0 48px;
+    padding: 12px 0 170px;
+  }
+
+  .register-flow.register-billing-details-page:has(.register-fixed-footer.is-expanded) .content {
+    padding-bottom: clamp(340px, 55vh, 520px);
   }
 
   .register-billing-wrap {
@@ -146,68 +147,91 @@ const registerBillingDetailsStyles = `
     margin: 0 auto;
     padding: 0 clamp(18px, 3vw, 34px);
     display: grid;
-    gap: 22px;
+    gap: 18px;
   }
 
   .register-billing-stepper-row {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0 0 2px;
   }
 
-  .register-billing-stepper {
+  .register-billing-stepper-row .stepper {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    width: min(100%, 560px);
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .register-billing-stepper-row .stepper::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    left: 16.666%;
+    right: 16.666%;
+    height: 1px;
+    background: #dbe4f1;
+    z-index: 0;
+  }
+
+  .register-billing-stepper-row .step {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
-    gap: 14px;
+    justify-content: center;
+    gap: 8px;
+    padding: 3px 10px 8px;
+    border: 0;
+    border-radius: 0;
+    color: #8793a8;
+    background: transparent;
+    font-size: 0.84rem;
+    font-weight: 700;
   }
 
-  .register-billing-stepper-line {
-    width: 42px;
-    height: 1px;
-    background: #bfcdea;
-    opacity: 0.75;
+  .register-billing-stepper-row .step.step-done {
+    color: #53647f;
   }
 
-  .register-billing-step {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    min-height: 36px;
-    padding: 8px 14px 8px 10px;
-    border-radius: 999px;
-    border: 1px solid #d8e4f6;
-    background: rgba(255,255,255,0.78);
-    color: #1b2a46;
-    box-shadow: 0 10px 24px rgba(33, 73, 145, 0.06);
-    font-size: 0.85rem;
-    font-weight: 850;
-    white-space: nowrap;
-  }
-
-  .register-billing-step-icon {
-    display: inline-grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    background: #ffffff;
+  .register-billing-stepper-row .step.step-current {
     color: var(--billing-blue);
-    border: 1px solid #b9d0ff;
-    font-size: 0.78rem;
-    font-weight: 950;
   }
 
-  .register-billing-step--done .register-billing-step-icon,
-  .register-billing-step--current .register-billing-step-icon {
+  .register-billing-step-number {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 999px;
+    border: 1px solid #d8e1ee;
+    background: #fff;
+    color: #7c899d;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .register-billing-stepper-row .step.step-done .register-billing-step-number,
+  .register-billing-stepper-row .step.step-current .register-billing-step-number {
+    border-color: var(--billing-blue);
     background: var(--billing-blue);
     color: #fff;
-    border-color: var(--billing-blue);
+    box-shadow: 0 5px 14px rgba(36, 99, 235, 0.25);
   }
 
-  .register-billing-step--current {
-    color: var(--billing-blue);
-    border-color: #b9d0ff;
-    background: #f4f8ff;
+  .register-billing-step-label {
+    padding: 2px 5px;
+    background: #f8fbff;
+    white-space: nowrap;
   }
 
   .register-billing-card {
@@ -522,12 +546,17 @@ const registerBillingDetailsStyles = `
     font-weight: 850;
   }
 
-  .register-billing-actions {
+  .register-billing-actions,
+  .register-billing-footer-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding-top: 8px;
+    gap: 10px;
+  }
+
+  .register-billing-footer-actions {
+    justify-content: flex-end;
+    min-width: 0;
   }
 
   .register-billing-back,
@@ -567,6 +596,72 @@ const registerBillingDetailsStyles = `
     opacity: 0.64;
     cursor: not-allowed;
     transform: none;
+  }
+
+  /* Step 3 uses the same floating registration footer surface as steps 1 and 2. */
+  .register-flow.register-billing-details-page .register-fixed-footer {
+    bottom: 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .register-flow.register-billing-details-page .register-fixed-footer.is-expanded {
+    box-shadow: none;
+  }
+
+  .register-flow.register-billing-details-page .register-fixed-footer-inner.register-footer-panel {
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid rgba(219, 228, 241, 0.98);
+    border-radius: 17px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 16px 42px rgba(32, 57, 102, 0.16);
+    backdrop-filter: blur(16px);
+  }
+
+  .register-flow.register-billing-details-page .register-footer-toolbar {
+    min-height: 56px;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-center-cluster,
+  .register-flow.register-billing-details-page .register-footer-toolbar-mid {
+    width: 100%;
+    max-width: none;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-pill {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 11px;
+    background: #f8faff;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-pill:hover {
+    border-color: transparent;
+    background: #f3f7ff;
+    box-shadow: none;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-pill-title {
+    font-size: 0.8rem;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-pill-sub {
+    font-size: 0.66rem;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-pill-total-inline {
+    min-width: 128px;
+  }
+
+  .register-flow.register-billing-details-page .register-footer-pill-total-inline .register-footer-total-value {
+    font-size: 1rem;
   }
 
   .register-billing-summary {
@@ -698,20 +793,18 @@ const registerBillingDetailsStyles = `
 
   @media (max-width: 720px) {
     .register-flow.register-billing-details-page .topbar {
-      padding-left: 16px;
-      padding-right: 16px;
+      padding-left: 0;
+      padding-right: 0;
     }
 
-    .register-billing-stepper {
-      width: 100%;
-      overflow-x: auto;
+    .register-billing-stepper-row {
       justify-content: flex-start;
+      overflow-x: auto;
       padding-bottom: 3px;
     }
 
-    .register-billing-stepper-line {
-      width: 28px;
-      flex: 0 0 auto;
+    .register-billing-stepper-row .stepper {
+      min-width: 520px;
     }
 
     .register-billing-main,
@@ -743,9 +836,29 @@ const registerBillingDetailsStyles = `
       align-items: stretch;
     }
 
+    .register-billing-footer-actions {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: 8px;
+    }
+
     .register-billing-back,
     .register-billing-submit {
       width: 100%;
+      min-width: 0;
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .register-billing-footer-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .register-billing-stepper-row .stepper {
+      min-width: 470px;
     }
   }
 `;
@@ -882,6 +995,16 @@ export function RegisterBillingDetailsPage() {
     () => plansForLocale(lang),
     [lang, registerCatalogRevision],
   );
+  const footerPill = useMemo(
+    () => buildRegisterFooterPill(selection, summary, lang),
+    [selection, summary, lang],
+  );
+  const websiteUrl =
+    (import.meta.env.VITE_WEBSITE_URL as string | undefined)?.trim() ||
+    "https://calendra.si";
+  const contactSalesEmail =
+    (import.meta.env.VITE_CONTACT_EMAIL as string | undefined)?.trim() ||
+    "info@calendra.si";
   const storedUser = getStoredUser();
 
   const [firstName, setFirstName] = useState(storedUser?.firstName || "");
@@ -901,6 +1024,13 @@ export function RegisterBillingDetailsPage() {
     });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [footerExpanded, setFooterExpanded] = useState(false);
+  const registerFooterRef = useRef<HTMLElement | null>(null);
+  useRegisterFooterClickOutside(
+    registerFooterRef,
+    footerExpanded,
+    setFooterExpanded,
+  );
 
   useEffect(() => {
     let alive = true;
@@ -1039,6 +1169,11 @@ export function RegisterBillingDetailsPage() {
     navigate(`/register/account?${selectionToSearch(selection)}`);
   };
 
+  const openContactSales = () => {
+    const subject = encodeURIComponent(pageCopy.contactSubject);
+    window.location.href = `mailto:${contactSalesEmail}?subject=${subject}`;
+  };
+
   const returnToLogin = async () => {
     try {
       await api.post("/auth/logout");
@@ -1064,84 +1199,34 @@ export function RegisterBillingDetailsPage() {
         </button>
 
         <div className="top-actions">
-          <div className="lang-switch" role="group" aria-label={t("language")}>
-            <button
-              type="button"
-              className={
-                locale === "sl" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "sl"}
-              onClick={() => setLocale("sl")}
-            >
-              SL
-            </button>
-            <button
-              type="button"
-              className={
-                locale === "sr" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "sr"}
-              onClick={() => setLocale("sr")}
-            >
-              SR
-            </button>
-            <button
-              type="button"
-              className={
-                locale === "en" ? "lang-switch-btn active" : "lang-switch-btn"
-              }
-              aria-pressed={locale === "en"}
-              onClick={() => setLocale("en")}
-            >
-              EN
-            </button>
-          </div>
+          <AuthLanguageDropdown
+            locale={locale}
+            setLocale={setLocale}
+            ariaLabel={t("language")}
+          />
         </div>
       </header>
 
       <div className="app">
         <main className="content">
           <div className="register-billing-wrap">
-            <div className="register-billing-stepper-row">
-              <div
-                className="register-billing-stepper"
-                aria-label={pageCopy.stepperAria}
-              >
-                <span className="register-billing-step register-billing-step--done">
-                  <span
-                    className="register-billing-step-icon"
-                    aria-hidden="true"
-                  >
-                    ✓
-                  </span>
-                  <span>{stepLabel(pageCopy.step1)}</span>
-                </span>
-                <span
-                  className="register-billing-stepper-line"
-                  aria-hidden="true"
-                />
-                <span className="register-billing-step register-billing-step--done">
-                  <span
-                    className="register-billing-step-icon"
-                    aria-hidden="true"
-                  >
-                    ✓
-                  </span>
-                  <span>{stepLabel(pageCopy.step2)}</span>
-                </span>
-                <span
-                  className="register-billing-stepper-line"
-                  aria-hidden="true"
-                />
-                <span className="register-billing-step register-billing-step--current">
-                  <span
-                    className="register-billing-step-icon"
-                    aria-hidden="true"
-                  >
-                    3
-                  </span>
-                  <span>{stepLabel(pageCopy.step3)}</span>
-                </span>
+            <div className="register-stepper-row register-billing-stepper-row">
+              <div className="stepper" aria-label={pageCopy.stepperAria}>
+                {[pageCopy.step1, pageCopy.step2, pageCopy.step3].map(
+                  (step, index) => (
+                    <div
+                      key={step}
+                      className={index < 2 ? "step step-done" : "step step-current"}
+                    >
+                      <span className="register-billing-step-number" aria-hidden>
+                        {index < 2 ? "✓" : index + 1}
+                      </span>
+                      <span className="register-billing-step-label">
+                        {stepLabel(step)}
+                      </span>
+                    </div>
+                  ),
+                )}
               </div>
             </div>
 
@@ -1174,6 +1259,7 @@ export function RegisterBillingDetailsPage() {
                 </div>
 
                 <form
+                  id="register-billing-form"
                   className="register-billing-form"
                   onSubmit={submitBillingDetails}
                 >
@@ -1431,24 +1517,6 @@ export function RegisterBillingDetailsPage() {
                     </div>
                   ) : null}
 
-                  <div className="register-billing-actions">
-                    <button
-                      type="button"
-                      className="register-billing-back"
-                      onClick={backToAccount}
-                    >
-                      <span aria-hidden="true">←</span>
-                      <span>{copy.back}</span>
-                    </button>
-                    <button
-                      type="submit"
-                      className="register-billing-submit"
-                      disabled={saving}
-                    >
-                      <span>{saving ? copy.saving : copy.submit}</span>
-                      <span aria-hidden="true">→</span>
-                    </button>
-                  </div>
                 </form>
               </section>
 
@@ -1504,6 +1572,148 @@ export function RegisterBillingDetailsPage() {
           </div>
         </main>
       </div>
+
+      <footer
+        ref={registerFooterRef}
+        className={`register-fixed-footer${footerExpanded ? " is-expanded" : ""}`}
+        role="contentinfo"
+      >
+        <div
+          className={`register-fixed-footer-inner register-footer-panel${footerExpanded ? " is-expanded" : ""}`}
+        >
+          <div className="register-footer-toolbar">
+            <div className="register-footer-toolbar-lead">
+              <div className="register-footer-back">
+                <button
+                  className="back-link"
+                  type="button"
+                  onClick={() => window.location.assign(websiteUrl)}
+                >
+                  {pageCopy.backWebsite}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="custom-cta custom-cta--footer-toolbar"
+                onClick={openContactSales}
+              >
+                {pageCopy.customCta}
+              </button>
+            </div>
+
+            <div className="register-footer-center-cluster">
+              <div className="register-footer-toolbar-mid">
+                <button
+                  type="button"
+                  className="register-footer-pill"
+                  aria-expanded={footerExpanded}
+                  aria-controls="register-billing-footer-details"
+                  aria-label={
+                    footerExpanded
+                      ? pageCopy.footerHideDetails
+                      : pageCopy.footerShowDetails
+                  }
+                  onClick={() => setFooterExpanded((value) => !value)}
+                >
+                  <span className="register-footer-pill-icon" aria-hidden>
+                    <RegisterFooterListIcon />
+                  </span>
+                  <span className="register-footer-pill-text">
+                    <strong className="register-footer-pill-title">
+                      {footerPill.title}
+                    </strong>
+                    <span className="register-footer-pill-sub">
+                      {footerPill.sub}
+                    </span>
+                  </span>
+                  <span className="register-footer-pill-total-inline">
+                    <span className="register-footer-total-label">
+                      {pageCopy.footerEstTotal}
+                    </span>
+                    <strong className="register-footer-total-value">
+                      {summary.totalPrimary}
+                    </strong>
+                  </span>
+                  <span className="register-footer-pill-chevron" aria-hidden>
+                    <RegisterFooterChevron up={!footerExpanded} />
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="register-footer-continue register-billing-footer-actions">
+              <button
+                type="button"
+                className="register-billing-back"
+                onClick={backToAccount}
+              >
+                <span aria-hidden="true">←</span>
+                <span>{copy.back}</span>
+              </button>
+              <button
+                type="submit"
+                form="register-billing-form"
+                className="register-billing-submit"
+                disabled={saving}
+              >
+                <span>{saving ? copy.saving : copy.submit}</span>
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+
+          {footerExpanded ? (
+            <div
+              className="register-footer-expanded"
+              id="register-billing-footer-details"
+            >
+              <div className="register-footer-detail-card">
+                <h3 className="register-footer-detail-title">
+                  {pageCopy.footerBreakdownTitle}
+                </h3>
+                <ul className="register-footer-detail-list">
+                  {summary.rows.map((row) => (
+                    <li
+                      key={`${row.label}-${row.value}`}
+                      className="register-footer-detail-row"
+                    >
+                      <span className="register-footer-detail-check" aria-hidden>
+                        ✓
+                      </span>
+                      <span className="register-footer-detail-label">
+                        {row.label}
+                      </span>
+                      <strong className="register-footer-detail-price">
+                        {row.value}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+                <div className="register-footer-detail-foot">
+                  <div className="register-footer-detail-total">
+                    <span className="register-footer-detail-total-label">
+                      {pageCopy.footerEstTotal}
+                    </span>
+                    <strong className="register-footer-detail-total-value">
+                      {summary.totalPrimary}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="register-footer-hide-link"
+                onClick={() => setFooterExpanded(false)}
+              >
+                {pageCopy.footerHideDetails}
+                <RegisterFooterChevron up />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </footer>
     </div>
   );
 }

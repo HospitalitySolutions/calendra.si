@@ -83,11 +83,28 @@ export const registerPageStyles = `
       margin: 0 auto;
       flex-shrink: 0;
       border-radius: 0;
+      position: relative;
+      z-index: 500;
+      overflow: visible;
+    }
+
+    /* Keep the auth language menu above sticky package/account summary cards. */
+    .register-flow .top-actions,
+    .register-flow .login-language-dropdown {
+      position: relative;
+      z-index: 501;
+      overflow: visible;
+    }
+
+    .register-flow .login-language-menu {
+      z-index: 502;
     }
 
     .register-flow > .topbar + .app {
       border-radius: 0;
       margin-top: 0;
+      position: relative;
+      z-index: 1;
     }
 
     .register-flow .topbar .brand {

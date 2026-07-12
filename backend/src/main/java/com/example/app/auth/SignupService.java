@@ -22,6 +22,8 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -811,14 +813,41 @@ public class SignupService {
     }
 
     private String localeFromSignupRequest(AuthController.SignupRequest request) {
-        String returnSearch = request == null ? null : request.returnSearch();
-        if (returnSearch != null) {
-            String normalized = returnSearch.toLowerCase(Locale.ROOT);
-            if (normalized.contains("lang=sl") || normalized.contains("locale=sl") || normalized.contains("language=sl")) return "sl";
-            if (normalized.contains("lang=sr") || normalized.contains("locale=sr") || normalized.contains("language=sr")) return "sr";
-            if (normalized.contains("lang=en") || normalized.contains("locale=en") || normalized.contains("language=en")) return "en";
+        return localeFromReturnSearch(request == null ? null : request.returnSearch());
+    }
+
+    private String localeFromReturnSearch(String returnSearch) {
+        if (returnSearch == null || returnSearch.isBlank()) {
+            return null;
         }
-        return null;
+
+        String normalizedSearch = returnSearch.startsWith("?")
+                ? returnSearch.substring(1)
+                : returnSearch;
+        String fallbackLocale = null;
+        for (String pair : normalizedSearch.split("&")) {
+            if (pair.isBlank()) continue;
+            int separator = pair.indexOf('=');
+            String encodedKey = separator >= 0 ? pair.substring(0, separator) : pair;
+            String encodedValue = separator >= 0 ? pair.substring(separator + 1) : "";
+            String key = URLDecoder.decode(encodedKey, StandardCharsets.UTF_8).trim().toLowerCase(Locale.ROOT);
+            String locale = supportedSignupLocale(URLDecoder.decode(encodedValue, StandardCharsets.UTF_8));
+            if (locale == null) continue;
+            if ("locale".equals(key)) return locale;
+            if (fallbackLocale == null && ("lang".equals(key) || "language".equals(key))) {
+                fallbackLocale = locale;
+            }
+        }
+        return fallbackLocale;
+    }
+
+    private String supportedSignupLocale(String rawLocale) {
+        if (rawLocale == null) return null;
+        String normalized = rawLocale.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "sl", "sr", "en" -> normalized;
+            default -> null;
+        };
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {
@@ -857,7 +886,15 @@ public class SignupService {
         owner.setPasswordHash(passwordEncoder.encode(password));
         users.save(owner);
         clearSignupOwnerPasswordPending(owner);
-        sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), null);
+        String signupLocale = null;
+        try {
+            Map<String, Object> signupPayload = objectMapper.readValue(row.getPayloadJson(), new TypeReference<>() {
+            });
+            signupLocale = localeFromReturnSearch(stringVal(signupPayload.get("returnSearch")));
+        } catch (Exception e) {
+            // Locale is best-effort; the welcome email service falls back to English.
+        }
+        sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), signupLocale);
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Email verified sign-in").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
@@ -1320,7 +1357,7 @@ public class SignupService {
         }
         clearSignupOwnerPasswordPending(owner);
         deactivateSignupIntentsForEmail(normalizedEmail.trim().toLowerCase(Locale.ROOT));
-        sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), null);
+        sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), localeFromReturnSearch(returnSearch));
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Google signup completion").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
