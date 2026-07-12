@@ -730,9 +730,14 @@ export function RegisterPage() {
     <div className="register-flow register-plan-selection-page">
       <style>{registerPageStyles}</style>
       <header className="topbar">
-        <div className="brand">
+        <button
+          type="button"
+          className="brand register-brand-link"
+          aria-label={pc.brandAlt}
+          onClick={() => navigate("/login")}
+        >
           <img className="brand-logo" src={loginLogo} alt={pc.brandAlt} />
-        </div>
+        </button>
 
         <div className="top-actions">
           <AuthLanguageDropdown

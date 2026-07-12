@@ -174,9 +174,14 @@ export function RegisterPlanAddonsPage() {
     <div className="register-flow">
       <style>{registerPageStyles}</style>
       <header className="topbar">
-        <div className="brand">
+        <button
+          type="button"
+          className="brand register-brand-link"
+          aria-label={pc.brandAlt}
+          onClick={() => navigate('/login')}
+        >
           <img className="brand-logo" src={loginLogo} alt={pc.brandAlt} />
-        </div>
+        </button>
 
         <div className="top-actions">
           <div className="lang-switch" role="group" aria-label={t('language')}>

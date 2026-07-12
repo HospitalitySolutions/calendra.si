@@ -8,6 +8,7 @@ import { useToast } from "../components/Toast";
 import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
 import { markOnboardingTourPending } from "../lib/onboardingTour";
 import { useLocale } from "../locale";
+import { clearAuthStoragePreservingTheme } from "../theme";
 import { registerPageStyles } from "./registerPageStyles";
 import {
   getBillingInterval,
@@ -1038,14 +1039,29 @@ export function RegisterBillingDetailsPage() {
     navigate(`/register/account?${selectionToSearch(selection)}`);
   };
 
+  const returnToLogin = async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // The local session still needs to be cleared if the logout request fails.
+    }
+    clearAuthStoragePreservingTheme();
+    window.location.replace("/login");
+  };
+
   return (
     <div className="register-flow register-billing-details-page">
       <style>{registerPageStyles}</style>
       <style>{registerBillingDetailsStyles}</style>
       <header className="topbar">
-        <div className="brand">
+        <button
+          type="button"
+          className="brand register-brand-link"
+          aria-label={pageCopy.brandAlt}
+          onClick={() => void returnToLogin()}
+        >
           <img className="brand-logo" src={loginLogo} alt={pageCopy.brandAlt} />
-        </div>
+        </button>
 
         <div className="top-actions">
           <div className="lang-switch" role="group" aria-label={t("language")}>

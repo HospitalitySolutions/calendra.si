@@ -95,6 +95,36 @@ export const registerPageStyles = `
       min-width: 0;
     }
 
+    .register-flow .register-brand-link {
+      display: inline-flex;
+      align-items: center;
+      width: auto;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+      box-shadow: none;
+      cursor: pointer;
+      transition: opacity var(--transition);
+    }
+
+    .register-flow .register-brand-link:hover,
+    .register-flow .register-brand-link:active {
+      background: transparent;
+      box-shadow: none;
+      transform: none;
+      opacity: 0.9;
+    }
+
+    .register-flow .register-brand-link:focus-visible {
+      outline: 3px solid rgba(47, 109, 246, 0.24);
+      outline-offset: 4px;
+      background: transparent;
+      box-shadow: none;
+    }
+
     .register-flow .brand-logo {
       display: block;
       width: min(100%, 360px);

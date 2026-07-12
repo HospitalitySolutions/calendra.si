@@ -328,6 +328,16 @@ const registerAccountPageStyles = `
     cursor: pointer;
   }
 
+  /* Keep “Already have an account?” as a plain text link. The application-wide
+     button hover shadow must not create a white animated block around it. */
+  .register-flow.register-account-page .register-account-link-button:hover,
+  .register-flow.register-account-page .register-account-link-button:focus-visible,
+  .register-flow.register-account-page .register-account-link-button:active {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+
   .register-flow.register-account-page .register-account-consent {
     display: flex;
     flex-direction: row;
@@ -562,13 +572,29 @@ const registerAccountPageStyles = `
 
   /* Step 2 uses the same visual system and proportions as plan selection. */
   .register-flow.register-account-page {
-    --max-width: 1240px;
+    --max-width: 1280px;
+    --register-gutter: max(20px, env(safe-area-inset-left, 0px));
+    --register-gutter-right: max(20px, env(safe-area-inset-right, 0px));
+  }
+
+  .register-flow.register-account-page .topbar {
+    min-height: 68px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(222, 231, 244, 0.85);
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(16px);
+  }
+
+  .register-flow.register-account-page .brand-logo {
+    width: 154px;
+    max-height: 48px;
+    object-position: left center;
   }
 
   .register-flow.register-account-page .content {
     flex: 0 0 auto;
     min-height: auto;
-    padding: 8px 0 150px;
+    padding: 12px 0 150px;
   }
 
   .register-flow.register-account-page .register-account-main {
@@ -580,13 +606,14 @@ const registerAccountPageStyles = `
     width: 100%;
     justify-content: center;
     align-self: stretch;
-    margin: 2px 0 16px;
+    margin: 0 0 16px;
   }
 
   .register-flow.register-account-page .register-account-stepper-row .stepper {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(3, minmax(150px, auto));
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    width: min(100%, 560px);
     gap: 0;
     padding: 0;
     border: 0;
@@ -960,8 +987,17 @@ const registerAccountPageStyles = `
   }
 
   @media (max-width: 1024px) {
+    .register-flow.register-account-page {
+      --register-gutter: max(14px, env(safe-area-inset-left, 0px));
+      --register-gutter-right: max(14px, env(safe-area-inset-right, 0px));
+    }
+
     .register-flow.register-account-page .content {
-      padding-top: 14px;
+      padding-top: 12px;
+    }
+
+    .register-flow.register-account-page .register-account-stepper-row {
+      display: none;
     }
 
     .register-flow.register-account-page .register-account-page-stack {
@@ -993,6 +1029,16 @@ const registerAccountPageStyles = `
 
     .register-flow.register-account-page .register-account-field-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .register-flow.register-account-page .topbar {
+      min-height: 60px;
+    }
+
+    .register-flow.register-account-page .brand-logo {
+      width: 132px;
     }
   }
 
@@ -2095,13 +2141,18 @@ export function RegisterAccountPage() {
     <div className="register-flow register-account-page">
       <style>{registerPageStyles + registerAccountPageStyles}</style>
       <header className="topbar">
-        <div className="brand">
+        <button
+          type="button"
+          className="brand register-brand-link"
+          aria-label={registerShell.brandAlt}
+          onClick={() => navigate("/login")}
+        >
           <img
             className="brand-logo"
             src={loginLogo}
             alt={registerShell.brandAlt}
           />
-        </div>
+        </button>
 
         <div className="top-actions">
           <AuthLanguageDropdown

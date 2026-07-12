@@ -363,6 +363,17 @@
 
 .login-register-link {
     font-weight: 700;
+    transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+
+/* Keep the registration link visually text-only. The global button hover
+   shadow otherwise creates a white/raised block around this inline action. */
+.login-register-link:hover,
+.login-register-link:focus-visible,
+.login-register-link:active {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
 }
 
 .login-forgot-form {
