@@ -10399,7 +10399,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           datesSet={(arg) => {
             setView(arg.view.type)
             setMonthHoverCard(null)
-            setVisibleRange({ start: arg.startStr, end: arg.endStr })
+            setVisibleRange((current) =>
+              current?.start === arg.startStr && current?.end === arg.endStr
+                ? current
+                : { start: arg.startStr, end: arg.endStr },
+            )
             if (datesSetCalendarLoadTimerRef.current != null) {
               window.clearTimeout(datesSetCalendarLoadTimerRef.current)
             }
@@ -10460,10 +10464,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   timeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
                   timeGridWorkWeek: {
                     type: 'timeGrid',
-                    duration: { weeks: 1 },
+                    duration: { days: 5 },
                     dateAlignment: 'week',
                     dateIncrement: { weeks: 1 },
-                    hiddenDays: [0, 6],
                     allDaySlot: calendarHasContinuousAllDaySessions,
                   },
                   timeGridDay: { allDaySlot: calendarHasContinuousAllDaySessions },
@@ -10482,10 +10485,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   timeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
                   timeGridWorkWeek: {
                     type: 'timeGrid',
-                    duration: { weeks: 1 },
+                    duration: { days: 5 },
                     dateAlignment: 'week',
                     dateIncrement: { weeks: 1 },
-                    hiddenDays: [0, 6],
                     allDaySlot: calendarHasContinuousAllDaySessions,
                   },
                   timeGridThreeDay: {
@@ -10503,10 +10505,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   resourceTimeGridWeek: { allDaySlot: calendarHasContinuousAllDaySessions },
                   resourceTimeGridWorkWeek: {
                     type: 'resourceTimeGrid',
-                    duration: { weeks: 1 },
+                    duration: { days: 5 },
                     dateAlignment: 'week',
                     dateIncrement: { weeks: 1 },
-                    hiddenDays: [0, 6],
                     allDaySlot: calendarHasContinuousAllDaySessions,
                     datesAboveResources: true,
                   },
