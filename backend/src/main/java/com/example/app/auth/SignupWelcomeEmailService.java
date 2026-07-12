@@ -1,17 +1,18 @@
 package com.example.app.auth;
 
 import com.example.app.logging.LogSanitizer;
-
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -21,6 +22,8 @@ import java.util.Locale;
 @Service
 public class SignupWelcomeEmailService {
     private static final Logger log = LoggerFactory.getLogger(SignupWelcomeEmailService.class);
+    private static final String CALENDRA_LOGO_CONTENT_ID = "calendraSignupLogo";
+    private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
 
     public record PricingSummaryRequest(
             Integer totalUsers,
@@ -173,7 +176,6 @@ public class SignupWelcomeEmailService {
         String safeRecipientEmail = escapeHtml(recipientEmail.trim().toLowerCase(Locale.ROOT));
         String normalizedPackageType = normalizePackageType(packageType);
         String safePackageLabel = escapeHtml(packageLabel(normalizedPackageType, locale));
-        String safeLanguageLabel = escapeHtml(languageLabel(locale, copy));
         String safeCtaUrl = escapeHtml(ctaUrl == null || ctaUrl.isBlank() ? frontendBaseUrl + "/login" : ctaUrl.trim());
         String ctaLabel = passwordSetupRequired ? copy.setupButtonLabel() : copy.loginButtonLabel();
 
@@ -183,7 +185,6 @@ public class SignupWelcomeEmailService {
                 safeCompanyName,
                 safeRecipientEmail,
                 safePackageLabel,
-                safeLanguageLabel,
                 safeCtaUrl,
                 ctaLabel,
                 passwordSetupRequired,
@@ -196,21 +197,27 @@ public class SignupWelcomeEmailService {
                 safePlain(companyName, copy.fallbackCompany()),
                 recipientEmail.trim().toLowerCase(Locale.ROOT),
                 packageLabel(normalizedPackageType, locale),
-                languageLabel(locale, copy),
                 ctaUrl == null || ctaUrl.isBlank() ? frontendBaseUrl + "/login" : ctaUrl.trim(),
                 ctaLabel,
-                passwordSetupRequired
+                passwordSetupRequired,
+                summary,
+                locale
         );
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, java.nio.charset.StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setTo(recipientEmail.trim());
             if (!fallbackFrom.isBlank()) {
                 helper.setFrom(fallbackFrom);
             }
             helper.setSubject(copy.subject());
             helper.setText(plainText, html);
+            helper.addInline(
+                    CALENDRA_LOGO_CONTENT_ID,
+                    new ClassPathResource(CALENDRA_LOGO_CLASSPATH),
+                    "image/png"
+            );
             mailSender.send(message);
             log.info("Welcome email sent to {}", LogSanitizer.emailHash(recipientEmail));
         } catch (Exception ex) {
@@ -224,7 +231,6 @@ public class SignupWelcomeEmailService {
             String companyName,
             String recipientEmail,
             String packageLabel,
-            String languageLabel,
             String ctaUrl,
             String ctaLabel,
             boolean passwordSetupRequired,
@@ -232,65 +238,109 @@ public class SignupWelcomeEmailService {
             String locale
     ) {
         String readyPrefix = passwordSetupRequired ? copy.manualReadyTextPrefix() : copy.readyTextPrefix();
+        String pricingSummaryBlock = buildPricingSummaryHtml(summary, locale);
         StringBuilder html = new StringBuilder();
         html.append("<!doctype html>");
-        html.append("<html><body style=\"margin:0;background:#f3f6fb;font-family:Arial,sans-serif;color:#0f172a;\">");
-        html.append("<div style=\"display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;\">")
+        html.append("<html><head>");
+        html.append("<meta charset=\"UTF-8\">");
+        html.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+        html.append("<meta name=\"color-scheme\" content=\"light\">");
+        html.append("<meta name=\"supported-color-schemes\" content=\"light\">");
+        html.append("<style>");
+        html.append("@media only screen and (max-width: 640px) {");
+        html.append("  .email-shell{padding:18px 10px !important;}");
+        html.append("  .email-card{border-radius:18px !important;}");
+        html.append("  .email-content{padding:26px 20px 22px !important;}");
+        html.append("  .email-logo{width:170px !important;max-width:75% !important;}");
+        html.append("  .email-title{font-size:28px !important;line-height:1.2 !important;}");
+        html.append("  .details-row{display:block !important;padding:12px 14px !important;}");
+        html.append("  .details-label,.details-value{display:block !important;width:100% !important;text-align:left !important;}");
+        html.append("  .details-value{padding-top:4px !important;}");
+        html.append("  .step-arrow{display:none !important;}");
+        html.append("}");
+        html.append("</style>");
+        html.append("</head><body style=\"margin:0;padding:0;background:#f4f7fb;font-family:Arial,'Helvetica Neue',sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;\">");
+        html.append("<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;\">")
                 .append(escapeHtml(copy.previewText()))
                 .append("</div>");
-        html.append("<div style=\"max-width:680px;margin:32px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:32px;box-shadow:0 18px 45px rgba(15,23,42,.08);\">");
-        html.append("<div style=\"font-size:26px;font-weight:800;letter-spacing:-.03em;color:#0f172a;margin-bottom:28px;\">Calendra</div>");
-        html.append("<div style=\"display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:20px;\">")
+        html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;background:#f4f7fb;border-collapse:collapse;\">");
+        html.append("<tr><td align=\"center\" class=\"email-shell\" style=\"padding:34px 16px;\">");
+        html.append("<table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"email-card\" style=\"width:100%;max-width:640px;background:#ffffff;border:1px solid #e6edf6;border-radius:24px;border-collapse:separate;box-shadow:0 18px 44px rgba(15,23,42,0.08);overflow:hidden;\">");
+        html.append("<tr><td class=\"email-content\" style=\"padding:32px 34px 28px;\">");
+        html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;border-collapse:collapse;\">");
+        html.append("<tr><td style=\"padding:0 0 18px;\"><img src=\"cid:")
+                .append(CALENDRA_LOGO_CONTENT_ID)
+                .append("\" width=\"190\" alt=\"Calendra\" class=\"email-logo\" style=\"display:block;width:190px;max-width:65%;height:auto;border:0;outline:none;text-decoration:none;\"></td></tr>");
+        html.append("<tr><td style=\"padding:0 0 16px;\"><span style=\"display:inline-block;background:#eef5ff;color:#1f68e5;border-radius:999px;padding:7px 12px;font-size:12px;line-height:16px;font-weight:700;\">")
                 .append(escapeHtml(copy.badge()))
-                .append("</div>");
-        html.append("<h1 style=\"font-size:30px;line-height:1.15;margin:0 0 18px;\">")
+                .append("</span></td></tr>");
+        html.append("<tr><td style=\"padding:0;\">");
+        html.append("<h1 class=\"email-title\" style=\"margin:0 0 14px;font-size:30px;line-height:1.18;letter-spacing:-0.4px;color:#101828;font-weight:800;\">")
                 .append(escapeHtml(copy.title()))
                 .append("</h1>");
-        html.append("<p style=\"font-size:16px;line-height:1.65;margin:0 0 14px;\">")
+        html.append("<p style=\"margin:0 0 8px;font-size:15px;line-height:1.7;color:#475467;\">")
                 .append(escapeHtml(copy.greetingPrefix()))
                 .append(" ")
                 .append(firstName)
                 .append(",</p>");
-        html.append("<p style=\"font-size:16px;line-height:1.65;margin:0 0 14px;color:#334155;\">")
+        html.append("<p style=\"margin:0 0 12px;font-size:15px;line-height:1.72;color:#475467;\">")
                 .append(escapeHtml(readyPrefix))
-                .append(" <strong>")
+                .append(" <strong style=\"color:#101828;\">")
                 .append(companyName)
                 .append("</strong>.")
                 .append("</p>");
-        html.append("<p style=\"font-size:16px;line-height:1.65;margin:0 0 24px;color:#334155;\">")
+        html.append("<p style=\"margin:0 0 24px;font-size:15px;line-height:1.72;color:#475467;\">")
                 .append(escapeHtml(copy.introText()))
                 .append("</p>");
+        html.append("</td></tr>");
+        html.append("<tr><td style=\"padding:0 0 22px;\">");
+        html.append("<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"border-collapse:separate;\"><tr>");
+        html.append("<td align=\"center\" bgcolor=\"#2563eb\" style=\"border-radius:14px;background:#2563eb;box-shadow:0 8px 18px rgba(37,99,235,0.24);\">");
         html.append("<a href=\"")
                 .append(ctaUrl)
-                .append("\" style=\"display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;border-radius:14px;padding:16px 24px;margin-bottom:26px;\">")
+                .append("\" style=\"display:inline-block;padding:14px 24px;color:#ffffff;font-size:14px;line-height:18px;font-weight:700;text-decoration:none;border-radius:14px;\">")
                 .append(escapeHtml(ctaLabel))
-                .append("</a>");
-        html.append("<h2 style=\"font-size:18px;margin:0 0 14px;\">")
+                .append(" &#8250;</a>");
+        html.append("</td></tr></table>");
+        html.append("</td></tr>");
+
+        html.append("<tr><td style=\"border-top:1px solid #edf1f6;padding:22px 0 12px;\">");
+        html.append("<h2 style=\"margin:0;font-size:18px;line-height:24px;color:#101828;font-weight:700;\">")
                 .append(escapeHtml(copy.accountDetailsTitle()))
-                .append("</h2>");
-        html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:separate;border-spacing:0 10px;margin-bottom:22px;\">");
-        html.append(accountDetailRow(copy.companyLabel(), companyName));
-        html.append(accountDetailRow(copy.emailLabel(), recipientEmail));
-        html.append(accountDetailRow(copy.packageLabel(), packageLabel));
-        html.append(accountDetailRow(copy.languageLabel(), languageLabel));
-        html.append("</table>");
-        appendPricingSummary(html, summary, locale);
-        html.append("<h2 style=\"font-size:18px;margin:0 0 14px;\">")
+                .append("</h2></td></tr>");
+        html.append("<tr><td style=\"padding:0 0 4px;\">");
+        html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;background:#ffffff;border:1px solid #e7edf4;border-radius:16px;border-collapse:separate;overflow:hidden;\">");
+        html.append(accountDetailRowHtml("&#9993;", copy.emailLabel(), recipientEmail, true, false));
+        html.append(accountDetailRowHtml("&#9671;", copy.packageLabel(), packageLabel, false, true));
+        html.append("</table></td></tr>");
+
+        if (!pricingSummaryBlock.isBlank()) {
+            html.append("<tr><td style=\"padding:16px 0 0;\">")
+                    .append(pricingSummaryBlock)
+                    .append("</td></tr>");
+        }
+
+        html.append("<tr><td style=\"padding:18px 0 12px;\">");
+        html.append("<h2 style=\"margin:0;font-size:18px;line-height:24px;color:#101828;font-weight:700;\">")
                 .append(escapeHtml(copy.nextStepsTitle()))
-                .append("</h2>");
-        html.append("<div style=\"display:grid;gap:12px;\">");
-        appendStep(html, "1", copy.companyStepTitle(), copy.companyStepText());
-        appendStep(html, "2", copy.servicesStepTitle(), copy.servicesStepText());
-        appendStep(html, "3", copy.notificationsStepTitle(), copy.notificationsStepText());
-        appendStep(html, "4", copy.guestBookingStepTitle(), copy.guestBookingStepText());
-        html.append("</div>");
-        html.append("<p style=\"font-size:14px;line-height:1.6;color:#64748b;margin:24px 0 0;\">")
+                .append("</h2></td></tr>");
+        html.append("<tr><td style=\"padding:0;\">");
+        html.append(buildStepCardHtml("1", "&#127970;", copy.companyStepTitle(), copy.companyStepText()));
+        html.append(buildStepCardHtml("2", "&#128101;", copy.servicesStepTitle(), copy.servicesStepText()));
+        html.append(buildStepCardHtml("3", "&#128276;", copy.notificationsStepTitle(), copy.notificationsStepText()));
+        html.append(buildStepCardHtml("4", "&#128197;", copy.guestBookingStepTitle(), copy.guestBookingStepText()));
+        html.append("</td></tr>");
+
+        html.append("<tr><td style=\"padding:18px 0 0;\">");
+        html.append("<p style=\"margin:0;font-size:13px;line-height:20px;color:#667085;\">")
                 .append(escapeHtml(copy.unexpectedText()))
                 .append("</p>");
-        html.append("<p style=\"font-size:13px;line-height:1.6;color:#94a3b8;margin:18px 0 0;border-top:1px solid #e2e8f0;padding-top:18px;\">")
+        html.append("<p style=\"margin:14px 0 0;padding-top:16px;border-top:1px solid #edf1f6;font-size:12px;line-height:18px;color:#98a2b3;\">")
                 .append(escapeHtml(copy.systemFooter()))
                 .append("</p>");
-        html.append("</div></body></html>");
+        html.append("</td></tr>");
+
+        html.append("</table></td></tr></table></td></tr></table></body></html>");
         return html.toString();
     }
 
@@ -300,105 +350,97 @@ public class SignupWelcomeEmailService {
             String companyName,
             String recipientEmail,
             String packageLabel,
-            String languageLabel,
             String ctaUrl,
             String ctaLabel,
-            boolean passwordSetupRequired
+            boolean passwordSetupRequired,
+            PricingSummaryRequest summary,
+            String locale
     ) {
         String readyPrefix = passwordSetupRequired ? copy.manualReadyTextPrefix() : copy.readyTextPrefix();
-        return """
-                %s
-
-                %s %s,
-
-                %s %s.
-                %s
-
-                %s: %s
-
-                %s
-                %s: %s
-                %s: %s
-                %s: %s
-                %s: %s
-
-                %s
-                1. %s - %s
-                2. %s - %s
-                3. %s - %s
-                4. %s - %s
-
-                %s
-
-                %s
-                """.formatted(
-                copy.title(),
-                copy.greetingPrefix(),
-                firstName,
-                readyPrefix,
-                companyName,
-                copy.introText(),
-                ctaLabel,
-                ctaUrl,
-                copy.accountDetailsTitle(),
-                copy.companyLabel(),
-                companyName,
-                copy.emailLabel(),
-                recipientEmail,
-                copy.packageLabel(),
-                packageLabel,
-                copy.languageLabel(),
-                languageLabel,
-                copy.nextStepsTitle(),
-                copy.companyStepTitle(),
-                copy.companyStepText(),
-                copy.servicesStepTitle(),
-                copy.servicesStepText(),
-                copy.notificationsStepTitle(),
-                copy.notificationsStepText(),
-                copy.guestBookingStepTitle(),
-                copy.guestBookingStepText(),
-                copy.unexpectedText(),
-                copy.systemFooter()
-        );
+        StringBuilder text = new StringBuilder();
+        text.append(copy.title()).append("\n\n");
+        text.append(copy.greetingPrefix()).append(" ").append(firstName).append(",\n\n");
+        text.append(readyPrefix).append(" ").append(companyName).append(".\n");
+        text.append(copy.introText()).append("\n\n");
+        text.append(ctaLabel).append(": ").append(ctaUrl).append("\n\n");
+        text.append(copy.accountDetailsTitle()).append("\n");
+        text.append(copy.emailLabel()).append(": ").append(recipientEmail).append("\n");
+        text.append(copy.packageLabel()).append(": ").append(packageLabel).append("\n");
+        appendPricingSummaryText(text, summary, locale);
+        text.append("\n");
+        text.append(copy.nextStepsTitle()).append("\n");
+        text.append("1. ").append(copy.companyStepTitle()).append(" - ").append(copy.companyStepText()).append("\n");
+        text.append("2. ").append(copy.servicesStepTitle()).append(" - ").append(copy.servicesStepText()).append("\n");
+        text.append("3. ").append(copy.notificationsStepTitle()).append(" - ").append(copy.notificationsStepText()).append("\n");
+        text.append("4. ").append(copy.guestBookingStepTitle()).append(" - ").append(copy.guestBookingStepText()).append("\n\n");
+        text.append(copy.unexpectedText()).append("\n\n");
+        text.append(copy.systemFooter());
+        return text.toString();
     }
 
-    private void appendPricingSummary(StringBuilder html, PricingSummaryRequest summary, String locale) {
-        if (summary == null) return;
+    private String buildPricingSummaryHtml(PricingSummaryRequest summary, String locale) {
+        List<String> rows = pricingSummaryRows(summary, locale);
+        if (rows.isEmpty()) return "";
+        StringBuilder html = new StringBuilder();
+        html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;background:#f8fbff;border:1px solid #dbe8fb;border-radius:14px;border-collapse:separate;overflow:hidden;\">");
+        for (int i = 0; i < rows.size(); i++) {
+            if (i > 0) {
+                html.append("<tr><td style=\"border-top:1px solid #e7eef8;font-size:0;line-height:0;\">&nbsp;</td></tr>");
+            }
+            html.append("<tr><td style=\"padding:12px 14px;font-size:13px;line-height:18px;color:#475467;\">• ")
+                    .append(escapeHtml(rows.get(i)))
+                    .append("</td></tr>");
+        }
+        html.append("</table>");
+        return html.toString();
+    }
+
+    private void appendPricingSummaryText(StringBuilder text, PricingSummaryRequest summary, String locale) {
+        List<String> rows = pricingSummaryRows(summary, locale);
+        if (rows.isEmpty()) return;
+        for (String row : rows) {
+            text.append("- ").append(row).append("\n");
+        }
+    }
+
+    private List<String> pricingSummaryRows(PricingSummaryRequest summary, String locale) {
         List<String> rows = orderedItems(summary, "sl".equals(locale));
+        if (summary == null) return rows;
         NumberFormat currency = NumberFormat.getCurrencyInstance("sl".equals(locale) ? Locale.forLanguageTag("sl-SI") : Locale.US);
         currency.setCurrency(Currency.getInstance("EUR"));
         currency.setMinimumFractionDigits(2);
         currency.setMaximumFractionDigits(2);
-        if (summary.monthlyTotal() != null) rows.add(("sl".equals(locale) ? "Mesečno skupaj" : "Monthly total") + ": " + currency.format(summary.monthlyTotal()));
-        if (summary.oneTimeTotal() != null) rows.add(("sl".equals(locale) ? "Enkratni strošek" : "One-time cost") + ": " + currency.format(summary.oneTimeTotal()));
-        if (summary.firstInvoiceEstimate() != null) rows.add(("sl".equals(locale) ? "Predviden prvi račun" : "Estimated first invoice") + ": " + currency.format(summary.firstInvoiceEstimate()));
-        if (rows.isEmpty()) return;
-        html.append("<div style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px;margin:0 0 24px;\"><ul style=\"margin:0;padding-left:18px;color:#334155;\">");
-        for (String row : rows) {
-            html.append("<li style=\"margin:0 0 6px;\">").append(escapeHtml(row)).append("</li>");
-        }
-        html.append("</ul></div>");
+        if (summary.monthlyTotal() != null) rows.add(("sl".equals(locale) ? "Mesečno skupaj" : ("sr".equals(locale) ? "Mesečno ukupno" : "Monthly total")) + ": " + currency.format(summary.monthlyTotal()));
+        if (summary.oneTimeTotal() != null) rows.add(("sl".equals(locale) ? "Enkratni strošek" : ("sr".equals(locale) ? "Jednokratni trošak" : "One-time cost")) + ": " + currency.format(summary.oneTimeTotal()));
+        if (summary.firstInvoiceEstimate() != null) rows.add(("sl".equals(locale) ? "Predviden prvi račun" : ("sr".equals(locale) ? "Procenjeni prvi račun" : "Estimated first invoice")) + ": " + currency.format(summary.firstInvoiceEstimate()));
+        return rows;
     }
 
-    private static String accountDetailRow(String label, String value) {
+    private static String accountDetailRowHtml(String icon, String label, String value, boolean valueIsLink, boolean addTopBorder) {
+        String renderedValue = valueIsLink
+                ? "<a href=\"mailto:" + value + "\" style=\"color:#2563eb;text-decoration:none;font-weight:700;\">" + value + "</a>"
+                : value;
         return "<tr>"
-                + "<td style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;color:#64748b;font-weight:700;\">" + escapeHtml(label) + "</td>"
-                + "<td style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;text-align:right;font-weight:700;\">" + value + "</td>"
-                + "</tr>";
+                + "<td class=\"details-row\" style=\"padding:14px 16px;" + (addTopBorder ? "border-top:1px solid #edf1f6;" : "") + "\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;border-collapse:collapse;\">"
+                + "<tr>"
+                + "<td class=\"details-label\" style=\"font-size:14px;line-height:20px;color:#475467;font-weight:600;\"><span style=\"display:inline-block;width:22px;color:#2563eb;\">" + icon + "</span> " + escapeHtml(label) + "</td>"
+                + "<td class=\"details-value\" style=\"font-size:14px;line-height:20px;color:#101828;font-weight:700;text-align:right;\">" + renderedValue + "</td>"
+                + "</tr></table></td></tr>";
     }
 
-    private static void appendStep(StringBuilder html, String number, String title, String text) {
-        html.append("<div style=\"border:1px solid #e2e8f0;border-radius:18px;padding:16px 18px;background:#ffffff;\">");
-        html.append("<div style=\"font-size:14px;color:#2563eb;font-weight:800;margin-bottom:6px;\">")
-                .append(escapeHtml(number))
-                .append(". ")
-                .append(escapeHtml(title))
-                .append("</div>");
-        html.append("<div style=\"font-size:14px;line-height:1.6;color:#475569;\">")
-                .append(escapeHtml(text))
-                .append("</div>");
-        html.append("</div>");
+    private static String buildStepCardHtml(String number, String icon, String title, String text) {
+        return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;border:1px solid #e7edf5;border-radius:16px;border-collapse:separate;background:#ffffff;margin:0 0 10px;overflow:hidden;\">"
+                + "<tr>"
+                + "<td width=\"48\" valign=\"top\" style=\"padding:14px 0 14px 14px;\">"
+                + "<div style=\"width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#eef5ff;color:#2563eb;font-size:16px;font-weight:700;\">" + icon + "</div>"
+                + "</td>"
+                + "<td valign=\"top\" style=\"padding:14px 10px 14px 2px;\">"
+                + "<div style=\"font-size:14px;line-height:20px;color:#2563eb;font-weight:800;margin:0 0 4px;\">" + escapeHtml(number) + ". " + escapeHtml(title) + "</div>"
+                + "<div style=\"font-size:13px;line-height:19px;color:#667085;\">" + escapeHtml(text) + "</div>"
+                + "</td>"
+                + "<td width=\"26\" class=\"step-arrow\" valign=\"middle\" align=\"center\" style=\"padding:14px 14px 14px 4px;font-size:20px;line-height:20px;color:#98a2b3;\">&#8250;</td>"
+                + "</tr></table>";
     }
 
     private static WelcomeCopy welcomeCopy(String localeCode) {
@@ -407,11 +449,11 @@ public class SignupWelcomeEmailService {
                     "Dobrodošli v Calendra",
                     "Vaš račun je pripravljen. Začnite z nastavitvijo podjetja, storitev in rezervacij.",
                     "Nov račun",
-                    "Dobrodošli v Calendra 👋",
+                    "Dobrodošli v Calendro 👋",
                     "Pozdravljeni",
                     "pozdravljeni",
                     "Vaš račun za podjetje je bil uspešno ustvarjen za",
-                    "Za vas smo ustvarili račun v Calendra za",
+                    "Za vas smo ustvarili račun v Calendri za",
                     "Calendra vam omogoča enostavno upravljanje terminov, storitev, strank, obvestil in poslovnih nastavitev na enem mestu.",
                     "Podatki računa",
                     "Podjetje",
@@ -427,22 +469,22 @@ public class SignupWelcomeEmailService {
                     "Nastavite e-poštna obvestila, SMS obvestila in predloge za goste.",
                     "Rezervacije gostov",
                     "Po želji vključite Guest aplikacijo ali spletni vtičnik za spletne rezervacije.",
-                    "Prijava v Calendra",
+                    "Vstopi v Calendro",
                     "Nastavite geslo",
                     "Če računa niste ustvarili vi, lahko to sporočilo prezrete ali nas kontaktirate.",
-                    "To je sistemsko sporočilo platforme Calendra.",
+                    "To je informativno sporočilo platforme Calendra.",
                     "vaše podjetje",
                     "Slovenščina"
             );
             case "sr" -> new WelcomeCopy(
                     "Dobro došli u Calendra",
-                    "Vaš nalog je spreman. Počnite sa podešavanjem kompanije, usluga i rezervacija.",
+                    "Vaš nalog je spreman. Započnite sa podešavanjem kompanije, usluga i rezervacija.",
                     "Novi nalog",
-                    "Dobro došli u Calendra 👋",
+                    "Dobro došli u Calendro 👋",
                     "Zdravo",
                     "zdravo",
                     "Vaš nalog za kompaniju je uspešno kreiran za",
-                    "Za vas smo kreirali nalog u Calendra za",
+                    "Za vas smo kreirali nalog u Calendri za",
                     "Calendra vam omogućava jednostavno upravljanje terminima, uslugama, klijentima, obaveštenjima i poslovnim podešavanjima na jednom mestu.",
                     "Podaci naloga",
                     "Kompanija",
@@ -458,10 +500,10 @@ public class SignupWelcomeEmailService {
                     "Podesite e-mail obaveštenja, SMS obaveštenja i predloške za goste.",
                     "Rezervacije gostiju",
                     "Po želji uključite Guest aplikaciju ili veb dodatak za online rezervacije.",
-                    "Prijava u Calendra",
+                    "Uđi u Calendro",
                     "Podesite lozinku",
                     "Ako niste kreirali ovaj nalog, možete ignorisati ovu e-poštu ili nas kontaktirati.",
-                    "Ovo je sistemska poruka platforme Calendra.",
+                    "Ovo je informativna poruka platforme Calendra.",
                     "vašu kompaniju",
                     "Srpski"
             );
@@ -472,7 +514,7 @@ public class SignupWelcomeEmailService {
                     "Welcome to Calendra 👋",
                     "Hi",
                     "there",
-                    "Your account has been created for",
+                    "Your account has been successfully created for",
                     "We created a Calendra account for",
                     "Calendra helps you manage appointments, services, clients, notifications, and business settings in one place.",
                     "Account details",
@@ -489,10 +531,10 @@ public class SignupWelcomeEmailService {
                     "Set up email notifications, SMS notifications, and guest templates.",
                     "Guest bookings",
                     "Enable the Guest app or website widget for online bookings when needed.",
-                    "Sign in to Calendra",
+                    "Enter Calendra",
                     "Set your password",
                     "If you did not create this account, you can ignore this email or contact us.",
-                    "This is a system message from the Calendra platform.",
+                    "This is an informational message from the Calendra platform.",
                     "your company",
                     "English"
             );
