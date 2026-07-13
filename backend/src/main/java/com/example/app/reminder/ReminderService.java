@@ -39,6 +39,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,6 +55,11 @@ public class ReminderService {
     private static final DateTimeFormatter TAG_DATE = DateTimeFormatter.ofPattern("d. M. yyyy").withLocale(NOTIFY_LOCALE);
     private static final DateTimeFormatter TAG_TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter TAG_DATETIME_FULL = DateTimeFormatter.ofPattern("EEEE, d. M. yyyy 'ob' HH:mm").withLocale(NOTIFY_LOCALE);
+    private static final ZoneId PUBLIC_BOOKING_ZONE = ZoneId.of("Europe/Ljubljana");
+    private static final String MODIFY_URL_TOKEN = "{{povezava_za_prenarocanje}}";
+    private static final String CANCEL_URL_TOKEN = "{{povezava_za_odpoved}}";
+    private static final String MODIFY_BUTTON_TOKEN = "{{gumb_za_prenarocanje}}";
+    private static final String CANCEL_BUTTON_TOKEN = "{{gumb_za_odpoved}}";
 
     private final JavaMailSender mailSender;
     private final String mailFrom;
@@ -576,7 +582,6 @@ public class ReminderService {
     }
 
     private void sendImmediateTemplateEmail(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
-        boolean websiteWidgetTransactionalEmail = isWebsiteWidgetTransactionalEmail(booking, kind);
         if (!isEmailChannelEnabled(companyId)) {
             return;
         }
@@ -586,18 +591,6 @@ public class ReminderService {
         }
 
         Optional<NotificationEmailTemplate> templateOpt = loadNotificationEmailTemplate(companyId, kind, booking);
-        if (templateOpt.isEmpty()
-                && websiteWidgetTransactionalEmail
-                && isTemplateExplicitlyEnabled(companyId, "email", kind)) {
-            // Website-widget booking emails may use a built-in body, but only after
-            // the tenant explicitly enables the matching notification event.
-            templateOpt = switch (kind) {
-                case NEW_SESSION -> Optional.of(defaultWebsiteWidgetBookingConfirmationTemplate());
-                case CHANGE_SESSION -> Optional.of(defaultWebsiteWidgetBookingRescheduledTemplate());
-                case CANCEL_SESSION -> Optional.of(defaultWebsiteWidgetBookingCancelledTemplate());
-                default -> Optional.empty();
-            };
-        }
         if (templateOpt.isEmpty()) {
             log.debug("Skipping {} booking email for company {}: template disabled or not configured", kind, companyId);
             return;
@@ -608,9 +601,13 @@ public class ReminderService {
             return;
         }
 
-        String subject = replaceTokens(template.subject(), tokens);
-        String bodyHtml = replaceTokens(template.bodyHtml(), tokens);
-        bodyHtml = appendPublicBookingManageButtonsIfNeeded(booking, kind, bodyHtml);
+        Map<String, String> emailTokens = new LinkedHashMap<>(tokens);
+        addPublicBookingManageTokensIfRequested(booking, kind, template, emailTokens);
+        Map<String, String> subjectTokens = new LinkedHashMap<>(emailTokens);
+        subjectTokens.put(MODIFY_BUTTON_TOKEN, "");
+        subjectTokens.put(CANCEL_BUTTON_TOKEN, "");
+        String subject = replaceTokens(template.subject(), subjectTokens);
+        String bodyHtml = replaceTokens(template.bodyHtml(), emailTokens);
 
         try {
             sendHtmlMail(booking == null ? null : booking.getCompany(), client.getEmail().trim(), subject, bodyHtml);
@@ -655,84 +652,31 @@ public class ReminderService {
     private void logBookingDeliverySent(SessionBooking booking, Client client, MessageDeliveryChannel channel, NotificationKind kind, String recipient, String subject, String preview) {
         if (deliveryLogs == null) return;
         Company company = booking != null ? booking.getCompany() : client != null ? client.getCompany() : null;
-        deliveryLogs.sent(company, client, null, channel, bookingMessageType(kind), recipient, subject, preview, "booking", booking == null ? null : booking.getId());
+        deliveryLogs.sent(company, client, null, channel, bookingMessageType(kind), recipient, subject, preview, bookingReferenceType(booking), booking == null ? null : booking.getId());
     }
 
     private void logBookingDeliveryFailed(SessionBooking booking, Client client, MessageDeliveryChannel channel, NotificationKind kind, String recipient, String subject, String reason) {
         if (deliveryLogs == null) return;
         Company company = booking != null ? booking.getCompany() : client != null ? client.getCompany() : null;
-        deliveryLogs.failed(company, client, null, channel, bookingMessageType(kind), recipient, subject, null, "booking", booking == null ? null : booking.getId(), reason);
+        deliveryLogs.failed(company, client, null, channel, bookingMessageType(kind), recipient, subject, null, bookingReferenceType(booking), booking == null ? null : booking.getId(), reason);
     }
 
     private void logBookingDeliverySkipped(SessionBooking booking, Client client, MessageDeliveryChannel channel, NotificationKind kind, String recipient, String subject, String reason) {
         if (deliveryLogs == null) return;
         Company company = booking != null ? booking.getCompany() : client != null ? client.getCompany() : null;
-        deliveryLogs.skipped(company, client, null, channel, bookingMessageType(kind), recipient, subject, null, "booking", booking == null ? null : booking.getId(), reason);
+        deliveryLogs.skipped(company, client, null, channel, bookingMessageType(kind), recipient, subject, null, bookingReferenceType(booking), booking == null ? null : booking.getId(), reason);
     }
 
     private static String bookingMessageType(NotificationKind kind) {
         return kind == null ? "BOOKING_NOTIFICATION" : "BOOKING_" + kind.name();
     }
 
+    private static String bookingReferenceType(SessionBooking booking) {
+        return isWebsiteWidgetBookingSource(booking) ? "website_widget" : "booking";
+    }
+
     private static String smsSubject(NotificationKind kind) {
         return kind == null ? "SMS notification" : "SMS " + kind.name().replace('_', ' ').toLowerCase(Locale.ROOT);
-    }
-
-    private NotificationEmailTemplate defaultWebsiteWidgetBookingConfirmationTemplate() {
-        String subject = "Potrditev rezervacije pri {{companyName}}";
-        String bodyHtml = """
-                <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55">
-                  <h2 style="margin:0 0 12px;color:#07122f">Termin je potrjen</h2>
-                  <p style="margin:0 0 12px">Pozdravljeni {{clientFirstName}},</p>
-                  <p style="margin:0 0 16px">vaša rezervacija je bila uspešno potrjena.</p>
-                  <table style="border-collapse:collapse;margin:0 0 16px;width:100%;max-width:520px">
-                    <tr><td style="padding:6px 0;color:#6b7280">Storitev</td><td style="padding:6px 0;font-weight:700">{{serviceName}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Datum</td><td style="padding:6px 0;font-weight:700">{{date}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Ura</td><td style="padding:6px 0;font-weight:700">{{time}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Izvajalec</td><td style="padding:6px 0;font-weight:700">{{consultantName}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Lokacija</td><td style="padding:6px 0;font-weight:700">{{locationAddress}}</td></tr>
-                  </table>
-                </div>
-                """;
-        return new NotificationEmailTemplate(subject, bodyHtml);
-    }
-
-    private NotificationEmailTemplate defaultWebsiteWidgetBookingRescheduledTemplate() {
-        String subject = "Sprememba termina pri {{companyName}}";
-        String bodyHtml = """
-                <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55">
-                  <h2 style="margin:0 0 12px;color:#07122f">Termin je bil spremenjen</h2>
-                  <p style="margin:0 0 12px">Pozdravljeni {{clientFirstName}},</p>
-                  <p style="margin:0 0 16px">vaša rezervacija je bila uspešno prestavljena na nov termin.</p>
-                  <table style="border-collapse:collapse;margin:0 0 16px;width:100%;max-width:520px">
-                    <tr><td style="padding:6px 0;color:#6b7280">Storitev</td><td style="padding:6px 0;font-weight:700">{{serviceName}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Nov datum</td><td style="padding:6px 0;font-weight:700">{{date}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Nova ura</td><td style="padding:6px 0;font-weight:700">{{time}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Prejšnji termin</td><td style="padding:6px 0;font-weight:700">{{originalAppointmentDateTime}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Izvajalec</td><td style="padding:6px 0;font-weight:700">{{consultantName}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Lokacija</td><td style="padding:6px 0;font-weight:700">{{locationAddress}}</td></tr>
-                  </table>
-                </div>
-                """;
-        return new NotificationEmailTemplate(subject, bodyHtml);
-    }
-
-    private NotificationEmailTemplate defaultWebsiteWidgetBookingCancelledTemplate() {
-        String subject = "Odpoved termina pri {{companyName}}";
-        String bodyHtml = """
-                <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55">
-                  <h2 style="margin:0 0 12px;color:#07122f">Termin je bil odpovedan</h2>
-                  <p style="margin:0 0 12px">Pozdravljeni {{clientFirstName}},</p>
-                  <p style="margin:0 0 16px">vaša rezervacija je bila odpovedana.</p>
-                  <table style="border-collapse:collapse;margin:0 0 16px;width:100%;max-width:520px">
-                    <tr><td style="padding:6px 0;color:#6b7280">Storitev</td><td style="padding:6px 0;font-weight:700">{{serviceName}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Datum</td><td style="padding:6px 0;font-weight:700">{{date}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Ura</td><td style="padding:6px 0;font-weight:700">{{time}}</td></tr>
-                    <tr><td style="padding:6px 0;color:#6b7280">Izvajalec</td><td style="padding:6px 0;font-weight:700">{{consultantName}}</td></tr>
-                  </table>
-                </div>
-                """;
-        return new NotificationEmailTemplate(subject, bodyHtml);
     }
 
     private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind, SessionBooking booking) {
@@ -849,20 +793,6 @@ public class ReminderService {
         return "";
     }
 
-    private boolean isTemplateExplicitlyEnabled(Long companyId, String channel, NotificationKind kind) {
-        if (companyId == null || channel == null || kind == null) {
-            return false;
-        }
-        try {
-            return notificationNode(loadNotificationSettingsRoot(companyId), channel, kind)
-                    .path("enabled")
-                    .asBoolean(false);
-        } catch (Exception e) {
-            log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
-            return false;
-        }
-    }
-
     private JsonNode loadNotificationSettingsRoot(Long companyId) throws Exception {
         String raw = appSettings.findByCompanyIdAndKey(companyId, SettingKey.NOTIFICATION_SETTINGS_JSON)
                 .map(AppSetting::getValue)
@@ -958,7 +888,10 @@ public class ReminderService {
         m.put("{{fizicna_postna_stevilka}}", physicalAddress.postalCode());
         m.put("{{fizicno_mesto}}", physicalAddress.city());
         m.put("{{fizicna_drzava}}", physicalAddress.country());
-        m.put("{{povezava_za_prenarocanje}}", rescheduleLink);
+        m.put(MODIFY_URL_TOKEN, rescheduleLink);
+        m.put(CANCEL_URL_TOKEN, "");
+        m.put(MODIFY_BUTTON_TOKEN, "");
+        m.put(CANCEL_BUTTON_TOKEN, "");
         m.put("{{povezava_za_upravljanje_termina}}", rescheduleLink);
         m.put("{{povezava_za_odpoved_termina}}", "");
         m.put("{{kategorija_storitve}}", serviceCategories);
@@ -1007,45 +940,154 @@ public class ReminderService {
     }
 
 
-    private static boolean isWebsiteWidgetTransactionalEmail(SessionBooking booking, NotificationKind kind) {
-        return isWebsiteWidgetBookingSource(booking)
-                && (kind == NotificationKind.NEW_SESSION
-                || kind == NotificationKind.CHANGE_SESSION
-                || kind == NotificationKind.CANCEL_SESSION);
+    private void addPublicBookingManageTokensIfRequested(
+            SessionBooking booking,
+            NotificationKind kind,
+            NotificationEmailTemplate template,
+            Map<String, String> tokens
+    ) {
+        if (tokens == null) {
+            return;
+        }
+
+        // These tags are meaningful only for active website-widget bookings. For all
+        // other booking sources and event types they intentionally resolve to empty.
+        tokens.put(MODIFY_BUTTON_TOKEN, "");
+        tokens.put(CANCEL_BUTTON_TOKEN, "");
+        tokens.put(CANCEL_URL_TOKEN, "");
+        if (!isWebsiteWidgetBookingSource(booking)
+                || (kind != NotificationKind.NEW_SESSION && kind != NotificationKind.CHANGE_SESSION)) {
+            return;
+        }
+
+        String templateText = (template.subject() == null ? "" : template.subject())
+                + "\n"
+                + (template.bodyHtml() == null ? "" : template.bodyHtml());
+        boolean requestsModify = containsAnyToken(
+                templateText,
+                MODIFY_URL_TOKEN,
+                MODIFY_BUTTON_TOKEN,
+                "{{rescheduleLink}}",
+                "{{manageBookingLink}}",
+                "{{povezava_za_upravljanje_termina}}"
+        );
+        boolean requestsCancel = containsAnyToken(
+                templateText,
+                CANCEL_URL_TOKEN,
+                CANCEL_BUTTON_TOKEN,
+                "{{cancelBookingLink}}",
+                "{{povezava_za_odpoved_termina}}"
+        );
+        if (!requestsModify && !requestsCancel) {
+            return;
+        }
+        if (publicBookingManageTokenService == null
+                || frontendBaseUrl.isBlank()
+                || booking.getCompany() == null
+                || booking.getEndTime() == null) {
+            clearPublicBookingManageTokens(tokens);
+            return;
+        }
+
+        try {
+            var rules = TenantReservationRulesService.resolve(
+                    appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
+                            .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b))
+            );
+            boolean canModify = requestsModify
+                    && rules.modificationAllowed()
+                    && canUsePublicManageAction(booking, rules.rescheduleUntilHours())
+                    && booking.getClientGroup() == null;
+            boolean canCancel = requestsCancel
+                    && rules.cancellationAllowed()
+                    && canUsePublicManageAction(booking, rules.cancelUntilHours());
+            if (!canModify && !canCancel) {
+                clearPublicBookingManageTokens(tokens);
+                return;
+            }
+
+            String rawToken = publicBookingManageTokenService.createToken(booking, PUBLIC_BOOKING_ZONE);
+            if (rawToken == null || rawToken.isBlank()) {
+                clearPublicBookingManageTokens(tokens);
+                return;
+            }
+
+            String baseUrl = frontendBaseUrl + "/public-booking/manage/" + rawToken;
+            String modifyUrl = canModify ? baseUrl + "?action=modify" : "";
+            String cancelUrl = canCancel ? baseUrl + "?action=cancel" : "";
+
+            if (canModify) {
+                tokens.put(MODIFY_URL_TOKEN, modifyUrl);
+                tokens.put("{{rescheduleLink}}", modifyUrl);
+                tokens.put("{{manageBookingLink}}", modifyUrl);
+                tokens.put("{{povezava_za_upravljanje_termina}}", modifyUrl);
+                tokens.put(MODIFY_BUTTON_TOKEN, renderPublicBookingManageButton(modifyUrl, "Spremeni termin", true));
+            } else {
+                tokens.put(MODIFY_URL_TOKEN, "");
+                tokens.put("{{rescheduleLink}}", "");
+                tokens.put("{{manageBookingLink}}", "");
+                tokens.put("{{povezava_za_upravljanje_termina}}", "");
+            }
+
+            if (canCancel) {
+                tokens.put(CANCEL_URL_TOKEN, cancelUrl);
+                tokens.put("{{cancelBookingLink}}", cancelUrl);
+                tokens.put("{{povezava_za_odpoved_termina}}", cancelUrl);
+                tokens.put(CANCEL_BUTTON_TOKEN, renderPublicBookingManageButton(cancelUrl, "Odpovej termin", false));
+            } else {
+                tokens.put(CANCEL_URL_TOKEN, "");
+                tokens.put("{{cancelBookingLink}}", "");
+                tokens.put("{{povezava_za_odpoved_termina}}", "");
+            }
+        } catch (Exception e) {
+            clearPublicBookingManageTokens(tokens);
+            log.warn(
+                    "Could not generate public booking management links companyId={} bookingId={}: {}",
+                    booking.getCompany() == null ? null : booking.getCompany().getId(),
+                    booking.getId(),
+                    e.getMessage()
+            );
+        }
     }
 
-    private String appendPublicBookingManageButtonsIfNeeded(SessionBooking booking, NotificationKind kind, String bodyHtml) {
-        if ((kind != NotificationKind.NEW_SESSION && kind != NotificationKind.CHANGE_SESSION) || !isWebsiteWidgetBookingSource(booking)) {
-            return bodyHtml;
+    private static boolean containsAnyToken(String input, String... tokens) {
+        if (input == null || input.isBlank() || tokens == null) {
+            return false;
         }
-        if (publicBookingManageTokenService == null || frontendBaseUrl.isBlank() || booking.getCompany() == null || booking.getEndTime() == null) {
-            return bodyHtml;
+        for (String token : tokens) {
+            if (token != null && !token.isBlank() && input.contains(token)) {
+                return true;
+            }
         }
-        var rules = TenantReservationRulesService.resolve(appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
-                .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b)));
-        boolean canModify = rules.modificationAllowed() && canUsePublicManageAction(booking, rules.rescheduleUntilHours()) && booking.getClientGroup() == null;
-        boolean canCancel = rules.cancellationAllowed() && canUsePublicManageAction(booking, rules.cancelUntilHours());
-        if (!canModify && !canCancel) {
-            return bodyHtml;
+        return false;
+    }
+
+    private static void clearPublicBookingManageTokens(Map<String, String> tokens) {
+        tokens.put(MODIFY_URL_TOKEN, "");
+        tokens.put(CANCEL_URL_TOKEN, "");
+        tokens.put(MODIFY_BUTTON_TOKEN, "");
+        tokens.put(CANCEL_BUTTON_TOKEN, "");
+        tokens.put("{{rescheduleLink}}", "");
+        tokens.put("{{manageBookingLink}}", "");
+        tokens.put("{{cancelBookingLink}}", "");
+        tokens.put("{{povezava_za_upravljanje_termina}}", "");
+        tokens.put("{{povezava_za_odpoved_termina}}", "");
+    }
+
+    private static String renderPublicBookingManageButton(String url, String label, boolean primary) {
+        if (url == null || url.isBlank()) {
+            return "";
         }
-        String token = publicBookingManageTokenService.createToken(booking, java.time.ZoneId.of("Europe/Ljubljana"));
-        if (token == null || token.isBlank()) {
-            return bodyHtml;
-        }
-        String base = frontendBaseUrl + "/public-booking/manage/" + token;
-        String modifyLink = base + "?action=modify";
-        String cancelLink = base + "?action=cancel";
-        StringBuilder html = new StringBuilder(bodyHtml == null ? "" : bodyHtml);
-        html.append("<div style=\"margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-family:Arial,sans-serif\">");
-        html.append("<p style=\"margin:0 0 12px;color:#374151;font-size:14px\">Termin lahko po potrebi uredite prek spodnje povezave.</p>");
-        if (canModify) {
-            html.append("<a href=\"").append(escapeHtmlAttribute(modifyLink)).append("\" style=\"display:inline-block;margin:0 8px 8px 0;padding:10px 14px;border-radius:8px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600\">Spremeni termin</a>");
-        }
-        if (canCancel) {
-            html.append("<a href=\"").append(escapeHtmlAttribute(cancelLink)).append("\" style=\"display:inline-block;margin:0 8px 8px 0;padding:10px 14px;border-radius:8px;background:#f3f4f6;color:#111827;text-decoration:none;font-weight:600\">Odpovej termin</a>");
-        }
-        html.append("</div>");
-        return html.toString();
+        String background = primary ? "#2563eb" : "#f3f4f6";
+        String color = primary ? "#ffffff" : "#111827";
+        return "<a href=\"" + escapeHtmlAttribute(url)
+                + "\" style=\"display:inline-block;margin:0 8px 8px 0;padding:10px 14px;border-radius:8px;background:"
+                + background
+                + ";color:"
+                + color
+                + ";text-decoration:none;font-weight:600;font-family:Arial,sans-serif\">"
+                + escapeHtml(label)
+                + "</a>";
     }
 
     private boolean canUsePublicManageAction(SessionBooking booking, int cutoffHours) {

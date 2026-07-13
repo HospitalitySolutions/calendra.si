@@ -359,7 +359,14 @@ export function ConfigurationDeliveryLogsSection({
               <Detail label={copy.tableChannel} value={channelLabel(selected.channel, sl)} />
               <Detail label={copy.tableStatus} value={statusLabel(selected.status, sl)} />
               <Detail label={copy.tableRecipient} value={selected.recipient || "—"} />
-              <Detail label={copy.reference} value={[selected.referenceType, selected.referenceId].filter(Boolean).join(" #") || "—"} />
+              <Detail
+                label={copy.reference}
+                value={
+                  [referenceTypeLabel(selected.referenceType, sl), selected.referenceId]
+                    .filter(Boolean)
+                    .join(" #") || "—"
+                }
+              />
               <Detail label={copy.provider} value={[selected.providerStatusCode, selected.providerMessageId].filter(Boolean).join(" · ") || "—"} />
             </div>
             <div className="delivery-logs-preview-block">
@@ -426,6 +433,18 @@ function humanizeType(type?: string | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+
+function referenceTypeLabel(type: string | null | undefined, sl: boolean) {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized === "website_widget") {
+    return sl ? "Spletni vtičnik" : "Website widget";
+  }
+  if (normalized === "booking") {
+    return sl ? "Rezervacija" : "Booking";
+  }
+  return type || "";
+}
+
 
 function formatDateTime(value: string | null | undefined, locale: string) {
   if (!value) return "—";

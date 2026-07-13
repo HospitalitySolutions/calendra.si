@@ -210,11 +210,11 @@ type NotificationTemplateDefaults = Record<
 const emailTemplateDefaults: NotificationTemplateDefaults = {
   newSession: {
     title: "Potrditev rezervacije",
-    body: "Pozdravljeni {{ime_stranke}},\n\nvaša rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena.\n\nVeselimo se srečanja z vami.\n{{ime_podjetja}}",
+    body: "Pozdravljeni {{ime_stranke}},\n\nvaša rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena.\n\nVeselimo se srečanja z vami.\n{{ime_podjetja}}\n\n{{gumb_za_prenarocanje}}\n{{gumb_za_odpoved}}",
   },
   sessionChanged: {
     title: "Sprememba rezervacije",
-    body: "Pozdravljeni {{ime_stranke}},\n\npodrobnosti vaše rezervacije so bile spremenjene. Nov termin je {{datum}} ob {{cas}}.\n\n{{ime_podjetja}}",
+    body: "Pozdravljeni {{ime_stranke}},\n\npodrobnosti vaše rezervacije so bile spremenjene. Nov termin je {{datum}} ob {{cas}}.\n\n{{ime_podjetja}}\n\n{{gumb_za_prenarocanje}}\n{{gumb_za_odpoved}}",
   },
   sessionCancelled: {
     title: "Preklic rezervacije",
@@ -304,11 +304,11 @@ const onlineTemplateDefaults: Record<
   email: {
     newSession: {
       title: "Potrditev online rezervacije",
-      body: "Pozdravljeni {{ime_stranke}},\n\nvaša online rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena.\n\nPovezava do srečanja: {{online_povezava}}\n\nVeselimo se srečanja z vami.\n{{ime_podjetja}}",
+      body: "Pozdravljeni {{ime_stranke}},\n\nvaša online rezervacija za {{ime_storitve}} dne {{datum}} ob {{cas}} je potrjena.\n\nPovezava do srečanja: {{online_povezava}}\n\nVeselimo se srečanja z vami.\n{{ime_podjetja}}\n\n{{gumb_za_prenarocanje}}\n{{gumb_za_odpoved}}",
     },
     sessionChanged: {
       title: "Sprememba online rezervacije",
-      body: "Pozdravljeni {{ime_stranke}},\n\npodrobnosti vaše online rezervacije so bile spremenjene. Nov termin je {{datum}} ob {{cas}}.\n\nPovezava do srečanja: {{online_povezava}}\n\n{{ime_podjetja}}",
+      body: "Pozdravljeni {{ime_stranke}},\n\npodrobnosti vaše online rezervacije so bile spremenjene. Nov termin je {{datum}} ob {{cas}}.\n\nPovezava do srečanja: {{online_povezava}}\n\n{{ime_podjetja}}\n\n{{gumb_za_prenarocanje}}\n{{gumb_za_odpoved}}",
     },
     sessionCancelled: {
       title: "Preklic online rezervacije",
@@ -721,10 +721,26 @@ const notificationTemplateTags = [
   { label: "Datum in čas prvotnega termina", token: "{{prvotni_termin}}" },
 ];
 
+const emailNotificationActionTags = [
+  { label: "Povezava za odpoved", token: "{{povezava_za_odpoved}}" },
+  { label: "Sprememba seje (gumb)", token: "{{gumb_za_prenarocanje}}" },
+  { label: "Odpoved seje (gumb)", token: "{{gumb_za_odpoved}}" },
+];
+
+const emailNotificationTemplateTags = [
+  ...notificationTemplateTags,
+  ...emailNotificationActionTags,
+];
+
 const onlineNotificationTemplateTags = [
   ...notificationTemplateTags,
   { label: "Povezava do online srečanja", token: "{{online_povezava}}" },
   { label: "Tip izvedbe", token: "{{tip_izvedbe}}" },
+];
+
+const onlineEmailNotificationTemplateTags = [
+  ...onlineNotificationTemplateTags,
+  ...emailNotificationActionTags,
 ];
 
 const invoiceDeliveryTemplateTags: Array<{
@@ -1207,6 +1223,8 @@ export function ConfigurationNotificationsSection({
   const selectedEvent = editingEvent
     ? visibleNotificationEvents.find((event) => event.id === editingEvent) || null
     : null;
+  const selectedEventSupportsBookingManageTags =
+    selectedEvent?.id === "newSession" || selectedEvent?.id === "sessionChanged";
   const onlineSessionBookingEnabled =
     settings.ONLINE_SESSION_BOOKING_ENABLED !== "false";
   const selectedOnlineTemplateEnabled = selectedEvent && selectedEvent.id !== "invoiceDelivery"
@@ -1408,7 +1426,10 @@ export function ConfigurationNotificationsSection({
       "{{fizicna_drzava}}": "Slovenija",
       "{{ime_lokacije}}": "Studio Center",
       "{{telefon_lokacije}}": "+386 40 123 456",
-      "{{povezava_za_prenarocanje}}": "https://2ten.si/book/2TEN",
+      "{{povezava_za_prenarocanje}}": "https://app.calendra.si/public-booking/manage/demo?action=modify",
+      "{{povezava_za_odpoved}}": "https://app.calendra.si/public-booking/manage/demo?action=cancel",
+      "{{gumb_za_prenarocanje}}": "Spremeni termin",
+      "{{gumb_za_odpoved}}": "Odpovej termin",
       "{{kategorija_storitve}}": "Fitnes",
       "{{ime_izvajalca}}": "Ana",
       "{{telefon_izvajalca}}": "+386 41 555 111",
@@ -3213,8 +3234,12 @@ export function ConfigurationNotificationsSection({
                         {(selectedEvent.id === "invoiceDelivery"
                           ? invoiceDeliveryTemplateTags
                           : selectedTemplateVariant === "online"
-                            ? onlineNotificationTemplateTags
-                            : notificationTemplateTags
+                            ? channel === "email" && selectedEventSupportsBookingManageTags
+                              ? onlineEmailNotificationTemplateTags
+                              : onlineNotificationTemplateTags
+                            : channel === "email" && selectedEventSupportsBookingManageTags
+                              ? emailNotificationTemplateTags
+                              : notificationTemplateTags
                         ).map((tag) => (
                           <button
                             key={tag.token}
