@@ -1884,6 +1884,36 @@ a.credentials-popover-action-btn {
 .referral-modal-share--facebook { color: #1877f2; }
 .referral-modal-share--instagram { color: #e1306c; }
 
+.referral-modal-info {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    margin-top: 18px;
+    padding: 14px 15px;
+    border: 1px solid #dbe7f7;
+    border-radius: 13px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f3f8ff 100%);
+}
+
+.referral-modal-info-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #2563eb;
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.referral-modal-info p {
+    margin: 0;
+    color: #334155;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
 .referral-modal-close:focus-visible,
 .referral-modal-copy:focus-visible,
 .referral-modal-share:focus-visible {
@@ -1950,6 +1980,21 @@ a.credentials-popover-action-btn {
     color: var(--color-text);
 }
 
+[data-theme="dark"] .referral-modal-info {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .referral-modal-info-icon {
+    background: rgba(255, 255, 255, 0.08);
+    color: #93c5fd;
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.12);
+}
+
+[data-theme="dark"] .referral-modal-info p {
+    color: var(--color-text);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .referral-modal {
         animation: none;
@@ -2001,5 +2046,9 @@ a.credentials-popover-action-btn {
 
     .referral-modal-share-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .referral-modal-info {
+        grid-template-columns: 1fr;
     }
 }
