@@ -960,27 +960,10 @@ public class ReminderService {
             return;
         }
 
-        String templateText = (template.subject() == null ? "" : template.subject())
-                + "\n"
-                + (template.bodyHtml() == null ? "" : template.bodyHtml());
-        boolean requestsModify = containsAnyToken(
-                templateText,
-                MODIFY_URL_TOKEN,
-                MODIFY_BUTTON_TOKEN,
-                "{{rescheduleLink}}",
-                "{{manageBookingLink}}",
-                "{{povezava_za_upravljanje_termina}}"
-        );
-        boolean requestsCancel = containsAnyToken(
-                templateText,
-                CANCEL_URL_TOKEN,
-                CANCEL_BUTTON_TOKEN,
-                "{{cancelBookingLink}}",
-                "{{povezava_za_odpoved_termina}}"
-        );
-        if (!requestsModify && !requestsCancel) {
-            return;
-        }
+        // Generate the public management URLs before rendering the template instead of
+        // trying to detect the literal token in the saved HTML. Rich-text editors can
+        // split or wrap token text in markup, which caused valid button tags to resolve
+        // to an empty string even for website-widget bookings.
         if (publicBookingManageTokenService == null
                 || frontendBaseUrl.isBlank()
                 || booking.getCompany() == null
@@ -994,12 +977,10 @@ public class ReminderService {
                     appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
                             .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b))
             );
-            boolean canModify = requestsModify
-                    && rules.modificationAllowed()
+            boolean canModify = rules.modificationAllowed()
                     && canUsePublicManageAction(booking, rules.rescheduleUntilHours())
                     && booking.getClientGroup() == null;
-            boolean canCancel = requestsCancel
-                    && rules.cancellationAllowed()
+            boolean canCancel = rules.cancellationAllowed()
                     && canUsePublicManageAction(booking, rules.cancelUntilHours());
             if (!canModify && !canCancel) {
                 clearPublicBookingManageTokens(tokens);
@@ -1048,18 +1029,6 @@ public class ReminderService {
                     e.getMessage()
             );
         }
-    }
-
-    private static boolean containsAnyToken(String input, String... tokens) {
-        if (input == null || input.isBlank() || tokens == null) {
-            return false;
-        }
-        for (String token : tokens) {
-            if (token != null && !token.isBlank() && input.contains(token)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static void clearPublicBookingManageTokens(Map<String, String> tokens) {
