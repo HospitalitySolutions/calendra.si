@@ -208,10 +208,17 @@ const referCardStyles = `
   .refer-stat-icon {
     width: 54px;
     height: 54px;
+    flex: 0 0 54px;
+    margin: 0;
     border-radius: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-grid;
+    place-items: center;
+    line-height: 0;
+  }
+  .refer-stat-icon svg {
+    display: block;
+    width: 25px;
+    height: 25px;
   }
   .refer-stat-icon--blue {
     background: #eaf1ff;
@@ -232,7 +239,7 @@ const referCardStyles = `
     line-height: 1;
     letter-spacing: -0.04em;
   }
-  .refer-stat-card span {
+  .refer-stat-card > div > span {
     display: block;
     margin-top: 8px;
     color: #64748b;
