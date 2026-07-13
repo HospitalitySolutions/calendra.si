@@ -10,6 +10,7 @@ import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
 import { OnboardingTour } from './OnboardingTour'
+import { ReferAFriendModal } from './ReferAFriendModal'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
 import loginLogo from '../assets/login-logo.png'
 
@@ -343,6 +344,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [, setSessionUserBump] = useState(0)
   const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [supportEmailModalOpen, setSupportEmailModalOpen] = useState(false)
+  const [referAFriendModalOpen, setReferAFriendModalOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const bellRef = useRef<HTMLDivElement>(null)
@@ -1080,7 +1082,7 @@ function ShellInner({ children }: PropsWithChildren) {
                   className="credentials-popover-action-btn"
                   onClick={() => {
                     setAccountOpen(false)
-                    navigate('/configuration?tab=company&subtab=subscription')
+                    setReferAFriendModalOpen(true)
                   }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1431,6 +1433,7 @@ function ShellInner({ children }: PropsWithChildren) {
       {globalVoiceButton}
       {languageModalOpen && <LanguageModal onClose={() => setLanguageModalOpen(false)} />}
       {supportEmailModalOpen && <SupportEmailModal locale={locale} onClose={() => setSupportEmailModalOpen(false)} />}
+      {referAFriendModalOpen && <ReferAFriendModal onClose={() => setReferAFriendModalOpen(false)} />}
       <OnboardingTour
         user={user}
         billingModuleEnabled={billingModuleEnabled}
