@@ -3906,6 +3906,259 @@ function metricNumber(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+type ReferralAdminRow = {
+  id: number;
+  status: string;
+  referrerCompanyId: number | null;
+  referrerCompanyName: string | null;
+  referrerUserName: string | null;
+  referrerUserEmail: string | null;
+  referredCompanyId: number | null;
+  referredCompanyName: string | null;
+  referredEmail: string | null;
+  registeredAt: string | null;
+  qualifiedAt: string | null;
+  referrerRewardGranted: boolean;
+  referredRewardGranted: boolean;
+};
+
+function formatReferralDate(value: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+type TenantReferralInfoDto = {
+  referredBy: ReferralAdminRow | null;
+  referralsMade: ReferralAdminRow[];
+};
+
+function TenantReferralInfo({ tenantId }: { tenantId: number }) {
+  const [info, setInfo] = useState<TenantReferralInfoDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    api
+      .get<TenantReferralInfoDto>(`/platform-admin/tenancies/${tenantId}/referrals`)
+      .then((res) => {
+        if (alive) setInfo(res.data);
+      })
+      .catch(() => {
+        if (alive) {
+          setInfo(null);
+          setError("Could not load referral info.");
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tenantId]);
+
+  const referredBy = info?.referredBy ?? null;
+  const referralsMade = info?.referralsMade ?? [];
+
+  return (
+    <section className="platform-admin-section-card" id="referrals">
+      <div className="platform-admin-section-head">
+        <div className="platform-admin-section-title">
+          <strong>Referrals</strong>
+          <span>
+            Who referred this tenant and which tenants they referred. Rewards are granted on the referred
+            tenant&apos;s first successful subscription payment.
+          </span>
+        </div>
+      </div>
+
+      {loading ? <p className="platform-admin-muted">Loading referral info…</p> : null}
+      {error ? <p className="platform-admin-search-err">{error}</p> : null}
+
+      {!loading && !error ? (
+        <>
+          <p className="platform-admin-muted" style={{ margin: "0 0 10px" }}>
+            <strong>Referred by:</strong>{" "}
+            {referredBy ? (
+              <>
+                {referredBy.referrerCompanyName || `Company #${referredBy.referrerCompanyId ?? "?"}`}
+                {referredBy.referrerUserName || referredBy.referrerUserEmail
+                  ? ` (${referredBy.referrerUserName || referredBy.referrerUserEmail})`
+                  : ""}
+                {" · "}
+                {referredBy.status}
+                {referredBy.referredRewardGranted ? " · free month granted" : ""}
+              </>
+            ) : (
+              "Not a referred tenant."
+            )}
+          </p>
+
+          <p className="platform-admin-muted" style={{ margin: 0 }}>
+            <strong>Referrals made:</strong>{" "}
+            {referralsMade.length === 0 ? "None yet." : `${referralsMade.length} total`}
+          </p>
+          {referralsMade.length > 0 ? (
+            <div className="platform-admin-monitoring-jobs-wrap" style={{ marginTop: 10 }}>
+              <table className="platform-admin-monitoring-jobs-table">
+                <thead>
+                  <tr>
+                    <th scope="col">New tenant</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Registered</th>
+                    <th scope="col">Qualified</th>
+                    <th scope="col">Referrer rewarded</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {referralsMade.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        {r.referredCompanyName ||
+                          (r.referredCompanyId ? `Company #${r.referredCompanyId}` : r.referredEmail || "—")}
+                      </td>
+                      <td>{r.status}</td>
+                      <td>{formatReferralDate(r.registeredAt)}</td>
+                      <td>{formatReferralDate(r.qualifiedAt)}</td>
+                      <td>{r.referrerRewardGranted ? "Yes" : "No"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function ReferralsAdminPanel() {
+  const [rows, setRows] = useState<ReferralAdminRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get<ReferralAdminRow[]>("/platform-admin/referrals");
+      setRows(data || []);
+    } catch {
+      setRows([]);
+      setError("Could not load referrals.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const rewardedCount = rows.filter((r) => r.status === "REWARDED").length;
+  const freeMonthsGranted = rows.reduce(
+    (sum, r) => sum + (r.referrerRewardGranted ? 1 : 0) + (r.referredRewardGranted ? 1 : 0),
+    0,
+  );
+
+  return (
+    <>
+      <div className="platform-admin-page-head platform-admin-head">
+        <div className="platform-admin-page-title">
+          <div className="platform-admin-eyebrow">Growth</div>
+          <h1>Referrals</h1>
+          <p>
+            Every tenant referral, who referred whom, and which free-month rewards were granted after the
+            referred tenant's first successful subscription payment.
+          </p>
+        </div>
+        <div className="platform-admin-search-wrap">
+          <button
+            type="button"
+            className="platform-admin-button platform-admin-primary"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {error ? <div className="platform-admin-error">{error}</div> : null}
+
+      <div className="platform-admin-section">
+        <div className="platform-admin-section-title">
+          <strong>Referral activity</strong>
+          <span>
+            {rows.length} referral{rows.length === 1 ? "" : "s"} · {rewardedCount} fully rewarded ·{" "}
+            {freeMonthsGranted} free month{freeMonthsGranted === 1 ? "" : "s"} granted
+          </span>
+        </div>
+        <div className="platform-admin-monitoring-jobs-wrap">
+          <table className="platform-admin-monitoring-jobs-table">
+            <thead>
+              <tr>
+                <th scope="col">Referrer</th>
+                <th scope="col">New tenant</th>
+                <th scope="col">Status</th>
+                <th scope="col">Registered</th>
+                <th scope="col">Qualified</th>
+                <th scope="col">Free months granted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="platform-admin-monitoring-job-small">
+                    {loading ? "Loading…" : "No referrals yet."}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div className="platform-admin-monitoring-job-name">
+                        <strong>{r.referrerCompanyName || `Company #${r.referrerCompanyId ?? "?"}`}</strong>
+                        <span>{r.referrerUserName || r.referrerUserEmail || "—"}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="platform-admin-monitoring-job-name">
+                        <strong>{r.referredCompanyName || (r.referredCompanyId ? `Company #${r.referredCompanyId}` : "—")}</strong>
+                        <span>{r.referredEmail || "—"}</span>
+                      </div>
+                    </td>
+                    <td>{r.status}</td>
+                    <td>{formatReferralDate(r.registeredAt)}</td>
+                    <td>{formatReferralDate(r.qualifiedAt)}</td>
+                    <td>
+                      {(r.referrerRewardGranted ? 1 : 0) + (r.referredRewardGranted ? 1 : 0)}
+                      {r.referrerRewardGranted || r.referredRewardGranted ? (
+                        <span className="platform-admin-monitoring-job-small">
+                          {" "}
+                          ({r.referrerRewardGranted ? "referrer" : ""}
+                          {r.referrerRewardGranted && r.referredRewardGranted ? " + " : ""}
+                          {r.referredRewardGranted ? "new" : ""})
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function PlatformOverviewPanel({
   onNavigate,
 }: {
@@ -4387,6 +4640,7 @@ function MonitoringAdminPanel() {
 type AdminWorkspaceTab =
   | "overview"
   | "tenants"
+  | "referrals"
   | "monitoring"
   | "plans"
   | "fiscalization"
@@ -4402,6 +4656,7 @@ type AdminWorkspaceTab =
 const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "tenants", label: "Tenants" },
+  { id: "referrals", label: "Referrals" },
   { id: "monitoring", label: "Monitoring" },
   { id: "plans", label: "Plan & add-ons" },
   { id: "fiscalization", label: "Fiscalization" },
@@ -5232,6 +5487,8 @@ export function PlatformAdminPage() {
         <main className="platform-admin-admin-main">
                 {workspace === "overview" ? (
                   <PlatformOverviewPanel onNavigate={setWorkspace} />
+                ) : workspace === "referrals" ? (
+                  <ReferralsAdminPanel />
                 ) : workspace === "tenants" ? (
                   <>
                     <div className="platform-admin-page-head platform-admin-head">
@@ -5903,6 +6160,8 @@ export function PlatformAdminPage() {
                                 </>
                               ) : null}
                             </section>
+
+                            <TenantReferralInfo tenantId={selected.id} />
 
                             <section className="platform-admin-section-card" id="audit">
                               <div className="platform-admin-section-head">

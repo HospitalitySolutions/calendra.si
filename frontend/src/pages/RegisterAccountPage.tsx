@@ -10,6 +10,10 @@ import { useLocale } from "../locale";
 import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
 import { useRegisterFooterClickOutside } from "../lib/useRegisterFooterClickOutside";
 import { storeAuthenticatedSession } from "../lib/session";
+import {
+  appendReferralToReturnSearch,
+  captureReferralCode,
+} from "../lib/referralRef";
 import { markOnboardingTourPending } from "../lib/onboardingTour";
 import { getCalendraLegalLinks } from "../lib/legalLinks";
 import { registerPageStyles } from "./registerPageStyles";
@@ -1510,6 +1514,7 @@ export function RegisterAccountPage() {
 
   useEffect(() => {
     storeRegisterSelectionSearch(location.search);
+    captureReferralCode(location.search);
   }, [location.search]);
 
   const copy = accountPageCopy[locale as "en" | "sl"] ?? accountPageCopy.en;
@@ -1606,9 +1611,11 @@ export function RegisterAccountPage() {
         addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
-        returnSearch: registerReturnSearchWithLocale(
-          resolveRegisterSelectionSearch(null, location.search, selection),
-          locale,
+        returnSearch: appendReferralToReturnSearch(
+          registerReturnSearchWithLocale(
+            resolveRegisterSelectionSearch(null, location.search, selection),
+            locale,
+          ),
         ),
       });
     } catch (e) {
@@ -1844,9 +1851,11 @@ export function RegisterAccountPage() {
         addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
-        returnSearch: registerReturnSearchWithLocale(
-          resolveRegisterSelectionSearch(null, location.search, selection),
-          locale,
+        returnSearch: appendReferralToReturnSearch(
+          registerReturnSearchWithLocale(
+            resolveRegisterSelectionSearch(null, location.search, selection),
+            locale,
+          ),
         ),
       });
 

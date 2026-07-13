@@ -62,6 +62,7 @@ import { GoogleCalendarIntegrationSection } from "./GoogleCalendarIntegrationSec
 import googleCalendarLogo from "../assets/google-calendar-logo.png";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../components/GuestConfigSaveIcon";
 import { ModernTimePicker } from "../components/ModernTimePicker";
+import { ReferAFriendCard } from "../components/ReferAFriendCard";
 import { useLocale } from "../locale";
 import { getCalendraLegalLinks } from "../lib/legalLinks";
 import {
@@ -8175,6 +8176,7 @@ export function ConfigurationPage() {
                           </div>
                         </div>
                       )}
+                      <ReferAFriendCard />
                     </>
                   ) : accountSubtab === "security" ? (
                     <SecurityPage embedded />

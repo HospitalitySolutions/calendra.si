@@ -5,6 +5,7 @@ import com.example.app.auth.SignupWelcomeEmailService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
+import com.example.app.referral.ReferralRewardService;
 import com.example.app.register.PlatformSubscriptionBillingService;
 import com.example.app.register.RegisterCatalogService;
 import com.example.app.register.RegisterPriceCatalog;
@@ -96,6 +97,7 @@ public class ManualTenantService {
     private final PlatformTenancyAdminAuditLogRepository auditLogs;
     private final RegisterCatalogService registerCatalogService;
     private final ObjectMapper objectMapper;
+    private final ReferralRewardService referralRewardService;
 
     public ManualTenantService(
             CompanyRepository companies,
@@ -108,7 +110,8 @@ public class ManualTenantService {
             PlatformSubscriptionBillingService subscriptionBillingService,
             PlatformTenancyAdminAuditLogRepository auditLogs,
             RegisterCatalogService registerCatalogService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ReferralRewardService referralRewardService
     ) {
         this.companies = companies;
         this.companyProvisioningService = companyProvisioningService;
@@ -121,6 +124,7 @@ public class ManualTenantService {
         this.auditLogs = auditLogs;
         this.registerCatalogService = registerCatalogService;
         this.objectMapper = objectMapper;
+        this.referralRewardService = referralRewardService;
     }
 
     @Transactional
@@ -218,9 +222,30 @@ public class ManualTenantService {
         }
         seedBillingAndCompanySettings(company, request, packageName, interval, userCount, smsCount, paymentMethod, false);
         applyFeatureSelection(company, request.enabledFeatureKeys(), packageName);
+        grantReferralRewardIfPaid(company.getId());
         audit(company, actor, "CHANGE_PLAN", "Manual subscription edited", oldSummary + "\n---\n" + subscriptionSummary(company.getId()));
         User owner = users.findFirstByCompanyIdOrderByIdAsc(company.getId()).orElse(null);
         return new ManualTenantResponse(company.getId(), company.getTenantCode(), company.getName(), owner == null ? "" : owner.getEmail(), null, null, null, setting(company.getId(), SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"), setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT"));
+    }
+
+    /**
+     * If an admin manually marks a (possibly referred) tenant's subscription as PAID, grant the referral reward.
+     * Idempotent and best-effort: {@link ReferralRewardService} only processes a PENDING referral, so repeated
+     * edits and non-referred tenants are safe no-ops, and any failure must not block the admin edit.
+     */
+    private void grantReferralRewardIfPaid(Long companyId) {
+        if (referralRewardService == null || companyId == null) {
+            return;
+        }
+        String status = setting(companyId, SettingKey.BILLING_SUBSCRIPTION_STATUS, "");
+        if (!"PAID".equalsIgnoreCase(status)) {
+            return;
+        }
+        try {
+            referralRewardService.onReferredTenantFirstPayment(companyId);
+        } catch (Exception ignored) {
+            // Referral rewarding must never block the manual subscription edit.
+        }
     }
 
     @Transactional(noRollbackFor = Exception.class)

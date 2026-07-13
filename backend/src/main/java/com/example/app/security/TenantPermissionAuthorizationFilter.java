@@ -190,7 +190,10 @@ public class TenantPermissionAuthorizationFilter extends OncePerRequestFilter {
                 RouteRule.prefix("/api/consumables", "SERVICES"),
 
                 // Security center stays self-service for the signed-in user.
-                RouteRule.prefix("/api/security", null)
+                RouteRule.prefix("/api/security", null),
+
+                // Refer a friend is available to every signed-in staff user.
+                RouteRule.prefix("/api/referrals", null)
         );
     }
 

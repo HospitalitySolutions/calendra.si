@@ -16,6 +16,7 @@ import { AuthLanguageDropdown } from "../components/AuthLanguageDropdown";
 import { Field } from "../components/ui";
 import { useLocale } from "../locale";
 import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
+import { captureReferralCode } from "../lib/referralRef";
 import { useRegisterFooterClickOutside } from "../lib/useRegisterFooterClickOutside";
 import { registerPageStyles } from "./registerPageStyles";
 import {
@@ -553,6 +554,10 @@ export function RegisterPage() {
       typeof window !== "undefined" &&
       window.matchMedia("(max-width: 1024px)").matches,
   );
+
+  useEffect(() => {
+    captureReferralCode(window.location.search);
+  }, []);
 
   useEffect(() => {
     let alive = true;

@@ -96,6 +96,12 @@ public enum SettingKey {
     GLOBAL_PAYMENTS_PAYPAL_ENABLED,
     GLOBAL_AJPES_PRS_ENABLED,
     GLOBAL_CONSUMABLES_ENABLED,
+    /**
+     * Maximum number of referral free months a single tenant can earn from referrals within a rolling 12 months.
+     * Stored on the Platform Admin (super-admin) company. Defaults to 12 when unset. The referred (new) tenant
+     * always receives their reward; only the referrer's reward is capped.
+     */
+    GLOBAL_REFERRAL_MONTHLY_CAP,
 
     PAYMENT_DEADLINE_DAYS,
     ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID,

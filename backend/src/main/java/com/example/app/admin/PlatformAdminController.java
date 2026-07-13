@@ -4,6 +4,8 @@ import com.example.app.billing.Bill;
 import com.example.app.billing.BillRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.referral.Referral;
+import com.example.app.referral.ReferralRepository;
 import com.example.app.register.RegisterCatalogService;
 import com.example.app.register.RegisterPriceCatalog;
 import com.example.app.email.TenantEmailSenderResolver;
@@ -48,7 +50,7 @@ public class PlatformAdminController {
     private static final String PROD_PREMISE_DEFAULT = "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices/register";
 
     private static final Set<String> ALLOWED_PLATFORM_TENANCY_AUDIT_ACTIONS = Set.of(
-            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE", "EMAIL_SENDER");
+            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE", "EMAIL_SENDER", "REFERRAL_REWARD");
 
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
@@ -60,6 +62,7 @@ public class PlatformAdminController {
     private final StripePlatformSettingsService stripePlatformSettingsService;
     private final PlatformTenancyDeletionService tenancyDeletionService;
     private final ManualTenantService manualTenantService;
+    private final ReferralRepository referrals;
 
     public PlatformAdminController(
             CompanyRepository companies,
@@ -71,7 +74,8 @@ public class PlatformAdminController {
             PlatformTenancyAdminAuditLogRepository tenancyAdminAuditLogs,
             StripePlatformSettingsService stripePlatformSettingsService,
             PlatformTenancyDeletionService tenancyDeletionService,
-            ManualTenantService manualTenantService) {
+            ManualTenantService manualTenantService,
+            ReferralRepository referrals) {
         this.companies = companies;
         this.settings = settings;
         this.users = users;
@@ -82,6 +86,66 @@ public class PlatformAdminController {
         this.stripePlatformSettingsService = stripePlatformSettingsService;
         this.tenancyDeletionService = tenancyDeletionService;
         this.manualTenantService = manualTenantService;
+        this.referrals = referrals;
+    }
+
+    public record ReferralAdminRow(
+            long id,
+            String status,
+            Long referrerCompanyId,
+            String referrerCompanyName,
+            String referrerUserName,
+            String referrerUserEmail,
+            Long referredCompanyId,
+            String referredCompanyName,
+            String referredEmail,
+            String registeredAt,
+            String qualifiedAt,
+            boolean referrerRewardGranted,
+            boolean referredRewardGranted) {}
+
+    @GetMapping("/referrals")
+    public List<ReferralAdminRow> listReferrals() {
+        return referrals.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toReferralAdminRow)
+                .collect(Collectors.toList());
+    }
+
+    public record TenantReferralInfo(ReferralAdminRow referredBy, List<ReferralAdminRow> referralsMade) {}
+
+    @GetMapping("/tenancies/{id}/referrals")
+    public TenantReferralInfo tenantReferrals(@PathVariable Long id) {
+        ReferralAdminRow referredBy = referrals.findFirstByReferredCompanyIdOrderByCreatedAtDesc(id)
+                .map(this::toReferralAdminRow)
+                .orElse(null);
+        List<ReferralAdminRow> referralsMade = referrals.findAllByReferrerCompanyIdOrderByCreatedAtDesc(id).stream()
+                .map(this::toReferralAdminRow)
+                .collect(Collectors.toList());
+        return new TenantReferralInfo(referredBy, referralsMade);
+    }
+
+    private ReferralAdminRow toReferralAdminRow(Referral r) {
+        Company referrer = r.getReferrerCompany();
+        Company referred = r.getReferredCompany();
+        User referrerUser = r.getReferrerUser();
+        String referrerUserName = referrerUser == null
+                ? null
+                : ((referrerUser.getFirstName() == null ? "" : referrerUser.getFirstName()) + " "
+                        + (referrerUser.getLastName() == null ? "" : referrerUser.getLastName())).trim();
+        return new ReferralAdminRow(
+                r.getId(),
+                r.getStatus() == null ? "PENDING" : r.getStatus().name(),
+                referrer == null ? null : referrer.getId(),
+                referrer == null ? null : referrer.getName(),
+                referrerUserName == null || referrerUserName.isBlank() ? null : referrerUserName,
+                referrerUser == null ? null : referrerUser.getEmail(),
+                referred == null ? null : referred.getId(),
+                referred == null ? null : referred.getName(),
+                r.getReferredEmail(),
+                r.getRegisteredAt() == null ? null : r.getRegisteredAt().toString(),
+                r.getQualifiedAt() == null ? null : r.getQualifiedAt().toString(),
+                r.isReferrerRewardGranted(),
+                r.isReferredRewardGranted());
     }
 
     public record TenancyRow(Long id, String tenantCode, String name) {}

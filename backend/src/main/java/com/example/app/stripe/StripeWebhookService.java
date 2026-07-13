@@ -8,6 +8,7 @@ import com.example.app.billing.BillingEmailService;
 import com.example.app.billing.InvoicePdfS3Service;
 import com.example.app.fiscal.FiscalizationService;
 import com.example.app.guest.order.GuestOrderService;
+import com.example.app.referral.ReferralRewardService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,6 +41,7 @@ public class StripeWebhookService {
     private final StripeConnectService connectService;
     private final GuestOrderService guestOrderService;
     private final AppSettingRepository appSettings;
+    private final ReferralRewardService referralRewardService;
 
     @Autowired
     public StripeWebhookService(
@@ -55,7 +57,8 @@ public class StripeWebhookService {
             StripePlatformSettingsService platformSettings,
             StripeConnectService connectService,
             GuestOrderService guestOrderService,
-            AppSettingRepository appSettings
+            AppSettingRepository appSettings,
+            @Autowired(required = false) ReferralRewardService referralRewardService
     ) {
         this.config = config;
         this.verifier = verifier;
@@ -70,6 +73,7 @@ public class StripeWebhookService {
         this.connectService = connectService;
         this.guestOrderService = guestOrderService;
         this.appSettings = appSettings;
+        this.referralRewardService = referralRewardService;
     }
 
     /** Backwards-compatible constructor for older unit tests. */
@@ -83,7 +87,7 @@ public class StripeWebhookService {
             BillingEmailService billingEmailService,
             InvoicePdfS3Service invoicePdfS3Service
     ) {
-        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null, null, null);
+        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null, null, null, null);
     }
 
     /** Backwards-compatible constructor for older unit tests that provide optional Stripe collaborators but not app settings. */
@@ -101,7 +105,7 @@ public class StripeWebhookService {
             StripeConnectService connectService,
             GuestOrderService guestOrderService
     ) {
-        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, checkoutClient, platformSettings, connectService, guestOrderService, null);
+        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, checkoutClient, platformSettings, connectService, guestOrderService, null, null);
     }
 
     @Transactional
@@ -261,8 +265,24 @@ public class StripeWebhookService {
                 setting.setValue("PAID");
                 appSettings.save(setting);
             });
+            grantReferralRewardIfApplicable(tenantId);
         } catch (Exception ignored) {
             // Keep the bill paid even if the subscription-status marker cannot be updated.
+        }
+    }
+
+    /**
+     * Grants the referral "free month" reward the first time a referred tenant's subscription is paid.
+     * Idempotent: only a PENDING referral is processed, so renewals are no-ops. Never blocks payment processing.
+     */
+    private void grantReferralRewardIfApplicable(Long tenantId) {
+        if (referralRewardService == null || tenantId == null) {
+            return;
+        }
+        try {
+            referralRewardService.onReferredTenantFirstPayment(tenantId);
+        } catch (Exception e) {
+            log.warn("Referral reward processing skipped for tenant {}: {}", tenantId, e.getMessage());
         }
     }
 

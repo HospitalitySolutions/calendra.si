@@ -1080,6 +1080,21 @@ function ShellInner({ children }: PropsWithChildren) {
                   className="credentials-popover-action-btn"
                   onClick={() => {
                     setAccountOpen(false)
+                    navigate('/configuration?tab=company&subtab=subscription')
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <polyline points="16 6 12 2 8 6" />
+                    <line x1="12" y1="2" x2="12" y2="15" />
+                    <path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7" />
+                  </svg>
+                  {t('referMenuItem')}
+                </button>
+                <button
+                  type="button"
+                  className="credentials-popover-action-btn"
+                  onClick={() => {
+                    setAccountOpen(false)
                     setSupportEmailModalOpen(true)
                   }}
                 >

@@ -4,6 +4,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.logging.LogSanitizer;
+import com.example.app.referral.ReferralService;
 import com.example.app.register.PlatformSubscriptionBillingService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.securitycenter.SecurityCenterService;
@@ -68,6 +69,7 @@ public class SignupService {
     private final String mailFrom;
     private final boolean mailConfigured;
     private final SignupWelcomeEmailService welcomeEmailService;
+    private final ReferralService referralService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -102,6 +104,7 @@ public class SignupService {
                 null,
                 objectMapper,
                 null,
+                null,
                 mailSender,
                 mailFrom,
                 mailHost,
@@ -122,6 +125,7 @@ public class SignupService {
             PlatformSubscriptionBillingService platformSubscriptionBillingService,
             ObjectMapper objectMapper,
             @Autowired(required = false) SignupWelcomeEmailService welcomeEmailService,
+            @Autowired(required = false) ReferralService referralService,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
@@ -138,6 +142,7 @@ public class SignupService {
         this.platformSubscriptionBillingService = platformSubscriptionBillingService;
         this.objectMapper = objectMapper;
         this.welcomeEmailService = welcomeEmailService;
+        this.referralService = referralService;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom;
         this.mailConfigured = mailSender != null
@@ -554,6 +559,8 @@ public class SignupService {
         owner.setConsultant(true);
         owner = users.save(owner);
 
+        registerReferralIfPresent(request, company, normalizedEmail);
+
         seedTenantDefaults(company, companyName);
         companyProvisioningService.ensureDefaultPaymentMethods(company);
         seedSetting(company, SettingKey.COMPANY_EMAIL, normalizedEmail);
@@ -641,6 +648,25 @@ public class SignupService {
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         return ResponseEntity.ok(authSuccessResponse(owner, sessionToken, httpRequest));
+    }
+
+    /**
+     * Attributes this new tenant to a referrer when the register flow carried a {@code ref} code in its
+     * return-search string. Best-effort: it never blocks or fails signup.
+     */
+    private void registerReferralIfPresent(AuthController.SignupRequest request, Company newCompany, String ownerEmail) {
+        if (referralService == null || request == null) {
+            return;
+        }
+        String refCode = ReferralService.parseRefFromReturnSearch(request.returnSearch());
+        if (refCode == null || refCode.isBlank()) {
+            return;
+        }
+        try {
+            referralService.registerReferral(refCode, newCompany, ownerEmail);
+        } catch (Exception e) {
+            log.warn("Referral attribution skipped for company {}: {}", newCompany == null ? null : newCompany.getId(), e.getMessage());
+        }
     }
 
     @Transactional
