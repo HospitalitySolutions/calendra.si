@@ -3897,7 +3897,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           eventId: eventKey(ev),
           id: props.id,
           kind: props.kind,
-          title: String(ev.title || props.task || props.type?.name || (props.kind === 'personal' ? t('formPersonal') : '') || '').trim() || '—',
+          title: String(ev.title || props.task || bookedServiceDisplayLabel(props.type) || (props.kind === 'personal' ? t('formPersonal') : '') || '').trim() || '—',
           start: ev.start,
           end: ev.end,
           color: ev.color,
@@ -4392,7 +4392,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
   const overlapSessionDisplayTitle = useCallback((item: any) => {
     if (item?.kind === 'personal') return String(item?.title || item?.task || t('formPersonal') || '').trim() || '—'
-    return String(item?.type?.name || item?.title || '').trim() || '—'
+    return bookedServiceDisplayLabel(item?.type) || String(item?.title || '').trim() || '—'
   }, [t])
 
   const overlapSessionDisplaySubtitle = useCallback((item: any) => {
@@ -5041,7 +5041,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return clients.length > 1 ? `${first} +${clients.length - 1}` : first
   }
 
-  /** Desktop booked block label: LastName FirstName · ServiceType. */
+  function bookedServiceDisplayLabel(sessionType: any) {
+    const description = String(sessionType?.description || '').trim()
+    if (description) return description
+    return String(sessionType?.name || '').trim()
+  }
+
+  /** Desktop booked block label: LastName FirstName · service description. */
   function formatBookedBlockDesktopLabel(bookingLike: any, fallbackTitle: string) {
     const explicitFirstName = String(
       bookingLike?.client?.firstName || bookingLike?.clients?.[0]?.firstName || '',
@@ -5070,8 +5076,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }
       return fallback
     })()
-    const typeName = String(bookingLike?.type?.name || '').trim()
-    return typeName ? `${clientName} · ${typeName}` : clientName
+    const serviceLabel = bookedServiceDisplayLabel(bookingLike?.type)
+    return serviceLabel ? `${clientName} · ${serviceLabel}` : clientName
   }
 
   /** FullCalendar draws a blue/teal `.fc-highlight` during select; we show a colored draft event instead. */
@@ -9448,7 +9454,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const start = formatTooltipTime(event.start || null)
     const end = formatTooltipTime(event.end || null)
     const timeRange = start && end ? `${start} - ${end}` : (start || end || '')
-    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (props.type?.name || t('calendarEventTypeBooked'))
+    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (bookedServiceDisplayLabel(props.type) || t('calendarEventTypeBooked'))
     const clientLabel = props.kind === 'booked' ? formatBookingClientsLabel(props) : null
     const gidRaw = props.groupId
     const bookingIsGroup =
@@ -9484,7 +9490,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const start = formatTooltipTime(startDate && Number.isFinite(startDate.getTime()) ? startDate : null)
     const end = formatTooltipTime(endDate && Number.isFinite(endDate.getTime()) ? endDate : null)
     const timeRange = start && end ? `${start} - ${end}` : (start || end || '')
-    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (props.type?.name || item?.type?.name || t('calendarEventTypeBooked'))
+    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (bookedServiceDisplayLabel(props.type || item?.type) || t('calendarEventTypeBooked'))
     const clientLabel = props.kind === 'booked' ? formatBookingClientsLabel(props) : null
     const gidRaw = props.groupId
     const bookingIsGroup =
@@ -11519,7 +11525,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const mobileLabel = fallbackTitle || [fn, ln].filter(Boolean).join(' ') || resolvedLastName
               const wide = formatBookedBlockDesktopLabel(props, fallbackTitle || mobileLabel)
               const fullClientLabel = wide.split(' · ')[0] || mobileLabel || resolvedLastName || '—'
-              const narrowTypeName = String(props?.type?.name || '').trim()
+              const narrowTypeName = bookedServiceDisplayLabel(props?.type)
               const bookingClients = Array.isArray(props?.clients) ? props.clients : []
               const isMultiClient = bookingClients.length > 1
               const narrowPrimaryLabel = isMultiClient
