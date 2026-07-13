@@ -147,7 +147,7 @@ public class SessionBookingController {
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
     public record SpaceSummary(Long id, String name) {}
-    public record TypeSummary(Long id, String name, String color, Integer durationMinutes, Integer breakMinutes, Integer maxParticipantsPerSession, SessionPriceCalculationMode priceCalculationMode) {}
+    public record TypeSummary(Long id, String name, String description, String color, Integer durationMinutes, Integer breakMinutes, Integer maxParticipantsPerSession, SessionPriceCalculationMode priceCalculationMode) {}
     public record GroupBillingCompanySummary(Long id, String name) {}
     public record BookingPayeeResponse(
             Long clientId,
@@ -1066,6 +1066,7 @@ public class SessionBookingController {
         var type = representative.getType() == null ? null : new TypeSummary(
                 representative.getType().getId(),
                 representative.getType().getName(),
+                representative.getType().getDescription(),
                 representative.getType().getColor(),
                 representative.getType().getDurationMinutes(),
                 representative.getType().getBreakMinutes(),

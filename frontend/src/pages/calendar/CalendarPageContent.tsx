@@ -5042,9 +5042,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }
 
   function bookedServiceDisplayLabel(sessionType: any) {
-    const description = String(sessionType?.description || '').trim()
+    const typeId = Number(sessionType?.id)
+    const catalogType = Number.isFinite(typeId)
+      ? metaTypes.find((type: any) => Number(type?.id) === typeId)
+      : null
+    const description = String(
+      sessionType?.description || catalogType?.description || '',
+    ).trim()
     if (description) return description
-    return String(sessionType?.name || '').trim()
+    return String(sessionType?.name || catalogType?.name || '').trim()
   }
 
   /** Desktop booked block label: LastName FirstName · service description. */
