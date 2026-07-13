@@ -198,7 +198,7 @@ type BillingSubtab =
   | "giftCard"
   | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
-type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "security" | "legal";
+type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "referrals" | "security" | "legal";
 type PersonalTaskPreset = { id: string; name: string; color: string };
 
 const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 800;
@@ -2151,6 +2151,7 @@ export function ConfigurationPage() {
       (subtabQuery === "company" ||
         subtabQuery === "receivedInvoices" ||
         subtabQuery === "subscription" ||
+        subtabQuery === "referrals" ||
         subtabQuery === "security" ||
         subtabQuery === "legal")
     ) {
@@ -6354,6 +6355,17 @@ export function ConfigurationPage() {
                     <button
                       type="button"
                       className={
+                        accountSubtab === "referrals"
+                          ? "account-subtab active"
+                          : "account-subtab"
+                      }
+                      onClick={() => setAccountSubtabAndUrl("referrals")}
+                    >
+                      {t("referMenuItem")}
+                    </button>
+                    <button
+                      type="button"
+                      className={
                         accountSubtab === "security"
                           ? "account-subtab active"
                           : "account-subtab"
@@ -8176,8 +8188,9 @@ export function ConfigurationPage() {
                           </div>
                         </div>
                       )}
-                      <ReferAFriendCard />
                     </>
+                  ) : accountSubtab === "referrals" ? (
+                    <ReferAFriendCard />
                   ) : accountSubtab === "security" ? (
                     <SecurityPage embedded />
                   ) : accountSubtab === "legal" ? (
