@@ -523,9 +523,9 @@ export const normalizeModulesDraftDependencies = (
     draft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === "true"
       ? "true"
       : "false",
-  MULTIPLE_CLIENTS_PER_SESSION_ENABLED:
-    draft.GROUP_BOOKING_ENABLED === "true" &&
-    draft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === "true"
+  GROUP_BOOKING_ENABLED:
+    draft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === "true" &&
+    draft.GROUP_BOOKING_ENABLED === "true"
       ? "true"
       : "false",
   BILLING_FISCAL_CASH_REGISTER_ENABLED:

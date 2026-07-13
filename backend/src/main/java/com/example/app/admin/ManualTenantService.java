@@ -440,6 +440,9 @@ public class ManualTenantService {
             String t = raw == null ? "" : raw.trim();
             if (allowed.contains(t) && !out.contains(t)) out.add(t);
         }
+        if (!out.contains("MULTIPLE_CLIENTS_PER_SESSION_ENABLED")) {
+            out.remove("GROUP_BOOKING_ENABLED");
+        }
         return out;
     }
 

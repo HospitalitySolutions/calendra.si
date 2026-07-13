@@ -2787,9 +2787,9 @@ export function ConfigurationPage() {
             modulesDraft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === "true"
               ? "true"
               : "false",
-          MULTIPLE_CLIENTS_PER_SESSION_ENABLED:
-            modulesDraft.GROUP_BOOKING_ENABLED === "true" &&
-            modulesDraft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === "true"
+          GROUP_BOOKING_ENABLED:
+            modulesDraft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === "true" &&
+            modulesDraft.GROUP_BOOKING_ENABLED === "true"
               ? "true"
               : "false",
         };
@@ -4372,20 +4372,18 @@ export function ConfigurationPage() {
       ) {
         return { ...d, MULTIPLE_SESSIONS_PER_SPACE_ENABLED: "false" };
       }
-      if (key === "GROUP_BOOKING_ENABLED") {
+      if (key === "MULTIPLE_CLIENTS_PER_SESSION_ENABLED") {
         return {
           ...d,
-          GROUP_BOOKING_ENABLED: checked ? "true" : "false",
-          MULTIPLE_CLIENTS_PER_SESSION_ENABLED: checked
-            ? d.MULTIPLE_CLIENTS_PER_SESSION_ENABLED
-            : "false",
+          MULTIPLE_CLIENTS_PER_SESSION_ENABLED: checked ? "true" : "false",
+          GROUP_BOOKING_ENABLED: checked ? d.GROUP_BOOKING_ENABLED : "false",
         };
       }
       if (
-        key === "MULTIPLE_CLIENTS_PER_SESSION_ENABLED" &&
-        d.GROUP_BOOKING_ENABLED !== "true"
+        key === "GROUP_BOOKING_ENABLED" &&
+        d.MULTIPLE_CLIENTS_PER_SESSION_ENABLED !== "true"
       ) {
-        return { ...d, MULTIPLE_CLIENTS_PER_SESSION_ENABLED: "false" };
+        return { ...d, GROUP_BOOKING_ENABLED: "false" };
       }
       if (key === "BILLING_ENABLED") {
         return {
@@ -4436,8 +4434,8 @@ export function ConfigurationPage() {
       if (next.TYPES_ENABLED !== "true") {
         next.COURSES_ENABLED = "false";
       }
-      if (next.GROUP_BOOKING_ENABLED !== "true") {
-        next.MULTIPLE_CLIENTS_PER_SESSION_ENABLED = "false";
+      if (next.MULTIPLE_CLIENTS_PER_SESSION_ENABLED !== "true") {
+        next.GROUP_BOOKING_ENABLED = "false";
       }
       if (next.BILLING_ENABLED !== "true") {
         next.BILLING_INVOICES_ENABLED = "false";
@@ -4661,28 +4659,28 @@ export function ConfigurationPage() {
             setModuleStringSetting("TODOS_ENABLED", checked),
         },
         {
-          id: "booking-group-booking",
-          ...moduleVisibilityProps("GROUP_BOOKING_ENABLED"),
+          id: "booking-multiple-clients",
+          ...moduleVisibilityProps("MULTIPLE_CLIENTS_PER_SESSION_ENABLED"),
           icon: "group",
-          title: t("configModulesGroupBookingLabel"),
-          checked: moduleOn("GROUP_BOOKING_ENABLED"),
+          title: t("configModulesMultipleClientsPerSessionLabel"),
+          checked: moduleOn("MULTIPLE_CLIENTS_PER_SESSION_ENABLED"),
           onChange: (checked) =>
-            setModuleStringSetting("GROUP_BOOKING_ENABLED", checked),
+            setModuleStringSetting(
+              "MULTIPLE_CLIENTS_PER_SESSION_ENABLED",
+              checked,
+            ),
           children: [
             {
-              id: "booking-multiple-clients",
-              ...moduleVisibilityProps("MULTIPLE_CLIENTS_PER_SESSION_ENABLED"),
+              id: "booking-group-booking",
+              ...moduleVisibilityProps("GROUP_BOOKING_ENABLED"),
               icon: "group",
-              title: t("configModulesMultipleClientsPerSessionLabel"),
+              title: t("configModulesGroupBookingLabel"),
               checked:
-                moduleOn("GROUP_BOOKING_ENABLED") &&
-                moduleOn("MULTIPLE_CLIENTS_PER_SESSION_ENABLED"),
-              disabled: !moduleOn("GROUP_BOOKING_ENABLED"),
+                moduleOn("MULTIPLE_CLIENTS_PER_SESSION_ENABLED") &&
+                moduleOn("GROUP_BOOKING_ENABLED"),
+              disabled: !moduleOn("MULTIPLE_CLIENTS_PER_SESSION_ENABLED"),
               onChange: (checked) =>
-                setModuleStringSetting(
-                  "MULTIPLE_CLIENTS_PER_SESSION_ENABLED",
-                  checked,
-                ),
+                setModuleStringSetting("GROUP_BOOKING_ENABLED", checked),
             },
           ],
         },

@@ -186,6 +186,7 @@ public class SettingsController {
         if (!isSuperAdmin(me)) {
             applyPlatformModuleVisibilityRules(values);
         }
+        applyModuleSettingDependencies(values);
         return values;
     }
 
@@ -194,7 +195,10 @@ public class SettingsController {
     @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        Map<String, String> normalizedPayload = normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload));
+        Map<String, String> normalizedPayload = normalizeModuleDependencyPayload(
+                companyId,
+                normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload))
+        );
         if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
         }
@@ -290,6 +294,32 @@ public class SettingsController {
             normalized.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), json);
         }
         return normalized;
+    }
+
+    private Map<String, String> normalizeModuleDependencyPayload(Long companyId, Map<String, String> payload) {
+        Map<String, String> normalized = new LinkedHashMap<>(payload == null ? Map.of() : payload);
+        String multipleClientsKey = SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED.name();
+        String groupBookingKey = SettingKey.GROUP_BOOKING_ENABLED.name();
+        if (!normalized.containsKey(multipleClientsKey) && !normalized.containsKey(groupBookingKey)) {
+            return normalized;
+        }
+        boolean multipleClientsEnabled = "true".equalsIgnoreCase(
+                String.valueOf(payloadOrStored(companyId, normalized, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED)).trim()
+        );
+        if (!multipleClientsEnabled) {
+            normalized.put(groupBookingKey, "false");
+        }
+        return normalized;
+    }
+
+    private void applyModuleSettingDependencies(Map<String, String> values) {
+        if (values == null) return;
+        boolean multipleClientsEnabled = "true".equalsIgnoreCase(
+                String.valueOf(values.getOrDefault(SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED.name(), "false")).trim()
+        );
+        if (!multipleClientsEnabled) {
+            values.put(SettingKey.GROUP_BOOKING_ENABLED.name(), "false");
+        }
     }
 
     private Map<String, String> normalizeEmailSenderPayload(Long companyId, Map<String, String> payload) {

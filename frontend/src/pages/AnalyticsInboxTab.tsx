@@ -1464,7 +1464,7 @@ export function AnalyticsInboxTab() {
 
   const ui = locale === 'sl' ? {
     title: 'Prejeto',
-    subtitle: 'Osrednje komunikacijsko središče za e-pošto, SMS, WhatsApp, Viber in Guest App. Vsi pogovori na enem mestu.',
+    subtitle: 'Osrednje komunikacijsko središče za e-pošto, SMS in Guest App. Vsi pogovori na enem mestu.',
     search: 'Išči po stranki, zadevi ali sporočilu…',
     allClients: 'Vse stranke',
     allChannels: 'Vsi kanali',
