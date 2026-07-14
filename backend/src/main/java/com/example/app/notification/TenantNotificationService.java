@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -161,7 +162,7 @@ public class TenantNotificationService {
     }
 
     /** Called after a booking transaction commits. */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createBookingNotification(Long bookingId, String kind, String origin, LocalDateTime previousStartTime) {
         if (bookingId == null || kind == null) return;
         if (!BookingChangePublisher.BOOKING_CREATED.equals(kind)
