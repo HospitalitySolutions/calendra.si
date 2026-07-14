@@ -6955,7 +6955,7 @@ export function ConfigurationPage() {
                             <div className="account-public-directory-row">
                               <div>
                                 <strong>Prikaži podjetje na strani Calendra Stranke</strong>
-                                <p>Ko je vključeno, se javno ime, mesto, opis, logotip in število storitev prikažejo na calendra.si/stranke.</p>
+                                <p>Ko je vključeno, se javno ime, fizični naslov, opis, logotip in Google ocena prikažejo na calendra.si/stranke.</p>
                               </div>
                               <GuestSwitch
                                 checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}

@@ -181,6 +181,8 @@ public enum SettingKey {
     COMPANY_LOGO_URL,
     /** Explicit opt-in for publishing the tenant on calendra.si/stranke. */
     PUBLIC_DIRECTORY_ENABLED,
+    /** Optional Google Places place ID used to resolve the public rating without ambiguous text matching. */
+    GOOGLE_PLACE_ID,
     FOLIO_SIGNATURE_BASE64,
 
 

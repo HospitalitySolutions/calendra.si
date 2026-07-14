@@ -14,6 +14,13 @@ public interface AppSettingRepository extends JpaRepository<AppSetting, Long> {
     List<AppSetting> findAllByKey(String key);
 
     List<AppSetting> findAllByCompanyId(Long companyId);
+
+    @Query("select s from AppSetting s where s.company.id in :companyIds and s.key in :keys")
+    List<AppSetting> findAllByCompanyIdsAndKeys(
+            @Param("companyIds") java.util.Collection<Long> companyIds,
+            @Param("keys") java.util.Collection<String> keys
+    );
+
     Optional<AppSetting> findByCompanyIdAndKey(Long companyId, String key);
 
     default Optional<AppSetting> findByKey(SettingKey key) {
