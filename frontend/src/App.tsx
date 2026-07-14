@@ -75,6 +75,7 @@ const HelpPage = lazyWithReload(() => import('./pages/HelpPage').then((mod) => (
 const SessionTypesPage = lazyWithReload(() => import('./pages/SessionTypesPage').then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
 const WalletScannerPage = lazyWithReload(() => import('./pages/WalletScannerPage').then((mod) => ({ default: mod.WalletScannerPage })), CHUNK_RELOAD_KEY)
 const ConsumablesPage = lazyWithReload(() => import('./pages/ConsumablesPage').then((mod) => ({ default: mod.ConsumablesPage })), CHUNK_RELOAD_KEY)
+const NotificationsPage = lazyWithReload(() => import('./pages/NotificationsPage').then((mod) => ({ default: mod.NotificationsPage })), CHUNK_RELOAD_KEY)
 
 export default function App() {
   const [user, setUser] = useState(() => getStoredUser())
@@ -422,6 +423,7 @@ export default function App() {
             path="/session-types"
             element={canViewServices ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
           />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/platform-admin" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/zoom/install" element={<ZoomInstallPage />} />

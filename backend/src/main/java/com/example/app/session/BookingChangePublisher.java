@@ -5,6 +5,7 @@ import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.notifications.GuestPushService;
 import com.example.app.guest.notifications.GuestBookingReminderService;
+import com.example.app.notification.TenantNotificationService;
 import java.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,7 @@ public class BookingChangePublisher {
     private final SessionBookingRepository sessionBookings;
     private final GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
     private final GuestBookingReminderService bookingReminderService;
+    private final TenantNotificationService tenantNotificationService;
 
     public BookingChangePublisher(
             SessionBookingRealtimeService realtimeService,
@@ -35,7 +37,8 @@ public class BookingChangePublisher {
             GuestPushService guestPushService,
             SessionBookingRepository sessionBookings,
             GoogleCalendarSyncQueueService googleCalendarSyncQueueService,
-            GuestBookingReminderService bookingReminderService
+            GuestBookingReminderService bookingReminderService,
+            TenantNotificationService tenantNotificationService
     ) {
         this.realtimeService = realtimeService;
         this.guestTenantLinks = guestTenantLinks;
@@ -43,9 +46,14 @@ public class BookingChangePublisher {
         this.sessionBookings = sessionBookings;
         this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
         this.bookingReminderService = bookingReminderService;
+        this.tenantNotificationService = tenantNotificationService;
     }
 
     public void publish(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
+        publish(companyId, bookingId, startTime, endTime, kind, null, null);
+    }
+
+    public void publish(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind, String origin, LocalDateTime previousStartTime) {
         if (companyId == null || bookingId == null || kind == null || kind.isBlank()) {
             return;
         }
@@ -53,23 +61,28 @@ public class BookingChangePublisher {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+                    safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind, origin, previousStartTime);
                 }
             });
             return;
         }
-        safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+        safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind, origin, previousStartTime);
     }
 
-    private void safelyPublishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
+    private void safelyPublishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind, String origin, LocalDateTime previousStartTime) {
         try {
-            publishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+            publishAfterCommit(companyId, bookingId, startTime, endTime, kind, origin, previousStartTime);
         } catch (Exception ex) {
             log.warn("Booking change side effects failed after commit for companyId={} bookingId={} kind={}", companyId, bookingId, kind, ex);
         }
     }
 
-    private void publishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
+    private void publishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind, String origin, LocalDateTime previousStartTime) {
+        try {
+            tenantNotificationService.createBookingNotification(bookingId, kind, origin, previousStartTime);
+        } catch (Exception ex) {
+            log.warn("Failed creating staff notification for bookingId={} kind={}", bookingId, kind, ex);
+        }
         realtimeService.publishBookingUpdated(companyId, bookingId, startTime, endTime, kind);
         bookingReminderService.reconcileBookingAfterCommit(bookingId, kind);
 

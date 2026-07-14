@@ -4637,10 +4637,171 @@ function MonitoringAdminPanel() {
   );
 }
 
+
+type PlatformAnnouncementAdminRow = {
+  id: number;
+  title: string;
+  message: string;
+  category: string;
+  severity: string;
+  startsAt: string;
+  expiresAt?: string | null;
+  showBanner: boolean;
+  actionUrl?: string | null;
+  targetCompanyIds: number[];
+  active: boolean;
+  createdAt: string;
+};
+
+function PlatformAnnouncementsPanel() {
+  const [rows, setRows] = useState<PlatformAnnouncementAdminRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [severity, setSeverity] = useState("NORMAL");
+  const [startsAt, setStartsAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [expiresAt, setExpiresAt] = useState("");
+  const [targetCompanyIds, setTargetCompanyIds] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get<PlatformAnnouncementAdminRow[]>("/platform-admin/announcements")
+      .then((response) => {
+        setRows(Array.isArray(response.data) ? response.data : []);
+        setError("");
+      })
+      .catch(() => setError("Could not load announcements."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  const create = async () => {
+    if (!title.trim() || !message.trim()) {
+      setError("Title and message are required.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const targets = targetCompanyIds.split(",")
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isInteger(value) && value > 0);
+      await api.post("/platform-admin/announcements", {
+        title: title.trim(),
+        message: message.trim(),
+        category: "SYSTEM",
+        severity,
+        startsAt: new Date(startsAt).toISOString(),
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+        showBanner: false,
+        actionUrl: null,
+        targetCompanyIds: targets,
+        active: true,
+      });
+      setTitle("");
+      setMessage("");
+      setExpiresAt("");
+      setTargetCompanyIds("");
+      load();
+    } catch {
+      setError("Could not publish the announcement.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    if (!window.confirm("Delete this announcement?")) return;
+    await api.delete(`/platform-admin/announcements/${id}`).catch(() => undefined);
+    load();
+  };
+
+  return (
+    <div className="platform-admin-announcements">
+      <div className="platform-admin-page-head platform-admin-head">
+        <div className="platform-admin-page-title">
+          <div className="platform-admin-eyebrow">Communication</div>
+          <h1>User announcements</h1>
+          <p>Publish maintenance, upgrade and incident messages to the notification bell.</p>
+        </div>
+      </div>
+
+      <div className="platform-admin-grid platform-admin-grid-2">
+        <section className="platform-admin-section-card">
+          <h2>New announcement</h2>
+          <div className="platform-admin-form-grid">
+            <label className="platform-admin-field platform-admin-span-2">
+              <span>Title</span>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Scheduled maintenance" />
+            </label>
+            <label className="platform-admin-field platform-admin-span-2">
+              <span>Message</span>
+              <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} placeholder="Calendra will be unavailable on Sunday from 02:00 to 03:00." />
+            </label>
+            <label className="platform-admin-field">
+              <span>Severity</span>
+              <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
+                <option value="NORMAL">Normal</option>
+                <option value="IMPORTANT">Important</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </label>
+            <label className="platform-admin-field">
+              <span>Starts</span>
+              <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
+            </label>
+            <label className="platform-admin-field">
+              <span>Expires</span>
+              <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            </label>
+            <label className="platform-admin-field">
+              <span>Tenant IDs (optional)</span>
+              <input value={targetCompanyIds} onChange={(event) => setTargetCompanyIds(event.target.value)} placeholder="12, 18, 24" />
+            </label>
+          </div>
+          {error ? <p className="platform-admin-error">{error}</p> : null}
+          <div className="platform-admin-actions-row">
+            <button className="platform-admin-button platform-admin-primary" type="button" onClick={() => void create()} disabled={saving}>
+              {saving ? "Publishing…" : "Publish announcement"}
+            </button>
+          </div>
+        </section>
+
+        <section className="platform-admin-section-card">
+          <h2>Published announcements</h2>
+          {loading ? <p className="platform-admin-muted">Loading…</p> : rows.length === 0 ? (
+            <p className="platform-admin-muted">No announcements yet.</p>
+          ) : (
+            <div className="platform-admin-announcement-list">
+              {rows.map((row) => (
+                <article key={row.id} className="platform-admin-announcement-card">
+                  <div>
+                    <strong>{row.title}</strong>
+                    <p>{row.message}</p>
+                    <small>{row.severity} · {row.active ? "Active" : "Inactive"} · {row.targetCompanyIds.length ? `Tenants ${row.targetCompanyIds.join(", ")}` : "All tenants"}</small>
+                  </div>
+                  <button type="button" className="platform-admin-button platform-admin-secondary platform-admin-small" onClick={() => void remove(row.id)}>Delete</button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+      <style>{`
+        .platform-admin-announcement-list{display:grid;gap:12px}.platform-admin-announcement-card{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:16px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.platform-admin-announcement-card strong{color:#17253d}.platform-admin-announcement-card p{margin:6px 0;color:#64748b;line-height:1.45}.platform-admin-announcement-card small{color:#8492a6}
+      `}</style>
+    </div>
+  );
+}
+
 type AdminWorkspaceTab =
   | "overview"
   | "tenants"
   | "referrals"
+  | "announcements"
   | "monitoring"
   | "plans"
   | "fiscalization"
@@ -4657,6 +4818,7 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "tenants", label: "Tenants" },
   { id: "referrals", label: "Referrals" },
+  { id: "announcements", label: "Announcements" },
   { id: "monitoring", label: "Monitoring" },
   { id: "plans", label: "Plan & add-ons" },
   { id: "fiscalization", label: "Fiscalization" },
@@ -5489,6 +5651,8 @@ export function PlatformAdminPage() {
                   <PlatformOverviewPanel onNavigate={setWorkspace} />
                 ) : workspace === "referrals" ? (
                   <ReferralsAdminPanel />
+                ) : workspace === "announcements" ? (
+                  <PlatformAnnouncementsPanel />
                 ) : workspace === "tenants" ? (
                   <>
                     <div className="platform-admin-page-head platform-admin-head">

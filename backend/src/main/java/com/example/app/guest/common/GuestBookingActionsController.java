@@ -189,7 +189,9 @@ public class GuestBookingActionsController {
                 booking.getId(),
                 booking.getStartTime(),
                 booking.getEndTime(),
-                BookingChangePublisher.BOOKING_CANCELLED
+                BookingChangePublisher.BOOKING_CANCELLED,
+                "GUEST_APP",
+                null
         );
         return actionResponse(booking, creditConsumed);
     }
@@ -245,6 +247,7 @@ public class GuestBookingActionsController {
                 false
         );
 
+        LocalDateTime previousStartTime = booking.getStartTime();
         booking.setConsultant(consultant);
         booking.setStartTime(slot.startsAt());
         booking.setEndTime(slot.endsAt());
@@ -255,7 +258,9 @@ public class GuestBookingActionsController {
                 booking.getId(),
                 booking.getStartTime(),
                 booking.getEndTime(),
-                BookingChangePublisher.BOOKING_RESCHEDULED
+                BookingChangePublisher.BOOKING_RESCHEDULED,
+                "GUEST_APP",
+                previousStartTime
         );
         return actionResponse(booking, false);
     }

@@ -166,7 +166,8 @@ public class TenantPermissionAuthorizationFilter extends OncePerRequestFilter {
                 // Orders and wallet products/benefits.
                 RouteRule.prefix("/api/guest/admin/products", "WALLET_BENEFITS"),
 
-                // Inbox, notifications and delivery logs.
+                // Inbox, staff notification center and delivery logs.
+                RouteRule.prefix("/api/notifications", null),
                 RouteRule.prefix("/api/inbox", "INBOX_MESSAGES"),
                 RouteRule.prefix("/api/delivery-logs", "DELIVERY_LOGS"),
 

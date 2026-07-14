@@ -1756,6 +1756,29 @@ export default function CalendarPage() {
     navigate(`/calendar/todo/${todoId}`, { replace: true })
   }, [todosModuleEnabled, location.search, navigate])
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const bookingIdRaw = params.get('notificationBookingId')
+    if (!bookingIdRaw) return
+    const bookingId = Number(bookingIdRaw)
+    if (!Number.isInteger(bookingId) || bookingId <= 0) return
+    const booking = (calendarData.booked || []).find((row: any) => Number(row?.id) === bookingId)
+    if (booking) {
+      setSelectedBookedSession(booking)
+      params.delete('notificationBookingId')
+      params.delete('notificationDate')
+      const nextSearch = params.toString()
+      navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: true })
+      return
+    }
+    const notificationDate = params.get('notificationDate')
+    if (!notificationDate) return
+    calendarRef.current?.getApi()?.gotoDate(notificationDate)
+    params.delete('notificationDate')
+    const nextSearch = params.toString()
+    navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: true })
+  }, [calendarData.booked, location.pathname, location.search, navigate])
+
   const PENDING_BOOKING_KEY = 'pendingOnlineBooking'
   const PENDING_BOOKING_EDIT_KEY = 'pendingOnlineBookingEdit'
 

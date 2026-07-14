@@ -18,6 +18,7 @@ import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.notifications.GuestPushService;
 import com.example.app.guest.notifications.GuestBookingReminderService;
+import com.example.app.notification.TenantNotificationService;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,7 @@ class BookingChangePublisherTest {
     @Mock private SessionBookingRepository sessionBookings;
     @Mock private GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
     @Mock private GuestBookingReminderService bookingReminderService;
+    @Mock private TenantNotificationService tenantNotificationService;
 
     private BookingChangePublisher publisher;
 
@@ -45,7 +47,8 @@ class BookingChangePublisherTest {
                 guestPushService,
                 sessionBookings,
                 googleCalendarSyncQueueService,
-                bookingReminderService
+                bookingReminderService,
+                tenantNotificationService
         );
     }
 

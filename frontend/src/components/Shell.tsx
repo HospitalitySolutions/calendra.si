@@ -10,6 +10,7 @@ import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
 import { OnboardingTour } from './OnboardingTour'
+import { NotificationCenter } from './NotificationCenter'
 import { ReferAFriendModal } from './ReferAFriendModal'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
 import loginLogo from '../assets/login-logo.png'
@@ -916,6 +917,7 @@ function ShellInner({ children }: PropsWithChildren) {
           type="button"
           className="notification-bell"
           onClick={() => {
+            window.dispatchEvent(new Event('close-staff-notifications'))
             setBellOpen((o) => !o)
             setConfigOpen(false)
             setAccountOpen(false)
@@ -977,12 +979,13 @@ function ShellInner({ children }: PropsWithChildren) {
 
   const headerActionsRest = (
     <>
+      <NotificationCenter onOpen={() => { setBellOpen(false); setConfigOpen(false); setAccountOpen(false) }} />
       <div className="config-cog-wrap" ref={configRef}>
         <button
           type="button"
           className="config-cog"
           data-onboarding-nav="configuration"
-          onClick={() => { setConfigOpen((o) => !o); setBellOpen(false); setAccountOpen(false) }}
+          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setConfigOpen((o) => !o); setBellOpen(false); setAccountOpen(false) }}
           title={t('settingsGroup')}
           aria-label={t('settingsGroup')}
         >
@@ -1015,7 +1018,7 @@ function ShellInner({ children }: PropsWithChildren) {
         <button
           type="button"
           className="header-credentials-trigger"
-          onClick={() => { setAccountOpen((o) => !o); setBellOpen(false); setConfigOpen(false) }}
+          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setAccountOpen((o) => !o); setBellOpen(false); setConfigOpen(false) }}
           title={displayName}
           aria-expanded={accountOpen}
           aria-haspopup="dialog"

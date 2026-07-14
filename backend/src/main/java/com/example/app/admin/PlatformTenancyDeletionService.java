@@ -142,6 +142,7 @@ public class PlatformTenancyDeletionService {
                 companyId);
         exec("DELETE FROM guest_orders WHERE company_id = ?", companyId);
         exec("DELETE FROM guest_notifications WHERE company_id = ?", companyId);
+        exec("DELETE FROM tenant_notifications WHERE company_id = ?", companyId);
         exec("DELETE FROM guest_tenant_links WHERE company_id = ?", companyId);
         exec("DELETE FROM guest_products WHERE company_id = ?", companyId);
         exec("DELETE FROM tenant_invites WHERE company_id = ?", companyId);

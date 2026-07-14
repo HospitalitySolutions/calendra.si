@@ -170,7 +170,9 @@ public class PublicBookingManageService {
                 booking.getId(),
                 booking.getStartTime(),
                 booking.getEndTime(),
-                BookingChangePublisher.BOOKING_UPDATED
+                BookingChangePublisher.BOOKING_RESCHEDULED,
+                "PUBLIC_LINK",
+                oldStart
         );
         openBillSyncService.syncSessionGroup(company.getId(), groupKey(booking));
         openBillSyncService.enqueueBookingsSync(company.getId(), List.of(booking));
@@ -212,7 +214,9 @@ public class PublicBookingManageService {
                 booking.getId(),
                 booking.getStartTime(),
                 booking.getEndTime(),
-                BookingChangePublisher.BOOKING_CANCELLED
+                BookingChangePublisher.BOOKING_CANCELLED,
+                "PUBLIC_LINK",
+                null
         );
         return new PublicBookingManageController.CancelResponse("CANCELLED", "Booking cancelled.");
     }
