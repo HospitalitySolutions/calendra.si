@@ -51,7 +51,6 @@ public class PublicCompanyDirectoryController {
                     company.getName()
             );
             String city = firstNonBlank(
-                    text(guest.path("publicCity")),
                     values.get(SettingKey.COMPANY_PHYSICAL_CITY.name()),
                     values.get(SettingKey.COMPANY_CITY.name())
             );

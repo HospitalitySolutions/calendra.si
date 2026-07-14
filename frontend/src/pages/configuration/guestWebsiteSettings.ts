@@ -13,8 +13,8 @@ export type GuestAppSettingsForm = {
   inboxEnabled: boolean;
   publicDiscoverable: boolean;
   publicName: string;
+  publicAddress: string;
   publicDescription: string;
-  publicCity: string;
   tenantType: TenantConfigType;
   cardImageUrl: string;
   logoImageUrl: string;
@@ -210,15 +210,19 @@ export const GUEST_PRODUCT_TYPES = [
 export const ALL_GUEST_PRODUCT_TYPES: string[] = [...GUEST_PRODUCT_TYPES];
 
 
-const GUEST_PUBLIC_NAME_MAX_LENGTH = 15;
-const GUEST_PUBLIC_CITY_MAX_LENGTH = 14;
-const GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH = 22;
+const GUEST_PUBLIC_NAME_MAX_LENGTH = 120;
+const GUEST_PUBLIC_ADDRESS_MAX_LENGTH = 200;
+const GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH = 500;
 
 const normalizePublicName = (value: string | undefined) =>
   String(value || "").slice(0, GUEST_PUBLIC_NAME_MAX_LENGTH);
 
-const normalizePublicCity = (value: string | undefined) =>
-  String(value || "").slice(0, GUEST_PUBLIC_CITY_MAX_LENGTH);
+const normalizePublicAddress = (value: string | undefined) =>
+  String(value || "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, GUEST_PUBLIC_ADDRESS_MAX_LENGTH);
 
 const normalizePublicDescription = (value: string | undefined) =>
   String(value || "")
@@ -241,8 +245,8 @@ export const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   inboxEnabled: true,
   publicDiscoverable: false,
   publicName: "",
+  publicAddress: "",
   publicDescription: "",
-  publicCity: "",
   tenantType: "salon",
   cardImageUrl: "",
   logoImageUrl: "",
@@ -642,8 +646,8 @@ export const parseGuestAppSettings = (
       inboxEnabled: parsed?.inboxEnabled !== false,
       publicDiscoverable: parsed?.publicDiscoverable === true,
       publicName: normalizePublicName(parsed?.publicName),
-      publicDescription: String(parsed?.publicDescription || ""),
-      publicCity: normalizePublicCity(parsed?.publicCity),
+      publicAddress: normalizePublicAddress(parsed?.publicAddress),
+      publicDescription: normalizePublicDescription(parsed?.publicDescription),
       tenantType: normalizeTenantConfigType(parsed?.tenantType),
       cardImageUrl: String(parsed?.cardImageUrl || ""),
       logoImageUrl: String(parsed?.logoImageUrl || ""),
@@ -895,8 +899,8 @@ export const serializeGuestAppSettings = (value: GuestAppSettingsForm) =>
     inboxEnabled: value.inboxEnabled,
     publicDiscoverable: value.publicDiscoverable,
     publicName: normalizePublicName(value.publicName).trim(),
+    publicAddress: normalizePublicAddress(value.publicAddress),
     publicDescription: normalizePublicDescription(value.publicDescription),
-    publicCity: normalizePublicCity(value.publicCity).trim(),
     tenantType: normalizeTenantConfigType(value.tenantType),
     cardImageUrl: value.cardImageUrl.trim(),
     logoImageUrl: value.logoImageUrl.trim(),

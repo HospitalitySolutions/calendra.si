@@ -743,29 +743,23 @@ const setWorkingHoursFallback = (start: string, end: string) => {
 
 const PERSONAL_TASK_PRESETS_KEY = "PERSONAL_TASK_PRESETS_JSON";
 const DEFAULT_PERSONAL_TASK_COLOR = "#F97316";
-const GUEST_PUBLIC_NAME_MAX_LENGTH = 15;
-const GUEST_PUBLIC_CITY_MAX_LENGTH = 14;
-const GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH = 22;
+const GUEST_PUBLIC_NAME_MAX_LENGTH = 120;
+const GUEST_PUBLIC_ADDRESS_MAX_LENGTH = 200;
+const GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH = 500;
 const normalizePublicName = (value: string | undefined) =>
   String(value || "").slice(0, GUEST_PUBLIC_NAME_MAX_LENGTH);
-const normalizePublicCity = (value: string | undefined) =>
-  String(value || "").slice(0, GUEST_PUBLIC_CITY_MAX_LENGTH);
+const normalizePublicAddressInput = (value: string | undefined) =>
+  String(value || "")
+    .replace(/[\r\n]+/g, " ")
+    .slice(0, GUEST_PUBLIC_ADDRESS_MAX_LENGTH);
 const normalizeHexColor = (value: string | undefined) => {
   const v = String(value || "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(v)
     ? v.toUpperCase()
     : DEFAULT_PERSONAL_TASK_COLOR;
 };
-const normalizePublicDescription = (value: string | undefined) =>
-  String(value || "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH);
 const normalizePublicDescriptionInput = (value: string | undefined) =>
-  String(value || "")
-    .replace(/[\r\n]+/g, " ")
-    .slice(0, GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH);
+  String(value || "").slice(0, GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH);
 const normalizeGuestQrColor = (value: string | undefined) => {
   const v = String(value || "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : "#2563EB";
@@ -5627,6 +5621,50 @@ export function ConfigurationPage() {
               color: #64748b;
               cursor: not-allowed;
             }
+            .account-field-textarea {
+              min-height: 112px;
+              padding: 14px 16px;
+              line-height: 1.5;
+              resize: vertical;
+              font-family: inherit;
+            }
+            .account-field-counter {
+              margin-top: -4px;
+              justify-self: end;
+              color: var(--account-muted);
+              font-size: 12px;
+              font-weight: 700;
+            }
+            .account-branding-card {
+              align-content: start;
+              gap: 22px;
+            }
+            .account-public-fields {
+              display: grid;
+              gap: 18px;
+            }
+            .account-public-logo-section {
+              display: grid;
+              gap: 14px;
+              padding-top: 20px;
+              border-top: 1px solid #e8eef7;
+            }
+            .account-public-section-title {
+              display: block;
+              color: var(--account-ink);
+              font-size: 15px;
+              font-weight: 800;
+            }
+            .account-public-visibility-list {
+              display: grid;
+              gap: 12px;
+              padding-top: 2px;
+            }
+            .account-branding-card .account-public-directory-row {
+              border-color: #dbe5f2;
+              border-radius: 16px;
+              background: #f8faff;
+            }
             .account-company-footer {
               display: flex;
               align-items: center;
@@ -6828,32 +6866,117 @@ export function ConfigurationPage() {
                         <section className="account-card account-form-card account-branding-card">
                           <div className="account-form-card-header">
                             <div>
-                              <h3>Logotip in javna predstavitev</h3>
+                              <h3>Javna predstavitev</h3>
+                              <p className="account-section-description">
+                                Ti podatki bodo vidni javnosti na strani Calendra Stranke in v aplikaciji za goste. Mesto se samodejno prevzame iz fizičnega naslova.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="account-public-fields">
+                            <label className="account-field">
+                              <span className="account-field-label">Javno ime</span>
+                              <input
+                                className="account-field-control"
+                                maxLength={GUEST_PUBLIC_NAME_MAX_LENGTH}
+                                value={guestAppSettings.publicName}
+                                onChange={(e) =>
+                                  setGuestAppSettings((prev) => ({
+                                    ...prev,
+                                    publicName: normalizePublicName(e.target.value),
+                                  }))
+                                }
+                                placeholder={selectedCompanyProfile?.name || "Naziv podjetja"}
+                              />
+                            </label>
+
+                            <label className="account-field">
+                              <span className="account-field-label">Javni naslov</span>
+                              <input
+                                className="account-field-control"
+                                maxLength={GUEST_PUBLIC_ADDRESS_MAX_LENGTH}
+                                value={guestAppSettings.publicAddress}
+                                onChange={(e) =>
+                                  setGuestAppSettings((prev) => ({
+                                    ...prev,
+                                    publicAddress: normalizePublicAddressInput(
+                                      e.target.value,
+                                    ),
+                                  }))
+                                }
+                                placeholder="Če pustite prazno, se uporabi fizični naslov podjetja"
+                              />
+                            </label>
+
+                            <label className="account-field">
+                              <span className="account-field-label">Javni opis</span>
+                              <textarea
+                                className="account-field-control account-field-textarea"
+                                maxLength={GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
+                                value={guestAppSettings.publicDescription}
+                                onChange={(e) =>
+                                  setGuestAppSettings((prev) => ({
+                                    ...prev,
+                                    publicDescription:
+                                      normalizePublicDescriptionInput(
+                                        e.target.value,
+                                      ),
+                                  }))
+                                }
+                                placeholder="Na kratko predstavite svoje podjetje in storitve."
+                              />
+                              <span className="account-field-counter">
+                                {guestAppSettings.publicDescription.length} / {GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="account-public-logo-section">
+                            <div>
+                              <strong className="account-public-section-title">Logotip podjetja</strong>
                               <p className="account-section-description">
                                 Logotip se uporablja v mobilni aplikaciji za goste in na javni strani Calendra Stranke.
                               </p>
                             </div>
-                          </div>
-                          <GuestUploadDropzone
-                            title="Povlecite logotip sem ali kliknite za izbiro"
-                            subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
-                            hint="Uporabljen bo kot glavni logotip podjetja v vseh javnih prikazih Calendre."
-                            currentUrl={settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl}
-                            previewAlt="Logotip podjetja"
-                            previewShape="round"
-                            iconKind="logo"
-                            onFile={(selected) => void uploadGuestAppAsset("logoImageUrl", selected)}
-                            uploading={uploadingGuestAsset === "logoImageUrl"}
-                          />
-                          <div className="account-public-directory-row">
-                            <div>
-                              <strong>Prikaži podjetje na strani Calendra Stranke</strong>
-                              <p>Ko je vključeno, se javni naziv, mesto, opis, logotip in število storitev prikažejo na calendra.si/stranke.</p>
-                            </div>
-                            <GuestSwitch
-                              checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}
-                              onChange={(checked) => setSettings((prev) => ({ ...prev, PUBLIC_DIRECTORY_ENABLED: String(checked) }))}
+                            <GuestUploadDropzone
+                              title="Povlecite logotip sem ali kliknite za izbiro"
+                              subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
+                              hint="Uporabljen bo kot glavni logotip podjetja v vseh javnih prikazih Calendre."
+                              currentUrl={settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl}
+                              previewAlt="Logotip podjetja"
+                              previewShape="round"
+                              iconKind="logo"
+                              onFile={(selected) => void uploadGuestAppAsset("logoImageUrl", selected)}
+                              uploading={uploadingGuestAsset === "logoImageUrl"}
                             />
+                          </div>
+
+                          <div className="account-public-visibility-list">
+                            <div className="account-public-directory-row">
+                              <div>
+                                <strong>Prikaži podjetje na strani Calendra Stranke</strong>
+                                <p>Ko je vključeno, se javno ime, mesto, opis, logotip in število storitev prikažejo na calendra.si/stranke.</p>
+                              </div>
+                              <GuestSwitch
+                                checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}
+                                onChange={(checked) => setSettings((prev) => ({ ...prev, PUBLIC_DIRECTORY_ENABLED: String(checked) }))}
+                              />
+                            </div>
+                            <div className="account-public-directory-row">
+                              <div>
+                                <strong>Prikaži podjetje v aplikaciji za goste</strong>
+                                <p>Ko je vključeno, se podjetje lahko prikaže v javnih rezultatih iskanja aplikacije za goste.</p>
+                              </div>
+                              <GuestSwitch
+                                checked={guestAppSettings.publicDiscoverable}
+                                onChange={(checked) =>
+                                  setGuestAppSettings((prev) => ({
+                                    ...prev,
+                                    publicDiscoverable: checked,
+                                  }))
+                                }
+                              />
+                            </div>
                           </div>
                         </section>
 
@@ -11478,93 +11601,6 @@ export function ConfigurationPage() {
                                 className="gapp-input"
                                 value={me.tenantCode || ""}
                                 readOnly
-                              />
-                            </GuestField>
-                            <GuestField
-                              label={
-                                locale === "sl"
-                                  ? "Javno najdljivo"
-                                  : "Public discoverable"
-                              }
-                              hint={
-                                locale === "sl"
-                                  ? "Ko je VKLOPLJENO, se to podjetje lahko prikaže v javnih rezultatih iskanja aplikacije za goste."
-                                  : "When ON, this tenant can appear in guest-app public search results."
-                              }
-                            >
-                              <GuestSegmentedToggle
-                                value={guestAppSettings.publicDiscoverable}
-                                onChange={(value) =>
-                                  setGuestAppSettings({
-                                    ...guestAppSettings,
-                                    publicDiscoverable: value,
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
-                              label={
-                                locale === "sl" ? "Javno ime" : "Public name"
-                              }
-                            >
-                              <input
-                                className="gapp-input"
-                                maxLength={GUEST_PUBLIC_NAME_MAX_LENGTH}
-                                value={guestAppSettings.publicName}
-                                onChange={(e) =>
-                                  setGuestAppSettings({
-                                    ...guestAppSettings,
-                                    publicName: normalizePublicName(
-                                      e.target.value,
-                                    ),
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
-                              label={
-                                locale === "sl" ? "Javno mesto" : "Public city"
-                              }
-                            >
-                              <input
-                                className="gapp-input"
-                                maxLength={GUEST_PUBLIC_CITY_MAX_LENGTH}
-                                value={guestAppSettings.publicCity}
-                                onChange={(e) =>
-                                  setGuestAppSettings({
-                                    ...guestAppSettings,
-                                    publicCity: normalizePublicCity(
-                                      e.target.value,
-                                    ),
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
-                              label={
-                                locale === "sl"
-                                  ? "Javni opis"
-                                  : "Public description"
-                              }
-                              hint={
-                                locale === "sl"
-                                  ? "Prikazano v iskanju gostov (1 vrstica, omejena dolžina)."
-                                  : "Shown in guest browse results (single line, limited length)."
-                              }
-                            >
-                              <input
-                                className="gapp-input"
-                                maxLength={GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
-                                value={guestAppSettings.publicDescription}
-                                onChange={(e) =>
-                                  setGuestAppSettings({
-                                    ...guestAppSettings,
-                                    publicDescription:
-                                      normalizePublicDescriptionInput(
-                                        e.target.value,
-                                      ),
-                                  })
-                                }
                               />
                             </GuestField>
                           </div>

@@ -35,8 +35,8 @@ public class GuestSettingsService {
         boolean inboxEnabled = enabled && root.path("inboxEnabled").asBoolean(true);
         boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
         String name = textOrNull(root.path("publicName"));
+        String publicAddress = textOrNull(root.path("publicAddress"));
         String description = textOrNull(root.path("publicDescription"));
-        String city = textOrNull(root.path("publicCity"));
         String phone = textOrNull(root.path("publicPhone"));
         String tenantType = normalizeTenantType(textOrNull(root.path("tenantType")));
         String cardImageUrl = textOrNull(root.path("cardImageUrl"));
@@ -45,10 +45,26 @@ public class GuestSettingsService {
             logoImageUrl = textOrNull(root.path("logoImageUrl"));
         }
         String iconImageUrl = textOrNull(root.path("iconImageUrl"));
-        String street = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
-        String postal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
+        String companyStreet = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
+        String companyPostal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
         String companyCity = textOrNull(values.get(SettingKey.COMPANY_CITY.name()));
-        String formattedAddress = formatCompanyAddressLine(street, postal, companyCity);
+        String physicalStreet = firstNonBlank(
+                textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_ADDRESS.name())),
+                companyStreet
+        );
+        String physicalPostal = firstNonBlank(
+                textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_POSTAL_CODE.name())),
+                companyPostal
+        );
+        String city = firstNonBlank(
+                textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_CITY.name())),
+                companyCity
+        );
+        String formattedAddress = firstNonBlank(
+                publicAddress,
+                formatCompanyAddressLine(physicalStreet, physicalPostal, city),
+                formatCompanyAddressLine(companyStreet, companyPostal, companyCity)
+        );
         String invoiceCompanyName = textOrNull(values.get(SettingKey.COMPANY_NAME.name()));
         if (phone == null) {
             phone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
@@ -261,6 +277,16 @@ public class GuestSettingsService {
 
     private static String textOrNull(String raw) {
         return raw == null || raw.isBlank() ? null : raw.trim();
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     /** Street + postal + city, same shape as invoice PDF / reminder templates. */
