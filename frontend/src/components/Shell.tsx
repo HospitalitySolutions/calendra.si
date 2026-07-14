@@ -998,11 +998,6 @@ function ShellInner({ children }: PropsWithChildren) {
     <NotificationCenter onOpen={() => { setBellOpen(false); setConfigOpen(false); setAccountOpen(false) }} />
   )
 
-  const mobileHeaderNotificationCenter = appHeaderMobileRow ? (
-    <div className="app-header-mobile-notification">
-      {staffNotificationCenter}
-    </div>
-  ) : null
 
   const headerActionsRest = (
     <>
@@ -1182,6 +1177,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const headerActions = (
     <div className="header-actions header-icons">
       {calendarTodoBell}
+      {appHeaderMobileRow && staffNotificationCenter}
       {compactAppHeaderVoiceButton}
       {headerActionsRest}
     </div>
@@ -1205,6 +1201,7 @@ function ShellInner({ children }: PropsWithChildren) {
         {calendarShellSlots.modeGroup}
         {calendarShellSlots.viewDropdown}
         {calendarTodoBell}
+        {appHeaderMobileRow && staffNotificationCenter}
         {calendarVoiceInHeader}
         <div className="header-actions header-icons">{headerActionsRest}</div>
       </>
@@ -1426,7 +1423,6 @@ function ShellInner({ children }: PropsWithChildren) {
             <>
               <div className="app-header-calendar-left">
                 {mobileNavTrigger}
-                {mobileHeaderNotificationCenter}
                 {calendarShellSlots.toolbarMonthLabel}
                 <div className="app-header-brand app-header-brand--calendar" title={headerBrandLabel}>
                   {headerBrandLabel}
@@ -1441,6 +1437,7 @@ function ShellInner({ children }: PropsWithChildren) {
                     {calendarShellSlots.viewDropdown}
                     <div className="header-actions header-icons">
                       {calendarTodoBell}
+                      {appHeaderMobileRow && staffNotificationCenter}
                       {calendarVoiceInHeader}
                       {headerActionsRest}
                     </div>
@@ -1452,7 +1449,6 @@ function ShellInner({ children }: PropsWithChildren) {
             <>
               <div className="app-header-mobile-leading">
                 {mobileNavTrigger}
-                {mobileHeaderNotificationCenter}
                 <div className="app-header-brand" title={headerBrandLabel}>
                   {headerBrandLabel}
                 </div>

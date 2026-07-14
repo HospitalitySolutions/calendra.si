@@ -34,6 +34,50 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const allDayRangeStartTime = (ymd: string) => normalizeToLocalDateTime(`${ymd}T00:00:00`)
   const allDayRangeEndTime = (ymd: string) => normalizeToLocalDateTime(`${ymd}T23:59:59`)
   const advanceBillingEnabled = settings?.BILLING_ADVANCE_ENABLED !== 'false'
+  const warningCopy = locale === 'sl'
+    ? {
+        overlappingTitle: 'Prekrivajoči se termini',
+        overlappingSubtitle: (count: number) => `Obstaja ${count} obstoječih terminov v tem času. Ali jih želite izbrisati in ustvariti novega?`,
+        overlappingConfirm: 'Da, izbriši in ustvari',
+        overlappingCancel: 'Ne, obdrži obrazec rezervacije',
+        personalTimeTitle: 'Osebni čas',
+        personalTimeSubtitle: 'V tem času že imate planiran termin. Ali ste prepričani?',
+        warningTitle: 'Opozorilo',
+        nonBookablePastTime: 'Ali res želite rezervirati termin v preteklosti (pred trenutnim časom)?',
+        nonBookableSlot: 'Ali res želite rezervirati stranko v terminu, ki ni na voljo za rezervacijo?',
+        yes: 'Da',
+        no: 'Ne',
+        cancel: 'Prekliči',
+      }
+    : locale === 'sr'
+      ? {
+          overlappingTitle: 'Preklapajući termini',
+          overlappingSubtitle: (count: number) => `Postoji ${count} postojećih termina u ovom vremenu. Da li želite da ih obrišete i kreirate novi?`,
+          overlappingConfirm: 'Da, obriši i kreiraj',
+          overlappingCancel: 'Ne, zadrži formu rezervacije',
+          personalTimeTitle: 'Lično vreme',
+          personalTimeSubtitle: 'U ovom vremenu već imate zakazan termin. Da li ste sigurni?',
+          warningTitle: 'Upozorenje',
+          nonBookablePastTime: 'Da li zaista želite da rezervišete termin u prošlosti (pre trenutnog vremena)?',
+          nonBookableSlot: 'Da li zaista želite da rezervišete klijenta u terminu koji nije dostupan za rezervaciju?',
+          yes: 'Da',
+          no: 'Ne',
+          cancel: 'Otkaži',
+        }
+      : {
+          overlappingTitle: 'Overlapping sessions',
+          overlappingSubtitle: (count: number) => `There are ${count} existing session(s) at this time. Do you want to delete them and create the new one?`,
+          overlappingConfirm: 'Yes, delete and create',
+          overlappingCancel: 'No, keep booking form',
+          personalTimeTitle: 'Personal time',
+          personalTimeSubtitle: 'You already have a session planned at this time. Are you sure?',
+          warningTitle: 'Warning',
+          nonBookablePastTime: 'Do you really want to book a session that is in the past (before the current time)?',
+          nonBookableSlot: 'Do you really want to book a client on non bookable time slot?',
+          yes: 'Yes',
+          no: 'No',
+          cancel: 'Cancel',
+        }
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
   const bookedSessionSelectableMetaTypes = bookedSessionIsGroup
@@ -1325,12 +1369,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         <div className="modal-backdrop calendar-booking-supplement" onClick={() => { setConfirmOverlap(null) }}>
           <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
             <PageHeader
-              title="Overlapping sessions"
-              subtitle={`There are ${confirmOverlap.overlapping.length} existing session(s) at this time. Do you want to delete them and create the new one?`}
+              title={warningCopy.overlappingTitle}
+              subtitle={warningCopy.overlappingSubtitle(confirmOverlap.overlapping.length)}
             />
             <div className="row gap">
-              <button onClick={() => saveBooking(true, false, true)} disabled={saveBookingLoading}>Yes, delete and create</button>
-              <button className="secondary" onClick={() => { setConfirmOverlap(null) }}>No, keep booking form</button>
+              <button onClick={() => saveBooking(true, false, true)} disabled={saveBookingLoading}>{warningCopy.overlappingConfirm}</button>
+              <button className="secondary" onClick={() => { setConfirmOverlap(null) }}>{warningCopy.overlappingCancel}</button>
             </div>
           </div>
         </div>
@@ -1340,15 +1384,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         <div className="modal-backdrop calendar-booking-supplement" onClick={cancelBookedPersonalOverlap}>
           <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
             <PageHeader
-              title="Personal time"
-              subtitle="You already have a session planned at this time. Are you sure?"
+              title={warningCopy.personalTimeTitle}
+              subtitle={warningCopy.personalTimeSubtitle}
             />
             <div className="row gap">
               <button type="button" onClick={() => void confirmBookedPersonalOverlapYes()} disabled={saveBookingLoading}>
-                Yes
+                {warningCopy.yes}
               </button>
               <button type="button" className="secondary" onClick={cancelBookedPersonalOverlap}>
-                Cancel
+                {warningCopy.cancel}
               </button>
             </div>
           </div>
@@ -1367,23 +1411,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             {isNativeAndroid ? (
               <p className="confirm-modal-non-bookable-text">
                 {confirmNonBookableMove.pastTime
-                  ? 'Do you really want to book a session that is in the past (before the current time)?'
-                  : 'Do you really want to book a client on non bookable time slot?'}
+                  ? warningCopy.nonBookablePastTime
+                  : warningCopy.nonBookableSlot}
               </p>
             ) : (
               <PageHeader
-                title="Warning"
+                title={warningCopy.warningTitle}
                 subtitle={confirmNonBookableMove.pastTime
-                  ? 'Do you really want to book a session that is in the past (before the current time)?'
-                  : 'Do you really want to book a client on non bookable time slot?'}
+                  ? warningCopy.nonBookablePastTime
+                  : warningCopy.nonBookableSlot}
               />
             )}
             <div className="row gap">
               <button type="button" onClick={() => void confirmNonBookableMoveYes()}>
-                Yes
+                {warningCopy.yes}
               </button>
               <button type="button" className="secondary" onClick={cancelNonBookableMove}>
-                No
+                {warningCopy.no}
               </button>
             </div>
           </div>
@@ -1402,15 +1446,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             {isNativeAndroid ? (
               <p className="confirm-modal-non-bookable-text">
                 {confirmNonBookable.pastTime
-                  ? 'Do you really want to book a session that is in the past (before the current time)?'
-                  : 'Do you really want to book a client on non bookable time slot?'}
+                  ? warningCopy.nonBookablePastTime
+                  : warningCopy.nonBookableSlot}
               </p>
             ) : (
               <PageHeader
-                title="Warning"
+                title={warningCopy.warningTitle}
                 subtitle={confirmNonBookable.pastTime
-                  ? 'Do you really want to book a session that is in the past (before the current time)?'
-                  : 'Do you really want to book a client on non bookable time slot?'}
+                  ? warningCopy.nonBookablePastTime
+                  : warningCopy.nonBookableSlot}
               />
             )}
             <div className="row gap">
@@ -1419,9 +1463,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 onClick={() => void confirmNonBookableYes()}
                 disabled={saveBookingLoading}
               >
-                Yes
+                {warningCopy.yes}
               </button>
-              <button className="secondary" onClick={() => setConfirmNonBookable(null)}>No</button>
+              <button className="secondary" onClick={() => setConfirmNonBookable(null)}>{warningCopy.no}</button>
             </div>
           </div>
         </div>

@@ -3870,11 +3870,11 @@ export function ConfigurationPage() {
     registeredPremises.includes(selectedPremiseId);
   const tenantQrPayload = String(me.tenantCode || "").trim();
   const guestQrDefaultLink = useMemo(() => {
-    const tenant = tenantQrPayload || "2TEN";
+    const tenant = tenantQrPayload || "3DAV";
     const origin =
       typeof window !== "undefined"
         ? window.location.origin
-        : "https://2ten.si";
+        : "https://3dav.si";
     return `${origin}/book/${tenant}`;
   }, [tenantQrPayload]);
   const guestQrInputLink = (

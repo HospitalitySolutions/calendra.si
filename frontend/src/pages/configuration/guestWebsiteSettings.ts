@@ -613,11 +613,11 @@ export const buildGuestQrPayloadLink = (
   fallbackLink: string,
   tenantCode: string,
 ) => {
-  const safeTenantCode = (tenantCode || "2TEN").trim() || "2TEN";
+  const safeTenantCode = (tenantCode || "3DAV").trim() || "3DAV";
   const normalizedConfigured = (configuredLink || "").trim();
   const candidate = normalizedConfigured || fallbackLink;
   const baseOrigin =
-    typeof window !== "undefined" ? window.location.origin : "https://2ten.si";
+    typeof window !== "undefined" ? window.location.origin : "https://3dav.si";
   try {
     const url = new URL(candidate, baseOrigin);
     url.searchParams.set("tenantCode", safeTenantCode);
