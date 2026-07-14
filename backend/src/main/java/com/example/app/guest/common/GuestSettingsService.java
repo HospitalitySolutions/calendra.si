@@ -40,7 +40,10 @@ public class GuestSettingsService {
         String phone = textOrNull(root.path("publicPhone"));
         String tenantType = normalizeTenantType(textOrNull(root.path("tenantType")));
         String cardImageUrl = textOrNull(root.path("cardImageUrl"));
-        String logoImageUrl = textOrNull(root.path("logoImageUrl"));
+        String logoImageUrl = textOrNull(values.get(SettingKey.COMPANY_LOGO_URL.name()));
+        if (logoImageUrl == null) {
+            logoImageUrl = textOrNull(root.path("logoImageUrl"));
+        }
         String iconImageUrl = textOrNull(root.path("iconImageUrl"));
         String street = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
         String postal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));

@@ -2608,3 +2608,32 @@ a.credentials-popover-action-btn {
     flex: 1 1 auto;
     min-height: 0;
 }
+
+/* Company-level branding and public directory controls */
+.account-branding-card {
+    display: grid;
+    gap: 18px;
+}
+.account-section-description,
+.account-public-directory-row p {
+    margin: 5px 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+.account-public-directory-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: rgba(248, 250, 252, 0.72);
+}
+.account-public-directory-row > div { min-width: 0; }
+.account-public-directory-row strong { color: var(--color-text); font-size: 0.9rem; }
+[data-theme="dark"] .account-public-directory-row { background: rgba(255,255,255,.035); }
+@media (max-width: 640px) {
+    .account-public-directory-row { align-items: flex-start; }
+}

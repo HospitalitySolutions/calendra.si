@@ -161,6 +161,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/course-access/**").permitAll();
 
                     auth.requestMatchers("/api/public/widget/**").permitAll();
+                    auth.requestMatchers("/api/public/company-directory/**").permitAll();
                     auth.requestMatchers("/api/public-bookings/manage/**").permitAll();
                     auth.requestMatchers("/widget/**").permitAll();
 

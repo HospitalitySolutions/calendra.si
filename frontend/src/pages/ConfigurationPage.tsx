@@ -3602,7 +3602,10 @@ export function ConfigurationPage() {
         throw new Error("Upload did not return a public URL.");
       }
       setGuestAppSettings((prev) => ({ ...prev, [settingField]: publicUrl }));
-      showToast("success", "Guest app asset uploaded.");
+      if (settingField === "logoImageUrl") {
+        setSettings((prev) => ({ ...prev, COMPANY_LOGO_URL: publicUrl }));
+      }
+      showToast("success", settingField === "logoImageUrl" ? "Logotip podjetja je naložen." : "Guest app asset uploaded.");
     } catch (err: any) {
       showToast(
         "error",
@@ -3870,11 +3873,11 @@ export function ConfigurationPage() {
     registeredPremises.includes(selectedPremiseId);
   const tenantQrPayload = String(me.tenantCode || "").trim();
   const guestQrDefaultLink = useMemo(() => {
-    const tenant = tenantQrPayload || "3DAV";
+    const tenant = tenantQrPayload || "2TEN";
     const origin =
       typeof window !== "undefined"
         ? window.location.origin
-        : "https://3dav.si";
+        : "https://2ten.si";
     return `${origin}/book/${tenant}`;
   }, [tenantQrPayload]);
   const guestQrInputLink = (
@@ -6821,6 +6824,38 @@ export function ConfigurationPage() {
                             </div>
                           </section>
                         </div>
+
+                        <section className="account-card account-form-card account-branding-card">
+                          <div className="account-form-card-header">
+                            <div>
+                              <h3>Logotip in javna predstavitev</h3>
+                              <p className="account-section-description">
+                                Logotip se uporablja v mobilni aplikaciji za goste in na javni strani Calendra Stranke.
+                              </p>
+                            </div>
+                          </div>
+                          <GuestUploadDropzone
+                            title="Povlecite logotip sem ali kliknite za izbiro"
+                            subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
+                            hint="Uporabljen bo kot glavni logotip podjetja v vseh javnih prikazih Calendre."
+                            currentUrl={settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl}
+                            previewAlt="Logotip podjetja"
+                            previewShape="round"
+                            iconKind="logo"
+                            onFile={(selected) => void uploadGuestAppAsset("logoImageUrl", selected)}
+                            uploading={uploadingGuestAsset === "logoImageUrl"}
+                          />
+                          <div className="account-public-directory-row">
+                            <div>
+                              <strong>Prikaži podjetje na strani Calendra Stranke</strong>
+                              <p>Ko je vključeno, se javni naziv, mesto, opis, logotip in število storitev prikažejo na calendra.si/stranke.</p>
+                            </div>
+                            <GuestSwitch
+                              checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}
+                              onChange={(checked) => setSettings((prev) => ({ ...prev, PUBLIC_DIRECTORY_ENABLED: String(checked) }))}
+                            />
+                          </div>
+                        </section>
 
                         <section className="account-card account-form-card">
                           <div className="account-form-card-header">
@@ -11594,44 +11629,7 @@ export function ConfigurationPage() {
                                 }
                               />
                             </GuestField>
-                            <GuestField
-                              label={
-                                locale === "sl"
-                                  ? "Logotip v karuselu"
-                                  : "Carousel logo"
-                              }
-                            >
-                              <GuestUploadDropzone
-                                title={
-                                  locale === "sl"
-                                    ? "Povlecite logotip sem ali kliknite za izbiro"
-                                    : "Drag logo here or click to choose"
-                                }
-                                subtitle={
-                                  locale === "sl"
-                                    ? "PNG ali WebP · Priporočeno 512×512"
-                                    : "PNG or WebP · Recommended 512×512"
-                                }
-                                hint={
-                                  locale === "sl"
-                                    ? "Naložite krožni logotip, prikazan čez kartico karusela v mobilni aplikaciji za goste."
-                                    : "Upload circular logo shown over the guest-mobile carousel card."
-                                }
-                                currentUrl={guestAppSettings.logoImageUrl}
-                                previewAlt="Current carousel logo image"
-                                previewShape="round"
-                                iconKind="logo"
-                                onFile={(selected) =>
-                                  void uploadGuestAppAsset(
-                                    "logoImageUrl",
-                                    selected,
-                                  )
-                                }
-                                uploading={
-                                  uploadingGuestAsset === "logoImageUrl"
-                                }
-                              />
-                            </GuestField>
+
                           </div>
                         </div>
                         <div className="gapp-savebar">

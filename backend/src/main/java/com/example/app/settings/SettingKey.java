@@ -177,6 +177,10 @@ public enum SettingKey {
     /** JSON: minimum package/config-type visibility rules for App settings switches, saved on the platform-admin tenancy. */
     PLATFORM_MODULE_VISIBILITY_RULES_JSON,
     COMPANY_LOGO_BASE64,
+    /** Canonical tenant/company logo used across guest app and public directory. */
+    COMPANY_LOGO_URL,
+    /** Explicit opt-in for publishing the tenant on calendra.si/stranke. */
+    PUBLIC_DIRECTORY_ENABLED,
     FOLIO_SIGNATURE_BASE64,
 
 
