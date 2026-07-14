@@ -567,6 +567,210 @@ const pageStyles = `
     line-height: 1.5;
   }
 
+
+  @media (min-width: 901px) {
+    .public-manage-page {
+      padding: clamp(14px, 2vh, 24px) 18px;
+    }
+
+    .public-manage-shell {
+      width: min(100%, 1040px);
+      border-radius: 28px;
+    }
+
+    .public-manage-content {
+      padding: clamp(24px, 3.2vh, 36px) 40px 30px;
+    }
+
+    .public-manage-brand {
+      margin-bottom: 18px;
+    }
+
+    .public-manage-brand img {
+      width: clamp(122px, 11vw, 154px);
+    }
+
+    .public-manage-heading {
+      margin-bottom: 18px;
+    }
+
+    .public-manage-heading h1 {
+      font-size: clamp(2rem, 3vw, 2.75rem);
+      line-height: 1.04;
+    }
+
+    .public-manage-heading p {
+      margin-top: 7px;
+      font-size: .96rem;
+    }
+
+    .public-manage-illustration {
+      top: 20px;
+      right: 38px;
+      width: 138px;
+      height: 138px;
+    }
+
+    .public-manage-illustration-calendar {
+      width: 78px;
+      height: 68px;
+      border-radius: 19px;
+    }
+
+    .public-manage-illustration-calendar::before {
+      top: 17px;
+    }
+
+    .public-manage-illustration-loop {
+      top: -10px;
+      width: 11px;
+      height: 22px;
+    }
+
+    .public-manage-illustration-loop--left { left: 17px; }
+    .public-manage-illustration-loop--right { right: 17px; }
+
+    .public-manage-illustration-square {
+      right: 17px;
+      bottom: 14px;
+      width: 15px;
+      height: 15px;
+      border-radius: 4px;
+    }
+
+    .public-manage-alert {
+      margin-bottom: 14px;
+      padding: 11px 14px;
+      border-radius: 13px;
+      font-size: .86rem;
+    }
+
+    .public-manage-summary {
+      gap: 16px;
+      margin-bottom: 12px;
+      padding: 14px 18px;
+      border-radius: 18px;
+    }
+
+    .public-manage-summary-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 17px;
+    }
+
+    .public-manage-summary-icon svg {
+      width: 19px;
+      height: 19px;
+    }
+
+    .public-manage-summary h2 {
+      margin-bottom: 5px;
+      font-size: .9rem;
+    }
+
+    .public-manage-summary-grid {
+      gap: 3px;
+      font-size: .86rem;
+      line-height: 1.34;
+    }
+
+    .public-manage-tabs {
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+
+    .public-manage-tab {
+      min-height: 42px;
+      gap: 8px;
+      padding: 0 17px;
+      border-radius: 13px;
+      font-size: .86rem;
+    }
+
+    .public-manage-tab svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .public-manage-form {
+      gap: 13px;
+    }
+
+    .public-manage-field {
+      gap: 7px;
+    }
+
+    .public-manage-label {
+      gap: 8px;
+      font-size: .88rem;
+    }
+
+    .public-manage-label svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .public-manage-date {
+      height: 45px;
+      padding: 0 14px;
+      border-radius: 13px;
+      font-size: .88rem;
+    }
+
+    .public-manage-slots {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .public-manage-slot {
+      min-height: 41px;
+      padding: 0 12px;
+      border-radius: 13px;
+      font-size: .88rem;
+    }
+
+    .public-manage-primary {
+      min-height: 47px;
+      margin-top: 0;
+      border-radius: 14px;
+      font-size: .9rem;
+    }
+
+    .public-manage-primary svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .public-manage-cancel-panel {
+      padding: 18px;
+      border-radius: 18px;
+    }
+
+    .public-manage-cancel-panel h2 {
+      margin-bottom: 6px;
+      font-size: 1.05rem;
+    }
+
+    .public-manage-cancel-panel p {
+      margin-bottom: 13px;
+      font-size: .88rem;
+    }
+
+    .public-manage-secondary,
+    .public-manage-danger {
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: 12px;
+      font-size: .86rem;
+    }
+  }
+
+  @media (min-width: 901px) and (max-width: 1120px) {
+    .public-manage-slots {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
   @media (max-width: 900px) {
     .public-manage-illustration { display: none; }
     .public-manage-heading { max-width: none; }
