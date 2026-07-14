@@ -333,13 +333,11 @@ function ShellInner({ children }: PropsWithChildren) {
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [aiBookingEnabled, setAiBookingEnabled] = useState(false)
-  const [overdueTodoCount, setOverdueTodoCount] = useState(0)
   const [todos, setTodos] = useState<any[]>([])
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
   const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
-  const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [, setSessionUserBump] = useState(0)
@@ -348,7 +346,6 @@ function ShellInner({ children }: PropsWithChildren) {
   const [referAFriendModalOpen, setReferAFriendModalOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const bellRef = useRef<HTMLDivElement>(null)
   const configRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
   const profileAvatarInputRef = useRef<HTMLInputElement>(null)
@@ -380,7 +377,6 @@ function ShellInner({ children }: PropsWithChildren) {
 
   /** Bell list: overdue todos + today's todos (narrow calendar range, not full month). */
   const loadOverdue = () => {
-    api.get('/bookings/todos/overdue-count').then((r) => setOverdueTodoCount(r.data.count)).catch(() => setOverdueTodoCount(0))
     const todayStr = localDateStr(new Date())
     Promise.all([
       api.get('/bookings/todos/overdue').catch(() => ({ data: [] as any[] })),
@@ -399,7 +395,6 @@ function ShellInner({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!todosModuleEnabled) {
-      setOverdueTodoCount(0)
       setTodos([])
       return
     }
@@ -456,13 +451,12 @@ function ShellInner({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false)
       if (configRef.current && !configRef.current.contains(e.target as Node)) setConfigOpen(false)
       if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false)
     }
-    if (bellOpen || configOpen || accountOpen) document.addEventListener('click', handleClickOutside)
+    if (configOpen || accountOpen) document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
-  }, [bellOpen, configOpen, accountOpen])
+  }, [configOpen, accountOpen])
 
   useLayoutEffect(() => {
     setMobileNavOpen(false)
@@ -927,75 +921,14 @@ function ShellInner({ children }: PropsWithChildren) {
       document.body,
     )
 
-  const calendarTodoBell =
-    showHeaderTodo ? (
-      <div className="notification-bell-wrap" ref={bellRef}>
-        <button
-          type="button"
-          className="notification-bell"
-          onClick={() => {
-            window.dispatchEvent(new Event('close-staff-notifications'))
-            setBellOpen((o) => !o)
-            setConfigOpen(false)
-            setAccountOpen(false)
-          }}
-          title={t('calendarTodoTasks')}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M22 5.18 10.59 16.6l-4.24-4.24 1.41-1.41 2.83 2.83L20.59 3.76 22 5.18ZM19.79 11.22c.05.25.05.51.05.78 0 4.31-3.48 7.8-7.79 7.8s-7.79-3.49-7.79-7.8 3.48-7.8 7.79-7.8c1.08 0 2.11.22 3.06.62l1.57-1.57A9.86 9.86 0 0 0 12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10c0-.8-.1-1.58-.29-2.33l-1.92 1.55Z" />
-          </svg>
-          {overdueTodoCount > 0 && <span className="notification-badge">{overdueTodoCount}</span>}
-        </button>
-        {bellOpen && (
-          <div className="notification-dropdown">
-            <div className="notification-dropdown-title">{t('calendarTodoTasksToComplete')}</div>
-            {visibleTodos.length === 0 ? (
-              <div className="notification-empty">{t('calendarNoTasks')}</div>
-            ) : (
-              <ul className="notification-list">
-                {visibleTodos.map((todo: any) => (
-                  <li
-                    key={todo.id}
-                    className="notification-item"
-                    onClick={(e) => openTodo(todo.id, e.currentTarget as HTMLElement)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') openTodo(todo.id, e.currentTarget as HTMLElement)
-                    }}
-                  >
-                    <span className="notification-task" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      {todo.task}
-                      {new Date(todo.startTime) < now && (
-                        <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.75rem', letterSpacing: 0.2 }}>
-                          {t('calendarTodoOverdue')}
-                        </span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      className="notification-complete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        completeTodo(todo.id)
-                      }}
-                      title="Mark as complete"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
-    ) : null
-
   const staffNotificationCenter = (
-    <NotificationCenter onOpen={() => { setBellOpen(false); setConfigOpen(false); setAccountOpen(false) }} />
+    <NotificationCenter
+      onOpen={() => { setConfigOpen(false); setAccountOpen(false) }}
+      todosEnabled={showHeaderTodo}
+      todos={visibleTodos}
+      onOpenTodo={openTodo}
+      onCompleteTodo={completeTodo}
+    />
   )
 
 
@@ -1007,7 +940,7 @@ function ShellInner({ children }: PropsWithChildren) {
           type="button"
           className="config-cog"
           data-onboarding-nav="configuration"
-          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setConfigOpen((o) => !o); setBellOpen(false); setAccountOpen(false) }}
+          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setConfigOpen((o) => !o); setAccountOpen(false) }}
           title={t('settingsGroup')}
           aria-label={t('settingsGroup')}
         >
@@ -1040,7 +973,7 @@ function ShellInner({ children }: PropsWithChildren) {
         <button
           type="button"
           className="header-credentials-trigger"
-          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setAccountOpen((o) => !o); setBellOpen(false); setConfigOpen(false) }}
+          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setAccountOpen((o) => !o); setConfigOpen(false) }}
           title={displayName}
           aria-expanded={accountOpen}
           aria-haspopup="dialog"
@@ -1176,7 +1109,6 @@ function ShellInner({ children }: PropsWithChildren) {
 
   const headerActions = (
     <div className="header-actions header-icons">
-      {calendarTodoBell}
       {appHeaderMobileRow && staffNotificationCenter}
       {compactAppHeaderVoiceButton}
       {headerActionsRest}
@@ -1194,13 +1126,12 @@ function ShellInner({ children }: PropsWithChildren) {
     />
   )
 
-  /** Narrow calendar: mode (optional) + view dropdown + todo + utilities */
+  /** Narrow calendar: mode (optional) + view dropdown + unified notifications + utilities */
   const calendarMobileHeaderToolbar =
     calendarShellSlots && calendarShellSlots.showMobileToolbar ? (
       <>
         {calendarShellSlots.modeGroup}
         {calendarShellSlots.viewDropdown}
-        {calendarTodoBell}
         {appHeaderMobileRow && staffNotificationCenter}
         {calendarVoiceInHeader}
         <div className="header-actions header-icons">{headerActionsRest}</div>
@@ -1436,7 +1367,6 @@ function ShellInner({ children }: PropsWithChildren) {
                   <>
                     {calendarShellSlots.viewDropdown}
                     <div className="header-actions header-icons">
-                      {calendarTodoBell}
                       {appHeaderMobileRow && staffNotificationCenter}
                       {calendarVoiceInHeader}
                       {headerActionsRest}

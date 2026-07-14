@@ -4,7 +4,7 @@ import { api } from '../api'
 import { useLocale } from '../locale'
 import { subscribeBookingUpdates } from '../lib/bookingRealtime'
 
-type NotificationCategory = 'ALL' | 'BOOKING' | 'SYSTEM'
+type NotificationPanelTab = 'NOTIFICATIONS' | 'TASKS'
 
 type NotificationItem = {
   key: string
@@ -26,11 +26,34 @@ type NotificationFeed = {
   unreadCount: number
 }
 
+type TodoItem = {
+  id: number
+  task?: string | null
+  startTime?: string | null
+}
+
+type NotificationCenterProps = {
+  onOpen?: () => void
+  todosEnabled?: boolean
+  todos?: TodoItem[]
+  onOpenTodo?: (id: number, anchorEl?: HTMLElement | null) => void
+  onCompleteTodo?: (id: number) => void | Promise<void>
+}
+
 function BellIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  )
+}
+
+function TaskIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 3.5h6M9 9h6M9 13h6M9 17h4" />
     </svg>
   )
 }
@@ -94,50 +117,90 @@ function formatRelativeTime(value: string, locale: string) {
   }).format(new Date(timestamp))
 }
 
-export function NotificationCenter({ onOpen }: { onOpen?: () => void }) {
+function formatTodoTime(value: string | null | undefined, locale: string) {
+  const date = value ? new Date(value) : null
+  if (!date || !Number.isFinite(date.getTime())) return ''
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  const time = new Intl.DateTimeFormat(locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-RS' : 'en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+
+  if (date < now) {
+    const datePart = new Intl.DateTimeFormat(locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-RS' : 'en-GB', {
+      day: 'numeric',
+      month: 'short',
+    }).format(date)
+    return locale === 'sl' ? `Zamujeno · ${datePart}, ${time}` : locale === 'sr' ? `Kasni · ${datePart}, ${time}` : `Overdue · ${datePart}, ${time}`
+  }
+  if (date >= startOfToday && date < endOfToday) {
+    return locale === 'sl' ? `Danes ob ${time}` : locale === 'sr' ? `Danas u ${time}` : `Today at ${time}`
+  }
+  return new Intl.DateTimeFormat(locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-RS' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+export function NotificationCenter({
+  onOpen,
+  todosEnabled = true,
+  todos = [],
+  onOpenTodo,
+  onCompleteTodo,
+}: NotificationCenterProps) {
   const { locale } = useLocale()
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const [category, setCategory] = useState<NotificationCategory>('ALL')
+  const [tab, setTab] = useState<NotificationPanelTab>('NOTIFICATIONS')
   const [feed, setFeed] = useState<NotificationFeed>({ items: [], unreadCount: 0 })
   const [loading, setLoading] = useState(false)
+  const [completingTodoId, setCompletingTodoId] = useState<number | null>(null)
 
   const copy = useMemo(() => locale === 'sl' ? {
-    title: 'Obvestila', clear: 'Počisti', newLabel: 'novih', all: 'Vsa', bookings: 'Rezervacije', system: 'Sistem',
-    empty: 'Ni novih obvestil.', viewAll: 'Poglej vse', aria: 'Obvestila',
+    title: 'Obvestila in naloge', clear: 'Počisti', notifications: 'Obvestila', tasks: 'Naloge',
+    emptyNotifications: 'Ni novih obvestil.', emptyTasks: 'Ni nalog za danes ali zamujenih nalog.',
+    viewAll: 'Prikaži vse', aria: 'Obvestila in naloge', completeTask: 'Označi kot opravljeno', openTask: 'Odpri nalogo',
   } : locale === 'sr' ? {
-    title: 'Obaveštenja', clear: 'Očisti', newLabel: 'novih', all: 'Sva', bookings: 'Rezervacije', system: 'Sistem',
-    empty: 'Nema novih obaveštenja.', viewAll: 'Pogledaj sve', aria: 'Obaveštenja',
+    title: 'Obaveštenja i zadaci', clear: 'Očisti', notifications: 'Obaveštenja', tasks: 'Zadaci',
+    emptyNotifications: 'Nema novih obaveštenja.', emptyTasks: 'Nema zadataka za danas niti zadataka koji kasne.',
+    viewAll: 'Prikaži sve', aria: 'Obaveštenja i zadaci', completeTask: 'Označi kao završeno', openTask: 'Otvori zadatak',
   } : {
-    title: 'Notifications', clear: 'Clear', newLabel: 'new', all: 'All', bookings: 'Bookings', system: 'System',
-    empty: 'No new notifications.', viewAll: 'View all', aria: 'Notifications',
+    title: 'Notifications and tasks', clear: 'Clear', notifications: 'Notifications', tasks: 'Tasks',
+    emptyNotifications: 'No new notifications.', emptyTasks: 'No overdue tasks or tasks for today.',
+    viewAll: 'View all', aria: 'Notifications and tasks', completeTask: 'Mark as complete', openTask: 'Open task',
   }, [locale])
 
-  const load = useCallback(async (selectedCategory = category, showLoader = false) => {
+  const load = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true)
     try {
-      const { data } = await api.get<NotificationFeed>('/notifications', { params: { category: selectedCategory, limit: 5 } })
+      const { data } = await api.get<NotificationFeed>('/notifications', { params: { category: 'ALL', limit: 5 } })
       setFeed({ items: Array.isArray(data?.items) ? data.items : [], unreadCount: Number(data?.unreadCount || 0) })
     } catch {
       // Keep the previous list during transient failures.
     } finally {
       if (showLoader) setLoading(false)
     }
-  }, [category])
+  }, [])
 
   useEffect(() => {
-    void load('ALL')
-    const interval = window.setInterval(() => void load(category), 60_000)
-    const unsubscribe = subscribeBookingUpdates(() => window.setTimeout(() => void load(category), 250))
-    const onFocus = () => void load(category)
+    void load()
+    const interval = window.setInterval(() => void load(), 60_000)
+    const unsubscribe = subscribeBookingUpdates(() => window.setTimeout(() => void load(), 250))
+    const onFocus = () => void load()
     window.addEventListener('focus', onFocus)
     return () => {
       window.clearInterval(interval)
       unsubscribe()
       window.removeEventListener('focus', onFocus)
     }
-  }, [category, load])
+  }, [load])
 
   useEffect(() => {
     const close = () => setOpen(false)
@@ -161,10 +224,9 @@ export function NotificationCenter({ onOpen }: { onOpen?: () => void }) {
     }
   }, [open])
 
-  const selectCategory = (next: NotificationCategory) => {
-    setCategory(next)
-    void load(next, true)
-  }
+  useEffect(() => {
+    if (!todosEnabled && tab === 'TASKS') setTab('NOTIFICATIONS')
+  }, [tab, todosEnabled])
 
   const markAllRead = async () => {
     await api.put('/notifications/read-all').catch(() => undefined)
@@ -186,7 +248,27 @@ export function NotificationCenter({ onOpen }: { onOpen?: () => void }) {
     if (item.actionUrl) navigate(item.actionUrl)
   }
 
-  const badge = feed.unreadCount > 99 ? '99+' : String(feed.unreadCount)
+  const openTodo = (todo: TodoItem, anchorEl?: HTMLElement | null) => {
+    const id = Number(todo.id)
+    if (!Number.isInteger(id) || id <= 0) return
+    setOpen(false)
+    onOpenTodo?.(id, anchorEl)
+  }
+
+  const completeTodo = async (todo: TodoItem) => {
+    const id = Number(todo.id)
+    if (!Number.isInteger(id) || id <= 0 || completingTodoId === id) return
+    setCompletingTodoId(id)
+    try {
+      await onCompleteTodo?.(id)
+    } finally {
+      setCompletingTodoId(null)
+    }
+  }
+
+  const visibleTodos = todosEnabled ? todos : []
+  const combinedCount = feed.unreadCount + visibleTodos.length
+  const badge = combinedCount > 99 ? '99+' : String(combinedCount)
 
   return (
     <div className="staff-notification-center" ref={rootRef}>
@@ -198,7 +280,7 @@ export function NotificationCenter({ onOpen }: { onOpen?: () => void }) {
           setOpen(nextOpen)
           if (nextOpen) {
             onOpen?.()
-            void load(category, true)
+            void load(true)
           }
         }}
         aria-label={copy.aria}
@@ -206,65 +288,115 @@ export function NotificationCenter({ onOpen }: { onOpen?: () => void }) {
         title={copy.aria}
       >
         <BellIcon />
-        {feed.unreadCount > 0 ? <span className="staff-notification-badge">{badge}</span> : null}
+        {combinedCount > 0 ? <span className="staff-notification-badge">{badge}</span> : null}
       </button>
 
       {open ? (
-        <section className="staff-notification-panel" role="dialog" aria-label={copy.title}>
+        <section className="staff-notification-panel staff-notification-panel--unified" role="dialog" aria-label={copy.title}>
           <header className="staff-notification-panel-header">
             <h2>{copy.title}</h2>
-            <button type="button" onClick={() => void markAllRead()} disabled={feed.unreadCount === 0}>{copy.clear}</button>
+            {tab === 'NOTIFICATIONS' ? (
+              <button type="button" onClick={() => void markAllRead()} disabled={feed.unreadCount === 0}>{copy.clear}</button>
+            ) : null}
           </header>
 
-          <div className="staff-notification-toolbar">
-            <span className="staff-notification-new-count">
+          <div className={`staff-notification-main-tabs${todosEnabled ? '' : ' single'}`} role="tablist" aria-label={copy.title}>
+            <button
+              type="button"
+              className={tab === 'NOTIFICATIONS' ? 'active' : ''}
+              onClick={() => setTab('NOTIFICATIONS')}
+              role="tab"
+              aria-selected={tab === 'NOTIFICATIONS'}
+            >
               <BellIcon />
-              <strong>{feed.unreadCount}</strong> {copy.newLabel}
-            </span>
-            <div className="staff-notification-filters" role="tablist">
-              {([
-                ['ALL', copy.all],
-                ['BOOKING', copy.bookings],
-                ['SYSTEM', copy.system],
-              ] as Array<[NotificationCategory, string]>).map(([value, label]) => (
+              <span>{copy.notifications}</span>
+              <strong>{feed.unreadCount}</strong>
+            </button>
+            {todosEnabled ? (
+              <button
+                type="button"
+                className={tab === 'TASKS' ? 'active' : ''}
+                onClick={() => setTab('TASKS')}
+                role="tab"
+                aria-selected={tab === 'TASKS'}
+              >
+                <TaskIcon />
+                <span>{copy.tasks}</span>
+                <strong>{visibleTodos.length}</strong>
+              </button>
+            ) : null}
+          </div>
+
+          {tab === 'NOTIFICATIONS' ? (
+            <div className={`staff-notification-items${loading ? ' loading' : ''}`}>
+              {!loading && feed.items.length === 0 ? (
+                <div className="staff-notification-empty">{copy.emptyNotifications}</div>
+              ) : feed.items.map((item) => (
                 <button
-                  key={value}
                   type="button"
-                  className={category === value ? 'active' : ''}
-                  onClick={() => selectCategory(value)}
-                  role="tab"
-                  aria-selected={category === value}
+                  className={`staff-notification-item staff-notification-item--${item.type.toLowerCase().replace(/_/g, '-')}${item.unread ? ' unread' : ''}`}
+                  key={item.key}
+                  onClick={() => void openItem(item)}
                 >
-                  {label}
+                  <span className="staff-notification-item-icon"><NotificationTypeIcon type={item.type} /></span>
+                  <span className="staff-notification-item-copy">
+                    <strong>{localizedTitle(item, locale)}</strong>
+                    <span>{item.message}</span>
+                  </span>
+                  <span className="staff-notification-item-meta">
+                    <time>{formatRelativeTime(item.createdAt, locale)}</time>
+                    {item.unread ? <i aria-label="Unread" /> : null}
+                  </span>
                 </button>
               ))}
             </div>
-          </div>
+          ) : (
+            <div className="staff-notification-task-items">
+              {visibleTodos.length === 0 ? (
+                <div className="staff-notification-empty">{copy.emptyTasks}</div>
+              ) : visibleTodos.map((todo) => {
+                const id = Number(todo.id)
+                const isOverdue = Boolean(todo.startTime && new Date(todo.startTime).getTime() < Date.now())
+                return (
+                  <div className={`staff-notification-task-item${isOverdue ? ' overdue' : ''}`} key={id}>
+                    <button
+                      type="button"
+                      className="staff-notification-task-open"
+                      onClick={(event) => openTodo(todo, event.currentTarget)}
+                      aria-label={copy.openTask}
+                    >
+                      <span className="staff-notification-task-icon"><TaskIcon /></span>
+                      <span className="staff-notification-task-copy">
+                        <strong>{String(todo.task || '').trim() || copy.tasks}</strong>
+                        <span>{formatTodoTime(todo.startTime, locale)}</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="staff-notification-task-complete"
+                      onClick={() => void completeTodo(todo)}
+                      disabled={completingTodoId === id}
+                      title={copy.completeTask}
+                      aria-label={copy.completeTask}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-          <div className={`staff-notification-items${loading ? ' loading' : ''}`}>
-            {!loading && feed.items.length === 0 ? (
-              <div className="staff-notification-empty">{copy.empty}</div>
-            ) : feed.items.map((item) => (
-              <button
-                type="button"
-                className={`staff-notification-item staff-notification-item--${item.type.toLowerCase().replace(/_/g, '-')}${item.unread ? ' unread' : ''}`}
-                key={item.key}
-                onClick={() => void openItem(item)}
-              >
-                <span className="staff-notification-item-icon"><NotificationTypeIcon type={item.type} /></span>
-                <span className="staff-notification-item-copy">
-                  <strong>{localizedTitle(item, locale)}</strong>
-                  <span>{item.message}</span>
-                </span>
-                <span className="staff-notification-item-meta">
-                  <time>{formatRelativeTime(item.createdAt, locale)}</time>
-                  {item.unread ? <i aria-label="Unread" /> : null}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <button type="button" className="staff-notification-view-all" onClick={() => { setOpen(false); navigate('/notifications') }}>
+          <button
+            type="button"
+            className="staff-notification-view-all"
+            onClick={() => {
+              setOpen(false)
+              navigate(tab === 'TASKS' ? '/calendar' : '/notifications')
+            }}
+          >
             {copy.viewAll}
           </button>
         </section>
