@@ -12295,12 +12295,18 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         <div className="modal-backdrop" onClick={cancelSwap}>
           <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
             <PageHeader
-              title="Switch sessions?"
-              subtitle={`This will swap "${fullName(confirmSwap.dragged.client)}" with "${fullName(confirmSwap.target.client)}". Both sessions will exchange their time slots.`}
+              title={locale === 'sl' ? 'Zamenjava terminov?' : locale === 'sr' ? 'Zamena termina?' : 'Switch sessions?'}
+              subtitle={locale === 'sl'
+                ? `Termin za "${fullName(confirmSwap.dragged.client)}" bo zamenjan s terminom za "${fullName(confirmSwap.target.client)}". Oba termina bosta zamenjala čas izvedbe.`
+                : locale === 'sr'
+                  ? `Termin za "${fullName(confirmSwap.dragged.client)}" biće zamenjen terminom za "${fullName(confirmSwap.target.client)}". Oba termina će zameniti vreme održavanja.`
+                  : `This will swap "${fullName(confirmSwap.dragged.client)}" with "${fullName(confirmSwap.target.client)}". Both sessions will exchange their time slots.`}
             />
             <div className="row gap">
-              <button onClick={confirmSwapSessions}>Yes, switch</button>
-              <button className="secondary" onClick={cancelSwap}>Cancel</button>
+              <button onClick={confirmSwapSessions}>
+                {locale === 'sl' ? 'Da, zamenjaj' : locale === 'sr' ? 'Da, zameni' : 'Yes, switch'}
+              </button>
+              <button className="secondary" onClick={cancelSwap}>{t('cancel')}</button>
             </div>
           </div>
         </div>
