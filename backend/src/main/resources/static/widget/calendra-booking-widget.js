@@ -383,17 +383,33 @@
       this.readOptions();
       this.observeLayout();
       this.render();
-      this.bootstrap().catch((error) => {
-        if (error && error.widgetDisabled) {
-          this.style.display = 'none';
-          this.setState({ loading: false, error: '' });
-          return;
-        }
-        this.setState({
-          loading: false,
-          error: this.normalizeError(error, this.text().failedToLoad),
+      this.bootstrap()
+        .then(() => {
+          this.emit('calendra-widget-ready', {
+            tenant: this.options.tenant,
+            steps: this.stepDefinitions().map((step) => step.id),
+          });
+        })
+        .catch((error) => {
+          if (error && error.widgetDisabled) {
+            this.style.display = 'none';
+            this.setState({ loading: false, error: '' });
+            this.emit('calendra-widget-error', {
+              code: 'WIDGET_DISABLED',
+              message: this.text().failedToLoad,
+            });
+            return;
+          }
+          const message = this.normalizeError(error, this.text().failedToLoad);
+          this.setState({
+            loading: false,
+            error: message,
+          });
+          this.emit('calendra-widget-error', {
+            code: 'LOAD_FAILED',
+            message,
+          });
         });
-      });
     }
 
     disconnectedCallback() {
@@ -410,6 +426,14 @@
     attributeChangedCallback() {
       this.readOptions();
       this.render();
+    }
+
+    emit(name, detail = {}) {
+      this.dispatchEvent(new CustomEvent(name, {
+        bubbles: true,
+        composed: true,
+        detail,
+      }));
     }
 
     normalizedLocale() {
@@ -881,6 +905,24 @@
       }
 
       this.render();
+
+      if (previousActiveStep !== this.state.activeStep) {
+        const steps = this.stepDefinitions();
+        this.emit('calendra-widget-step-change', {
+          step: this.state.activeStep,
+          index: Math.max(0, steps.findIndex((step) => step.id === this.state.activeStep)),
+          count: steps.length,
+          tenant: this.options.tenant,
+        });
+      }
+
+      if (patch?.bookingSuccess && !this.state.saving) {
+        this.emit('calendra-widget-booking-confirmed', {
+          tenant: this.options.tenant,
+          booking: this.state.bookingSuccess,
+          payment: this.state.paymentResult,
+        });
+      }
     }
 
     normalizeError(error, fallback) {
@@ -2442,6 +2484,20 @@
         :host([data-layout="narrow"]) .secondary,
         :host([data-layout="micro"]) .primary,
         :host([data-layout="micro"]) .secondary { width: 100%; }
+
+        :host([presentation="directory"]) .shell { gap: 12px; }
+        :host([presentation="directory"]) .panel {
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          background: transparent;
+          padding: clamp(20px, 3vw, 42px) clamp(6px, 1.5vw, 18px) 12px;
+        }
+        :host([presentation="directory"]) .headline { margin-top: 24px; }
+        :host([presentation="directory"]) .powered-by { padding-bottom: 12px; }
+        :host([presentation="directory"][data-layout="compact"]) .panel,
+        :host([presentation="directory"][data-layout="narrow"]) .panel,
+        :host([presentation="directory"][data-layout="micro"]) .panel { padding-inline: 0; }
       `;
     }
 
