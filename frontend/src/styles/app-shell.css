@@ -987,6 +987,12 @@ a.credentials-popover-action-btn {
     min-width: 0;
 }
 
+.app-header-mobile-notification {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
 /* Full-screen mobile navigation */
 .mobile-nav-overlay {
     position: fixed;

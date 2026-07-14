@@ -880,6 +880,23 @@ function ShellInner({ children }: PropsWithChildren) {
             className="mobile-nav-overlay-logout"
             onClick={() => {
               setMobileNavOpen(false)
+              setReferAFriendModalOpen(true)
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <polyline points="20 12 20 22 4 22 4 12" />
+              <rect x="2" y="7" width="20" height="5" />
+              <line x1="12" y1="22" x2="12" y2="7" />
+              <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7Z" />
+              <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z" />
+            </svg>
+            {t('referMenuItem')}
+          </button>
+          <button
+            type="button"
+            className="mobile-nav-overlay-logout"
+            onClick={() => {
+              setMobileNavOpen(false)
               setSupportEmailModalOpen(true)
             }}
             aria-label={t('supportEmailHint')}
@@ -977,9 +994,19 @@ function ShellInner({ children }: PropsWithChildren) {
       </div>
     ) : null
 
+  const staffNotificationCenter = (
+    <NotificationCenter onOpen={() => { setBellOpen(false); setConfigOpen(false); setAccountOpen(false) }} />
+  )
+
+  const mobileHeaderNotificationCenter = appHeaderMobileRow ? (
+    <div className="app-header-mobile-notification">
+      {staffNotificationCenter}
+    </div>
+  ) : null
+
   const headerActionsRest = (
     <>
-      <NotificationCenter onOpen={() => { setBellOpen(false); setConfigOpen(false); setAccountOpen(false) }} />
+      {!appHeaderMobileRow && staffNotificationCenter}
       <div className="config-cog-wrap" ref={configRef}>
         <button
           type="button"
@@ -1399,6 +1426,7 @@ function ShellInner({ children }: PropsWithChildren) {
             <>
               <div className="app-header-calendar-left">
                 {mobileNavTrigger}
+                {mobileHeaderNotificationCenter}
                 {calendarShellSlots.toolbarMonthLabel}
                 <div className="app-header-brand app-header-brand--calendar" title={headerBrandLabel}>
                   {headerBrandLabel}
@@ -1424,6 +1452,7 @@ function ShellInner({ children }: PropsWithChildren) {
             <>
               <div className="app-header-mobile-leading">
                 {mobileNavTrigger}
+                {mobileHeaderNotificationCenter}
                 <div className="app-header-brand" title={headerBrandLabel}>
                   {headerBrandLabel}
                 </div>
