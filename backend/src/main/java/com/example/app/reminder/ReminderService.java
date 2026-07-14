@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ReminderService {
@@ -60,6 +62,29 @@ public class ReminderService {
     private static final String CANCEL_URL_TOKEN = "{{povezava_za_odpoved}}";
     private static final String MODIFY_BUTTON_TOKEN = "{{gumb_za_prenarocanje}}";
     private static final String CANCEL_BUTTON_TOKEN = "{{gumb_za_odpoved}}";
+    private static final List<String> CONDITIONAL_MANAGE_EMAIL_TOKENS = List.of(
+            MODIFY_URL_TOKEN,
+            CANCEL_URL_TOKEN,
+            MODIFY_BUTTON_TOKEN,
+            CANCEL_BUTTON_TOKEN
+    );
+    private static final Pattern CONDITIONAL_HTML_BLOCK_PATTERN = Pattern.compile(
+            "(?is)<(p|li|blockquote|h[1-6]|td|th|tr)\\b[^>]*>.*?</\\1\\s*>"
+    );
+    private static final Pattern CONDITIONAL_HTML_ANCHOR_PATTERN = Pattern.compile(
+            "(?is)<a\\b[^>]*>.*?</a\\s*>"
+    );
+    private static final Pattern EMPTY_HREF_ANCHOR_PATTERN = Pattern.compile(
+            "(?is)<a\\b[^>]*\\bhref\\s*=\\s*(?:\\\"\\s*\\\"|'\\s*')[^>]*>.*?</a\\s*>"
+    );
+    private static final Pattern EMPTY_HTML_ELEMENT_PATTERN = Pattern.compile(
+            "(?is)<(p|div|span|li|blockquote|h[1-6]|strong|b|em|i|u|small|mark|a)\\b[^>]*>"
+                    + "(?:\\s|&nbsp;|&#160;|&#xA0;|&#8203;|&#x200B;|\\u200B|<br\\s*/?>)*"
+                    + "</\\1\\s*>"
+    );
+    private static final Pattern EXCESSIVE_BREAKS_PATTERN = Pattern.compile(
+            "(?is)(?:<br\\s*/?>\\s*){3,}"
+    );
 
     private final JavaMailSender mailSender;
     private final String mailFrom;
@@ -222,7 +247,7 @@ public class ReminderService {
         Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
         try {
             String renderedSubject = replaceTokens(subject, tokens);
-            String renderedBody = replaceTokens(bodyHtml, tokens);
+            String renderedBody = renderEmailTemplateBody(bodyHtml, tokens);
             sendHtmlMail(booking.getCompany(), client.getEmail().trim(), renderedSubject, renderedBody);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), renderedSubject, renderedBody);
             log.info("Sent {} scheduled booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking.getId(), client.getId(), LogSanitizer.emailHash(client.getEmail()));
@@ -602,12 +627,12 @@ public class ReminderService {
         }
 
         Map<String, String> emailTokens = new LinkedHashMap<>(tokens);
-        addPublicBookingManageTokensIfRequested(booking, kind, template, emailTokens);
+        addPublicBookingManageTokensIfRequested(booking, kind, emailTokens);
         Map<String, String> subjectTokens = new LinkedHashMap<>(emailTokens);
         subjectTokens.put(MODIFY_BUTTON_TOKEN, "");
         subjectTokens.put(CANCEL_BUTTON_TOKEN, "");
         String subject = replaceTokens(template.subject(), subjectTokens);
-        String bodyHtml = replaceTokens(template.bodyHtml(), emailTokens);
+        String bodyHtml = renderEmailTemplateBody(template.bodyHtml(), emailTokens);
 
         try {
             sendHtmlMail(booking == null ? null : booking.getCompany(), client.getEmail().trim(), subject, bodyHtml);
@@ -943,27 +968,30 @@ public class ReminderService {
     private void addPublicBookingManageTokensIfRequested(
             SessionBooking booking,
             NotificationKind kind,
-            NotificationEmailTemplate template,
             Map<String, String> tokens
     ) {
         if (tokens == null) {
             return;
         }
 
-        // These tags are meaningful only for active website-widget bookings. For all
-        // other booking sources and event types they intentionally resolve to empty.
-        tokens.put(MODIFY_BUTTON_TOKEN, "");
-        tokens.put(CANCEL_BUTTON_TOKEN, "");
-        tokens.put(CANCEL_URL_TOKEN, "");
-        if (!isWebsiteWidgetBookingSource(booking)
+        // Public booking-management tags are available for every eligible booking,
+        // regardless of whether it was created by staff, the website widget, or another
+        // channel. They are included only in creation/change emails, where the recipient
+        // can still act on an active future booking.
+        clearPublicBookingManageTokens(tokens);
+        if (booking == null
+                || booking.getClient() == null
+                || booking.getClient().isAnonymized()
+                || booking.getClient().getEmail() == null
+                || booking.getClient().getEmail().isBlank()
                 || (kind != NotificationKind.NEW_SESSION && kind != NotificationKind.CHANGE_SESSION)) {
             return;
         }
 
         // Generate the public management URLs before rendering the template instead of
         // trying to detect the literal token in the saved HTML. Rich-text editors can
-        // split or wrap token text in markup, which caused valid button tags to resolve
-        // to an empty string even for website-widget bookings.
+        // split or wrap token text in markup, which otherwise causes valid button tags
+        // to resolve to an empty string.
         if (publicBookingManageTokenService == null
                 || frontendBaseUrl.isBlank()
                 || booking.getCompany() == null
@@ -1060,7 +1088,9 @@ public class ReminderService {
     }
 
     private boolean canUsePublicManageAction(SessionBooking booking, int cutoffHours) {
-        if (!isWebsiteWidgetBookingSource(booking)) return false;
+        if (booking == null || booking.getId() == null || booking.getCompany() == null) return false;
+        if (booking.getClient() == null || booking.getClient().isAnonymized()) return false;
+        if (booking.getClient().getEmail() == null || booking.getClient().getEmail().isBlank()) return false;
         if (!SessionBookingStatus.RESERVED.equals(SessionBookingStatus.normalizeStored(booking.getBookingStatus()))) return false;
         LocalDateTime now = LocalDateTime.now();
         if (booking.getStartTime() == null || !booking.getStartTime().isAfter(now)) return false;
@@ -1101,6 +1131,112 @@ public class ReminderService {
         return s == null ? "" : s.strip();
     }
 
+    /**
+     * Renders an email body while treating public booking management tags as conditional content.
+     * When an action is unavailable because the booking is no longer eligible or the tenant's
+     * reservation rules disable it, the complete paragraph/list/table row containing that tag is
+     * removed before token replacement. This prevents rich-text templates from leaving empty
+     * paragraphs and large blank gaps in Gmail.
+     */
+    private static String renderEmailTemplateBody(String input, Map<String, String> tokens) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+
+        String prepared = input;
+        boolean htmlTemplate = containsHtmlMarkup(prepared);
+        for (String token : CONDITIONAL_MANAGE_EMAIL_TOKENS) {
+            String value = tokens == null ? "" : tokens.getOrDefault(token, "");
+            if (value != null && !value.isBlank()) {
+                continue;
+            }
+            prepared = htmlTemplate
+                    ? removeHtmlContentContainingUnavailableToken(prepared, token)
+                    : removePlainTextLinesContainingToken(prepared, token);
+        }
+
+        String rendered = replaceTokens(prepared, tokens == null ? Map.of() : tokens);
+        if (containsHtmlMarkup(rendered)) {
+            return cleanupEmptyEmailHtml(rendered);
+        }
+        return cleanupPlainTextEmailBody(rendered);
+    }
+
+    private static String removeHtmlContentContainingUnavailableToken(String html, String token) {
+        String withoutBlocks = removeMatchingHtmlElementsContainingToken(
+                html,
+                token,
+                CONDITIONAL_HTML_BLOCK_PATTERN
+        );
+        // Also handle a link inserted directly into a generic container without its own paragraph.
+        return removeMatchingHtmlElementsContainingToken(
+                withoutBlocks,
+                token,
+                CONDITIONAL_HTML_ANCHOR_PATTERN
+        );
+    }
+
+    private static String removeMatchingHtmlElementsContainingToken(
+            String html,
+            String token,
+            Pattern elementPattern
+    ) {
+        Matcher matcher = elementPattern.matcher(html);
+        StringBuffer result = new StringBuffer(html.length());
+        while (matcher.find()) {
+            String element = matcher.group();
+            String textWithoutMarkup = element.replaceAll("(?is)<[^>]+>", "");
+            boolean containsToken = element.contains(token) || textWithoutMarkup.contains(token);
+            matcher.appendReplacement(result, containsToken ? "" : Matcher.quoteReplacement(element));
+        }
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    private static String removePlainTextLinesContainingToken(String value, String token) {
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n');
+        StringBuilder result = new StringBuilder(normalized.length());
+        for (String line : normalized.split("\n", -1)) {
+            if (line.contains(token)) {
+                continue;
+            }
+            if (result.length() > 0) {
+                result.append('\n');
+            }
+            result.append(line);
+        }
+        return result.toString();
+    }
+
+    private static String cleanupEmptyEmailHtml(String html) {
+        String cleaned = EMPTY_HREF_ANCHOR_PATTERN.matcher(html).replaceAll("");
+
+        // Removing an empty inline element can make its parent empty, so repeat until stable.
+        for (int pass = 0; pass < 8; pass++) {
+            String next = EMPTY_HTML_ELEMENT_PATTERN.matcher(cleaned).replaceAll("");
+            if (next.equals(cleaned)) {
+                break;
+            }
+            cleaned = next;
+        }
+
+        cleaned = EXCESSIVE_BREAKS_PATTERN.matcher(cleaned).replaceAll("<br><br>");
+        cleaned = cleaned.replaceAll(
+                "(?is)^(?:\\s|&nbsp;|&#160;|&#xA0;|&#8203;|&#x200B;|\\u200B|<br\\s*/?>)+",
+                ""
+        );
+        cleaned = cleaned.replaceAll(
+                "(?is)(?:\\s|&nbsp;|&#160;|&#xA0;|&#8203;|&#x200B;|\\u200B|<br\\s*/?>)+$",
+                ""
+        );
+        return cleaned.strip();
+    }
+
+    private static String cleanupPlainTextEmailBody(String value) {
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n');
+        return normalized.replaceAll("\\n{3,}", "\n\n").strip();
+    }
+
     private static String replaceTokens(String input, Map<String, String> tokens) {
         if (input == null || input.isEmpty()) {
             return "";
@@ -1134,7 +1270,8 @@ public class ReminderService {
         }
 
         if (containsHtmlMarkup(normalized)) {
-            return normalized;
+            String cleaned = cleanupEmptyEmailHtml(normalized);
+            return cleaned.isBlank() ? " " : cleaned;
         }
 
         String escaped = escapeHtml(normalized);
