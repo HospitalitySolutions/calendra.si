@@ -3461,8 +3461,8 @@ button.transaction-service-modal-close {
 
 @media (max-width: 939px) {
     .booking-side-panel-backdrop {
-        align-items: flex-end;
-        justify-content: center;
+        align-items: stretch;
+        justify-content: flex-start;
         background: rgba(15, 23, 42, 0.36);
         backdrop-filter: blur(3px);
         -webkit-backdrop-filter: blur(3px);
@@ -3471,12 +3471,21 @@ button.transaction-service-modal-close {
     .booking-side-panel.modal.large-modal.calendar-edit-session-panel {
         width: 100vw;
         max-width: 100vw;
-        height: auto;
-        max-height: 92dvh;
-        margin: auto 0 0;
-        border-radius: 28px 28px 0 0;
+        min-height: 100vh;
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        border-radius: 0;
         border: 0;
-        box-shadow: 0 -18px 58px rgba(15, 23, 42, 0.24);
+        box-shadow: none;
+    }
+
+    @supports (height: 100dvh) {
+        .booking-side-panel.modal.large-modal.calendar-edit-session-panel {
+            min-height: 100dvh;
+            height: 100dvh;
+            max-height: 100dvh;
+        }
     }
 
     .calendar-edit-session-panel .booking-side-panel-header {
