@@ -7441,7 +7441,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
-          <Card className={billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell billing-modern-card' : 'billing-modern-card'}>
+          <Card className={`${billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell ' : ''}billing-modern-card billing-modern-card--${billingTab}`}>
             <div className="billing-modern-header">
               <div className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
