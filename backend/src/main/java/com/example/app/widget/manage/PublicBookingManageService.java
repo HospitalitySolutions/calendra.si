@@ -229,6 +229,7 @@ public class PublicBookingManageService {
         return new PublicBookingManageController.BookingManageResponse(
                 company.getTenantCode(),
                 tenantName(company),
+                tenantLogoUrl(company),
                 booking.getType() == null ? "" : booking.getType().getName(),
                 booking.getStartTime() == null ? null : booking.getStartTime().format(DATE_TIME_FORMAT),
                 booking.getEndTime() == null ? null : booking.getEndTime().format(DATE_TIME_FORMAT),
@@ -437,6 +438,27 @@ public class PublicBookingManageService {
                 .filter(s -> !s.isEmpty())
                 .orElse(company.getName());
         return value == null || value.isBlank() ? "Calendra" : value;
+    }
+
+    private String tenantLogoUrl(Company company) {
+        if (company == null || company.getId() == null) return null;
+        String canonicalLogo = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_LOGO_URL)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .orElse(null);
+        if (canonicalLogo != null) return canonicalLogo;
+
+        String guestSettingsJson = settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
+                .map(AppSetting::getValue)
+                .orElse(null);
+        if (guestSettingsJson == null || guestSettingsJson.isBlank()) return null;
+        try {
+            String legacyLogo = JSON.readTree(guestSettingsJson).path("logoImageUrl").asText("").trim();
+            return legacyLogo.isEmpty() ? null : legacyLogo;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private boolean consultantSupportsType(User consultant, SessionType type) {

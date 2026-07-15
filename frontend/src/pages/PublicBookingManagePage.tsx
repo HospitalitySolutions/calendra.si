@@ -7,6 +7,7 @@ import calendraLogo from '../assets/login-logo.png'
 type ManageInfo = {
   tenantCode: string
   tenantName: string
+  tenantLogoUrl?: string | null
   serviceName: string
   currentStart: string
   currentEnd: string
@@ -191,8 +192,19 @@ const pageStyles = `
 
   .public-manage-brand img {
     display: block;
-    width: clamp(145px, 16vw, 205px);
     height: auto;
+    object-fit: contain;
+    object-position: left center;
+  }
+
+  .public-manage-brand-image--calendra {
+    width: clamp(145px, 16vw, 205px);
+  }
+
+  .public-manage-brand-image--tenant {
+    width: auto;
+    max-width: min(300px, 62vw);
+    max-height: 88px;
   }
 
   .public-manage-heading {
@@ -586,8 +598,13 @@ const pageStyles = `
       margin-bottom: 18px;
     }
 
-    .public-manage-brand img {
+    .public-manage-brand-image--calendra {
       width: clamp(122px, 11vw, 154px);
+    }
+
+    .public-manage-brand-image--tenant {
+      max-width: min(260px, 34vw);
+      max-height: 72px;
     }
 
     .public-manage-heading {
@@ -833,6 +850,14 @@ export function PublicBookingManagePage() {
   const [selectedSlot, setSelectedSlot] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState('')
+  const [tenantLogoFailed, setTenantLogoFailed] = useState(false)
+
+  const tenantLogoUrl = info?.tenantLogoUrl?.trim() || ''
+  const useTenantLogo = Boolean(tenantLogoUrl) && !tenantLogoFailed
+
+  useEffect(() => {
+    setTenantLogoFailed(false)
+  }, [tenantLogoUrl])
 
   const copy = useMemo(() => sl ? {
     title: 'Ureditev rezervacije',
@@ -983,7 +1008,12 @@ export function PublicBookingManagePage() {
         <InfoCalendarIllustration />
         <div className="public-manage-content">
           <div className="public-manage-brand">
-            <img src={calendraLogo} alt="Calendra" />
+            <img
+              className={`public-manage-brand-image--${useTenantLogo ? 'tenant' : 'calendra'}`}
+              src={useTenantLogo ? tenantLogoUrl : calendraLogo}
+              alt={useTenantLogo ? (info?.tenantName || 'Company logo') : 'Calendra'}
+              onError={() => setTenantLogoFailed(true)}
+            />
           </div>
 
           <header className="public-manage-heading">
