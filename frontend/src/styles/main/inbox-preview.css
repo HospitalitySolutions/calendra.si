@@ -1283,6 +1283,13 @@ button.analytics-inbox-b-add-attachment:disabled {
     gap: 10px;
 }
 
+.analytics-inbox-b-time-picker.modern-time-picker__trigger {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 11px;
+    font-size: 0.84rem;
+}
+
 .analytics-inbox-b-presets {
     display: flex;
     flex-wrap: wrap;

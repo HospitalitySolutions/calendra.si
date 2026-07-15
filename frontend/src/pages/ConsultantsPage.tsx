@@ -4,6 +4,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
+import { ModernTimePicker } from '../components/ModernTimePicker'
 import { GuestSwitch } from './configuration/ConfigurationVisualComponents'
 import { EmployeeRolesPermissionsTab } from './EmployeeRolesPermissionsTab'
 import { formatDate, fullName } from '../lib/format'
@@ -1039,7 +1040,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 <Field label={t('loginEmailLabel')}>
                   <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite e-pošto' : 'Enter email'} />
                 </Field>
-                {(editing || selfService) ? (
+                {(editing || selfService) && (
                   <Field label={t('employeesFormPassword')} hint={t('employeesFormPasswordHintEdit')}>
                     <div className="employees-password-input-wrap">
                       <input
@@ -1059,11 +1060,6 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       </button>
                     </div>
                   </Field>
-                ) : (
-                  <div className="employees-password-email-notice full-span">
-                    <strong>{t('employeesFormPasswordEmailTitle')}</strong>
-                    <span>{t('employeesFormPasswordEmailText')}</span>
-                  </div>
                 )}
                 <Field label={t('employeesFormPhone')}>
                   <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t('employeesFormPhonePlaceholder')} />
@@ -1176,17 +1172,15 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                               <span className="consultant-wh-all-days-label">{t('employeesFormAllDays')}</span>
                             </div>
                             <div className="consultant-wh-time-col">
-                              <label className="consultant-wh-time-label" htmlFor="wh-all-start">
+                              <span className="consultant-wh-time-label">
                                 {t('employeesFormStart')}
-                              </label>
+                              </span>
                               <div className="consultant-wh-time-input-wrap">
-                                <input
-                                  id="wh-all-start"
+                                <ModernTimePicker
                                   className="consultant-wh-time-input"
-                                  type="time"
                                   value={(form.workingHours.allDays?.start ?? '09:00').slice(0, 5)}
-                                  onChange={(e) => {
-                                    const v = e.target.value
+                                  ariaLabel={t('employeesFormStart')}
+                                  onChange={(v) => {
                                     setForm((f) => ({
                                       ...f,
                                       workingHours: {
@@ -1199,21 +1193,18 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                                     }))
                                   }}
                                 />
-                                <span className="consultant-wh-time-icon" aria-hidden />
                               </div>
                             </div>
                             <div className="consultant-wh-time-col">
-                              <label className="consultant-wh-time-label" htmlFor="wh-all-end">
+                              <span className="consultant-wh-time-label">
                                 {t('employeesFormEnd')}
-                              </label>
+                              </span>
                               <div className="consultant-wh-time-input-wrap">
-                                <input
-                                  id="wh-all-end"
+                                <ModernTimePicker
                                   className="consultant-wh-time-input"
-                                  type="time"
                                   value={(form.workingHours.allDays?.end ?? '17:00').slice(0, 5)}
-                                  onChange={(e) => {
-                                    const v = e.target.value
+                                  ariaLabel={t('employeesFormEnd')}
+                                  onChange={(v) => {
                                     setForm((f) => ({
                                       ...f,
                                       workingHours: {
@@ -1226,7 +1217,6 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                                     }))
                                   }}
                                 />
-                                <span className="consultant-wh-time-icon" aria-hidden />
                               </div>
                             </div>
                           </div>
@@ -1237,7 +1227,6 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                             const active = !!(row?.start && row?.end)
                             const startVal = (row?.start ?? '09:00').slice(0, 5)
                             const endVal = (row?.end ?? '17:00').slice(0, 5)
-                            const idBase = `wh-${day.toLowerCase()}`
                             return (
                               <div
                                 key={day}
@@ -1257,35 +1246,31 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                                   </label>
                                 </div>
                                 <div className="consultant-wh-time-col">
-                                  <label className="consultant-wh-time-label" htmlFor={`${idBase}-start`}>
+                                  <span className="consultant-wh-time-label">
                                     {t('employeesFormStart')}
-                                  </label>
+                                  </span>
                                   <div className="consultant-wh-time-input-wrap">
-                                    <input
-                                      id={`${idBase}-start`}
+                                    <ModernTimePicker
                                       className="consultant-wh-time-input"
-                                      type="time"
                                       disabled={!active}
                                       value={startVal}
-                                      onChange={(e) => setDayHours(day, { start: e.target.value, end: row?.end || '17:00' })}
+                                      ariaLabel={`${t('employeesFormStart')} – ${t(EMPLOYEE_DAY_LABEL_KEY[day])}`}
+                                      onChange={(nextValue) => setDayHours(day, { start: nextValue, end: row?.end || '17:00' })}
                                     />
-                                    <span className="consultant-wh-time-icon" aria-hidden />
                                   </div>
                                 </div>
                                 <div className="consultant-wh-time-col">
-                                  <label className="consultant-wh-time-label" htmlFor={`${idBase}-end`}>
+                                  <span className="consultant-wh-time-label">
                                     {t('employeesFormEnd')}
-                                  </label>
+                                  </span>
                                   <div className="consultant-wh-time-input-wrap">
-                                    <input
-                                      id={`${idBase}-end`}
+                                    <ModernTimePicker
                                       className="consultant-wh-time-input"
-                                      type="time"
                                       disabled={!active}
                                       value={endVal}
-                                      onChange={(e) => setDayHours(day, { start: row?.start || '09:00', end: e.target.value })}
+                                      ariaLabel={`${t('employeesFormEnd')} – ${t(EMPLOYEE_DAY_LABEL_KEY[day])}`}
+                                      onChange={(nextValue) => setDayHours(day, { start: row?.start || '09:00', end: nextValue })}
                                     />
-                                    <span className="consultant-wh-time-icon" aria-hidden />
                                   </div>
                                 </div>
                               </div>

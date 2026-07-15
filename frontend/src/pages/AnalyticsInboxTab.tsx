@@ -6,6 +6,7 @@ import { getStoredUser } from '../auth'
 import { useToast } from '../components/Toast'
 import { Card, EmptyState, Field, Pill, SectionTitle } from '../components/ui'
 import { RichTextEditor } from '../components/RichTextEditor'
+import { ModernTimePicker } from '../components/ModernTimePicker'
 import type { Client, ClientGroup, ClientMessage, InboxChannel, InboxStatus, InboxThread } from '../lib/types'
 import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
@@ -2016,7 +2017,12 @@ export function AnalyticsInboxTab() {
                 <input type="date" value={scheduleDateValue} onChange={(e) => updateScheduleDate(e.target.value)} />
               </label>
               <label>&nbsp;
-                <input type="time" value={scheduleTimeValue} onChange={(e) => updateScheduleTime(e.target.value)} />
+                <ModernTimePicker
+                  className="analytics-inbox-b-time-picker"
+                  value={scheduleTimeValue}
+                  onChange={updateScheduleTime}
+                  ariaLabel={ui.dateAndTime}
+                />
               </label>
             </div>
             <div className="analytics-inbox-b-frequency">

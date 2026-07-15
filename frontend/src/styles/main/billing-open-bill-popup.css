@@ -6148,6 +6148,8 @@
 }
 
 .billing-folio-modal-body {
+  flex: 1;
+  min-height: 0;
   padding: 0 28px 26px;
   overflow: auto;
 }
@@ -6373,17 +6375,22 @@
 
 @media (max-width: 760px) {
   .billing-folio-modal-backdrop.modal-backdrop {
-    padding: 14px;
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
   }
 
   .billing-folio-detail-modal.modal {
-    width: min(100%, calc(100vw - 28px));
-    max-width: min(100%, calc(100vw - 28px));
-    border-radius: 20px;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
   }
 
   .billing-folio-detail-head {
-    padding: 22px 20px 14px;
+    padding: max(22px, env(safe-area-inset-top)) 20px 14px;
   }
 
   .billing-folio-tabs {
@@ -6391,7 +6398,7 @@
   }
 
   .billing-folio-modal-body {
-    padding: 0 20px 22px;
+    padding: 0 20px max(22px, env(safe-area-inset-bottom));
   }
 
   .billing-folio-detail-grid {

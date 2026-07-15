@@ -305,9 +305,14 @@ const referCardStyles = `
   }
   @media (max-width: 560px) {
     .refer-page {
-      padding: 18px;
+      width: 100%;
+      min-height: 100dvh;
+      padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
       gap: 18px;
-      border-radius: 22px;
+      align-content: start;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
     }
     .refer-main-card,
     .refer-stat-card,

@@ -532,146 +532,168 @@ button.calendar-input-picker-btn {
     align-self: flex-start;
 }
 
-.modern-time-picker-popover {
-    --picker-surface: rgba(255, 255, 255, 0.98);
+.modern-time-picker-backdrop {
     position: fixed;
-    z-index: 12000;
-    border: 1px solid rgba(203, 213, 225, 0.88);
-    border-radius: 14px;
-    background: var(--picker-surface);
-    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.16);
-    backdrop-filter: blur(10px);
-    overflow: hidden;
-    overscroll-behavior: contain;
-}
-
-.modern-time-picker-popover::before {
-    content: '';
-    position: absolute;
-    top: -8px;
-    left: var(--modern-time-picker-pointer-x, 28px);
-    width: 14px;
-    height: 14px;
-    background: var(--picker-surface);
-    border-top: 1px solid rgba(203, 213, 225, 0.88);
-    border-left: 1px solid rgba(203, 213, 225, 0.88);
-    transform: rotate(45deg);
-}
-
-.modern-time-picker-popover__quick {
-    padding: 10px 10px 8px;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
-}
-
-.modern-time-picker-popover__quick-title {
-    margin-bottom: 6px;
-    font-size: 0.74rem;
-    font-weight: 800;
-    color: var(--color-text-muted);
-}
-
-.modern-time-picker-popover__quick-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.modern-time-picker-popover__quick-grid button {
-    display: inline-flex;
+    inset: 0;
+    z-index: 13000;
+    display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 30px;
-    border: 1px solid rgba(203, 213, 225, 0.9);
-    border-radius: 8px;
-    background: #fff;
-    color: var(--color-text);
-    padding: 0;
-    text-align: center;
-    font: inherit;
-    font-size: 0.76rem;
-    font-weight: 600;
-    line-height: 1;
-    transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.48);
+    backdrop-filter: blur(5px);
 }
 
-.modern-time-picker-popover__quick-grid button:hover {
-    border-color: rgba(15, 98, 254, 0.4);
-    box-shadow: 0 6px 14px rgba(15, 98, 254, 0.10);
-}
-
-.modern-time-picker-popover__wheel {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: start;
-    gap: 8px;
-    padding: 10px 10px 6px;
-    touch-action: none;
-    overscroll-behavior: contain;
-}
-
-.modern-time-picker-popover__column {
-    min-width: 0;
-    touch-action: none;
+.modern-time-picker-dialog {
+    width: min(320px, calc(100vw - 36px));
+    padding: 20px 20px 12px;
+    border: 1px solid rgba(203, 213, 225, 0.95);
+    border-radius: 22px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.32);
+    outline: none;
     user-select: none;
     -webkit-user-select: none;
 }
 
-.modern-time-picker-popover__column-title {
-    margin-bottom: 6px;
-    font-size: 0.8rem;
-    font-weight: 800;
-    color: var(--color-text-muted);
+.modern-time-picker-dialog__eyebrow {
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 750;
+    letter-spacing: 0.015em;
 }
 
-.modern-time-picker-popover__options {
+.modern-time-picker-dialog__display {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 4px;
-    touch-action: none;
+    margin: 8px 0 16px;
+    color: #0f172a;
+    font-size: 3rem;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: -0.055em;
 }
 
-.modern-time-picker-popover__option {
-    min-height: 30px;
+.modern-time-picker-dialog__display > span {
+    transform: translateY(-2px);
+}
+
+.modern-time-picker-dialog__display button {
+    min-width: 82px;
+    padding: 8px 10px;
     border: 0;
-    border-radius: 8px;
+    border-radius: 10px;
+    background: #eef2f7;
+    color: #334155;
+    font: inherit;
+    line-height: 1;
+    box-shadow: none;
+}
+
+.modern-time-picker-dialog__display button.is-active {
+    background: #dbeafe;
+    color: #145fc8;
+}
+
+.modern-time-picker-dialog__clock {
+    position: relative;
+    width: var(--clock-size, 240px);
+    height: var(--clock-size, 240px);
+    margin: 0 auto;
+    border-radius: 999px;
+    background: #f1f5f9;
+}
+
+.modern-time-picker-dialog__hand {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.modern-time-picker-dialog__hand line {
+    stroke: #2563eb;
+    stroke-width: 2;
+}
+
+.modern-time-picker-dialog__hand circle {
+    fill: #2563eb;
+}
+
+.modern-time-picker-dialog__number {
+    position: absolute;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
     background: transparent;
-    color: #94a3b8;
+    color: #0f172a;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 650;
+    line-height: 1;
+    box-shadow: none;
+}
+
+.modern-time-picker-dialog__number:hover {
+    background: rgba(37, 99, 235, 0.10);
+}
+
+.modern-time-picker-dialog__number.is-selected {
+    background: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 7px 16px rgba(37, 99, 235, 0.26);
+}
+
+.modern-time-picker-dialog__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 52px;
+    padding-top: 8px;
+}
+
+.modern-time-picker-dialog__keyboard {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    color: #64748b;
+}
+
+.modern-time-picker-dialog__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.modern-time-picker-dialog__actions button {
+    min-height: 38px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #2563eb;
     font: inherit;
     font-size: 0.84rem;
-    font-weight: 700;
-    touch-action: none;
-    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    font-weight: 850;
+    box-shadow: none;
 }
 
-.modern-time-picker-popover__option:hover {
-    background: rgba(15, 98, 254, 0.08);
-    color: #2563eb;
-}
-
-.modern-time-picker-popover__option.is-selected {
-    background: rgba(37, 99, 235, 0.12);
-    color: #2563eb;
-}
-
-.modern-time-picker-popover__option.is-faded {
-    color: #cbd5e1;
-}
-
-.modern-time-picker-popover__separator {
-    align-self: center;
-    margin-top: 22px;
-    color: #2563eb;
-    font-size: 1.3rem;
-    line-height: 1;
-    font-weight: 800;
-}
-
-.modern-time-picker-popover__grab {
-    width: 30px;
-    height: 4px;
-    margin: 0 auto 8px;
-    border-radius: 999px;
-    background: #cbd5e1;
+.modern-time-picker-dialog__actions button:hover {
+    background: rgba(37, 99, 235, 0.09);
 }
 
 [data-theme="dark"] .modern-time-picker__trigger {
@@ -684,33 +706,53 @@ button.calendar-input-picker-btn {
     color: var(--color-text);
 }
 
-[data-theme="dark"] .modern-time-picker-popover {
-    --picker-surface: rgba(15, 23, 42, 0.98);
+[data-theme="dark"] .modern-time-picker-dialog {
     border-color: rgba(148, 163, 184, 0.28);
-    box-shadow: 0 24px 64px rgba(2, 6, 23, 0.58);
+    background: #111827;
+    color: #f8fafc;
+    box-shadow: 0 28px 80px rgba(2, 6, 23, 0.68);
 }
 
-[data-theme="dark"] .modern-time-picker-popover__quick {
-    border-bottom-color: rgba(51, 65, 85, 0.9);
-}
-
-[data-theme="dark"] .modern-time-picker-popover__quick-grid button {
-    background: rgba(15, 23, 42, 0.76);
-    border-color: rgba(148, 163, 184, 0.28);
-    color: var(--color-text);
-}
-
-[data-theme="dark"] .modern-time-picker-popover__option {
+[data-theme="dark"] .modern-time-picker-dialog__eyebrow,
+[data-theme="dark"] .modern-time-picker-dialog__keyboard {
     color: #94a3b8;
 }
 
-[data-theme="dark"] .modern-time-picker-popover__option.is-selected {
-    background: rgba(37, 99, 235, 0.18);
-    color: #93c5fd;
+[data-theme="dark"] .modern-time-picker-dialog__display {
+    color: #f8fafc;
 }
 
-[data-theme="dark"] .modern-time-picker-popover__option.is-faded {
-    color: #475569;
+[data-theme="dark"] .modern-time-picker-dialog__display button {
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .modern-time-picker-dialog__display button.is-active {
+    background: rgba(37, 99, 235, 0.26);
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .modern-time-picker-dialog__clock {
+    background: #1e293b;
+}
+
+[data-theme="dark"] .modern-time-picker-dialog__number {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .modern-time-picker-dialog__number.is-selected {
+    color: #ffffff;
+}
+
+@media (max-width: 420px) {
+    .modern-time-picker-backdrop {
+        padding: 12px;
+    }
+
+    .modern-time-picker-dialog {
+        width: min(320px, calc(100vw - 24px));
+        padding-inline: 16px;
+    }
 }
 
 /* --- Responsive: Tablet --- */

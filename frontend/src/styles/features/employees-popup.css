@@ -122,7 +122,8 @@
 }
 
 .employees-form-popup-body input,
-.employees-form-popup-body select {
+.employees-form-popup-body select,
+.employees-form-popup-body .modern-time-picker__trigger {
     min-height: 44px;
     border-radius: 12px;
     border: 1px solid #dfe4ec;
@@ -137,7 +138,9 @@
 }
 
 .employees-form-popup-body input:focus,
-.employees-form-popup-body select:focus {
+.employees-form-popup-body select:focus,
+.employees-form-popup-body .modern-time-picker__trigger:focus-visible,
+.employees-form-popup-body .modern-time-picker__trigger.is-open {
     border-color: rgba(22, 114, 243, 0.72);
     box-shadow: 0 0 0 4px rgba(22, 114, 243, 0.12);
 }
@@ -433,6 +436,7 @@
     .employees-form-popup.modal.large-modal.booking-side-panel {
         width: 100vw;
         max-width: 100vw;
+        height: 100dvh;
         max-height: 100dvh;
         border-radius: 0;
         border-left: 0;
@@ -522,6 +526,7 @@
 
 [data-theme="dark"] .employees-form-popup-body input,
 [data-theme="dark"] .employees-form-popup-body select,
+[data-theme="dark"] .employees-form-popup-body .modern-time-picker__trigger,
 [data-theme="dark"] .employee-form-working-card .consultant-wh-time-input {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(148, 163, 184, 0.24);
