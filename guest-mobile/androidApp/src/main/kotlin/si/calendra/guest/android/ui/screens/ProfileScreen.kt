@@ -727,8 +727,8 @@ fun ProfileScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         tr(
-                            "This will delete and anonymize your Calendra Guest App account, remove this device from push notifications, unlink your subscribed tenants, and sign you out.",
-                            "S tem boste izbrisali oziroma anonimizirali račun Calendra Guest App, odstranili to napravo iz potisnih obvestil, prekinili povezave z naročenimi ponudniki in se odjavili."
+                            "This will delete and anonymize your Calendra Connect account, remove this device from push notifications, unlink your subscribed tenants, and sign you out.",
+                            "S tem boste izbrisali oziroma anonimizirali račun Calendra Connect, odstranili to napravo iz potisnih obvestil, prekinili povezave z naročenimi ponudniki in se odjavili."
                         )
                     )
                     Text(

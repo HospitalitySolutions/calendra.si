@@ -159,11 +159,11 @@ public class GuestAccountDeletionService {
             return;
         }
         boolean sl = language != null && language.toLowerCase(Locale.ROOT).startsWith("sl");
-        String subject = sl ? "Račun Calendra Guest App je bil izbrisan" : "Your Calendra Guest App account was deleted";
+        String subject = sl ? "Račun Calendra Connect je bil izbrisan" : "Your Calendra Connect account was deleted";
         String body = sl ? """
                 Pozdravljeni,
 
-                vaš račun Calendra Guest App je bil izbrisan oziroma anonimiziran.
+                vaš račun Calendra Connect je bil izbrisan oziroma anonimiziran.
 
                 Nekateri podatki se lahko hranijo dlje, če je to potrebno zaradi računovodskih, davčnih, pravnih ali varnostnih obveznosti ponudnika oziroma Calendre.
 
@@ -171,7 +171,7 @@ public class GuestAccountDeletionService {
                 """ : """
                 Hello,
 
-                Your Calendra Guest App account has been deleted or anonymized.
+                Your Calendra Connect account has been deleted or anonymized.
 
                 Some records may be retained for longer where required for accounting, tax, legal, security, or tenant-provider obligations.
 

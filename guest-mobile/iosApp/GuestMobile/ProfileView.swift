@@ -380,8 +380,8 @@ struct ProfileView: View {
         } message: {
             Text(
                 tr(
-                    "This will delete and anonymize your Calendra Guest App account, remove this device from push notifications, unlink your subscribed tenants, and sign you out. Issued invoices, payments, bookings and records that Calendra or a tenant must keep for accounting, tax, legal or security reasons may be retained.",
-                    "S tem boste izbrisali oziroma anonimizirali račun Calendra Guest App, odstranili to napravo iz potisnih obvestil, prekinili povezave z naročenimi ponudniki in se odjavili. Izdani računi, plačila, termini in zapisi, ki jih mora Calendra ali ponudnik hraniti zaradi računovodskih, davčnih, pravnih ali varnostnih razlogov, se lahko hranijo še naprej."
+                    "This will delete and anonymize your Calendra Connect account, remove this device from push notifications, unlink your subscribed tenants, and sign you out. Issued invoices, payments, bookings and records that Calendra or a tenant must keep for accounting, tax, legal or security reasons may be retained.",
+                    "S tem boste izbrisali oziroma anonimizirali račun Calendra Connect, odstranili to napravo iz potisnih obvestil, prekinili povezave z naročenimi ponudniki in se odjavili. Izdani računi, plačila, termini in zapisi, ki jih mora Calendra ali ponudnik hraniti zaradi računovodskih, davčnih, pravnih ali varnostnih razlogov, se lahko hranijo še naprej."
                 )
             )
         }

@@ -330,8 +330,8 @@ private fun CalendarHeader(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Image(
-            painter = painterResource(id = R.drawable.calendra_book_logo),
-            contentDescription = "Calendra Book",
+            painter = painterResource(id = R.drawable.calendra_connect_logo),
+            contentDescription = "Calendra Connect",
             modifier = Modifier
                 .height(30.dp)
                 .width(104.dp),

@@ -193,7 +193,7 @@ public class GuestPasswordResetService {
         String body = sl ? """
                 %s
 
-                Prejeli smo zahtevo za ponastavitev gesla za vaš Calendra Book račun.
+                Prejeli smo zahtevo za ponastavitev gesla za vaš Calendra Connect račun.
                 V aplikaciji vnesite spodnjo potrditveno kodo:
 
                 %s
@@ -203,7 +203,7 @@ public class GuestPasswordResetService {
                 """.formatted(greeting, code) : """
                 %s
 
-                We received a request to reset the password for your Calendra Book account.
+                We received a request to reset the password for your Calendra Connect account.
                 Enter this verification code in the app:
 
                 %s

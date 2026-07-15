@@ -134,11 +134,11 @@ struct WelcomeView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Image(guestBundleResource: "CalendraBookLogo")
+                        Image(guestBundleResource: "CalendraConnectLogo")
                             .resizable()
                             .scaledToFit()
                             .frame(maxWidth: 230, maxHeight: 66, alignment: .leading)
-                            .accessibilityLabel("Calendra Book")
+                            .accessibilityLabel("Calendra Connect")
                             .padding(.top, metrics.topPadding)
 
                         Text(copy.headline)

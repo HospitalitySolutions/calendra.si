@@ -105,7 +105,7 @@ struct HomeView: View {
         let firstName = store.user.firstName.isEmpty ? "Alex" : store.user.firstName
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
-                Image("CalendraBookLogo")
+                Image("CalendraConnectLogo")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 38)

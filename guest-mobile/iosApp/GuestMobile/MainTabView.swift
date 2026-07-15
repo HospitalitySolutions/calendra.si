@@ -590,7 +590,7 @@ struct MainTabView: View {
         let usesHomeHeader = isProfile || isHome || selectedTab == .calendar || selectedTab == .wallet || selectedTab == .inbox
         return HStack(spacing: 0) {
             if usesHomeHeader {
-                Image("CalendraBookLogo")
+                Image("CalendraConnectLogo")
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)
@@ -1164,7 +1164,7 @@ private struct TenantCodeEntrySheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Image("CalendraBookLogo")
+                    Image("CalendraConnectLogo")
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)

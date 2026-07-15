@@ -2164,8 +2164,8 @@ private fun headerProfileInitials(user: GuestUser?): String {
 @Composable
 private fun ProfileTopLogo() {
     Image(
-        painter = painterResource(id = R.drawable.calendra_book_logo),
-        contentDescription = "Calendra Book",
+        painter = painterResource(id = R.drawable.calendra_connect_logo),
+        contentDescription = "Calendra Connect",
         modifier = Modifier
             .height(38.dp)
             .wrapContentWidth(Alignment.Start),

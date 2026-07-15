@@ -137,7 +137,7 @@ struct JoinTenantView: View {
 
     private var brandHeader: some View {
         HStack {
-            Image("CalendraBookLogo")
+            Image("CalendraConnectLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)

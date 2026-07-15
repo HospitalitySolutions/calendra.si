@@ -180,8 +180,8 @@ fun WelcomeScreen(
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.calendra_book_logo),
-                        contentDescription = "Calendra Book",
+                        painter = painterResource(id = R.drawable.calendra_connect_logo),
+                        contentDescription = "Calendra Connect",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .widthIn(max = 230.dp)

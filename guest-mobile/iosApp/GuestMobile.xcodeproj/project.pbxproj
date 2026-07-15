@@ -40,7 +40,7 @@
 		C0A000030000000000000001 /* BookStepEmployeeBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000130000000000000001 /* BookStepEmployeeBackground.png */; };
 		C0A000040000000000000001 /* BookStepDateTimeBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000140000000000000001 /* BookStepDateTimeBackground.png */; };
 		C0A000050000000000000001 /* BookStepPaymentReviewBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */; };
-		CB0A00010000000000000001 /* CalendraBookLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = CB0A00110000000000000001 /* CalendraBookLogo.png */; };
+		CB0A00010000000000000001 /* CalendraConnectLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = CB0A00110000000000000001 /* CalendraConnectLogo.png */; };
 		D1E2F3010000000000000001 /* WalletEmptyEntitlementsIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3110000000000000001 /* WalletEmptyEntitlementsIllustration.png */; };
 		D1E2F3020000000000000001 /* WalletEmptyBuyIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */; };
 		D1E2F3030000000000000001 /* WalletEmptyOrdersIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */; };
@@ -90,7 +90,7 @@
 		C0A000130000000000000001 /* BookStepEmployeeBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepEmployeeBackground.png; sourceTree = "<group>"; };
 		C0A000140000000000000001 /* BookStepDateTimeBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepDateTimeBackground.png; sourceTree = "<group>"; };
 		C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepPaymentReviewBackground.png; sourceTree = "<group>"; };
-		CB0A00110000000000000001 /* CalendraBookLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = CalendraBookLogo.png; sourceTree = "<group>"; };
+		CB0A00110000000000000001 /* CalendraConnectLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = CalendraConnectLogo.png; sourceTree = "<group>"; };
 		D1E2F3110000000000000001 /* WalletEmptyEntitlementsIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyEntitlementsIllustration.png; sourceTree = "<group>"; };
 		D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyBuyIllustration.png; sourceTree = "<group>"; };
 		D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyOrdersIllustration.png; sourceTree = "<group>"; };
@@ -141,7 +141,7 @@
 				A10000150000000000000001 /* PreviewStore.swift */,
 				A10000160000000000000001 /* WelcomeView.swift */,
 				A5A5A5A50000000000000002 /* Assets.xcassets */,
-				CB0A00110000000000000001 /* CalendraBookLogo.png */,
+				CB0A00110000000000000001 /* CalendraConnectLogo.png */,
 				D1E2F3110000000000000001 /* WalletEmptyEntitlementsIllustration.png */,
 				D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */,
 				D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */,
@@ -256,7 +256,7 @@
 			files = (
 				FIREBASERES00000000000001 /* GoogleService-Info.plist in Resources */,
 				A5A5A5A50000000000000001 /* Assets.xcassets in Resources */,
-				CB0A00010000000000000001 /* CalendraBookLogo.png in Resources */,
+				CB0A00010000000000000001 /* CalendraConnectLogo.png in Resources */,
 				F3B9A1002F9A000000000001 /* WelcomeBookingBackground.png in Resources */,
 				A9D0E1000000000000000001 /* HomeBookingBackground.png in Resources */,
 				F3B9A2002F9A000000000002 /* SignupBackground.png in Resources */,
@@ -375,7 +375,7 @@
 				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				INFOPLIST_FILE = GuestMobile/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Book";
+				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Connect";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -407,7 +407,7 @@
 				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				INFOPLIST_FILE = GuestMobile/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Book";
+				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Connect";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
