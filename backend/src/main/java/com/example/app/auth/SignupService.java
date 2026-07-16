@@ -21,6 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -40,6 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -52,7 +54,9 @@ public class SignupService {
     /** When present in {@link SignupEmailIntent} JSON, completing the intent only sets the owner's password (tenant already provisioned). */
     private static final String POST_PROVISION_OWNER_USER_ID = "postProvisionOwnerUserId";
     private static final String SIGNUP_CODE_KEY = "signupCode";
-    private static final long SIGNUP_CODE_TTL_MINUTES = 15L;
+    private static final long SIGNUP_CODE_TTL_MINUTES = 60L;
+    private static final String CALENDRA_LOGO_CONTENT_ID = "calendraSignupVerificationLogo";
+    private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
     private static final int INTENT_TOKEN_BYTES = 32;
 
     private final UserRepository users;
@@ -71,6 +75,9 @@ public class SignupService {
     private final SignupWelcomeEmailService welcomeEmailService;
     private final ReferralService referralService;
     private final SecureRandom secureRandom = new SecureRandom();
+
+    @Value("${app.auth.frontend-url:http://app.calendra.si}")
+    private String frontendBaseUrl = "http://app.calendra.si";
 
     /**
      * Backwards-compatible constructor used by existing unit tests and any manual
@@ -277,7 +284,14 @@ public class SignupService {
         row.setExpiresAt(expiresAt);
         row.setActive(true);
         signupEmailIntents.save(row);
-        sendSignupCodeEmail(normalizedEmail, code);
+        sendSignupCodeEmail(
+                normalizedEmail,
+                code,
+                request.firstName(),
+                localeFromSignupRequest(request),
+                challengeId,
+                request.returnSearch()
+        );
         return ResponseEntity.ok(Map.of(
                 "message", "We sent a verification code to your email.",
                 "requiresEmailVerification", true,
@@ -951,7 +965,14 @@ public class SignupService {
         intentRow.setActive(true);
         signupEmailIntents.save(intentRow);
         if (sendConfirmationEmail) {
-            sendSignupCodeEmail(normalizedEmail, code);
+            sendSignupCodeEmail(
+                    normalizedEmail,
+                    code,
+                    request.firstName(),
+                    localeFromSignupRequest(request),
+                    token,
+                    request.returnSearch()
+            );
         }
         return token;
     }
@@ -1253,7 +1274,14 @@ public class SignupService {
         row.setExpiresAt(expiresAt);
         row.setActive(true);
         signupEmailIntents.save(row);
-        sendSignupCodeEmail(email, code);
+        sendSignupCodeEmail(
+                email,
+                code,
+                stringVal(payload.get("firstName")),
+                localeFromReturnSearch(stringVal(payload.get("returnSearch"))),
+                row.getToken(),
+                stringVal(payload.get("returnSearch"))
+        );
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("message", "We sent a verification code to your email.");
         out.put("challengeId", row.getToken());
@@ -1265,34 +1293,326 @@ public class SignupService {
         return ResponseEntity.ok(out);
     }
 
-    private void sendSignupCodeEmail(String email, String code) {
+    private void sendSignupCodeEmail(
+            String email,
+            String code,
+            String firstName,
+            String localeCode,
+            String challengeId,
+            String returnSearch
+    ) {
         if (!mailConfigured) {
             log.warn("Signup code for {} skipped: mail is not configured.", LogSanitizer.emailHash(email));
             return;
         }
-        String subject = "Your Calendra verification code";
-        String body = """
-                Hello,
 
-                You started creating a Calendra account. Use this code to verify your email and continue:
+        String locale = "sl".equals(supportedSignupLocale(localeCode)) ? "sl" : "en";
+        VerificationEmailCopy copy = verificationEmailCopy(locale);
+        String displayName = firstName == null || firstName.isBlank()
+                ? copy.greetingFallback()
+                : firstName.trim();
+        String verificationUrl = buildSignupVerificationUrl(email, challengeId, returnSearch);
+        String html = buildSignupVerificationHtml(copy, displayName, code, verificationUrl);
+        String plainText = buildSignupVerificationPlainText(copy, displayName, code, verificationUrl);
 
-                %s
-
-                This code expires in %d minutes.
-                If you did not request this, you can ignore this email.
-                """.formatted(code, SIGNUP_CODE_TTL_MINUTES);
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
-            helper.setFrom(mailFrom);
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(mailFrom, "Calendra team");
             helper.setTo(email);
-            helper.setSubject(subject);
-            helper.setText(body, false);
+            helper.setSubject(copy.subject());
+            helper.setText(plainText, html);
+            helper.addInline(
+                    CALENDRA_LOGO_CONTENT_ID,
+                    new ClassPathResource(CALENDRA_LOGO_CLASSPATH),
+                    "image/png"
+            );
             mailSender.send(message);
             log.info("Signup verification code email sent to {}", LogSanitizer.emailHash(email));
         } catch (Exception e) {
             log.warn("Failed sending signup verification code to {}: {}", LogSanitizer.emailHash(email), e.getMessage());
         }
+    }
+
+    private record VerificationEmailCopy(
+            String subject,
+            String previewText,
+            String badge,
+            String title,
+            String greetingPrefix,
+            String greetingFallback,
+            String intro,
+            String expiry,
+            String cta,
+            String ignore,
+            String nextTitle,
+            String stepOneTitle,
+            String stepOneText,
+            String stepTwoTitle,
+            String stepTwoText,
+            String stepThreeTitle,
+            String stepThreeText,
+            String footer
+    ) {
+    }
+
+    private VerificationEmailCopy verificationEmailCopy(String locale) {
+        if ("sl".equals(locale)) {
+            return new VerificationEmailCopy(
+                    "Vaša potrditvena koda za Calendro",
+                    "Uporabite potrditveno kodo za nadaljevanje ustvarjanja računa Calendra.",
+                    "Potrditev e-pošte",
+                    "Potrdite svoj e-poštni naslov",
+                    "Pozdravljeni",
+                    "uporabnik",
+                    "Začeli ste ustvarjati račun Calendra. S spodnjo kodo potrdite svoj e-poštni naslov in nadaljujte.",
+                    "Ta koda poteče čez 1 uro.",
+                    "Potrdi e-pošto",
+                    "Če tega niste zahtevali, lahko to sporočilo prezrete.",
+                    "Kaj sledi?",
+                    "1. Potrdite e-pošto",
+                    "Vnesite zgornjo kodo in potrdite svoj e-poštni naslov.",
+                    "2. Dokončajte račun",
+                    "Nastavite geslo ter dokončajte podatke svojega računa.",
+                    "3. Začnite uporabljati Calendro",
+                    "Upravljajte termine, stranke in poslovne nastavitve na enem mestu.",
+                    "To je informativno sporočilo platforme Calendra."
+            );
+        }
+        return new VerificationEmailCopy(
+                "Your Calendra verification code",
+                "Use your verification code to continue creating your Calendra account.",
+                "Email verification",
+                "Verify your email",
+                "Hello",
+                "there",
+                "You started creating a Calendra account. Use the code below to verify your email and continue.",
+                "This code expires in 1 hour.",
+                "Verify email",
+                "If you did not request this, you can ignore this email.",
+                "What happens next?",
+                "1. Verify your email",
+                "Enter the code above to confirm your email address.",
+                "2. Complete your account",
+                "Set your password and finish your account details.",
+                "3. Start using Calendra",
+                "Manage appointments, clients and business settings in one place.",
+                "This is an informational email from Calendra."
+        );
+    }
+
+    private String buildSignupVerificationUrl(String email, String challengeId, String returnSearch) {
+        LinkedHashMap<String, String> params = new LinkedHashMap<>();
+        String query = returnSearch == null ? "" : returnSearch.trim();
+        if (query.startsWith("?")) {
+            query = query.substring(1);
+        }
+        if (!query.isBlank()) {
+            for (String pair : query.split("&")) {
+                if (pair.isBlank()) continue;
+                String[] keyValue = pair.split("=", 2);
+                String key = urlDecode(keyValue[0]);
+                String value = keyValue.length > 1 ? urlDecode(keyValue[1]) : "";
+                if (!key.isBlank()) {
+                    params.put(key, value);
+                }
+            }
+        }
+        params.put("verifyEmail", "1");
+        params.put("email", email == null ? "" : email);
+        if (challengeId != null && !challengeId.isBlank()) {
+            params.put("challengeId", challengeId);
+        }
+        params.remove("pendingAccountCreation");
+        params.remove("finishVerify");
+        params.remove("existingAccount");
+        params.remove("invalidVerify");
+
+        StringBuilder encoded = new StringBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (!encoded.isEmpty()) encoded.append('&');
+            encoded.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8));
+            encoded.append('=');
+            encoded.append(URLEncoder.encode(entry.getValue() == null ? "" : entry.getValue(), StandardCharsets.UTF_8));
+        }
+        String base = frontendBaseUrl == null || frontendBaseUrl.isBlank()
+                ? "http://app.calendra.si"
+                : frontendBaseUrl.trim();
+        while (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        return base + "/register/account?" + encoded;
+    }
+
+    private String buildSignupVerificationHtml(
+            VerificationEmailCopy copy,
+            String displayName,
+            String code,
+            String verificationUrl
+    ) {
+        String safeName = escapeHtml(displayName);
+        String safeCode = escapeHtml(code);
+        String safeUrl = escapeHtml(verificationUrl);
+        String greeting = escapeHtml(copy.greetingPrefix()) + " " + safeName + ",";
+        return """
+                <!doctype html>
+                <html lang="en">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <meta name="color-scheme" content="light">
+                  <meta name="supported-color-schemes" content="light">
+                  <style>
+                    @media only screen and (max-width: 640px) {
+                      .email-shell { padding: 16px 8px !important; }
+                      .email-content { padding: 28px 20px 24px !important; }
+                      .email-title { font-size: 30px !important; line-height: 1.18 !important; }
+                      .email-logo { width: 180px !important; max-width: 72%% !important; }
+                      .code-box { padding: 24px 12px !important; }
+                      .verification-code { font-size: 42px !important; letter-spacing: 8px !important; }
+                      .step-copy { padding-left: 12px !important; }
+                    }
+                  </style>
+                </head>
+                <body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,'Helvetica Neue',sans-serif;color:#111827;">
+                  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">%s</div>
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="width:100%%;background:#f4f7fb;">
+                    <tr>
+                      <td class="email-shell" align="center" style="padding:28px 14px;">
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width:720px;background:#ffffff;border:1px solid #dfe7f3;border-radius:28px;overflow:hidden;box-shadow:0 14px 40px rgba(31,72,125,.08);">
+                          <tr>
+                            <td class="email-content" style="padding:42px 44px 34px;">
+                              <img class="email-logo" src="cid:%s" alt="Calendra" width="205" style="display:block;width:205px;max-width:75%%;height:auto;border:0;margin:0 0 26px;">
+                              <span style="display:inline-block;padding:7px 14px;border-radius:999px;background:#edf4ff;color:#2563eb;font-size:14px;line-height:1.2;font-weight:700;">%s</span>
+                              <h1 class="email-title" style="margin:24px 0 20px;font-size:38px;line-height:1.18;letter-spacing:-.7px;color:#111827;font-weight:800;">%s</h1>
+                              <p style="margin:0 0 24px;font-size:18px;line-height:1.55;color:#52627a;">%s</p>
+                              <p style="margin:0 0 30px;font-size:18px;line-height:1.65;color:#52627a;">%s</p>
+
+                              <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" class="code-box" style="width:100%%;border:1px solid #cdddf7;border-radius:18px;background:#f8fbff;">
+                                <tr>
+                                  <td align="center" style="padding:30px 18px;">
+                                    <div class="verification-code" style="font-size:54px;line-height:1;font-weight:800;letter-spacing:12px;color:#2563eb;">%s</div>
+                                  </td>
+                                </tr>
+                              </table>
+
+                              <p style="margin:20px 0 24px;text-align:center;font-size:16px;line-height:1.5;color:#64748b;">&#128339;&nbsp; %s</p>
+                              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 20px;">
+                                <tr>
+                                  <td bgcolor="#2563eb" style="border-radius:14px;">
+                                    <a href="%s" style="display:inline-block;padding:16px 34px;color:#ffffff;text-decoration:none;font-size:17px;line-height:1.2;font-weight:700;border-radius:14px;">%s&nbsp; &#8250;</a>
+                                  </td>
+                                </tr>
+                              </table>
+                              <p style="margin:0 0 30px;text-align:center;font-size:15px;line-height:1.55;color:#6b7b91;">%s</p>
+
+                              <div style="height:1px;background:#e7edf5;margin:0 0 26px;"></div>
+                              <h2 style="margin:0 0 18px;font-size:23px;line-height:1.3;color:#172033;font-weight:800;">%s</h2>
+
+                              %s
+                              %s
+                              %s
+
+                              <div style="height:1px;background:#e7edf5;margin:28px 0 22px;"></div>
+                              <p style="margin:0;font-size:14px;line-height:1.5;color:#94a3b8;">%s</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(copy.previewText()),
+                CALENDRA_LOGO_CONTENT_ID,
+                escapeHtml(copy.badge()),
+                escapeHtml(copy.title()),
+                greeting,
+                escapeHtml(copy.intro()),
+                safeCode,
+                escapeHtml(copy.expiry()),
+                safeUrl,
+                escapeHtml(copy.cta()),
+                escapeHtml(copy.ignore()),
+                escapeHtml(copy.nextTitle()),
+                verificationStepHtml("&#9993;", copy.stepOneTitle(), copy.stepOneText()),
+                verificationStepHtml("&#128100;", copy.stepTwoTitle(), copy.stepTwoText()),
+                verificationStepHtml("&#128197;", copy.stepThreeTitle(), copy.stepThreeText()),
+                escapeHtml(copy.footer())
+        );
+    }
+
+    private String verificationStepHtml(String icon, String title, String text) {
+        return """
+                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="width:100%%;margin:0 0 12px;border:1px solid #dfe7f3;border-radius:16px;background:#ffffff;">
+                  <tr>
+                    <td width="58" valign="middle" style="padding:15px 0 15px 16px;">
+                      <div style="width:40px;height:40px;border-radius:50%%;background:#edf4ff;color:#2563eb;text-align:center;line-height:40px;font-size:19px;">%s</div>
+                    </td>
+                    <td class="step-copy" valign="middle" style="padding:14px 16px 14px 10px;">
+                      <div style="font-size:17px;line-height:1.35;font-weight:800;color:#2563eb;margin:0 0 3px;">%s</div>
+                      <div style="font-size:14px;line-height:1.5;color:#718096;">%s</div>
+                    </td>
+                    <td width="26" valign="middle" align="center" style="padding-right:14px;color:#94a3b8;font-size:24px;">&#8250;</td>
+                  </tr>
+                </table>
+                """.formatted(icon, escapeHtml(title), escapeHtml(text));
+    }
+
+    private String buildSignupVerificationPlainText(
+            VerificationEmailCopy copy,
+            String displayName,
+            String code,
+            String verificationUrl
+    ) {
+        return """
+                %s %s,
+
+                %s
+
+                %s
+
+                %s
+
+                %s: %s
+
+                %s
+
+                %s
+                - %s: %s
+                - %s: %s
+                - %s: %s
+
+                %s
+                """.formatted(
+                copy.greetingPrefix(),
+                displayName,
+                copy.intro(),
+                code,
+                copy.expiry(),
+                copy.cta(),
+                verificationUrl,
+                copy.ignore(),
+                copy.nextTitle(),
+                copy.stepOneTitle(),
+                copy.stepOneText(),
+                copy.stepTwoTitle(),
+                copy.stepTwoText(),
+                copy.stepThreeTitle(),
+                copy.stepThreeText(),
+                copy.footer()
+        );
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     /**
