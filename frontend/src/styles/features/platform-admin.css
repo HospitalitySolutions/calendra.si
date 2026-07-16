@@ -277,3 +277,64 @@
 @media(max-width:980px){
   .platform-admin-email-sender-grid{grid-template-columns:1fr}
 }
+
+/* Register catalog item ordering */
+.platform-admin-order-controls{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-height:38px;
+  padding:3px;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:#fff;
+  box-shadow:0 4px 12px rgba(58,89,150,.05);
+}
+.platform-admin-order-position{
+  display:grid;
+  place-items:center;
+  min-width:30px;
+  height:30px;
+  padding:0 7px;
+  border-radius:9px;
+  background:var(--primary-soft);
+  color:var(--primary);
+  font-size:.78rem;
+  font-weight:950;
+  line-height:1;
+}
+.platform-admin-order-button{
+  display:grid;
+  place-items:center;
+  width:32px;
+  height:32px;
+  padding:0;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:var(--primary);
+  font:inherit;
+  font-size:1.05rem;
+  font-weight:950;
+  line-height:1;
+  cursor:pointer;
+  transition:background var(--transition),color var(--transition),transform var(--transition);
+}
+.platform-admin-order-button:hover:not(:disabled){
+  background:var(--primary-soft);
+  transform:translateY(-1px);
+}
+.platform-admin-order-button:focus-visible{
+  outline:3px solid rgba(47,109,246,.22);
+  outline-offset:1px;
+}
+.platform-admin-order-button:disabled{
+  color:#b8c3d6;
+  cursor:not-allowed;
+  opacity:.55;
+}
+@media(max-width:720px){
+  .platform-admin-order-controls{
+    order:-1;
+  }
+}

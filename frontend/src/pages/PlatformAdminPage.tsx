@@ -673,6 +673,22 @@ function normalizeServiceId(value: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
+function moveCatalogItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
+  if (
+    fromIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex < 0 ||
+    toIndex >= items.length ||
+    fromIndex === toIndex
+  ) {
+    return items;
+  }
+  const reordered = [...items];
+  const [moved] = reordered.splice(fromIndex, 1);
+  reordered.splice(toIndex, 0, moved);
+  return reordered;
+}
+
 function addonMapFromItems(
   items: RegisterCatalogAddonItemDto[],
 ): Record<string, number> {
@@ -1366,6 +1382,10 @@ function PlanPricesAdminPanel() {
     setAddonItems((items) => items.filter((_, i) => i !== index));
   };
 
+  const moveAddon = (index: number, direction: -1 | 1) => {
+    setAddonItems((items) => moveCatalogItem(items, index, index + direction));
+  };
+
   const cleanAddonItems = (): RegisterCatalogAddonItemDto[] => {
     const seen = new Set<string>();
     const cleaned: RegisterCatalogAddonItemDto[] = [];
@@ -1418,6 +1438,12 @@ function PlanPricesAdminPanel() {
 
   const removeFeature = (index: number) => {
     setFeatureItems((items) => items.filter((_, i) => i !== index));
+  };
+
+  const moveFeature = (index: number, direction: -1 | 1) => {
+    setFeatureItems((items) =>
+      moveCatalogItem(items, index, index + direction),
+    );
   };
 
   const cleanFeatureItems = (): RegisterCatalogFeatureItemDto[] => {
@@ -1529,7 +1555,7 @@ function PlanPricesAdminPanel() {
         (catalog.featureItems || cleanedFeatures).map((item) => ({ ...item })),
       );
       setOk(
-        "Saved. Visitors will see updated prices, package names, transaction-service mappings, usage prices, add-ons, and included feature text after they reload the register pages.",
+        "Saved. Visitors will see the updated prices, package names, transaction-service mappings, usage prices, add-ons, included feature text, and your selected display order after they reload the register pages.",
       );
     } catch {
       setErr("Could not save catalog.");
@@ -1997,6 +2023,38 @@ function PlanPricesAdminPanel() {
                     </span>
                   </div>
                   <div className="platform-admin-top-actions">
+                    <div
+                      className="platform-admin-order-controls"
+                      role="group"
+                      aria-label={`Reorder ${item.name || "included feature"}`}
+                    >
+                      <span
+                        className="platform-admin-order-position"
+                        aria-label={`Position ${index + 1} of ${featureItems.length}`}
+                      >
+                        {index + 1}
+                      </span>
+                      <button
+                        className="platform-admin-order-button"
+                        type="button"
+                        onClick={() => moveFeature(index, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${item.name || "included feature"} up`}
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="platform-admin-order-button"
+                        type="button"
+                        onClick={() => moveFeature(index, 1)}
+                        disabled={index === featureItems.length - 1}
+                        aria-label={`Move ${item.name || "included feature"} down`}
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
                     <label className="platform-admin-pill" style={{ cursor: "pointer" }}>
                       <input
                         type="checkbox"
@@ -2160,6 +2218,38 @@ function PlanPricesAdminPanel() {
                     </span>
                   </div>
                   <div className="platform-admin-top-actions">
+                    <div
+                      className="platform-admin-order-controls"
+                      role="group"
+                      aria-label={`Reorder ${item.name || "add-on"}`}
+                    >
+                      <span
+                        className="platform-admin-order-position"
+                        aria-label={`Position ${index + 1} of ${addonItems.length}`}
+                      >
+                        {index + 1}
+                      </span>
+                      <button
+                        className="platform-admin-order-button"
+                        type="button"
+                        onClick={() => moveAddon(index, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${item.name || "add-on"} up`}
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="platform-admin-order-button"
+                        type="button"
+                        onClick={() => moveAddon(index, 1)}
+                        disabled={index === addonItems.length - 1}
+                        aria-label={`Move ${item.name || "add-on"} down`}
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
                     <label className="platform-admin-pill" style={{ cursor: "pointer" }}>
                       <input
                         type="checkbox"
