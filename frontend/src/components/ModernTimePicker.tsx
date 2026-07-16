@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocale } from '../locale'
 
@@ -185,6 +185,43 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
     setDraftMinute(minute)
   }, [])
 
+  // Treat the entire clock face as an interactive target, not only the small
+  // number buttons. This makes a single click/tap select the nearest value even
+  // when the pointer lands in the whitespace beside a number or on the clock hand.
+  const handleClockPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const centerX = rect.left + (rect.width / 2)
+    const centerY = rect.top + (rect.height / 2)
+    const deltaX = event.clientX - centerX
+    const deltaY = event.clientY - centerY
+    const distance = Math.hypot(deltaX, deltaY)
+    const clockRadius = Math.min(rect.width, rect.height) / 2
+
+    // Ignore only the tiny centre hub. Everywhere else on the face resolves to
+    // the nearest displayed hour/minute, which removes the need for repeat clicks.
+    if (distance < clockRadius * 0.1) return
+
+    const degrees = ((Math.atan2(deltaY, deltaX) * 180) / Math.PI + 90 + 360) % 360
+    const index = Math.round(degrees / 30) % 12
+
+    if (mode === 'minute') {
+      selectMinute(index * 5)
+      return
+    }
+
+    // The 24-hour clock has an outer 00–11 ring and an inner 12–23 ring.
+    // Resolve the ring from the pointer radius using the midpoint between both
+    // rendered rings, scaled to the actual clock size.
+    const innerOuterThreshold = ((HOUR_INNER_RADIUS + HOUR_OUTER_RADIUS) / 2) / CLOCK_CENTER
+    const isInnerRing = (distance / clockRadius) < innerOuterThreshold
+    selectHour(isInnerRing ? index + 12 : index)
+  }, [mode, selectHour, selectMinute])
+
   const adjustActiveValue = useCallback((delta: number) => {
     if (mode === 'hour') {
       setDraftHour((current) => (current + delta + 24) % 24)
@@ -320,7 +357,11 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
               </button>
             </div>
 
-            <div className="modern-time-picker-dialog__clock" style={{ '--clock-size': `${CLOCK_SIZE}px` } as CSSProperties}>
+            <div
+              className="modern-time-picker-dialog__clock"
+              style={{ '--clock-size': `${CLOCK_SIZE}px` } as CSSProperties}
+              onPointerDown={handleClockPointerDown}
+            >
               <svg className="modern-time-picker-dialog__hand" viewBox={`0 0 ${CLOCK_SIZE} ${CLOCK_SIZE}`} aria-hidden="true">
                 <line x1={CLOCK_CENTER} y1={CLOCK_CENTER} x2={handEnd.x} y2={handEnd.y} />
                 <circle cx={CLOCK_CENTER} cy={CLOCK_CENTER} r="4" />

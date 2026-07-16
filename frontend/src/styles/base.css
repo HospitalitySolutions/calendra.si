@@ -622,6 +622,8 @@ html[data-modern-time-picker-open="true"] body > .modern-time-picker-popover {
     margin: 0 auto;
     border-radius: 999px;
     background: #f1f5f9;
+    cursor: pointer;
+    touch-action: none;
 }
 
 .modern-time-picker-dialog__hand {
