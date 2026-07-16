@@ -236,11 +236,16 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   const dialog = open && typeof document !== 'undefined'
     ? createPortal(
         <div
-          className="modern-time-picker-backdrop"
+          className="modern-time-picker-backdrop modern-time-picker-popover"
+          data-modern-time-picker-portal="true"
           role="presentation"
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
           onMouseDown={(event) => {
+            event.stopPropagation()
             if (event.target === event.currentTarget) closePicker()
           }}
+          onClick={(event) => event.stopPropagation()}
         >
           <div
             ref={dialogRef}
@@ -250,7 +255,10 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
             aria-label={ariaLabel || mergedLabels.selectTime}
             tabIndex={-1}
             onKeyDown={handleDialogKeyDown}
+            onPointerDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="modern-time-picker-dialog__eyebrow">{mergedLabels.selectTime}</div>
             <div className="modern-time-picker-dialog__display" aria-live="polite">

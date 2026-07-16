@@ -479,6 +479,7 @@ export default function CalendarPage() {
   const hideCardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hoverCardRef = useRef<HTMLDivElement>(null)
   const hoveredTimegridRowRef = useRef<HTMLTableRowElement | null>(null)
+  const timegridHoverLineRef = useRef<HTMLDivElement | null>(null)
   const [calendarSlideX, setCalendarSlideX] = useState(0)
   const [calendarIsSwiping, setCalendarIsSwiping] = useState(false)
   const [swipeTransitionActive, setSwipeTransitionActive] = useState(false)
@@ -1204,13 +1205,17 @@ export default function CalendarPage() {
       hoveredTimegridRowRef.current.classList.remove('calendar-hover-row-forced')
       hoveredTimegridRowRef.current = null
     }
+    if (timegridHoverLineRef.current) {
+      timegridHoverLineRef.current.remove()
+      timegridHoverLineRef.current = null
+    }
   }, [])
 
   const updateCalendarHoverRow = useCallback((clientY: number) => {
     if (
       isNativeAndroid ||
-      (view !== 'timeGridWeek' && view !== 'timeGridWorkWeek' && view !== 'timeGridDay' && view !== 'timeGridThreeDay') ||
-      calendarMode !== 'bookings'
+      !isWebTimeGridLikeView(view) ||
+      (calendarMode !== 'bookings' && calendarMode !== 'spaces')
     ) {
       clearForcedHoverRow()
       return
@@ -1236,12 +1241,35 @@ export default function CalendarPage() {
       const r = row.getBoundingClientRect()
       return clientY >= r.top && clientY < r.bottom
     }) ?? null
-    if (hoveredTimegridRowRef.current === nextRow) return
-    clearForcedHoverRow()
-    if (nextRow) {
+    if (!nextRow) {
+      clearForcedHoverRow()
+      return
+    }
+    if (hoveredTimegridRowRef.current !== nextRow) {
+      if (hoveredTimegridRowRef.current) {
+        hoveredTimegridRowRef.current.classList.remove('calendar-hover-row-forced')
+      }
       nextRow.classList.add('calendar-hover-row-forced')
       hoveredTimegridRowRef.current = nextRow
     }
+
+    const columns = host.querySelector('.fc-timegrid-cols') as HTMLElement | null
+    if (!columns) return
+    const rowRect = nextRow.getBoundingClientRect()
+    const columnsRect = columns.getBoundingClientRect()
+    let line = timegridHoverLineRef.current
+    if (!line || !line.isConnected || line.parentElement !== timeGridBody) {
+      line?.remove()
+      line = document.createElement('div')
+      line.className = 'calendar-timegrid-hover-line'
+      line.setAttribute('aria-hidden', 'true')
+      timeGridBody.appendChild(line)
+      timegridHoverLineRef.current = line
+    }
+    line.style.top = `${Math.max(0, rowRect.top - bodyRect.top)}px`
+    line.style.left = `${Math.max(0, columnsRect.left - bodyRect.left)}px`
+    line.style.width = `${Math.max(0, columnsRect.width)}px`
+    line.style.height = `${Math.max(1, rowRect.height)}px`
   }, [isNativeAndroid, view, calendarMode, clearForcedHoverRow])
 
   const handleCalendarMouseMove = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
@@ -3221,6 +3249,61 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const booked = useUnassignedDrawer
       ? bookedAll.filter((ev: any) => ev.resourceId !== (spacesUseResourceColumns ? SPACE_RESOURCE_UNASSIGNED_ID : CONSULTANT_RESOURCE_UNASSIGNED_ID))
       : bookedAll
+	    const bookedAllDayBackground = (() => {
+	      if (isMonthGridView) return []
+	      const byDayAndResource = new Map<string, any>()
+	      const minMinutes = parseHmToMinutes(slotMinTime)
+	      const maxMinutes = parseHmToMinutes(slotMaxTime)
+	      for (const ev of booked) {
+	        if (!ev?.extendedProps?.continuousAllDay) continue
+	        const startYmd = String(ev.start || '').slice(0, 10)
+	        const endExclusiveYmd = String(ev.end || '').slice(0, 10)
+	        const startDay = new Date(`${startYmd}T00:00:00`)
+	        const endExclusiveDay = new Date(`${endExclusiveYmd}T00:00:00`)
+	        if (!Number.isFinite(startDay.getTime()) || !Number.isFinite(endExclusiveDay.getTime()) || endExclusiveDay <= startDay) continue
+
+	        const resourceKey = String(ev.resourceId ?? '__single_calendar_column__')
+	        const sessionColor = normalizeCalendarHexColor(ev.extendedProps?.color)
+	          || normalizeCalendarHexColor(ev.extendedProps?.type?.color)
+	          || CALENDAR_DEFAULT_BOOKED_COLOR
+	        let cursor = new Date(startDay)
+	        let guard = 0
+	        while (cursor < endExclusiveDay && guard < 370) {
+	          const dateKey = toLocalDateString(cursor)
+	          const laneKey = `${dateKey}|${resourceKey}`
+	          if (!byDayAndResource.has(laneKey)) {
+	            const backgroundStart = new Date(cursor)
+	            backgroundStart.setHours(0, 0, 0, 0)
+	            backgroundStart.setMinutes(minMinutes)
+	            const backgroundEnd = new Date(cursor)
+	            backgroundEnd.setHours(0, 0, 0, 0)
+	            backgroundEnd.setMinutes(maxMinutes + (maxMinutes <= minMinutes ? 1440 : 0))
+	            const backgroundEvent: any = {
+	              id: `${ev.id}-all-day-background-${dateKey}-${resourceKey}`,
+	              title: '',
+	              display: 'background',
+	              start: toLocalDateTimeString(backgroundStart),
+	              end: toLocalDateTimeString(backgroundEnd),
+	              editable: false,
+	              startEditable: false,
+	              durationEditable: false,
+	              backgroundColor: ev.extendedProps?.softColor || ev.backgroundColor,
+	              extendedProps: {
+	                kind: 'all-day-session-background',
+	                bookingId: ev.extendedProps?.id,
+	                color: sessionColor,
+	                date: dateKey,
+	              },
+	            }
+	            if (ev.resourceId != null) backgroundEvent.resourceId = ev.resourceId
+	            byDayAndResource.set(laneKey, backgroundEvent)
+	          }
+	          cursor.setDate(cursor.getDate() + 1)
+	          guard += 1
+	        }
+	      }
+	      return Array.from(byDayAndResource.values())
+	    })()
     const bookedBreakBackground = isMonthGridView
       ? []
       : booked.flatMap((ev: any) => {
@@ -4299,13 +4382,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     if (calendarMode === 'spaces') {
       if (spacesUseResourceColumns && bookableEnabled) {
-        return buildOverlapGroupsForCalendar([...nonBookableBackground, ...bookedBreakBackground, ...booked, ...bookable, ...sessionDraftPreviewEvents])
+        return buildOverlapGroupsForCalendar([...nonBookableBackground, ...bookedAllDayBackground, ...bookedBreakBackground, ...booked, ...bookable, ...sessionDraftPreviewEvents])
       }
-      return buildOverlapGroupsForCalendar([...bookedBreakBackground, ...booked, ...sessionDraftPreviewEvents])
+      return buildOverlapGroupsForCalendar([...bookedAllDayBackground, ...bookedBreakBackground, ...booked, ...sessionDraftPreviewEvents])
     }
     return buildOverlapGroupsForCalendar([
       ...nonBookableBackground,
       ...adminStaffColumnsAvailabilityBlocks,
+      ...bookedAllDayBackground,
       ...bookedBreakBackground,
       ...booked,
       ...bookable,
@@ -7937,7 +8021,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       // Don't close the booking form while the meeting provider picker is open
       if (target && target.closest('.meeting-provider-picker-backdrop')) return
       // Time picker popover is rendered in a portal outside the popup container.
-      if (target && target.closest('.modern-time-picker-popover')) return
+      if (target && target.closest('.modern-time-picker-popover, .modern-time-picker-backdrop, .modern-time-picker-dialog, [data-modern-time-picker-portal="true"]')) return
       // Nested modals (new client, overlap / personal confirm) sit outside sessionPopupRef
       if (target && target.closest('.calendar-booking-supplement')) return
       // The client/payee payment manager is rendered outside the booked-session popup.
@@ -10096,8 +10180,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           onTouchMoveCapture={handleCalendarTouchMove}
           onMouseDownCapture={!isNativeAndroid ? handleCalendarSwipeTouchStart : undefined}
           onMouseUpCapture={!isNativeAndroid ? handleCalendarSwipeTouchEnd : undefined}
-          onMouseMoveCapture={!isNativeAndroid ? handleCalendarTouchMove : undefined}
-          onMouseLeave={!isNativeAndroid ? clearDraggingState : undefined}
+          onMouseMoveCapture={!isNativeAndroid ? (event) => {
+            handleCalendarMouseMove(event)
+            handleCalendarTouchMove(event)
+          } : undefined}
+          onMouseLeave={!isNativeAndroid ? () => {
+            handleCalendarMouseLeave()
+            clearDraggingState()
+          } : undefined}
         >
         {isNativeAndroid && (
           <div
@@ -10806,6 +10896,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   || normalizeCalendarHexColor(info.event.extendedProps?.color)
                   || normalizeCalendarHexColor(info.event.backgroundColor),
               )
+            } else if (k === 'all-day-session-background') {
+              applyCalendarSessionColor(
+                info.el,
+                normalizeCalendarHexColor(info.event.extendedProps?.color)
+                  || normalizeCalendarHexColor(info.event.backgroundColor)
+                  || CALENDAR_DEFAULT_BOOKED_COLOR,
+              )
+              info.el.style.pointerEvents = 'none'
             }
 
             const isResourceTimeGrid =
@@ -10850,6 +10948,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                         ? 5
                         : k === 'booked'
                           ? 4
+                          : k === 'all-day-session-background'
+                            ? 2
                           : k === 'booking-break'
                             ? 3
                             : k === 'bookable'
@@ -11026,6 +11126,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 ...(arg.event.extendedProps?.breakConflict ? ['calendar-booking-break-background--conflict'] : []),
               ]
             }
+            if (kind === 'all-day-session-background') {
+              return ['calendar-all-day-session-background']
+            }
             if (kind === 'personal') {
               return [
                 'calendar-event-hover-scale',
@@ -11192,7 +11295,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               }
               return
             }
-            if (props.kind === 'booking-break' || props.kind === 'non-bookable') {
+            if (props.kind === 'booking-break' || props.kind === 'non-bookable' || props.kind === 'all-day-session-background') {
               return
             }
             const start = info.event.start ? toLocalDateTimeString(info.event.start) : selection?.start

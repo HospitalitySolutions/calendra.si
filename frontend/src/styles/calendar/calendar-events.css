@@ -518,15 +518,56 @@
     background: rgba(79, 142, 247, 0.14) !important;
 }
 
-.calendar-mode-spaces .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane {
+.calendar-mode-spaces .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane,
+.calendar-mode-spaces .fc-timegrid-slots tr.calendar-hover-row-forced .fc-timegrid-slot-lane {
     background: rgba(20, 184, 166, 0.10) !important;
 }
 
 /* Keep today's column from receiving row-hover tint. */
 .calendar-mode-bookings .fc-timegrid-col.fc-day-today .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane,
 .calendar-mode-bookings .fc-timegrid-col.fc-day-today .fc-timegrid-slots tr.calendar-hover-row-forced .fc-timegrid-slot-lane,
-.calendar-mode-spaces .fc-timegrid-col.fc-day-today .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane {
+.calendar-mode-spaces .fc-timegrid-col.fc-day-today .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane,
+.calendar-mode-spaces .fc-timegrid-col.fc-day-today .fc-timegrid-slots tr.calendar-hover-row-forced .fc-timegrid-slot-lane {
     background: transparent !important;
+}
+
+/* Pointer-time guide lives above FullCalendar background events, so it remains visible over hatched periods. */
+.calendar-fc-shell .fc-timegrid-body {
+    position: relative;
+}
+
+.calendar-fc-shell .calendar-timegrid-hover-line {
+    position: absolute;
+    z-index: 3;
+    box-sizing: border-box;
+    pointer-events: none;
+    border-top: 1px solid rgba(59, 130, 246, 0.62);
+    background: linear-gradient(
+        to bottom,
+        rgba(59, 130, 246, 0.17) 0,
+        rgba(59, 130, 246, 0.08) 2px,
+        rgba(59, 130, 246, 0.045) 100%
+    );
+}
+
+.calendar-mode-spaces .calendar-timegrid-hover-line {
+    border-top-color: rgba(13, 148, 136, 0.62);
+    background: linear-gradient(
+        to bottom,
+        rgba(20, 184, 166, 0.16) 0,
+        rgba(20, 184, 166, 0.075) 2px,
+        rgba(20, 184, 166, 0.04) 100%
+    );
+}
+
+[data-theme="dark"] .calendar-fc-shell .calendar-timegrid-hover-line {
+    border-top-color: rgba(147, 197, 253, 0.76);
+    background: linear-gradient(
+        to bottom,
+        rgba(96, 165, 250, 0.22) 0,
+        rgba(96, 165, 250, 0.11) 2px,
+        rgba(96, 165, 250, 0.06) 100%
+    );
 }
 
 .fc .fc-timegrid-slot-minor {
@@ -723,6 +764,35 @@
             rgba(15, 23, 42, 0.12) 10px,
             rgba(15, 23, 42, 0.12) 20px
     ) !important;
+}
+
+/* Keep an all-day booking visually present through the whole timed day, while its normal chip remains in the all-day lane. */
+.calendar-mode-bookings .fc-bg-event.calendar-all-day-session-background,
+.calendar-mode-spaces .fc-bg-event.calendar-all-day-session-background {
+    border-radius: 0 !important;
+    margin: 0 !important;
+    inset: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    z-index: 2 !important;
+    opacity: 1 !important;
+    pointer-events: none !important;
+    background-color: var(--calendar-session-bg-strong, rgba(187, 247, 208, 0.58)) !important;
+    background-image: linear-gradient(
+        to right,
+        var(--calendar-session-accent, #16a34a) 0,
+        var(--calendar-session-accent, #16a34a) 3px,
+        transparent 3px
+    ) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--calendar-session-accent, #16a34a) 18%, transparent) !important;
+}
+
+[data-theme="dark"] .calendar-mode-bookings .fc-bg-event.calendar-all-day-session-background,
+[data-theme="dark"] .calendar-mode-spaces .fc-bg-event.calendar-all-day-session-background {
+    background-color: color-mix(in srgb, var(--calendar-session-accent, #16a34a) 24%, #0f172a) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--calendar-session-accent, #16a34a) 34%, transparent) !important;
 }
 
 .calendar-mode-bookings .fc-bg-event.calendar-booking-break-background,
