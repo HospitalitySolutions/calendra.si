@@ -513,14 +513,13 @@
     box-sizing: border-box;
 }
 
+/* The visual hover band is rendered by `.calendar-timegrid-hover-line` below.
+   Keep the native slot-row background transparent so the same tint is not applied twice. */
 .calendar-mode-bookings .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane,
-.calendar-mode-bookings .fc-timegrid-slots tr.calendar-hover-row-forced .fc-timegrid-slot-lane {
-    background: rgba(79, 142, 247, 0.14) !important;
-}
-
+.calendar-mode-bookings .fc-timegrid-slots tr.calendar-hover-row-forced .fc-timegrid-slot-lane,
 .calendar-mode-spaces .fc-timegrid-slots tr:hover .fc-timegrid-slot-lane,
 .calendar-mode-spaces .fc-timegrid-slots tr.calendar-hover-row-forced .fc-timegrid-slot-lane {
-    background: rgba(20, 184, 166, 0.10) !important;
+    background: transparent !important;
 }
 
 /* Keep today's column from receiving row-hover tint. */
@@ -531,7 +530,8 @@
     background: transparent !important;
 }
 
-/* Pointer-time guide lives above FullCalendar background events, so it remains visible over hatched periods. */
+/* Pointer-time guide lives above FullCalendar background events, so the original soft
+   hover band remains visible over both normal and hatched/unavailable periods. */
 .calendar-fc-shell .fc-timegrid-body {
     position: relative;
 }
@@ -541,33 +541,17 @@
     z-index: 3;
     box-sizing: border-box;
     pointer-events: none;
-    border-top: 1px solid rgba(59, 130, 246, 0.62);
-    background: linear-gradient(
-        to bottom,
-        rgba(59, 130, 246, 0.17) 0,
-        rgba(59, 130, 246, 0.08) 2px,
-        rgba(59, 130, 246, 0.045) 100%
-    );
+    border: 0;
+    box-shadow: none;
+    background: rgba(79, 142, 247, 0.14);
 }
 
 .calendar-mode-spaces .calendar-timegrid-hover-line {
-    border-top-color: rgba(13, 148, 136, 0.62);
-    background: linear-gradient(
-        to bottom,
-        rgba(20, 184, 166, 0.16) 0,
-        rgba(20, 184, 166, 0.075) 2px,
-        rgba(20, 184, 166, 0.04) 100%
-    );
+    background: rgba(20, 184, 166, 0.10);
 }
 
 [data-theme="dark"] .calendar-fc-shell .calendar-timegrid-hover-line {
-    border-top-color: rgba(147, 197, 253, 0.76);
-    background: linear-gradient(
-        to bottom,
-        rgba(96, 165, 250, 0.22) 0,
-        rgba(96, 165, 250, 0.11) 2px,
-        rgba(96, 165, 250, 0.06) 100%
-    );
+    background: rgba(96, 165, 250, 0.14);
 }
 
 .fc .fc-timegrid-slot-minor {
@@ -736,13 +720,13 @@
     right: 0 !important;
     top: 0 !important;
     bottom: 0 !important;
-    background-color: rgba(100, 116, 139, 0.16) !important;
+    background-color: rgba(148, 163, 184, 0.045) !important;
     background-image: repeating-linear-gradient(
-            -20deg,
-            rgba(100, 116, 139, 0.32) 0px,
-            rgba(100, 116, 139, 0.32) 10px,
-            rgba(255, 255, 255, 0.12) 10px,
-            rgba(255, 255, 255, 0.12) 20px
+            -24deg,
+            rgba(148, 163, 184, 0.12) 0px,
+            rgba(148, 163, 184, 0.12) 6px,
+            rgba(255, 255, 255, 0.06) 6px,
+            rgba(255, 255, 255, 0.06) 18px
     ) !important;
 }
 
@@ -756,13 +740,13 @@
 
 [data-theme="dark"] .calendar-mode-bookings .fc-bg-event.calendar-non-bookable-background,
 [data-theme="dark"] .calendar-mode-spaces .fc-bg-event.calendar-non-bookable-background {
-    background-color: rgba(71, 85, 105, 0.28) !important;
+    background-color: rgba(71, 85, 105, 0.16) !important;
     background-image: repeating-linear-gradient(
-            -20deg,
-            rgba(148, 163, 184, 0.3) 0px,
-            rgba(148, 163, 184, 0.3) 10px,
-            rgba(15, 23, 42, 0.12) 10px,
-            rgba(15, 23, 42, 0.12) 20px
+            -24deg,
+            rgba(148, 163, 184, 0.18) 0px,
+            rgba(148, 163, 184, 0.18) 6px,
+            rgba(15, 23, 42, 0.06) 6px,
+            rgba(15, 23, 42, 0.06) 18px
     ) !important;
 }
 
