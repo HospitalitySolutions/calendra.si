@@ -90,6 +90,8 @@ management:
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
   platform-alert-emails: ${APP_PLATFORM_ALERT_EMAILS:}
+  platform-admin-emails: ${APP_PLATFORM_ADMIN_EMAILS:${APP_PLATFORM_ALERT_EMAILS:info@calendra.si}}
+  platform-admin-time-zone: ${APP_PLATFORM_ADMIN_TIME_ZONE:Europe/Ljubljana}
   scheduled-job-alerts:
     scan-cron: "${APP_SCHEDULED_JOB_ALERTS_SCAN_CRON:0 */5 * * * *}"
     startup-grace: ${APP_SCHEDULED_JOB_ALERTS_STARTUP_GRACE:PT15M}

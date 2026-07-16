@@ -1,5 +1,6 @@
 package com.example.app.auth;
 
+import com.example.app.admin.TenantCreatedAdminEmailService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
@@ -73,6 +74,9 @@ public class SignupService {
     private final boolean mailConfigured;
     private final SignupWelcomeEmailService welcomeEmailService;
     private final ReferralService referralService;
+
+    @Autowired(required = false)
+    private TenantCreatedAdminEmailService tenantCreatedAdminEmailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -735,6 +739,7 @@ public class SignupService {
         if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
             interval = "MONTHLY";
         }
+        boolean firstBillingDetailsCompletion = settingValue(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, "").isBlank();
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, stringOrEmpty(request.paymentMethod()));
         tryEnsurePlatformSubscriptionOpenBill(
@@ -754,6 +759,16 @@ public class SignupService {
         );
 
         PlatformSubscriptionBillingService.SignupBillingInvoiceResult invoice = tryCreateSignupSubscriptionInvoice(company);
+        if (firstBillingDetailsCompletion) {
+            notifyPlatformAdminTenantCreated(
+                    company,
+                    owner,
+                    normalizedTenantType,
+                    normalizedPackageType,
+                    interval,
+                    request.paymentMethod()
+            );
+        }
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("ok", true);
         response.put("packageType", normalizedPackageType);
@@ -819,6 +834,45 @@ public class SignupService {
                     e.getMessage());
             return new PlatformSubscriptionBillingService.SignupBillingInvoiceResult(null, null, null, null);
         }
+    }
+
+
+    private void notifyPlatformAdminTenantCreated(
+            Company company,
+            User owner,
+            String tenantType,
+            String packageName,
+            String billingInterval,
+            String paymentMethod
+    ) {
+        if (tenantCreatedAdminEmailService == null || company == null) return;
+        String ownerName = owner == null
+                ? ""
+                : ((owner.getFirstName() == null ? "" : owner.getFirstName().trim()) + " "
+                + (owner.getLastName() == null ? "" : owner.getLastName().trim())).trim();
+        tenantCreatedAdminEmailService.notifyAfterCommit(new TenantCreatedAdminEmailService.TenantCreatedDetails(
+                company.getId(),
+                company.getName(),
+                company.getTenantCode(),
+                tenantType,
+                company.getCreatedAt(),
+                "Registracija (spletni obrazec)",
+                ownerName,
+                owner == null ? "" : owner.getEmail(),
+                packageName,
+                billingInterval,
+                paymentMethod,
+                settingValue(company, SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"),
+                settingValue(company, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT")
+        ));
+    }
+
+    private String settingValue(Company company, SettingKey key, String fallback) {
+        if (company == null || company.getId() == null) return fallback;
+        return settings.findByCompanyIdAndKey(company.getId(), key)
+                .map(AppSetting::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .orElse(fallback);
     }
 
     private void sendRegisteredTenantWelcomeEmailSafely(User owner, String companyName, String packageName, String localeCode) {

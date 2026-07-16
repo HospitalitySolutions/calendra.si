@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -98,6 +99,9 @@ public class ManualTenantService {
     private final RegisterCatalogService registerCatalogService;
     private final ObjectMapper objectMapper;
     private final ReferralRewardService referralRewardService;
+
+    @Autowired(required = false)
+    private TenantCreatedAdminEmailService tenantCreatedAdminEmailService;
 
     public ManualTenantService(
             CompanyRepository companies,
@@ -203,6 +207,7 @@ public class ManualTenantService {
         }
         sendManualTenantWelcomeEmailSafely(owner, companyName, packageName, request.language());
         audit(company, actor, "MANUAL_CREATE", "Manual tenant created", "Package: " + packageName + "\nPayment method: " + paymentMethod);
+        notifyPlatformAdminTenantCreated(company, owner, actor, tenantType, packageName, interval, paymentMethod);
         return new ManualTenantResponse(company.getId(), company.getTenantCode(), company.getName(), email, invoice.billId(), invoice.billNumber(), invoice.checkoutUrl(), setting(company.getId(), SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"), setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT"));
     }
 
@@ -255,6 +260,41 @@ public class ManualTenantService {
         audit(company, actor, "MANAGE_ADDONS", "Subscription payment resent", "Bill: " + (invoice.billNumber() == null ? "—" : invoice.billNumber()));
         User owner = users.findFirstByCompanyIdOrderByIdAsc(company.getId()).orElse(null);
         return new ManualTenantResponse(company.getId(), company.getTenantCode(), company.getName(), owner == null ? "" : owner.getEmail(), invoice.billId(), invoice.billNumber(), invoice.checkoutUrl(), setting(company.getId(), SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"), setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT"));
+    }
+
+
+    private void notifyPlatformAdminTenantCreated(
+            Company company,
+            User owner,
+            User actor,
+            String tenantType,
+            String packageName,
+            String billingInterval,
+            String paymentMethod
+    ) {
+        if (tenantCreatedAdminEmailService == null || company == null) return;
+        String actorName = actor == null ? "" : ((stringOrEmpty(actor.getFirstName()) + " " + stringOrEmpty(actor.getLastName())).trim());
+        String actorEmail = actor == null ? "" : stringOrEmpty(actor.getEmail());
+        String createdBy = "Ročno v Platform Admin";
+        if (!actorName.isBlank() || !actorEmail.isBlank()) {
+            createdBy += " – " + (!actorName.isBlank() ? actorName : actorEmail);
+        }
+        String ownerName = owner == null ? "" : ((stringOrEmpty(owner.getFirstName()) + " " + stringOrEmpty(owner.getLastName())).trim());
+        tenantCreatedAdminEmailService.notifyAfterCommit(new TenantCreatedAdminEmailService.TenantCreatedDetails(
+                company.getId(),
+                company.getName(),
+                company.getTenantCode(),
+                tenantType,
+                company.getCreatedAt(),
+                createdBy,
+                ownerName,
+                owner == null ? "" : owner.getEmail(),
+                packageName,
+                billingInterval,
+                paymentMethod,
+                setting(company.getId(), SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"),
+                setting(company.getId(), SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT")
+        ));
     }
 
     private void sendManualTenantWelcomeEmailSafely(User owner, String companyName, String packageName, String localeCode) {
