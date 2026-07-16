@@ -1402,7 +1402,8 @@ export const registerPageStyles = `
         width: auto;
       }
 
-      .register-flow .right-panel .custom-cta--inline {
+      .register-flow .right-panel .custom-cta--inline,
+      .register-flow .right-panel .custom-solution-banner {
         display: none;
       }
 
@@ -2567,21 +2568,105 @@ export const registerPageStyles = `
   box-shadow: 0 7px 17px rgba(36, 99, 235, 0.22);
 }
 
-.register-flow.register-plan-selection-page .custom-cta--inline {
-  position: relative;
-  margin: -2px 0 0;
-  padding: 10px 14px;
-  border-style: solid;
-  border-color: #e0e8f4;
-  border-radius: 11px;
-  background: #fbfdff;
-  font-size: 0.78rem;
+.register-flow.register-plan-selection-page .custom-solution-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin: 2px 0 0;
+  padding: 15px 16px;
+  border: 1px solid #cbdcff;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(47, 109, 246, 0.09), transparent 34%),
+    linear-gradient(100deg, #f3f7ff 0%, #fbfdff 72%, #f6f9ff 100%);
+  box-shadow: 0 8px 20px rgba(47, 109, 246, 0.07);
 }
 
-.register-flow.register-plan-selection-page .custom-cta--inline::before {
-  content: "◫";
-  margin-right: 8px;
-  color: #687893;
+.register-flow.register-plan-selection-page .custom-solution-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 1px solid #cbdcff;
+  border-radius: 50%;
+  background: #edf4ff;
+  color: #2868ef;
+  box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.55);
+}
+
+.register-flow.register-plan-selection-page .custom-solution-icon svg {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.register-flow.register-plan-selection-page .custom-solution-copy {
+  min-width: 0;
+}
+
+.register-flow.register-plan-selection-page .custom-solution-copy h3 {
+  margin: 0;
+  color: #1853d1;
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.register-flow.register-plan-selection-page .custom-solution-copy p {
+  margin: 5px 0 0;
+  color: #5e6f8b;
+  font-size: 0.73rem;
+  line-height: 1.42;
+}
+
+.register-flow.register-plan-selection-page .custom-solution-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 42px;
+  padding: 9px 15px;
+  border: 1px solid #78a2ff;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1853d1;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 11px rgba(47, 109, 246, 0.08);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.register-flow.register-plan-selection-page .custom-solution-button:hover {
+  transform: translateY(-1px);
+  border-color: #2f6df6;
+  background: #ffffff;
+  box-shadow: 0 7px 16px rgba(47, 109, 246, 0.14);
+}
+
+.register-flow.register-plan-selection-page .custom-solution-button:focus-visible {
+  outline: 3px solid rgba(47, 109, 246, 0.2);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1040px) and (min-width: 861px) {
+  .register-flow.register-plan-selection-page .custom-solution-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .register-flow.register-plan-selection-page .custom-solution-button {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 .register-flow.register-plan-selection-page .selected-box {

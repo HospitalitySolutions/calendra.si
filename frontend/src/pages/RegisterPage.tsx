@@ -968,13 +968,26 @@ export function RegisterPage() {
                   })}
                 </div>
 
-                <button
-                  type="button"
-                  className="custom-cta custom-cta--inline"
-                  onClick={openContactModal}
-                >
-                  {pc.customCta}
-                </button>
+                <section className="custom-solution-banner" aria-label={pc.customCta}>
+                  <span className="custom-solution-icon" aria-hidden>
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <path d="M21 14a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v7Z" />
+                      <path d="M8 9h8M8 13h5" />
+                    </svg>
+                  </span>
+                  <div className="custom-solution-copy">
+                    <h3>{pc.customCta}</h3>
+                    <p>{pc.customCtaDescription}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="custom-solution-button"
+                    onClick={openContactModal}
+                  >
+                    <span>{pc.customCtaButton}</span>
+                    <span aria-hidden>→</span>
+                  </button>
+                </section>
 
                 {!isCompactLayout ? (
                   <RegisterPlanAddonSections

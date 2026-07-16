@@ -945,6 +945,8 @@ export type RegisterPlanPageCopy = {
   miniBusiness: [string, string, string];
   planPreviewHeading: string;
   customCta: string;
+  customCtaDescription: string;
+  customCtaButton: string;
   backWebsite: string;
   footerShowDetails: string;
   footerHideDetails: string;
@@ -1037,6 +1039,9 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     ],
     planPreviewHeading: "What’s included in this plan",
     customCta: "Need a custom solution? Contact us",
+    customCtaDescription:
+      "We can prepare a tailored package or adapt the setup to your business needs.",
+    customCtaButton: "Contact us",
     backWebsite: "← Back to website",
     footerShowDetails: "Show estimate details",
     footerHideDetails: "Hide estimate details",
@@ -1129,6 +1134,9 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     ],
     planPreviewHeading: "Kaj vključuje ta paket",
     customCta: "Potrebujete prilagoditev? Kontaktirajte nas",
+    customCtaDescription:
+      "Pripravimo vam paket po meri ali prilagodimo nastavitve vašim potrebam.",
+    customCtaButton: "Kontaktirajte nas",
     backWebsite: "← Nazaj na spletno stran",
     footerShowDetails: "Prikaži podrobnosti ocene",
     footerHideDetails: "Skrij podrobnosti",
