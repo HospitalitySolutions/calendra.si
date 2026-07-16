@@ -976,6 +976,10 @@ export type RegisterPlanPageCopy = {
   contactPlaceholder: string;
   contactCancel: string;
   contactSubmit: string;
+  /** Legacy mailto subject used by contact forms on later registration steps. */
+  contactSubject: string;
+  /** Legacy success notice used by contact forms on later registration steps. */
+  toastOpenMail: string;
   contactSubmitting: string;
   contactErrRequired: string;
   contactErrEmail: string;
@@ -1072,6 +1076,8 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     contactPlaceholder: "Describe your needs…",
     contactCancel: "Cancel",
     contactSubmit: "Send message",
+    contactSubject: "Calendra — Custom solution inquiry",
+    toastOpenMail: "Opening your email client…",
     contactSubmitting: "Sending…",
     contactErrRequired: "Please fill in your name, email, and message.",
     contactErrEmail: "Please enter a valid email address.",
@@ -1168,6 +1174,8 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     contactPlaceholder: "Opišite svoje potrebe …",
     contactCancel: "Prekliči",
     contactSubmit: "Pošlji sporočilo",
+    contactSubject: "Calendra — povpraševanje po prilagoditvi",
+    toastOpenMail: "Odpiram e-poštni program …",
     contactSubmitting: "Pošiljam …",
     contactErrRequired: "Izpolnite ime, e-pošto in sporočilo.",
     contactErrEmail: "Vnesite veljaven e-poštni naslov.",
