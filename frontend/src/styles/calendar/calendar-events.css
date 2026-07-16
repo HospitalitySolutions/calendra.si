@@ -722,11 +722,11 @@
     bottom: 0 !important;
     background-color: rgba(148, 163, 184, 0.045) !important;
     background-image: repeating-linear-gradient(
-            -24deg,
-            rgba(148, 163, 184, 0.12) 0px,
-            rgba(148, 163, 184, 0.12) 6px,
-            rgba(255, 255, 255, 0.06) 6px,
-            rgba(255, 255, 255, 0.06) 18px
+            -45deg,
+            rgba(155, 107, 255, 0.14) 0px,
+            rgba(155, 107, 255, 0.14) 5px,
+            rgba(255, 255, 255, 0.04) 5px,
+            rgba(255, 255, 255, 0.04) 16px
     ) !important;
 }
 
@@ -742,11 +742,11 @@
 [data-theme="dark"] .calendar-mode-spaces .fc-bg-event.calendar-non-bookable-background {
     background-color: rgba(71, 85, 105, 0.16) !important;
     background-image: repeating-linear-gradient(
-            -24deg,
-            rgba(148, 163, 184, 0.18) 0px,
-            rgba(148, 163, 184, 0.18) 6px,
-            rgba(15, 23, 42, 0.06) 6px,
-            rgba(15, 23, 42, 0.06) 18px
+            -45deg,
+            rgba(196, 181, 253, 0.22) 0px,
+            rgba(196, 181, 253, 0.22) 5px,
+            rgba(15, 23, 42, 0.08) 5px,
+            rgba(15, 23, 42, 0.08) 16px
     ) !important;
 }
 
