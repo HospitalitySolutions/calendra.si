@@ -430,55 +430,57 @@ export function RegisterPlanAddonSections({
         </div>
       </section>
 
-      <section
-        ref={featureAddonsSectionRef ?? undefined}
-        id="register-feature-add-ons"
-        className="feature-addons-section"
-        aria-label={pageCopy.featureAddonsAria}
-      >
-        <div className="addons-divider">
-          <span>{pageCopy.featureAddonsDivider}</span>
-        </div>
+      {activeAddonKeys.length > 0 ? (
+        <section
+          ref={featureAddonsSectionRef ?? undefined}
+          id="register-feature-add-ons"
+          className="feature-addons-section"
+          aria-label={pageCopy.featureAddonsAria}
+        >
+          <div className="addons-divider">
+            <span>{pageCopy.featureAddonsDivider}</span>
+          </div>
 
-        <div className="feature-addons-list">
-          {activeAddonKeys.map((addonKey) => {
-            const addon = addonCatalog[addonKey];
-            return (
-              <div key={addonKey} className="feature-addon-card">
-                <label className="feature-addon-card-label">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selection.addons[addonKey])}
-                    onChange={(event) =>
-                      setSelection((current) => ({
-                        ...current,
-                        addons: {
-                          ...current.addons,
-                          [addonKey]: event.target.checked,
-                        },
-                      }))
-                    }
-                  />
-                  <RegisterAddonIcon addonKey={addonKey} />
-                  <span className="addon-meta">
-                    <span className="addon-name">{addon.name}</span>
-                    <span className="addon-desc">{addon.description}</span>
-                  </span>
-                  <span className="addon-price">
-                    +{formatEuro(addon.monthly)}
-                    {pm}
-                  </span>
-                </label>
-              </div>
-            );
-          })}
-        </div>
-        <div
-          ref={featureAddonsEndRef ?? undefined}
-          className="register-feature-addons-end-sentinel"
-          aria-hidden
-        />
-      </section>
+          <div className="feature-addons-list">
+            {activeAddonKeys.map((addonKey) => {
+              const addon = addonCatalog[addonKey];
+              return (
+                <div key={addonKey} className="feature-addon-card">
+                  <label className="feature-addon-card-label">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selection.addons[addonKey])}
+                      onChange={(event) =>
+                        setSelection((current) => ({
+                          ...current,
+                          addons: {
+                            ...current.addons,
+                            [addonKey]: event.target.checked,
+                          },
+                        }))
+                      }
+                    />
+                    <RegisterAddonIcon addonKey={addonKey} />
+                    <span className="addon-meta">
+                      <span className="addon-name">{addon.name}</span>
+                      <span className="addon-desc">{addon.description}</span>
+                    </span>
+                    <span className="addon-price">
+                      +{formatEuro(addon.monthly)}
+                      {pm}
+                    </span>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+          <div
+            ref={featureAddonsEndRef ?? undefined}
+            className="register-feature-addons-end-sentinel"
+            aria-hidden
+          />
+        </section>
+      ) : null}
     </>
   );
 }
@@ -1030,9 +1032,6 @@ export function RegisterPage() {
                 <div className="selected-box">
                   <div>
                     <strong>{planForPreview.name}</strong>
-                    <div className="selected-meta">
-                      {planForPreview.description}
-                    </div>
                   </div>
                   <div className="selected-price-block">
                     <span className="selected-price">

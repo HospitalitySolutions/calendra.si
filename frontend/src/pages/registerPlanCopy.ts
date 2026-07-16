@@ -563,22 +563,23 @@ const cardStrings: Record<
     planCardAnnualNote: (yr: string, discountPercent: string) =>
       `Billed annually at ${yr}/yr (${discountPercent}% off).`,
     planCardAnnualNoteShort: (yr: string) => `Billed annually at ${yr}/yr.`,
-    planCardNotePro: "Best for growing businesses with up to 5 team members.",
+    planCardNotePro: "For growing businesses.",
     planCardNoteBusiness:
-      "Built for larger operations and multi-location teams.",
+      "For larger teams that want the best user experience.",
     trialHighlight: "Free for 14 days",
     trialUnlessCancelled: (priceWithSuffix: string) =>
-      `, then ${priceWithSuffix} unless cancelled.`,
+      `, then ${priceWithSuffix} unless cancelled. For individuals getting started.`,
   },
   sl: {
     planCardAnnualNote: (yr: string, discountPercent: string) =>
       `Letno obračunavanje: ${yr}/leto (popust ${discountPercent} %).`,
     planCardAnnualNoteShort: (yr: string) => `Letno obračunavanje: ${yr}/leto.`,
-    planCardNotePro: "Za rastoča podjetja z do 5 člani ekipe.",
-    planCardNoteBusiness: "Za večje operacije in ekipe na več lokacijah.",
+    planCardNotePro: "Za rastoča podjetja.",
+    planCardNoteBusiness:
+      "Za večje ekipe, ki želijo najboljšo uporabniško izkušnjo.",
     trialHighlight: "Prvih 14 dni brezplačno",
     trialUnlessCancelled: (priceWithSuffix: string) =>
-      `, nato ${priceWithSuffix}, razen če prekličete.`,
+      `, nato ${priceWithSuffix}, razen če prekličete. Za posameznike, ki začenjajo.`,
   },
 };
 
@@ -940,9 +941,9 @@ export type RegisterPlanPageCopy = {
   badgeRecommended: string;
   badgePremium: string;
   badgeTrial14: string;
-  miniBasic: [string, string, string];
-  miniPro: [string, string, string];
-  miniBusiness: [string, string, string];
+  miniBasic: [string, string];
+  miniPro: [string, string];
+  miniBusiness: [string, string];
   planPreviewHeading: string;
   customCta: string;
   customCtaDescription: string;
@@ -1028,19 +1029,16 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     badgePremium: "Premium",
     badgeTrial14: "14-day free trial",
     miniBasic: [
-      "Simple booking page",
-      "Email confirmations",
-      "Single user setup",
+      "Email support",
+      "30-minute introductory call",
     ],
     miniPro: [
-      "Payments and reminders",
-      "Up to 5 team members",
-      "Group and resource scheduling",
+      "Phone support",
+      "60-minute personal onboarding",
     ],
     miniBusiness: [
-      "Unlimited staff and resources",
-      "Advanced reporting",
-      "Multi-location control",
+      "24/7 support",
+      "Comprehensive personal onboarding and setup assistance",
     ],
     planPreviewHeading: "What’s included in this plan",
     customCta: "Need a custom solution? Contact us",
@@ -1126,19 +1124,16 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     badgePremium: "Premium",
     badgeTrial14: "14-dnevni brezplačni preizkus",
     miniBasic: [
-      "Preprosta stran za rezervacije",
-      "E-poštne potrditve",
-      "Nastavitev za enega uporabnika",
+      "E-poštna podpora",
+      "30-minutni predstavitveni klic",
     ],
     miniPro: [
-      "Plačila in opomniki",
-      "Do 5 članov ekipe",
-      "Skupinsko naročanje in razporeditev virov",
+      "Telefonska podpora",
+      "60-minutno osebno uvajanje",
     ],
     miniBusiness: [
-      "Neomejeno osebja in virov",
-      "Napredno poročanje",
-      "Upravljanje več lokacij",
+      "24/7 podpora",
+      "Celovito osebno uvajanje in pomoč pri nastavitvi",
     ],
     planPreviewHeading: "Kaj vključuje ta paket",
     customCta: "Potrebujete prilagoditev? Kontaktirajte nas",
