@@ -1,6 +1,7 @@
 package com.example.app.auth;
 
 import com.example.app.logging.LogSanitizer;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ public class SignupWelcomeEmailService {
     private static final Logger log = LoggerFactory.getLogger(SignupWelcomeEmailService.class);
     private static final String CALENDRA_LOGO_CONTENT_ID = "calendraSignupLogo";
     private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
+    private static final String CALENDRA_TEAM_SENDER_NAME = "Calendra ekipa";
 
     public record PricingSummaryRequest(
             Integer totalUsers,
@@ -209,7 +211,8 @@ public class SignupWelcomeEmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setTo(recipientEmail.trim());
             if (!fallbackFrom.isBlank()) {
-                helper.setFrom(fallbackFrom);
+                InternetAddress configuredFrom = new InternetAddress(fallbackFrom);
+                helper.setFrom(configuredFrom.getAddress(), CALENDRA_TEAM_SENDER_NAME);
             }
             helper.setSubject(copy.subject());
             helper.setText(plainText, html);

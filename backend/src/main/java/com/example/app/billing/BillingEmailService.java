@@ -9,6 +9,7 @@ import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.logging.LogSanitizer;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -28,6 +29,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class BillingEmailService {
     private static final Logger log = LoggerFactory.getLogger(BillingEmailService.class);
+    private static final String PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX = "CALENDRA-SUBSCRIPTION:";
+    private static final String CALENDRA_TEAM_SENDER_NAME = "Calendra ekipa";
     private static final String DEFAULT_INVOICE_SUBJECT = "Invoice {{invoiceNumber}} from {{companyName}}";
     private static final String DEFAULT_INVOICE_BODY = """
             Hello {{guestName}},
@@ -446,13 +449,32 @@ public class BillingEmailService {
         return null;
     }
 
-    private void applyClientSender(MimeMessageHelper helper, Bill bill) throws jakarta.mail.MessagingException {
+    private void applyClientSender(MimeMessageHelper helper, Bill bill) throws Exception {
+        if (isPlatformSubscriptionBill(bill)) {
+            InternetAddress configuredFrom = new InternetAddress(resolveFromAddress());
+            helper.setFrom(configuredFrom.getAddress(), CALENDRA_TEAM_SENDER_NAME);
+            if (emailSenderResolver != null) {
+                emailSenderResolver.applyReplyTo(
+                        helper,
+                        bill.getCompany(),
+                        TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION
+                );
+            }
+            return;
+        }
         if (emailSenderResolver != null) {
             emailSenderResolver.applyFrom(helper, bill == null ? null : bill.getCompany(), TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
             emailSenderResolver.applyReplyTo(helper, bill == null ? null : bill.getCompany(), TenantEmailSenderResolver.EmailPurpose.CLIENT_NOTIFICATION);
             return;
         }
         helper.setFrom(resolveFromAddress());
+    }
+
+    private boolean isPlatformSubscriptionBill(Bill bill) {
+        if (bill == null) return false;
+        String reference = bill.getBankTransferReference();
+        return reference != null
+                && reference.trim().startsWith(PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX);
     }
 
     private String resolveFromAddress() {

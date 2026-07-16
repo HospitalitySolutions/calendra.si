@@ -552,6 +552,17 @@ public class SignupService {
     ) {
         deactivateSignupIntentsForEmail(normalizedEmail);
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
+        String interval = normalizeBillingInterval(request.billingInterval());
+        boolean basicMonthlyTrial = isBasicMonthlyTrial(normalizedPackageType, interval);
+        int selectedUserCount = basicMonthlyTrial
+                ? 1
+                : Math.max(1, request.userCount() == null ? 1 : request.userCount());
+        int selectedSmsCount = basicMonthlyTrial
+                ? 0
+                : Math.max(0, request.smsCount() == null ? 0 : request.smsCount());
+        List<String> selectedAddonKeys = basicMonthlyTrial
+                ? List.of()
+                : resolveSelectedAddonKeys(request);
         String companyName = resolveCompanyName(request);
         Company company = companyProvisioningService.createWithTenantCode(companyName);
 
@@ -582,24 +593,19 @@ public class SignupService {
             seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
         }
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
-        seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
-        seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
+        seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
+        seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, "");
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
-        List<String> selectedAddonKeys = resolveSelectedAddonKeys(request);
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(selectedUserCount));
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.SIGNUP_ADDON_KEYS, String.join(",", selectedAddonKeys));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, String.join(",", selectedAddonKeys));
         seedSetting(company, SettingKey.SIGNUP_FISCALIZATION_REQUIRED, String.valueOf(Boolean.TRUE.equals(request.fiscalizationNeeded())));
         int spaceQuota = Math.max(1, request.spaceCount() == null ? 5 : request.spaceCount());
         seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, String.valueOf(spaceQuota));
         seedSetting(company, SettingKey.TENANCY_SMS_SENT_COUNT, "0");
-        String interval = request.billingInterval() == null ? "MONTHLY" : request.billingInterval().trim().toUpperCase(Locale.ROOT);
-        if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
-            interval = "MONTHLY";
-        }
         LocalDate subStart = LocalDate.now(ZoneId.systemDefault());
         LocalDate subEnd = "TRIAL".equals(normalizedPackageType)
                 ? subStart.plusDays(7)
@@ -620,8 +626,8 @@ public class SignupService {
                 normalizedPackageType,
                 interval,
                 null,
-                Math.max(1, request.userCount() == null ? 1 : request.userCount()),
-                Math.max(0, request.smsCount() == null ? 0 : request.smsCount()),
+                selectedUserCount,
+                selectedSmsCount,
                 selectedAddonKeys
         );
 
@@ -716,10 +722,20 @@ public class SignupService {
         seedSetting(company, SettingKey.COMPANY_CITY, stringOrEmpty(request.city()));
 
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
+        String interval = normalizeBillingInterval(request.billingInterval());
+        boolean basicMonthlyTrial = isBasicMonthlyTrial(normalizedPackageType, interval);
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
-        int selectedUserCount = Math.max(1, request.userCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_USER_COUNT, 1) : request.userCount());
-        int selectedSmsCount = Math.max(0, request.smsCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_SMS_COUNT, 0) : request.smsCount());
-        List<String> selectedAddonKeys = request.addonKeys() == null ? parseAddonKeyCsv(settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse("")) : sanitizeAddonKeys(request.addonKeys());
+        int selectedUserCount = basicMonthlyTrial
+                ? 1
+                : Math.max(1, request.userCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_USER_COUNT, 1) : request.userCount());
+        int selectedSmsCount = basicMonthlyTrial
+                ? 0
+                : Math.max(0, request.smsCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_SMS_COUNT, 0) : request.smsCount());
+        List<String> selectedAddonKeys = basicMonthlyTrial
+                ? List.of()
+                : (request.addonKeys() == null
+                        ? parseAddonKeyCsv(settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""))
+                        : sanitizeAddonKeys(request.addonKeys()));
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
@@ -735,10 +751,6 @@ public class SignupService {
         seedGuestAppTenantType(company, normalizedTenantType);
         applyModuleConfigPreset(company, normalizedTenantType, normalizedPackageType);
 
-        String interval = request.billingInterval() == null ? "MONTHLY" : request.billingInterval().trim().toUpperCase(Locale.ROOT);
-        if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
-            interval = "MONTHLY";
-        }
         boolean firstBillingDetailsCompletion = settingValue(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, "").isBlank();
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, stringOrEmpty(request.paymentMethod()));
@@ -1836,6 +1848,15 @@ public class SignupService {
             s.setValue(value);
             settings.save(s);
         });
+    }
+
+    private static String normalizeBillingInterval(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) return "MONTHLY";
+        return "YEARLY".equals(rawValue.trim().toUpperCase(Locale.ROOT)) ? "YEARLY" : "MONTHLY";
+    }
+
+    private static boolean isBasicMonthlyTrial(String normalizedPackageType, String normalizedBillingInterval) {
+        return "BASIC".equals(normalizedPackageType) && "MONTHLY".equals(normalizedBillingInterval);
     }
 
     private String normalizePackageType(String rawValue, String fallback) {

@@ -182,6 +182,11 @@ public class PlatformSubscriptionBillingService {
             return;
         }
 
+        boolean basicMonthlyTrial = plan.packageType() == PackageType.BASIC && plan.interval() == BillingInterval.MONTHLY;
+        int effectiveUserCount = basicMonthlyTrial ? 1 : Math.max(1, userCount == null ? 1 : userCount);
+        int effectiveSmsCount = basicMonthlyTrial ? 0 : Math.max(0, smsCount == null ? 0 : smsCount);
+        List<String> effectiveAddonKeys = basicMonthlyTrial ? List.of() : addonKeys;
+
         String email = owner == null ? null : trimToNull(owner.getEmail());
         String phone = owner == null ? null : trimToNull(owner.getPhone());
         String firstName = owner == null ? null : trimToNull(owner.getFirstName());
@@ -205,9 +210,9 @@ public class PlatformSubscriptionBillingService {
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0"));
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0"));
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, ""));
-        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(Math.max(1, userCount == null ? 1 : userCount)));
-        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(Math.max(0, smsCount == null ? 0 : smsCount)));
-        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, joinAddonKeys(addonKeys));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(effectiveUserCount));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(effectiveSmsCount));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, joinAddonKeys(effectiveAddonKeys));
 
         OpenBill open = openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(platformCompany.getId(), referenceForTenant(tenantCompany.getId()))
                 .orElseGet(() -> {
@@ -225,7 +230,7 @@ public class PlatformSubscriptionBillingService {
         open.setSessionBooking(null);
         open.setBookingGroupKey(null);
         open.setBillType(BillType.INVOICE);
-        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantCompany.getId(), userCount, smsCount, addonKeys, 0, 0, List.of());
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantCompany.getId(), effectiveUserCount, effectiveSmsCount, effectiveAddonKeys, 0, 0, List.of());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
 
         openBills.save(open);

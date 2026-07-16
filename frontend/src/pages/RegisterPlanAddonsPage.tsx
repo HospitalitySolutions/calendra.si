@@ -39,6 +39,10 @@ export function RegisterPlanAddonsPage() {
   const [registerCatalogRevision, setRegisterCatalogRevision] = useState(0)
   const pc = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
   const plansLoc = useMemo(() => plansForLocale(lang), [lang, registerCatalogRevision])
+  const hasFeatureAddons = useMemo(
+    () => getActiveAddonKeys().length > 0,
+    [registerCatalogRevision],
+  )
   const pm = lang === 'sl' ? '/mes.' : '/mo'
   const { showToast } = useToast()
   const [selection, setSelection] = useState<RegisterSelection>(() => parseRegisterSelection(location.search))
@@ -95,6 +99,11 @@ export function RegisterPlanAddonsPage() {
     const parsed = parseRegisterSelection(location.search)
     setSelection((prev) => (selectionToSearch(prev) === selectionToSearch(parsed) ? prev : parsed))
   }, [location.search])
+
+  useEffect(() => {
+    if (hasFeatureAddons) return
+    navigate(`/register/account?${selectionToSearch(selection)}`, { replace: true })
+  }, [hasFeatureAddons, navigate, selection])
 
   const summary = useMemo(() => buildSummary(selection, lang), [selection, lang, registerCatalogRevision])
   const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection, registerCatalogRevision])
@@ -169,6 +178,8 @@ export function RegisterPlanAddonsPage() {
     setContactPhone('')
     setContactMessage('')
   }
+
+  if (!hasFeatureAddons) return null
 
   return (
     <div className="register-flow">

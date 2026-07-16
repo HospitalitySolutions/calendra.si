@@ -18,7 +18,6 @@ import {
   getEstimatedUserCount,
   parseRegisterSelection,
   registerPlanToPackage,
-  selectionToSearch,
 } from "./registerFlow";
 import {
   buildRegisterFooterPill,
@@ -839,7 +838,7 @@ const registerBillingDetailsStyles = `
     .register-billing-footer-actions {
       width: 100%;
       display: grid;
-      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      grid-template-columns: 1fr;
       gap: 8px;
     }
 
@@ -1163,10 +1162,6 @@ export function RegisterBillingDetailsPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const backToAccount = () => {
-    navigate(`/register/account?${selectionToSearch(selection)}`);
   };
 
   const openContactSales = () => {
@@ -1643,14 +1638,6 @@ export function RegisterBillingDetailsPage() {
             </div>
 
             <div className="register-footer-continue register-billing-footer-actions">
-              <button
-                type="button"
-                className="register-billing-back"
-                onClick={backToAccount}
-              >
-                <span aria-hidden="true">←</span>
-                <span>{copy.back}</span>
-              </button>
               <button
                 type="submit"
                 form="register-billing-form"

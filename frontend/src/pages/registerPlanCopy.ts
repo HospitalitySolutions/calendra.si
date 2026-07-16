@@ -1,5 +1,6 @@
 import {
   getBillableAdditionalUserSlots,
+  isBasicMonthlyTrial,
   type RegisterBillingCycle,
   type RegisterPlanKey,
   type RegisterSelection,
@@ -731,6 +732,7 @@ export function getActiveAddonKeys() {
 }
 
 export function countSelectedAddons(selection: RegisterSelection) {
+  if (isBasicMonthlyTrial(selection)) return 0;
   const active = getActiveAddonKeys();
   return active.reduce(
     (count, key) => count + (selection.addons?.[key] ? 1 : 0),
@@ -752,22 +754,24 @@ export function selectionRequiresBillingDetails(selection: RegisterSelection) {
 
 export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   const selectedPlan = selection.plan;
-  const planMonthly =
-    selectedPlan === "basic" && selection.billing === "monthly"
-      ? 0
-      : planCore[selectedPlan].monthly;
+  const trialLocked = isBasicMonthlyTrial(selection);
+  const planMonthly = trialLocked ? 0 : planCore[selectedPlan].monthly;
   const usersMonthly =
     getBillableAdditionalUserSlots(selection) *
     usagePrices.additionalUserMonthly;
-  const smsMonthly = selection.additionalSms * usagePrices.smsPerMessage;
+  const smsMonthly = trialLocked
+    ? 0
+    : selection.additionalSms * usagePrices.smsPerMessage;
   const addons = addonMonthly("en");
-  const addonsMonthly = Object.entries(selection.addons || {}).reduce(
-    (sum, [addonKey, selected]) => {
-      if (!selected) return sum;
-      return sum + (addons[addonKey]?.monthly ?? 0);
-    },
-    0,
-  );
+  const addonsMonthly = trialLocked
+    ? 0
+    : Object.entries(selection.addons || {}).reduce(
+        (sum, [addonKey, selected]) => {
+          if (!selected) return sum;
+          return sum + (addons[addonKey]?.monthly ?? 0);
+        },
+        0,
+      );
 
   return {
     planMonthly,
@@ -794,13 +798,14 @@ export function buildSummary(
   const pm = perMo[locale];
   const planNames = plansForLocale(locale);
   const addons = getAddonCatalog(locale);
+  const trialLocked = isBasicMonthlyTrial(selection);
 
   const planLabel = (key: RegisterPlanKey) =>
     locale === "sl"
       ? `${planNames[key].name} paket`
       : `${planNames[key].name} plan`;
 
-  if (selection.plan === "basic" && selection.billing === "monthly") {
+  if (trialLocked) {
     rows.push({
       label: planLabel("basic"),
       value: locale === "sl" ? "€0 zdaj" : "€0 now",
@@ -835,7 +840,7 @@ export function buildSummary(
     });
   }
 
-  if (selection.additionalSms > 0) {
+  if (!trialLocked && selection.additionalSms > 0) {
     rows.push({
       label:
         locale === "sl"
@@ -845,18 +850,20 @@ export function buildSummary(
     });
   }
 
-  Object.entries(selection.addons || {}).forEach(([addonKey, selected]) => {
-    if (!selected) return;
-    const addon = addons[addonKey];
-    if (!addon) return;
-    const displayValue =
-      selection.billing === "annual"
-        ? `${formatEuro(addon.monthly * annualDiscountFactor())}${pm}`
-        : `${formatEuro(addon.monthly)}${pm}`;
-    rows.push({ label: addon.name, value: displayValue });
-  });
+  if (!trialLocked) {
+    Object.entries(selection.addons || {}).forEach(([addonKey, selected]) => {
+      if (!selected) return;
+      const addon = addons[addonKey];
+      if (!addon) return;
+      const displayValue =
+        selection.billing === "annual"
+          ? `${formatEuro(addon.monthly * annualDiscountFactor())}${pm}`
+          : `${formatEuro(addon.monthly)}${pm}`;
+      rows.push({ label: addon.name, value: displayValue });
+    });
+  }
 
-  if (selection.plan === "basic" && selection.billing === "monthly") {
+  if (trialLocked) {
     const addOnsOnly =
       monthly.usersMonthly + monthly.smsMonthly + monthly.addonsMonthly;
     const zeroAddons = locale === "sl" ? "€0 zdaj" : "€0 now";

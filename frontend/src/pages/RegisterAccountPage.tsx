@@ -2615,9 +2615,6 @@ export function RegisterAccountPage() {
                     <strong className="register-account-summary-plan-name">
                       {selectedPlan.name}
                     </strong>
-                    <p className="register-account-summary-plan-description">
-                      {selectedPlan.description}
-                    </p>
                   </div>
                   <div className="register-account-summary-price">
                     <strong>{selectedPlanDisplay.primary}</strong>

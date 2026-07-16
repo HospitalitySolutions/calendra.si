@@ -22,6 +22,8 @@ import { useRegisterFooterClickOutside } from "../lib/useRegisterFooterClickOuts
 import { registerPageStyles } from "./registerPageStyles";
 import {
   getBillableAdditionalUserSlots,
+  isBasicMonthlyTrial,
+  normalizeRegisterSelection,
   parseRegisterSelection,
   selectionToSearch,
   type RegisterPlanKey,
@@ -214,19 +216,31 @@ export function RegisterPlanAddonSections({
     locale === "sl"
       ? `${formatEuro(smsPerMessage)} na SMS (${formatEuro(smsPerMessage * 50)} na 50)`
       : `${formatEuro(smsPerMessage)} per SMS (${formatEuro(smsPerMessage * 50)} per 50)`;
+  const trialLocked = isBasicMonthlyTrial(selection);
+  const trialLockedNote =
+    locale === "sl"
+      ? "Med 14-dnevnim preizkusom so vključeni 1 uporabnik, 0 SMS sporočil in brez dodatkov. Dodatke lahko nastavite za naslednje obračunsko obdobje v Upravljanje računa → Naročnina."
+      : "The 14-day trial includes 1 user, 0 SMS messages, and no add-ons. You can schedule add-ons for the next billing period under Account management → Subscription.";
 
   return (
     <>
       <section
-        className="slider-section"
+        className={`slider-section${trialLocked ? " is-trial-locked" : ""}`}
         aria-label={pageCopy.usageAddonsSectionAria}
       >
         <div className="section-divider">
           <span>{pageCopy.usageAddonsDivider}</span>
         </div>
 
+        {trialLocked ? (
+          <div className="register-trial-addons-note" role="note">
+            <span aria-hidden>ⓘ</span>
+            <span>{trialLockedNote}</span>
+          </div>
+        ) : null}
+
         <div className="slider-stack">
-          <div className="slider-card">
+          <div className={`slider-card${trialLocked ? " is-trial-locked" : ""}`}>
             <div className="slider-head">
               <div className="slider-heading-group">
                 <RegisterUsageIcon kind="users" />
@@ -250,7 +264,7 @@ export function RegisterPlanAddonSections({
                       ),
                     }))
                   }
-                  disabled={selection.additionalUsers <= 1}
+                  disabled={trialLocked || selection.additionalUsers <= 1}
                   aria-label={
                     locale === "sl"
                       ? "Zmanjšaj število uporabnikov"
@@ -271,7 +285,7 @@ export function RegisterPlanAddonSections({
                       ),
                     }))
                   }
-                  disabled={selection.additionalUsers >= 10}
+                  disabled={trialLocked || selection.additionalUsers >= 10}
                   aria-label={
                     locale === "sl"
                       ? "Povečaj število uporabnikov"
@@ -290,6 +304,7 @@ export function RegisterPlanAddonSections({
                 max="10"
                 step="1"
                 value={selection.additionalUsers}
+                disabled={trialLocked}
                 onChange={(event) =>
                   setSelection((current) => ({
                     ...current,
@@ -329,7 +344,7 @@ export function RegisterPlanAddonSections({
             </div>
           </div>
 
-          <div className="slider-card">
+          <div className={`slider-card${trialLocked ? " is-trial-locked" : ""}`}>
             <div className="slider-head">
               <div className="slider-heading-group">
                 <RegisterUsageIcon kind="sms" />
@@ -350,7 +365,7 @@ export function RegisterPlanAddonSections({
                       additionalSms: Math.max(0, current.additionalSms - 50),
                     }))
                   }
-                  disabled={selection.additionalSms <= 0}
+                  disabled={trialLocked || selection.additionalSms <= 0}
                   aria-label={
                     locale === "sl"
                       ? "Zmanjšaj število SMS sporočil"
@@ -371,7 +386,7 @@ export function RegisterPlanAddonSections({
                       ),
                     }))
                   }
-                  disabled={selection.additionalSms >= 1000}
+                  disabled={trialLocked || selection.additionalSms >= 1000}
                   aria-label={
                     locale === "sl"
                       ? "Povečaj število SMS sporočil"
@@ -390,6 +405,7 @@ export function RegisterPlanAddonSections({
                 max="1000"
                 step="50"
                 value={selection.additionalSms}
+                disabled={trialLocked}
                 onChange={(event) =>
                   setSelection((current) => ({
                     ...current,
@@ -434,7 +450,7 @@ export function RegisterPlanAddonSections({
         <section
           ref={featureAddonsSectionRef ?? undefined}
           id="register-feature-add-ons"
-          className="feature-addons-section"
+          className={`feature-addons-section${trialLocked ? " is-trial-locked" : ""}`}
           aria-label={pageCopy.featureAddonsAria}
         >
           <div className="addons-divider">
@@ -445,11 +461,15 @@ export function RegisterPlanAddonSections({
             {activeAddonKeys.map((addonKey) => {
               const addon = addonCatalog[addonKey];
               return (
-                <div key={addonKey} className="feature-addon-card">
+                <div
+                  key={addonKey}
+                  className={`feature-addon-card${trialLocked ? " is-trial-locked" : ""}`}
+                >
                   <label className="feature-addon-card-label">
                     <input
                       type="checkbox"
                       checked={Boolean(selection.addons[addonKey])}
+                      disabled={trialLocked}
                       onChange={(event) =>
                         setSelection((current) => ({
                           ...current,
@@ -546,6 +566,10 @@ export function RegisterPage() {
     () => getFeatureItems(lang),
     [lang, registerCatalogRevision],
   );
+  const hasFeatureAddons = useMemo(
+    () => getActiveAddonKeys().length > 0,
+    [registerCatalogRevision],
+  );
   const pm = lang === "sl" ? "/mes." : "/mo";
   const { showToast } = useToast();
   const [selection, setSelection] = useState<RegisterSelection>(() =>
@@ -601,6 +625,10 @@ export function RegisterPage() {
   }, []);
 
   useEffect(() => {
+    if (!hasFeatureAddons) {
+      setPlanExtrasInView(true);
+      return;
+    }
     if (isCompactLayout) {
       setPlanExtrasInView(true);
       return;
@@ -618,7 +646,7 @@ export function RegisterPage() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [isCompactLayout]);
+  }, [hasFeatureAddons, isCompactLayout]);
 
   useEffect(
     () => () => {
@@ -627,7 +655,15 @@ export function RegisterPage() {
     [],
   );
 
+  const continueToAccount = useCallback(() => {
+    navigate(`/register/account?${selectionToSearch(selection)}`);
+  }, [navigate, selection]);
+
   const revealPlanExtrasAndAllowContinue = useCallback(() => {
+    if (!hasFeatureAddons) {
+      continueToAccount();
+      return;
+    }
     if (isCompactLayout) {
       navigate(`/register/add-ons?${selectionToSearch(selection)}`);
       return;
@@ -641,11 +677,7 @@ export function RegisterPage() {
       setPlanExtrasInView(true);
       continueUnlockTimerRef.current = 0;
     }, 1100);
-  }, [isCompactLayout, navigate, selection]);
-
-  const continueToAccount = useCallback(() => {
-    navigate(`/register/account?${selectionToSearch(selection)}`);
-  }, [navigate, selection]);
+  }, [continueToAccount, hasFeatureAddons, isCompactLayout, navigate, selection]);
 
   const planDisplay = useMemo(
     () => getPlanDisplay(previewPlan, selection.billing, lang),
@@ -751,7 +783,9 @@ export function RegisterPage() {
   };
 
   const setPlan = (plan: RegisterPlanKey) => {
-    setSelection((current) => ({ ...current, plan }));
+    setSelection((current) =>
+      normalizeRegisterSelection({ ...current, plan }),
+    );
     setPreviewPlan(plan);
     if (
       typeof window !== "undefined" &&
@@ -834,10 +868,12 @@ export function RegisterPage() {
                         }
                         type="button"
                         onClick={() =>
-                          setSelection((current) => ({
-                            ...current,
-                            billing: "monthly",
-                          }))
+                          setSelection((current) =>
+                            normalizeRegisterSelection({
+                              ...current,
+                              billing: "monthly",
+                            }),
+                          )
                         }
                       >
                         {pc.monthly}
@@ -1145,7 +1181,7 @@ export function RegisterPage() {
                   className="continue-button"
                   type="button"
                   onClick={() => {
-                    if (isCompactLayout) {
+                    if (isCompactLayout && hasFeatureAddons) {
                       navigate(
                         `/register/add-ons?${selectionToSearch(selection)}`,
                       );
@@ -1154,7 +1190,9 @@ export function RegisterPage() {
                     continueToAccount();
                   }}
                 >
-                  {isCompactLayout
+                  {!hasFeatureAddons
+                    ? pc.continueWithPlan
+                    : isCompactLayout
                     ? pc.continueAddons
                     : selection.plan === "basic" &&
                         selection.billing === "monthly"

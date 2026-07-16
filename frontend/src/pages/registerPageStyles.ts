@@ -220,9 +220,10 @@ export const registerPageStyles = `
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: center;
       gap: 10px 14px;
       margin-bottom: 4px;
+      width: 100%;
     }
 
     @media (min-width: 900px) {
@@ -1914,6 +1915,25 @@ export const registerPageStyles = `
   background: rgba(255,255,255,0.74);
 }
 
+.register-flow .register-trial-addons-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  border: 1px solid #d9e5f7;
+  border-radius: 13px;
+  background: #f3f7fd;
+  color: #5f6f87;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.register-flow .register-trial-addons-note > span:first-child {
+  flex: 0 0 auto;
+  color: #7d8da5;
+  font-weight: 900;
+}
+
 .register-flow .section-divider {
   display: flex;
   align-items: center;
@@ -1944,6 +1964,24 @@ export const registerPageStyles = `
   border-radius: 18px;
   border: 1px solid #e8eef9;
   background: #ffffff;
+}
+
+.register-flow .slider-card.is-trial-locked,
+.register-flow .feature-addon-card.is-trial-locked {
+  background: #f5f7fa;
+  border-color: #e1e6ee;
+  box-shadow: none;
+  opacity: 0.58;
+}
+
+.register-flow .slider-card.is-trial-locked *,
+.register-flow .feature-addon-card.is-trial-locked * {
+  cursor: not-allowed;
+}
+
+.register-flow .slider-input-wrap input[type="range"]:disabled {
+  cursor: not-allowed;
+  filter: grayscale(1);
 }
 
 .register-flow .slider-head {
@@ -2938,6 +2976,12 @@ export const registerPageStyles = `
   transform: translateY(-1px);
   border-color: #c9d8f6;
   box-shadow: 0 8px 18px rgba(45, 72, 120, 0.07);
+}
+
+.register-flow.register-plan-selection-page .feature-addon-card.is-trial-locked:hover {
+  transform: none;
+  border-color: #e1e6ee;
+  box-shadow: none;
 }
 
 .register-flow.register-plan-selection-page .feature-addon-card:has(input:checked) {

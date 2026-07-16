@@ -18,6 +18,24 @@ export const registerPlanToPackage = {
   business: 'PREMIUM',
 } as const
 
+export function isBasicMonthlyTrial(selection: Pick<RegisterSelection, 'plan' | 'billing'>) {
+  return selection.plan === 'basic' && selection.billing === 'monthly'
+}
+
+/**
+ * The 14-day Basic monthly trial always starts with one user and no paid usage/add-ons.
+ * Extra users, SMS and feature add-ons can be scheduled later from the tenant subscription page.
+ */
+export function normalizeRegisterSelection(selection: RegisterSelection): RegisterSelection {
+  if (!isBasicMonthlyTrial(selection)) return selection
+  return {
+    ...selection,
+    additionalUsers: 1,
+    additionalSms: 0,
+    addons: {},
+  }
+}
+
 export function getRegisterPlanFromPackage(raw?: string | null): RegisterPlanKey {
   const normalized = normalizePackageType(raw)
   switch (normalized) {
@@ -69,41 +87,44 @@ export function parseRegisterSelection(search: string): RegisterSelection {
   if (parseBool(params.get('billingAddon'))) addons.billing = true
   if (parseBool(params.get('whitelabel'))) addons.whitelabel = true
 
-  return {
+  return normalizeRegisterSelection({
     plan,
     billing,
     additionalUsers: clampInt(params.get('users'), 1, 10, 1),
     additionalSms,
     addons,
-  }
+  })
 }
 
 export function selectionToSearch(selection: RegisterSelection) {
+  const normalized = normalizeRegisterSelection(selection)
   const params = new URLSearchParams()
-  params.set('plan', selection.plan)
-  params.set('package', registerPlanToPackage[selection.plan])
-  params.set('billing', selection.billing)
-  params.set('interval', selection.billing === 'annual' ? 'YEARLY' : 'MONTHLY')
-  params.set('users', String(selection.additionalUsers))
-  params.set('sms', String(selection.additionalSms))
-  Object.entries(selection.addons || {})
+  params.set('plan', normalized.plan)
+  params.set('package', registerPlanToPackage[normalized.plan])
+  params.set('billing', normalized.billing)
+  params.set('interval', normalized.billing === 'annual' ? 'YEARLY' : 'MONTHLY')
+  params.set('users', String(normalized.additionalUsers))
+  params.set('sms', String(normalized.additionalSms))
+  Object.entries(normalized.addons || {})
     .filter(([, selected]) => selected)
     .map(([key]) => normalizeAddonKey(key))
     .filter(Boolean)
     .sort()
     .forEach((key) => params.append('addon', key))
-  if (selection.addons.voice) params.set('voice', '1')
-  if (selection.addons.billing) params.set('billingAddon', '1')
-  if (selection.addons.whitelabel) params.set('whitelabel', '1')
+  if (normalized.addons.voice) params.set('voice', '1')
+  if (normalized.addons.billing) params.set('billingAddon', '1')
+  if (normalized.addons.whitelabel) params.set('whitelabel', '1')
   return params.toString()
 }
 
 /** Total user seats selected on signup (min 1). The first user is included; every extra seat is billed. */
 export function getBillableAdditionalUserSlots(selection: RegisterSelection): number {
+  if (isBasicMonthlyTrial(selection)) return 0
   return Math.max(0, selection.additionalUsers - 1)
 }
 
 export function getEstimatedUserCount(selection: RegisterSelection) {
+  if (isBasicMonthlyTrial(selection)) return 1
   return Math.max(1, selection.additionalUsers)
 }
 
