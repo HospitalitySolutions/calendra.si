@@ -150,6 +150,7 @@ public class SecurityConfig {
                             "/actuator/info"
                     ).permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/register/catalog").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/register/contact").permitAll();
                     auth.requestMatchers("/api/guest/auth/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/guest/tenants/resolve-code").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/guest/tenants/invite/**").permitAll();

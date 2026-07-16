@@ -976,10 +976,11 @@ export type RegisterPlanPageCopy = {
   contactPlaceholder: string;
   contactCancel: string;
   contactSubmit: string;
+  contactSubmitting: string;
   contactErrRequired: string;
   contactErrEmail: string;
-  contactSubject: string;
-  toastOpenMail: string;
+  contactSendError: string;
+  toastContactSent: string;
   annualBilling: string;
   monthlyBilling: string;
   planFeaturesCount: (n: number) => string;
@@ -1070,11 +1071,12 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     contactMessage: "Message",
     contactPlaceholder: "Describe your needs…",
     contactCancel: "Cancel",
-    contactSubmit: "Send via email",
+    contactSubmit: "Send message",
+    contactSubmitting: "Sending…",
     contactErrRequired: "Please fill in your name, email, and message.",
     contactErrEmail: "Please enter a valid email address.",
-    contactSubject: "Calendra — Custom solution inquiry",
-    toastOpenMail: "Opening your email client…",
+    contactSendError: "We could not send your message. Please try again.",
+    toastContactSent: "Your message was sent. A confirmation email is on its way.",
     annualBilling: "Annual billing",
     monthlyBilling: "Monthly billing",
     planFeaturesCount: (n) => `${n} plan feature${n === 1 ? "" : "s"}`,
@@ -1165,11 +1167,12 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     contactMessage: "Sporočilo",
     contactPlaceholder: "Opišite svoje potrebe …",
     contactCancel: "Prekliči",
-    contactSubmit: "Pošlji po e-pošti",
+    contactSubmit: "Pošlji sporočilo",
+    contactSubmitting: "Pošiljam …",
     contactErrRequired: "Izpolnite ime, e-pošto in sporočilo.",
     contactErrEmail: "Vnesite veljaven e-poštni naslov.",
-    contactSubject: "Calendra — povpraševanje po prilagoditvi",
-    toastOpenMail: "Odpiram e-poštni program …",
+    contactSendError: "Sporočila ni bilo mogoče poslati. Poskusite znova.",
+    toastContactSent: "Sporočilo je bilo poslano. Na e-pošto boste prejeli potrdilo.",
     annualBilling: "Letno obračunavanje",
     monthlyBilling: "Mesečno obračunavanje",
     planFeaturesCount: (n) =>

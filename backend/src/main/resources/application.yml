@@ -112,6 +112,8 @@ app:
       staff-login-per-identity: ${APP_RATE_LIMIT_STAFF_LOGIN_PER_IDENTITY:8}
       staff-signup-per-ip: ${APP_RATE_LIMIT_STAFF_SIGNUP_PER_IP:12}
       staff-signup-per-identity: ${APP_RATE_LIMIT_STAFF_SIGNUP_PER_IDENTITY:4}
+      register-contact-per-ip: ${APP_RATE_LIMIT_REGISTER_CONTACT_PER_IP:6}
+      register-contact-per-identity: ${APP_RATE_LIMIT_REGISTER_CONTACT_PER_IDENTITY:3}
       password-reset-per-ip: ${APP_RATE_LIMIT_PASSWORD_RESET_PER_IP:8}
       password-reset-per-identity: ${APP_RATE_LIMIT_PASSWORD_RESET_PER_IDENTITY:4}
       guest-login-per-ip: ${APP_RATE_LIMIT_GUEST_LOGIN_PER_IP:40}

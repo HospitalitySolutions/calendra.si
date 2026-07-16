@@ -50,6 +50,10 @@ public class AuthRateLimiter {
         check("staff-signup", request, email, properties.getStaffSignupPerIp(), properties.getStaffSignupPerIdentity());
     }
 
+    public void checkRegisterContact(HttpServletRequest request, String email) {
+        check("register-contact", request, email, properties.getRegisterContactPerIp(), properties.getRegisterContactPerIdentity());
+    }
+
     public void checkPasswordReset(HttpServletRequest request, String email) {
         check("password-reset", request, email, properties.getPasswordResetPerIp(), properties.getPasswordResetPerIdentity());
     }

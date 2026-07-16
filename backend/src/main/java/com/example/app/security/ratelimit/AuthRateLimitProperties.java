@@ -22,6 +22,8 @@ public class AuthRateLimitProperties {
     private int staffLoginPerIdentity = 8;
     private int staffSignupPerIp = 12;
     private int staffSignupPerIdentity = 4;
+    private int registerContactPerIp = 6;
+    private int registerContactPerIdentity = 3;
     private int passwordResetPerIp = 8;
     private int passwordResetPerIdentity = 4;
 
@@ -49,6 +51,10 @@ public class AuthRateLimitProperties {
     public void setStaffSignupPerIp(int staffSignupPerIp) { this.staffSignupPerIp = staffSignupPerIp; }
     public int getStaffSignupPerIdentity() { return staffSignupPerIdentity; }
     public void setStaffSignupPerIdentity(int staffSignupPerIdentity) { this.staffSignupPerIdentity = staffSignupPerIdentity; }
+    public int getRegisterContactPerIp() { return registerContactPerIp; }
+    public void setRegisterContactPerIp(int registerContactPerIp) { this.registerContactPerIp = registerContactPerIp; }
+    public int getRegisterContactPerIdentity() { return registerContactPerIdentity; }
+    public void setRegisterContactPerIdentity(int registerContactPerIdentity) { this.registerContactPerIdentity = registerContactPerIdentity; }
     public int getPasswordResetPerIp() { return passwordResetPerIp; }
     public void setPasswordResetPerIp(int passwordResetPerIp) { this.passwordResetPerIp = passwordResetPerIp; }
     public int getPasswordResetPerIdentity() { return passwordResetPerIdentity; }

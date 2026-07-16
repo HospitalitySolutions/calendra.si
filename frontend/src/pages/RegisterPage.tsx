@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { api, getApiErrorMessage } from "../api";
 import loginLogo from "../assets/login-logo.png";
 import { useToast } from "../components/Toast";
 import { AuthLanguageDropdown } from "../components/AuthLanguageDropdown";
@@ -564,6 +565,7 @@ export function RegisterPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [contactError, setContactError] = useState("");
+  const [contactSubmitting, setContactSubmitting] = useState(false);
   const planPreviewPanelRef = useRef<HTMLElement | null>(null);
   const featureAddonsSectionRef = useRef<HTMLElement | null>(null);
   const continueUnlockTimerRef = useRef(0);
@@ -686,10 +688,6 @@ export function RegisterPage() {
     return n;
   }, [selection]);
 
-  const contactSalesEmail =
-    (import.meta.env.VITE_CONTACT_EMAIL as string | undefined)?.trim() ||
-    "info@calendra.si";
-
   const openContactModal = () => {
     setContactError("");
     setContactOpen(true);
@@ -700,7 +698,7 @@ export function RegisterPage() {
     setContactError("");
   };
 
-  const submitContactModal = () => {
+  const submitContactModal = async () => {
     const name = contactName.trim();
     const email = contactEmail.trim();
     const phone = contactPhone.trim();
@@ -713,17 +711,41 @@ export function RegisterPage() {
       setContactError(pc.contactErrEmail);
       return;
     }
-    const subject = encodeURIComponent(pc.contactSubject);
-    const body = encodeURIComponent(
-      `Name: ${name}\nEmail: ${email}\nPhone: ${phone || "—"}\n\n${message}`,
-    );
-    window.location.href = `mailto:${contactSalesEmail}?subject=${subject}&body=${body}`;
-    showToast("success", pc.toastOpenMail);
-    closeContactModal();
-    setContactName("");
-    setContactEmail("");
-    setContactPhone("");
-    setContactMessage("");
+
+    setContactSubmitting(true);
+    setContactError("");
+    try {
+      await api.post("/register/contact", {
+        name,
+        email,
+        phone: phone || null,
+        message,
+        locale: lang,
+        plan: selection.plan,
+        planName: plansLoc[selection.plan].name,
+        billing: selection.billing,
+        estimatedMonthlyTotal: Number(
+          (selection.billing === "annual"
+            ? (monthlyAmounts.planMonthly +
+                monthlyAmounts.usersMonthly +
+                monthlyAmounts.addonsMonthly) *
+                getAnnualDiscountFactor() +
+              monthlyAmounts.smsMonthly
+            : monthlyAmounts.totalMonthly
+          ).toFixed(2),
+        ),
+      });
+      showToast("success", pc.toastContactSent);
+      closeContactModal();
+      setContactName("");
+      setContactEmail("");
+      setContactPhone("");
+      setContactMessage("");
+    } catch (error) {
+      setContactError(getApiErrorMessage(error, pc.contactSendError));
+    } finally {
+      setContactSubmitting(false);
+    }
   };
 
   const setPlan = (plan: RegisterPlanKey) => {
@@ -1319,6 +1341,7 @@ export function RegisterPage() {
                 type="button"
                 className="register-contact-cancel"
                 onClick={closeContactModal}
+                disabled={contactSubmitting}
               >
                 {pc.contactCancel}
               </button>
@@ -1326,8 +1349,9 @@ export function RegisterPage() {
                 type="button"
                 className="register-contact-submit"
                 onClick={submitContactModal}
+                disabled={contactSubmitting}
               >
-                {pc.contactSubmit}
+                {contactSubmitting ? pc.contactSubmitting : pc.contactSubmit}
               </button>
             </div>
           </div>
