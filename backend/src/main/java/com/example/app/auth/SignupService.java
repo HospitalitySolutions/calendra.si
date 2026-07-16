@@ -21,7 +21,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -75,9 +74,6 @@ public class SignupService {
     private final SignupWelcomeEmailService welcomeEmailService;
     private final ReferralService referralService;
     private final SecureRandom secureRandom = new SecureRandom();
-
-    @Value("${app.auth.frontend-url:http://app.calendra.si}")
-    private String frontendBaseUrl = "http://app.calendra.si";
 
     /**
      * Backwards-compatible constructor used by existing unit tests and any manual
@@ -1311,14 +1307,13 @@ public class SignupService {
         String displayName = firstName == null || firstName.isBlank()
                 ? copy.greetingFallback()
                 : firstName.trim();
-        String verificationUrl = buildSignupVerificationUrl(email, challengeId, returnSearch);
-        String html = buildSignupVerificationHtml(copy, displayName, code, verificationUrl);
-        String plainText = buildSignupVerificationPlainText(copy, displayName, code, verificationUrl);
+        String html = buildSignupVerificationHtml(copy, displayName, code);
+        String plainText = buildSignupVerificationPlainText(copy, displayName, code);
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(mailFrom, "Calendra team");
+            helper.setFrom(mailFrom, "sl".equals(locale) ? "Calendra ekipa" : "Calendra team");
             helper.setTo(email);
             helper.setSubject(copy.subject());
             helper.setText(plainText, html);
@@ -1343,7 +1338,6 @@ public class SignupService {
             String greetingFallback,
             String intro,
             String expiry,
-            String cta,
             String ignore,
             String nextTitle,
             String stepOneTitle,
@@ -1367,7 +1361,6 @@ public class SignupService {
                     "uporabnik",
                     "Začeli ste ustvarjati račun Calendra. S spodnjo kodo potrdite svoj e-poštni naslov in nadaljujte.",
                     "Ta koda poteče čez 1 uro.",
-                    "Potrdi e-pošto",
                     "Če tega niste zahtevali, lahko to sporočilo prezrete.",
                     "Kaj sledi?",
                     "1. Potrdite e-pošto",
@@ -1388,7 +1381,6 @@ public class SignupService {
                 "there",
                 "You started creating a Calendra account. Use the code below to verify your email and continue.",
                 "This code expires in 1 hour.",
-                "Verify email",
                 "If you did not request this, you can ignore this email.",
                 "What happens next?",
                 "1. Verify your email",
@@ -1401,58 +1393,13 @@ public class SignupService {
         );
     }
 
-    private String buildSignupVerificationUrl(String email, String challengeId, String returnSearch) {
-        LinkedHashMap<String, String> params = new LinkedHashMap<>();
-        String query = returnSearch == null ? "" : returnSearch.trim();
-        if (query.startsWith("?")) {
-            query = query.substring(1);
-        }
-        if (!query.isBlank()) {
-            for (String pair : query.split("&")) {
-                if (pair.isBlank()) continue;
-                String[] keyValue = pair.split("=", 2);
-                String key = urlDecode(keyValue[0]);
-                String value = keyValue.length > 1 ? urlDecode(keyValue[1]) : "";
-                if (!key.isBlank()) {
-                    params.put(key, value);
-                }
-            }
-        }
-        params.put("verifyEmail", "1");
-        params.put("email", email == null ? "" : email);
-        if (challengeId != null && !challengeId.isBlank()) {
-            params.put("challengeId", challengeId);
-        }
-        params.remove("pendingAccountCreation");
-        params.remove("finishVerify");
-        params.remove("existingAccount");
-        params.remove("invalidVerify");
-
-        StringBuilder encoded = new StringBuilder();
-        for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (!encoded.isEmpty()) encoded.append('&');
-            encoded.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8));
-            encoded.append('=');
-            encoded.append(URLEncoder.encode(entry.getValue() == null ? "" : entry.getValue(), StandardCharsets.UTF_8));
-        }
-        String base = frontendBaseUrl == null || frontendBaseUrl.isBlank()
-                ? "http://app.calendra.si"
-                : frontendBaseUrl.trim();
-        while (base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
-        }
-        return base + "/register/account?" + encoded;
-    }
-
     private String buildSignupVerificationHtml(
             VerificationEmailCopy copy,
             String displayName,
-            String code,
-            String verificationUrl
+            String code
     ) {
         String safeName = escapeHtml(displayName);
         String safeCode = escapeHtml(code);
-        String safeUrl = escapeHtml(verificationUrl);
         String greeting = escapeHtml(copy.greetingPrefix()) + " " + safeName + ",";
         return """
                 <!doctype html>
@@ -1496,14 +1443,7 @@ public class SignupService {
                                 </tr>
                               </table>
 
-                              <p style="margin:20px 0 24px;text-align:center;font-size:16px;line-height:1.5;color:#64748b;">&#128339;&nbsp; %s</p>
-                              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 20px;">
-                                <tr>
-                                  <td bgcolor="#2563eb" style="border-radius:14px;">
-                                    <a href="%s" style="display:inline-block;padding:16px 34px;color:#ffffff;text-decoration:none;font-size:17px;line-height:1.2;font-weight:700;border-radius:14px;">%s&nbsp; &#8250;</a>
-                                  </td>
-                                </tr>
-                              </table>
+                              <p style="margin:20px 0 12px;text-align:center;font-size:16px;line-height:1.5;color:#64748b;">&#128339;&nbsp; %s</p>
                               <p style="margin:0 0 30px;text-align:center;font-size:15px;line-height:1.55;color:#6b7b91;">%s</p>
 
                               <div style="height:1px;background:#e7edf5;margin:0 0 26px;"></div>
@@ -1532,8 +1472,6 @@ public class SignupService {
                 escapeHtml(copy.intro()),
                 safeCode,
                 escapeHtml(copy.expiry()),
-                safeUrl,
-                escapeHtml(copy.cta()),
                 escapeHtml(copy.ignore()),
                 escapeHtml(copy.nextTitle()),
                 verificationStepHtml("&#9993;", copy.stepOneTitle(), copy.stepOneText()),
@@ -1563,8 +1501,7 @@ public class SignupService {
     private String buildSignupVerificationPlainText(
             VerificationEmailCopy copy,
             String displayName,
-            String code,
-            String verificationUrl
+            String code
     ) {
         return """
                 %s %s,
@@ -1574,8 +1511,6 @@ public class SignupService {
                 %s
 
                 %s
-
-                %s: %s
 
                 %s
 
@@ -1591,8 +1526,6 @@ public class SignupService {
                 copy.intro(),
                 code,
                 copy.expiry(),
-                copy.cta(),
-                verificationUrl,
                 copy.ignore(),
                 copy.nextTitle(),
                 copy.stepOneTitle(),
