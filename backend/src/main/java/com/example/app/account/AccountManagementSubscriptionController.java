@@ -38,7 +38,12 @@ public class AccountManagementSubscriptionController {
             String interval,
             String nextInterval,
             BigDecimal pendingUpgradeDiff,
-            String changeKind
+            String changeKind,
+            boolean trialEnded,
+            Long billId,
+            String billNumber,
+            String checkoutUrl,
+            String paymentStatus
     ) {}
 
     @PostMapping("/change-package")
@@ -57,7 +62,12 @@ public class AccountManagementSubscriptionController {
                 result.interval(),
                 result.nextInterval(),
                 result.pendingUpgradeDiff(),
-                result.changeKind()
+                result.changeKind(),
+                result.trialEnded(),
+                result.billId(),
+                result.billNumber(),
+                result.checkoutUrl(),
+                result.paymentStatus()
         );
     }
 }

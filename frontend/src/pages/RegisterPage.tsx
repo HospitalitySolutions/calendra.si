@@ -219,8 +219,8 @@ export function RegisterPlanAddonSections({
   const trialLocked = isBasicMonthlyTrial(selection);
   const trialLockedNote =
     locale === "sl"
-      ? "Med 14-dnevnim preizkusom so vključeni 1 uporabnik, 0 SMS sporočil in brez dodatkov. Dodatke lahko nastavite za naslednje obračunsko obdobje v Upravljanje računa → Naročnina."
-      : "The 14-day trial includes 1 user, 0 SMS messages, and no add-ons. You can schedule add-ons for the next billing period under Account management → Subscription.";
+      ? "Med 14-dnevnim preizkusom so vključeni 1 uporabnik in 0 SMS sporočil. V kolikor želite dodatne uporabnike ali koriščenje SMS sporočil, to lahko vklopite v sami aplikaciji ali nas kontaktirajte."
+      : "The 14-day trial includes 1 user and 0 SMS messages. To add more users or enable SMS messages, activate them in the application or contact us.";
 
   return (
     <>

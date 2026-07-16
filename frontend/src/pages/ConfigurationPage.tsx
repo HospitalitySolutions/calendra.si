@@ -1043,10 +1043,16 @@ export function ConfigurationPage() {
     [settings],
   );
 
+  const configuredSubscriptionPackage = useMemo(
+    () =>
+      normalizePackageType(
+        settings.SIGNUP_PACKAGE_NAME || me.packageType || subscriptionPackage,
+      ),
+    [settings.SIGNUP_PACKAGE_NAME, me.packageType, subscriptionPackage],
+  );
   const activeSubscriptionPackage = useMemo<AccountPlanPackageKey>(() => {
-    const configured = normalizePackageType(
-      settings.SIGNUP_PACKAGE_NAME || me.packageType || subscriptionPackage,
-    );
+    const configured = configuredSubscriptionPackage;
+    if (configured === "TRIAL") return "BASIC";
     if (
       configured === "BASIC" ||
       configured === "PROFESSIONAL" ||
@@ -1054,7 +1060,36 @@ export function ConfigurationPage() {
     )
       return configured;
     return "PROFESSIONAL";
-  }, [settings.SIGNUP_PACKAGE_NAME, me.packageType, subscriptionPackage]);
+  }, [configuredSubscriptionPackage]);
+  const subscriptionTrialStart = String(
+    settings.BILLING_SUBSCRIPTION_START || "",
+  ).trim();
+  const isFreeTrialActive = useMemo(() => {
+    if (
+      String(settings.MANUAL_TENANT_CREATED || "").toLowerCase() === "true"
+    )
+      return false;
+    if (
+      configuredSubscriptionPackage !== "BASIC" &&
+      configuredSubscriptionPackage !== "TRIAL"
+    )
+      return false;
+    if (
+      String(
+        settings.BILLING_SUBSCRIPTION_INTERVAL || "MONTHLY",
+      ).toUpperCase() !== "MONTHLY"
+    )
+      return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(subscriptionTrialStart)) return false;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return subscriptionTrialStart > today;
+  }, [
+    configuredSubscriptionPackage,
+    settings.BILLING_SUBSCRIPTION_INTERVAL,
+    settings.MANUAL_TENANT_CREATED,
+    subscriptionTrialStart,
+  ]);
 
   useEffect(() => {
     setSubscriptionPackage(activeSubscriptionPackage);
@@ -1495,7 +1530,16 @@ export function ConfigurationPage() {
   );
   const nextInvoiceSmsCount = Math.max(0, nextCycleSmsCount);
   const selectedExtraUsersCount = nextInvoiceUserLimit;
-  const billableNextInvoiceUsers = Math.max(0, selectedExtraUsersCount - 1);
+  const includedUsersForSubscriptionPlan =
+    subscriptionPackage === "PREMIUM"
+      ? 10
+      : subscriptionPackage === "PROFESSIONAL"
+        ? 5
+        : 1;
+  const billableNextInvoiceUsers = Math.max(
+    0,
+    selectedExtraUsersCount - includedUsersForSubscriptionPlan,
+  );
   const selectedSmsCount = nextInvoiceSmsCount;
   const usersAddonAmount = roundAccountMoney(
     billableNextInvoiceUsers * usersAddonUnitPrice,
@@ -1719,11 +1763,15 @@ export function ConfigurationPage() {
       storedSubscriptionInterval,
     );
     const targetGross = planGrossForInterval(target, targetInterval);
+    const trialActivation = isFreeTrialActive;
     const isUpgrade =
-      accountPlanRank(target) !== accountPlanRank(current)
+      !trialActivation &&
+      (accountPlanRank(target) !== accountPlanRank(current)
         ? accountPlanRank(target) > accountPlanRank(current)
-        : targetGross > currentGross;
-    const diff = roundAccountMoney(Math.max(0, targetGross - currentGross));
+        : targetGross > currentGross);
+    const diff = trialActivation
+      ? roundAccountMoney(targetGross)
+      : roundAccountMoney(Math.max(0, targetGross - currentGross));
     return {
       current,
       target,
@@ -1731,6 +1779,7 @@ export function ConfigurationPage() {
       currentGross,
       targetGross,
       isUpgrade,
+      trialActivation,
       diff,
     };
   }, [
@@ -1739,11 +1788,13 @@ export function ConfigurationPage() {
     subscriptionBillingInterval,
     storedSubscriptionInterval,
     accountPlanCatalog,
+    isFreeTrialActive,
   ]);
 
   const requestPackageChange = (target: AccountPlanPackageKey) => {
     if (!canViewConfiguration) return;
     if (
+      !isFreeTrialActive &&
       target === activeSubscriptionPackage &&
       subscriptionBillingInterval === storedSubscriptionInterval
     )
@@ -1755,14 +1806,27 @@ export function ConfigurationPage() {
     if (!packageChangeTarget) return;
     setSavingPackageChange(true);
     try {
-      await api.post("/account-management/change-package", {
+      const { data } = await api.post("/account-management/change-package", {
         packageName: packageChangeTarget,
         interval: subscriptionBillingInterval,
       });
       await load();
       window.dispatchEvent(new Event("settings-updated"));
-      showToast("success", "Paket je posodobljen.");
       setPackageChangeTarget(null);
+      if (data?.trialEnded) {
+        showToast(
+          "success",
+          data?.billNumber
+            ? `Brezplačni preizkus je zaključen. Račun ${data.billNumber} je ustvarjen.`
+            : "Brezplačni preizkus je zaključen in obračunavanje je aktivirano.",
+        );
+        if (data?.checkoutUrl) {
+          window.location.assign(String(data.checkoutUrl));
+          return;
+        }
+      } else {
+        showToast("success", "Paket je posodobljen.");
+      }
     } catch (e: any) {
       showToast(
         "error",
@@ -5297,6 +5361,12 @@ export function ConfigurationPage() {
             .account-pill.success { background: var(--account-success); color: var(--account-success-ink); }
             .account-pill.warning { background: var(--account-warn); color: var(--account-warn-ink); }
             .account-pill.danger { background: var(--account-danger); color: var(--account-danger-ink); }
+            .account-pill.trial {
+              background: #e8f1ff;
+              color: #1557c0;
+              border: 1px solid #b9d2ff;
+              box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+            }
             .account-button,
             .account-button-secondary,
             .account-button-ghost {
@@ -5791,6 +5861,43 @@ export function ConfigurationPage() {
               grid-template-columns: minmax(0, 1.06fr) minmax(0, 1.34fr);
               gap: 22px;
               margin-bottom: 22px;
+            }
+            .account-trial-banner {
+              margin-bottom: 22px;
+              border: 1px solid #a9c9ff;
+              border-radius: 20px;
+              background: linear-gradient(135deg, #edf5ff 0%, #f7fbff 100%);
+              box-shadow: 0 14px 34px rgba(37, 99, 235, 0.1);
+              padding: 20px 22px;
+              display: flex;
+              align-items: flex-start;
+              gap: 14px;
+            }
+            .account-trial-banner-icon {
+              flex: 0 0 auto;
+              width: 42px;
+              height: 42px;
+              border-radius: 14px;
+              display: grid;
+              place-items: center;
+              background: #2167ff;
+              color: #fff;
+              font-size: 20px;
+              font-weight: 800;
+              box-shadow: 0 8px 18px rgba(33, 103, 255, 0.22);
+            }
+            .account-trial-banner-copy {
+              display: grid;
+              gap: 5px;
+            }
+            .account-trial-banner-copy strong {
+              color: #123d86;
+              font-size: 16px;
+            }
+            .account-trial-banner-copy span {
+              color: #3d5f91;
+              font-size: 14px;
+              line-height: 1.55;
             }
             .account-subscription-card {
               padding: 24px;
@@ -7392,12 +7499,35 @@ export function ConfigurationPage() {
                     </>
                   ) : accountSubtab === "subscription" ? (
                     <>
+                      {isFreeTrialActive && (
+                        <div className="account-trial-banner" role="status">
+                          <span
+                            className="account-trial-banner-icon"
+                            aria-hidden
+                          >
+                            14
+                          </span>
+                          <div className="account-trial-banner-copy">
+                            <strong>Brezplačni 14-dnevni preizkus je aktiven</strong>
+                            <span>
+                              Preizkus traja do {formatDate(subscriptionTrialStart)}.
+                              Ko izberete paket in potrdite spremembe, se
+                              preizkus takoj zaključi, začne se obračunsko
+                              obdobje in ustvari račun.
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <div className="account-subscription-grid">
                         <section className="account-card account-subscription-card">
                           <div className="account-plan-header">
                             <h3>Trenutni paket</h3>
-                            <span className="account-pill success">
-                              Aktivno
+                            <span
+                              className={`account-pill ${isFreeTrialActive ? "trial" : "success"}`}
+                            >
+                              {isFreeTrialActive
+                                ? "Brezplačni preizkus"
+                                : "Aktivno"}
                             </span>
                           </div>
                           <div className="account-current-plan-layout">
@@ -7441,10 +7571,16 @@ export function ConfigurationPage() {
                             <div className="account-current-plan-details">
                               <div className="account-current-plan-details-row">
                                 <div className="account-overview-kv">
-                                  <small>Naslednje podaljšanje</small>
+                                  <small>
+                                    {isFreeTrialActive
+                                      ? "Začetek obračunavanja"
+                                      : "Naslednje podaljšanje"}
+                                  </small>
                                   <strong>
                                     {formatDate(
-                                      settings.BILLING_SUBSCRIPTION_END ||
+                                      (isFreeTrialActive
+                                        ? settings.BILLING_SUBSCRIPTION_START
+                                        : settings.BILLING_SUBSCRIPTION_END) ||
                                         "2025-03-15",
                                     )}
                                   </strong>
@@ -7452,8 +7588,12 @@ export function ConfigurationPage() {
                                 <div className="account-overview-kv">
                                   <small>Status</small>
                                   <strong>
-                                    <span className="account-pill success">
-                                      Aktivno
+                                    <span
+                                      className={`account-pill ${isFreeTrialActive ? "trial" : "success"}`}
+                                    >
+                                      {isFreeTrialActive
+                                        ? "Brezplačni preizkus"
+                                        : "Aktivno"}
                                     </span>
                                   </strong>
                                 </div>
@@ -7514,8 +7654,9 @@ export function ConfigurationPage() {
                             <h3>Izberi paket</h3>
                           </div>
                           <p className="account-plan-chooser-copy">
-                            Spremeni paket kadarkoli. Spremembe se uporabijo ob
-                            naslednjem obračunskem obdobju.
+                            {isFreeTrialActive
+                              ? "Izberite paket, ki ga želite uporabljati. S potrditvijo se brezplačni preizkus zaključi takoj, začne se obračunsko obdobje in ustvari račun."
+                              : "Spremeni paket kadarkoli. Spremembe se uporabijo ob naslednjem obračunskem obdobju."}
                           </p>
                           <div
                             className="account-plan-interval-toggle"
@@ -7577,7 +7718,9 @@ export function ConfigurationPage() {
                                     </span>
                                     {active ? (
                                       <span className="account-plan-tag">
-                                        Trenutni paket
+                                        {isFreeTrialActive
+                                          ? "Paket v preizkusu"
+                                          : "Trenutni paket"}
                                       </span>
                                     ) : null}
                                   </div>
@@ -7620,7 +7763,11 @@ export function ConfigurationPage() {
                                       requestPackageChange(planKey)
                                     }
                                   >
-                                    {active ? "Izbran" : "Izberi paket"}
+                                    {active
+                                      ? isFreeTrialActive
+                                        ? "Aktiviraj paket"
+                                        : "Izbran"
+                                      : "Izberi paket"}
                                   </button>
                                 </section>
                               );
@@ -8267,7 +8414,27 @@ export function ConfigurationPage() {
                             onClick={(event) => event.stopPropagation()}
                           >
                             <h3>Sprememba paketa</h3>
-                            {packageChangePreview.isUpgrade ? (
+                            {packageChangePreview.trialActivation ? (
+                              <p>
+                                Izbrali ste paket{" "}
+                                <strong>
+                                  {
+                                    accountPlanCatalog[
+                                      packageChangePreview.target
+                                    ].label
+                                  }
+                                </strong>{" "}
+                                (
+                                {packageChangePreview.targetInterval ===
+                                "YEARLY"
+                                  ? "letno"
+                                  : "mesečno"}
+                                ). S potrditvijo se brezplačni preizkus{" "}
+                                <strong>takoj zaključi</strong>, začne se novo
+                                obračunsko obdobje ter ustvari račun za izbrani
+                                paket in morebitne dodatne kapacitete.
+                              </p>
+                            ) : packageChangePreview.isUpgrade ? (
                               <p>
                                 Paket nadgrajujete na{" "}
                                 <strong>
@@ -8340,7 +8507,9 @@ export function ConfigurationPage() {
                               >
                                 {savingPackageChange
                                   ? "Shranjujem…"
-                                  : "Potrdi spremembo"}
+                                  : packageChangePreview.trialActivation
+                                    ? "Potrdi spremembe"
+                                    : "Potrdi spremembo"}
                               </button>
                             </div>
                           </div>
