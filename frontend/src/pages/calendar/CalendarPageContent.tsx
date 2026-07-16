@@ -8016,6 +8016,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     const onDown = (e: MouseEvent) => {
       if (calendarClientDetailId || calendarGroupDetailId) return
+      // ModernTimePicker is a top-level portal. While it is open, all pointer
+      // interaction belongs to that picker and must never dismiss this popup.
+      if (document.body?.getAttribute('data-modern-time-picker-open') === 'true') return
       const target = e.target as HTMLElement | null
       if (target && sessionPopupRef.current?.contains(target)) return
       // Don't close the booking form while the meeting provider picker is open
@@ -8070,6 +8073,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (calendarClientDetailId || calendarGroupDetailId) return
+      // Let the time picker consume Escape without also closing the underlying
+      // booking/session popup.
+      if (document.body?.getAttribute('data-modern-time-picker-open') === 'true') return
       if (showAddGroupModal) {
         setShowAddGroupModal(false)
         return

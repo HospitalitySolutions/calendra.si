@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocale } from '../locale'
@@ -200,31 +200,70 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   const handleDialogKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault()
+      event.stopPropagation()
       closePicker()
       return
     }
     if (event.key === 'Enter') {
       event.preventDefault()
+      event.stopPropagation()
       confirmPicker()
       return
     }
     if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
       event.preventDefault()
+      event.stopPropagation()
       adjustActiveValue(1)
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
       event.preventDefault()
+      event.stopPropagation()
       adjustActiveValue(-1)
     }
   }, [adjustActiveValue, closePicker, confirmPicker])
 
-  useEffect(() => {
-    if (!open) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+  // The picker is rendered through a portal. Mark it as the active top-level modal
+  // before the browser paints so capture-phase outside-click handlers in parent
+  // screens cannot mistake picker interaction for a click outside their popup.
+  useLayoutEffect(() => {
+    if (!open || typeof document === 'undefined') return
+
+    const body = document.body
+    const root = document.documentElement
+    const previousOverflow = body.style.overflow
+    const previousBodyMarker = body.getAttribute('data-modern-time-picker-open')
+    const previousRootMarker = root.getAttribute('data-modern-time-picker-open')
+    const pickerPortal = dialogRef.current?.closest<HTMLElement>('[data-modern-time-picker-portal="true"]')
+      ?? document.querySelector<HTMLElement>('[data-modern-time-picker-portal="true"]')
+    const inertedSiblings: Array<{ element: HTMLElement; wasInert: boolean }> = []
+
+    body.style.overflow = 'hidden'
+    body.setAttribute('data-modern-time-picker-open', 'true')
+    root.setAttribute('data-modern-time-picker-open', 'true')
+
+    // Prevent transparent application overlays below the picker from receiving
+    // pointer/focus events. The picker portal itself remains fully interactive.
+    if (pickerPortal) {
+      Array.from(body.children).forEach((child) => {
+        if (!(child instanceof HTMLElement)) return
+        if (child === pickerPortal || child.contains(pickerPortal)) return
+        if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE' || child.tagName === 'LINK') return
+        inertedSiblings.push({ element: child, wasInert: child.inert })
+        child.inert = true
+      })
+    }
+
     window.requestAnimationFrame(() => dialogRef.current?.focus())
+
     return () => {
-      document.body.style.overflow = previousOverflow
+      body.style.overflow = previousOverflow
+      if (previousBodyMarker == null) body.removeAttribute('data-modern-time-picker-open')
+      else body.setAttribute('data-modern-time-picker-open', previousBodyMarker)
+      if (previousRootMarker == null) root.removeAttribute('data-modern-time-picker-open')
+      else root.setAttribute('data-modern-time-picker-open', previousRootMarker)
+      inertedSiblings.forEach(({ element, wasInert }) => {
+        if (element.isConnected) element.inert = wasInert
+      })
     }
   }, [open])
 
@@ -241,11 +280,11 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
           role="presentation"
           onPointerDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
-          onMouseDown={(event) => {
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
             event.stopPropagation()
             if (event.target === event.currentTarget) closePicker()
           }}
-          onClick={(event) => event.stopPropagation()}
         >
           <div
             ref={dialogRef}

@@ -535,16 +535,33 @@ button.calendar-input-picker-btn {
 .modern-time-picker-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 13000;
+    /* Always stay above session, billing, client and platform-admin overlays. */
+    z-index: 2147483000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 18px;
     background: rgba(15, 23, 42, 0.48);
     backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    isolation: isolate;
+    pointer-events: auto !important;
+    touch-action: none;
+    overscroll-behavior: contain;
+}
+
+html[data-modern-time-picker-open="true"] body > :not(.modern-time-picker-popover) {
+    pointer-events: none !important;
+}
+
+html[data-modern-time-picker-open="true"] body > .modern-time-picker-popover {
+    pointer-events: auto !important;
 }
 
 .modern-time-picker-dialog {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
     width: min(320px, calc(100vw - 36px));
     padding: 20px 20px 12px;
     border: 1px solid rgba(203, 213, 225, 0.95);
