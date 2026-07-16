@@ -3407,15 +3407,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 >
                   <span className="booking-type-btn-label"><BookingTypeTabIcon name="booking" />{t('formBooking')}</span>
                 </button>
-                {personalModuleEnabled && (
-                <button
-                  type="button"
-                  className={!availabilitySelection && form.personal ? 'booking-type-btn booking-type-btn--personal active' : 'booking-type-btn booking-type-btn--personal'}
-                  onClick={() => activateNewFormPanel('personal')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="personal" />{t('formPersonal')}</span>
-                </button>
-                )}
                 {todosModuleEnabled && (
                 <button
                   type="button"
@@ -3423,6 +3414,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   onClick={() => activateNewFormPanel('todo')}
                 >
                   <span className="booking-type-btn-label"><BookingTypeTabIcon name="todo" />{t('formTodo')}</span>
+                </button>
+                )}
+                {personalModuleEnabled && (
+                <button
+                  type="button"
+                  className={!availabilitySelection && form.personal ? 'booking-type-btn booking-type-btn--personal active' : 'booking-type-btn booking-type-btn--personal'}
+                  onClick={() => activateNewFormPanel('personal')}
+                >
+                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="personal" />{t('formPersonal')}</span>
                 </button>
                 )}
                 <button

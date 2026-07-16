@@ -6948,7 +6948,19 @@ button.course-edit-save-button.gapp-primary-button {
 }
 
 .calendar-personal-visibility-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
+  min-width: 0;
+}
+
+.calendar-personal-visibility-head .form-field-inline-label {
+  margin: 0;
+  padding: 0;
+  align-self: center;
 }
 
 .calendar-personal-visibility-line {
