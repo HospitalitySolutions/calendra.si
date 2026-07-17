@@ -200,6 +200,15 @@ type BillingSubtab =
 type IntegrationSubtab = "status" | "googleCalendar";
 type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "referrals" | "security" | "legal";
 type PersonalTaskPreset = { id: string; name: string; color: string };
+type AccountPlanIconKind = "leaf" | "star" | "crown" | "custom";
+type AccountPlanCard = {
+  label: string;
+  subtitle: string;
+  monthly: number;
+  annual: number;
+  icon: AccountPlanIconKind;
+  features: string[];
+};
 
 const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 800;
 
@@ -1056,7 +1065,8 @@ export function ConfigurationPage() {
     if (
       configured === "BASIC" ||
       configured === "PROFESSIONAL" ||
-      configured === "PREMIUM"
+      configured === "PREMIUM" ||
+      configured === "CUSTOM"
     )
       return configured;
     return "PROFESSIONAL";
@@ -1194,7 +1204,7 @@ export function ConfigurationPage() {
     0,
     1 - accountCatalogAnnualDiscount / 100,
   );
-  const accountPlanCatalog = useMemo(() => {
+  const accountPlanCatalog = useMemo<Record<AccountPlanPackageKey, AccountPlanCard>>(() => {
     const plans =
       accountRegisterCatalog.plans || DEFAULT_ACCOUNT_REGISTER_CATALOG.plans;
     const basicMonthly = roundAccountMoney(
@@ -1217,6 +1227,26 @@ export function ConfigurationPage() {
     );
     const annual = (monthly: number) =>
       roundAccountMoney(monthly * 12 * accountCatalogAnnualFactor);
+    const configuredCustomMonthly = roundAccountMoney(
+      positiveAccountNumber(settings.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE, 0),
+    );
+    const configuredCustomAnnual = roundAccountMoney(
+      positiveAccountNumber(settings.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE, 0),
+    );
+    const customMonthly =
+      configuredCustomMonthly > 0
+        ? configuredCustomMonthly
+        : configuredCustomAnnual > 0
+          ? roundAccountMoney(configuredCustomAnnual / 12)
+          : 0;
+    const customAnnual =
+      configuredCustomAnnual > 0
+        ? configuredCustomAnnual
+        : configuredCustomMonthly > 0
+          ? roundAccountMoney(configuredCustomMonthly * 12)
+          : 0;
+    const customLabel =
+      String(settings.BILLING_SUBSCRIPTION_CUSTOM_NAME || "").trim() || "Custom";
     const catalogLocale = locale === "sl" ? "sl" : "en";
     return {
       BASIC: {
@@ -1257,8 +1287,37 @@ export function ConfigurationPage() {
           "Namenski skrbnik",
         ],
       },
+      CUSTOM: {
+        label: customLabel,
+        subtitle: "Paket po meri za vaše podjetje",
+        monthly: customMonthly,
+        annual: customAnnual,
+        icon: "custom",
+        features: [
+          "Cena po dogovoru",
+          "Izbrane funkcionalnosti",
+          "Kapacitete po meri",
+        ],
+      },
     };
-  }, [accountCatalogAnnualFactor, accountRegisterCatalog, locale]);
+  }, [
+    accountCatalogAnnualFactor,
+    accountRegisterCatalog,
+    locale,
+    settings.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE,
+    settings.BILLING_SUBSCRIPTION_CUSTOM_NAME,
+    settings.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE,
+  ]);
+
+  const customSubscriptionConfigured =
+    configuredSubscriptionPackage === "CUSTOM";
+  const visibleAccountPlanKeys = useMemo<AccountPlanPackageKey[]>(
+    () =>
+      customSubscriptionConfigured
+        ? ["BASIC", "PROFESSIONAL", "PREMIUM", "CUSTOM"]
+        : ["BASIC", "PROFESSIONAL", "PREMIUM"],
+    [customSubscriptionConfigured],
+  );
 
   const accountPlanDetailsFeatures = useMemo<
     AccountPlanDetailsFeature[]
@@ -1370,6 +1429,7 @@ export function ConfigurationPage() {
 
   const activePlanDetails =
     accountPlanCatalog[subscriptionPackage] || accountPlanCatalog.PROFESSIONAL;
+  const isCustomSubscriptionPlan = subscriptionPackage === "CUSTOM";
   const subscriptionInterval = subscriptionBillingInterval;
   const subscriptionPeriodLabel =
     subscriptionInterval === "YEARLY" ? "leto" : "mesec";
@@ -1471,10 +1531,61 @@ export function ConfigurationPage() {
     accountRegisterCatalog.addons,
     locale,
   ]);
-  const addonUnitPeriodPrice = (addon: { monthly: number }) =>
-    subscriptionInterval === "YEARLY"
+  const customAddonPrices = useMemo(() => {
+    const out = new Map<
+      string,
+      { monthly: number; yearly: number; charged: boolean }
+    >();
+    if (!isCustomSubscriptionPlan) return out;
+    try {
+      const parsed = JSON.parse(
+        String(settings.BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON || "[]"),
+      );
+      if (!Array.isArray(parsed)) return out;
+      parsed.forEach((row) => {
+        const key = normalizeAccountAddonKey(row?.key);
+        if (!key) return;
+        const monthly = roundAccountMoney(
+          positiveAccountNumber(row?.monthlyPrice, 0),
+        );
+        const yearly = roundAccountMoney(
+          positiveAccountNumber(row?.yearlyPrice, 0),
+        );
+        out.set(key, {
+          monthly,
+          yearly,
+          charged: row?.charged !== false,
+        });
+      });
+    } catch {
+      return out;
+    }
+    return out;
+  }, [
+    isCustomSubscriptionPlan,
+    settings.BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON,
+  ]);
+  const addonUnitPeriodPrice = (addon: { key: string; monthly: number }) => {
+    if (isCustomSubscriptionPlan) {
+      const customPrice = customAddonPrices.get(addon.key);
+      if (customPrice) {
+        if (!customPrice.charged) return 0;
+        if (subscriptionInterval === "YEARLY") {
+          return customPrice.yearly > 0
+            ? customPrice.yearly
+            : roundAccountMoney(customPrice.monthly * 12);
+        }
+        return customPrice.monthly > 0
+          ? customPrice.monthly
+          : customPrice.yearly > 0
+            ? roundAccountMoney(customPrice.yearly / 12)
+            : 0;
+      }
+    }
+    return subscriptionInterval === "YEARLY"
       ? roundAccountMoney(addon.monthly * 12 * accountCatalogAnnualFactor)
       : roundAccountMoney(addon.monthly);
+  };
   const currentBaseAddonKeys = parseAccountAddonKeyCsv(
     settings.SIGNUP_ADDON_KEYS,
   );
@@ -1531,11 +1642,13 @@ export function ConfigurationPage() {
   const nextInvoiceSmsCount = Math.max(0, nextCycleSmsCount);
   const selectedExtraUsersCount = nextInvoiceUserLimit;
   const includedUsersForSubscriptionPlan =
-    subscriptionPackage === "PREMIUM"
-      ? 10
-      : subscriptionPackage === "PROFESSIONAL"
-        ? 5
-        : 1;
+    subscriptionPackage === "CUSTOM"
+      ? selectedExtraUsersCount
+      : subscriptionPackage === "PREMIUM"
+        ? 10
+        : subscriptionPackage === "PROFESSIONAL"
+          ? 5
+          : 1;
   const billableNextInvoiceUsers = Math.max(
     0,
     selectedExtraUsersCount - includedUsersForSubscriptionPlan,
@@ -1544,15 +1657,15 @@ export function ConfigurationPage() {
   const usersAddonAmount = roundAccountMoney(
     billableNextInvoiceUsers * usersAddonUnitPrice,
   );
-  const smsAddonAmount = roundAccountMoney(
-    selectedSmsCount * smsAddonUnitPrice,
-  );
-  const currentCycleUserAddonAmount = roundAccountMoney(
-    currentBillingCycleUserAdd * usersAddonUnitPrice,
-  );
-  const currentCycleSmsAddonAmount = roundAccountMoney(
-    currentBillingCycleSmsAdd * smsAddonUnitPrice,
-  );
+  const smsAddonAmount = isCustomSubscriptionPlan
+    ? 0
+    : roundAccountMoney(selectedSmsCount * smsAddonUnitPrice);
+  const currentCycleUserAddonAmount = isCustomSubscriptionPlan
+    ? 0
+    : roundAccountMoney(currentBillingCycleUserAdd * usersAddonUnitPrice);
+  const currentCycleSmsAddonAmount = isCustomSubscriptionPlan
+    ? 0
+    : roundAccountMoney(currentBillingCycleSmsAdd * smsAddonUnitPrice);
   const subscriptionGrossTotal = roundAccountMoney(
     planPeriodAmount +
       usersAddonAmount +
@@ -1573,7 +1686,8 @@ export function ConfigurationPage() {
     );
     return normalized === "BASIC" ||
       normalized === "PROFESSIONAL" ||
-      normalized === "PREMIUM"
+      normalized === "PREMIUM" ||
+      normalized === "CUSTOM"
       ? normalized
       : null;
   }, [settings.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME]);
@@ -1755,7 +1869,11 @@ export function ConfigurationPage() {
       ? accountPlanCatalog[planKey].annual
       : accountPlanCatalog[planKey].monthly;
   const accountPlanRank = (planKey: AccountPlanPackageKey) =>
-    planKey === "PREMIUM" ? 3 : planKey === "PROFESSIONAL" ? 2 : 1;
+    planKey === "PREMIUM" || planKey === "CUSTOM"
+      ? 3
+      : planKey === "PROFESSIONAL"
+        ? 2
+        : 1;
 
   const packageChangePreview = useMemo(() => {
     if (!packageChangeTarget) return null;
@@ -1841,7 +1959,7 @@ export function ConfigurationPage() {
     }
   };
 
-  const renderAccountPlanIcon = (kind: "leaf" | "star" | "crown") => {
+  const renderAccountPlanIcon = (kind: AccountPlanIconKind) => {
     if (kind === "leaf") {
       return (
         <svg
@@ -1857,6 +1975,31 @@ export function ConfigurationPage() {
         >
           <path d="M6 19c9 0 12-9 12-14C13 5 4 8 4 17c0 1 .2 2 .6 3" />
           <path d="M6 13c1.2 0 2.8.4 4 1.4" />
+        </svg>
+      );
+    }
+    if (kind === "custom") {
+      return (
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M12 3v3" />
+          <path d="M12 18v3" />
+          <path d="M3 12h3" />
+          <path d="M18 12h3" />
+          <path d="m5.6 5.6 2.1 2.1" />
+          <path d="m16.3 16.3 2.1 2.1" />
+          <path d="m18.4 5.6-2.1 2.1" />
+          <path d="m7.7 16.3-2.1 2.1" />
+          <circle cx="12" cy="12" r="3" />
         </svg>
       );
     }
@@ -7541,8 +7684,7 @@ export function ConfigurationPage() {
                                 aria-hidden
                               >
                                 {renderAccountPlanIcon(
-                                  accountPlanCatalog[subscriptionPackage]
-                                    .icon as "leaf" | "star" | "crown",
+                                  accountPlanCatalog[subscriptionPackage].icon,
                                 )}
                               </span>
                               <div>
@@ -7705,11 +7847,7 @@ export function ConfigurationPage() {
                             </button>
                           </div>
                           <div className="account-plan-grid">
-                            {(
-                              Object.keys(accountPlanCatalog) as Array<
-                                keyof typeof accountPlanCatalog
-                              >
-                            ).map((planKey) => {
+                            {visibleAccountPlanKeys.map((planKey) => {
                               const plan = accountPlanCatalog[planKey];
                               const active = subscriptionPackage === planKey;
                               return (
@@ -7727,7 +7865,7 @@ export function ConfigurationPage() {
                                       aria-hidden
                                     >
                                       {renderAccountPlanIcon(
-                                        plan.icon as "leaf" | "star" | "crown",
+                                        plan.icon,
                                       )}
                                     </span>
                                     {active ? (
@@ -7776,16 +7914,22 @@ export function ConfigurationPage() {
                                   <button
                                     type="button"
                                     className="account-button-secondary"
-                                    disabled={!canViewConfiguration}
+                                    disabled={
+                                      !canViewConfiguration || planKey === "CUSTOM"
+                                    }
                                     onClick={() =>
                                       requestPackageChange(planKey)
                                     }
                                   >
-                                    {active
-                                      ? isFreeTrialActive
-                                        ? "Aktiviraj paket"
-                                        : "Izbran"
-                                      : "Izberi paket"}
+                                    {planKey === "CUSTOM"
+                                      ? active
+                                        ? "Izbran"
+                                        : "Paket po meri"
+                                      : active
+                                        ? isFreeTrialActive
+                                          ? "Aktiviraj paket"
+                                          : "Izbran"
+                                        : "Izberi paket"}
                                   </button>
                                 </section>
                               );
@@ -8237,50 +8381,54 @@ export function ConfigurationPage() {
                                 </strong>
                               </div>
                             )}
-                            {currentBillingCycleUserAdd > 0 && (
-                              <div className="account-summary-row">
-                                <span>
-                                  Uporabniki tekoče obdobje (+
-                                  {currentBillingCycleUserAdd})
-                                </span>
-                                <strong>
-                                  {formatAccountEuro(
-                                    currentCycleUserAddonAmount,
-                                  )}
-                                </strong>
-                              </div>
+                            {!isCustomSubscriptionPlan && (
+                              <>
+                                {currentBillingCycleUserAdd > 0 && (
+                                  <div className="account-summary-row">
+                                    <span>
+                                      Uporabniki tekoče obdobje (+
+                                      {currentBillingCycleUserAdd})
+                                    </span>
+                                    <strong>
+                                      {formatAccountEuro(
+                                        currentCycleUserAddonAmount,
+                                      )}
+                                    </strong>
+                                  </div>
+                                )}
+                                <div className="account-summary-row">
+                                  <span>
+                                    Uporabniki naslednje obdobje (
+                                    {selectedExtraUsersCount} max /{" "}
+                                    {billableNextInvoiceUsers} dodatnih)
+                                  </span>
+                                  <strong>
+                                    {formatAccountEuro(usersAddonAmount)}
+                                  </strong>
+                                </div>
+                                {currentBillingCycleSmsAdd > 0 && (
+                                  <div className="account-summary-row">
+                                    <span>
+                                      SMS tekoče obdobje (+
+                                      {currentBillingCycleSmsAdd})
+                                    </span>
+                                    <strong>
+                                      {formatAccountEuro(
+                                        currentCycleSmsAddonAmount,
+                                      )}
+                                    </strong>
+                                  </div>
+                                )}
+                                <div className="account-summary-row">
+                                  <span>
+                                    SMS naslednje obdobje ({selectedSmsCount})
+                                  </span>
+                                  <strong>
+                                    {formatAccountEuro(smsAddonAmount)}
+                                  </strong>
+                                </div>
+                              </>
                             )}
-                            <div className="account-summary-row">
-                              <span>
-                                Uporabniki naslednje obdobje (
-                                {selectedExtraUsersCount} max /{" "}
-                                {billableNextInvoiceUsers} dodatnih)
-                              </span>
-                              <strong>
-                                {formatAccountEuro(usersAddonAmount)}
-                              </strong>
-                            </div>
-                            {currentBillingCycleSmsAdd > 0 && (
-                              <div className="account-summary-row">
-                                <span>
-                                  SMS tekoče obdobje (+
-                                  {currentBillingCycleSmsAdd})
-                                </span>
-                                <strong>
-                                  {formatAccountEuro(
-                                    currentCycleSmsAddonAmount,
-                                  )}
-                                </strong>
-                              </div>
-                            )}
-                            <div className="account-summary-row">
-                              <span>
-                                SMS naslednje obdobje ({selectedSmsCount})
-                              </span>
-                              <strong>
-                                {formatAccountEuro(smsAddonAmount)}
-                              </strong>
-                            </div>
                             {currentCycleAddonAmount > 0 && (
                               <div className="account-summary-row">
                                 <span>Dodatki tekoče obdobje</span>
@@ -8387,29 +8535,46 @@ export function ConfigurationPage() {
                               </div>
                             </div>
                             <ul className="account-feature-preview-list">
-                              {accountPlanDetailsFeatures.map((feature) => {
-                                const enabled =
-                                  accountPlanDetailsRank >=
-                                  accountRegisterPlanRank(feature.minPlan);
-                                return (
-                                  <li
-                                    key={feature.key}
-                                    className={
-                                      enabled
-                                        ? "account-feature-preview-item enabled"
-                                        : "account-feature-preview-item"
-                                    }
-                                  >
-                                    <span className="account-feature-preview-number">
-                                      {feature.index}
-                                    </span>
-                                    <span className="account-feature-preview-copy">
-                                      <strong>{feature.name}</strong>
-                                      <span>{feature.description}</span>
-                                    </span>
-                                  </li>
-                                );
-                              })}
+                              {isCustomSubscriptionPlan
+                                ? activePlanDetails.features.map((feature, index) => (
+                                    <li
+                                      key={feature}
+                                      className="account-feature-preview-item enabled"
+                                    >
+                                      <span className="account-feature-preview-number">
+                                        {index + 1}
+                                      </span>
+                                      <span className="account-feature-preview-copy">
+                                        <strong>{feature}</strong>
+                                        <span>
+                                          Določeno individualno v vaši ponudbi.
+                                        </span>
+                                      </span>
+                                    </li>
+                                  ))
+                                : accountPlanDetailsFeatures.map((feature) => {
+                                    const enabled =
+                                      accountPlanDetailsRank >=
+                                      accountRegisterPlanRank(feature.minPlan);
+                                    return (
+                                      <li
+                                        key={feature.key}
+                                        className={
+                                          enabled
+                                            ? "account-feature-preview-item enabled"
+                                            : "account-feature-preview-item"
+                                        }
+                                      >
+                                        <span className="account-feature-preview-number">
+                                          {feature.index}
+                                        </span>
+                                        <span className="account-feature-preview-copy">
+                                          <strong>{feature.name}</strong>
+                                          <span>{feature.description}</span>
+                                        </span>
+                                      </li>
+                                    );
+                                  })}
                             </ul>
                           </div>
                         </div>

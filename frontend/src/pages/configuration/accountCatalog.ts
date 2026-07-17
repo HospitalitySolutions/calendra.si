@@ -1,5 +1,5 @@
 export type AccountSubscriptionInterval = "MONTHLY" | "YEARLY";
-export type AccountPlanPackageKey = "BASIC" | "PROFESSIONAL" | "PREMIUM";
+export type AccountPlanPackageKey = "BASIC" | "PROFESSIONAL" | "PREMIUM" | "CUSTOM";
 export type AccountRegisterCatalogAddonItem = {
   key?: string | null;
   name?: string | null;
@@ -244,7 +244,7 @@ export const accountPackageToRegisterPlanKey = (
   key: AccountPlanPackageKey,
 ): AccountRegisterPlanKey => {
   if (key === "BASIC") return "basic";
-  if (key === "PREMIUM") return "business";
+  if (key === "PREMIUM" || key === "CUSTOM") return "business";
   return "pro";
 };
 export const accountRegisterPlanRank = (key: AccountRegisterPlanKey) =>

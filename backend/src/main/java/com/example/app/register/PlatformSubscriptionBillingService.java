@@ -359,8 +359,8 @@ public class PlatformSubscriptionBillingService {
         }
 
         BigDecimal existingDiff = parseAmountSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT);
-        BigDecimal currentGross = periodGrossFor(catalog, currentPackage, currentInterval);
-        BigDecimal targetGross = periodGrossFor(catalog, targetPackage, targetInterval);
+        BigDecimal currentGross = periodGrossFor(catalog, currentPackage, currentInterval, tenantId);
+        BigDecimal targetGross = periodGrossFor(catalog, targetPackage, targetInterval, tenantId);
 
         boolean sameSelection = currentPackage.equals(targetPackage) && currentInterval == targetInterval;
         if (sameSelection) {
@@ -668,17 +668,40 @@ public class PlatformSubscriptionBillingService {
         };
     }
 
-    private BigDecimal periodGrossFor(RegisterPriceCatalog catalog, String packageName, BillingInterval interval) {
+    private BigDecimal periodGrossFor(
+            RegisterPriceCatalog catalog,
+            String packageName,
+            BillingInterval interval,
+            Long tenantId
+    ) {
         Map<String, Double> prices = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
         double annualDiscount = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
         String normalized = normalizePackageType(packageName);
+        if ("CUSTOM".equals(normalized)) {
+            return customPeriodGross(tenantId, interval);
+        }
         BigDecimal monthly = switch (normalized) {
             case "PREMIUM" -> money(prices.getOrDefault("business", 59.90));
             case "PROFESSIONAL" -> money(prices.getOrDefault("pro", 34.90));
-            case "CUSTOM" -> money(0.0);
             default -> money(prices.getOrDefault("basic", 18.90));
         };
         return interval == BillingInterval.YEARLY ? annualGross(monthly, annualDiscount) : monthly;
+    }
+
+    private BigDecimal customPeriodGross(Long tenantId, BillingInterval interval) {
+        if (tenantId == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal monthly = parseMoneySetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE);
+        BigDecimal yearly = parseMoneySetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE);
+        if (interval == BillingInterval.YEARLY) {
+            return yearly.compareTo(BigDecimal.ZERO) > 0
+                    ? yearly
+                    : monthly.multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
+        }
+        return monthly.compareTo(BigDecimal.ZERO) > 0
+                ? monthly
+                : yearly.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal parseAmountSetting(Long companyId, SettingKey key) {
@@ -831,12 +854,7 @@ public class PlatformSubscriptionBillingService {
             return null;
         }
         BillingInterval interval = normalizeInterval(billingInterval);
-        BigDecimal monthly = parseMoneySetting(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE);
-        BigDecimal yearly = parseMoneySetting(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE);
-        BigDecimal gross = interval == BillingInterval.YEARLY ? yearly : monthly;
-        if (gross.compareTo(BigDecimal.ZERO) <= 0 && interval == BillingInterval.YEARLY) {
-            gross = monthly.multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
-        }
+        BigDecimal gross = customPeriodGross(tenantCompany.getId(), interval);
         if (gross.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
