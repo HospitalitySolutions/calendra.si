@@ -45,9 +45,11 @@ export type AccountRegisterCatalog = {
   featureItems?: AccountRegisterCatalogFeatureItem[] | null;
   annualDiscountPercent?: number | null;
   additionalUserMonthly?: number | null;
+  additionalUserMonthlyAfterFive?: number | null;
   smsPerMessage?: number | null;
   usagePrices?: {
     additionalUserMonthly?: number | null;
+    additionalUserMonthlyAfterFive?: number | null;
     smsPerMessage?: number | null;
   } | null;
 };
@@ -63,10 +65,15 @@ export const DEFAULT_ACCOUNT_REGISTER_CATALOG: Required<
     pro: { name: "Pro", nameSl: "Pro" },
     business: { name: "Business", nameSl: "Poslovni" },
   },
-  annualDiscountPercent: 15,
+  annualDiscountPercent: (2 * 100) / 12,
   additionalUserMonthly: 9.9,
+  additionalUserMonthlyAfterFive: 6.9,
   smsPerMessage: 0.05,
-  usagePrices: { additionalUserMonthly: 9.9, smsPerMessage: 0.05 },
+  usagePrices: {
+    additionalUserMonthly: 9.9,
+    additionalUserMonthlyAfterFive: 6.9,
+    smsPerMessage: 0.05,
+  },
   addonItems: [
     {
       key: "voice",

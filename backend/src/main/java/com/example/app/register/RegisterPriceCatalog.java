@@ -10,6 +10,9 @@ import java.util.Set;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RegisterPriceCatalog {
     public static final Set<String> PLAN_KEYS = Set.of("basic", "pro", "business");
+    public static final int ANNUAL_BILLED_MONTHS = 10;
+    public static final int ANNUAL_SAVINGS_MONTHS = 2;
+    public static final double ANNUAL_DISCOUNT_PERCENT = (ANNUAL_SAVINGS_MONTHS * 100.0) / 12.0;
 
     private Map<String, Double> plans;
     /** Localized public package names used by the register flow. */
@@ -20,6 +23,7 @@ public class RegisterPriceCatalog {
     private List<AddonItem> addonItems;
     private List<FeatureItem> featureItems;
     private Double additionalUserMonthly;
+    private Double additionalUserMonthlyAfterFive;
     private Double smsPerMessage;
     private UsagePrices usagePrices;
     /** Optional transaction service ids on the Platform Admin tenant for package billing. */
@@ -68,10 +72,11 @@ public class RegisterPriceCatalog {
         features.add(new FeatureItem("multilocation", "Multi-location support", "Več lokacij", "Manage multiple branches in one account.", "Več podružnic v enem računu.", "business", true));
         out.setFeatureItems(features);
 
-        out.setAnnualDiscountPercent(15.0);
+        out.setAnnualDiscountPercent(ANNUAL_DISCOUNT_PERCENT);
         out.setAdditionalUserMonthly(9.9);
+        out.setAdditionalUserMonthlyAfterFive(6.9);
         out.setSmsPerMessage(0.05);
-        out.setUsagePrices(new UsagePrices(9.9, 0.05));
+        out.setUsagePrices(new UsagePrices(9.9, 6.9, 0.05));
         return out;
     }
 
@@ -102,6 +107,8 @@ public class RegisterPriceCatalog {
     public void setFeatureItems(List<FeatureItem> featureItems) { this.featureItems = featureItems; }
     public Double getAdditionalUserMonthly() { return additionalUserMonthly; }
     public void setAdditionalUserMonthly(Double additionalUserMonthly) { this.additionalUserMonthly = additionalUserMonthly; }
+    public Double getAdditionalUserMonthlyAfterFive() { return additionalUserMonthlyAfterFive; }
+    public void setAdditionalUserMonthlyAfterFive(Double additionalUserMonthlyAfterFive) { this.additionalUserMonthlyAfterFive = additionalUserMonthlyAfterFive; }
     public Double getSmsPerMessage() { return smsPerMessage; }
     public void setSmsPerMessage(Double smsPerMessage) { this.smsPerMessage = smsPerMessage; }
     public UsagePrices getUsagePrices() { return usagePrices; }
@@ -211,22 +218,32 @@ public class RegisterPriceCatalog {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class UsagePrices {
         private Double additionalUserMonthly;
+        private Double additionalUserMonthlyAfterFive;
         private Double smsPerMessage;
         private Long additionalUserTransactionServiceId;
         private Long smsTransactionServiceId;
 
         public UsagePrices() {}
         public UsagePrices(Double additionalUserMonthly, Double smsPerMessage) {
-            this(additionalUserMonthly, smsPerMessage, null, null);
+            this(additionalUserMonthly, 6.9, smsPerMessage, null, null);
+        }
+        public UsagePrices(Double additionalUserMonthly, Double additionalUserMonthlyAfterFive, Double smsPerMessage) {
+            this(additionalUserMonthly, additionalUserMonthlyAfterFive, smsPerMessage, null, null);
         }
         public UsagePrices(Double additionalUserMonthly, Double smsPerMessage, Long additionalUserTransactionServiceId, Long smsTransactionServiceId) {
+            this(additionalUserMonthly, 6.9, smsPerMessage, additionalUserTransactionServiceId, smsTransactionServiceId);
+        }
+        public UsagePrices(Double additionalUserMonthly, Double additionalUserMonthlyAfterFive, Double smsPerMessage, Long additionalUserTransactionServiceId, Long smsTransactionServiceId) {
             this.additionalUserMonthly = additionalUserMonthly;
+            this.additionalUserMonthlyAfterFive = additionalUserMonthlyAfterFive;
             this.smsPerMessage = smsPerMessage;
             this.additionalUserTransactionServiceId = additionalUserTransactionServiceId;
             this.smsTransactionServiceId = smsTransactionServiceId;
         }
         public Double getAdditionalUserMonthly() { return additionalUserMonthly; }
         public void setAdditionalUserMonthly(Double additionalUserMonthly) { this.additionalUserMonthly = additionalUserMonthly; }
+        public Double getAdditionalUserMonthlyAfterFive() { return additionalUserMonthlyAfterFive; }
+        public void setAdditionalUserMonthlyAfterFive(Double additionalUserMonthlyAfterFive) { this.additionalUserMonthlyAfterFive = additionalUserMonthlyAfterFive; }
         public Double getSmsPerMessage() { return smsPerMessage; }
         public void setSmsPerMessage(Double smsPerMessage) { this.smsPerMessage = smsPerMessage; }
         public Long getAdditionalUserTransactionServiceId() { return additionalUserTransactionServiceId; }

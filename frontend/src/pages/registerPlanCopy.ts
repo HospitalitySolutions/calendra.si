@@ -24,6 +24,7 @@ export type RegisterCatalogFeatureItem = {
 
 export type RegisterUsagePriceCatalog = {
   additionalUserMonthly: number;
+  additionalUserMonthlyAfterFive: number;
   smsPerMessage: number;
 };
 
@@ -208,8 +209,15 @@ const DEFAULT_FEATURE_ITEMS: RegisterCatalogFeatureItem[] = [
   },
 ];
 
+export const ANNUAL_BILLED_MONTHS = 10;
+export const ANNUAL_SAVINGS_MONTHS = 2;
+const MONTHS_PER_YEAR = 12;
+const FIXED_ANNUAL_DISCOUNT_PERCENT =
+  (ANNUAL_SAVINGS_MONTHS * 100) / MONTHS_PER_YEAR;
+
 const DEFAULT_USAGE_PRICES: RegisterUsagePriceCatalog = {
   additionalUserMonthly: 9.9,
+  additionalUserMonthlyAfterFive: 6.9,
   smsPerMessage: 0.05,
 };
 
@@ -234,15 +242,12 @@ let addonCatalogItems: RegisterAddonCatalogItem[] = DEFAULT_ADDON_ITEMS.map(
 let featureCatalogItems: RegisterCatalogFeatureItem[] =
   DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item }));
 let usagePrices: RegisterUsagePriceCatalog = { ...DEFAULT_USAGE_PRICES };
-let annualDiscountPercent = 15;
+const annualDiscountPercent = FIXED_ANNUAL_DISCOUNT_PERCENT;
 
 function clampCatalogMoney(n: number): boolean {
   return Number.isFinite(n) && n >= 0 && n <= 100_000;
 }
 
-function clampAnnualDiscount(n: number): boolean {
-  return Number.isFinite(n) && n >= 0 && n <= 100;
-}
 
 function normalizeAddonKey(raw: unknown) {
   return String(raw ?? "")
@@ -360,9 +365,11 @@ export function hydrateRegisterCatalogFromApi(
         addonItems?: unknown[];
         featureItems?: unknown[];
         additionalUserMonthly?: unknown;
+        additionalUserMonthlyAfterFive?: unknown;
         smsPerMessage?: unknown;
         usagePrices?: {
           additionalUserMonthly?: unknown;
+          additionalUserMonthlyAfterFive?: unknown;
           smsPerMessage?: unknown;
         };
       }
@@ -391,12 +398,6 @@ export function hydrateRegisterCatalogFromApi(
     }
     planNamesDesc = next;
   }
-  if (
-    typeof data.annualDiscountPercent === "number" &&
-    clampAnnualDiscount(data.annualDiscountPercent)
-  ) {
-    annualDiscountPercent = Math.round(data.annualDiscountPercent * 100) / 100;
-  }
   const additionalUserMonthly =
     typeof data.additionalUserMonthly === "number"
       ? data.additionalUserMonthly
@@ -407,6 +408,17 @@ export function hydrateRegisterCatalogFromApi(
   ) {
     usagePrices.additionalUserMonthly =
       Math.round(additionalUserMonthly * 100) / 100;
+  }
+  const additionalUserMonthlyAfterFive =
+    typeof data.additionalUserMonthlyAfterFive === "number"
+      ? data.additionalUserMonthlyAfterFive
+      : data.usagePrices?.additionalUserMonthlyAfterFive;
+  if (
+    typeof additionalUserMonthlyAfterFive === "number" &&
+    clampCatalogMoney(additionalUserMonthlyAfterFive)
+  ) {
+    usagePrices.additionalUserMonthlyAfterFive =
+      Math.round(additionalUserMonthlyAfterFive * 100) / 100;
   }
   const smsPerMessage =
     typeof data.smsPerMessage === "number"
@@ -452,11 +464,25 @@ export function getAnnualDiscountPercent() {
 }
 
 export function getAnnualDiscountFactor() {
-  return Math.max(0, Math.min(1, (100 - annualDiscountPercent) / 100));
+  return ANNUAL_BILLED_MONTHS / MONTHS_PER_YEAR;
 }
 
 export function getAdditionalUserMonthlyPrice() {
   return usagePrices.additionalUserMonthly;
+}
+
+export function getAdditionalUserMonthlyPriceAfterFive() {
+  return usagePrices.additionalUserMonthlyAfterFive;
+}
+
+export function getAdditionalUsersMonthlyTotal(totalUsers: number) {
+  const normalizedUsers = Math.max(1, Math.trunc(totalUsers || 1));
+  const tierOneUsers = Math.min(4, Math.max(0, normalizedUsers - 1));
+  const tierTwoUsers = Math.max(0, normalizedUsers - 5);
+  return (
+    tierOneUsers * usagePrices.additionalUserMonthly +
+    tierTwoUsers * usagePrices.additionalUserMonthlyAfterFive
+  );
 }
 
 export function getSmsPerMessagePrice() {
@@ -544,7 +570,7 @@ export function formatEuro(value: number) {
 }
 
 function annualPrice(monthly: number) {
-  return Number((monthly * 12 * annualDiscountFactor()).toFixed(2));
+  return Number((monthly * ANNUAL_BILLED_MONTHS).toFixed(2));
 }
 
 const perMo: Record<RegisterLocale, string> = { en: "/mo", sl: "/mes." };
@@ -552,7 +578,7 @@ const perMo: Record<RegisterLocale, string> = { en: "/mo", sl: "/mes." };
 const cardStrings: Record<
   RegisterLocale,
   {
-    planCardAnnualNote: (yr: string, discountPercent: string) => string;
+    planCardAnnualNote: (yr: string) => string;
     planCardAnnualNoteShort: (yr: string) => string;
     planCardNotePro: string;
     planCardNoteBusiness: string;
@@ -561,8 +587,8 @@ const cardStrings: Record<
   }
 > = {
   en: {
-    planCardAnnualNote: (yr: string, discountPercent: string) =>
-      `Billed annually at ${yr}/yr (${discountPercent}% off).`,
+    planCardAnnualNote: (yr: string) =>
+      `Billed annually at ${yr}/yr. Save 2 months.`,
     planCardAnnualNoteShort: (yr: string) => `Billed annually at ${yr}/yr.`,
     planCardNotePro: "For growing businesses.",
     planCardNoteBusiness:
@@ -572,8 +598,8 @@ const cardStrings: Record<
       `, then ${priceWithSuffix} unless cancelled. For individuals getting started.`,
   },
   sl: {
-    planCardAnnualNote: (yr: string, discountPercent: string) =>
-      `Letno obračunavanje: ${yr}/leto (popust ${discountPercent} %).`,
+    planCardAnnualNote: (yr: string) =>
+      `Letno obračunavanje: ${yr}/leto. Prihranite 2 meseca.`,
     planCardAnnualNoteShort: (yr: string) => `Letno obračunavanje: ${yr}/leto.`,
     planCardNotePro: "Za rastoča podjetja.",
     planCardNoteBusiness:
@@ -658,10 +684,7 @@ export function getPlanCardPriceNote(
       per: pm,
       oldPriceVisible: false,
       oldPrice: "",
-      note: loc.planCardAnnualNote(
-        formatEuro(annual),
-        formatDiscountPercent(annualDiscountPercent),
-      ),
+      note: loc.planCardAnnualNote(formatEuro(annual)),
       noteIsTrial: false,
       trialHighlight: "",
       trialUnlessCancelled: "",
@@ -756,9 +779,7 @@ export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   const selectedPlan = selection.plan;
   const trialLocked = isBasicMonthlyTrial(selection);
   const planMonthly = trialLocked ? 0 : planCore[selectedPlan].monthly;
-  const usersMonthly =
-    getBillableAdditionalUserSlots(selection) *
-    usagePrices.additionalUserMonthly;
+  const usersMonthly = getAdditionalUsersMonthlyTotal(selection.additionalUsers);
   const smsMonthly = trialLocked
     ? 0
     : selection.additionalSms * usagePrices.smsPerMessage;
@@ -1107,7 +1128,8 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
       "Choose the total number of team users. The first user is included.",
     userSingular: "user",
     userPlural: "users",
-    firstUserFreeNote: "First user included; extra users €9.90 / user / month",
+    firstUserFreeNote:
+      "The first user is included in the package. Users 2–5: €9.90 per user/month. From user 6 onward: €6.90 per user/month.",
     smsStrong: "SMS messages",
     smsHint: "Increase reminder volume in blocks of 50 SMS messages.",
     smsCount: (n) => `${n} SMS`,
@@ -1205,7 +1227,7 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     userSingular: "uporabnik",
     userPlural: "uporabniki",
     firstUserFreeNote:
-      "Prvi uporabnik je vključen; dodatni uporabniki 9,90 € / uporabnik / mesec",
+      "Prvi uporabnik je vključen v paket. Od 2. do 5. uporabnika: 9,90 € na uporabnika/mesec. Od 6. uporabnika dalje: 6,90 € na uporabnika/mesec.",
     smsStrong: "SMS sporočila",
     smsHint: "Povečajte obseg opomnikov v blokih po 50 SMS sporočilih.",
     smsCount: (n) => `${n} SMS`,
@@ -1244,22 +1266,15 @@ export function buildRegisterFooterPill(
   return { title, sub: detailParts.join(" · ") };
 }
 
-function formatDiscountPercent(value: number) {
-  return (Math.round(value * 100) / 100) % 1 === 0
-    ? String(Math.round(value))
-    : (Math.round(value * 100) / 100).toFixed(2);
-}
 
 export function annualSaveBannerText(locale: RegisterLocale) {
-  const pct = formatDiscountPercent(annualDiscountPercent);
   return locale === "sl"
-    ? `Pri letnem obračunu prihranite ${pct} %`
-    : `Save ${pct}% with annual billing`;
+    ? "Pri letnem obračunu prihranite 2 meseca"
+    : "Save 2 months with annual billing";
 }
 
 export function annualSaveBadgeText(amount: string, locale: RegisterLocale) {
-  const pct = formatDiscountPercent(annualDiscountPercent);
   return locale === "sl"
-    ? `Prihranek ${amount}/leto (${pct} %)`
-    : `You save ${amount}/yr (${pct}%)`;
+    ? `Prihranek ${amount}/leto (2 meseca)`
+    : `You save ${amount}/yr (2 months)`;
 }

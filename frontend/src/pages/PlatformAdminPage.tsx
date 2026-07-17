@@ -611,6 +611,7 @@ type RegisterCatalogFeatureItemDto = {
 
 type RegisterUsagePriceCatalogDto = {
   additionalUserMonthly: number;
+  additionalUserMonthlyAfterFive: number;
   smsPerMessage: number;
   additionalUserTransactionServiceId?: number | null;
   smsTransactionServiceId?: number | null;
@@ -624,6 +625,7 @@ type RegisterPriceCatalogDto = {
   addonItems?: RegisterCatalogAddonItemDto[];
   featureItems?: RegisterCatalogFeatureItemDto[];
   additionalUserMonthly?: number;
+  additionalUserMonthlyAfterFive?: number;
   smsPerMessage?: number;
   usagePrices?: RegisterUsagePriceCatalogDto;
   planTransactionServiceIds?: Partial<
@@ -639,11 +641,6 @@ function coerceMoneyInput(raw: string, fallback: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function coercePercentInput(raw: string, fallback: number): number {
-  const n = Number.parseFloat(raw.replace(",", "."));
-  if (!Number.isFinite(n) || n < 0 || n > 100) return fallback;
-  return Math.round(n * 100) / 100;
-}
 
 function normalizeAddonKey(raw: string): string {
   return raw
@@ -938,8 +935,14 @@ const DEFAULT_FEATURE_ITEMS: RegisterCatalogFeatureItemDto[] = [
   },
 ];
 
+const ANNUAL_BILLED_MONTHS = 10;
+const ANNUAL_SAVINGS_MONTHS = 2;
+const FIXED_ANNUAL_DISCOUNT_PERCENT =
+  (ANNUAL_SAVINGS_MONTHS * 100) / 12;
+
 const DEFAULT_USAGE_PRICES: RegisterUsagePriceCatalogDto = {
   additionalUserMonthly: 9.9,
+  additionalUserMonthlyAfterFive: 6.9,
   smsPerMessage: 0.05,
 };
 
@@ -956,10 +959,12 @@ const DEFAULT_REGISTER_CATALOG: RegisterPriceCatalogDto = {
   plans: { basic: 18.9, pro: 34.9, business: 59.9 },
   planNames: DEFAULT_PLAN_NAMES,
   addons: { voice: 12, billing: 8, whitelabel: 10 },
-  annualDiscountPercent: 15,
+  annualDiscountPercent: FIXED_ANNUAL_DISCOUNT_PERCENT,
   addonItems: DEFAULT_ADDON_ITEMS,
   featureItems: DEFAULT_FEATURE_ITEMS,
   additionalUserMonthly: DEFAULT_USAGE_PRICES.additionalUserMonthly,
+  additionalUserMonthlyAfterFive:
+    DEFAULT_USAGE_PRICES.additionalUserMonthlyAfterFive,
   smsPerMessage: DEFAULT_USAGE_PRICES.smsPerMessage,
   usagePrices: DEFAULT_USAGE_PRICES,
 };
@@ -1022,7 +1027,7 @@ function tenantAddonPeriodTotal(
             const amount = yearly
               ? row.yearly > 0
                 ? row.yearly
-                : row.monthly * 12
+                : row.monthly * ANNUAL_BILLED_MONTHS
               : row.monthly > 0
                 ? row.monthly
                 : row.yearly / 12;
@@ -1034,7 +1039,6 @@ function tenantAddonPeriodTotal(
       return 0;
     }
   }
-  const annualDiscount = Math.min(100, Math.max(0, Number(catalog.annualDiscountPercent) || 0));
   const monthlyByKey = new Map<string, number>();
   (catalog.addonItems || []).forEach((item) => {
     const key = String(item?.key || "").trim().toLowerCase();
@@ -1052,7 +1056,7 @@ function tenantAddonPeriodTotal(
   return roundMoney2(
     keys.reduce((sum, key) => {
       const monthly = monthlyByKey.get(key) || 0;
-      return sum + (yearly ? monthly * 12 * (1 - annualDiscount / 100) : monthly);
+      return sum + (yearly ? monthly * ANNUAL_BILLED_MONTHS : monthly);
     }, 0),
   );
 }
@@ -1106,15 +1110,15 @@ function mergeRegisterCatalog(
     fetched || DEFAULT_REGISTER_CATALOG,
   );
   const addons = addonMapFromItems(addonItems);
-  const annualDiscountPercent =
-    typeof fetched?.annualDiscountPercent === "number" &&
-    Number.isFinite(fetched.annualDiscountPercent)
-      ? Math.max(0, Math.min(100, roundMoney2(fetched.annualDiscountPercent)))
-      : DEFAULT_REGISTER_CATALOG.annualDiscountPercent;
+  const annualDiscountPercent = FIXED_ANNUAL_DISCOUNT_PERCENT;
   const additionalUserRaw =
     typeof fetched?.additionalUserMonthly === "number"
       ? fetched.additionalUserMonthly
       : fetched?.usagePrices?.additionalUserMonthly;
+  const additionalUserAfterFiveRaw =
+    typeof fetched?.additionalUserMonthlyAfterFive === "number"
+      ? fetched.additionalUserMonthlyAfterFive
+      : fetched?.usagePrices?.additionalUserMonthlyAfterFive;
   const smsRaw =
     typeof fetched?.smsPerMessage === "number"
       ? fetched.smsPerMessage
@@ -1123,6 +1127,11 @@ function mergeRegisterCatalog(
     typeof additionalUserRaw === "number" && Number.isFinite(additionalUserRaw)
       ? Math.max(0, roundMoney2(additionalUserRaw))
       : DEFAULT_USAGE_PRICES.additionalUserMonthly;
+  const additionalUserMonthlyAfterFive =
+    typeof additionalUserAfterFiveRaw === "number" &&
+    Number.isFinite(additionalUserAfterFiveRaw)
+      ? Math.max(0, roundMoney2(additionalUserAfterFiveRaw))
+      : DEFAULT_USAGE_PRICES.additionalUserMonthlyAfterFive;
   const smsPerMessage =
     typeof smsRaw === "number" && Number.isFinite(smsRaw)
       ? Math.max(0, Math.round(smsRaw * 10000) / 10000)
@@ -1146,6 +1155,7 @@ function mergeRegisterCatalog(
   }, {});
   const usagePrices = {
     additionalUserMonthly,
+    additionalUserMonthlyAfterFive,
     smsPerMessage,
     additionalUserTransactionServiceId,
     smsTransactionServiceId,
@@ -1158,6 +1168,7 @@ function mergeRegisterCatalog(
     addonItems,
     featureItems,
     additionalUserMonthly,
+    additionalUserMonthlyAfterFive,
     smsPerMessage,
     usagePrices,
     planTransactionServiceIds,
@@ -1188,15 +1199,11 @@ function planAmountsForTenant(
     : typeof monthlyRaw === "number" && Number.isFinite(monthlyRaw) && monthlyRaw >= 0
       ? monthlyRaw
       : DEFAULT_REGISTER_CATALOG.plans[planKey];
-  const annualDiscountPercent =
-    catalog.annualDiscountPercent ??
-    DEFAULT_REGISTER_CATALOG.annualDiscountPercent ??
-    15;
   const yearly = isCustom
     ? Number.isFinite(configuredCustomYearly) && configuredCustomYearly > 0
       ? configuredCustomYearly
-      : roundMoney2(monthly * 12)
-    : roundMoney2(monthly * 12 * (1 - annualDiscountPercent / 100));
+      : roundMoney2(monthly * ANNUAL_BILLED_MONTHS)
+    : roundMoney2(monthly * ANNUAL_BILLED_MONTHS);
   const billingLabel = isYearlyBillingInterval(selected.subscriptionInterval)
     ? ("Annual" as const)
     : ("Monthly" as const);
@@ -1365,10 +1372,12 @@ function PlanPricesAdminPanel() {
   const [planNames, setPlanNames] = useState<
     Record<RegisterPlanKeyDto, Required<RegisterCatalogPlanNameDto>>
   >(() => ({ ...DEFAULT_PLAN_NAMES }));
-  const [annualDiscountPercent, setAnnualDiscountPercent] = useState(15);
+  const annualDiscountPercent = FIXED_ANNUAL_DISCOUNT_PERCENT;
   const [additionalUserMonthly, setAdditionalUserMonthly] = useState(
     DEFAULT_USAGE_PRICES.additionalUserMonthly,
   );
+  const [additionalUserMonthlyAfterFive, setAdditionalUserMonthlyAfterFive] =
+    useState(DEFAULT_USAGE_PRICES.additionalUserMonthlyAfterFive);
   const [smsPerMessage, setSmsPerMessage] = useState(
     DEFAULT_USAGE_PRICES.smsPerMessage,
   );
@@ -1424,10 +1433,13 @@ function PlanPricesAdminPanel() {
               : 59.9,
         });
         setPlanNames(normalizePlanNamesFromCatalog(catalog));
-        setAnnualDiscountPercent(catalog.annualDiscountPercent ?? 15);
         setAdditionalUserMonthly(
           catalog.additionalUserMonthly ??
             DEFAULT_USAGE_PRICES.additionalUserMonthly,
+        );
+        setAdditionalUserMonthlyAfterFive(
+          catalog.additionalUserMonthlyAfterFive ??
+            DEFAULT_USAGE_PRICES.additionalUserMonthlyAfterFive,
         );
         setSmsPerMessage(
           catalog.smsPerMessage ?? DEFAULT_USAGE_PRICES.smsPerMessage,
@@ -1624,6 +1636,9 @@ function PlanPricesAdminPanel() {
         }, {});
       const usagePrices = {
         additionalUserMonthly: roundMoney2(additionalUserMonthly),
+        additionalUserMonthlyAfterFive: roundMoney2(
+          additionalUserMonthlyAfterFive,
+        ),
         smsPerMessage: Math.round(smsPerMessage * 10000) / 10000,
         additionalUserTransactionServiceId: normalizeServiceId(
           additionalUserTransactionServiceId,
@@ -1638,6 +1653,8 @@ function PlanPricesAdminPanel() {
         addons: addonMapFromItems(cleanedAddons),
         featureItems: cleanedFeatures,
         additionalUserMonthly: usagePrices.additionalUserMonthly,
+        additionalUserMonthlyAfterFive:
+          usagePrices.additionalUserMonthlyAfterFive,
         smsPerMessage: usagePrices.smsPerMessage,
         usagePrices,
         planTransactionServiceIds: normalizedPlanTransactionServiceIds,
@@ -1663,11 +1680,12 @@ function PlanPricesAdminPanel() {
             : plans.business,
       });
       setPlanNames(normalizePlanNamesFromCatalog(catalog));
-      setAnnualDiscountPercent(
-        catalog.annualDiscountPercent ?? annualDiscountPercent,
-      );
       setAdditionalUserMonthly(
         catalog.additionalUserMonthly ?? usagePrices.additionalUserMonthly,
+      );
+      setAdditionalUserMonthlyAfterFive(
+        catalog.additionalUserMonthlyAfterFive ??
+          usagePrices.additionalUserMonthlyAfterFive,
       );
       setSmsPerMessage(catalog.smsPerMessage ?? usagePrices.smsPerMessage);
       setPlanTransactionServiceIds(
@@ -1700,10 +1718,6 @@ function PlanPricesAdminPanel() {
     }
   };
 
-  const annualFactor = Math.max(
-    0,
-    Math.min(1, 1 - annualDiscountPercent / 100),
-  );
   const planPreviews = [
     {
       key: "basic" as const,
@@ -1770,9 +1784,9 @@ function PlanPricesAdminPanel() {
           className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
-          Monthly amounts in EUR for the public register flow. Annual discount
-          and the active add-on list are read by the register Plan selection
-          page.
+          Monthly amounts in EUR for the public register flow. Annual billing
+          charges 10 monthly periods, so customers save 2 months. The active
+          add-on list is read by the register Plan selection page.
         </p>
       </div>
 
@@ -2002,25 +2016,19 @@ function PlanPricesAdminPanel() {
               fontWeight: 950,
             }}
           >
-            Annual discount
+            Annual billing · save 2 months
           </h3>
           <div className="platform-admin-plan-price-grid" style={{ alignItems: "end" }}>
-            <div className="platform-admin-plan-price-field">
-              <label htmlFor="pa-annual-discount">Annual discount (%)</label>
-              <input
-                id="pa-annual-discount"
-                type="text"
-                inputMode="decimal"
-                value={String(annualDiscountPercent)}
-                onChange={(e) =>
-                  setAnnualDiscountPercent((current) =>
-                    coercePercentInput(e.target.value, current),
-                  )
-                }
-              />
+            <div className="platform-admin-field-card" style={{ minHeight: 74, justifyContent: "center" }}>
+              <div className="platform-admin-field-label">
+                <strong>10 monthly payments per year</strong>
+                <span>The annual total is the monthly price × 10.</span>
+              </div>
             </div>
             {planPreviews.map((plan) => {
-              const annualTotal = roundMoney2(plan.monthly * 12 * annualFactor);
+              const annualTotal = roundMoney2(
+                plan.monthly * ANNUAL_BILLED_MONTHS,
+              );
               return (
                 <div
                   key={plan.key}
@@ -2049,7 +2057,7 @@ function PlanPricesAdminPanel() {
           <div className="platform-admin-plan-price-grid">
             <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-additional-user-price">
-                Additional user (€ / user / month)
+                Users 2–5 (€ / user / month)
               </label>
               <input
                 id="pa-additional-user-price"
@@ -2058,6 +2066,22 @@ function PlanPricesAdminPanel() {
                 value={String(additionalUserMonthly)}
                 onChange={(e) =>
                   setAdditionalUserMonthly((current) =>
+                    coerceMoneyInput(e.target.value, current),
+                  )
+                }
+              />
+            </div>
+            <div className="platform-admin-plan-price-field">
+              <label htmlFor="pa-additional-user-price-after-five">
+                User 6 onward (€ / user / month)
+              </label>
+              <input
+                id="pa-additional-user-price-after-five"
+                type="text"
+                inputMode="decimal"
+                value={String(additionalUserMonthlyAfterFive)}
+                onChange={(e) =>
+                  setAdditionalUserMonthlyAfterFive((current) =>
                     coerceMoneyInput(e.target.value, current),
                   )
                 }
@@ -5772,7 +5796,9 @@ export function PlatformAdminPage() {
         const existing = current.addOns.filter((row) => row.key !== option.key);
         if (!checked) return { ...current, addOns: existing };
         const monthly = String(option.monthlyPrice ?? "0.00");
-        const yearly = String((toNumberOrZero(monthly) * 12).toFixed(2));
+        const yearly = String(
+          (toNumberOrZero(monthly) * ANNUAL_BILLED_MONTHS).toFixed(2),
+        );
         return {
           ...current,
           addOns: [

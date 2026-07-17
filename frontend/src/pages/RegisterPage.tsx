@@ -38,6 +38,8 @@ import {
   getAddonCatalog,
   getActiveAddonKeys,
   getAdditionalUserMonthlyPrice,
+  getAdditionalUserMonthlyPriceAfterFive,
+  getAdditionalUsersMonthlyTotal,
   getAnnualDiscountFactor,
   getSmsPerMessagePrice,
   getFeatureItems,
@@ -229,12 +231,19 @@ export function RegisterPlanAddonSections({
   const addonCatalog = getAddonCatalog(locale);
   const activeAddonKeys = getActiveAddonKeys();
   const additionalUserMonthly = getAdditionalUserMonthlyPrice();
+  const additionalUserMonthlyAfterFive =
+    getAdditionalUserMonthlyPriceAfterFive();
   const smsPerMessage = getSmsPerMessagePrice();
   const pm = locale === "sl" ? "/mes." : "/mo";
+  const formatSlovenianPrice = (value: number) =>
+    `${new Intl.NumberFormat("sl-SI", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)} €`;
   const firstUserFreeNote =
     locale === "sl"
-      ? `Prvi dodatni uporabnik brezplačno; nato ${formatEuro(additionalUserMonthly)} / uporabnik / mesec`
-      : `First additional user free; then ${formatEuro(additionalUserMonthly)} / user / month`;
+      ? `Prvi uporabnik je vključen v paket. Od 2. do 5. uporabnika: ${formatSlovenianPrice(additionalUserMonthly)} na uporabnika/mesec. Od 6. uporabnika dalje: ${formatSlovenianPrice(additionalUserMonthlyAfterFive)} na uporabnika/mesec.`
+      : `The first user is included in the package. Users 2–5: ${formatEuro(additionalUserMonthly)} per user/month. From user 6 onward: ${formatEuro(additionalUserMonthlyAfterFive)} per user/month.`;
   const smsPriceNote =
     locale === "sl"
       ? `${formatEuro(smsPerMessage)} na SMS (${formatEuro(smsPerMessage * 50)} na 50)`
@@ -363,7 +372,7 @@ export function RegisterPlanAddonSections({
               {!addonsModalPresentation ? (
                 <span>{firstUserFreeNote}</span>
               ) : null}
-              <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * additionalUserMonthly)}${pm}`}</strong>
+              <strong>{`${formatEuro(getAdditionalUsersMonthlyTotal(selection.additionalUsers))}${pm}`}</strong>
             </div>
           </div>
 

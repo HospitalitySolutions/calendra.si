@@ -1196,14 +1196,6 @@ export function ConfigurationPage() {
     visibilityControl: moduleVisibilityControl(key),
   });
 
-  const accountCatalogAnnualDiscount = positiveAccountNumber(
-    accountRegisterCatalog.annualDiscountPercent,
-    DEFAULT_ACCOUNT_REGISTER_CATALOG.annualDiscountPercent || 0,
-  );
-  const accountCatalogAnnualFactor = Math.max(
-    0,
-    1 - accountCatalogAnnualDiscount / 100,
-  );
   const accountPlanCatalog = useMemo<Record<AccountPlanPackageKey, AccountPlanCard>>(() => {
     const plans =
       accountRegisterCatalog.plans || DEFAULT_ACCOUNT_REGISTER_CATALOG.plans;
@@ -1225,8 +1217,7 @@ export function ConfigurationPage() {
         DEFAULT_ACCOUNT_REGISTER_CATALOG.plans.business,
       ),
     );
-    const annual = (monthly: number) =>
-      roundAccountMoney(monthly * 12 * accountCatalogAnnualFactor);
+    const annual = (monthly: number) => roundAccountMoney(monthly * 10);
     const configuredCustomMonthly = roundAccountMoney(
       positiveAccountNumber(settings.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE, 0),
     );
@@ -1243,7 +1234,7 @@ export function ConfigurationPage() {
       configuredCustomAnnual > 0
         ? configuredCustomAnnual
         : configuredCustomMonthly > 0
-          ? roundAccountMoney(configuredCustomMonthly * 12)
+          ? roundAccountMoney(configuredCustomMonthly * 10)
           : 0;
     const customLabel =
       String(settings.BILLING_SUBSCRIPTION_CUSTOM_NAME || "").trim() || "Custom";
@@ -1301,7 +1292,6 @@ export function ConfigurationPage() {
       },
     };
   }, [
-    accountCatalogAnnualFactor,
     accountRegisterCatalog,
     locale,
     settings.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE,
@@ -1517,17 +1507,41 @@ export function ConfigurationPage() {
       DEFAULT_ACCOUNT_REGISTER_CATALOG.additionalUserMonthly || 0,
     ),
   );
+  const additionalUserUnitMonthlyAfterFive = roundAccountMoney(
+    positiveAccountNumber(
+      accountRegisterCatalog.additionalUserMonthlyAfterFive ??
+        accountRegisterCatalog.usagePrices?.additionalUserMonthlyAfterFive,
+      DEFAULT_ACCOUNT_REGISTER_CATALOG.additionalUserMonthlyAfterFive || 0,
+    ),
+  );
   const smsUnitPrice = positiveAccountNumber(
     accountRegisterCatalog.smsPerMessage ??
       accountRegisterCatalog.usagePrices?.smsPerMessage,
     DEFAULT_ACCOUNT_REGISTER_CATALOG.smsPerMessage || 0,
   );
-  const usersAddonUnitPrice =
-    subscriptionInterval === "YEARLY"
-      ? roundAccountMoney(
-          additionalUserUnitMonthly * 12 * accountCatalogAnnualFactor,
-        )
-      : additionalUserUnitMonthly;
+  const additionalUsersMonthlyAmount = (totalUsers: number) => {
+    const normalizedUsers = Math.max(1, Math.trunc(totalUsers || 1));
+    const tierOneUsers = Math.min(4, Math.max(0, normalizedUsers - 1));
+    const tierTwoUsers = Math.max(0, normalizedUsers - 5);
+    return roundAccountMoney(
+      tierOneUsers * additionalUserUnitMonthly +
+        tierTwoUsers * additionalUserUnitMonthlyAfterFive,
+    );
+  };
+  const additionalUsersPeriodAmount = (totalUsers: number) => {
+    const monthlyAmount = additionalUsersMonthlyAmount(totalUsers);
+    return subscriptionInterval === "YEARLY"
+      ? roundAccountMoney(monthlyAmount * 10)
+      : monthlyAmount;
+  };
+  const additionalUsersPeriodIncrement = (
+    fromTotalUsers: number,
+    toTotalUsers: number,
+  ) =>
+    roundAccountMoney(
+      additionalUsersPeriodAmount(Math.max(fromTotalUsers, toTotalUsers)) -
+        additionalUsersPeriodAmount(fromTotalUsers),
+    );
   const smsAddonUnitPrice =
     subscriptionInterval === "YEARLY"
       ? roundAccountMoney(smsUnitPrice * 12)
@@ -1635,7 +1649,7 @@ export function ConfigurationPage() {
           amount =
             customPrice.yearly > 0
               ? customPrice.yearly
-              : roundAccountMoney(customPrice.monthly * 12);
+              : roundAccountMoney(customPrice.monthly * 10);
         } else {
           amount =
             customPrice.monthly > 0
@@ -1649,7 +1663,7 @@ export function ConfigurationPage() {
     if (!customPriceResolved) {
       amount =
         subscriptionInterval === "YEARLY"
-          ? roundAccountMoney(addon.monthly * 12 * accountCatalogAnnualFactor)
+          ? roundAccountMoney(addon.monthly * 10)
           : roundAccountMoney(addon.monthly);
     }
     if (
@@ -1715,28 +1729,20 @@ export function ConfigurationPage() {
   );
   const nextInvoiceSmsCount = Math.max(0, nextCycleSmsCount);
   const selectedExtraUsersCount = nextInvoiceUserLimit;
-  const includedUsersForSubscriptionPlan =
-    subscriptionPackage === "CUSTOM"
-      ? selectedExtraUsersCount
-      : subscriptionPackage === "PREMIUM"
-        ? 10
-        : subscriptionPackage === "PROFESSIONAL"
-          ? 5
-          : 1;
-  const billableNextInvoiceUsers = Math.max(
-    0,
-    selectedExtraUsersCount - includedUsersForSubscriptionPlan,
-  );
+  const billableNextInvoiceUsers = Math.max(0, selectedExtraUsersCount - 1);
   const selectedSmsCount = nextInvoiceSmsCount;
-  const usersAddonAmount = roundAccountMoney(
-    billableNextInvoiceUsers * usersAddonUnitPrice,
-  );
+  const usersAddonAmount = isCustomSubscriptionPlan
+    ? 0
+    : additionalUsersPeriodAmount(selectedExtraUsersCount);
   const smsAddonAmount = isCustomSubscriptionPlan
     ? 0
     : roundAccountMoney(selectedSmsCount * smsAddonUnitPrice);
   const currentCycleUserAddonAmount = isCustomSubscriptionPlan
     ? 0
-    : roundAccountMoney(currentBillingCycleUserAdd * usersAddonUnitPrice);
+    : additionalUsersPeriodIncrement(
+        currentPaidUserLimit,
+        currentPaidUserLimit + currentBillingCycleUserAdd,
+      );
   const currentCycleSmsAddonAmount = isCustomSubscriptionPlan
     ? 0
     : roundAccountMoney(currentBillingCycleSmsAdd * smsAddonUnitPrice);
@@ -7919,6 +7925,10 @@ export function ConfigurationPage() {
                               Letno
                             </button>
                           </div>
+                          <div className="account-plan-muted" style={{ marginTop: 8 }}>
+                            Pri letnem obračunavanju plačate 10 mesecev in
+                            prihranite 2 meseca.
+                          </div>
                           <div className="account-plan-grid">
                             {visibleAccountPlanKeys.map((planKey) => {
                               const plan = accountPlanCatalog[planKey];
@@ -8047,9 +8057,10 @@ export function ConfigurationPage() {
                               <div className="account-addon-copy">
                                 <strong>Dodatni uporabniki</strong>
                                 <small>
-                                  Trenutni maksimum je {currentPaidUserLimit}.
-                                  Nikoli ne more biti nižji od trenutno aktivnih
-                                  uporabnikov ({currentUserCount}).
+                                  Prvi uporabnik je vključen v paket. Od 2. do
+                                  5. uporabnika: {formatAccountEuro(additionalUserUnitMonthly)} na
+                                  uporabnika/mesec. Od 6. uporabnika dalje: {formatAccountEuro(additionalUserUnitMonthlyAfterFive)} na
+                                  uporabnika/mesec. Trenutni maksimum je {currentPaidUserLimit}.
                                 </small>
                               </div>
                               <div className="account-addon-controls">

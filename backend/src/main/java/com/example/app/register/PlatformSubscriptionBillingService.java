@@ -675,7 +675,7 @@ public class PlatformSubscriptionBillingService {
             Long tenantId
     ) {
         Map<String, Double> prices = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
-        double annualDiscount = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
+        double annualDiscount = RegisterPriceCatalog.ANNUAL_DISCOUNT_PERCENT;
         String normalized = normalizePackageType(packageName);
         if ("CUSTOM".equals(normalized)) {
             return customPeriodGross(tenantId, interval);
@@ -697,7 +697,7 @@ public class PlatformSubscriptionBillingService {
         if (interval == BillingInterval.YEARLY) {
             return yearly.compareTo(BigDecimal.ZERO) > 0
                     ? yearly
-                    : monthly.multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
+                    : annualGross(monthly, RegisterPriceCatalog.ANNUAL_DISCOUNT_PERCENT);
         }
         return monthly.compareTo(BigDecimal.ZERO) > 0
                 ? monthly
@@ -983,18 +983,24 @@ public class PlatformSubscriptionBillingService {
         }
 
         if (plan.packageType() != PackageType.CUSTOM) {
-            BigDecimal userUnitGross = plan.interval() == BillingInterval.YEARLY
-                    ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())
-                    : catalog.additionalUserMonthly();
-            int billableCurrentUsers = Math.max(0, currentUserAddCount == null ? 0 : currentUserAddCount);
-            if (billableCurrentUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
-                totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableCurrentUsers, userUnitGross));
-            }
+            int currentBaseUsers = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
+            int currentAddedUsers = Math.max(0, currentUserAddCount == null ? 0 : currentUserAddCount);
+            totalGross = totalGross.add(addAdditionalUserLines(
+                    open,
+                    catalog,
+                    plan.interval(),
+                    currentBaseUsers,
+                    currentBaseUsers + currentAddedUsers
+            ));
 
-            int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - baseIncludedUsers(plan.packageType()));
-            if (billableUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
-                totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableUsers, userUnitGross));
-            }
+            int nextPeriodUsers = Math.max(1, selectedUserCount == null ? 1 : selectedUserCount);
+            totalGross = totalGross.add(addAdditionalUserLines(
+                    open,
+                    catalog,
+                    plan.interval(),
+                    1,
+                    nextPeriodUsers
+            ));
 
             BigDecimal smsUnitGross = plan.interval() == BillingInterval.YEARLY
                     ? catalog.smsPerMessage().multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP)
@@ -1018,6 +1024,46 @@ public class PlatformSubscriptionBillingService {
             totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key, priceOverride));
         }
         return totalGross.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal addAdditionalUserLines(
+            OpenBill open,
+            PlatformBillingCatalog catalog,
+            BillingInterval interval,
+            int fromTotalUsers,
+            int toTotalUsers
+    ) {
+        if (open == null || catalog == null || catalog.additionalUserService() == null) {
+            return BigDecimal.ZERO;
+        }
+        int from = Math.max(1, fromTotalUsers);
+        int to = Math.max(from, toTotalUsers);
+        int tierOneFrom = Math.min(4, Math.max(0, from - 1));
+        int tierOneTo = Math.min(4, Math.max(0, to - 1));
+        int tierTwoFrom = Math.max(0, from - 5);
+        int tierTwoTo = Math.max(0, to - 5);
+
+        BigDecimal total = BigDecimal.ZERO;
+        int tierOneQuantity = Math.max(0, tierOneTo - tierOneFrom);
+        if (tierOneQuantity > 0 && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal unitGross = recurringPeriodGross(catalog.additionalUserMonthly(), interval);
+            total = total.add(addOpenLine(open, catalog.additionalUserService(), tierOneQuantity, unitGross));
+        }
+        int tierTwoQuantity = Math.max(0, tierTwoTo - tierTwoFrom);
+        if (tierTwoQuantity > 0 && catalog.additionalUserMonthlyAfterFive().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal unitGross = recurringPeriodGross(catalog.additionalUserMonthlyAfterFive(), interval);
+            total = total.add(addOpenLine(open, catalog.additionalUserService(), tierTwoQuantity, unitGross));
+        }
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal recurringPeriodGross(BigDecimal monthly, BillingInterval interval) {
+        if (monthly == null) {
+            return BigDecimal.ZERO;
+        }
+        return interval == BillingInterval.YEARLY
+                ? monthly.multiply(BigDecimal.valueOf(RegisterPriceCatalog.ANNUAL_BILLED_MONTHS)).setScale(2, RoundingMode.HALF_UP)
+                : monthly.setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal addAddonOpenLine(
@@ -1093,7 +1139,9 @@ public class PlatformSubscriptionBillingService {
                 String field = plan.interval() == BillingInterval.YEARLY ? "yearlyPrice" : "monthlyPrice";
                 BigDecimal amount = parseMoneyObject(row.get(field));
                 if (amount.compareTo(BigDecimal.ZERO) <= 0 && plan.interval() == BillingInterval.YEARLY) {
-                    amount = parseMoneyObject(row.get("monthlyPrice")).multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
+                    amount = parseMoneyObject(row.get("monthlyPrice"))
+                            .multiply(BigDecimal.valueOf(RegisterPriceCatalog.ANNUAL_BILLED_MONTHS))
+                            .setScale(2, RoundingMode.HALF_UP);
                 }
                 return Optional.of(amount);
             }
@@ -1146,7 +1194,7 @@ public class PlatformSubscriptionBillingService {
 
     private PlatformBillingCatalog ensurePlatformBillingCatalog(Company platformCompany, RegisterPriceCatalog catalog) {
         Map<String, Double> prices = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
-        double annualDiscount = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
+        double annualDiscount = RegisterPriceCatalog.ANNUAL_DISCOUNT_PERCENT;
         Map<String, Long> planMappings = catalog == null || catalog.getPlanTransactionServiceIds() == null ? Map.of() : catalog.getPlanTransactionServiceIds();
         BigDecimal basic = money(prices.getOrDefault("basic", 18.90));
         BigDecimal pro = money(prices.getOrDefault("pro", 34.90));
@@ -1164,6 +1212,7 @@ public class PlatformSubscriptionBillingService {
         plans.put("PREMIUM:YEARLY", plan(platformCompany, "businessAnnual", "BUS_Y", businessName + " Package - Annual", PackageType.PREMIUM, BillingInterval.YEARLY, annualGross(business, annualDiscount), planMappings));
 
         BigDecimal additionalUserMonthly = money(catalog == null || catalog.getAdditionalUserMonthly() == null ? 9.9 : catalog.getAdditionalUserMonthly());
+        BigDecimal additionalUserMonthlyAfterFive = money(catalog == null || catalog.getAdditionalUserMonthlyAfterFive() == null ? 6.9 : catalog.getAdditionalUserMonthlyAfterFive());
         BigDecimal smsPerMessage = money4(catalog == null || catalog.getSmsPerMessage() == null ? 0.05 : catalog.getSmsPerMessage());
         TransactionService additionalUserService = resolveBillingTransactionService(
                 platformCompany,
@@ -1197,7 +1246,7 @@ public class PlatformSubscriptionBillingService {
                 addons.put(key, new PlatformAddon(key, monthlyGross, tx));
             }
         }
-        return new PlatformBillingCatalog(plans, addons, additionalUserService, additionalUserMonthly, smsService, smsPerMessage, annualDiscount);
+        return new PlatformBillingCatalog(plans, addons, additionalUserService, additionalUserMonthly, additionalUserMonthlyAfterFive, smsService, smsPerMessage, annualDiscount);
     }
 
     private String planDisplayName(RegisterPriceCatalog catalog, String key, String fallback) {
@@ -1317,12 +1366,7 @@ public class PlatformSubscriptionBillingService {
     }
 
     private int baseIncludedUsers(PackageType packageType) {
-        return switch (packageType) {
-            case BASIC -> 1;
-            case PROFESSIONAL -> 5;
-            case PREMIUM -> 10;
-            case CUSTOM -> 1;
-        };
+        return 1;
     }
 
     private ClientCompany upsertPlatformPayeeCompany(
@@ -1634,10 +1678,13 @@ public class PlatformSubscriptionBillingService {
         return BigDecimal.valueOf(value == null ? 0.0 : value).setScale(4, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal annualGross(BigDecimal monthly, double annualDiscountPercent) {
-        double clampedDiscount = Math.max(0.0, Math.min(100.0, annualDiscountPercent));
-        BigDecimal factor = BigDecimal.valueOf(1.0 - (clampedDiscount / 100.0));
-        return monthly.multiply(BigDecimal.valueOf(12)).multiply(factor).setScale(2, RoundingMode.HALF_UP);
+    private static BigDecimal annualGross(BigDecimal monthly, double ignoredAnnualDiscountPercent) {
+        if (monthly == null) {
+            return BigDecimal.ZERO;
+        }
+        return monthly
+                .multiply(BigDecimal.valueOf(RegisterPriceCatalog.ANNUAL_BILLED_MONTHS))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String normalizePackageType(String rawValue) {
@@ -1839,6 +1886,7 @@ public class PlatformSubscriptionBillingService {
             Map<String, PlatformAddon> addons,
             TransactionService additionalUserService,
             BigDecimal additionalUserMonthly,
+            BigDecimal additionalUserMonthlyAfterFive,
             TransactionService smsService,
             BigDecimal smsPerMessage,
             double annualDiscountPercent

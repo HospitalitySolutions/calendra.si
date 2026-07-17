@@ -108,15 +108,20 @@ public class RegisterCatalogService {
                 ? normalizeFeatureItems(patch.getFeatureItems(), base.getFeatureItems())
                 : copyFeatureItems(base.getFeatureItems());
 
-        double annualDiscountPercent = isValidPercent(patch.getAnnualDiscountPercent())
-                ? roundMoney(patch.getAnnualDiscountPercent())
-                : nullSafe(base.getAnnualDiscountPercent(), 15.0);
+        // Annual subscriptions always charge ten monthly periods, so customers save two months.
+        double annualDiscountPercent = RegisterPriceCatalog.ANNUAL_DISCOUNT_PERCENT;
 
         double additionalUserMonthly = firstValidAmount(
                 patch.getAdditionalUserMonthly(),
                 patch.getUsagePrices() == null ? null : patch.getUsagePrices().getAdditionalUserMonthly(),
                 base.getAdditionalUserMonthly(),
                 9.9
+        );
+        double additionalUserMonthlyAfterFive = firstValidAmount(
+                patch.getAdditionalUserMonthlyAfterFive(),
+                patch.getUsagePrices() == null ? null : patch.getUsagePrices().getAdditionalUserMonthlyAfterFive(),
+                base.getAdditionalUserMonthlyAfterFive(),
+                6.9
         );
         double smsPerMessage = firstValidAmount(
                 patch.getSmsPerMessage(),
@@ -131,8 +136,13 @@ public class RegisterCatalogService {
         out.setAddonItems(addonItems);
         out.setFeatureItems(featureItems);
         out.setAdditionalUserMonthly(roundMoney(additionalUserMonthly));
+        out.setAdditionalUserMonthlyAfterFive(roundMoney(additionalUserMonthlyAfterFive));
         out.setSmsPerMessage(roundFour(smsPerMessage));
-        out.setUsagePrices(new RegisterPriceCatalog.UsagePrices(out.getAdditionalUserMonthly(), out.getSmsPerMessage()));
+        out.setUsagePrices(new RegisterPriceCatalog.UsagePrices(
+                out.getAdditionalUserMonthly(),
+                out.getAdditionalUserMonthlyAfterFive(),
+                out.getSmsPerMessage()
+        ));
         out.setPlanTransactionServiceIds(normalizePlanTransactionServiceIds(base.getPlanTransactionServiceIds(), patch.getPlanTransactionServiceIds()));
         out.setAdditionalUserTransactionServiceId(firstValidServiceId(
                 patch.getAdditionalUserTransactionServiceId(),
@@ -146,6 +156,7 @@ public class RegisterCatalogService {
         ));
         out.setUsagePrices(new RegisterPriceCatalog.UsagePrices(
                 out.getAdditionalUserMonthly(),
+                out.getAdditionalUserMonthlyAfterFive(),
                 out.getSmsPerMessage(),
                 out.getAdditionalUserTransactionServiceId(),
                 out.getSmsTransactionServiceId()
