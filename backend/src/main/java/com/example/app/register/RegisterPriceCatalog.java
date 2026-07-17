@@ -9,11 +9,13 @@ import java.util.Set;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RegisterPriceCatalog {
+    public static final int CURRENT_CATALOG_VERSION = 2;
     public static final Set<String> PLAN_KEYS = Set.of("basic", "pro", "business");
     public static final int ANNUAL_BILLED_MONTHS = 10;
     public static final int ANNUAL_SAVINGS_MONTHS = 2;
     public static final double ANNUAL_DISCOUNT_PERCENT = (ANNUAL_SAVINGS_MONTHS * 100.0) / 12.0;
 
+    private Integer catalogVersion;
     private Map<String, Double> plans;
     /** Localized public package names used by the register flow. */
     private Map<String, PlanName> planNames;
@@ -40,16 +42,17 @@ public class RegisterPriceCatalog {
 
     public static RegisterPriceCatalog defaults() {
         RegisterPriceCatalog out = new RegisterPriceCatalog();
+        out.setCatalogVersion(CURRENT_CATALOG_VERSION);
         Map<String, Double> p = new LinkedHashMap<>();
-        p.put("basic", 18.9);
+        p.put("basic", 17.9);
         p.put("pro", 34.9);
-        p.put("business", 59.9);
+        p.put("business", 54.9);
         out.setPlans(p);
 
         Map<String, PlanName> planNames = new LinkedHashMap<>();
-        planNames.put("basic", new PlanName("Basic", "Osnovni"));
-        planNames.put("pro", new PlanName("Pro", "Pro"));
-        planNames.put("business", new PlanName("Business", "Poslovni"));
+        planNames.put("basic", new PlanName("Basic", "Osnovno"));
+        planNames.put("pro", new PlanName("Professional", "Profesionalno"));
+        planNames.put("business", new PlanName("Premium", "Premium"));
         out.setPlanNames(planNames);
 
         List<AddonItem> addOns = new ArrayList<>();
@@ -93,6 +96,8 @@ public class RegisterPriceCatalog {
         return map;
     }
 
+    public Integer getCatalogVersion() { return catalogVersion; }
+    public void setCatalogVersion(Integer catalogVersion) { this.catalogVersion = catalogVersion; }
     public Map<String, Double> getPlans() { return plans; }
     public void setPlans(Map<String, Double> plans) { this.plans = plans; }
     public Map<String, PlanName> getPlanNames() { return planNames; }

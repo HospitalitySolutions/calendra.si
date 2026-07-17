@@ -149,7 +149,7 @@ public class SecurityConfig {
                             "/actuator/health/**",
                             "/actuator/info"
                     ).permitAll();
-                    auth.requestMatchers(HttpMethod.GET, "/api/register/catalog").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/register/catalog", "/api/register/public-pricing").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/register/contact").permitAll();
                     auth.requestMatchers("/api/guest/auth/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/guest/tenants/resolve-code").permitAll();

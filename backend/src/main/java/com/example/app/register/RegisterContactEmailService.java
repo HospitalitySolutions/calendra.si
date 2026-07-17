@@ -324,8 +324,8 @@ public class RegisterContactEmailService {
         String plan = submission.planName();
         if (plan == null || plan.isBlank()) {
             plan = switch (submission.plan() == null ? "" : submission.plan().toLowerCase(Locale.ROOT)) {
-                case "basic" -> "sl".equals(locale) ? "Osnovni" : "Basic";
-                case "pro" -> "sl".equals(locale) ? "Poslovni" : "Business";
+                case "basic" -> "sl".equals(locale) ? "Osnovno" : "Basic";
+                case "pro" -> "sl".equals(locale) ? "Profesionalno" : "Professional";
                 case "business" -> "Premium";
                 default -> "sl".equals(locale) ? "Ni navedeno" : "Not provided";
             };

@@ -19,6 +19,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class RegisterCatalogService {
     private static final double MAX_PRICE = 100_000.0;
+    private static final Map<String, Double> LEGACY_DEFAULT_PLAN_PRICES = Map.of(
+            "basic", 18.9,
+            "pro", 34.9,
+            "business", 59.9
+    );
     private static final Set<String> PLAN_TRANSACTION_SERVICE_KEYS = Set.of(
             "basicMonthly", "basicAnnual", "proMonthly", "proAnnual", "businessMonthly", "businessAnnual"
     );
@@ -88,16 +93,20 @@ public class RegisterCatalogService {
     }
 
     private static RegisterPriceCatalog merge(RegisterPriceCatalog base, RegisterPriceCatalog patch) {
+        boolean legacyCatalog = patch.getCatalogVersion() == null
+                || patch.getCatalogVersion() < RegisterPriceCatalog.CURRENT_CATALOG_VERSION;
+        boolean migrateLegacyDefaultPrices = legacyCatalog && isLegacyDefaultPlanSet(patch.getPlans());
+        boolean migrateLegacyDefaultNames = legacyCatalog && isLegacyDefaultNameSet(patch.getPlanNames());
         Map<String, Double> plans = new LinkedHashMap<>(base.getPlans());
         if (patch.getPlans() != null) {
             for (Map.Entry<String, Double> e : patch.getPlans().entrySet()) {
                 if (RegisterPriceCatalog.PLAN_KEYS.contains(e.getKey()) && isValidAmount(e.getValue())) {
-                    plans.put(e.getKey(), roundMoney(e.getValue()));
+                    plans.put(e.getKey(), roundMoney(migrateLegacyPlanPrice(e.getKey(), e.getValue(), migrateLegacyDefaultPrices, base)));
                 }
             }
         }
 
-        Map<String, RegisterPriceCatalog.PlanName> planNames = normalizePlanNames(base.getPlanNames(), patch.getPlanNames());
+        Map<String, RegisterPriceCatalog.PlanName> planNames = normalizePlanNames(base.getPlanNames(), patch.getPlanNames(), migrateLegacyDefaultNames);
 
         List<RegisterPriceCatalog.AddonItem> addonItems = patch.getAddonItems() != null
                 ? normalizeAddonItems(patch.getAddonItems(), base.getAddonItems())
@@ -131,6 +140,7 @@ public class RegisterCatalogService {
         );
 
         RegisterPriceCatalog out = new RegisterPriceCatalog(plans, addons);
+        out.setCatalogVersion(RegisterPriceCatalog.CURRENT_CATALOG_VERSION);
         out.setPlanNames(planNames);
         out.setAnnualDiscountPercent(annualDiscountPercent);
         out.setAddonItems(addonItems);
@@ -173,7 +183,8 @@ public class RegisterCatalogService {
 
     private static Map<String, RegisterPriceCatalog.PlanName> normalizePlanNames(
             Map<String, RegisterPriceCatalog.PlanName> base,
-            Map<String, RegisterPriceCatalog.PlanName> patch
+            Map<String, RegisterPriceCatalog.PlanName> patch,
+            boolean migrateLegacyDefaults
     ) {
         Map<String, RegisterPriceCatalog.PlanName> out = new LinkedHashMap<>();
         for (String key : List.of("basic", "pro", "business")) {
@@ -189,10 +200,82 @@ public class RegisterCatalogService {
                 RegisterPriceCatalog.PlanName fallback = out.get(key);
                 String name = text(incoming.getName(), fallback == null ? titleFromKey(key) : fallback.getName());
                 String nameSl = text(incoming.getNameSl(), fallback == null ? name : fallback.getNameSl());
+                if (migrateLegacyDefaults) {
+                    name = migrateLegacyPlanName(key, name, false, fallback);
+                    nameSl = migrateLegacyPlanName(key, nameSl, true, fallback);
+                }
                 out.put(key, new RegisterPriceCatalog.PlanName(name, nameSl));
             }
         }
         return out;
+    }
+
+
+    private static boolean isLegacyDefaultPlanSet(Map<String, Double> plans) {
+        if (plans == null || !plans.keySet().containsAll(RegisterPriceCatalog.PLAN_KEYS)) {
+            return false;
+        }
+        for (Map.Entry<String, Double> legacy : LEGACY_DEFAULT_PLAN_PRICES.entrySet()) {
+            Double value = plans.get(legacy.getKey());
+            if (!isValidAmount(value) || Math.abs(value - legacy.getValue()) >= 0.0001) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isLegacyDefaultNameSet(Map<String, RegisterPriceCatalog.PlanName> names) {
+        if (names == null || !names.keySet().containsAll(RegisterPriceCatalog.PLAN_KEYS)) {
+            return false;
+        }
+        return matchesName(names.get("basic"), "Basic", "Osnovni")
+                && matchesName(names.get("pro"), "Pro", "Pro")
+                && matchesName(names.get("business"), "Business", "Poslovni");
+    }
+
+    private static boolean matchesName(RegisterPriceCatalog.PlanName name, String english, String slovenian) {
+        return name != null
+                && english.equalsIgnoreCase(text(name.getName(), ""))
+                && slovenian.equalsIgnoreCase(text(name.getNameSl(), ""));
+    }
+
+    private static double migrateLegacyPlanPrice(
+            String key,
+            double incoming,
+            boolean migrateLegacyDefaults,
+            RegisterPriceCatalog currentDefaults
+    ) {
+        if (!migrateLegacyDefaults) {
+            return incoming;
+        }
+        Double legacyDefault = LEGACY_DEFAULT_PLAN_PRICES.get(key);
+        Double currentDefault = currentDefaults.getPlans() == null ? null : currentDefaults.getPlans().get(key);
+        if (legacyDefault != null && currentDefault != null && Math.abs(incoming - legacyDefault) < 0.0001) {
+            return currentDefault;
+        }
+        return incoming;
+    }
+
+    private static String migrateLegacyPlanName(
+            String key,
+            String incoming,
+            boolean slovenian,
+            RegisterPriceCatalog.PlanName currentDefault
+    ) {
+        if (currentDefault == null || incoming == null) {
+            return incoming;
+        }
+        String normalized = incoming.trim();
+        boolean legacyName = switch (key) {
+            case "basic" -> slovenian ? "Osnovni".equalsIgnoreCase(normalized) : "Basic".equalsIgnoreCase(normalized);
+            case "pro" -> "Pro".equalsIgnoreCase(normalized);
+            case "business" -> slovenian ? "Poslovni".equalsIgnoreCase(normalized) : "Business".equalsIgnoreCase(normalized);
+            default -> false;
+        };
+        if (!legacyName) {
+            return incoming;
+        }
+        return slovenian ? currentDefault.getNameSl() : currentDefault.getName();
     }
 
     private static List<RegisterPriceCatalog.AddonItem> normalizeLegacyAddonMap(

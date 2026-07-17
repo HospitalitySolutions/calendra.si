@@ -618,6 +618,7 @@ type RegisterUsagePriceCatalogDto = {
 };
 
 type RegisterPriceCatalogDto = {
+  catalogVersion?: number;
   plans: Record<string, number>;
   planNames?: Partial<Record<RegisterPlanKeyDto, RegisterCatalogPlanNameDto>>;
   addons: Record<string, number>;
@@ -950,13 +951,14 @@ const DEFAULT_PLAN_NAMES: Record<
   RegisterPlanKeyDto,
   Required<RegisterCatalogPlanNameDto>
 > = {
-  basic: { name: "Basic", nameSl: "Osnovni" },
-  pro: { name: "Pro", nameSl: "Pro" },
-  business: { name: "Business", nameSl: "Poslovni" },
+  basic: { name: "Basic", nameSl: "Osnovno" },
+  pro: { name: "Professional", nameSl: "Profesionalno" },
+  business: { name: "Premium", nameSl: "Premium" },
 };
 
 const DEFAULT_REGISTER_CATALOG: RegisterPriceCatalogDto = {
-  plans: { basic: 18.9, pro: 34.9, business: 59.9 },
+  catalogVersion: 2,
+  plans: { basic: 17.9, pro: 34.9, business: 54.9 },
   planNames: DEFAULT_PLAN_NAMES,
   addons: { voice: 12, billing: 8, whitelabel: 10 },
   annualDiscountPercent: FIXED_ANNUAL_DISCOUNT_PERCENT,
@@ -1161,6 +1163,7 @@ function mergeRegisterCatalog(
     smsTransactionServiceId,
   };
   return {
+    catalogVersion: 2,
     plans,
     planNames,
     addons,
@@ -1365,9 +1368,9 @@ function PlanPricesAdminPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [plans, setPlans] = useState({
-    basic: 18.9,
+    basic: 17.9,
     pro: 34.9,
-    business: 59.9,
+    business: 54.9,
   });
   const [planNames, setPlanNames] = useState<
     Record<RegisterPlanKeyDto, Required<RegisterCatalogPlanNameDto>>
@@ -1425,12 +1428,12 @@ function PlanPricesAdminPanel() {
           basic:
             typeof catalog.plans.basic === "number"
               ? catalog.plans.basic
-              : 18.9,
+              : 17.9,
           pro: typeof catalog.plans.pro === "number" ? catalog.plans.pro : 34.9,
           business:
             typeof catalog.plans.business === "number"
               ? catalog.plans.business
-              : 59.9,
+              : 54.9,
         });
         setPlanNames(normalizePlanNamesFromCatalog(catalog));
         setAdditionalUserMonthly(
@@ -1646,6 +1649,7 @@ function PlanPricesAdminPanel() {
         smsTransactionServiceId: normalizeServiceId(smsTransactionServiceId),
       };
       const payload: RegisterPriceCatalogDto = {
+        catalogVersion: 2,
         plans,
         planNames: cleanedPlanNames,
         annualDiscountPercent,
@@ -1709,7 +1713,7 @@ function PlanPricesAdminPanel() {
         (catalog.featureItems || cleanedFeatures).map((item) => ({ ...item })),
       );
       setOk(
-        "Saved. Visitors will see the updated prices, package names, transaction-service mappings, usage prices, add-ons, included feature text, and your selected display order after they reload the register pages.",
+        "Saved. Visitors will see the updated prices, package names, transaction-service mappings, usage prices, add-ons, included feature text, and your selected display order after they reload the register pages or the public pricing page.",
       );
     } catch {
       setErr("Could not save catalog.");
@@ -1784,7 +1788,7 @@ function PlanPricesAdminPanel() {
           className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
-          Monthly amounts in EUR for the public register flow. Annual billing
+          Gross monthly amounts in EUR for the public register flow and calendra.si pricing page. Annual billing
           charges 10 monthly periods, so customers save 2 months. The active
           add-on list is read by the register Plan selection page.
         </p>
@@ -1797,8 +1801,8 @@ function PlanPricesAdminPanel() {
         <div className="platform-admin-catalog-ladder-head">
           <strong>Plan tiers</strong>
           <span className="platform-admin-muted" style={{ fontWeight: 700 }}>
-            Lowest on the left → highest on the right (matches register Basic ·
-            Pro · Business).
+            Lowest on the left → highest on the right (matches Basic ·
+            Professional · Premium).
           </span>
         </div>
         <div
@@ -1825,7 +1829,7 @@ function PlanPricesAdminPanel() {
               className="platform-admin-muted"
               style={{ fontSize: "0.82rem", fontWeight: 700 }}
             >
-              Pro feature set
+              Professional feature set
             </span>
           </div>
           <span className="platform-admin-catalog-ladder-arrow" aria-hidden>
@@ -1840,7 +1844,7 @@ function PlanPricesAdminPanel() {
               className="platform-admin-muted"
               style={{ fontSize: "0.82rem", fontWeight: 700 }}
             >
-              Business / largest tier
+              Premium / largest tier
             </span>
           </div>
         </div>
@@ -1871,7 +1875,7 @@ function PlanPricesAdminPanel() {
               fontWeight: 950,
             }}
           >
-            Plans (€ / month)
+            Plans (€ / month, VAT included)
           </h3>
           <div className="platform-admin-plan-price-grid">
             <div className="platform-admin-plan-price-field">
@@ -2052,7 +2056,7 @@ function PlanPricesAdminPanel() {
               fontWeight: 950,
             }}
           >
-            Usage prices
+            Usage prices (VAT included)
           </h3>
           <div className="platform-admin-plan-price-grid">
             <div className="platform-admin-plan-price-field">
@@ -2177,8 +2181,8 @@ function PlanPricesAdminPanel() {
                       {item.minPlan === "basic"
                         ? "Basic"
                         : item.minPlan === "pro"
-                          ? "Pro"
-                          : "Business"}{" "}
+                          ? "Professional"
+                          : "Premium"}{" "}
                       and higher
                     </span>
                   </div>
@@ -2271,8 +2275,8 @@ function PlanPricesAdminPanel() {
                       }}
                     >
                       <option value="basic">Basic</option>
-                      <option value="pro">Pro</option>
-                      <option value="business">Business</option>
+                      <option value="pro">Professional</option>
+                      <option value="business">Premium</option>
                     </select>
                   </div>
                   <div className="platform-admin-plan-price-field">
@@ -6976,9 +6980,9 @@ export function PlatformAdminPage() {
                       value={manualTenantForm.packageName}
                       onChange={(e) => updateManualTenantField("packageName", e.target.value)}
                     >
-                      <option value="BASIC">Osnovni</option>
-                      <option value="PROFESSIONAL">Pro</option>
-                      <option value="PREMIUM">Poslovni</option>
+                      <option value="BASIC">Osnovno</option>
+                      <option value="PROFESSIONAL">Profesionalno</option>
+                      <option value="PREMIUM">Premium</option>
                       <option value="CUSTOM">Custom</option>
                     </select>
                   </div>

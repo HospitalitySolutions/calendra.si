@@ -681,9 +681,9 @@ public class PlatformSubscriptionBillingService {
             return customPeriodGross(tenantId, interval);
         }
         BigDecimal monthly = switch (normalized) {
-            case "PREMIUM" -> money(prices.getOrDefault("business", 59.90));
+            case "PREMIUM" -> money(prices.getOrDefault("business", 54.90));
             case "PROFESSIONAL" -> money(prices.getOrDefault("pro", 34.90));
-            default -> money(prices.getOrDefault("basic", 18.90));
+            default -> money(prices.getOrDefault("basic", 17.90));
         };
         return interval == BillingInterval.YEARLY ? annualGross(monthly, annualDiscount) : monthly;
     }
@@ -1196,12 +1196,12 @@ public class PlatformSubscriptionBillingService {
         Map<String, Double> prices = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
         double annualDiscount = RegisterPriceCatalog.ANNUAL_DISCOUNT_PERCENT;
         Map<String, Long> planMappings = catalog == null || catalog.getPlanTransactionServiceIds() == null ? Map.of() : catalog.getPlanTransactionServiceIds();
-        BigDecimal basic = money(prices.getOrDefault("basic", 18.90));
+        BigDecimal basic = money(prices.getOrDefault("basic", 17.90));
         BigDecimal pro = money(prices.getOrDefault("pro", 34.90));
-        BigDecimal business = money(prices.getOrDefault("business", 59.90));
+        BigDecimal business = money(prices.getOrDefault("business", 54.90));
         String basicName = planDisplayName(catalog, "basic", "Basic");
-        String proName = planDisplayName(catalog, "pro", "Pro");
-        String businessName = planDisplayName(catalog, "business", "Business");
+        String proName = planDisplayName(catalog, "pro", "Professional");
+        String businessName = planDisplayName(catalog, "business", "Premium");
 
         Map<String, PlatformPlan> plans = new LinkedHashMap<>();
         plans.put("BASIC:MONTHLY", plan(platformCompany, "basicMonthly", "BASIC_M", basicName + " Package - Monthly", PackageType.BASIC, BillingInterval.MONTHLY, basic, planMappings));

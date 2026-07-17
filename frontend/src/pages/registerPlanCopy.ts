@@ -55,7 +55,7 @@ const planCore: Record<
   RegisterPlanKey,
   { monthly: number; features: RegisterPlanFeatureKey[] }
 > = {
-  basic: { monthly: 18.9, features: ["appointments", "staff"] },
+  basic: { monthly: 17.9, features: ["appointments", "staff"] },
   pro: {
     monthly: 34.9,
     features: [
@@ -70,7 +70,7 @@ const planCore: Record<
     ],
   },
   business: {
-    monthly: 59.9,
+    monthly: 54.9,
     features: [
       "appointments",
       "staff",
@@ -225,9 +225,9 @@ const DEFAULT_PLAN_NAMES: Record<
   RegisterPlanKey,
   { name: string; nameSl: string }
 > = {
-  basic: { name: "Basic", nameSl: "Osnovni" },
-  pro: { name: "Pro", nameSl: "Pro" },
-  business: { name: "Business", nameSl: "Poslovni" },
+  basic: { name: "Basic", nameSl: "Osnovno" },
+  pro: { name: "Professional", nameSl: "Profesionalno" },
+  business: { name: "Premium", nameSl: "Premium" },
 };
 
 const PLAN_ORDER: Record<RegisterPlanKey, number> = {
@@ -1118,8 +1118,8 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
       `${planName} plan · ${billingLabel}`,
     selectFreeTrial: "Select Free Trial",
     selectBasic: "Select Basic",
-    selectPro: "Select Pro",
-    selectBusiness: "Select Business",
+    selectPro: "Select Professional",
+    selectBusiness: "Select Premium",
     selectedCheck: "✓ Selected",
     usageAddonsSectionAria: "Usage-based add-ons",
     usageAddonsDivider: "Usage-based add-ons",
@@ -1215,9 +1215,9 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     planTitleWithBilling: (planName, billingLabel) =>
       `Paket ${planName} · ${billingLabel}`,
     selectFreeTrial: "Začni brezplačni preizkus",
-    selectBasic: "Izberi Osnovni",
-    selectPro: "Izberi Pro",
-    selectBusiness: "Izberi Poslovni",
+    selectBasic: "Izberi Osnovno",
+    selectPro: "Izberi Profesionalno",
+    selectBusiness: "Izberi Premium",
     selectedCheck: "✓ Izbrano",
     usageAddonsSectionAria: "Dodatki glede na porabo",
     usageAddonsDivider: "Dodatki glede na porabo",

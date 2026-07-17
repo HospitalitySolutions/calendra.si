@@ -59,11 +59,11 @@ export const DEFAULT_ACCOUNT_REGISTER_CATALOG: Required<
   Pick<AccountRegisterCatalog, "plans">
 > &
   AccountRegisterCatalog = {
-  plans: { basic: 18.9, pro: 34.9, business: 59.9 },
+  plans: { basic: 17.9, pro: 34.9, business: 54.9 },
   planNames: {
-    basic: { name: "Basic", nameSl: "Osnovni" },
-    pro: { name: "Pro", nameSl: "Pro" },
-    business: { name: "Business", nameSl: "Poslovni" },
+    basic: { name: "Basic", nameSl: "Osnovno" },
+    pro: { name: "Professional", nameSl: "Profesionalno" },
+    business: { name: "Premium", nameSl: "Premium" },
   },
   annualDiscountPercent: (2 * 100) / 12,
   additionalUserMonthly: 9.9,
@@ -216,7 +216,7 @@ export const accountPlanLabel = (
   const raw = catalog.planNames?.[key];
   const fallbackEn = accountCatalogText(
     defaults.name,
-    key === "business" ? "Business" : key === "pro" ? "Pro" : "Basic",
+    key === "business" ? "Premium" : key === "pro" ? "Professional" : "Basic",
   );
   const fallbackSl = accountCatalogText(defaults.nameSl, fallbackEn);
   return locale === "sl"
