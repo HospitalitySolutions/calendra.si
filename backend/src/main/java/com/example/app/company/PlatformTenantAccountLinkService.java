@@ -137,7 +137,7 @@ public class PlatformTenantAccountLinkService {
                 normalize(name), normalize(address), normalize(postalCode), normalize(city), normalizeVat(vatId),
                 normalize(email), normalize(phone), null, null, null, null
         );
-        ClientCompany payee = resolvePayeeCompany(platformCompany, tenantCompany, profile);
+        ClientCompany payee = resolvePayeeCompany(platformCompany, tenantCompany);
         applyProfileToPayee(payee, tenantCompany, profile);
         return clientCompanies.save(payee);
     }
@@ -147,13 +147,13 @@ public class PlatformTenantAccountLinkService {
         if (platformCompany == null || platformCompany.getId() == null || Objects.equals(platformCompany.getId(), tenant.getId())) {
             return;
         }
-        ClientCompany payee = resolvePayeeCompany(platformCompany, tenant, profile);
+        ClientCompany payee = resolvePayeeCompany(platformCompany, tenant);
         applyProfileToPayee(payee, tenant, profile);
         payee = clientCompanies.save(payee);
         syncLinkedPlatformClients(platformCompany, payee, profile);
     }
 
-    private ClientCompany resolvePayeeCompany(Company platformCompany, Company tenant, CompanyProfileSnapshot profile) {
+    private ClientCompany resolvePayeeCompany(Company platformCompany, Company tenant) {
         ClientCompany linked = clientCompanies.findFirstLinkedPlatformPayee(platformCompany.getId(), tenant.getId()).orElse(null);
         if (linked != null) {
             return linked;
@@ -163,25 +163,12 @@ public class PlatformTenantAccountLinkService {
             fromSubscriptionOpenBill.setPlatformTenantCompany(tenant);
             return fromSubscriptionOpenBill;
         }
-        ClientCompany matched = null;
-        if (notBlank(profile.vatId())) {
-            matched = clientCompanies.findFirstByOwnerCompanyIdAndVatId(platformCompany.getId(), profile.vatId()).orElse(null);
-        }
-        if (matched == null && notBlank(profile.email())) {
-            matched = clientCompanies.findFirstByOwnerCompanyIdAndEmailIgnoreCase(platformCompany.getId(), profile.email()).orElse(null);
-        }
-        if (matched == null && notBlank(profile.name())) {
-            matched = clientCompanies.findFirstByOwnerCompanyIdAndNameIgnoreCase(platformCompany.getId(), profile.name()).orElse(null);
-        }
-        if (matched != null) {
-            matched.setPlatformTenantCompany(tenant);
-            return matched;
-        }
         ClientCompany created = new ClientCompany();
         created.setOwnerCompany(platformCompany);
         created.setPlatformTenantCompany(tenant);
         return created;
     }
+
 
     private Optional<ClientCompany> findPayeeFromSubscriptionOpenBill(Company platformCompany, Company tenant) {
         return openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(

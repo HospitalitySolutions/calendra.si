@@ -362,7 +362,7 @@ class TenantIsolationControllerAccessTest {
     }
 
     @Test
-    void accountManagementReceivedInvoicePdfOnlyUsesPlatformPayeesLinkedToCurrentTenant() {
+    void accountManagementReceivedInvoicePdfUsesImmutableTenantSubscriptionReference() {
         CompanyRepository companies = mock(CompanyRepository.class);
         ClientCompanyRepository clientCompanies = mock(ClientCompanyRepository.class);
         BillRepository bills = mock(BillRepository.class);
@@ -377,19 +377,14 @@ class TenantIsolationControllerAccessTest {
         Company platform = company(100L);
         platform.setName("Platform Admin");
         when(companies.findAll()).thenReturn(List.of(platform));
-        ClientCompany linkedPayee = new ClientCompany();
-        linkedPayee.setId(700L);
-        linkedPayee.setOwnerCompany(platform);
-        linkedPayee.setPlatformTenantCompany(tenantA.getCompany());
-        when(clientCompanies.findAllLinkedPlatformPayees(100L, 1L)).thenReturn(List.of(linkedPayee));
-        when(bills.findByIdAndCompanyIdAndRecipientCompanyIdSnapshotIn(eq(900L), eq(100L), any()))
+        when(bills.findByIdAndCompanyIdAndBankTransferReference(900L, 100L, "CALENDRA-SUBSCRIPTION:1"))
                 .thenReturn(Optional.empty());
 
         assertNotFound(() -> controller.receivedInvoicePdf(900L, false, tenantA));
-        verify(bills).findByIdAndCompanyIdAndRecipientCompanyIdSnapshotIn(
-                eq(900L),
-                eq(100L),
-                argThat(ids -> ids.size() == 1 && ids.contains(700L)));
+        verify(bills).findByIdAndCompanyIdAndBankTransferReference(
+                900L,
+                100L,
+                "CALENDRA-SUBSCRIPTION:1");
     }
 
     private static ClientController clientController(

@@ -3,6 +3,7 @@ package com.example.app.billing;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
@@ -105,6 +106,48 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             Long id,
             Long companyId,
             Collection<Long> recipientCompanyIdSnapshots);
+
+
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    List<Bill> findAllByCompanyIdAndBillTypeAndBankTransferReferenceOrderByIssueDateDescIdDesc(
+            Long companyId,
+            BillType billType,
+            String bankTransferReference);
+
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    Optional<Bill> findByIdAndCompanyIdAndBankTransferReference(
+            Long id,
+            Long companyId,
+            String bankTransferReference);
+
+    @Query("""
+            select case when count(b) > 0 then true else false end
+            from Bill b
+            where b.company.id = :companyId
+              and b.recipientCompanyIdSnapshot = :recipientCompanyId
+              and b.bankTransferReference like concat(:referencePrefix, '%')
+              and b.bankTransferReference <> :currentReference
+            """)
+    boolean existsSubscriptionBillForDifferentTenant(
+            @Param("companyId") Long companyId,
+            @Param("recipientCompanyId") Long recipientCompanyId,
+            @Param("referencePrefix") String referencePrefix,
+            @Param("currentReference") String currentReference);
+
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Bill b
+            set b.recipientCompanyIdSnapshot = :newRecipientCompanyId
+            where b.company.id = :companyId
+              and b.recipientCompanyIdSnapshot = :oldRecipientCompanyId
+              and b.bankTransferReference = :subscriptionReference
+            """)
+    int reassignSubscriptionRecipientCompany(
+            @Param("companyId") Long companyId,
+            @Param("subscriptionReference") String subscriptionReference,
+            @Param("oldRecipientCompanyId") Long oldRecipientCompanyId,
+            @Param("newRecipientCompanyId") Long newRecipientCompanyId);
 
     @Override
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})

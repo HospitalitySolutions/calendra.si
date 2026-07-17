@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class PlatformTenancyDeletionService {
 
     static final String PLATFORM_ADMIN_COMPANY_NAME = "Platform Admin";
+    private static final String PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX = "CALENDRA-SUBSCRIPTION:";
 
     private final CompanyRepository companies;
     private final UserRepository users;
@@ -95,6 +96,8 @@ public class PlatformTenancyDeletionService {
     }
 
     private void purgeCompanyData(long companyId) {
+        purgePlatformSubscriptionLinkage(companyId);
+
         // Billing
         exec("DELETE FROM advance_allocations WHERE company_id = ?", companyId);
         exec(
@@ -214,6 +217,51 @@ public class PlatformTenancyDeletionService {
 
         // Platform audit trail for this tenant (after user purge; actor is another tenant's user)
         exec("DELETE FROM platform_tenancy_admin_audit_logs WHERE company_id = ?", companyId);
+    }
+
+
+    private void purgePlatformSubscriptionLinkage(long companyId) {
+        String subscriptionReference = PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX + companyId;
+
+        // Remove only the unfinished Platform Admin subscription draft for this tenant. Issued invoices remain
+        // immutable accounting history and are isolated by their tenant-specific subscription reference.
+        exec(
+                """
+                DELETE FROM open_bill_payments
+                WHERE open_bill_id IN (SELECT id FROM open_bills WHERE reference = ?)
+                """,
+                subscriptionReference);
+        exec(
+                """
+                DELETE FROM open_bill_items
+                WHERE open_bill_id IN (SELECT id FROM open_bills WHERE reference = ?)
+                """,
+                subscriptionReference);
+        exec("DELETE FROM open_bills WHERE reference = ?", subscriptionReference);
+
+        // Preserve historical Platform Admin invoices, but archive the tenant-specific recipient records so they
+        // can never be reused when a later tenant registers with the same email, VAT number or company name.
+        exec(
+                """
+                UPDATE clients
+                SET active = FALSE,
+                    batch_payment_enabled = FALSE,
+                    suppress_invoice_emails = TRUE
+                WHERE billing_company_id IN (
+                    SELECT id FROM client_companies WHERE platform_tenant_company_id = ?
+                )
+                """,
+                companyId);
+        exec(
+                """
+                UPDATE client_companies
+                SET platform_tenant_company_id = NULL,
+                    active = FALSE,
+                    batch_payment_enabled = FALSE,
+                    suppress_invoice_emails = TRUE
+                WHERE platform_tenant_company_id = ?
+                """,
+                companyId);
     }
 
     private void purgeUsersForCompany(long companyId) {

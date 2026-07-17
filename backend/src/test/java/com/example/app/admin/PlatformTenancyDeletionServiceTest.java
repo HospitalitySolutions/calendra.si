@@ -115,6 +115,7 @@ class PlatformTenancyDeletionServiceTest {
 
         verify(entityManager).detach(audit);
         verify(jdbc, atLeastOnce()).update(anyString(), eq(7L));
+        verify(jdbc, atLeastOnce()).update(anyString(), eq("CALENDRA-SUBSCRIPTION:7"));
         verify(companies).delete(tenant);
     }
 

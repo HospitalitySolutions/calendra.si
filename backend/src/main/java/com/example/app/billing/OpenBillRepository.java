@@ -54,6 +54,22 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
 
     List<OpenBill> findAllByCompanyIdAndReferenceStartingWith(Long companyId, String referencePrefix);
 
+
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("""
+            update OpenBill o
+            set o.batchTargetCompanyId = :newTargetCompanyId
+            where o.company.id = :companyId
+              and o.reference = :subscriptionReference
+              and o.batchTargetCompanyId = :oldTargetCompanyId
+            """)
+    int reassignSubscriptionTargetCompany(
+            @Param("companyId") Long companyId,
+            @Param("subscriptionReference") String subscriptionReference,
+            @Param("oldTargetCompanyId") Long oldTargetCompanyId,
+            @Param("newTargetCompanyId") Long newTargetCompanyId);
+
     @Query("SELECT DISTINCT o.id FROM OpenBill o LEFT JOIN o.items i " +
             "WHERE o.company.id = :companyId " +
             "AND o.batchScope = 'NONE' " +

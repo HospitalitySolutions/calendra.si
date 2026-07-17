@@ -7,7 +7,6 @@ import com.example.app.billing.BillPaymentSplitSupport;
 import com.example.app.billing.BillRepository;
 import com.example.app.billing.BillType;
 import com.example.app.billing.InvoicePdfS3Service;
-import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
@@ -46,6 +45,7 @@ import org.springframework.web.server.ResponseStatusException;
 @PreAuthorize("hasRole('ADMIN')")
 public class AccountManagementInvoiceController {
     private static final String PLATFORM_ADMIN_COMPANY_NAME = "Platform Admin";
+    private static final String PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX = "CALENDRA-SUBSCRIPTION:";
 
     private final CompanyRepository companies;
     private final ClientCompanyRepository clientCompanies;
@@ -100,13 +100,9 @@ public class AccountManagementInvoiceController {
             return List.of();
         }
 
-        List<Long> payeeIds = linkedPlatformPayeeIds(platformCompany.getId(), tenantCompany.getId());
-        if (payeeIds.isEmpty()) {
-            return List.of();
-        }
-
-        return bills.findAllByCompanyIdAndBillTypeAndRecipientCompanyIdSnapshotInOrderByIssueDateDescIdDesc(
-                        platformCompany.getId(), BillType.INVOICE, payeeIds)
+        String subscriptionReference = subscriptionReference(tenantCompany.getId());
+        return bills.findAllByCompanyIdAndBillTypeAndBankTransferReferenceOrderByIssueDateDescIdDesc(
+                        platformCompany.getId(), BillType.INVOICE, subscriptionReference)
                 .stream()
                 .map(bill -> toResponse(bill, platformCompany))
                 .toList();
@@ -128,12 +124,8 @@ public class AccountManagementInvoiceController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
-        List<Long> payeeIds = linkedPlatformPayeeIds(platformCompany.getId(), tenantCompany.getId());
-        if (payeeIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-
-        Bill bill = bills.findByIdAndCompanyIdAndRecipientCompanyIdSnapshotIn(id, platformCompany.getId(), payeeIds)
+        String subscriptionReference = subscriptionReference(tenantCompany.getId());
+        Bill bill = bills.findByIdAndCompanyIdAndBankTransferReference(id, platformCompany.getId(), subscriptionReference)
                 .filter(row -> row.getBillType() == BillType.INVOICE)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         byte[] pdf = invoicePdfS3Service.downloadIfPresent(bill);
@@ -148,12 +140,8 @@ public class AccountManagementInvoiceController {
                 .body(pdf);
     }
 
-    private List<Long> linkedPlatformPayeeIds(Long platformCompanyId, Long tenantCompanyId) {
-        return clientCompanies.findAllLinkedPlatformPayees(platformCompanyId, tenantCompanyId).stream()
-                .map(ClientCompany::getId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
+    private static String subscriptionReference(Long tenantCompanyId) {
+        return PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX + tenantCompanyId;
     }
 
     private Optional<Company> resolvePlatformCompany() {

@@ -1288,14 +1288,10 @@ public class PlatformSubscriptionBillingService {
         ClientCompany row = tenantCompany == null || tenantCompany.getId() == null
                 ? null
                 : clientCompanies.findFirstLinkedPlatformPayee(platformCompany.getId(), tenantCompany.getId()).orElse(null);
-        if (row == null && normalizedVat != null) {
-            row = clientCompanies.findFirstByOwnerCompanyIdAndVatId(platformCompany.getId(), normalizedVat).orElse(null);
-        }
-        if (row == null && email != null && !email.isBlank()) {
-            row = clientCompanies.findFirstByOwnerCompanyIdAndEmailIgnoreCase(platformCompany.getId(), email.trim()).orElse(null);
-        }
-        if (row == null && name != null && !name.isBlank()) {
-            row = clientCompanies.findFirstByOwnerCompanyIdAndNameIgnoreCase(platformCompany.getId(), name.trim()).orElse(null);
+        ClientCompany reusedHistoricalPayee = null;
+        if (row != null && hasSubscriptionHistoryForAnotherTenant(platformCompany, tenantCompany, row)) {
+            reusedHistoricalPayee = row;
+            row = null;
         }
         if (row == null) {
             row = new ClientCompany();
@@ -1313,7 +1309,56 @@ public class PlatformSubscriptionBillingService {
         row.setTelephone(trimToNull(phone));
         row.setActive(true);
         row.setBatchPaymentEnabled(true);
-        return clientCompanies.save(row);
+        ClientCompany saved = clientCompanies.save(row);
+        if (reusedHistoricalPayee != null) {
+            migrateCurrentTenantSubscriptionRecipient(platformCompany, tenantCompany, reusedHistoricalPayee, saved);
+            archiveReusedPlatformPayee(reusedHistoricalPayee);
+        }
+        return saved;
+    }
+
+    private boolean hasSubscriptionHistoryForAnotherTenant(
+            Company platformCompany,
+            Company tenantCompany,
+            ClientCompany payee
+    ) {
+        if (platformCompany == null || platformCompany.getId() == null
+                || tenantCompany == null || tenantCompany.getId() == null
+                || payee == null || payee.getId() == null) {
+            return false;
+        }
+        return bills.existsSubscriptionBillForDifferentTenant(
+                platformCompany.getId(),
+                payee.getId(),
+                OPEN_BILL_REFERENCE_PREFIX,
+                referenceForTenant(tenantCompany.getId()));
+    }
+
+    private void migrateCurrentTenantSubscriptionRecipient(
+            Company platformCompany,
+            Company tenantCompany,
+            ClientCompany oldPayee,
+            ClientCompany newPayee
+    ) {
+        if (platformCompany == null || platformCompany.getId() == null
+                || tenantCompany == null || tenantCompany.getId() == null
+                || oldPayee == null || oldPayee.getId() == null
+                || newPayee == null || newPayee.getId() == null) {
+            return;
+        }
+        String reference = referenceForTenant(tenantCompany.getId());
+        bills.reassignSubscriptionRecipientCompany(
+                platformCompany.getId(), reference, oldPayee.getId(), newPayee.getId());
+        openBills.reassignSubscriptionTargetCompany(
+                platformCompany.getId(), reference, oldPayee.getId(), newPayee.getId());
+    }
+
+    private ClientCompany archiveReusedPlatformPayee(ClientCompany payee) {
+        payee.setPlatformTenantCompany(null);
+        payee.setActive(false);
+        payee.setBatchPaymentEnabled(false);
+        payee.setSuppressInvoiceEmails(true);
+        return clientCompanies.save(payee);
     }
 
     private Client upsertPlatformPayeeClient(
@@ -1330,13 +1375,6 @@ public class PlatformSubscriptionBillingService {
     ) {
         Client client = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(platformCompany.getId(), payee.getId())
                 .orElseGet(() -> {
-                    String normalizedEmail = Client.normalizeEmailStorage(email);
-                    if (normalizedEmail != null) {
-                        List<Client> byEmail = clients.findAllByCompanyIdAndNormalizedEmail(platformCompany.getId(), normalizedEmail);
-                        if (!byEmail.isEmpty()) {
-                            return byEmail.get(0);
-                        }
-                    }
                     Client created = new Client();
                     created.setCompany(platformCompany);
                     return created;
