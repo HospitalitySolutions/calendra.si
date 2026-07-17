@@ -81,6 +81,13 @@ public class SettingsController {
             SettingKey.TENANT_RESERVATION_RULES_JSON
     );
 
+    private static final Set<SettingKey> PLATFORM_ADMIN_MANAGED_BILLING_KEYS = EnumSet.of(
+            SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE,
+            SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT,
+            SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT,
+            SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS
+    );
+
     private final AppSettingRepository repository;
     private final SettingsCryptoService crypto;
     private final TenantFileS3Service fileStorage;
@@ -208,6 +215,9 @@ public class SettingsController {
                     return;
                 }
                 if (key == SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS && !isSuperAdmin(me)) {
+                    return;
+                }
+                if (PLATFORM_ADMIN_MANAGED_BILLING_KEYS.contains(key) && !isSuperAdmin(me)) {
                     return;
                 }
                 String submittedValue = normalizedPayload.get(key.name());

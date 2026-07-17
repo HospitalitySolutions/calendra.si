@@ -976,7 +976,8 @@ public class PlatformSubscriptionBillingService {
             open.getItems().clear();
         }
         BigDecimal totalGross = BigDecimal.ZERO;
-        BigDecimal planGross = plan.periodGross();
+        SubscriptionPriceOverride priceOverride = subscriptionPriceOverride(tenantId);
+        BigDecimal planGross = priceOverride.applyToPlan(plan.periodGross());
         if (planGross.compareTo(BigDecimal.ZERO) > 0) {
             totalGross = totalGross.add(addOpenLine(open, plan.transactionService(), 1, planGross));
         }
@@ -1010,16 +1011,23 @@ public class PlatformSubscriptionBillingService {
         }
 
         for (String key : currentAddonKeys == null ? List.<String>of() : currentAddonKeys) {
-            totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key));
+            totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key, priceOverride));
         }
 
         for (String key : selectedAddonKeys == null ? List.<String>of() : selectedAddonKeys) {
-            totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key));
+            totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key, priceOverride));
         }
         return totalGross.setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal addAddonOpenLine(OpenBill open, PlatformBillingCatalog catalog, PlatformPlan plan, Long tenantId, String rawKey) {
+    private BigDecimal addAddonOpenLine(
+            OpenBill open,
+            PlatformBillingCatalog catalog,
+            PlatformPlan plan,
+            Long tenantId,
+            String rawKey,
+            SubscriptionPriceOverride priceOverride
+    ) {
         String key = normalizeAddonKey(rawKey);
         if (key.isBlank()) {
             return BigDecimal.ZERO;
@@ -1032,10 +1040,36 @@ public class PlatformSubscriptionBillingService {
                 .orElseGet(() -> plan.interval() == BillingInterval.YEARLY
                         ? annualGross(addon.monthlyGross(), catalog.annualDiscountPercent())
                         : addon.monthlyGross());
+        if (priceOverride != null) {
+            unitGross = priceOverride.applyToAddon(unitGross);
+        }
         if (unitGross.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
         return addOpenLine(open, addon.transactionService(), 1, unitGross);
+    }
+
+    private SubscriptionPriceOverride subscriptionPriceOverride(Long tenantId) {
+        if (tenantId == null) {
+            return SubscriptionPriceOverride.none();
+        }
+        String type = settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE, "")
+                .trim()
+                .toUpperCase(Locale.ROOT);
+        if ("CUSTOM_PRICE".equals(type)) {
+            BigDecimal amount = parseMoneySetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT);
+            return SubscriptionPriceOverride.customPrice(amount);
+        }
+        if ("DISCOUNT".equals(type)) {
+            BigDecimal percent = parseMoneySetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT)
+                    .min(BigDecimal.valueOf(100));
+            boolean includeAddons = Boolean.parseBoolean(settingValueOrDefault(
+                    tenantId,
+                    SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS,
+                    "false"));
+            return SubscriptionPriceOverride.discount(percent, includeAddons);
+        }
+        return SubscriptionPriceOverride.none();
     }
 
     private Optional<BigDecimal> customAddonGross(Long tenantId, PlatformPlan plan, String key) {
@@ -1735,6 +1769,56 @@ public class PlatformSubscriptionBillingService {
 
         private String settingValue() {
             return this == YEARLY ? "YEARLY" : "MONTHLY";
+        }
+    }
+
+    private record SubscriptionPriceOverride(
+            String type,
+            BigDecimal amount,
+            BigDecimal discountPercent,
+            boolean includeAddons
+    ) {
+        private static SubscriptionPriceOverride none() {
+            return new SubscriptionPriceOverride("", BigDecimal.ZERO, BigDecimal.ZERO, false);
+        }
+
+        private static SubscriptionPriceOverride customPrice(BigDecimal amount) {
+            BigDecimal normalized = amount == null
+                    ? BigDecimal.ZERO
+                    : amount.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            return new SubscriptionPriceOverride("CUSTOM_PRICE", normalized, BigDecimal.ZERO, false);
+        }
+
+        private static SubscriptionPriceOverride discount(BigDecimal percent, boolean includeAddons) {
+            BigDecimal normalized = percent == null
+                    ? BigDecimal.ZERO
+                    : percent.max(BigDecimal.ZERO).min(BigDecimal.valueOf(100));
+            return new SubscriptionPriceOverride("DISCOUNT", BigDecimal.ZERO, normalized, includeAddons);
+        }
+
+        private BigDecimal applyToPlan(BigDecimal original) {
+            BigDecimal gross = original == null ? BigDecimal.ZERO : original.max(BigDecimal.ZERO);
+            if ("CUSTOM_PRICE".equals(type)) {
+                return amount.setScale(2, RoundingMode.HALF_UP);
+            }
+            if ("DISCOUNT".equals(type)) {
+                return discounted(gross);
+            }
+            return gross.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        private BigDecimal applyToAddon(BigDecimal original) {
+            BigDecimal gross = original == null ? BigDecimal.ZERO : original.max(BigDecimal.ZERO);
+            if ("DISCOUNT".equals(type) && includeAddons) {
+                return discounted(gross);
+            }
+            return gross.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        private BigDecimal discounted(BigDecimal gross) {
+            BigDecimal factor = BigDecimal.ONE.subtract(
+                    discountPercent.divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP));
+            return gross.multiply(factor).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         }
     }
 

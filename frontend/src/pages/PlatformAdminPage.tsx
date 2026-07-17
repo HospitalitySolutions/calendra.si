@@ -152,6 +152,13 @@ type TenancyDetails = TenancySearchHit & {
   customYearlyPrice: string;
   customFeatureKeys: string;
   customAddonsJson: string;
+  addonKeys: string;
+  nextAddonKeys: string;
+  currentAddonKeys: string;
+  priceOverrideType: string;
+  priceOverrideAmount: string;
+  priceOverrideDiscountPercent: string;
+  priceOverrideIncludeAddons: boolean;
   paymentMethod: string;
   companyType: string;
 };
@@ -322,7 +329,7 @@ const modalContent: Record<string, [string, string, string[]]> = {
   ],
   price: [
     "Price override",
-    "Only admin can change price or apply custom discount. Store previous and new value in audit log.",
+    "Set the base-plan price or discount that starts with the next generated billing period and remains active for future renewals.",
     ["Apply custom price", "Apply discount", "Remove override"],
   ],
   suspend: [
@@ -971,13 +978,83 @@ function isYearlyBillingInterval(raw: string): boolean {
   return u === "YEARLY" || u === "ANNUAL";
 }
 
-function sumAddonCatalog(addons: Record<string, number> | undefined): number {
-  if (!addons) return 0;
-  let s = 0;
-  for (const v of Object.values(addons)) {
-    if (typeof v === "number" && Number.isFinite(v)) s += v;
+function parsePlatformAddonKeys(raw: string | null | undefined): string[] {
+  return Array.from(
+    new Set(
+      String(raw || "")
+        .split(",")
+        .map((key) => key.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function tenantAddonPeriodTotal(
+  selected: TenancyDetails,
+  catalog: RegisterPriceCatalogDto,
+): number {
+  const keys = Array.from(
+    new Set([
+      ...parsePlatformAddonKeys(selected.nextAddonKeys || selected.addonKeys),
+      ...parsePlatformAddonKeys(selected.currentAddonKeys),
+    ]),
+  );
+  if (!keys.length) return 0;
+  const yearly = isYearlyBillingInterval(selected.subscriptionInterval);
+  if (selected.packageType?.trim().toUpperCase() === "CUSTOM") {
+    try {
+      const rows = JSON.parse(selected.customAddonsJson || "[]");
+      if (Array.isArray(rows)) {
+        const byKey = new Map<string, { monthly: number; yearly: number; charged: boolean }>();
+        rows.forEach((row) => {
+          const key = String(row?.key || "").trim().toLowerCase();
+          if (!key) return;
+          byKey.set(key, {
+            monthly: Math.max(0, Number(row?.monthlyPrice) || 0),
+            yearly: Math.max(0, Number(row?.yearlyPrice) || 0),
+            charged: row?.charged !== false,
+          });
+        });
+        return roundMoney2(
+          keys.reduce((sum, key) => {
+            const row = byKey.get(key);
+            if (!row || !row.charged) return sum;
+            const amount = yearly
+              ? row.yearly > 0
+                ? row.yearly
+                : row.monthly * 12
+              : row.monthly > 0
+                ? row.monthly
+                : row.yearly / 12;
+            return sum + amount;
+          }, 0),
+        );
+      }
+    } catch {
+      return 0;
+    }
   }
-  return Math.round(s * 100) / 100;
+  const annualDiscount = Math.min(100, Math.max(0, Number(catalog.annualDiscountPercent) || 0));
+  const monthlyByKey = new Map<string, number>();
+  (catalog.addonItems || []).forEach((item) => {
+    const key = String(item?.key || "").trim().toLowerCase();
+    if (!key || item?.active === false) return;
+    const amount = Number(item?.monthly);
+    if (Number.isFinite(amount)) monthlyByKey.set(key, Math.max(0, amount));
+  });
+  Object.entries(catalog.addons || {}).forEach(([rawKey, rawAmount]) => {
+    const key = rawKey.trim().toLowerCase();
+    const amount = Number(rawAmount);
+    if (key && Number.isFinite(amount) && !monthlyByKey.has(key)) {
+      monthlyByKey.set(key, Math.max(0, amount));
+    }
+  });
+  return roundMoney2(
+    keys.reduce((sum, key) => {
+      const monthly = monthlyByKey.get(key) || 0;
+      return sum + (yearly ? monthly * 12 * (1 - annualDiscount / 100) : monthly);
+    }, 0),
+  );
 }
 
 function roundMoney2(n: number): number {
@@ -1094,16 +1171,32 @@ function planAmountsForTenant(
   catalog: RegisterPriceCatalogDto,
 ) {
   const planKey = packageToCatalogPlanKey(selected.packageType);
-  const monthlyRaw = catalog.plans[planKey];
-  const monthly =
-    typeof monthlyRaw === "number" && Number.isFinite(monthlyRaw)
+  const isCustom = selected.packageType?.trim().toUpperCase() === "CUSTOM";
+  const configuredCustomMonthly = Number.parseFloat(
+    String(selected.customMonthlyPrice || "0").replace(",", "."),
+  );
+  const configuredCustomYearly = Number.parseFloat(
+    String(selected.customYearlyPrice || "0").replace(",", "."),
+  );
+  const monthlyRaw = isCustom ? configuredCustomMonthly : catalog.plans[planKey];
+  const monthly = isCustom
+    ? Number.isFinite(configuredCustomMonthly) && configuredCustomMonthly > 0
+      ? configuredCustomMonthly
+      : Number.isFinite(configuredCustomYearly) && configuredCustomYearly > 0
+        ? configuredCustomYearly / 12
+        : 0
+    : typeof monthlyRaw === "number" && Number.isFinite(monthlyRaw) && monthlyRaw >= 0
       ? monthlyRaw
       : DEFAULT_REGISTER_CATALOG.plans[planKey];
   const annualDiscountPercent =
     catalog.annualDiscountPercent ??
     DEFAULT_REGISTER_CATALOG.annualDiscountPercent ??
     15;
-  const yearly = roundMoney2(monthly * 12 * (1 - annualDiscountPercent / 100));
+  const yearly = isCustom
+    ? Number.isFinite(configuredCustomYearly) && configuredCustomYearly > 0
+      ? configuredCustomYearly
+      : roundMoney2(monthly * 12)
+    : roundMoney2(monthly * 12 * (1 - annualDiscountPercent / 100));
   const billingLabel = isYearlyBillingInterval(selected.subscriptionInterval)
     ? ("Annual" as const)
     : ("Monthly" as const);
@@ -1183,7 +1276,7 @@ function applyPriceModalDOM(
 ) {
   const merged = mergeRegisterCatalog(catalog);
   const amounts = planAmountsForTenant(selected, merged);
-  const addonSum = sumAddonCatalog(merged.addons);
+  const addonSum = tenantAddonPeriodTotal(selected, merged);
   const extras = root.querySelector<HTMLElement>("#priceOverrideExtras");
   if (!extras) return;
   extras.dataset.baseAmount = String(amounts.currentAmount);
@@ -1192,7 +1285,26 @@ function applyPriceModalDOM(
   extras.dataset.planLabel = formatPlan(selected.packageType);
 
   const baseStr = formatMoneyEUR(amounts.currentAmount);
-  const defLine = `Current plan price for ${formatPlan(selected.packageType)} (${amounts.billingLabel} billing): €${baseStr} per ${amounts.billingLabel === "Annual" ? "year" : "month"}.`;
+  const overrideType = String(selected.priceOverrideType || "").toUpperCase();
+  const overrideAmount = Number.parseFloat(
+    String(selected.priceOverrideAmount || "").replace(",", "."),
+  );
+  const overridePercent = Number.parseFloat(
+    String(selected.priceOverrideDiscountPercent || "").replace(",", "."),
+  );
+  const effectiveBase =
+    overrideType === "CUSTOM_PRICE" && Number.isFinite(overrideAmount)
+      ? Math.max(0, overrideAmount)
+      : overrideType === "DISCOUNT" && Number.isFinite(overridePercent)
+        ? roundMoney2(amounts.currentAmount * (1 - Math.min(100, Math.max(0, overridePercent)) / 100))
+        : amounts.currentAmount;
+  const overrideSuffix =
+    overrideType === "CUSTOM_PRICE"
+      ? ` Scheduled custom price: €${formatMoneyEUR(effectiveBase)}.`
+      : overrideType === "DISCOUNT"
+        ? ` Scheduled discount: ${formatMoneyEUR(overridePercent)}%${selected.priceOverrideIncludeAddons ? " including selected add-ons" : " on the base plan"}.`
+        : "";
+  const defLine = `Default plan price for ${formatPlan(selected.packageType)} (${amounts.billingLabel} billing): €${baseStr} per ${amounts.billingLabel === "Annual" ? "year" : "month"}.${overrideSuffix}`;
   const elCustom = root.querySelector<HTMLElement>("#priceCurrentLabelCustom");
   if (elCustom) elCustom.textContent = defLine;
   const elDisc = root.querySelector<HTMLElement>("#priceCurrentLabelDiscount");
@@ -1204,16 +1316,40 @@ function applyPriceModalDOM(
   }
 
   const inputCustom = root.querySelector<HTMLInputElement>("#priceCustomInput");
-  if (inputCustom) inputCustom.value = String(amounts.currentAmount);
+  if (inputCustom)
+    inputCustom.value = String(
+      overrideType === "CUSTOM_PRICE" && Number.isFinite(overrideAmount)
+        ? Math.max(0, overrideAmount)
+        : amounts.currentAmount,
+    );
 
   const pct = root.querySelector<HTMLInputElement>("#priceDiscountPercent");
-  if (pct) pct.value = "";
+  if (pct)
+    pct.value =
+      overrideType === "DISCOUNT" && Number.isFinite(overridePercent)
+        ? String(Math.max(0, overridePercent))
+        : "";
   const inc = root.querySelector<HTMLInputElement>(
     "#priceDiscountIncludeAddons",
   );
-  if (inc) inc.checked = false;
+  if (inc) inc.checked = overrideType === "DISCOUNT" && selected.priceOverrideIncludeAddons;
 
   updatePriceOverridePanels(root);
+}
+
+function tenancyPriceOverrideLabel(selected: TenancyDetails): string {
+  const type = String(selected.priceOverrideType || "").toUpperCase();
+  if (type === "CUSTOM_PRICE") {
+    const amount = Number.parseFloat(String(selected.priceOverrideAmount || "0").replace(",", "."));
+    return `€${formatMoneyEUR(Number.isFinite(amount) ? Math.max(0, amount) : 0)} base-plan price from next invoice`;
+  }
+  if (type === "DISCOUNT") {
+    const percent = Number.parseFloat(
+      String(selected.priceOverrideDiscountPercent || "0").replace(",", "."),
+    );
+    return `${Number.isFinite(percent) ? percent : 0}% discount on base plan${selected.priceOverrideIncludeAddons ? " + selected add-ons" : ""} from next invoice`;
+  }
+  return "Default catalog/custom-package pricing";
 }
 
 function PlanPricesAdminPanel() {
@@ -5370,6 +5506,68 @@ export function PlatformAdminPage() {
             }
             return;
           }
+          if (kind === "price") {
+            if (!reason) {
+              window.alert("A reason is required before changing subscription pricing.");
+              return;
+            }
+            const actionSelect = root.querySelector<HTMLSelectElement>("#actionSelect");
+            const idx = actionSelect?.selectedIndex ?? -1;
+            const customRaw =
+              root.querySelector<HTMLInputElement>("#priceCustomInput")?.value ?? "";
+            const discountRaw =
+              root.querySelector<HTMLInputElement>("#priceDiscountPercent")?.value ?? "";
+            const amount = Number.parseFloat(customRaw.replace(",", "."));
+            const discountPercent = Number.parseFloat(discountRaw.replace(",", "."));
+            if (idx === 0 && (!Number.isFinite(amount) || amount < 0)) {
+              window.alert("Enter a valid non-negative custom price.");
+              return;
+            }
+            if (
+              idx === 1 &&
+              (!Number.isFinite(discountPercent) ||
+                discountPercent <= 0 ||
+                discountPercent > 100)
+            ) {
+              window.alert("Enter a discount greater than 0 and at most 100%.");
+              return;
+            }
+            const action =
+              idx === 0 ? "CUSTOM_PRICE" : idx === 1 ? "DISCOUNT" : idx === 2 ? "REMOVE" : "";
+            if (!action) {
+              window.alert("Choose a valid price override action.");
+              return;
+            }
+            try {
+              const { data } = await api.post<TenancyDetails>(
+                `/platform-admin/tenancies/${tenantId}/price-override`,
+                {
+                  action,
+                  amount: idx === 0 ? amount : null,
+                  discountPercent: idx === 1 ? discountPercent : null,
+                  includeAddons:
+                    idx === 1 &&
+                    (root.querySelector<HTMLInputElement>(
+                      "#priceDiscountIncludeAddons",
+                    )?.checked ?? false),
+                  reason,
+                },
+              );
+              setSelected(data);
+              await reloadAuditForCurrentSelection();
+              closeModal();
+            } catch (e) {
+              const message = axios.isAxiosError(e)
+                ? String(
+                    e.response?.data?.message ||
+                      e.response?.data?.error ||
+                      "Could not save the price override.",
+                  )
+                : "Could not save the price override.";
+              window.alert(message);
+            }
+            return;
+          }
           const payload = buildPlatformAdminAuditPayload(kind, root);
           if (!payload) {
             window.alert(
@@ -6205,6 +6403,12 @@ export function PlatformAdminPage() {
                                   <div className="platform-admin-field-label">
                                     <strong>Payment method</strong>
                                     <span>{selected.paymentMethod || "—"}</span>
+                                  </div>
+                                </div>
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
+                                    <strong>Price override</strong>
+                                    <span>{tenancyPriceOverrideLabel(selected)}</span>
                                   </div>
                                 </div>
                                 {selected.packageType?.toUpperCase() === "CUSTOM" ? (
@@ -7045,8 +7249,8 @@ export function PlatformAdminPage() {
                         fontWeight: 700,
                       }}
                     >
-                      Applies to this tenant&apos;s current billing cycle
-                      (monthly or annual total shown above).
+                      Starts with the next generated billing period. The
+                      current issued invoice is not changed.
                     </p>
                   </div>
                 </div>
@@ -7072,8 +7276,8 @@ export function PlatformAdminPage() {
                     <label className="platform-admin-checkbox-row">
                       <input id="priceDiscountIncludeAddons" type="checkbox" />
                       <span>
-                        Include add-ons in the % discount (preview uses catalog
-                        add-on prices as reference).
+                        Include this tenant&apos;s selected add-ons in the %
+                        discount. Usage charges remain unchanged.
                       </span>
                     </label>
                     <p id="priceDiscountPreview" className="platform-admin-price-preview" />

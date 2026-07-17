@@ -154,6 +154,14 @@ public enum SettingKey {
     BILLING_SUBSCRIPTION_STATUS,
     /** Number of days after an unpaid subscription invoice before the account becomes past due. */
     BILLING_SUBSCRIPTION_GRACE_DAYS,
+    /** Admin-managed base-plan price rule applied to the next generated subscription invoice and future renewals. */
+    BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE,
+    /** Gross base-plan amount used when BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE is CUSTOM_PRICE. */
+    BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT,
+    /** Percentage used when BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE is DISCOUNT. */
+    BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT,
+    /** Whether an admin percentage discount also applies to selected subscription add-ons. */
+    BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS,
     /** Custom package display name saved for platform-admin-created custom plans. */
     BILLING_SUBSCRIPTION_CUSTOM_NAME,
     /** Custom monthly gross price for platform-admin-created custom plans. */

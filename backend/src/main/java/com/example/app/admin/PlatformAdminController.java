@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -192,12 +193,26 @@ public class PlatformAdminController {
             String customYearlyPrice,
             String customFeatureKeys,
             String customAddonsJson,
+            String addonKeys,
+            String nextAddonKeys,
+            String currentAddonKeys,
+            String priceOverrideType,
+            String priceOverrideAmount,
+            String priceOverrideDiscountPercent,
+            boolean priceOverrideIncludeAddons,
             String paymentMethod,
             String companyType) {}
 
     public record AuditLogEntryDto(String occurredAt, String category, String summary, String detail, String actorEmail) {}
 
     public record CreatePlatformTenancyAuditRequest(String actionType, String summary, String detail, String reason) {}
+
+    public record PriceOverrideRequest(
+            String action,
+            BigDecimal amount,
+            BigDecimal discountPercent,
+            Boolean includeAddons,
+            String reason) {}
 
     public record DeleteTenancyRequest(String reason) {}
 
@@ -439,6 +454,70 @@ public class PlatformAdminController {
         return buildTenantEmailSender(company.getId());
     }
 
+    @PostMapping("/tenancies/{id}/price-override")
+    @Transactional
+    public TenancyDetailsDto savePriceOverride(
+            @PathVariable Long id,
+            @RequestBody PriceOverrideRequest body,
+            @AuthenticationPrincipal User actor) {
+        Company company = companies.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required.");
+        }
+        String action = normalizeUpper(body.action());
+        String reason = clampText(body.reason(), 4000);
+        if (reason.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reason is required.");
+        }
+
+        String previous = priceOverrideSummary(company.getId());
+        String summary;
+        String detail;
+        if ("CUSTOM_PRICE".equals(action)) {
+            BigDecimal amount = normalizeNonNegativeMoney(body.amount(), "A non-negative custom price is required.");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE, "CUSTOM_PRICE");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT, amount.toPlainString());
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT, "");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS, "false");
+            summary = "Custom subscription price scheduled";
+            detail = "Previous: " + previous + "\nNew: custom base-plan price €" + amount.toPlainString()
+                    + " for each future " + billingPeriodLabel(company.getId())
+                    + " billing period, starting with the next generated invoice.";
+        } else if ("DISCOUNT".equals(action)) {
+            BigDecimal percent = normalizeDiscountPercent(body.discountPercent());
+            boolean includeAddons = Boolean.TRUE.equals(body.includeAddons());
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE, "DISCOUNT");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT, "");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT, percent.toPlainString());
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS, Boolean.toString(includeAddons));
+            summary = "Subscription discount scheduled";
+            detail = "Previous: " + previous + "\nNew: " + percent.toPlainString() + "% discount on the base plan"
+                    + (includeAddons ? " and selected add-ons" : "")
+                    + ", starting with the next generated invoice and continuing for future renewals.";
+        } else if ("REMOVE".equals(action)) {
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE, "");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT, "");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT, "");
+            saveTenantSetting(company, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS, "false");
+            summary = "Subscription price override removed";
+            detail = "Previous: " + previous
+                    + "\nNew: default catalog/custom-package pricing from the next generated invoice.";
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported price override action.");
+        }
+
+        PlatformTenancyAdminAuditLog row = new PlatformTenancyAdminAuditLog();
+        row.setCompany(company);
+        row.setActorUser(actor);
+        row.setActionType("PRICE_OVERRIDE");
+        row.setSummary(summary);
+        row.setDetail(detail);
+        row.setReason(reason);
+        tenancyAdminAuditLogs.save(row);
+        return buildTenancyDetails(company);
+    }
+
     /**
      * Immutable-style log of actions taken from the platform admin console for this tenancy (change plan, price
      * override, suspend, add-ons, etc.).
@@ -663,6 +742,13 @@ public class PlatformAdminController {
                 settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE),
                 settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS),
                 settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON),
+                settingTrim(cid, SettingKey.SIGNUP_ADDON_KEYS),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS),
+                normalizeUpper(settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE)),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT),
+                "true".equalsIgnoreCase(settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS)),
                 settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD),
                 settingTrim(cid, SettingKey.MODULE_CONFIG_TYPE));
     }
@@ -763,6 +849,40 @@ public class PlatformAdminController {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    private static BigDecimal normalizeNonNegativeMoney(BigDecimal raw, String message) {
+        if (raw == null || raw.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
+        return raw.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal normalizeDiscountPercent(BigDecimal raw) {
+        if (raw == null || raw.compareTo(BigDecimal.ZERO) <= 0 || raw.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Discount must be greater than 0 and at most 100 percent.");
+        }
+        return raw.setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros();
+    }
+
+    private String priceOverrideSummary(Long companyId) {
+        String type = normalizeUpper(settingTrim(companyId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE));
+        if ("CUSTOM_PRICE".equals(type)) {
+            String amount = settingTrim(companyId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT);
+            return "custom base-plan price €" + (amount.isBlank() ? "0.00" : amount);
+        }
+        if ("DISCOUNT".equals(type)) {
+            String percent = settingTrim(companyId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT);
+            boolean includeAddons = "true".equalsIgnoreCase(settingTrim(companyId, SettingKey.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS));
+            return (percent.isBlank() ? "0" : percent) + "% discount on base plan"
+                    + (includeAddons ? " and selected add-ons" : "");
+        }
+        return "default pricing";
+    }
+
+    private String billingPeriodLabel(Long companyId) {
+        String interval = normalizeUpper(settingTrim(companyId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL));
+        return "YEARLY".equals(interval) || "ANNUAL".equals(interval) ? "annual" : "monthly";
     }
 
     private String get(Long companyId, SettingKey key, String fallback) {

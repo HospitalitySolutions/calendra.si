@@ -1427,7 +1427,7 @@ export function ConfigurationPage() {
       currency: "EUR",
     }).format(value);
 
-  const activePlanDetails =
+  const catalogActivePlanDetails =
     accountPlanCatalog[subscriptionPackage] || accountPlanCatalog.PROFESSIONAL;
   const isCustomSubscriptionPlan = subscriptionPackage === "CUSTOM";
   const subscriptionInterval = subscriptionBillingInterval;
@@ -1435,10 +1435,68 @@ export function ConfigurationPage() {
     subscriptionInterval === "YEARLY" ? "leto" : "mesec";
   const subscriptionPeriodSummaryLabel =
     subscriptionInterval === "YEARLY" ? "Skupaj letno" : "Skupaj mesečno";
-  const planPeriodAmount =
+  const basePlanPeriodAmount =
     subscriptionInterval === "YEARLY"
-      ? activePlanDetails.annual
-      : activePlanDetails.monthly;
+      ? catalogActivePlanDetails.annual
+      : catalogActivePlanDetails.monthly;
+  const subscriptionPriceOverrideType = String(
+    settings.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_TYPE || "",
+  )
+    .trim()
+    .toUpperCase();
+  const subscriptionPriceOverrideAmount = roundAccountMoney(
+    positiveAccountNumber(
+      settings.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_AMOUNT,
+      0,
+    ),
+  );
+  const subscriptionPriceOverrideDiscountPercent = Math.min(
+    100,
+    Math.max(
+      0,
+      positiveAccountNumber(
+        settings.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_DISCOUNT_PERCENT,
+        0,
+      ),
+    ),
+  );
+  const subscriptionPriceOverrideIncludeAddons =
+    String(
+      settings.BILLING_SUBSCRIPTION_PRICE_OVERRIDE_INCLUDE_ADDONS || "false",
+    ).toLowerCase() === "true";
+  const subscriptionPriceOverrideFactor = Math.max(
+    0,
+    1 - subscriptionPriceOverrideDiscountPercent / 100,
+  );
+  const planPeriodAmount =
+    subscriptionPriceOverrideType === "CUSTOM_PRICE"
+      ? subscriptionPriceOverrideAmount
+      : subscriptionPriceOverrideType === "DISCOUNT"
+        ? roundAccountMoney(
+            basePlanPeriodAmount * subscriptionPriceOverrideFactor,
+          )
+        : basePlanPeriodAmount;
+  const activePlanDetails: AccountPlanCard = {
+    ...catalogActivePlanDetails,
+    monthly:
+      subscriptionInterval === "MONTHLY"
+        ? planPeriodAmount
+        : catalogActivePlanDetails.monthly,
+    annual:
+      subscriptionInterval === "YEARLY"
+        ? planPeriodAmount
+        : catalogActivePlanDetails.annual,
+  };
+  const subscriptionPriceOverrideNote =
+    subscriptionPriceOverrideType === "CUSTOM_PRICE"
+      ? `Cena po meri ${formatAccountEuro(planPeriodAmount)} velja od naslednjega obračunskega obdobja.`
+      : subscriptionPriceOverrideType === "DISCOUNT"
+        ? `Popust ${subscriptionPriceOverrideDiscountPercent}%${
+            subscriptionPriceOverrideIncludeAddons
+              ? " na paket in izbrane dodatke"
+              : " na paket"
+          } velja od naslednjega obračunskega obdobja.`
+        : "";
   const accountPlanDetailsPlanKey =
     accountPackageToRegisterPlanKey(subscriptionPackage);
   const accountPlanDetailsRank = accountRegisterPlanRank(
@@ -1566,25 +1624,41 @@ export function ConfigurationPage() {
     settings.BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON,
   ]);
   const addonUnitPeriodPrice = (addon: { key: string; monthly: number }) => {
+    let amount = 0;
+    let customPriceResolved = false;
     if (isCustomSubscriptionPlan) {
       const customPrice = customAddonPrices.get(addon.key);
       if (customPrice) {
+        customPriceResolved = true;
         if (!customPrice.charged) return 0;
         if (subscriptionInterval === "YEARLY") {
-          return customPrice.yearly > 0
-            ? customPrice.yearly
-            : roundAccountMoney(customPrice.monthly * 12);
+          amount =
+            customPrice.yearly > 0
+              ? customPrice.yearly
+              : roundAccountMoney(customPrice.monthly * 12);
+        } else {
+          amount =
+            customPrice.monthly > 0
+              ? customPrice.monthly
+              : customPrice.yearly > 0
+                ? roundAccountMoney(customPrice.yearly / 12)
+                : 0;
         }
-        return customPrice.monthly > 0
-          ? customPrice.monthly
-          : customPrice.yearly > 0
-            ? roundAccountMoney(customPrice.yearly / 12)
-            : 0;
       }
     }
-    return subscriptionInterval === "YEARLY"
-      ? roundAccountMoney(addon.monthly * 12 * accountCatalogAnnualFactor)
-      : roundAccountMoney(addon.monthly);
+    if (!customPriceResolved) {
+      amount =
+        subscriptionInterval === "YEARLY"
+          ? roundAccountMoney(addon.monthly * 12 * accountCatalogAnnualFactor)
+          : roundAccountMoney(addon.monthly);
+    }
+    if (
+      subscriptionPriceOverrideType === "DISCOUNT" &&
+      subscriptionPriceOverrideIncludeAddons
+    ) {
+      amount = roundAccountMoney(amount * subscriptionPriceOverrideFactor);
+    }
+    return amount;
   };
   const currentBaseAddonKeys = parseAccountAddonKeyCsv(
     settings.SIGNUP_ADDON_KEYS,
@@ -7710,16 +7784,10 @@ export function ConfigurationPage() {
                                 <div className="account-plan-muted">
                                   {subscriptionInterval === "YEARLY"
                                     ? `${formatAccountEuro(
-                                        roundAccountMoney(
-                                          accountPlanCatalog[subscriptionPackage]
-                                            .annual / 12,
-                                        ),
+                                        roundAccountMoney(planPeriodAmount / 12),
                                       )} / mesec`
                                     : `${formatAccountEuro(
-                                        roundAccountMoney(
-                                          accountPlanCatalog[subscriptionPackage]
-                                            .monthly * 12,
-                                        ),
+                                        roundAccountMoney(planPeriodAmount * 12),
                                       )} / leto`}
                                 </div>
                               </div>
@@ -7769,6 +7837,11 @@ export function ConfigurationPage() {
                               </div>
                             </div>
                           </div>
+                          {subscriptionPriceOverrideNote && (
+                            <div className="account-plan-pending-note">
+                              {subscriptionPriceOverrideNote}
+                            </div>
+                          )}
                           {pendingNextPackageKey && (
                             <div className="account-plan-pending-note">
                               Od{" "}
@@ -7850,6 +7923,11 @@ export function ConfigurationPage() {
                             {visibleAccountPlanKeys.map((planKey) => {
                               const plan = accountPlanCatalog[planKey];
                               const active = subscriptionPackage === planKey;
+                              const displayedPeriodAmount = active
+                                ? planPeriodAmount
+                                : subscriptionInterval === "YEARLY"
+                                  ? plan.annual
+                                  : plan.monthly;
                               return (
                                 <section
                                   key={planKey}
@@ -7884,11 +7962,7 @@ export function ConfigurationPage() {
                                   </div>
                                   <div>
                                     <div className="account-price-main">
-                                      {formatAccountEuro(
-                                        subscriptionInterval === "YEARLY"
-                                          ? plan.annual
-                                          : plan.monthly,
-                                      )}{" "}
+                                      {formatAccountEuro(displayedPeriodAmount)}{" "}
                                       <span className="account-plan-muted">
                                         / {subscriptionPeriodLabel}
                                       </span>
@@ -7896,10 +7970,14 @@ export function ConfigurationPage() {
                                     <div className="account-plan-muted">
                                       {subscriptionInterval === "YEARLY"
                                         ? `${formatAccountEuro(
-                                            roundAccountMoney(plan.annual / 12),
+                                            roundAccountMoney(
+                                              displayedPeriodAmount / 12,
+                                            ),
                                           )} / mesec`
                                         : `${formatAccountEuro(
-                                            roundAccountMoney(plan.monthly * 12),
+                                            roundAccountMoney(
+                                              displayedPeriodAmount * 12,
+                                            ),
                                           )} / leto`}
                                     </div>
                                   </div>
