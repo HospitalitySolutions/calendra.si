@@ -15,6 +15,7 @@ import { RegisterBillingDetailsPage } from './pages/RegisterBillingDetailsPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { CourseAccessPage } from './pages/CourseAccessPage'
 import { PublicBookingManagePage } from './pages/PublicBookingManagePage'
+import { ReceivedInvoiceDownloadPage, ReceivedInvoicesRedirectPage } from './pages/ReceivedInvoiceDownloadPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
 import { getDefaultAllowedRoute } from './lib/packageAccess'
@@ -315,6 +316,21 @@ export default function App() {
     return (
       <Routes>
         <Route path="/public-booking/manage/:token" element={<PublicBookingManagePage />} />
+      </Routes>
+    )
+  }
+  if (location.pathname === '/received-invoices' || location.pathname.startsWith('/received-invoices/')) {
+    return (
+      <Routes>
+        <Route
+          path="/received-invoices/:invoiceId/download"
+          element={<ReceivedInvoiceDownloadPage user={user} authResolved={authResolved} />}
+        />
+        <Route
+          path="/received-invoices"
+          element={<ReceivedInvoicesRedirectPage user={user} authResolved={authResolved} />}
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
   }

@@ -9,6 +9,7 @@ import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.logging.LogSanitizer;
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.math.BigDecimal;
@@ -36,6 +37,20 @@ public class BillingEmailService {
     private static final String CALENDRA_TEAM_SENDER_NAME = "Calendra ekipa";
     private static final String CALENDRA_LOGO_CID = "calendraLogo";
     private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
+    private static final String PLATFORM_ICON_CLASSPATH = "static/email/platform-invoice-icons/";
+    private static final String PLATFORM_RECEIPT_ICON_CID = "platformInvoiceReceiptIcon";
+    private static final String PLATFORM_DOCUMENT_ICON_CID = "platformInvoiceDocumentIcon";
+    private static final String PLATFORM_BUILDING_ICON_CID = "platformInvoiceBuildingIcon";
+    private static final String PLATFORM_PACKAGE_ICON_CID = "platformInvoicePackageIcon";
+    private static final String PLATFORM_PERIOD_ICON_CID = "platformInvoicePeriodIcon";
+    private static final String PLATFORM_DATE_ICON_CID = "platformInvoiceDateIcon";
+    private static final String PLATFORM_CLOCK_ICON_CID = "platformInvoiceClockIcon";
+    private static final String PLATFORM_WALLET_ICON_CID = "platformInvoiceWalletIcon";
+    private static final String PLATFORM_BANK_ICON_CID = "platformInvoiceBankIcon";
+    private static final String PLATFORM_DOWNLOAD_ICON_CID = "platformInvoiceDownloadIcon";
+    private static final String PLATFORM_FOLDER_ICON_CID = "platformInvoiceFolderIcon";
+    private static final String PLATFORM_PAPERCLIP_ICON_CID = "platformInvoicePaperclipIcon";
+    private static final String PLATFORM_INFO_ICON_CID = "platformInvoiceInfoIcon";
     private static final String PLATFORM_INVOICE_SUBJECT = "Račun %s za naročnino Calendra";
     private static final String DEFAULT_INVOICE_SUBJECT = "Invoice {{invoiceNumber}} from {{companyName}}";
     private static final String DEFAULT_INVOICE_BODY = """
@@ -326,6 +341,7 @@ public class BillingEmailService {
             helper.setSubject(subject);
             helper.setText(body, true);
             helper.addInline(CALENDRA_LOGO_CID, new ClassPathResource(CALENDRA_LOGO_CLASSPATH), "image/png");
+            addPlatformInvoiceInlineAssets(helper);
             if (pdfBytes != null && pdfBytes.length > 0) {
                 helper.addAttachment(
                         "racun-" + safeFileName(safeBillNumber(bill)) + ".pdf",
@@ -341,6 +357,26 @@ public class BillingEmailService {
             logBillEmailFailed(bill, messageType, recipient, subject, ex.getMessage());
             log.warn("Failed to send platform subscription invoice email for bill {}: {}", bill == null ? null : bill.getId(), ex.getMessage());
         }
+    }
+
+    private void addPlatformInvoiceInlineAssets(MimeMessageHelper helper) throws MessagingException {
+        addPlatformInvoiceIcon(helper, PLATFORM_RECEIPT_ICON_CID, "receipt.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_DOCUMENT_ICON_CID, "document.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_BUILDING_ICON_CID, "building.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_PACKAGE_ICON_CID, "package.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_PERIOD_ICON_CID, "calendar-range.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_DATE_ICON_CID, "calendar-date.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_CLOCK_ICON_CID, "clock.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_WALLET_ICON_CID, "wallet.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_BANK_ICON_CID, "bank.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_DOWNLOAD_ICON_CID, "download-white.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_FOLDER_ICON_CID, "folder.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_PAPERCLIP_ICON_CID, "paperclip.png");
+        addPlatformInvoiceIcon(helper, PLATFORM_INFO_ICON_CID, "info.png");
+    }
+
+    private void addPlatformInvoiceIcon(MimeMessageHelper helper, String contentId, String fileName) throws MessagingException {
+        helper.addInline(contentId, new ClassPathResource(PLATFORM_ICON_CLASSPATH + fileName), "image/png");
     }
 
     private PlatformInvoiceEmailData platformInvoiceEmailData(
@@ -420,7 +456,7 @@ public class BillingEmailService {
                             <td class="email-pad" style="padding:38px 40px 28px 40px;">
                               <img src="cid:calendraLogo" width="225" alt="Calendra" style="display:block;width:225px;max-width:70%;height:auto;border:0;margin:0 0 22px 0;">
                               <span style="display:inline-block;padding:8px 15px;border-radius:999px;background:#edf4ff;color:#1768e5;font-size:14px;font-weight:700;line-height:1;">{{badge}}</span>
-                              <h1 class="email-title" style="margin:20px 0 16px 0;font-size:38px;line-height:1.15;letter-spacing:-1.1px;color:#111a2c;">{{heading}} <span style="font-size:25px;color:#2275ed;">▤</span></h1>
+                              <h1 class="email-title" style="margin:20px 0 16px 0;font-size:38px;line-height:1.15;letter-spacing:-1.1px;color:#111a2c;">{{heading}} <img src="cid:platformInvoiceReceiptIcon" width="27" height="27" alt="" style="display:inline-block;width:27px;height:27px;margin-left:7px;vertical-align:-3px;border:0;"></h1>
                               <p style="margin:0 0 12px 0;font-size:17px;line-height:1.65;color:#536581;">Pozdravljeni {{recipientFirstName}},</p>
                               <p style="margin:0 0 15px 0;font-size:17px;line-height:1.65;color:#536581;">{{intro}}</p>
                               <p style="margin:0 0 25px 0;font-size:17px;line-height:1.65;color:#536581;">Hvala, ker zaupate Calendri za učinkovito upravljanje vašega poslovanja.</p>
@@ -433,19 +469,19 @@ public class BillingEmailService {
                               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-top:22px;">
                                 <tr>
                                   <td class="button-cell" width="50%" style="padding:0 10px 0 0;">
-                                    <a class="email-button" href="{{primaryUrl}}" style="display:block;padding:16px 18px;border-radius:12px;background:#1768e5;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;text-align:center;box-shadow:0 8px 20px rgba(23,104,229,0.20);">{{primaryLabel}}</a>
+                                    <a class="email-button" href="{{primaryUrl}}" style="display:block;padding:16px 18px;border-radius:12px;background:#1768e5;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;text-align:center;box-shadow:0 8px 20px rgba(23,104,229,0.20);"><img src="cid:platformInvoiceDownloadIcon" width="18" height="18" alt="" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:-4px;border:0;">{{primaryLabel}}</a>
                                   </td>
                                   <td class="button-cell" width="50%" style="padding:0 0 0 10px;">
-                                    <a class="email-button" href="{{invoicesUrl}}" style="display:block;padding:15px 18px;border-radius:12px;border:1px solid #1768e5;background:#ffffff;color:#1768e5;text-decoration:none;font-size:16px;font-weight:800;text-align:center;">Odpri prejete račune</a>
+                                    <a class="email-button" href="{{invoicesUrl}}" style="display:block;padding:15px 18px;border-radius:12px;border:1px solid #1768e5;background:#ffffff;color:#1768e5;text-decoration:none;font-size:16px;font-weight:800;text-align:center;"><img src="cid:platformInvoiceFolderIcon" width="18" height="18" alt="" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:-4px;border:0;">Odpri prejete račune</a>
                                   </td>
                                 </tr>
                               </table>
 
-                              <p style="margin:20px 2px 24px 2px;font-size:14px;line-height:1.55;color:#6f7f97;">📎&nbsp; {{attachmentNote}}</p>
+                              <p style="margin:20px 2px 24px 2px;font-size:14px;line-height:1.55;color:#6f7f97;"><img src="cid:platformInvoicePaperclipIcon" width="17" height="17" alt="" style="display:inline-block;width:17px;height:17px;margin-right:7px;vertical-align:-4px;border:0;">{{attachmentNote}}</p>
 
                               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f5f9ff;border:1px solid #cfe0fb;border-radius:13px;">
                                 <tr>
-                                  <td style="width:36px;padding:20px 0 20px 20px;vertical-align:top;color:#1768e5;font-size:24px;font-weight:800;">ⓘ</td>
+                                  <td style="width:36px;padding:20px 0 20px 20px;vertical-align:top;"><img src="cid:platformInvoiceInfoIcon" width="25" height="25" alt="" style="display:block;width:25px;height:25px;border:0;"></td>
                                   <td style="padding:20px 20px 20px 12px;vertical-align:top;">
                                     <div style="margin:0 0 9px 0;color:#1768e5;font-size:15px;font-weight:800;text-transform:uppercase;">Pomembno</div>
                                     <div style="font-size:14px;line-height:1.65;color:#536581;">Ta račun je izdan z glavnega računa platforme Calendra ({{issuerName}}) in se nanaša na vašo naročnino na platformo Calendra.</div>
@@ -487,20 +523,20 @@ public class BillingEmailService {
 
     private String renderPlatformInvoiceSummaryRows(PlatformInvoiceEmailData data) {
         StringBuilder rows = new StringBuilder();
-        appendPlatformInvoiceRow(rows, "#", "Številka računa", data.invoiceNumber(), false, false);
-        appendPlatformInvoiceRow(rows, "▥", "Izdajatelj", data.issuerName() + "||Glavni račun platforme Calendra", false, false);
-        appendPlatformInvoiceRow(rows, "◇", "Paket", data.packageLabel(), false, false);
-        appendPlatformInvoiceRow(rows, "▣", "Obračunsko obdobje", data.billingPeriod(), false, false);
-        appendPlatformInvoiceRow(rows, "□", "Datum izdaje", data.issueDate(), false, false);
-        appendPlatformInvoiceRow(rows, "◷", "Rok plačila", data.dueDate(), false, false);
-        appendPlatformInvoiceRow(rows, "€", "Znesek", data.amount(), true, false);
-        appendPlatformInvoiceRow(rows, "▥", "Način plačila", data.paymentMethod(), false, true);
+        appendPlatformInvoiceRow(rows, PLATFORM_DOCUMENT_ICON_CID, "Številka računa", data.invoiceNumber(), false, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_BUILDING_ICON_CID, "Izdajatelj", data.issuerName() + "||Glavni račun platforme Calendra", false, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_PACKAGE_ICON_CID, "Paket", data.packageLabel(), false, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_PERIOD_ICON_CID, "Obračunsko obdobje", data.billingPeriod(), false, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_DATE_ICON_CID, "Datum izdaje", data.issueDate(), false, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_CLOCK_ICON_CID, "Rok plačila", data.dueDate(), false, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_WALLET_ICON_CID, "Znesek", data.amount(), true, false);
+        appendPlatformInvoiceRow(rows, PLATFORM_BANK_ICON_CID, "Način plačila", data.paymentMethod(), false, true);
         return rows.toString();
     }
 
     private void appendPlatformInvoiceRow(
             StringBuilder rows,
-            String icon,
+            String iconCid,
             String label,
             String value,
             boolean amount,
@@ -514,8 +550,7 @@ public class BillingEmailService {
                 : "font-size:15px;font-weight:700;color:#17233a;";
         rows.append("<tr>")
                 .append("<td style=\"width:38px;padding:13px 0 13px 18px;").append(background).append(border).append("vertical-align:middle;\">")
-                .append("<span style=\"display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:7px;color:#1768e5;font-size:15px;font-weight:800;\">")
-                .append(html(icon)).append("</span></td>")
+                .append("<img src=\"cid:").append(htmlAttributeCid(iconCid)).append("\" width=\"21\" height=\"21\" alt=\"\" style=\"display:block;width:21px;height:21px;border:0;\"></td>")
                 .append("<td style=\"padding:13px 10px;").append(background).append(border).append("font-size:15px;font-weight:700;color:#536581;vertical-align:middle;\">")
                 .append(html(label)).append("</td>")
                 .append("<td class=\"summary-value\" align=\"right\" style=\"padding:13px 18px 13px 10px;").append(background).append(border).append(valueStyle).append("vertical-align:middle;\">")
@@ -590,15 +625,15 @@ public class BillingEmailService {
     private String resolvePlatformBillingPeriod(Bill bill, Long tenantId) {
         LocalDate issueDate = bill == null ? null : bill.getIssueDate();
         LocalDate start = tenantId == null ? null : parseDate(settingValue(tenantId, SettingKey.BILLING_SUBSCRIPTION_START));
-        LocalDate end = tenantId == null ? null : parseDate(settingValue(tenantId, SettingKey.BILLING_SUBSCRIPTION_END));
+        LocalDate endExclusive = tenantId == null ? null : parseDate(settingValue(tenantId, SettingKey.BILLING_SUBSCRIPTION_END));
         String interval = tenantId == null ? "" : defaultString(settingValue(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL)).toUpperCase(Locale.ROOT);
         LocalDate effectiveStart = start == null ? issueDate : start;
         if (effectiveStart == null) return "—";
-        if ("YEARLY".equals(interval)) {
-            LocalDate effectiveEnd = end == null ? effectiveStart.plusYears(1).minusDays(1) : end.minusDays(1);
-            return formatSlovenianMonthYear(effectiveStart) + " – " + formatSlovenianMonthYear(effectiveEnd);
+        if (endExclusive == null || !endExclusive.isAfter(effectiveStart)) {
+            endExclusive = "YEARLY".equals(interval) ? effectiveStart.plusYears(1) : effectiveStart.plusMonths(1);
         }
-        return formatSlovenianMonthYear(effectiveStart);
+        LocalDate effectiveEnd = endExclusive.minusDays(1);
+        return formatSlovenianDate(effectiveStart) + " – " + formatSlovenianDate(effectiveEnd);
     }
 
     private String resolvePaymentMethodLabel(Bill bill) {
@@ -625,11 +660,11 @@ public class BillingEmailService {
 
     private String platformInvoicePdfUrl(Bill bill) {
         if (bill == null || bill.getId() == null) return platformReceivedInvoicesUrl();
-        return frontendBaseUrl + "/api/account-management/received-invoices/" + bill.getId() + "/pdf";
+        return frontendBaseUrl + "/received-invoices/" + bill.getId() + "/download";
     }
 
     private String platformReceivedInvoicesUrl() {
-        return frontendBaseUrl + "/configuration?tab=company&subtab=receivedInvoices";
+        return frontendBaseUrl + "/received-invoices";
     }
 
     private static String normalizeBaseUrl(String value) {
@@ -695,6 +730,10 @@ public class BillingEmailService {
             return "#";
         }
         return html(clean);
+    }
+
+    private static String htmlAttributeCid(String value) {
+        return defaultString(value).replaceAll("[^a-zA-Z0-9._-]", "");
     }
 
     private static String stripHtmlForLog(String value) {
