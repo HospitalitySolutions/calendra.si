@@ -1553,7 +1553,7 @@ export function ConfigurationPage() {
   const currentCycleSmsAddonAmount = roundAccountMoney(
     currentBillingCycleSmsAdd * smsAddonUnitPrice,
   );
-  const subscriptionSubtotal = roundAccountMoney(
+  const subscriptionGrossTotal = roundAccountMoney(
     planPeriodAmount +
       usersAddonAmount +
       smsAddonAmount +
@@ -1562,7 +1562,11 @@ export function ConfigurationPage() {
       nextCycleAddonAmount +
       currentCycleAddonAmount,
   );
-  const subscriptionVat = roundAccountMoney(subscriptionSubtotal * 0.22);
+  // Catalog and add-on prices are gross amounts. Show the VAT portion for
+  // transparency, but never add it on top of the displayed/invoiced total.
+  const subscriptionIncludedVat = roundAccountMoney(
+    subscriptionGrossTotal * (22 / 122),
+  );
   const pendingNextPackageKey = useMemo<AccountPlanPackageKey | null>(() => {
     const normalized = normalizePackageType(
       (settings.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME || "").trim(),
@@ -1583,7 +1587,7 @@ export function ConfigurationPage() {
     ),
   );
   const estimatedNextInvoice = roundAccountMoney(
-    subscriptionSubtotal + subscriptionVat + pendingUpgradeDiff,
+    subscriptionGrossTotal + pendingUpgradeDiff,
   );
   const accountUserLimit = currentEffectiveUserLimit;
   const accountSmsLimit = currentEffectiveSmsLimit;
@@ -7563,8 +7567,18 @@ export function ConfigurationPage() {
                                 </div>
                                 <div className="account-plan-muted">
                                   {subscriptionInterval === "YEARLY"
-                                    ? `${formatAccountEuro(accountPlanCatalog[subscriptionPackage].monthly)} / mesec`
-                                    : `${formatAccountEuro(accountPlanCatalog[subscriptionPackage].annual)} z DDV / leto`}
+                                    ? `${formatAccountEuro(
+                                        roundAccountMoney(
+                                          accountPlanCatalog[subscriptionPackage]
+                                            .annual / 12,
+                                        ),
+                                      )} / mesec`
+                                    : `${formatAccountEuro(
+                                        roundAccountMoney(
+                                          accountPlanCatalog[subscriptionPackage]
+                                            .monthly * 12,
+                                        ),
+                                      )} / leto`}
                                 </div>
                               </div>
                             </div>
@@ -7743,8 +7757,12 @@ export function ConfigurationPage() {
                                     </div>
                                     <div className="account-plan-muted">
                                       {subscriptionInterval === "YEARLY"
-                                        ? `${formatAccountEuro(plan.monthly)} / mesec`
-                                        : `${formatAccountEuro(plan.annual)} z DDV / leto`}
+                                        ? `${formatAccountEuro(
+                                            roundAccountMoney(plan.annual / 12),
+                                          )} / mesec`
+                                        : `${formatAccountEuro(
+                                            roundAccountMoney(plan.monthly * 12),
+                                          )} / leto`}
                                     </div>
                                   </div>
                                   <ul>
@@ -8282,13 +8300,13 @@ export function ConfigurationPage() {
                             <div className="account-summary-row total">
                               <span>{subscriptionPeriodSummaryLabel}</span>
                               <strong>
-                                {formatAccountEuro(subscriptionSubtotal)}
+                                {formatAccountEuro(subscriptionGrossTotal)}
                               </strong>
                             </div>
                             <div className="account-summary-row">
-                              <span>DDV (22%)</span>
+                              <span>Vključen DDV (22%)</span>
                               <strong>
-                                {formatAccountEuro(subscriptionVat)}
+                                {formatAccountEuro(subscriptionIncludedVat)}
                               </strong>
                             </div>
                           </div>
