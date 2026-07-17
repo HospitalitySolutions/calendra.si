@@ -140,8 +140,31 @@ export function RegisterFeatureIcon({ featureKey }: { featureKey: string }) {
       case "resources":
         return <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3v18M14.5 12h.01" /></>;
       case "billing":
-      case "payments":
         return <><path d="M7 3h8l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M15 3v5h5M9 13h6M9 17h4" /></>;
+      case "payments":
+      case "online-payments":
+      case "online_payments":
+        return (
+          <>
+            <rect x="3" y="4" width="15" height="13" rx="2" />
+            <path d="M3 8h15M6 12h4M6 15h2" />
+            <path d="m18 12.5 3 1.2v3.1c0 2.1-1.2 3.8-3 4.7-1.8-.9-3-2.6-3-4.7v-3.1l3-1.2Z" />
+            <path d="m16.8 17 .9.9 1.8-2" />
+          </>
+        );
+      case "guestapp":
+      case "guest-app":
+      case "guest_app":
+        return (
+          <>
+            <rect x="4" y="2.5" width="13" height="19" rx="2.5" />
+            <path d="M8 5.5h5" />
+            <circle cx="10.5" cy="10" r="2.2" />
+            <path d="M7.4 16c.5-2 1.7-3 3.1-3 1.5 0 2.7 1 3.2 3" />
+            <circle cx="18.2" cy="17.3" r="4.3" />
+            <path d="m16.4 17.3 1.2 1.2 2.4-2.6" />
+          </>
+        );
       case "reminders":
         return <><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>;
       case "rezerviranje":
