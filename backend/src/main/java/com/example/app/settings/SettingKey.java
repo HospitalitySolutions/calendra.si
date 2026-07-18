@@ -196,11 +196,12 @@ public enum SettingKey {
 
     /** JSON: tenant-wide public booking/reservation rules used by guest app, widget and automation. */
     TENANT_RESERVATION_RULES_JSON,
-    /** JSON: tenant waitlist settings, including auto-offer and hold duration. */
-    WAITLIST_SETTINGS_JSON,
 
     /** JSON: custom email/SMS templates and toggles for booking notifications (see frontend parser). */
     NOTIFICATION_SETTINGS_JSON,
+
+    /** JSON: tenant waitlist availability, automatic offer, expiry and request limits. */
+    WAITLIST_SETTINGS_JSON,
 
     /** Tenant client-facing email sender settings. Platform/security emails still use the configured Calendra sender. */
     EMAIL_SENDER_MODE,

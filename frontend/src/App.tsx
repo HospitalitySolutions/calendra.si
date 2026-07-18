@@ -68,6 +68,7 @@ const AnalyticsPage = lazyWithReload(() => import('./pages/AnalyticsPage').then(
 const InboxPage = lazyWithReload(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
 const BillingPage = lazyWithReload(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
 const ClientsPage = lazyWithReload(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
+const AppointmentsPage = lazyWithReload(() => import('./pages/AppointmentsPage').then((mod) => ({ default: mod.AppointmentsPage })), CHUNK_RELOAD_KEY)
 const ConfigurationPage = lazyWithReload(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })), CHUNK_RELOAD_KEY)
 const ConsultantsPage = lazyWithReload(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })), CHUNK_RELOAD_KEY)
 const SecurityPage = lazyWithReload(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })), CHUNK_RELOAD_KEY)
@@ -372,6 +373,7 @@ export default function App() {
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const canViewCalendar = hasEmployeePermission(user, 'CALENDAR_BOOKINGS_VIEW')
   const canViewClients = hasEmployeePermission(user, 'CLIENTS_VIEW')
+  const canViewAppointments = canViewCalendar || canViewClients
   const canViewEmployees = hasAnyEmployeePermission(user, ['EMPLOYEES_VIEW', 'ROLES_PERMISSIONS_VIEW'])
   const canViewServices = hasEmployeePermission(user, 'SERVICES_VIEW')
   const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
@@ -395,6 +397,7 @@ export default function App() {
   const routeCandidates = [
     { path: '/calendar', allowed: canViewCalendar },
     { path: '/clients', allowed: canViewClients },
+    { path: '/appointments', allowed: canViewAppointments },
     { path: '/billing', allowed: billingAllowed },
     { path: '/inbox', allowed: inboxAllowed },
     { path: '/analytics', allowed: canViewReports },
@@ -416,6 +419,7 @@ export default function App() {
           <Route path="/sessions/booked" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/bookable" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/clients" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/appointments" element={canViewAppointments ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
             path="/scanner"
             element={canScanWalletEntitlements ? <WalletScannerPage /> : <Navigate to={fallbackRoute} replace />}

@@ -59,6 +59,16 @@ function AndroidNavIconClients() {
   )
 }
 
+function SidebarIconAppointments() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="M8 2v4M16 2v4M3 10h18" />
+      <path d="M8 15h3M14 15h2" />
+    </svg>
+  )
+}
+
 /** Employees — add / manage team (single user + plus), distinct from clients “group” icon */
 function SidebarIconEmployees() {
   return (
@@ -311,6 +321,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
   const canViewCalendar = hasEmployeePermission(user, 'CALENDAR_BOOKINGS_VIEW')
   const canViewClients = hasEmployeePermission(user, 'CLIENTS_VIEW')
+  const canViewAppointments = canViewCalendar || canViewClients
   const canViewEmployees = hasAnyEmployeePermission(user, ['EMPLOYEES_VIEW', 'ROLES_PERMISSIONS_VIEW'])
   const canViewServices = hasEmployeePermission(user, 'SERVICES_VIEW')
   const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
@@ -331,6 +342,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const inboxAllowed = inboxModuleEnabled && canViewInbox
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
+  const appointmentsNavLabel = locale === 'sl' ? 'Termini' : locale === 'sr' ? 'Termini' : 'Appointments'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [aiBookingEnabled, setAiBookingEnabled] = useState(false)
   const [todos, setTodos] = useState<any[]>([])
@@ -725,6 +737,18 @@ function ShellInner({ children }: PropsWithChildren) {
                   <AndroidNavIconClients />
                 </span>
                 <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
+              </NavLink>
+            )}
+            {canViewAppointments && (
+              <NavLink
+                to="/appointments"
+                className={() => `mobile-nav-overlay-link${location.pathname === '/appointments' ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/appointments')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <SidebarIconAppointments />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{appointmentsNavLabel}</span>
               </NavLink>
             )}
             {billingAllowed && (
@@ -1230,6 +1254,19 @@ function ShellInner({ children }: PropsWithChildren) {
                   <AndroidNavIconClients />
                 </span>
                 <span className="sidebar-rail-link-label">{t('navClients')}</span>
+              </NavLink>
+            )}
+            {canViewAppointments && (
+              <NavLink
+                className={() => `sidebar-rail-link${location.pathname === '/appointments' ? ' active' : ''}`}
+                to="/appointments"
+                title={appointmentsNavLabel}
+                aria-label={appointmentsNavLabel}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <SidebarIconAppointments />
+                </span>
+                <span className="sidebar-rail-link-label">{appointmentsNavLabel}</span>
               </NavLink>
             )}
             {billingAllowed && (

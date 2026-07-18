@@ -230,6 +230,34 @@ public class TenantNotificationService {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createWaitlistNotification(Long companyId, Long requestId, String type, String title, String message, String actionUrl) {
+        if (companyId == null || type == null || type.isBlank()) return;
+        Instant now = Instant.now();
+        for (User recipient : users.findAllByCompanyId(companyId)) {
+            if (!recipient.isActive() || recipient.getId() == null) continue;
+            if (recipient.getRole() != Role.ADMIN && recipient.getRole() != Role.SUPER_ADMIN) continue;
+            String dedupeKey = type + ":" + String.valueOf(requestId) + ":" + now.toEpochMilli();
+            if (notifications.existsByRecipientIdAndDedupeKey(recipient.getId(), dedupeKey)) continue;
+            TenantNotification row = new TenantNotification();
+            row.setCompany(recipient.getCompany());
+            row.setRecipient(recipient);
+            row.setCategory("WAITLIST");
+            row.setType(type.trim().toUpperCase(Locale.ROOT));
+            row.setSeverity("NORMAL");
+            row.setTitle(title == null || title.isBlank() ? "Čakalna vrsta" : title.trim());
+            row.setMessage(message == null ? "" : message.trim());
+            row.setSource("WAITLIST");
+            row.setEntityType("WAITLIST_REQUEST");
+            row.setEntityId(requestId);
+            row.setActionUrl(actionUrl);
+            row.setDedupeKey(dedupeKey);
+            row.setMetadataJson("{}");
+            row.setExpiresAt(now.plusSeconds(90L * 24L * 60L * 60L));
+            notifications.save(row);
+        }
+    }
+
     private NotificationItem toItem(TenantNotification row) {
         return new NotificationItem(
                 "N-" + row.getId(), row.getCategory(), row.getType(), row.getSeverity(), row.getTitle(),

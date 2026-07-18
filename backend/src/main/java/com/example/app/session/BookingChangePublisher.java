@@ -6,10 +6,13 @@ import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.notifications.GuestPushService;
 import com.example.app.guest.notifications.GuestBookingReminderService;
 import com.example.app.notification.TenantNotificationService;
+import com.example.app.waitlist.WaitlistService;
 import java.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -30,6 +33,9 @@ public class BookingChangePublisher {
     private final GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
     private final GuestBookingReminderService bookingReminderService;
     private final TenantNotificationService tenantNotificationService;
+
+    @Autowired(required = false)
+    private ObjectProvider<WaitlistService> waitlistServiceProvider;
 
     public BookingChangePublisher(
             SessionBookingRealtimeService realtimeService,
@@ -85,6 +91,17 @@ public class BookingChangePublisher {
         }
         realtimeService.publishBookingUpdated(companyId, bookingId, startTime, endTime, kind);
         bookingReminderService.reconcileBookingAfterCommit(bookingId, kind);
+
+        if (BOOKING_CANCELLED.equals(kind) || BOOKING_DELETED.equals(kind) || BOOKING_RESCHEDULED.equals(kind)) {
+            try {
+                WaitlistService waitlist = waitlistServiceProvider == null ? null : waitlistServiceProvider.getIfAvailable();
+                if (waitlist != null) {
+                    waitlist.handleReleasedSlot(companyId, bookingId, startTime, endTime, kind, previousStartTime);
+                }
+            } catch (Exception ex) {
+                log.warn("Failed processing released slot for waitlist companyId={} bookingId={} kind={}", companyId, bookingId, kind, ex);
+            }
+        }
 
         try {
             if (BOOKING_DELETED.equals(kind) || BOOKING_CANCELLED.equals(kind)) {

@@ -1,1 +1,36 @@
-package com.example.app.waitlist; import com.example.app.common.BaseEntity; import com.example.app.company.Company; import jakarta.persistence.*; import lombok.Getter; import lombok.Setter; @Getter @Setter @Entity @Table(name="waitlist_event") public class WaitlistEvent extends BaseEntity { @ManyToOne(optional=false) @JoinColumn(name="company_id") private Company company; @ManyToOne(optional=false) @JoinColumn(name="waitlist_request_id") private WaitlistRequest request; @Column(name="event_type",nullable=false,length=32) private String eventType; @Column(name="actor_type",length=32) private String actorType; @Column(name="actor_id",length=64) private String actorId; @Column(name="details_json",columnDefinition="TEXT") private String detailsJson; }
+package com.example.app.waitlist;
+
+import com.example.app.common.BaseEntity;
+import com.example.app.user.User;
+import jakarta.persistence.*;
+import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "waitlist_events", indexes = @Index(name = "idx_waitlist_event_request_time", columnList = "waitlist_request_id,occurred_at"))
+public class WaitlistEvent extends BaseEntity {
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "waitlist_request_id", nullable = false)
+    private WaitlistRequest request;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "offer_id")
+    private WaitlistOffer offer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_user_id")
+    private User actor;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "event_type", nullable = false, length = 40)
+    private WaitlistEventType eventType;
+
+    @Column(length = 2000)
+    private String detail;
+
+    @Column(name = "occurred_at", nullable = false)
+    private Instant occurredAt;
+}

@@ -21,6 +21,7 @@ import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.example.app.zoom.ZoomService;
+import com.example.app.waitlist.WaitlistBookingHoldRepository;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -62,6 +63,9 @@ public class SessionBookingCreationService {
     private final ConsumableService consumableService;
     private final TimeService timeService;
     private final ZoneId bookingZone;
+
+    @Autowired(required = false)
+    private WaitlistBookingHoldRepository waitlistHolds;
 
     @Autowired
     public SessionBookingCreationService(
@@ -677,6 +681,11 @@ public class SessionBookingCreationService {
         final List<Long> safeExcludeIds = bookingExcludeIds(excludeIds);
         final int requestedBreakMinutes = getRequestedBreakMinutes(companyId, typeId);
         final LocalDateTime requestedBusyEnd = effectiveEnd(end, requestedBreakMinutes);
+
+        if (!allowPersonalBlockOverlap && waitlistHolds != null
+                && waitlistHolds.existsActiveOverlap(companyId, consultantId, spaceId, start, requestedBusyEnd, java.time.Instant.now(), null)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This slot is temporarily held for a waitlist offer.");
+        }
 
         for (Long clientId : requestedClientIds) {
             if (repo.existsAvailabilityBlockingOverlapForClient(companyId, clientId, start, end, safeExcludeIds)) {

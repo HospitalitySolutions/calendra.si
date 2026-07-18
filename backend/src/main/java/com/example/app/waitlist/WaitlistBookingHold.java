@@ -14,18 +14,15 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "waitlist_offers", indexes = {
-        @Index(name = "idx_waitlist_offer_company_status_expiry", columnList = "company_id,status,expires_at"),
-        @Index(name = "idx_waitlist_offer_request", columnList = "waitlist_request_id,offered_at")
-})
-public class WaitlistOffer extends BaseEntity {
+@Table(name = "waitlist_booking_holds", indexes = @Index(name = "idx_waitlist_hold_active_slot", columnList = "company_id,status,slot_start,slot_end"))
+public class WaitlistBookingHold extends BaseEntity {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "waitlist_request_id", nullable = false)
-    private WaitlistRequest request;
+    @OneToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "offer_id", nullable = false, unique = true)
+    private WaitlistOffer offer;
 
     @Column(name = "slot_start", nullable = false)
     private LocalDateTime slotStart;
@@ -47,22 +44,10 @@ public class WaitlistOffer extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 24)
-    private WaitlistOfferStatus status = WaitlistOfferStatus.PENDING;
-
-    @Column(name = "offered_at", nullable = false)
-    private Instant offeredAt;
+    private WaitlistHoldStatus status = WaitlistHoldStatus.ACTIVE;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
-
-    @Column(name = "accepted_at")
-    private Instant acceptedAt;
-
-    @Column(name = "declined_at")
-    private Instant declinedAt;
-
-    @Column(name = "secure_token_hash", nullable = false, length = 128)
-    private String secureTokenHash;
 
     @Version
     @Column(nullable = false)

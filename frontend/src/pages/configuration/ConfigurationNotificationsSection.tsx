@@ -12,6 +12,13 @@ type NotificationEventKind =
   | "sessionCancelled"
   | "beforeSession"
   | "afterSession"
+  | "waitlistJoined"
+  | "waitlistUpdated"
+  | "waitlistSlotAvailable"
+  | "waitlistOfferExpiring"
+  | "waitlistOfferExpired"
+  | "waitlistBooked"
+  | "waitlistCancelled"
   | "invoiceDelivery";
 
 type NotificationEventDefinition = {
@@ -19,7 +26,9 @@ type NotificationEventDefinition = {
   title: string;
   description: string;
   icon: "calendar" | "edit" | "x" | "bell" | "check" | "message" | "mail";
+  category: "bookings" | "waitlist" | "billing";
   reminder?: "before" | "after";
+  supportsOnline?: boolean;
 };
 
 type ConfigurationNotificationsSectionProps = {
@@ -46,24 +55,28 @@ const escapeHtml = (value: string) =>
 const notificationEvents: NotificationEventDefinition[] = [
   {
     id: "newSession",
+    category: "bookings",
     title: "Nova seja",
     description: "Pošlje se, ko je seja uspešno ustvarjena.",
     icon: "calendar",
   },
   {
     id: "sessionChanged",
+    category: "bookings",
     title: "Sprememba seje",
     description: "Pošlje se, ko so podrobnosti seje spremenjene.",
     icon: "edit",
   },
   {
     id: "sessionCancelled",
+    category: "bookings",
     title: "Preklic seje",
     description: "Pošlje se, ko je seja preklicana.",
     icon: "x",
   },
   {
     id: "beforeSession",
+    category: "bookings",
     title: "Pred sejo",
     description: "Opomnik pošlje pred začetkom seje.",
     icon: "bell",
@@ -71,15 +84,73 @@ const notificationEvents: NotificationEventDefinition[] = [
   },
   {
     id: "afterSession",
+    category: "bookings",
     title: "Po seji",
     description: "Povzetek pošlje po koncu seje.",
     icon: "check",
     reminder: "after",
   },
+  {
+    id: "waitlistJoined",
+    category: "waitlist",
+    title: "Pridružitev na čakalno vrsto",
+    description: "Pošlje se, ko je stranka dodana na čakalno vrsto.",
+    icon: "message",
+    supportsOnline: false,
+  },
+  {
+    id: "waitlistUpdated",
+    category: "waitlist",
+    title: "Sprememba zahteve",
+    description: "Pošlje se, ko so želje stranke na čakalni vrsti spremenjene.",
+    icon: "edit",
+    supportsOnline: false,
+  },
+  {
+    id: "waitlistSlotAvailable",
+    category: "waitlist",
+    title: "Ponudba prostega termina",
+    description: "Pošlje se, ko je stranki ponujen sproščeni termin.",
+    icon: "calendar",
+    supportsOnline: false,
+  },
+  {
+    id: "waitlistOfferExpiring",
+    category: "waitlist",
+    title: "Ponudba poteče kmalu",
+    description: "Opozori stranko tik pred potekom ponudbe.",
+    icon: "bell",
+    supportsOnline: false,
+  },
+  {
+    id: "waitlistOfferExpired",
+    category: "waitlist",
+    title: "Ponudba je potekla",
+    description: "Pošlje se, ko stranka ponudbe ni sprejela pravočasno.",
+    icon: "x",
+    supportsOnline: false,
+  },
+  {
+    id: "waitlistBooked",
+    category: "waitlist",
+    title: "Termin rezerviran",
+    description: "Pošlje se, ko je čakalna zahteva pretvorjena v rezervacijo.",
+    icon: "check",
+    supportsOnline: false,
+  },
+  {
+    id: "waitlistCancelled",
+    category: "waitlist",
+    title: "Čakalna vrsta preklicana",
+    description: "Pošlje se, ko je zahteva preklicana ali odstranjena.",
+    icon: "x",
+    supportsOnline: false,
+  },
 ];
 
 const invoiceDeliveryEvent: NotificationEventDefinition = {
   id: "invoiceDelivery",
+  category: "billing",
   title: "Dostava računa",
   description: "Pošlje se, ko je račun pripravljen za dostavo.",
   icon: "mail",
@@ -207,6 +278,57 @@ type NotificationTemplateDefaults = Record<
   { title: string; body: string }
 >;
 
+const waitlistEmailTemplateDefaults = {
+  waitlistJoined: {
+    title: "Uspešno ste se pridružili čakalni vrsti",
+    body: "Pozdravljeni {{clientFirstName}},\n\nvaša zahteva za {{serviceName}} je dodana na čakalno vrsto.\nŽeleni termin: {{date}} med {{startTime}} in {{endTime}}.\n\nSvojo zahtevo lahko uredite ali prekličete tukaj: {{manageWaitlistUrl}}\n\n{{companyName}}",
+  },
+  waitlistUpdated: {
+    title: "Vaša zahteva na čakalni vrsti je posodobljena",
+    body: "Pozdravljeni {{clientFirstName}},\n\nvaše želje za {{serviceName}} so bile posodobljene.\nNovi želeni termin: {{date}} med {{startTime}} in {{endTime}}.\n\nUpravljanje zahteve: {{manageWaitlistUrl}}\n\n{{companyName}}",
+  },
+  waitlistSlotAvailable: {
+    title: "Za vas se je sprostil termin",
+    body: "Pozdravljeni {{clientFirstName}},\n\nza {{serviceName}} se je sprostil termin {{date}} od {{startTime}} do {{endTime}} pri {{employeeName}}.\nTermin je začasno rezerviran za vas do {{offerExpiresAt}}.\n\nSprejmi ponudbo: {{acceptUrl}}\nZavrni ponudbo: {{declineUrl}}\n\n{{companyName}}",
+  },
+  waitlistOfferExpiring: {
+    title: "Ponudba termina poteče kmalu",
+    body: "Pozdravljeni {{clientFirstName}},\n\nponudba termina za {{serviceName}} poteče ob {{offerExpiresAt}}.\nSprejmi ponudbo: {{acceptUrl}}\nZavrni ponudbo: {{declineUrl}}\n\n{{companyName}}",
+  },
+  waitlistOfferExpired: {
+    title: "Ponudba termina je potekla",
+    body: "Pozdravljeni {{clientFirstName}},\n\nponudba termina za {{serviceName}} je potekla. Vaša zahteva ostaja na čakalni vrsti, razen če ste jo preklicali.\n\nUpravljanje zahteve: {{manageWaitlistUrl}}\n\n{{companyName}}",
+  },
+  waitlistBooked: {
+    title: "Termin je rezerviran",
+    body: "Pozdravljeni {{clientFirstName}},\n\ntermin za {{serviceName}} je uspešno rezerviran za {{date}} od {{startTime}} do {{endTime}}.\n\n{{companyName}}",
+  },
+  waitlistCancelled: {
+    title: "Zahteva na čakalni vrsti je preklicana",
+    body: "Pozdravljeni {{clientFirstName}},\n\nvaša zahteva za {{serviceName}} je bila preklicana oziroma odstranjena s čakalne vrste.\n\n{{companyName}}",
+  },
+};
+
+const waitlistSmsTemplateDefaults = {
+  waitlistJoined: { title: "Čakalna vrsta", body: "{{clientFirstName}}, dodani ste na čakalno vrsto za {{serviceName}}. Upravljanje: {{manageWaitlistUrl}}" },
+  waitlistUpdated: { title: "Sprememba čakalne vrste", body: "{{clientFirstName}}, vaša zahteva za {{serviceName}} je posodobljena. {{manageWaitlistUrl}}" },
+  waitlistSlotAvailable: { title: "Prost termin", body: "Za {{serviceName}} je prost termin {{date}} ob {{startTime}}. Rezerviran je do {{offerExpiresAt}}. Sprejmi: {{acceptUrl}} Zavrni: {{declineUrl}}" },
+  waitlistOfferExpiring: { title: "Ponudba poteče", body: "Ponudba za {{serviceName}} poteče ob {{offerExpiresAt}}. Sprejmi: {{acceptUrl}}" },
+  waitlistOfferExpired: { title: "Ponudba je potekla", body: "Ponudba termina za {{serviceName}} je potekla. Vaša zahteva ostaja aktivna." },
+  waitlistBooked: { title: "Termin rezerviran", body: "Termin za {{serviceName}} je rezerviran: {{date}} ob {{startTime}}." },
+  waitlistCancelled: { title: "Čakalna vrsta preklicana", body: "Vaša zahteva za {{serviceName}} je bila preklicana." },
+};
+
+const waitlistGuestAppTemplateDefaults = {
+  waitlistJoined: { title: "Dodani na čakalno vrsto", body: "Vaša zahteva za {{serviceName}} je aktivna." },
+  waitlistUpdated: { title: "Zahteva posodobljena", body: "Vaše želje za {{serviceName}} so posodobljene." },
+  waitlistSlotAvailable: { title: "Sprostil se je termin", body: "{{date}} ob {{startTime}}. Ponudba velja do {{offerExpiresAt}}." },
+  waitlistOfferExpiring: { title: "Ponudba poteče kmalu", body: "Potrdite termin za {{serviceName}} do {{offerExpiresAt}}." },
+  waitlistOfferExpired: { title: "Ponudba je potekla", body: "Ponudba za {{serviceName}} ni več veljavna." },
+  waitlistBooked: { title: "Termin rezerviran", body: "Vaš termin za {{serviceName}} je potrjen za {{date}} ob {{startTime}}." },
+  waitlistCancelled: { title: "Zahteva preklicana", body: "Zahteva za {{serviceName}} je odstranjena s čakalne vrste." },
+};
+
 const emailTemplateDefaults: NotificationTemplateDefaults = {
   newSession: {
     title: "Potrditev rezervacije",
@@ -228,6 +350,7 @@ const emailTemplateDefaults: NotificationTemplateDefaults = {
     title: "Hvala za obisk",
     body: "Pozdravljeni {{ime_stranke}},\n\nhvala za obisk. Veseli bomo vaših povratnih informacij.\n\n{{ime_podjetja}}",
   },
+  ...waitlistEmailTemplateDefaults,
   invoiceDelivery: {
     title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
     body: DEFAULT_INVOICE_DELIVERY_BODY,
@@ -255,6 +378,7 @@ const smsTemplateDefaults: NotificationTemplateDefaults = {
     title: "Po seji",
     body: "Hvala za obisk, {{ime_stranke}}. Veselimo se vaših povratnih informacij.",
   },
+  ...waitlistSmsTemplateDefaults,
   invoiceDelivery: {
     title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
     body: DEFAULT_INVOICE_DELIVERY_BODY,
@@ -282,6 +406,7 @@ const guestAppTemplateDefaults: NotificationTemplateDefaults = {
     title: "Po seji",
     body: "Hvala za obisk. Veseli bomo vaših povratnih informacij.",
   },
+  ...waitlistGuestAppTemplateDefaults,
   invoiceDelivery: {
     title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
     body: DEFAULT_INVOICE_DELIVERY_BODY,
@@ -322,6 +447,7 @@ const onlineTemplateDefaults: Record<
       title: "Hvala za online srečanje",
       body: "Pozdravljeni {{ime_stranke}},\n\nhvala za udeležbo na online srečanju. Veseli bomo vaših povratnih informacij.\n\n{{ime_podjetja}}",
     },
+    ...waitlistEmailTemplateDefaults,
     invoiceDelivery: {
       title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
       body: DEFAULT_INVOICE_DELIVERY_BODY,
@@ -348,6 +474,7 @@ const onlineTemplateDefaults: Record<
       title: "Po online seji",
       body: "Hvala za online srečanje, {{ime_stranke}}. Veselimo se vaših povratnih informacij.",
     },
+    ...waitlistSmsTemplateDefaults,
     invoiceDelivery: {
       title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
       body: DEFAULT_INVOICE_DELIVERY_BODY,
@@ -374,6 +501,7 @@ const onlineTemplateDefaults: Record<
       title: "Po online seji",
       body: "Hvala za online srečanje. Veseli bomo vaših povratnih informacij.",
     },
+    ...waitlistGuestAppTemplateDefaults,
     invoiceDelivery: {
       title: DEFAULT_INVOICE_DELIVERY_SUBJECT,
       body: DEFAULT_INVOICE_DELIVERY_BODY,
@@ -462,7 +590,10 @@ export function applyNotificationModuleAvailability(
       if (!channelAvailable) {
         next[notificationEnabledKey(channel, event.id)] = "false";
       }
-      if (next.ONLINE_SESSION_BOOKING_ENABLED === "false") {
+      if (
+        next.ONLINE_SESSION_BOOKING_ENABLED === "false" ||
+        event.supportsOnline === false
+      ) {
         next[notificationOnlineEnabledKey(channel, event.id)] = "false";
       }
     });
@@ -567,6 +698,7 @@ export function buildNotificationSettingsJson(
       };
 
       const onlineEnabled =
+        event.supportsOnline !== false &&
         normalizedSettings.ONLINE_SESSION_BOOKING_ENABLED !== "false" &&
         channelEnabled &&
         getNotificationEnabled(normalizedSettings, channel, event.id) &&
@@ -701,6 +833,17 @@ export function mergeNotificationSettingsJsonIntoFlat(
 
 const notificationTemplateTags = [
   { label: "Ime podjetja", token: "{{ime_podjetja}}" },
+  { label: "Ime stranke (čakalna vrsta)", token: "{{clientFirstName}}" },
+  { label: "Storitev (čakalna vrsta)", token: "{{serviceName}}" },
+  { label: "Zaposleni (čakalna vrsta)", token: "{{employeeName}}" },
+  { label: "Datum ponudbe", token: "{{date}}" },
+  { label: "Začetek termina", token: "{{startTime}}" },
+  { label: "Konec termina", token: "{{endTime}}" },
+  { label: "Potek ponudbe", token: "{{offerExpiresAt}}" },
+  { label: "Sprejmi ponudbo", token: "{{acceptUrl}}" },
+  { label: "Zavrni ponudbo", token: "{{declineUrl}}" },
+  { label: "Upravljanje čakalne vrste", token: "{{manageWaitlistUrl}}" },
+  { label: "Podjetje (čakalna vrsta)", token: "{{companyName}}" },
   { label: "Ime stranke", token: "{{ime_stranke}}" },
   { label: "Priimek stranke", token: "{{priimek_stranke}}" },
   { label: "Ime storitve", token: "{{ime_storitve}}" },
@@ -1227,9 +1370,12 @@ export function ConfigurationNotificationsSection({
     selectedEvent?.id === "newSession" || selectedEvent?.id === "sessionChanged";
   const onlineSessionBookingEnabled =
     settings.ONLINE_SESSION_BOOKING_ENABLED !== "false";
-  const selectedOnlineTemplateEnabled = selectedEvent && selectedEvent.id !== "invoiceDelivery"
-    ? getNotificationOnlineEnabled(settings, channel, selectedEvent.id)
-    : false;
+  const selectedOnlineTemplateEnabled =
+    selectedEvent &&
+    selectedEvent.id !== "invoiceDelivery" &&
+    selectedEvent.supportsOnline !== false
+      ? getNotificationOnlineEnabled(settings, channel, selectedEvent.id)
+      : false;
   const selectedTemplateVariant: NotificationTemplateVariant =
     onlineSessionBookingEnabled && selectedOnlineTemplateEnabled
       ? templateVariant
@@ -1739,6 +1885,15 @@ export function ConfigurationNotificationsSection({
           display: grid;
           gap: 13px;
         }
+        .notif-event-group-title {
+          margin: 16px 2px 2px;
+          color: #31466f;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        .notif-event-group-title:first-child { margin-top: 0; }
         .notif-event-row {
           display: grid;
           grid-template-columns: 52px minmax(220px, 1fr) minmax(218px, 0.34fr) 68px auto;
@@ -2783,7 +2938,7 @@ export function ConfigurationNotificationsSection({
             >
               <div>
                 <div className="notif-event-list">
-                  {visibleNotificationEvents.map((event) => {
+                  {visibleNotificationEvents.map((event, index) => {
                     const checked = getNotificationEnabled(
                       settings,
                       channel,
@@ -2801,14 +2956,25 @@ export function ConfigurationNotificationsSection({
                       setEditingEvent((prev) =>
                         prev === event.id ? null : event.id,
                       );
+                    const previousCategory =
+                      index > 0 ? visibleNotificationEvents[index - 1].category : null;
+                    const groupLabel =
+                      event.category === "bookings"
+                        ? "Rezervacije"
+                        : event.category === "waitlist"
+                          ? "Čakalna vrsta"
+                          : "Računi";
                     return (
+                      <div key={`${channel}-${event.id}-group`} style={{ display: "contents" }}>
+                        {previousCategory !== event.category ? (
+                          <div className="notif-event-group-title">{groupLabel}</div>
+                        ) : null}
                       <div
                         className={
                           isEditing
                             ? "notif-event-row is-editing"
                             : "notif-event-row"
                         }
-                        key={`${channel}-${event.id}`}
                       >
                         <span className="notif-event-icon">
                           <NotificationEventIcon icon={event.icon} />
@@ -2864,6 +3030,7 @@ export function ConfigurationNotificationsSection({
                             <NotificationChevronIcon expanded={isEditing} />
                           </span>
                         </button>
+                      </div>
                       </div>
                     );
                   })}
@@ -2939,7 +3106,9 @@ export function ConfigurationNotificationsSection({
                           ? "Uredite kratko SMS sporočilo, ki bo poslano gostu ob izbranem dogodku."
                           : "Uredite obvestilo, ki se prikaže gostu v aplikaciji."}
                     </p>
-                    {onlineSessionBookingEnabled && selectedEvent.id !== "invoiceDelivery" ? (
+                    {onlineSessionBookingEnabled &&
+                    selectedEvent.id !== "invoiceDelivery" &&
+                    selectedEvent.supportsOnline !== false ? (
                       <div className="notif-online-toggle-row">
                         <span className="notif-online-toggle-copy">
                           <strong>Online</strong>
@@ -2957,6 +3126,7 @@ export function ConfigurationNotificationsSection({
                     ) : null}
                     {onlineSessionBookingEnabled &&
                     selectedEvent.id !== "invoiceDelivery" &&
+                    selectedEvent.supportsOnline !== false &&
                     selectedOnlineTemplateEnabled ? (
                       <div
                         className="notif-template-variant-tabs"

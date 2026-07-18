@@ -1,0 +1,19 @@
+package com.example.app.waitlist;
+
+public enum WaitlistEventType {
+    JOINED,
+    EDITED,
+    OFFER_SENT,
+    OFFER_OPENED,
+    OFFER_ACCEPTED,
+    OFFER_DECLINED,
+    OFFER_EXPIRED,
+    OFFER_REVOKED,
+    CONVERTED_TO_BOOKING,
+    CANCELLED_BY_GUEST,
+    CANCELLED_BY_STAFF,
+    REMOVED_BY_STAFF,
+    SKIPPED_FOR_SLOT,
+    MATCH_REJECTED,
+    HOLD_OVERRIDDEN
+}

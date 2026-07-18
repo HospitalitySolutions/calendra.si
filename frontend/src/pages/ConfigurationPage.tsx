@@ -27,6 +27,7 @@ import {
   buildNotificationSettingsJson,
   mergeNotificationSettingsJsonIntoFlat,
 } from "./configuration/ConfigurationNotificationsSection";
+import { ConfigurationWaitlistSettingsSection } from "./configuration/ConfigurationWaitlistSettingsSection";
 import {
   BillingCertificateIcon,
   BillingEditIcon,
@@ -188,7 +189,7 @@ type Tab =
   | "whatsapp"
   | "viber"
   | "modules";
-type BookingSubtab = "general" | "spaces";
+type BookingSubtab = "spaces" | "waitlist";
 type BillingSubtab =
   | "settings"
   | "paymentMethods"
@@ -3018,12 +3019,6 @@ export function ConfigurationPage() {
     notificationsEnabledCommitted,
     spacesEnabledCommitted,
   ]);
-
-  useEffect(() => {
-    if (bookingSubtab !== "spaces") {
-      setBookingSubtab("spaces");
-    }
-  }, [bookingSubtab]);
 
   useEffect(() => {
     setOpenSpaceMenuId(null);
@@ -9432,6 +9427,28 @@ export function ConfigurationPage() {
             }
           `}</style>
                   <section className="booking-panel-card">
+                    <div className="booking-tabs-card">
+                      <div className="booking-tabs" role="tablist" aria-label="Nastavitve rezervacij">
+                        <button
+                          type="button"
+                          className={`booking-tab${bookingSubtab === "spaces" ? " is-active" : ""}`}
+                          onClick={() => setBookingSubtab("spaces")}
+                          role="tab"
+                          aria-selected={bookingSubtab === "spaces"}
+                        >
+                          Prostori
+                        </button>
+                        <button
+                          type="button"
+                          className={`booking-tab${bookingSubtab === "waitlist" ? " is-active" : ""}`}
+                          onClick={() => setBookingSubtab("waitlist")}
+                          role="tab"
+                          aria-selected={bookingSubtab === "waitlist"}
+                        >
+                          Čakalna vrsta
+                        </button>
+                      </div>
+                    </div>
                     <div className="booking-content-panel">
                       {bookingSubtab === "spaces" ? (
                         <div>
@@ -9714,7 +9731,9 @@ export function ConfigurationPage() {
                             </div>
                           )}
                         </div>
-                      ) : null}
+                      ) : (
+                        <ConfigurationWaitlistSettingsSection />
+                      )}
                     </div>
                   </section>
                 </div>
