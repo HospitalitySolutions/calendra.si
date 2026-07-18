@@ -1,0 +1,1 @@
+package com.example.app.waitlist; import org.springframework.data.jpa.repository.*; import java.util.*; public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer,Long>{ List<WaitlistOffer> findByCompanyIdAndStatusOrderByExpiresAtAsc(Long companyId,String status); Optional<WaitlistOffer> findByIdAndCompanyId(Long id,Long companyId); }

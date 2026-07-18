@@ -1,3 +1,4 @@
+import { WaitlistManagementPanel } from './WaitlistManagementPanel'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -12,7 +13,7 @@ import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
-type EntityTab = 'clients' | 'companies' | 'groups'
+type EntityTab = 'clients' | 'companies' | 'groups' | 'appointments'
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
 
 type ClientForm = {
@@ -3303,10 +3304,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   <span>{clientsCopy.groupsTab}</span>
                 </button>
               )}
+              <button type="button" role="tab" aria-selected={entityTab === 'appointments'} className={entityTab === 'appointments' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('appointments')}>
+                <ClientsModernIcon name="groups" />
+                <span>{locale === 'sl' ? 'Termini' : 'Appointments'}</span>
+              </button>
             </div>
           </div>
 
-          <div className="clients-toolbar clients-modern-toolbar">
+          {entityTab !== 'appointments' && <div className="clients-toolbar clients-modern-toolbar">
             <div className="clients-search-wrap">
               <ClientsModernIcon name="search" />
               {entityTab === 'clients' && (
@@ -3373,7 +3378,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 <span>{isClientsMobile ? clientsCopy.newButtonMobile : currentCreateLabel}</span>
               </button>
             </div>
-          </div>
+          </div>}
         </div>
 
         {entityTab === 'clients' ? (

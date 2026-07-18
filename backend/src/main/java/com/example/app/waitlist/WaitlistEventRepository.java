@@ -1,0 +1,1 @@
+package com.example.app.waitlist; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface WaitlistEventRepository extends JpaRepository<WaitlistEvent,Long>{ List<WaitlistEvent> findByRequestIdOrderByCreatedAtDesc(Long requestId); }
