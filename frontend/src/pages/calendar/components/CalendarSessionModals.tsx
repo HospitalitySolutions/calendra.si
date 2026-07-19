@@ -123,6 +123,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const showRecurringDeleteDialog = Boolean(confirmDelete && selectedBookedSession?.recurrenceSeriesKey)
 
   const newWaitlistSlotKey = [form?.typeId ?? '', form?.startTime ?? '', form?.endTime ?? '', form?.consultantId ?? '', form?.spaceId ?? ''].join('|')
+  const visibleNewSlotWaitlistMatches = newSlotWaitlistMatches?.slotKey === newWaitlistSlotKey
+    ? newSlotWaitlistMatches
+    : null
   const newWaitlistMatchPayload = () => ({
     serviceId: Number(form?.typeId),
     slotStart: form?.startTime,
@@ -156,12 +159,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       setNewSlotWaitlistLoading(false)
       return
     }
+    // Matching is intentionally silent. Hide any result for the previous
+    // service/time combination immediately and only reveal the waitlist card
+    // after the current background request returns at least one match.
+    setNewSlotWaitlistMatches(null)
     let cancelled = false
+    const requestedSlotKey = newWaitlistSlotKey
     const timer = window.setTimeout(async () => {
       setNewSlotWaitlistLoading(true)
       try {
         const { data } = await api.post('/waitlists/matches', newWaitlistMatchPayload())
-        if (!cancelled) setNewSlotWaitlistMatches(data?.count > 0 ? data : null)
+        if (!cancelled) {
+          setNewSlotWaitlistMatches(data?.count > 0
+            ? { ...data, slotKey: requestedSlotKey }
+            : null)
+        }
       } catch {
         if (!cancelled) setNewSlotWaitlistMatches(null)
       } finally {
@@ -175,14 +187,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }, [selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, selectedFormClientIds.length, form?.waitlistRequestId])
 
   const offerNewSlotToFirstWaitlistedGuest = async () => {
-    if (!newSlotWaitlistMatches?.first || newSlotWaitlistActionLoading) return
+    if (!visibleNewSlotWaitlistMatches?.first || newSlotWaitlistActionLoading) return
     setNewSlotWaitlistActionLoading(true)
     try {
       await api.post('/waitlists/offer-first', newWaitlistMatchPayload())
       await loadCalendarRangeOnly(true).catch(() => undefined)
-      const remaining = Array.isArray(newSlotWaitlistMatches.matches) ? newSlotWaitlistMatches.matches.slice(1) : []
+      const remaining = Array.isArray(visibleNewSlotWaitlistMatches.matches) ? visibleNewSlotWaitlistMatches.matches.slice(1) : []
       setNewSlotWaitlistMatches(remaining.length > 0
-        ? { ...newSlotWaitlistMatches, count: Math.max(0, Number(newSlotWaitlistMatches.count) - 1), first: remaining[0], matches: remaining }
+        ? { ...visibleNewSlotWaitlistMatches, count: Math.max(0, Number(visibleNewSlotWaitlistMatches.count) - 1), first: remaining[0], matches: remaining }
         : null)
       showToast?.('success', locale === 'sl' ? 'Termin je bil ponujen prvi ustrezni stranki.' : 'The slot was offered to the first eligible client.')
     } catch (error: any) {
@@ -193,7 +205,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   const pullFirstWaitlistedGuestIntoBooking = () => {
-    const first = newSlotWaitlistMatches?.first
+    const first = visibleNewSlotWaitlistMatches?.first
     const clientId = Number(first?.clientId)
     const requestId = Number(first?.requestId)
     if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(requestId) || requestId <= 0) return
@@ -4431,16 +4443,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </div>
               )}
               {!form.todo && !form.personal && !availabilitySelection && !bookingGroupMode && selectedFormClientIds.length === 0 && (
-                <div className={`calendar-waitlist-match-card${newSlotWaitlistMatches?.count > 0 || newSlotWaitlistLoading ? ' is-visible' : ''}`}>
-                  {newSlotWaitlistLoading && !newSlotWaitlistMatches ? (
-                    <div className="calendar-waitlist-match-loading">
-                      <span className="calendar-waitlist-match-spinner" aria-hidden />
-                      <div className="calendar-waitlist-match-loading-copy">
-                        <strong>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</strong>
-                        <span>{locale === 'sl' ? 'Preverjam ustrezne zahteve …' : locale === 'sr' ? 'Proveravam odgovarajuće zahteve …' : 'Checking matching requests …'}</span>
-                      </div>
-                    </div>
-                  ) : newSlotWaitlistMatches?.first ? (
+                <div className={`calendar-waitlist-match-card${visibleNewSlotWaitlistMatches?.count > 0 ? ' is-visible' : ''}`}>
+                  {visibleNewSlotWaitlistMatches?.first ? (
                     <>
                       <div className="calendar-waitlist-match-main">
                         <span className="calendar-waitlist-match-icon" aria-hidden>
@@ -4451,16 +4455,16 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         <div className="calendar-waitlist-match-copy">
                           <div className="calendar-waitlist-match-heading">
                             <strong>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</strong>
-                            <span className="calendar-waitlist-match-count">{waitlistMatchCountLabel(newSlotWaitlistMatches.count)}</span>
+                            <span className="calendar-waitlist-match-count">{waitlistMatchCountLabel(visibleNewSlotWaitlistMatches.count)}</span>
                           </div>
                           <span className="calendar-waitlist-match-subtitle">
                             {locale === 'sl' ? 'Najstarejša zahteva:' : locale === 'sr' ? 'Najstariji zahtev:' : 'Oldest request:'}{' '}
-                            <b>{newSlotWaitlistMatches.first.clientName}</b>
-                            {formatWaitlistJoinedAt(newSlotWaitlistMatches.first.joinedAt) ? (
+                            <b>{visibleNewSlotWaitlistMatches.first.clientName}</b>
+                            {formatWaitlistJoinedAt(visibleNewSlotWaitlistMatches.first.joinedAt) ? (
                               <>
                                 <span className="calendar-waitlist-match-dot" aria-hidden>•</span>
                                 {locale === 'sl' ? 'prijavljen' : locale === 'sr' ? 'prijavljen' : 'joined'}{' '}
-                                {formatWaitlistJoinedAt(newSlotWaitlistMatches.first.joinedAt)}
+                                {formatWaitlistJoinedAt(visibleNewSlotWaitlistMatches.first.joinedAt)}
                               </>
                             ) : null}
                           </span>
