@@ -11515,12 +11515,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const subtitle = [props.serviceName, props.employeeName].filter(Boolean).join(' · ')
               return (
                 <div className="calendar-waitlist-offer-content">
-                  <div className="calendar-waitlist-offer-content__top">
-                    <span className="calendar-waitlist-offer-tag">Offer</span>
-                    {mainTimeRange ? <span className="calendar-waitlist-offer-time">{mainTimeRange}</span> : null}
-                  </div>
                   <div className="calendar-waitlist-offer-title">{title || (locale === 'sl' ? 'Ponudba termina' : 'Slot offer')}</div>
                   {subtitle ? <div className="calendar-waitlist-offer-subtitle">{subtitle}</div> : null}
+                  <div className="calendar-waitlist-offer-meta">
+                    {mainTimeRange ? <span className="calendar-waitlist-offer-time">{mainTimeRange}</span> : null}
+                    <span className="calendar-waitlist-offer-tag">{locale === 'sl' ? 'Ponudba' : 'Offer'}</span>
+                  </div>
                 </div>
               )
             }
