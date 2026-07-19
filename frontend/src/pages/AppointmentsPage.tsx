@@ -131,7 +131,7 @@ function sourceLabel(source: string, locale: string) {
   return (locale === 'sl' ? sl : en)[source] ?? source
 }
 
-function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'phone' | 'message' | 'trash' | 'offer' | 'booking' | 'skip' | 'close' | 'history') {
+function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'phone' | 'message' | 'trash' | 'offer' | 'booking' | 'skip' | 'close' | 'history' | 'mail' | 'pin' | 'user' | 'info' | 'refresh' | 'external') {
   const paths: Record<string, ReactNode> = {
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></>,
     queue: <><path d="M4 6h16M4 12h12M4 18h8"/><circle cx="20" cy="18" r="2"/></>,
@@ -145,8 +145,30 @@ function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'phone' | 'messag
     skip: <><path d="m5 4 10 8L5 20V4z"/><path d="M19 5v14"/></>,
     close: <path d="M18 6 6 18M6 6l12 12"/>,
     history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
+    mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>,
+    pin: <><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></>,
+    user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
+    info: <><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></>,
+    refresh: <><path d="M20 7h-5V2"/><path d="M20 7a9 9 0 1 0 2 6"/></>,
+    external: <><path d="M15 3h6v6M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></>,
   }
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[kind]}</svg>
+}
+
+function eventLabel(type: string, locale: string) {
+  const sl: Record<string, string> = {
+    JOINED: 'Dodano na čakalno vrsto', UPDATED: 'Zahteva posodobljena', OFFER_SENT: 'Ponudba poslana',
+    OFFER_ACCEPTED: 'Ponudba sprejeta', OFFER_DECLINED: 'Ponudba zavrnjena', OFFER_EXPIRED: 'Ponudba potekla',
+    OFFER_REVOKED: 'Ponudba preklicana', CONVERTED_TO_BOOKING: 'Rezervacija ustvarjena', CANCELLED_BY_STAFF: 'Zahteva preklicana',
+    REMOVED_BY_STAFF: 'Odstranjeno s čakalne vrste', SKIPPED_FOR_SLOT: 'Preskočeno za termin', MATCH_REJECTED: 'Termin ni ustrezal',
+  }
+  const en: Record<string, string> = {
+    JOINED: 'Added to waitlist', UPDATED: 'Request updated', OFFER_SENT: 'Offer sent',
+    OFFER_ACCEPTED: 'Offer accepted', OFFER_DECLINED: 'Offer declined', OFFER_EXPIRED: 'Offer expired',
+    OFFER_REVOKED: 'Offer revoked', CONVERTED_TO_BOOKING: 'Booking created', CANCELLED_BY_STAFF: 'Request cancelled',
+    REMOVED_BY_STAFF: 'Removed from waitlist', SKIPPED_FOR_SLOT: 'Skipped for slot', MATCH_REJECTED: 'Slot did not match',
+  }
+  return (locale === 'sl' ? sl : en)[type] ?? type.split('_').join(' ').toLowerCase()
 }
 
 export function AppointmentsPage() {
@@ -191,6 +213,7 @@ export function AppointmentsPage() {
     anyAvailable: 'Katerikoli prost termin', anyAvailableUntil: 'Velja do', any: 'Katerikoli zaposleni', employeeOptional: 'Zaposleni (neobvezno)',
     dateFrom: 'Datum od', dateTo: 'Datum do', timeFrom: 'Čas od', timeTo: 'Čas do', timeWindowHelp: 'Čas od in čas do določata dovoljeni čas začetka termina.',
     validity: 'Veljavnost ponudbe (min)', room: 'Prostor', start: 'Začetek termina', end: 'Konec termina', select: 'Izberi', loadError: 'Čakalne vrste ni bilo mogoče naložiti.',
+    customerAndRequest: 'Podatki o stranki in zahtevku', activeOffer: 'Aktivna ponudba', proposedSlot: 'Predlagani termin', offerSentAt: 'Ponudba poslana', offerExpiresAt: 'Ponudba poteče', additionalInfo: 'Dodatne informacije', fullHistory: 'Celotna zgodovina', linkedBooking: 'Povezana rezervacija', openBooking: 'Odpri rezervacijo', offerAnother: 'Ponudi drug termin', revokeOffer: 'Prekliči ponudbo', reAdd: 'Ponovno dodaj na čakalno vrsto', joinedSince: 'V čakalni vrsti od', closedRequest: 'Zaključena zahteva', noActiveOffer: 'Podatki o aktivni ponudbi niso več na voljo.',
   } : {
     title: 'Appointments', appointments: 'Appointments', waitlist: 'Waitlist', coming: 'Appointments overview will be added in the next phase.',
     active: 'Active', offered: 'Offers', history: 'History', add: 'Add to waitlist', search: 'Search by name, email or phone',
@@ -205,6 +228,7 @@ export function AppointmentsPage() {
     anyAvailable: 'Any available slot', anyAvailableUntil: 'Valid until', any: 'Any employee', employeeOptional: 'Employee (optional)',
     dateFrom: 'Date from', dateTo: 'Date to', timeFrom: 'Time from', timeTo: 'Time to', timeWindowHelp: 'Time from and time to define the allowed appointment start time.',
     validity: 'Offer validity (min)', room: 'Room', start: 'Slot start', end: 'Slot end', select: 'Select', loadError: 'Could not load the waitlist.',
+    customerAndRequest: 'Client and request details', activeOffer: 'Active offer', proposedSlot: 'Proposed slot', offerSentAt: 'Offer sent', offerExpiresAt: 'Offer expires', additionalInfo: 'Additional information', fullHistory: 'Complete history', linkedBooking: 'Linked booking', openBooking: 'Open booking', offerAnother: 'Offer another slot', revokeOffer: 'Revoke offer', reAdd: 'Add to waitlist again', joinedSince: 'On waitlist since', closedRequest: 'Closed request', noActiveOffer: 'Active offer details are no longer available.',
   }
 
   const loadRows = useCallback(async (preferredId?: number | null) => {
@@ -334,15 +358,15 @@ export function AppointmentsPage() {
     }
   }
 
-  const openOffer = () => {
-    if (!selected) return
-    const defaultDate = selected.dateFrom
+  const openOffer = (request: WaitlistRequest | null = selected) => {
+    if (!request) return
+    const defaultDate = request.dateFrom
     const start = `${defaultDate}T09:00`
-    const duration = selected.serviceDurationMinutes || 60
+    const duration = request.serviceDurationMinutes || 60
     const endDate = new Date(`${start}:00`)
     endDate.setMinutes(endDate.getMinutes() + duration)
     const end = `${defaultDate}T${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`
-    setOfferForm({ slotStart: start, slotEnd: end, employeeId: selected.specificEmployee?.id ? String(selected.specificEmployee.id) : '', roomId: selected.locationId ? String(selected.locationId) : '', validityMinutes: '15' })
+    setOfferForm({ slotStart: start, slotEnd: end, employeeId: request.specificEmployee?.id ? String(request.specificEmployee.id) : '', roomId: request.locationId ? String(request.locationId) : '', validityMinutes: '15' })
     setShowOffer(true)
   }
 
@@ -367,7 +391,7 @@ export function AppointmentsPage() {
   const removeSelected = async () => {
     if (!selected || !window.confirm(locale === 'sl' ? 'Ali želite zahtevo odstraniti s čakalne vrste?' : 'Remove this request from the waitlist?')) return
     await api.delete(`/waitlists/${selected.id}`)
-    setSelected(null)
+    closeSelected()
     await loadRows()
   }
 
@@ -380,6 +404,86 @@ export function AppointmentsPage() {
     await api.post(`/waitlists/${selected.id}/skip`, { slotStart, slotEnd, employeeId: selected.specificEmployee?.id || null, roomId: selected.locationId || null })
     await selectRequest(selected)
   }
+
+  const closeSelected = () => {
+    setSelected(null)
+    const params = new URLSearchParams(location.search)
+    params.delete('requestId')
+    navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
+  }
+
+  const revokeSelectedOffer = async () => {
+    if (!selected?.currentOffer) return
+    const confirmed = window.confirm(locale === 'sl' ? 'Ali želite preklicati aktivno ponudbo?' : 'Revoke the active offer?')
+    if (!confirmed) return
+    try {
+      await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
+      setSelected(null)
+      setView('ACTIVE')
+    } catch (e: any) {
+      window.alert(e?.response?.data?.message || e?.response?.data?.detail || (locale === 'sl' ? 'Ponudbe ni bilo mogoče preklicati.' : 'Could not revoke the offer.'))
+    }
+  }
+
+  const offerAnotherSelected = async () => {
+    if (!selected) return
+    if (!selected.currentOffer) {
+      openOffer(selected)
+      return
+    }
+    const confirmed = window.confirm(locale === 'sl'
+      ? 'Aktivna ponudba bo preklicana in lahko boste poslali novo. Nadaljujem?'
+      : 'The active offer will be revoked before you send a new one. Continue?')
+    if (!confirmed) return
+    try {
+      await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
+      const response = await api.get(`/waitlists/${selected.id}`)
+      const refreshed = response.data as WaitlistRequest
+      setSelected(refreshed)
+      openOffer(refreshed)
+    } catch (e: any) {
+      window.alert(e?.response?.data?.message || e?.response?.data?.detail || (locale === 'sl' ? 'Nove ponudbe ni bilo mogoče pripraviti.' : 'Could not prepare a new offer.'))
+    }
+  }
+
+  const reAddSelected = () => {
+    if (!selected) return
+    const firstWindow = selected.windows[0]
+    setRequestForm({
+      clientId: selected.clientId ? String(selected.clientId) : '',
+      serviceId: String(selected.serviceId),
+      locationId: selected.locationId ? String(selected.locationId) : '',
+      anyAvailableSlot: selected.targetType === 'ANY_AVAILABLE',
+      dateFrom: selected.dateFrom || '',
+      dateTo: selected.dateTo || selected.dateFrom || '',
+      specificEmployeeId: selected.specificEmployee?.id ? String(selected.specificEmployee.id) : '',
+      requestedParticipants: String(selected.requestedParticipants || 1),
+      timeFrom: firstWindow?.timeFrom?.slice(0, 5) || '08:00',
+      timeTo: firstWindow?.timeTo?.slice(0, 5) || '18:00',
+      notes: selected.notes || '',
+    })
+    closeSelected()
+    setShowCreate(true)
+  }
+
+  const openSelectedBooking = () => {
+    if (!selected) return
+    const params = new URLSearchParams()
+    params.set('date', selected.currentOffer?.slotStart?.slice(0, 10) || selected.dateFrom)
+    if (selected.bookedBookingId) params.set('bookingId', String(selected.bookedBookingId))
+    navigate({ pathname: '/calendar', search: params.toString() })
+  }
+
+  const selectedEmployeeName = !selected
+    ? copy.any
+    : selected.specificEmployee?.name
+      || (selected.selectedEmployees.length ? selected.selectedEmployees.map(item => item.name).join(', ') : copy.any)
+  const selectedWantedTime = !selected
+    ? '—'
+    : selected.targetType === 'ANY_AVAILABLE'
+      ? `${copy.anyAvailable} · ${copy.anyAvailableUntil} ${formatDate(selected.dateTo)}`
+      : `${formatDate(selected.dateFrom)} – ${formatDate(selected.dateTo)}${selected.windows.length ? ` · ${selected.windows.map(item => item.allDay ? (locale === 'sl' ? 'Cel dan' : 'All day') : `${item.timeFrom?.slice(0, 5) || ''}–${item.timeTo?.slice(0, 5) || ''}`).join(', ')}` : ''}`
+  const selectedHistory = selected ? [...selected.history].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()) : []
 
   return <div className="appointments-page">
     <header className="appointments-page-header">
@@ -397,7 +501,7 @@ export function AppointmentsPage() {
       <div className="appointments-coming-icon">{icon('calendar')}</div><h2>{copy.appointments}</h2><p>{copy.coming}</p>
     </section> : <>
       <div className="waitlist-view-tabs">
-        {(['ACTIVE', 'OFFERED', 'HISTORY'] as const).map(item => <button key={item} type="button" className={view === item ? 'active' : ''} onClick={() => { setView(item); setSelected(null) }}>
+        {(['ACTIVE', 'OFFERED', 'HISTORY'] as const).map(item => <button key={item} type="button" className={view === item ? 'active' : ''} onClick={() => { setView(item); closeSelected() }}>
           {item === 'ACTIVE' ? copy.active : item === 'OFFERED' ? copy.offered : copy.history}
         </button>)}
       </div>
@@ -411,7 +515,7 @@ export function AppointmentsPage() {
       </section>
 
       {error && <div className="waitlist-error">{error}</div>}
-      <div className={`waitlist-layout${selected ? ' has-detail' : ''}`}>
+      <div className="waitlist-layout">
         <section className="waitlist-table-card">
           <div className="waitlist-table-wrap">
             <table>
@@ -430,22 +534,163 @@ export function AppointmentsPage() {
           </div>
         </section>
 
-        {selected && <aside className="waitlist-detail">
-          <div className="waitlist-detail-head"><div className="waitlist-client"><span className="waitlist-avatar large">{selected.clientName.split(/\s+/).slice(0,2).map(value => value[0]).join('').toUpperCase()}</span><div><h2>{selected.clientName}</h2><span className={`waitlist-status status-${selected.status.toLowerCase()}`}>{statusLabel(selected.status, locale)}</span></div></div><button type="button" className="icon-button" onClick={() => setSelected(null)} aria-label={copy.close}>{icon('close')}</button></div>
-          {selected.currentOffer && <div className="waitlist-hold"><strong>{copy.offerExpires}: {remainingLabel(Math.max(0, Math.floor((new Date(selected.currentOffer.expiresAt).getTime() - Date.now()) / 1000)))}</strong><span>{copy.temporaryHold} {formatDateTime(selected.currentOffer.expiresAt)}.</span></div>}
-          <section><h3>{copy.contact}</h3><div className="waitlist-detail-grid"><span>E-pošta</span><strong>{selected.clientEmail || '—'}</strong><span>Telefon</span><strong>{selected.clientPhone || '—'}</strong></div></section>
-          <section><h3>{copy.request}</h3><div className="waitlist-detail-grid"><span>{copy.service}</span><strong>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min</strong><span>{copy.requestedWindow}</span><strong>{selected.targetType === 'ANY_AVAILABLE' ? <>{copy.anyAvailable}<br/>{copy.anyAvailableUntil} {formatDate(selected.dateTo)}</> : <>{formatDate(selected.dateFrom)} – {formatDate(selected.dateTo)}<br/>{selected.windows.map(item => item.allDay ? (locale === 'sl' ? 'Cel dan' : 'All day') : `${item.timeFrom?.slice(0,5) || ''}–${item.timeTo?.slice(0,5) || ''}`).join(', ') || '—'}</>}</strong><span>{copy.employee}</span><strong>{selected.specificEmployee?.name || (selected.selectedEmployees.length ? selected.selectedEmployees.map(item => item.name).join(', ') : copy.any)}</strong><span>{copy.location}</span><strong>{selected.locationName || '—'}</strong><span>{copy.participants}</span><strong>{selected.requestedParticipants}</strong><span>{copy.source}</span><strong>{sourceLabel(selected.source, locale)}</strong></div>{selected.notes && <div className="waitlist-note"><span>{copy.note}</span><p>{selected.notes}</p></div>}</section>
-          <section><h3>{copy.actions}</h3><div className="waitlist-actions">
-            {selected.status === 'ACTIVE' && <button type="button" className="primary" onClick={openOffer}>{icon('offer')}{copy.offer}</button>}
-            <button type="button" onClick={() => navigate(`/calendar?waitlistRequestId=${selected.id}&clientId=${selected.clientId || ''}&typeId=${selected.serviceId}&date=${selected.dateFrom}`)}>{icon('booking')}{copy.reserve}</button>
-            {selected.clientPhone && <a href={`tel:${selected.clientPhone}`}>{icon('phone')}{copy.call}</a>}
-            <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
-            {selected.status === 'ACTIVE' && <button type="button" onClick={() => void skipSelected()}>{icon('skip')}{copy.skip}</button>}
-            <button type="button" className="danger" onClick={() => void removeSelected()}>{icon('trash')}{copy.remove}</button>
-          </div></section>
-          <section><h3>{icon('history')}{copy.audit}</h3><div className="waitlist-timeline">{selected.history.length === 0 ? <p>—</p> : selected.history.map(event => <article key={event.id}><span className="timeline-dot"/><div><strong>{event.type.split('_').join(' ')}</strong><p>{event.detail || '—'}</p><small>{formatDateTime(event.occurredAt)}{event.actorName ? ` · ${event.actorName}` : ''}</small></div></article>)}</div></section>
-        </aside>}
+
       </div>
+
+      {selected && <div className="waitlist-detail-backdrop" onMouseDown={closeSelected}>
+        <article className={`waitlist-detail-modal waitlist-detail-modal--${view.toLowerCase()}`} onMouseDown={event => event.stopPropagation()}>
+          <header className="waitlist-detail-modal__header">
+            <div className="waitlist-client waitlist-client--modal">
+              <span className="waitlist-avatar large">{selected.clientName.split(/\s+/).slice(0,2).map(value => value[0]).join('').toUpperCase()}</span>
+              <div>
+                <div className="waitlist-detail-modal__title-row">
+                  <h2>{selected.clientName}</h2>
+                  <span className={`waitlist-status status-${selected.status.toLowerCase()}`}>{statusLabel(selected.status, locale)}</span>
+                </div>
+                <p>{copy.joinedSince} {formatDateTime(selected.joinedAt)}</p>
+              </div>
+            </div>
+            <button type="button" className="icon-button waitlist-detail-modal__close" onClick={closeSelected} aria-label={copy.close}>{icon('close')}</button>
+          </header>
+
+          {view === 'ACTIVE' && <>
+            <div className="waitlist-detail-modal__body waitlist-detail-modal__body--active">
+              <section className="waitlist-popup-card waitlist-popup-card--contact">
+                <h3>{icon('user')}{copy.contact}</h3>
+                <div className="waitlist-contact-grid">
+                  <div>{icon('mail')}<span>{selected.clientEmail || '—'}</span></div>
+                  <div>{icon('phone')}<span>{selected.clientPhone || '—'}</span></div>
+                </div>
+              </section>
+
+              <section className="waitlist-popup-card">
+                <h3>{icon('calendar')}{copy.request}</h3>
+                <dl className="waitlist-popup-dl">
+                  <dt>{copy.service}</dt><dd>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min{selected.breakMinutes ? ` + ${selected.breakMinutes} min` : ''}</dd>
+                  <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
+                  <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
+                  <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
+                  <dt>{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
+                  <dt>{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
+                </dl>
+              </section>
+
+              {selected.notes && <section className="waitlist-popup-card waitlist-popup-card--notes">
+                <h3>{icon('info')}{copy.note}</h3>
+                <p>{selected.notes}</p>
+              </section>}
+
+              <section className="waitlist-popup-card">
+                <h3>{icon('history')}{copy.audit}</h3>
+                <div className="waitlist-popup-timeline">
+                  {selectedHistory.length === 0 ? <p>—</p> : selectedHistory.map(event => <article key={event.id}>
+                    <span className="timeline-dot"/>
+                    <time>{formatDateTime(event.occurredAt)}</time>
+                    <div><strong>{eventLabel(event.type, locale)}</strong>{event.detail && <p>{event.detail}</p>}</div>
+                  </article>)}
+                </div>
+              </section>
+            </div>
+            <footer className="waitlist-detail-modal__footer">
+              <button type="button" className="primary" onClick={() => openOffer()}>{icon('offer')}{copy.offer}</button>
+              <button type="button" onClick={() => navigate(`/calendar?waitlistRequestId=${selected.id}&clientId=${selected.clientId || ''}&typeId=${selected.serviceId}&date=${selected.dateFrom}`)}>{icon('booking')}{copy.reserve}</button>
+              <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
+              <button type="button" className="danger" onClick={() => void removeSelected()}>{icon('trash')}{copy.remove}</button>
+            </footer>
+          </>}
+
+          {view === 'OFFERED' && <>
+            <div className="waitlist-detail-modal__body waitlist-detail-modal__body--offered">
+              <section className="waitlist-popup-section">
+                <h3>{copy.customerAndRequest}</h3>
+                <dl className="waitlist-popup-dl waitlist-popup-dl--icons">
+                  <dt>{icon('mail')}{locale === 'sl' ? 'E-pošta' : 'Email'}</dt><dd>{selected.clientEmail || '—'}</dd>
+                  <dt>{icon('phone')}{locale === 'sl' ? 'Telefon' : 'Phone'}</dt><dd>{selected.clientPhone || '—'}</dd>
+                  <dt>{icon('history')}{copy.service}</dt><dd>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min</dd>
+                  <dt>{icon('calendar')}{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
+                  <dt>{icon('user')}{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
+                  <dt>{icon('pin')}{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
+                  <dt>{icon('user')}{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
+                  <dt>{icon('queue')}{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
+                </dl>
+                <div className="waitlist-offer-additional"><span>{copy.additionalInfo}</span><p>{selected.notes || '—'}</p></div>
+              </section>
+
+              <section className="waitlist-popup-section waitlist-popup-section--offer">
+                <h3>{copy.activeOffer}</h3>
+                {selected.currentOffer ? <div className="waitlist-active-offer-card">
+                  <div className="waitlist-active-offer-card__heading">
+                    <span className="waitlist-active-offer-card__icon">{icon('offer')}</span>
+                    <div><small>{copy.proposedSlot}</small><strong>{formatDate(selected.currentOffer.slotStart)}</strong><span>{new Date(selected.currentOffer.slotStart).toLocaleTimeString(locale === 'sl' ? 'sl-SI' : 'en', { hour: '2-digit', minute: '2-digit' })} – {new Date(selected.currentOffer.slotEnd).toLocaleTimeString(locale === 'sl' ? 'sl-SI' : 'en', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                  </div>
+                  <dl>
+                    <dt>{copy.employee}</dt><dd>{selected.currentOffer.employee?.name || selectedEmployeeName}</dd>
+                    <dt>{copy.offerSentAt}</dt><dd>{formatDateTime(selected.currentOffer.offeredAt)}</dd>
+                    <dt>{copy.offerExpiresAt}</dt><dd>{formatDateTime(selected.currentOffer.expiresAt)} <strong className="waitlist-countdown">({remainingLabel(Math.max(0, Math.floor((new Date(selected.currentOffer.expiresAt).getTime() - Date.now()) / 1000)))})</strong></dd>
+                  </dl>
+                  <div className="waitlist-active-offer-card__info">{icon('info')}<span>{copy.temporaryHold} {formatDateTime(selected.currentOffer.expiresAt)}.</span></div>
+                </div> : <div className="waitlist-popup-empty-offer">{copy.noActiveOffer}</div>}
+              </section>
+            </div>
+            <footer className="waitlist-detail-modal__footer">
+              <button type="button" className="primary" onClick={() => void offerAnotherSelected()}>{icon('offer')}{copy.offerAnother}</button>
+              {selected.currentOffer && <button type="button" onClick={() => void revokeSelectedOffer()}>{icon('close')}{copy.revokeOffer}</button>}
+              <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
+              <button type="button" onClick={closeSelected}>{copy.close}</button>
+            </footer>
+          </>}
+
+          {view === 'HISTORY' && <>
+            <div className="waitlist-detail-modal__body waitlist-detail-modal__body--history">
+              <div className="waitlist-history-grid">
+                <section className="waitlist-popup-card">
+                  <h3>{copy.contact}</h3>
+                  <div className="waitlist-contact-stack"><div>{icon('mail')}<span>{selected.clientEmail || '—'}</span></div><div>{icon('phone')}<span>{selected.clientPhone || '—'}</span></div></div>
+                  <hr/>
+                  <h3>{copy.closedRequest}</h3>
+                  <dl className="waitlist-popup-dl">
+                    <dt>{copy.service}</dt><dd>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min</dd>
+                    <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
+                    <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
+                    <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
+                    <dt>{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
+                    <dt>{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
+                  </dl>
+                </section>
+
+                <section className="waitlist-popup-card waitlist-linked-booking-card">
+                  <h3>{copy.linkedBooking}</h3>
+                  {selected.bookedBookingId ? <>
+                    <div className="waitlist-linked-booking-card__icon">{icon('booking')}</div>
+                    <span>{locale === 'sl' ? 'Rezervacija' : 'Booking'}</span>
+                    <strong>#{selected.bookedBookingId}</strong>
+                    <p>{selected.serviceName}</p>
+                    <button type="button" onClick={openSelectedBooking}>{copy.openBooking}{icon('external')}</button>
+                  </> : <p className="waitlist-popup-muted">{statusLabel(selected.status, locale)}</p>}
+                </section>
+              </div>
+
+              <section className="waitlist-popup-card waitlist-popup-card--full-history">
+                <h3>{copy.fullHistory}</h3>
+                <div className="waitlist-popup-timeline waitlist-popup-timeline--wide">
+                  {selectedHistory.length === 0 ? <p>—</p> : selectedHistory.map(event => <article key={event.id}>
+                    <span className="timeline-dot"/>
+                    <div><strong>{eventLabel(event.type, locale)}</strong>{event.detail && <p>{event.detail}</p>}</div>
+                    <time>{formatDateTime(event.occurredAt)}</time>
+                    <small>{event.actorName || '—'}</small>
+                  </article>)}
+                </div>
+              </section>
+            </div>
+            <footer className="waitlist-detail-modal__footer">
+              {selected.bookedBookingId && <button type="button" className="primary" onClick={openSelectedBooking}>{icon('calendar')}{copy.openBooking}</button>}
+              <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
+              <button type="button" onClick={reAddSelected}>{icon('plus')}{copy.reAdd}</button>
+              <button type="button" className="danger" onClick={() => void removeSelected()}>{icon('trash')}{copy.remove}</button>
+            </footer>
+          </>}
+        </article>
+      </div>}
     </>}
 
     {showCreate && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowCreate(false)}><form className="waitlist-modal" onSubmit={createRequest} onMouseDown={event => event.stopPropagation()}><header><h2>{copy.createTitle}</h2><button type="button" className="icon-button" onClick={() => setShowCreate(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
@@ -478,6 +723,23 @@ export function AppointmentsPage() {
 
     <style>{`
       .appointments-page{padding:28px 30px 70px;min-height:100%;background:#f7f9fc;color:#14213a}.appointments-page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:22px}.appointments-page-header h1{margin:0 0 17px;font-size:28px;color:#13213a}.appointments-subtabs{display:flex;gap:28px;border-bottom:1px solid #dfe5ee}.appointments-subtabs button{display:flex;align-items:center;gap:8px;padding:0 2px 13px;border:0;background:transparent;color:#69758b;font-weight:700;cursor:pointer;position:relative}.appointments-subtabs button.active{color:#1463df}.appointments-subtabs button.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:#1463df}.appointments-primary,.waitlist-actions .primary,.waitlist-modal .primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;background:#1463df;color:#fff;padding:11px 16px;font-weight:750;cursor:pointer;box-shadow:0 6px 18px rgba(20,99,223,.18)}.appointments-coming{max-width:700px;margin:90px auto;text-align:center;background:#fff;border:1px solid #e1e7f0;border-radius:18px;padding:52px}.appointments-coming-icon{width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:#eef5ff;color:#1463df;display:grid;place-items:center}.appointments-coming h2{margin:0 0 8px}.appointments-coming p{color:#6a758a}.waitlist-view-tabs{display:flex;gap:4px;margin-bottom:14px}.waitlist-view-tabs button{border:1px solid transparent;background:transparent;padding:9px 15px;border-radius:9px;color:#667085;font-weight:700;cursor:pointer}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff}.waitlist-filters{display:grid;grid-template-columns:minmax(240px,1.6fr) repeat(3,minmax(130px,1fr)) minmax(125px,.8fr) minmax(125px,.8fr);gap:9px;margin-bottom:14px}.waitlist-filters select,.waitlist-filters input,.waitlist-form-grid select,.waitlist-form-grid input,.waitlist-form-grid textarea{width:100%;box-sizing:border-box;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#1b2940;padding:10px 11px;font:inherit;outline:none}.waitlist-filters select:focus,.waitlist-filters input:focus,.waitlist-form-grid select:focus,.waitlist-form-grid input:focus,.waitlist-form-grid textarea:focus{border-color:#5e9af2;box-shadow:0 0 0 3px rgba(20,99,223,.1)}.waitlist-search{display:flex;align-items:center;gap:8px;border:1px solid #dce3ed;border-radius:10px;background:#fff;padding:0 11px;color:#8792a5}.waitlist-search input{border:0;padding-left:0;box-shadow:none!important}.waitlist-date{display:flex;align-items:center;background:#fff;border:1px solid #dce3ed;border-radius:10px;padding-left:9px}.waitlist-date span{font-size:11px;color:#7c8799;white-space:nowrap}.waitlist-date input{border:0;padding-left:7px}.waitlist-error{margin-bottom:12px;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;color:#b42318;border-radius:10px}.waitlist-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 390px}.waitlist-table-card,.waitlist-detail{background:#fff;border:1px solid #e0e6ef;border-radius:15px;box-shadow:0 7px 22px rgba(24,39,75,.045)}.waitlist-table-wrap{overflow:auto;border-radius:15px}.waitlist-table-card table{width:100%;border-collapse:collapse;min-width:1030px}.waitlist-table-card th{padding:13px 14px;text-align:left;background:#f8fafc;border-bottom:1px solid #e7ebf1;color:#68758a;font-size:11px;text-transform:uppercase;letter-spacing:.035em}.waitlist-table-card td{padding:14px;border-bottom:1px solid #edf0f5;color:#3b475a;font-size:13px;vertical-align:middle}.waitlist-table-card tr:last-child td{border-bottom:0}.waitlist-table-card tbody tr{cursor:pointer;transition:.15s}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#f2f7ff}.waitlist-table-card td strong,.waitlist-table-card td small{display:block}.waitlist-table-card td strong{color:#19263b;font-size:13px}.waitlist-table-card td small{margin-top:3px;color:#7b8798;font-size:11px}.waitlist-client{display:flex;align-items:center;gap:10px}.waitlist-avatar{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:#eee9ff;color:#6841c6;font-size:11px;font-weight:800}.waitlist-avatar.large{width:46px;height:46px;font-size:13px}.waitlist-status{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:750;background:#eef2f6;color:#475467;white-space:nowrap}.status-active{background:#fff5d9;color:#9a6700}.status-offered{background:#eaf2ff;color:#175cd3}.status-offer_accepted,.status-booked{background:#e9f8ef;color:#087a3e}.status-expired,.status-cancelled,.status-removed,.status-declined{background:#f1f3f6;color:#596579}.waitlist-countdown{color:#175cd3!important;font-variant-numeric:tabular-nums}.waitlist-empty{text-align:center!important;color:#7b8798!important;padding:45px!important}.waitlist-detail{position:sticky;top:84px;max-height:calc(100vh - 105px);overflow:auto}.waitlist-detail-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px;border-bottom:1px solid #e9edf3}.waitlist-detail-head h2{font-size:18px;margin:0 0 6px}.icon-button{border:0;background:transparent;color:#657187;display:grid;place-items:center;padding:5px;cursor:pointer;border-radius:7px}.icon-button:hover{background:#eef2f6}.waitlist-hold{margin:14px 16px 0;padding:12px 13px;border-radius:10px;background:#edf5ff;border:1px solid #cfe1ff;color:#175cd3}.waitlist-hold strong,.waitlist-hold span{display:block}.waitlist-hold span{font-size:12px;margin-top:4px}.waitlist-detail section{padding:16px 18px;border-bottom:1px solid #edf0f4}.waitlist-detail section:last-child{border-bottom:0}.waitlist-detail h3{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:13px;color:#26364d}.waitlist-detail-grid{display:grid;grid-template-columns:120px minmax(0,1fr);gap:9px 12px;font-size:12px}.waitlist-detail-grid span{color:#7b8798}.waitlist-detail-grid strong{font-weight:650;color:#344054}.waitlist-note{margin-top:12px;background:#f7f9fc;border-radius:9px;padding:10px 11px}.waitlist-note span{font-size:11px;color:#7b8798}.waitlist-note p{margin:5px 0 0;font-size:12px}.waitlist-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.waitlist-actions button,.waitlist-actions a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;text-decoration:none;font-size:12px;font-weight:700;cursor:pointer}.waitlist-actions .primary{border-color:#1463df;color:#fff}.waitlist-actions .danger{color:#d92d20;border-color:#f7c5c1}.waitlist-timeline article{display:grid;grid-template-columns:12px 1fr;gap:8px;position:relative;padding-bottom:14px}.waitlist-timeline article:not(:last-child):before{content:"";position:absolute;left:4px;top:11px;bottom:0;width:1px;background:#dce3ec}.timeline-dot{width:9px;height:9px;border-radius:50%;background:#1463df;margin-top:3px;z-index:1}.waitlist-timeline strong{font-size:11px;text-transform:capitalize}.waitlist-timeline p{font-size:11px;margin:3px 0;color:#667085}.waitlist-timeline small{font-size:10px;color:#98a2b3}.waitlist-modal-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(18,30,52,.55);display:grid;place-items:center;padding:18px}.waitlist-modal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:16px;box-shadow:0 26px 70px rgba(10,20,40,.28)}.waitlist-modal.compact{width:min(650px,calc(100vw - 32px))}.waitlist-modal header{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e8edf3}.waitlist-modal h2{margin:0;font-size:20px}.waitlist-modal header p{margin:4px 0 0;color:#7b8798;font-size:12px}.waitlist-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px}.waitlist-form-grid label{display:grid;gap:6px}.waitlist-form-grid label span{font-size:12px;font-weight:700;color:#475467}.waitlist-form-grid .wide{grid-column:1/-1}.waitlist-flexible-option{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 15px;border:1px solid #dce3ed;border-radius:12px;background:#f8fbff}.waitlist-flexible-option>span{display:grid;gap:4px}.waitlist-flexible-option strong{font-size:13px;color:#26364d}.waitlist-flexible-option small{font-size:12px;line-height:1.45;color:#6b778c}.waitlist-flexible-option button{position:relative;flex:0 0 auto;width:44px;height:24px;padding:0;border:0;border-radius:999px;background:#cbd5e1;cursor:pointer;transition:.18s}.waitlist-flexible-option button i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.25);transition:.18s}.waitlist-flexible-option button.is-on{background:#1463df}.waitlist-flexible-option button.is-on i{transform:translateX(20px)}.waitlist-form-hint{margin:-4px 0 0;color:#7b8798;font-size:11px;line-height:1.4}.waitlist-modal-info{margin:0 20px 18px;padding:11px 12px;border-radius:9px;background:#f0f6ff;color:#365b8f;font-size:12px}.waitlist-modal footer{display:flex;justify-content:flex-end;gap:9px;padding:15px 20px;border-top:1px solid #e8edf3}.waitlist-modal footer button{border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;padding:9px 15px;font-weight:700;cursor:pointer}.waitlist-modal footer .primary{color:#fff;border-color:#1463df}.waitlist-modal button:disabled{opacity:.6;cursor:wait}@media(max-width:1250px){.waitlist-filters{grid-template-columns:repeat(4,minmax(0,1fr))}.waitlist-search{grid-column:span 2}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 350px}}@media(max-width:900px){.appointments-page{padding:20px 14px 70px}.appointments-page-header{align-items:stretch;flex-direction:column}.appointments-primary{align-self:flex-start}.waitlist-filters{grid-template-columns:1fr 1fr}.waitlist-search{grid-column:1/-1}.waitlist-layout.has-detail{grid-template-columns:1fr}.waitlist-detail{position:static;max-height:none}.waitlist-form-grid{grid-template-columns:1fr}.waitlist-form-grid .wide{grid-column:auto}}@media(max-width:540px){.waitlist-filters{grid-template-columns:1fr}.waitlist-search{grid-column:auto}.waitlist-actions{grid-template-columns:1fr}.appointments-subtabs{gap:17px}}
+
+      /* Clients-style waitlist layout and centered row-detail popups */
+      .appointments-page{margin:22px;border:1px solid #e3e9f2;border-radius:20px;background:#fff;box-shadow:0 9px 30px rgba(16,36,70,.055);min-height:calc(100vh - 118px)}
+      .waitlist-layout{display:block}.waitlist-table-card{border:0;border-radius:0;box-shadow:none}.waitlist-table-wrap{border-radius:0}.waitlist-table-card th{background:#fff;border-bottom:1px solid #dfe6ef;padding-top:17px;padding-bottom:17px}.waitlist-table-card td{padding-top:17px;padding-bottom:17px}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#edf4ff}.waitlist-view-tabs{border-bottom:1px solid #e6ebf2;gap:10px}.waitlist-view-tabs button{border-radius:0;padding:12px 14px 14px}.waitlist-view-tabs button.active{border:0;background:transparent;box-shadow:inset 0 -2px #1463df}.waitlist-filters{margin-top:14px}
+      .waitlist-detail-backdrop{position:fixed;inset:0;z-index:4900;display:grid;place-items:center;padding:20px;background:rgba(14,28,52,.56);backdrop-filter:blur(2px)}
+      .waitlist-detail-modal{width:min(780px,calc(100vw - 36px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(223,230,240,.9);border-radius:18px;background:#fff;box-shadow:0 28px 80px rgba(8,23,49,.32);animation:waitlistModalIn .18s ease-out}
+      .waitlist-detail-modal--offered{width:min(880px,calc(100vw - 36px))}.waitlist-detail-modal--history{width:min(920px,calc(100vw - 36px))}
+      @keyframes waitlistModalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+      .waitlist-detail-modal__header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:22px 28px;border-bottom:1px solid #e5eaf1}.waitlist-client--modal{align-items:center}.waitlist-detail-modal__title-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.waitlist-detail-modal__title-row h2{margin:0;color:#17243b;font-size:21px}.waitlist-detail-modal__header p{margin:5px 0 0;color:#748197;font-size:12px}.waitlist-detail-modal__close{align-self:flex-start}.waitlist-detail-modal__body{overflow:auto;padding:20px 28px}.waitlist-detail-modal__body--active{display:grid;gap:14px}.waitlist-detail-modal__body--offered{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:26px}.waitlist-detail-modal__body--history{display:grid;gap:14px}
+      .waitlist-popup-card{padding:18px 20px;border:1px solid #dfe6ef;border-radius:13px;background:#fff}.waitlist-popup-card h3,.waitlist-popup-section h3{display:flex;align-items:center;gap:9px;margin:0 0 15px;color:#20304b;font-size:13px}.waitlist-popup-card hr{height:1px;margin:18px 0;border:0;background:#e7ebf1}.waitlist-popup-card--contact{padding:16px 20px}.waitlist-popup-card--notes p,.waitlist-offer-additional p{margin:0;color:#526077;font-size:12px;line-height:1.55}.waitlist-contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.waitlist-contact-grid>div,.waitlist-contact-stack>div{display:flex;align-items:center;gap:10px;color:#40516b;font-size:12px}.waitlist-contact-stack{display:grid;gap:13px}
+      .waitlist-popup-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:11px 18px;margin:0;font-size:12px}.waitlist-popup-dl dt{color:#758198}.waitlist-popup-dl dd{margin:0;color:#27364d;font-weight:650;line-height:1.45}.waitlist-popup-dl--icons dt{display:flex;align-items:center;gap:8px}.waitlist-popup-section{min-width:0}.waitlist-popup-section--offer{padding-left:26px;border-left:1px solid #e2e7ef}.waitlist-offer-additional{margin-top:18px;padding:13px 14px;border:1px solid #e2e8f1;border-radius:11px;background:#fafcff}.waitlist-offer-additional span{display:block;margin-bottom:7px;color:#758198;font-size:11px}
+      .waitlist-active-offer-card{padding:18px;border:1px solid #d7e4f7;border-radius:14px;background:linear-gradient(180deg,#f9fbff,#f2f7ff)}.waitlist-active-offer-card__heading{display:flex;gap:14px;padding-bottom:16px;border-bottom:1px solid #dce6f4}.waitlist-active-offer-card__icon{display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:50%;background:#e5efff;color:#1463df}.waitlist-active-offer-card__heading small,.waitlist-active-offer-card__heading strong,.waitlist-active-offer-card__heading span{display:block}.waitlist-active-offer-card__heading small{color:#77849a;font-size:11px}.waitlist-active-offer-card__heading strong{margin:5px 0;color:#1463df;font-size:16px}.waitlist-active-offer-card__heading span{color:#31425d;font-size:13px}.waitlist-active-offer-card dl{display:grid;grid-template-columns:120px 1fr;gap:12px;margin:17px 0;font-size:12px}.waitlist-active-offer-card dt{color:#78859a}.waitlist-active-offer-card dd{margin:0;color:#27364d;font-weight:600}.waitlist-active-offer-card__info{display:flex;align-items:flex-start;gap:9px;padding:11px;border:1px solid #cbdcf5;border-radius:10px;background:#eaf3ff;color:#365b8f;font-size:11px;line-height:1.4}.waitlist-popup-empty-offer{padding:22px;border:1px dashed #d9e1ec;border-radius:12px;color:#758198;text-align:center;font-size:12px}
+      .waitlist-popup-timeline{display:grid;gap:0}.waitlist-popup-timeline article{position:relative;display:grid;grid-template-columns:12px 145px 1fr;gap:10px;padding:0 0 13px}.waitlist-popup-timeline article:not(:last-child)::before{content:"";position:absolute;left:4px;top:10px;bottom:0;width:1px;background:#d5deea}.waitlist-popup-timeline .timeline-dot{margin-top:4px}.waitlist-popup-timeline time{color:#53627a;font-size:11px}.waitlist-popup-timeline strong{color:#34445c;font-size:11px}.waitlist-popup-timeline p{margin:3px 0 0;color:#7a8799;font-size:10px}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr 150px 100px;align-items:start}.waitlist-popup-timeline--wide small{color:#65748a;font-size:10px;text-align:right}
+      .waitlist-history-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:14px}.waitlist-linked-booking-card{position:relative}.waitlist-linked-booking-card__icon{display:grid;place-items:center;width:50px;height:50px;margin-bottom:10px;border-radius:50%;background:#e6f8ed;color:#0b9d55}.waitlist-linked-booking-card>span{display:block;color:#7a879a;font-size:11px}.waitlist-linked-booking-card>strong{display:block;margin:5px 0;color:#253650;font-size:17px}.waitlist-linked-booking-card>p{color:#53627a;font-size:12px}.waitlist-linked-booking-card>button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:18px;padding:10px;border:1px solid #b9d0f5;border-radius:9px;background:#fff;color:#1463df;font-weight:700;cursor:pointer}.waitlist-popup-muted{color:#758198}
+      .waitlist-detail-modal__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:16px 28px;border-top:1px solid #e4e9f0;background:#fff}.waitlist-detail-modal__footer button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 17px;border:1px solid #d7e0ec;border-radius:9px;background:#fff;color:#34445c;font-weight:700;cursor:pointer}.waitlist-detail-modal__footer button.primary{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 7px 17px rgba(20,99,223,.18)}.waitlist-detail-modal__footer button.danger{border-color:#f5b8b8;color:#dc2626}.waitlist-detail-modal__footer button:hover{background:#f6f9fd}.waitlist-detail-modal__footer button.primary:hover{background:#0f5ed9}
+      @media(max-width:900px){.appointments-page{margin:12px;border-radius:16px}.waitlist-detail-modal__body--offered{grid-template-columns:1fr}.waitlist-popup-section--offer{padding-left:0;padding-top:20px;border-left:0;border-top:1px solid #e2e7ef}.waitlist-history-grid{grid-template-columns:1fr}.waitlist-detail-modal__footer{justify-content:stretch}.waitlist-detail-modal__footer button{flex:1 1 180px}}
+      @media(max-width:620px){.waitlist-detail-backdrop{padding:0}.waitlist-detail-modal,.waitlist-detail-modal--offered,.waitlist-detail-modal--history{width:100%;height:100%;max-height:none;border:0;border-radius:0}.waitlist-detail-modal__header,.waitlist-detail-modal__body,.waitlist-detail-modal__footer{padding-left:18px;padding-right:18px}.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:110px minmax(0,1fr)}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}.waitlist-detail-modal__footer button{flex-basis:100%}}
     `}</style>
   </div>
 }
