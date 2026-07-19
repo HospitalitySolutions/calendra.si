@@ -725,17 +725,15 @@ public class WaitlistService {
         if (hasActiveHold(companyId, id(employee), id(room), start, busyEnd, excludeOfferId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The slot is temporarily held for another waitlist offer.");
         }
-        var rules = reservationRules.resolve(companyId);
         LocalDateTime now = LocalDateTime.now(ZONE);
-        if (start.isBefore(now.plusMinutes(rules.minBookingNoticeMinutes()))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "The slot violates the minimum booking notice.");
+        if (!start.isAfter(now)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The proposed slot must be in the future.");
         }
-        if (start.toLocalDate().isAfter(now.toLocalDate().plusDays(rules.maxAdvanceBookingDays()))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "The slot is outside the maximum booking horizon.");
-        }
-        if (employee != null && !isInsideWorkingSlot(companyId, employee.getId(), start, busyEnd)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "The employee is not working during the proposed slot.");
-        }
+        // A waitlist slot is selected explicitly by a tenant user or comes from a released
+        // booking. It must therefore not be filtered by the public online-booking notice,
+        // booking-horizon or published working-slot rules. Those checks caused valid
+        // same-day/manual calendar slots to return zero waitlist matches. Resource, client,
+        // personal-block, room and temporary-hold conflicts are still validated below.
         List<Long> clientIds = request.getClient() == null ? List.of() : List.of(request.getClient().getId());
         List<Long> excluded = session == null
                 ? List.of(-1L)
