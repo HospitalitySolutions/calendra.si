@@ -11512,7 +11512,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               : mainStartTime && mainEndTime ? `${mainStartTime} – ${mainEndTime}` : (mainStartTime || mainEndTime || '')
             if (props.kind === 'waitlist-offer') {
               const title = String(props.clientName || props.serviceName || arg.event.title || '').trim()
-              const subtitle = [props.serviceName, props.employeeName].filter(Boolean).join(' · ')
+              const subtitle = String(props.serviceName || '').trim()
               return (
                 <div className="calendar-waitlist-offer-content">
                   <div className="calendar-waitlist-offer-title">{title || (locale === 'sl' ? 'Ponudba termina' : 'Slot offer')}</div>
