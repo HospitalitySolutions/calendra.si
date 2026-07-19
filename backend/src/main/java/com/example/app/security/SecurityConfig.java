@@ -97,6 +97,7 @@ public class SecurityConfig {
             return path.startsWith("/api/guest/")
                     || path.startsWith("/api/public/widget/")
                     || path.startsWith("/api/public-bookings/manage/")
+                    || path.startsWith("/api/public-waitlists/")
                     || path.startsWith("/api/course-access/")
                     || path.startsWith("/widget/")
                     || path.startsWith("/api/inbox/webhooks/")
@@ -164,6 +165,7 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/public/widget/**").permitAll();
                     auth.requestMatchers("/api/public/company-directory/**").permitAll();
                     auth.requestMatchers("/api/public-bookings/manage/**").permitAll();
+                    auth.requestMatchers("/api/public-waitlists/**").permitAll();
                     auth.requestMatchers("/widget/**").permitAll();
 
                     auth.requestMatchers("/api/inbox/webhooks/**").permitAll();

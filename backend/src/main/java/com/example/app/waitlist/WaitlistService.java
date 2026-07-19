@@ -2,8 +2,12 @@ package com.example.app.waitlist;
 
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.notification.TenantNotificationService;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
@@ -69,6 +73,7 @@ public class WaitlistService {
     private final SpaceRepository spaces;
     private final SessionBookingRepository bookings;
     private final CompanyRepository companies;
+    private final AppSettingRepository settings;
     private final BookableSlotRepository bookableSlots;
     private final SessionBookingCreationService bookingValidation;
     private final TenantReservationRulesService reservationRules;
@@ -92,6 +97,7 @@ public class WaitlistService {
             SpaceRepository spaces,
             SessionBookingRepository bookings,
             CompanyRepository companies,
+            AppSettingRepository settings,
             BookableSlotRepository bookableSlots,
             SessionBookingCreationService bookingValidation,
             TenantReservationRulesService reservationRules,
@@ -114,6 +120,7 @@ public class WaitlistService {
         this.spaces = spaces;
         this.bookings = bookings;
         this.companies = companies;
+        this.settings = settings;
         this.bookableSlots = bookableSlots;
         this.bookingValidation = bookingValidation;
         this.reservationRules = reservationRules;
@@ -201,6 +208,23 @@ public class WaitlistService {
             List<WindowView> windows,
             OfferView currentOffer,
             List<EventView> history
+    ) {}
+
+    public record PublicOfferView(
+            Long offerId,
+            Long requestId,
+            String tenantCode,
+            String tenantName,
+            String tenantLogoUrl,
+            String serviceName,
+            String slotStart,
+            String slotEnd,
+            String startsAtLabel,
+            String employeeName,
+            String locationName,
+            String offerStatus,
+            String requestStatus,
+            String otherSlotsUrl
     ) {}
 
     @Transactional(readOnly = true)
@@ -412,6 +436,54 @@ public class WaitlistService {
                 clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
         offerNextCandidate(companyId, offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getService().getId(), request.getId());
         return detail(me, request.getId());
+    }
+
+    @Transactional
+    public PublicOfferView publicOffer(Long offerId) {
+        WaitlistOffer offer = offers.findById(offerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        expireIfNeeded(offer);
+        return toPublicOfferView(offer);
+    }
+
+    @Transactional
+    public PublicOfferView publicAccept(Long offerId) {
+        WaitlistOffer offer = offers.findById(offerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        expireIfNeeded(offer);
+        if (offer.getStatus() == WaitlistOfferStatus.PENDING) {
+            offer.setStatus(WaitlistOfferStatus.ACCEPTED);
+            offer.setAcceptedAt(Instant.now());
+            offers.save(offer);
+            WaitlistRequest request = offer.getRequest();
+            request.setStatus(WaitlistRequestStatus.OFFER_ACCEPTED);
+            requests.save(request);
+            addEvent(request, offer, null, WaitlistEventType.OFFER_ACCEPTED, "Ponudba termina je bila sprejeta.");
+            tenantNotifications.createWaitlistNotification(companyId(request.getCompany()), request.getId(), "WAITLIST_OFFER_ACCEPTED", "Ponudba termina sprejeta",
+                    clientName(request.getClient()) + " je sprejel/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
+        }
+        return toPublicOfferView(offer);
+    }
+
+    @Transactional
+    public PublicOfferView publicDecline(Long offerId) {
+        WaitlistOffer offer = offers.findById(offerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        expireIfNeeded(offer);
+        if (offer.getStatus() == WaitlistOfferStatus.PENDING) {
+            offer.setStatus(WaitlistOfferStatus.DECLINED);
+            offer.setDeclinedAt(Instant.now());
+            offers.save(offer);
+            releaseHold(offer, WaitlistHoldStatus.RELEASED);
+            WaitlistRequest request = offer.getRequest();
+            request.setStatus(WaitlistRequestStatus.ACTIVE);
+            requests.save(request);
+            addEvent(request, offer, null, WaitlistEventType.OFFER_DECLINED, "Ponudba termina je bila zavrnjena.");
+            tenantNotifications.createWaitlistNotification(companyId(request.getCompany()), request.getId(), "WAITLIST_OFFER_DECLINED", "Ponudba termina zavrnjena",
+                    clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
+            offerNextCandidate(companyId(request.getCompany()), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getService().getId(), request.getId());
+        }
+        return toPublicOfferView(offer);
     }
 
     @Transactional
@@ -1015,6 +1087,56 @@ public class WaitlistService {
         } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    private PublicOfferView toPublicOfferView(WaitlistOffer offer) {
+        WaitlistRequest request = offer.getRequest();
+        Company company = request == null ? null : request.getCompany();
+        Long companyId = company == null ? null : company.getId();
+        String tenantCode = company == null ? null : trimToNull(company.getTenantCode());
+        return new PublicOfferView(
+                offer.getId(),
+                request == null ? null : request.getId(),
+                tenantCode,
+                tenantName(company),
+                tenantLogoUrl(companyId),
+                request == null || request.getService() == null ? "" : String.valueOf(request.getService().getName()),
+                offer.getSlotStart() == null ? null : offer.getSlotStart().toString(),
+                offer.getSlotEnd() == null ? null : offer.getSlotEnd().toString(),
+                offer.getSlotStart() == null ? null : offer.getSlotStart().toString(),
+                offer.getEmployee() == null ? "" : employeeName(offer.getEmployee()),
+                offer.getRoom() != null
+                        ? trimToNull(offer.getRoom().getName())
+                        : request != null && request.getLocation() != null ? trimToNull(request.getLocation().getName()) : null,
+                offer.getStatus().name(),
+                request == null || request.getStatus() == null ? null : request.getStatus().name(),
+                tenantCode == null ? null : "/widget/" + tenantCode
+        );
+    }
+
+    private String tenantName(Company company) {
+        if (company == null || company.getId() == null) return "Calendra";
+        String value = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .orElse(company.getName());
+        return value == null || value.isBlank() ? "Calendra" : value;
+    }
+
+    private String tenantLogoUrl(Long companyId) {
+        if (companyId == null) return null;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.COMPANY_LOGO_URL)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .orElse(null);
+    }
+
+
+    private static Long companyId(Company company) {
+        if (company == null || company.getId() == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found.");
+        return company.getId();
     }
 
     private static Long companyId(User me) {

@@ -15,6 +15,7 @@ import { RegisterBillingDetailsPage } from './pages/RegisterBillingDetailsPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { CourseAccessPage } from './pages/CourseAccessPage'
 import { PublicBookingManagePage } from './pages/PublicBookingManagePage'
+import { PublicWaitlistOfferPage } from './pages/PublicWaitlistOfferPage'
 import { ReceivedInvoiceDownloadPage, ReceivedInvoicesRedirectPage } from './pages/ReceivedInvoiceDownloadPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
@@ -317,6 +318,13 @@ export default function App() {
     return (
       <Routes>
         <Route path="/public-booking/manage/:token" element={<PublicBookingManagePage />} />
+      </Routes>
+    )
+  }
+  if (location.pathname.startsWith('/public-waitlist/offer/')) {
+    return (
+      <Routes>
+        <Route path="/public-waitlist/offer/:offerId" element={<PublicWaitlistOfferPage />} />
       </Routes>
     )
   }

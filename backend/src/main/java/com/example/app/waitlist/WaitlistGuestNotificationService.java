@@ -343,7 +343,8 @@ public class WaitlistGuestNotificationService {
         LocalTime requestedEndTime = preferredWindow == null ? null : preferredWindow.getTimeTo();
 
         String manageUrl = waitlistUrl(request.getId());
-        String offerUrl = offer == null ? manageUrl : waitlistUrl(request.getId()) + "&offerId=" + offer.getId();
+        String acceptUrl = offer == null ? manageUrl : publicOfferUrl(offer.getId(), "accept");
+        String declineUrl = offer == null ? manageUrl : publicOfferUrl(offer.getId(), "decline");
         String companyName = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
                 .map(AppSetting::getValue)
                 .filter(value -> value != null && !value.isBlank())
@@ -358,11 +359,16 @@ public class WaitlistGuestNotificationService {
         values.put("{{startTime}}", start != null ? TIME.format(start) : requestedStartTime == null ? "" : TIME.format(requestedStartTime));
         values.put("{{endTime}}", end != null ? TIME.format(end) : requestedEndTime == null ? "" : TIME.format(requestedEndTime));
         values.put("{{offerExpiresAt}}", offer == null || offer.getExpiresAt() == null ? "" : DATE_TIME.format(LocalDateTime.ofInstant(offer.getExpiresAt(), ZONE)));
-        values.put("{{acceptUrl}}", offerUrl);
-        values.put("{{declineUrl}}", offerUrl);
+        values.put("{{acceptUrl}}", acceptUrl);
+        values.put("{{declineUrl}}", declineUrl);
         values.put("{{manageWaitlistUrl}}", manageUrl);
         values.put("{{companyName}}", safe(companyName));
         return values;
+    }
+
+    private String publicOfferUrl(Long offerId, String action) {
+        String path = "/public-waitlist/offer/" + offerId + "?action=" + (action == null || action.isBlank() ? "accept" : action.trim());
+        return frontendBaseUrl.isBlank() ? path : frontendBaseUrl + path;
     }
 
     private String waitlistUrl(Long requestId) {
