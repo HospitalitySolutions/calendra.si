@@ -61,6 +61,9 @@ public class WaitlistOffer extends BaseEntity {
     @Column(name = "declined_at")
     private Instant declinedAt;
 
+    @Column(name = "expiring_notified_at")
+    private Instant expiringNotifiedAt;
+
     @Column(name = "secure_token_hash", nullable = false, length = 128)
     private String secureTokenHash;
 

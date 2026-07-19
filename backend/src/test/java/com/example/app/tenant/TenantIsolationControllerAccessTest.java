@@ -197,7 +197,8 @@ class TenantIsolationControllerAccessTest {
                 mock(GuestEntitlementUsageRepository.class),
                 mock(ConsumableService.class),
                 mock(AppSettingRepository.class),
-                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())),
+                mock(com.example.app.waitlist.WaitlistBookingHoldRepository.class));
         User tenantA = tenantAdmin(1L);
 
         SessionBooking owned = new SessionBooking();

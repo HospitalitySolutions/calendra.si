@@ -179,6 +179,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     setNewSlotWaitlistActionLoading(true)
     try {
       await api.post('/waitlists/offer-first', newWaitlistMatchPayload())
+      await loadCalendarRangeOnly(true).catch(() => undefined)
       const remaining = Array.isArray(newSlotWaitlistMatches.matches) ? newSlotWaitlistMatches.matches.slice(1) : []
       setNewSlotWaitlistMatches(remaining.length > 0
         ? { ...newSlotWaitlistMatches, count: Math.max(0, Number(newSlotWaitlistMatches.count) - 1), first: remaining[0], matches: remaining }
@@ -244,7 +245,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       setReleasedSlotWaitlistPrompt(null)
     } catch (error: any) {
       if (createdOfferId) {
-        try { await api.delete(`/waitlists/offers/${createdOfferId}`) } catch { /* best-effort rollback */ }
+        try {
+          await api.delete(`/waitlists/offers/${createdOfferId}`)
+          await loadCalendarRangeOnly(true).catch(() => undefined)
+        } catch { /* best-effort rollback */ }
       }
       showToast?.('error', error?.response?.data?.message || (locale === 'sl' ? 'Dejanja ni bilo mogoče dokončati.' : 'The action could not be completed.'))
     } finally {

@@ -21,6 +21,8 @@ import com.example.app.settings.SettingKey;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.Role;
 import com.example.app.user.User;
+import com.example.app.waitlist.WaitlistBookingHold;
+import com.example.app.waitlist.WaitlistBookingHoldRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -69,6 +71,7 @@ public class SessionBookingController {
     private final ConsumableService consumableService;
     private final AppSettingRepository settings;
     private final TimeService timeService;
+    private final WaitlistBookingHoldRepository waitlistHolds;
 
     public SessionBookingController(SessionBookingRepository repo,
                                     BookableSlotRepository bookableSlots,
@@ -84,7 +87,8 @@ public class SessionBookingController {
                                     GuestEntitlementUsageRepository entitlementUsages,
                                     ConsumableService consumableService,
                                     AppSettingRepository settings,
-                                    TimeService timeService) {
+                                    TimeService timeService,
+                                    WaitlistBookingHoldRepository waitlistHolds) {
         this.repo = repo;
         this.bookableSlots = bookableSlots;
         this.personalBlocks = personalBlocks;
@@ -101,6 +105,7 @@ public class SessionBookingController {
         this.consumableService = consumableService;
         this.settings = settings;
         this.timeService = timeService;
+        this.waitlistHolds = waitlistHolds;
     }
 
     public record BookingRequest(
@@ -239,8 +244,12 @@ public class SessionBookingController {
     }
 
     @PostMapping
-    public BookingResponse create(@RequestBody BookingRequest req, @AuthenticationPrincipal User me) {
-        return bookingCreationService.create(req, me);
+    public BookingResponse create(
+            @RequestBody BookingRequest req,
+            @RequestHeader(name = "X-Waitlist-Request-Id", required = false) Long waitlistRequestId,
+            @AuthenticationPrincipal User me
+    ) {
+        return bookingCreationService.create(req, me, waitlistRequestId);
     }
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -567,6 +576,24 @@ public class SessionBookingController {
 
     public record PersonalBlockSummary(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes, boolean visibleToAdmins, boolean masked) {}
     public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes) {}
+    public record WaitlistOfferHoldSummary(
+            Long id,
+            Long offerId,
+            Long requestId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            LocalDateTime busyEndTime,
+            Long employeeId,
+            String employeeName,
+            Long roomId,
+            String roomName,
+            Long clientId,
+            String clientName,
+            Long serviceId,
+            String serviceName,
+            Instant expiresAt,
+            String status
+    ) {}
 
     @GetMapping("/calendar")
     @Transactional(readOnly = true)
@@ -611,11 +638,49 @@ public class SessionBookingController {
                 : calendarTodos.findByOwnerAndDateRange(me.getId(), companyId, rangeStart, rangeEnd)).stream()
                 .map(t -> new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes()))
                 .toList();
+        var waitlistOffers = (SecurityUtils.isAdmin(me)
+                ? waitlistHolds.findActiveOverlappingByCompany(companyId, rangeStart, rangeEnd, timeService.instant(companyId))
+                : waitlistHolds.findActiveOverlappingByEmployee(companyId, me.getId(), rangeStart, rangeEnd, timeService.instant(companyId)))
+                .stream()
+                .map(SessionBookingController::toWaitlistOfferHoldSummary)
+                .toList();
         result.put("booked", bookings);
         result.put("bookable", slots);
         result.put("personal", personal);
         result.put("todos", todos);
+        result.put("waitlistOffers", waitlistOffers);
         return result;
+    }
+
+    private static WaitlistOfferHoldSummary toWaitlistOfferHoldSummary(WaitlistBookingHold hold) {
+        var offer = hold.getOffer();
+        var request = offer == null ? null : offer.getRequest();
+        var client = request == null ? null : request.getClient();
+        var service = request == null ? null : request.getService();
+        var employee = hold.getEmployee();
+        var room = hold.getRoom();
+        return new WaitlistOfferHoldSummary(
+                hold.getId(),
+                offer == null ? null : offer.getId(),
+                request == null ? null : request.getId(),
+                offer == null ? hold.getSlotStart() : offer.getSlotStart(),
+                offer == null ? hold.getSlotEnd() : offer.getSlotEnd(),
+                hold.getSlotEnd(),
+                employee == null ? null : employee.getId(),
+                employee == null ? null : joinName(employee.getFirstName(), employee.getLastName()),
+                room == null ? null : room.getId(),
+                room == null ? null : room.getName(),
+                client == null ? null : client.getId(),
+                client == null ? null : joinName(client.getFirstName(), client.getLastName()),
+                service == null ? null : service.getId(),
+                service == null ? null : service.getName(),
+                hold.getExpiresAt(),
+                offer == null || offer.getStatus() == null ? "PENDING" : offer.getStatus().name()
+        );
+    }
+
+    private static String joinName(String firstName, String lastName) {
+        return ((firstName == null ? "" : firstName.trim()) + " " + (lastName == null ? "" : lastName.trim())).trim();
     }
 
     private static PersonalBlockSummary toPersonalBlockSummary(PersonalCalendarBlock block, User me) {

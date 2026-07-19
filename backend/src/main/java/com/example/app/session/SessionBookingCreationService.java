@@ -21,6 +21,7 @@ import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.example.app.zoom.ZoomService;
+import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -137,6 +138,15 @@ public class SessionBookingCreationService {
 
     @Transactional
     public SessionBookingController.BookingResponse create(SessionBookingController.BookingRequest req, User me) {
+        return create(req, me, null);
+    }
+
+    @Transactional
+    public SessionBookingController.BookingResponse create(
+            SessionBookingController.BookingRequest req,
+            User me,
+            Long waitlistRequestId
+    ) {
         var companyId = me.getCompany().getId();
         LocalDateTime start = parseToLocalDateTime(req.startTime());
         LocalDateTime end = parseToLocalDateTime(req.endTime());
@@ -166,6 +176,16 @@ public class SessionBookingCreationService {
             requestedClientIds = resolveRequestedClientIds(req, multipleClientsPerSessionEnabled);
         }
         validateTypeParticipantLimit(req.typeId(), companyId, requestedClientIds.size());
+        Long excludedWaitlistOfferId = resolveMatchingWaitlistOfferId(
+                waitlistRequestId,
+                companyId,
+                requestedClientIds,
+                consultantId,
+                req.spaceId(),
+                req.typeId(),
+                start,
+                end
+        );
         validateBookingWindow(
                 companyId,
                 requestedClientIds,
@@ -179,7 +199,8 @@ public class SessionBookingCreationService {
                 multipleSessionsPerSpaceEnabled,
                 clientGroup != null || multipleClientsPerSessionEnabled,
                 isOnlineRequest(req),
-                Boolean.TRUE.equals(req.allowPersonalBlockOverlap())
+                Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
+                excludedWaitlistOfferId
         );
         var meetingLink = req.meetingLink();
         if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank())) {
@@ -674,6 +695,28 @@ public class SessionBookingCreationService {
     public void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
                                       Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
                                       boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap) {
+        validateBookingWindow(
+                companyId,
+                clientIds,
+                consultantId,
+                spaceId,
+                start,
+                end,
+                typeId,
+                excludeIds,
+                spacesEnabled,
+                multipleSessionsPerSpaceEnabled,
+                multipleClientsPerSessionEnabled,
+                online,
+                allowPersonalBlockOverlap,
+                null
+        );
+    }
+
+    private void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
+                                       Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
+                                       boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap,
+                                       Long excludedWaitlistOfferId) {
         var requestedClientIds = clientIds == null ? List.<Long>of() : clientIds.stream().filter(id -> id != null && id > 0).distinct().toList();
         if (!multipleClientsPerSessionEnabled && requestedClientIds.size() > 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Multiple clients per session is disabled.");
@@ -682,9 +725,29 @@ public class SessionBookingCreationService {
         final int requestedBreakMinutes = getRequestedBreakMinutes(companyId, typeId);
         final LocalDateTime requestedBusyEnd = effectiveEnd(end, requestedBreakMinutes);
 
-        if (!allowPersonalBlockOverlap && waitlistHolds != null
-                && waitlistHolds.existsActiveOverlap(companyId, consultantId, spaceId, start, requestedBusyEnd, java.time.Instant.now(), null)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This slot is temporarily held for a waitlist offer.");
+        boolean enforceSpaceOverlapProtection = shouldEnforceSpaceOverlapProtection(
+                companyId,
+                multipleSessionsPerSpaceEnabled,
+                online,
+                spaceId
+        );
+        if (waitlistHolds != null) {
+            java.time.Instant now = java.time.Instant.now();
+            boolean heldByEmployee = consultantId != null
+                    && waitlistHolds.existsActiveEmployeeOverlap(companyId, consultantId, start, requestedBusyEnd, now, excludedWaitlistOfferId);
+            boolean heldBySpace = false;
+            if (enforceSpaceOverlapProtection) {
+                heldBySpace = spaceId == null
+                        ? waitlistHolds.existsActiveAnyRoomOverlap(companyId, start, requestedBusyEnd, now, excludedWaitlistOfferId)
+                        : waitlistHolds.existsActiveRoomOverlap(companyId, spaceId, start, requestedBusyEnd, now, excludedWaitlistOfferId);
+            }
+            boolean heldWithoutResource = consultantId == null
+                    && !enforceSpaceOverlapProtection
+                    && spaceId == null
+                    && waitlistHolds.existsActiveUnassignedOverlap(companyId, start, requestedBusyEnd, now, excludedWaitlistOfferId);
+            if (heldByEmployee || heldBySpace || heldWithoutResource) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This slot is temporarily held for a waitlist offer.");
+            }
         }
 
         for (Long clientId : requestedClientIds) {
@@ -702,12 +765,6 @@ public class SessionBookingCreationService {
             }
         }
 
-        boolean enforceSpaceOverlapProtection = shouldEnforceSpaceOverlapProtection(
-                companyId,
-                multipleSessionsPerSpaceEnabled,
-                online,
-                spaceId
-        );
         if (enforceSpaceOverlapProtection) {
             boolean spaceOverlap = spaceId == null
                     ? repo.existsAvailabilityBlockingOverlapForAnyPhysicalSpace(companyId, start, requestedBusyEnd, safeExcludeIds)
@@ -716,6 +773,50 @@ public class SessionBookingCreationService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
             }
         }
+    }
+
+    private Long resolveMatchingWaitlistOfferId(
+            Long waitlistRequestId,
+            Long companyId,
+            List<Long> requestedClientIds,
+            Long consultantId,
+            Long spaceId,
+            Long typeId,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
+        if (waitlistRequestId == null || waitlistRequestId <= 0 || waitlistHolds == null) return null;
+        WaitlistBookingHold hold = waitlistHolds.findActiveByRequestIdAndCompanyId(
+                        waitlistRequestId,
+                        companyId,
+                        java.time.Instant.now()
+                )
+                .orElse(null);
+        // A request can also be converted directly without an offer. In that
+        // case there is no hold to exclude and normal overlap validation applies.
+        if (hold == null) return null;
+        var offer = hold.getOffer();
+        var request = offer == null ? null : offer.getRequest();
+        Long requestClientId = request == null || request.getClient() == null ? null : request.getClient().getId();
+        Long requestTypeId = request == null || request.getService() == null ? null : request.getService().getId();
+        Long holdEmployeeId = hold.getEmployee() == null ? null : hold.getEmployee().getId();
+        Long holdRoomId = hold.getRoom() == null ? null : hold.getRoom().getId();
+        boolean clientMatches = requestClientId == null || requestedClientIds.contains(requestClientId);
+        boolean exactOfferSlot = offer != null
+                && Objects.equals(offer.getSlotStart(), start)
+                && Objects.equals(offer.getSlotEnd(), end);
+        boolean matches = clientMatches
+                && Objects.equals(requestTypeId, typeId)
+                && Objects.equals(holdEmployeeId, consultantId)
+                && Objects.equals(holdRoomId, spaceId)
+                && exactOfferSlot;
+        if (!matches) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The booking details do not match the active waitlist offer."
+            );
+        }
+        return offer.getId();
     }
 
     private boolean hasOverlappingPersonalOrAvailabilityBlock(Long consultantId, Long companyId, LocalDateTime start, LocalDateTime end) {

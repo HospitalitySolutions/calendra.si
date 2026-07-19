@@ -226,7 +226,7 @@ export default function CalendarPage() {
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
   const canIssueOpenInvoice = canIssueOpenInvoices(user)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
-  const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [] })
+  const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [], waitlistOffers: [] })
   const [settings, setSettings] = useState<Record<string, string>>({})
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const todosModuleEnabled = settings.TODOS_ENABLED !== 'false'
@@ -1443,6 +1443,23 @@ export default function CalendarPage() {
     return nextCalendarData
   }
 
+  // Remove a temporary waitlist block as soon as its offer expires instead of
+  // waiting for the next regular calendar polling cycle.
+  useEffect(() => {
+    const now = Date.now()
+    const nextExpiry = (calendarData.waitlistOffers || [])
+      .map((hold: any) => new Date(hold?.expiresAt).getTime())
+      .filter((expiresAt: number) => Number.isFinite(expiresAt) && expiresAt > now)
+      .sort((a: number, b: number) => a - b)[0]
+    if (nextExpiry == null || !Number.isFinite(nextExpiry)) return
+
+    const delay = Math.max(250, Math.min(nextExpiry - now + 250, 2_147_000_000))
+    const timer = window.setTimeout(() => {
+      void loadCalendarRangeOnly(true).catch(() => undefined)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [calendarData.waitlistOffers])
+
   const calendarOpenBillSearchParams = new URLSearchParams(location.search)
   const calendarEditOpenBillIdRaw = Number(calendarOpenBillSearchParams.get('editOpenBillId') ?? 0)
   const calendarEditOpenBillId = Number.isInteger(calendarEditOpenBillIdRaw) && calendarEditOpenBillIdRaw > 0 ? calendarEditOpenBillIdRaw : null
@@ -1875,12 +1892,16 @@ export default function CalendarPage() {
               groupBillingCompanyIdOverride: null,
               payees: Array.isArray(pending.payees) ? pending.payees : [],
             }
+        const waitlistRequestId = Number(pending.waitlistRequestId)
+        const hasWaitlistRequest = Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
         api.post('/bookings', payload, {
-          headers: { 'X-Skip-Conflict-Toast': 'true' },
+          headers: {
+            'X-Skip-Conflict-Toast': 'true',
+            ...(hasWaitlistRequest ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
+          },
         }).then(async (response) => {
-          const waitlistRequestId = Number(pending.waitlistRequestId)
           const createdBookingId = Number(response?.data?.id)
-          if (Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
+          if (hasWaitlistRequest
             && Number.isInteger(createdBookingId) && createdBookingId > 0) {
             try {
               await api.post(`/waitlists/${waitlistRequestId}/convert-to-booking`, { bookingId: createdBookingId })
@@ -3265,6 +3286,84 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const booked = useUnassignedDrawer
       ? bookedAll.filter((ev: any) => ev.resourceId !== (spacesUseResourceColumns ? SPACE_RESOURCE_UNASSIGNED_ID : CONSULTANT_RESOURCE_UNASSIGNED_ID))
       : bookedAll
+
+    const waitlistOfferRows = (calendarData.waitlistOffers || [])
+      .filter((hold: any) => {
+        const employeeId = Number(hold?.employeeId)
+        if (!isTenantAdmin) return Number.isFinite(employeeId) && employeeId === user.id
+        if (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION) return true
+        return Number.isFinite(employeeId) && employeeId === effectiveConsultantFilterId
+      })
+      .filter((hold: any) => {
+        if (!spacesEnabled || spaceFilterId == null) return true
+        return Number(hold?.roomId) === Number(spaceFilterId)
+      })
+
+    const waitlistOffersAll = waitlistOfferRows.map((hold: any) => {
+      const employeeId = hold?.employeeId == null ? null : Number(hold.employeeId)
+      const roomId = hold?.roomId == null ? null : Number(hold.roomId)
+      const consultant = employeeId == null || !Number.isFinite(employeeId)
+        ? null
+        : { id: employeeId, firstName: String(hold.employeeName || ''), lastName: '' }
+      const space = roomId == null || !Number.isFinite(roomId)
+        ? null
+        : { id: roomId, name: String(hold.roomName || '') }
+      const ev: any = {
+        id: `wo-${hold.id}`,
+        title: String(hold.clientName || hold.serviceName || (locale === 'sl' ? 'Ponudba termina' : 'Slot offer')),
+        start: hold.startTime,
+        end: hold.endTime,
+        editable: false,
+        startEditable: false,
+        durationEditable: false,
+        resourceEditable: false,
+        order: 1,
+        backgroundColor: '#FFF7E6',
+        borderColor: '#F59E0B',
+        textColor: '#7C4A03',
+        extendedProps: {
+          ...hold,
+          kind: 'waitlist-offer',
+          consultant,
+          space,
+        },
+      }
+      if (spacesUseResourceColumns) {
+        ev.resourceId = roomId != null && Number.isFinite(roomId) ? String(roomId) : SPACE_RESOURCE_UNASSIGNED_ID
+      }
+      if (bookingsUseResourceColumns) {
+        ev.resourceId = employeeId != null && Number.isFinite(employeeId) ? String(employeeId) : CONSULTANT_RESOURCE_UNASSIGNED_ID
+      }
+      return ev
+    })
+    const waitlistOffers = useUnassignedDrawer
+      ? waitlistOffersAll.filter((ev: any) => ev.resourceId !== (spacesUseResourceColumns ? SPACE_RESOURCE_UNASSIGNED_ID : CONSULTANT_RESOURCE_UNASSIGNED_ID))
+      : waitlistOffersAll
+
+    const waitlistOfferBreakBackground = isMonthGridView
+      ? []
+      : waitlistOffers.flatMap((ev: any) => {
+          const appointmentEndMs = new Date(ev.end).getTime()
+          const busyEndMs = new Date(ev.extendedProps?.busyEndTime || ev.end).getTime()
+          if (!Number.isFinite(appointmentEndMs) || !Number.isFinite(busyEndMs) || busyEndMs <= appointmentEndMs) return []
+          const breakEv: any = {
+            id: `${ev.id}-break`,
+            title: '',
+            display: 'background',
+            start: toLocalDateTimeString(new Date(appointmentEndMs)),
+            end: toLocalDateTimeString(new Date(busyEndMs)),
+            editable: false,
+            startEditable: false,
+            durationEditable: false,
+            extendedProps: {
+              kind: 'waitlist-offer-break',
+              requestId: ev.extendedProps?.requestId,
+              offerId: ev.extendedProps?.offerId,
+            },
+          }
+          if (ev.resourceId != null) breakEv.resourceId = ev.resourceId
+          return [breakEv]
+        })
 	    const bookedAllDayBackground = (() => {
 	      if (isMonthGridView) return []
 	      const byDayAndResource = new Map<string, any>()
@@ -3412,6 +3511,18 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (!Number.isFinite(cid) || !visibleConsultantIds.has(cid)) continue
       const startMs = new Date(b.startTime).getTime()
       const endMs = getBookingBusyEndMs(b)
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue
+      const arr = blockingRangesByConsultant.get(cid) || []
+      arr.push({ startMs, endMs })
+      blockingRangesByConsultant.set(cid, arr)
+    }
+    for (const hold of waitlistOfferRows) {
+      // In Spaces resource mode holds are subtracted per room below, just like normal bookings.
+      if (spacesUseResourceColumns) continue
+      const cid = Number(hold?.employeeId)
+      if (!Number.isFinite(cid) || !visibleConsultantIds.has(cid)) continue
+      const startMs = new Date(hold.startTime).getTime()
+      const endMs = new Date(hold.busyEndTime || hold.endTime).getTime()
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue
       const arr = blockingRangesByConsultant.get(cid) || []
       arr.push({ startMs, endMs })
@@ -3616,12 +3727,23 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             if (spRid === SPACE_RESOURCE_UNASSIGNED_ID) return b.space == null || b.space?.id == null
             return b.space?.id != null && String(b.space.id) === spRid
           })
+          const heldInSpace = waitlistOfferRows.filter((hold: any) => {
+            if (spRid === SPACE_RESOURCE_UNASSIGNED_ID) return hold?.roomId == null
+            return hold?.roomId != null && String(hold.roomId) === spRid
+          })
           let remaining: { startMs: number; endMs: number }[] = [{ startMs, endMs }]
           for (const b of bookedInSpace) {
             const bs = new Date(b.startTime).getTime()
             const be = getBookingBusyEndMs(b)
             if (!Number.isFinite(bs) || !Number.isFinite(be) || be <= bs) continue
             remaining = remaining.flatMap((r) => subtractRangeFromRange(r, bs, be))
+            if (remaining.length === 0) break
+          }
+          for (const hold of heldInSpace) {
+            const hs = new Date(hold.startTime).getTime()
+            const he = new Date(hold.busyEndTime || hold.endTime).getTime()
+            if (!Number.isFinite(hs) || !Number.isFinite(he) || he <= hs) continue
+            remaining = remaining.flatMap((r) => subtractRangeFromRange(r, hs, he))
             if (remaining.length === 0) break
           }
           for (const r of remaining) {
@@ -4398,16 +4520,18 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     if (calendarMode === 'spaces') {
       if (spacesUseResourceColumns && bookableEnabled) {
-        return buildOverlapGroupsForCalendar([...nonBookableBackground, ...bookedAllDayBackground, ...bookedBreakBackground, ...booked, ...bookable, ...sessionDraftPreviewEvents])
+        return buildOverlapGroupsForCalendar([...nonBookableBackground, ...bookedAllDayBackground, ...bookedBreakBackground, ...waitlistOfferBreakBackground, ...booked, ...waitlistOffers, ...bookable, ...sessionDraftPreviewEvents])
       }
-      return buildOverlapGroupsForCalendar([...bookedAllDayBackground, ...bookedBreakBackground, ...booked, ...sessionDraftPreviewEvents])
+      return buildOverlapGroupsForCalendar([...bookedAllDayBackground, ...bookedBreakBackground, ...waitlistOfferBreakBackground, ...booked, ...waitlistOffers, ...sessionDraftPreviewEvents])
     }
     return buildOverlapGroupsForCalendar([
       ...nonBookableBackground,
       ...adminStaffColumnsAvailabilityBlocks,
       ...bookedAllDayBackground,
       ...bookedBreakBackground,
+      ...waitlistOfferBreakBackground,
       ...booked,
+      ...waitlistOffers,
       ...bookable,
       ...personalCalendar,
       ...todosCalendar,
@@ -6891,21 +7015,26 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         } else {
           bookingDates.push({ startTime: form.startTime, endTime: form.endTime })
         }
+        const waitlistRequestId = Number(form.waitlistRequestId)
+        const hasWaitlistRequest = Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
         for (const dt of bookingDates) {
+          const useWaitlistHoldExclusion = hasWaitlistRequest && firstCreatedBookingId == null
           const createdResponse = await api.post('/bookings', {
             ...bookingPayloadBase,
             startTime: dt.startTime,
             endTime: dt.endTime,
           }, {
-            headers: { 'X-Skip-Conflict-Toast': 'true' },
+            headers: {
+              'X-Skip-Conflict-Toast': 'true',
+              ...(useWaitlistHoldExclusion ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
+            },
           })
           const createdId = Number(createdResponse?.data?.id)
           if (firstCreatedBookingId == null && Number.isInteger(createdId) && createdId > 0) {
             firstCreatedBookingId = createdId
           }
         }
-        const waitlistRequestId = Number(form.waitlistRequestId)
-        if (Number.isInteger(waitlistRequestId) && waitlistRequestId > 0 && firstCreatedBookingId != null) {
+        if (hasWaitlistRequest && firstCreatedBookingId != null) {
           try {
             await api.post(`/waitlists/${waitlistRequestId}/convert-to-booking`, { bookingId: firstCreatedBookingId })
           } catch (waitlistError: any) {
@@ -10963,14 +11092,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 info.view.type === 'timeGridWorkWeek' ||
                 info.view.type === 'timeGridDay' ||
                 info.view.type === 'timeGridThreeDay') &&
-              (k === 'booked' || k === 'personal' || k === 'todo' || k === 'draft-preview')
+              (k === 'booked' || k === 'waitlist-offer' || k === 'personal' || k === 'todo' || k === 'draft-preview')
             ) {
               const isNarrowMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 780px)').matches
               const harness = info.el.closest('.fc-timegrid-event-harness') as HTMLElement | null
               if (harness) harness.style.setProperty('right', isNarrowMobile ? '0' : '34px', 'important')
             } else if (
               isResourceTimeGrid &&
-              (k === 'booked' || k === 'personal' || k === 'todo' || k === 'draft-preview')
+              (k === 'booked' || k === 'waitlist-offer' || k === 'personal' || k === 'todo' || k === 'draft-preview')
             ) {
               const harness = info.el.closest('.fc-timegrid-event-harness') as HTMLElement | null
               if (harness) harness.style.setProperty('right', '0', 'important')
@@ -10989,11 +11118,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                       ? 6
                       : k === 'personal'
                         ? 5
-                        : k === 'booked'
+                        : k === 'booked' || k === 'waitlist-offer'
                           ? 4
                           : k === 'all-day-session-background'
                             ? 2
-                          : k === 'booking-break'
+                          : k === 'booking-break' || k === 'waitlist-offer-break'
                             ? 3
                             : k === 'bookable'
                               ? 2
@@ -11151,6 +11280,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   : dk
               return ['calendar-event-draft-preview', `calendar-event-draft-preview--${previewKind}`, 'calendar-event-hover-scale']
             }
+            if (kind === 'waitlist-offer') {
+              return ['calendar-event-hover-scale', 'calendar-event-waitlist-offer']
+            }
+            if (kind === 'waitlist-offer-break') {
+              return ['calendar-waitlist-offer-break-background']
+            }
             if (kind === 'booked') {
               return [
                 'calendar-event-hover-scale',
@@ -11250,6 +11385,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               return
             }
             const props = info.event.extendedProps
+            if (props.kind === 'waitlist-offer') {
+              info.jsEvent.preventDefault()
+              if (props.requestId != null) navigate(`/appointments?tab=waitlist&requestId=${props.requestId}`)
+              return
+            }
             if (openSessionQuickActionMenu(info)) {
               info.jsEvent.preventDefault()
               return
@@ -11338,7 +11478,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               }
               return
             }
-            if (props.kind === 'booking-break' || props.kind === 'non-bookable' || props.kind === 'all-day-session-background') {
+            if (props.kind === 'booking-break' || props.kind === 'waitlist-offer-break' || props.kind === 'non-bookable' || props.kind === 'all-day-session-background') {
               return
             }
             const start = info.event.start ? toLocalDateTimeString(info.event.start) : selection?.start
@@ -11370,6 +11510,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             const mainTimeRange = isContinuousAllDayEvent
               ? (locale === 'sl' ? 'Cel dan' : 'All day')
               : mainStartTime && mainEndTime ? `${mainStartTime} – ${mainEndTime}` : (mainStartTime || mainEndTime || '')
+            if (props.kind === 'waitlist-offer') {
+              const title = String(props.clientName || props.serviceName || arg.event.title || '').trim()
+              const subtitle = [props.serviceName, props.employeeName].filter(Boolean).join(' · ')
+              return (
+                <div className="calendar-waitlist-offer-content">
+                  <div className="calendar-waitlist-offer-content__top">
+                    <span className="calendar-waitlist-offer-tag">Offer</span>
+                    {mainTimeRange ? <span className="calendar-waitlist-offer-time">{mainTimeRange}</span> : null}
+                  </div>
+                  <div className="calendar-waitlist-offer-title">{title || (locale === 'sl' ? 'Ponudba termina' : 'Slot offer')}</div>
+                  {subtitle ? <div className="calendar-waitlist-offer-subtitle">{subtitle}</div> : null}
+                </div>
+              )
+            }
             const maxInlineOverlapSessions = eventDurationMinutes >= 120
               ? 4
               : eventDurationMinutes >= 90

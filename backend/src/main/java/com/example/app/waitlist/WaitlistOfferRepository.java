@@ -17,6 +17,18 @@ public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer, Lo
     @Query("select o from WaitlistOffer o where o.id = :id and o.company.id = :companyId")
     Optional<WaitlistOffer> findForUpdateByIdAndCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 
+    @Query("""
+            select o from WaitlistOffer o
+            where o.status = com.example.app.waitlist.WaitlistOfferStatus.PENDING
+              and o.expiringNotifiedAt is null
+              and o.expiresAt > :now
+              and o.expiresAt <= :threshold
+            order by o.expiresAt asc, o.id asc
+            """)
+    List<WaitlistOffer> findPendingExpiring(
+            @Param("now") Instant now,
+            @Param("threshold") Instant threshold);
+
     @Query("select o from WaitlistOffer o where o.status = com.example.app.waitlist.WaitlistOfferStatus.PENDING and o.expiresAt <= :now order by o.expiresAt asc, o.id asc")
     List<WaitlistOffer> findExpiredPending(@Param("now") Instant now);
 }

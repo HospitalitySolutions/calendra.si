@@ -8,6 +8,7 @@ import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingRealtimeService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.Space;
@@ -37,10 +38,13 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -70,6 +74,9 @@ public class WaitlistService {
     private final TenantReservationRulesService reservationRules;
     private final WaitlistSettingsService waitlistSettings;
     private final TenantNotificationService tenantNotifications;
+    private final SessionBookingRealtimeService calendarRealtime;
+    private final WaitlistGuestNotificationService guestNotifications;
+    private final int offerExpiringMinutes;
 
     public WaitlistService(
             WaitlistRequestRepository requests,
@@ -89,7 +96,10 @@ public class WaitlistService {
             SessionBookingCreationService bookingValidation,
             TenantReservationRulesService reservationRules,
             WaitlistSettingsService waitlistSettings,
-            TenantNotificationService tenantNotifications
+            TenantNotificationService tenantNotifications,
+            SessionBookingRealtimeService calendarRealtime,
+            WaitlistGuestNotificationService guestNotifications,
+            @Value("${app.waitlist.offer-expiring-minutes:5}") int offerExpiringMinutes
     ) {
         this.requests = requests;
         this.windows = windows;
@@ -109,6 +119,9 @@ public class WaitlistService {
         this.reservationRules = reservationRules;
         this.waitlistSettings = waitlistSettings;
         this.tenantNotifications = tenantNotifications;
+        this.calendarRealtime = calendarRealtime;
+        this.guestNotifications = guestNotifications;
+        this.offerExpiringMinutes = Math.max(1, offerExpiringMinutes);
     }
 
     public record WindowInput(DayOfWeek dayOfWeek, LocalDate date, LocalTime timeFrom, LocalTime timeTo, Boolean allDay) {}
@@ -282,6 +295,7 @@ public class WaitlistService {
         addEvent(row, null, me, WaitlistEventType.JOINED, "Stranka je bila dodana na čakalno vrsto.");
         tenantNotifications.createWaitlistNotification(companyId, row.getId(), "WAITLIST_JOINED", "Nova stranka na čakalni vrsti",
                 clientName(client) + " čaka na termin za " + service.getName() + ".", "/appointments?tab=waitlist&requestId=" + row.getId());
+        guestNotifications.publish(row, null, WaitlistGuestNotificationService.EventKind.JOINED);
         return detail(me, row.getId());
     }
 
@@ -319,6 +333,7 @@ public class WaitlistService {
         replaceWindows(row, input.windows());
         replaceEmployees(row, selected);
         addEvent(row, null, me, WaitlistEventType.EDITED, "Zahteva na čakalni vrsti je bila posodobljena.");
+        guestNotifications.publish(row, null, WaitlistGuestNotificationService.EventKind.UPDATED);
         return detail(me, id);
     }
 
@@ -429,8 +444,18 @@ public class WaitlistService {
         request.setBookedBooking(booking);
         request.setStatus(WaitlistRequestStatus.BOOKED);
         requests.save(request);
-        offers.findFirstByRequestIdAndStatusOrderByOfferedAtDesc(requestId, WaitlistOfferStatus.ACCEPTED).ifPresent(offer -> releaseHold(offer, WaitlistHoldStatus.CONVERTED));
+        WaitlistOffer convertedOffer = offers.findFirstByRequestIdAndStatusOrderByOfferedAtDesc(requestId, WaitlistOfferStatus.ACCEPTED)
+                .orElseGet(() -> offers.findFirstByRequestIdAndStatusOrderByOfferedAtDesc(requestId, WaitlistOfferStatus.PENDING).orElse(null));
+        if (convertedOffer != null) {
+            if (convertedOffer.getStatus() == WaitlistOfferStatus.PENDING) {
+                convertedOffer.setStatus(WaitlistOfferStatus.ACCEPTED);
+                convertedOffer.setAcceptedAt(Instant.now());
+                offers.save(convertedOffer);
+            }
+            releaseHold(convertedOffer, WaitlistHoldStatus.CONVERTED);
+        }
         addEvent(request, null, me, WaitlistEventType.CONVERTED_TO_BOOKING, "Čakalna zahteva je bila pretvorjena v rezervacijo #" + bookingId + ".");
+        guestNotifications.publish(request, convertedOffer, WaitlistGuestNotificationService.EventKind.BOOKED);
         if (waitlistSettings.get(companyId).closeEquivalentAfterBooking()) {
             requests.findAllDetailedByCompanyId(companyId).stream()
                     .filter(other -> !Objects.equals(other.getId(), request.getId()))
@@ -440,6 +465,7 @@ public class WaitlistService {
                         other.setStatus(WaitlistRequestStatus.CANCELLED);
                         requests.save(other);
                         addEvent(other, null, me, WaitlistEventType.CANCELLED_BY_STAFF, "Enakovredna zahteva je bila zaprta po rezervaciji.");
+                        guestNotifications.publish(other, null, WaitlistGuestNotificationService.EventKind.CANCELLED);
                     });
         }
         return detail(me, requestId);
@@ -471,6 +497,7 @@ public class WaitlistService {
         request.setStatus(WaitlistRequestStatus.REMOVED);
         requests.save(request);
         addEvent(request, null, me, WaitlistEventType.REMOVED_BY_STAFF, "Zahteva je bila odstranjena s čakalne vrste.");
+        guestNotifications.publish(request, null, WaitlistGuestNotificationService.EventKind.CANCELLED);
     }
 
     /** Invoked after a booking cancellation/deletion/reschedule commits. */
@@ -498,6 +525,13 @@ public class WaitlistService {
     @Transactional
     public void expireOffers() {
         Instant now = Instant.now();
+        Instant expiringThreshold = now.plus(Duration.ofMinutes(offerExpiringMinutes));
+        for (WaitlistOffer offer : offers.findPendingExpiring(now, expiringThreshold)) {
+            if (offer.getStatus() != WaitlistOfferStatus.PENDING || offer.getExpiringNotifiedAt() != null) continue;
+            offer.setExpiringNotifiedAt(now);
+            offers.save(offer);
+            guestNotifications.publish(offer.getRequest(), offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRING);
+        }
         for (WaitlistOffer offer : offers.findExpiredPending(now)) {
             if (offer.getStatus() != WaitlistOfferStatus.PENDING) continue;
             offer.setStatus(WaitlistOfferStatus.EXPIRED);
@@ -512,11 +546,13 @@ public class WaitlistService {
             addEvent(request, offer, null, WaitlistEventType.OFFER_EXPIRED, "Ponudba termina je potekla.");
             tenantNotifications.createWaitlistNotification(request.getCompany().getId(), request.getId(), "WAITLIST_OFFER_EXPIRED", "Ponudba termina je potekla",
                     "Ponudba za " + clientName(request.getClient()) + " je potekla.", "/appointments?tab=waitlist&requestId=" + request.getId());
+            guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
             offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getService().getId(), request.getId());
         }
         for (WaitlistBookingHold hold : holds.findExpiredActive(now)) {
             hold.setStatus(WaitlistHoldStatus.EXPIRED);
             holds.save(hold);
+            publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_EXPIRED");
         }
     }
 
@@ -638,13 +674,15 @@ public class WaitlistService {
         hold.setCompany(request.getCompany());
         hold.setOffer(offer);
         hold.setSlotStart(start);
-        hold.setSlotEnd(end);
+        int serviceBreakMinutes = request.getService().getBreakMinutes() == null ? 0 : Math.max(0, request.getService().getBreakMinutes());
+        hold.setSlotEnd(end.plusMinutes(serviceBreakMinutes));
         hold.setEmployee(employee);
         hold.setRoom(room);
         hold.setSession(session);
         hold.setStatus(WaitlistHoldStatus.ACTIVE);
         hold.setExpiresAt(offer.getExpiresAt());
         holds.save(hold);
+        publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_CREATED");
 
         request.setStatus(WaitlistRequestStatus.OFFERED);
         requests.save(request);
@@ -652,6 +690,7 @@ public class WaitlistService {
                 (automatic ? "Samodejna" : "Ročna") + " ponudba termina je bila poslana. Velja do " + offer.getExpiresAt() + ".");
         tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_SENT", "Ponudba prostega termina",
                 "Ponudba za " + clientName(request.getClient()) + " velja do " + offer.getExpiresAt() + ".", "/appointments?tab=waitlist&requestId=" + request.getId());
+        guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.SLOT_AVAILABLE);
         return toView(request, requestWindows, selected, true);
     }
 
@@ -883,8 +922,32 @@ public class WaitlistService {
             if (hold.getStatus() == WaitlistHoldStatus.ACTIVE) {
                 hold.setStatus(status);
                 holds.save(hold);
+                publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_RELEASED");
             }
         });
+    }
+
+    private void publishCalendarRefreshAfterCommit(WaitlistBookingHold hold, String kind) {
+        if (calendarRealtime == null || hold == null || hold.getCompany() == null || hold.getCompany().getId() == null) return;
+        Long companyId = hold.getCompany().getId();
+        Long referenceId = hold.getOffer() != null && hold.getOffer().getId() != null
+                ? hold.getOffer().getId()
+                : hold.getId();
+        if (referenceId == null) return;
+        LocalDateTime start = hold.getSlotStart();
+        LocalDateTime end = hold.getSlotEnd();
+        String eventKind = kind == null || kind.isBlank() ? "WAITLIST_OFFER_UPDATED" : kind;
+        Runnable publish = () -> calendarRealtime.publishBookingUpdated(companyId, referenceId, start, end, eventKind);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
     }
 
     private void expireIfNeeded(WaitlistOffer offer) {
@@ -896,6 +959,7 @@ public class WaitlistService {
             request.setStatus(WaitlistRequestStatus.ACTIVE);
             requests.save(request);
             addEvent(request, offer, null, WaitlistEventType.OFFER_EXPIRED, "Ponudba termina je potekla.");
+            guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
         }
     }
 
