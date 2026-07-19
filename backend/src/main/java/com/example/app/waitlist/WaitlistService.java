@@ -216,6 +216,7 @@ public class WaitlistService {
         if (!cfg.enabled() || !cfg.staffManualEntryEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Manual waitlist entry is disabled.");
         }
+        input = normalizeInput(input, cfg);
         validateInput(input, cfg);
         Client client = clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found."));
@@ -268,6 +269,7 @@ public class WaitlistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A request cannot be edited while an offer is active.");
         }
         WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
+        input = normalizeInput(input, cfg);
         validateInput(input, cfg);
         row.setClient(clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.")));
@@ -600,6 +602,17 @@ public class WaitlistService {
         });
     }
 
+    private RequestInput normalizeInput(RequestInput input, WaitlistSettingsService.WaitlistSettings cfg) {
+        if (input == null || input.targetType() != WaitlistTargetType.ANY_AVAILABLE) return input;
+        LocalDate dateFrom = LocalDate.now(ZONE);
+        LocalDate dateTo = dateFrom.plusDays(Math.max(0, cfg.maxRequestedDateRangeDays() - 1L));
+        return new RequestInput(
+                input.clientId(), input.serviceId(), input.locationId(), input.targetType(), null,
+                dateFrom, dateTo, input.employeePreferenceType(), input.specificEmployeeId(), input.employeeIds(),
+                input.requestedParticipants(), input.source(), input.notes(), List.of()
+        );
+    }
+
     private void validateInput(RequestInput input, WaitlistSettingsService.WaitlistSettings cfg) {
         if (input == null || input.clientId() == null || input.serviceId() == null || input.targetType() == null
                 || input.dateFrom() == null || input.dateTo() == null) {
@@ -612,8 +625,20 @@ public class WaitlistService {
         if (input.targetType() == WaitlistTargetType.EXACT_TIME && !cfg.exactTimeEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exact-time waitlist requests are disabled.");
         }
-        if (input.targetType() == WaitlistTargetType.FLEXIBLE_WINDOW && !cfg.flexibleWindowsEnabled()) {
+        if ((input.targetType() == WaitlistTargetType.FLEXIBLE_WINDOW || input.targetType() == WaitlistTargetType.ANY_AVAILABLE)
+                && !cfg.flexibleWindowsEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Flexible waitlist requests are disabled.");
+        }
+        if (input.targetType() == WaitlistTargetType.ANY_AVAILABLE && input.targetSessionId() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An any-available request cannot target a specific session.");
+        }
+        if (input.windows() != null) {
+            for (WindowInput window : input.windows()) {
+                if (window == null || Boolean.TRUE.equals(window.allDay())) continue;
+                if (window.timeFrom() != null && window.timeTo() != null && !window.timeTo().isAfter(window.timeFrom())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "timeTo must be later than timeFrom.");
+                }
+            }
         }
         if (Optional.ofNullable(input.requestedParticipants()).orElse(1) < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "requestedParticipants must be positive.");

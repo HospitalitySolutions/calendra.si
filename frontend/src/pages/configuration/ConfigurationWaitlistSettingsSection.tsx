@@ -197,15 +197,9 @@ export function ConfigurationWaitlistSettingsSection() {
             !value.enabled,
           )}
           {switchRow(
-            "exactTimeEnabled",
-            "Dovoli zahteve za točen termin",
-            "Stranka lahko čaka na točno določen datum in uro.",
-            !value.enabled,
-          )}
-          {switchRow(
             "flexibleWindowsEnabled",
-            "Dovoli prilagodljiva časovna okna",
-            "Stranka lahko izbere obdobje in enega ali več ustreznih časovnih okvirjev.",
+            "Dovoli izbiro obdobja in prilagodljiv termin",
+            "Stranka lahko izbere datum in časovno okno ali vključi možnost za katerikoli prost termin.",
             !value.enabled,
           )}
           {switchRow(
@@ -276,7 +270,7 @@ export function ConfigurationWaitlistSettingsSection() {
             <label className="waitlist-number-row">
               <span>
                 <strong>Najdaljše obdobje iskanja</strong>
-                <small>Največ dni v prihodnost za prilagodljivo zahtevo.</small>
+                <small>Največ dni v prihodnost za izbrano obdobje ali katerikoli prost termin.</small>
               </span>
               <input
                 type="number"
