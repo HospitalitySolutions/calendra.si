@@ -201,6 +201,8 @@ export function AppointmentsPage() {
   const [saving, setSaving] = useState(false)
   const [, setTick] = useState(0)
   const modalSelectionEpoch = useRef(0)
+  const skipNextRowsReload = useRef(false)
+  const closingSelectedRef = useRef(false)
 
   const copy = locale === 'sl' ? {
     title: 'Termini', appointments: 'Termini', waitlist: 'Čakalna vrsta', coming: 'Pregled terminov bo dodan v naslednji fazi.',
@@ -234,11 +236,18 @@ export function AppointmentsPage() {
     customerAndRequest: 'Client and request details', activeOffer: 'Active offer', proposedSlot: 'Proposed slot', offerSentAt: 'Offer sent', offerExpiresAt: 'Offer expires', additionalInfo: 'Additional information', fullHistory: 'Complete history', linkedBooking: 'Linked booking', openBooking: 'Open booking', offerAnother: 'Offer another slot', revokeOffer: 'Revoke offer', reAdd: 'Add to waitlist again', joinedSince: 'On waitlist since', closedRequest: 'Closed request', noActiveOffer: 'Active offer details are no longer available.',
   }
 
-  const loadRows = useCallback(async (preferredId?: number | null) => {
+  const loadRows = useCallback(async (
+    preferredId?: number | null,
+    options: { silent?: boolean; preserveSelection?: boolean } = {},
+  ) => {
     if (subtab !== 'waitlist') return
     const selectionEpoch = modalSelectionEpoch.current
-    setLoading(true)
-    setError('')
+    const silent = options.silent === true
+    const preserveSelection = options.preserveSelection === true
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const { data } = await api.get('/waitlists', { params: {
         view, search: search || undefined, serviceId: serviceFilter || undefined, employeeId: employeeFilter || undefined,
@@ -246,6 +255,7 @@ export function AppointmentsPage() {
       } })
       const list = Array.isArray(data) ? data as WaitlistRequest[] : []
       setRows(list)
+      if (preserveSelection) return
       const targetId = preferredId ?? queryRequestId
       if (targetId) {
         if (selectionEpoch !== modalSelectionEpoch.current) return
@@ -257,9 +267,9 @@ export function AppointmentsPage() {
         setSelected(current => current && !list.some(item => item.id === current.id) ? null : current)
       }
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.response?.data?.detail || copy.loadError)
+      if (!silent) setError(e?.response?.data?.message || e?.response?.data?.detail || copy.loadError)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [subtab, view, search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
 
@@ -286,7 +296,13 @@ export function AppointmentsPage() {
     }
   }, [])
 
-  useEffect(() => { void loadRows() }, [loadRows])
+  useEffect(() => {
+    if (skipNextRowsReload.current) {
+      skipNextRowsReload.current = false
+      return
+    }
+    void loadRows()
+  }, [loadRows])
   useEffect(() => { void loadLookups() }, [loadLookups])
   useEffect(() => {
     const timer = window.setInterval(() => setTick(value => value + 1), 1000)
@@ -399,8 +415,7 @@ export function AppointmentsPage() {
   const removeSelected = async () => {
     if (!selected || !window.confirm(locale === 'sl' ? 'Ali želite zahtevo odstraniti s čakalne vrste?' : 'Remove this request from the waitlist?')) return
     await api.delete(`/waitlists/${selected.id}`)
-    closeSelected()
-    await loadRows()
+    await closeSelected()
   }
 
   const skipSelected = async () => {
@@ -413,14 +428,31 @@ export function AppointmentsPage() {
     await selectRequest(selected)
   }
 
-  const closeSelected = () => {
-    // Invalidate any in-flight detail request before clearing the modal. Without this,
-    // a response started while the popup was open can arrive after closing and reopen it.
+  const closeSelected = async (options: { refreshRows?: boolean; suppressNextReload?: boolean } = {}) => {
+    if (closingSelectedRef.current) return
+    closingSelectedRef.current = true
+
+    const refreshRows = options.refreshRows !== false
+    const suppressNextReload = options.suppressNextReload !== false
+
+    // Invalidate any in-flight detail request immediately. Keep the modal's current
+    // content untouched while the table refreshes silently behind the backdrop.
     modalSelectionEpoch.current += 1
-    setSelected(null)
-    const params = new URLSearchParams(location.search)
-    params.delete('requestId')
-    navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
+    try {
+      if (refreshRows && selected) {
+        await loadRows(null, { silent: true, preserveSelection: true })
+      }
+    } finally {
+      setSelected(null)
+      const params = new URLSearchParams(location.search)
+      const hadRequestId = params.has('requestId')
+      params.delete('requestId')
+      if (hadRequestId) {
+        skipNextRowsReload.current = suppressNextReload
+        navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
+      }
+      closingSelectedRef.current = false
+    }
   }
 
   const revokeSelectedOffer = async () => {
@@ -429,8 +461,8 @@ export function AppointmentsPage() {
     if (!confirmed) return
     try {
       await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
-      setSelected(null)
       setView('ACTIVE')
+      await closeSelected({ refreshRows: false, suppressNextReload: false })
     } catch (e: any) {
       window.alert(e?.response?.data?.message || e?.response?.data?.detail || (locale === 'sl' ? 'Ponudbe ni bilo mogoče preklicati.' : 'Could not revoke the offer.'))
     }
@@ -473,7 +505,7 @@ export function AppointmentsPage() {
       timeTo: firstWindow?.timeTo?.slice(0, 5) || '18:00',
       notes: selected.notes || '',
     })
-    closeSelected()
+    void closeSelected({ refreshRows: false })
     setShowCreate(true)
   }
 
@@ -512,7 +544,7 @@ export function AppointmentsPage() {
       <div className="appointments-coming-icon">{icon('calendar')}</div><h2>{copy.appointments}</h2><p>{copy.coming}</p>
     </section> : <>
       <div className="waitlist-view-tabs">
-        {(['ACTIVE', 'OFFERED', 'HISTORY'] as const).map(item => <button key={item} type="button" className={view === item ? 'active' : ''} onClick={() => { setView(item); closeSelected() }}>
+        {(['ACTIVE', 'OFFERED', 'HISTORY'] as const).map(item => <button key={item} type="button" className={view === item ? 'active' : ''} onClick={() => { setView(item); void closeSelected({ refreshRows: false, suppressNextReload: false }) }}>
           {item === 'ACTIVE' ? copy.active : item === 'OFFERED' ? copy.offered : copy.history}
         </button>)}
       </div>
@@ -548,7 +580,7 @@ export function AppointmentsPage() {
 
       </div>
 
-      {selected && <div className="waitlist-detail-backdrop" onMouseDown={closeSelected}>
+      {selected && <div className="waitlist-detail-backdrop" onMouseDown={() => void closeSelected()}>
         <article className={`waitlist-detail-modal waitlist-detail-modal--${view.toLowerCase()}`} onMouseDown={event => event.stopPropagation()}>
           <header className="waitlist-detail-modal__header">
             <div className="waitlist-client waitlist-client--modal">
@@ -561,7 +593,7 @@ export function AppointmentsPage() {
                 <p>{copy.joinedSince} {formatDateTime(selected.joinedAt)}</p>
               </div>
             </div>
-            <button type="button" className="icon-button waitlist-detail-modal__close" onClick={closeSelected} aria-label={copy.close}>{icon('close')}</button>
+            <button type="button" className="icon-button waitlist-detail-modal__close" onClick={() => void closeSelected()} aria-label={copy.close}>{icon('close')}</button>
           </header>
 
           {view === 'ACTIVE' && <>
@@ -647,7 +679,7 @@ export function AppointmentsPage() {
               <button type="button" className="primary" onClick={() => void offerAnotherSelected()}>{icon('offer')}{copy.offerAnother}</button>
               {selected.currentOffer && <button type="button" onClick={() => void revokeSelectedOffer()}>{icon('close')}{copy.revokeOffer}</button>}
               <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
-              <button type="button" onClick={closeSelected}>{copy.close}</button>
+              <button type="button" onClick={() => void closeSelected()}>{copy.close}</button>
             </footer>
           </>}
 
