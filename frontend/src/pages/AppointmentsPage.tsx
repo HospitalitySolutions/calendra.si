@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
@@ -177,6 +177,7 @@ export function AppointmentsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const query = useMemo(() => new URLSearchParams(location.search), [location.search])
+  const queryRequestId = Number(query.get('requestId') || 0) || null
   const subtab = query.get('tab') === 'waitlist' ? 'waitlist' : 'appointments'
   const [view, setView] = useState<'ACTIVE' | 'OFFERED' | 'HISTORY'>('ACTIVE')
   const [rows, setRows] = useState<WaitlistRequest[]>([])
@@ -199,6 +200,7 @@ export function AppointmentsPage() {
   const [spaces, setSpaces] = useState<LookupItem[]>([])
   const [saving, setSaving] = useState(false)
   const [, setTick] = useState(0)
+  const modalSelectionEpoch = useRef(0)
 
   const copy = locale === 'sl' ? {
     title: 'Termini', appointments: 'Termini', waitlist: 'Čakalna vrsta', coming: 'Pregled terminov bo dodan v naslednji fazi.',
@@ -234,6 +236,7 @@ export function AppointmentsPage() {
 
   const loadRows = useCallback(async (preferredId?: number | null) => {
     if (subtab !== 'waitlist') return
+    const selectionEpoch = modalSelectionEpoch.current
     setLoading(true)
     setError('')
     try {
@@ -243,19 +246,22 @@ export function AppointmentsPage() {
       } })
       const list = Array.isArray(data) ? data as WaitlistRequest[] : []
       setRows(list)
-      const targetId = preferredId ?? (Number(query.get('requestId') || 0) || selected?.id)
+      const targetId = preferredId ?? queryRequestId
       if (targetId) {
+        if (selectionEpoch !== modalSelectionEpoch.current) return
         const response = await api.get(`/waitlists/${targetId}`).catch(() => null)
-        setSelected(response?.data ?? list.find(item => item.id === targetId) ?? null)
-      } else if (selected && !list.some(item => item.id === selected.id)) {
-        setSelected(null)
+        if (selectionEpoch === modalSelectionEpoch.current) {
+          setSelected(response?.data ?? list.find(item => item.id === targetId) ?? null)
+        }
+      } else if (selectionEpoch === modalSelectionEpoch.current) {
+        setSelected(current => current && !list.some(item => item.id === current.id) ? null : current)
       }
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.response?.data?.detail || copy.loadError)
     } finally {
       setLoading(false)
     }
-  }, [subtab, view, search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, query, selected?.id, copy.loadError])
+  }, [subtab, view, search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
 
   const loadLookups = useCallback(async () => {
     const [clientsResult, servicesResult, employeesResult, spacesResult] = await Promise.allSettled([
@@ -302,13 +308,14 @@ export function AppointmentsPage() {
   }, [employees, rows])
 
   const selectRequest = async (row: WaitlistRequest) => {
+    const epoch = ++modalSelectionEpoch.current
     setSelected(row)
     const params = new URLSearchParams(location.search)
     params.set('tab', 'waitlist')
     params.set('requestId', String(row.id))
     navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
     const response = await api.get(`/waitlists/${row.id}`).catch(() => null)
-    if (response?.data) setSelected(response.data)
+    if (response?.data && epoch === modalSelectionEpoch.current) setSelected(response.data)
   }
 
   const setSubtab = (next: 'appointments' | 'waitlist') => {
@@ -407,6 +414,9 @@ export function AppointmentsPage() {
   }
 
   const closeSelected = () => {
+    // Invalidate any in-flight detail request before clearing the modal. Without this,
+    // a response started while the popup was open can arrive after closing and reopen it.
+    modalSelectionEpoch.current += 1
     setSelected(null)
     const params = new URLSearchParams(location.search)
     params.delete('requestId')
