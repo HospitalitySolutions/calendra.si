@@ -17,6 +17,10 @@ public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer, Lo
     @Query("select o from WaitlistOffer o where o.id = :id and o.company.id = :companyId")
     Optional<WaitlistOffer> findForUpdateByIdAndCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from WaitlistOffer o where o.id = :id")
+    Optional<WaitlistOffer> findForUpdateById(@Param("id") Long id);
+
     @Query("""
             select o from WaitlistOffer o
             where o.status = com.example.app.waitlist.WaitlistOfferStatus.PENDING

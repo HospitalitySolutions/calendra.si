@@ -10,6 +10,8 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionBookingController;
+import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingRealtimeService;
@@ -18,6 +20,7 @@ import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.Space;
 import com.example.app.session.SpaceRepository;
 import com.example.app.settings.TenantReservationRulesService;
+import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.nio.charset.StandardCharsets;
@@ -400,20 +403,8 @@ public class WaitlistService {
         Long companyId = companyId(me);
         WaitlistOffer offer = offers.findForUpdateByIdAndCompanyId(offerId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
-        expireIfNeeded(offer);
-        if (offer.getStatus() != WaitlistOfferStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Offer is no longer available.");
-        }
-        offer.setStatus(WaitlistOfferStatus.ACCEPTED);
-        offer.setAcceptedAt(Instant.now());
-        offers.save(offer);
-        WaitlistRequest request = offer.getRequest();
-        request.setStatus(WaitlistRequestStatus.OFFER_ACCEPTED);
-        requests.save(request);
-        addEvent(request, offer, me, WaitlistEventType.OFFER_ACCEPTED, "Ponudba termina je bila sprejeta.");
-        tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_ACCEPTED", "Ponudba termina sprejeta",
-                clientName(request.getClient()) + " je sprejel/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
-        return detail(me, request.getId());
+        acceptOfferAndCreateBooking(offer, me);
+        return detail(me, offer.getRequest().getId());
     }
 
     @Transactional
@@ -448,26 +439,100 @@ public class WaitlistService {
 
     @Transactional
     public PublicOfferView publicAccept(Long offerId) {
-        WaitlistOffer offer = offers.findById(offerId)
+        WaitlistOffer offer = offers.findForUpdateById(offerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
-        expireIfNeeded(offer);
-        if (offer.getStatus() == WaitlistOfferStatus.PENDING) {
-            offer.setStatus(WaitlistOfferStatus.ACCEPTED);
-            offer.setAcceptedAt(Instant.now());
-            offers.save(offer);
-            WaitlistRequest request = offer.getRequest();
-            request.setStatus(WaitlistRequestStatus.OFFER_ACCEPTED);
-            requests.save(request);
-            addEvent(request, offer, null, WaitlistEventType.OFFER_ACCEPTED, "Ponudba termina je bila sprejeta.");
-            tenantNotifications.createWaitlistNotification(companyId(request.getCompany()), request.getId(), "WAITLIST_OFFER_ACCEPTED", "Ponudba termina sprejeta",
-                    clientName(request.getClient()) + " je sprejel/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
-        }
+        acceptOfferAndCreateBooking(offer, null);
         return toPublicOfferView(offer);
+    }
+
+    private SessionBooking acceptOfferAndCreateBooking(WaitlistOffer offer, User actor) {
+        expireIfNeeded(offer);
+        WaitlistRequest request = offer.getRequest();
+        if (request == null || request.getCompany() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Waitlist request not found.");
+        }
+        if (request.getBookedBooking() != null && request.getStatus() == WaitlistRequestStatus.BOOKED) {
+            return request.getBookedBooking();
+        }
+        if (offer.getStatus() != WaitlistOfferStatus.PENDING && offer.getStatus() != WaitlistOfferStatus.ACCEPTED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Offer is no longer available.");
+        }
+        if (request.getClient() == null || request.getClient().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A waitlist client is required to create the booking.");
+        }
+
+        Long companyId = request.getCompany().getId();
+        offer.setStatus(WaitlistOfferStatus.ACCEPTED);
+        if (offer.getAcceptedAt() == null) offer.setAcceptedAt(Instant.now());
+        offers.save(offer);
+
+        SessionBooking booking;
+        boolean joinsExistingSession = offer.getSession() != null
+                && (request.getTargetType() == WaitlistTargetType.GROUP_SESSION
+                || request.getTargetType() == WaitlistTargetType.COURSE_OCCURRENCE);
+        if (joinsExistingSession) {
+            // The group-session join validator excludes the existing session rows, but it
+            // must not be blocked by this request's own temporary offer hold.
+            releaseHold(offer, WaitlistHoldStatus.CONVERTED);
+            booking = bookingValidation.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
+                    companyId,
+                    offer.getSession().getId(),
+                    request.getClient().getId(),
+                    "WAITLIST",
+                    String.valueOf(request.getId()),
+                    request.getGuestUserId() == null ? null : String.valueOf(request.getGuestUserId()),
+                    SessionBookingStatus.RESERVED,
+                    true
+            ));
+        } else {
+            User bookingActor = users.findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(companyId, Role.ADMIN)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No administrator is available to create the booking."));
+            SessionBookingController.BookingRequest bookingRequest = new SessionBookingController.BookingRequest(
+                    request.getClient().getId(),
+                    List.of(request.getClient().getId()),
+                    id(offer.getEmployee()),
+                    offer.getSlotStart().toString(),
+                    offer.getSlotEnd().toString(),
+                    id(offer.getRoom()),
+                    request.getService().getId(),
+                    request.getNotes(),
+                    null,
+                    false,
+                    null,
+                    false,
+                    null,
+                    null,
+                    null,
+                    SessionBookingStatus.RESERVED,
+                    null,
+                    null
+            );
+            SessionBookingController.BookingResponse created = bookingValidation.create(bookingRequest, bookingActor, request.getId());
+            booking = bookings.findByIdAndCompanyId(created.id(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Created booking could not be loaded."));
+            booking.setSourceChannel("WAITLIST");
+            booking.setSourceOrderId(String.valueOf(request.getId()));
+            booking.setGuestUserId(request.getGuestUserId() == null ? null : String.valueOf(request.getGuestUserId()));
+            booking = bookings.save(booking);
+            releaseHold(offer, WaitlistHoldStatus.CONVERTED);
+        }
+
+        request.setBookedBooking(booking);
+        request.setStatus(WaitlistRequestStatus.BOOKED);
+        requests.save(request);
+        addEvent(request, offer, actor, WaitlistEventType.OFFER_ACCEPTED, "Ponudba termina je bila sprejeta.");
+        addEvent(request, offer, actor, WaitlistEventType.CONVERTED_TO_BOOKING,
+                "Ponudba je bila samodejno pretvorjena v rezervacijo #" + booking.getId() + ".");
+        tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_ACCEPTED", "Termin potrjen in rezerviran",
+                clientName(request.getClient()) + " je sprejel/a ponujeni termin. Rezervacija #" + booking.getId() + " je bila ustvarjena.",
+                "/calendar?bookingId=" + booking.getId());
+        guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.BOOKED);
+        return booking;
     }
 
     @Transactional
     public PublicOfferView publicDecline(Long offerId) {
-        WaitlistOffer offer = offers.findById(offerId)
+        WaitlistOffer offer = offers.findForUpdateById(offerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
         expireIfNeeded(offer);
         if (offer.getStatus() == WaitlistOfferStatus.PENDING) {
