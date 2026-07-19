@@ -228,12 +228,16 @@ export function AppointmentsPage() {
 
   const loadLookups = useCallback(async () => {
     const [clientsResult, servicesResult, employeesResult, spacesResult] = await Promise.allSettled([
-      api.get('/clients', { params: { size: 500 } }), api.get('/session-types'), api.get('/users/consultants'), api.get('/spaces'),
+      api.get('/clients', { params: { size: 500 } }), api.get('/types'), api.get('/users/consultants'), api.get('/spaces'),
     ])
     if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data : [])
     if (servicesResult.status === 'fulfilled') {
       const value = Array.isArray(servicesResult.value.data) ? servicesResult.value.data : []
-      setServices(value.map((item: any) => ({ id: item.id, name: item.name || item.description || `#${item.id}` })))
+      setServices(
+        value
+          .filter((item: any) => item.active !== false)
+          .map((item: any) => ({ id: item.id, name: item.description || item.name || `#${item.id}` })),
+      )
     }
     if (employeesResult.status === 'fulfilled') {
       const value = Array.isArray(employeesResult.value.data) ? employeesResult.value.data : []
