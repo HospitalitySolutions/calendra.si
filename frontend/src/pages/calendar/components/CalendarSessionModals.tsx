@@ -21,6 +21,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [bookedEntitlementWalletLoading, setBookedEntitlementWalletLoading] = useState(false)
   const [bookedEntitlementCameraActive, setBookedEntitlementCameraActive] = useState(false)
   const [calendarNewClientEditField, setCalendarNewClientEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | null>('firstName')
+  const [newSlotWaitlistMatches, setNewSlotWaitlistMatches] = useState<any>(null)
+  const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
+  const [newSlotWaitlistActionLoading, setNewSlotWaitlistActionLoading] = useState(false)
+  const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
+  const [releasedSlotWaitlistLoading, setReleasedSlotWaitlistLoading] = useState(false)
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
   const bookedEntitlementScannerControlsRef = useRef<any>(null)
   const bookedEntitlementQrReaderRef = useRef<any>(null)
@@ -97,6 +102,157 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     || (bookedSessionIsGroup && !bookedSessionSelectedTypeAllowed)
 
   const showRecurringDeleteDialog = Boolean(confirmDelete && selectedBookedSession?.recurrenceSeriesKey)
+
+  const newWaitlistSlotKey = [form?.typeId ?? '', form?.startTime ?? '', form?.endTime ?? '', form?.consultantId ?? '', form?.spaceId ?? ''].join('|')
+  const newWaitlistMatchPayload = () => ({
+    serviceId: Number(form?.typeId),
+    slotStart: form?.startTime,
+    slotEnd: form?.endTime,
+    employeeId: form?.consultantId ? Number(form.consultantId) : null,
+    roomId: form?.spaceId ? Number(form.spaceId) : null,
+    sessionId: null,
+    releasedSlot: false,
+    limit: 5,
+  })
+
+  useEffect(() => {
+    if (form?.waitlistRequestId && form?.waitlistSlotKey !== newWaitlistSlotKey) {
+      setForm((current: any) => ({ ...current, waitlistRequestId: null, waitlistSlotKey: null }))
+    }
+  }, [newWaitlistSlotKey])
+
+  useEffect(() => {
+    const canCheck = !!selection
+      && !availabilitySelection
+      && !form?.todo
+      && !form?.personal
+      && !bookingGroupMode
+      && Number(form?.typeId) > 0
+      && !!form?.startTime
+      && !!form?.endTime
+      && selectedFormClientIds.length === 0
+      && !form?.waitlistRequestId
+    if (!canCheck) {
+      setNewSlotWaitlistMatches(null)
+      setNewSlotWaitlistLoading(false)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      setNewSlotWaitlistLoading(true)
+      try {
+        const { data } = await api.post('/waitlists/matches', newWaitlistMatchPayload())
+        if (!cancelled) setNewSlotWaitlistMatches(data?.count > 0 ? data : null)
+      } catch {
+        if (!cancelled) setNewSlotWaitlistMatches(null)
+      } finally {
+        if (!cancelled) setNewSlotWaitlistLoading(false)
+      }
+    }, 350)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, selectedFormClientIds.length, form?.waitlistRequestId])
+
+  const offerNewSlotToFirstWaitlistedGuest = async () => {
+    if (!newSlotWaitlistMatches?.first || newSlotWaitlistActionLoading) return
+    setNewSlotWaitlistActionLoading(true)
+    try {
+      await api.post('/waitlists/offer-first', newWaitlistMatchPayload())
+      const remaining = Array.isArray(newSlotWaitlistMatches.matches) ? newSlotWaitlistMatches.matches.slice(1) : []
+      setNewSlotWaitlistMatches(remaining.length > 0
+        ? { ...newSlotWaitlistMatches, count: Math.max(0, Number(newSlotWaitlistMatches.count) - 1), first: remaining[0], matches: remaining }
+        : null)
+      showToast?.('success', locale === 'sl' ? 'Termin je bil ponujen prvi ustrezni stranki.' : 'The slot was offered to the first eligible client.')
+    } catch (error: any) {
+      showToast?.('error', error?.response?.data?.message || (locale === 'sl' ? 'Termina ni bilo mogoče ponuditi.' : 'Could not offer the slot.'))
+    } finally {
+      setNewSlotWaitlistActionLoading(false)
+    }
+  }
+
+  const pullFirstWaitlistedGuestIntoBooking = () => {
+    const first = newSlotWaitlistMatches?.first
+    const clientId = Number(first?.clientId)
+    const requestId = Number(first?.requestId)
+    if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(requestId) || requestId <= 0) return
+    const confirmed = window.confirm(locale === 'sl'
+      ? `Dodam stranko ${first.clientName} neposredno v ta termin? Rezervacija bo ustvarjena brez čakanja na potrditev ponudbe.`
+      : `Add ${first.clientName} directly to this session? The booking will be created without waiting for offer acceptance.`)
+    if (!confirmed) return
+    applyFormClientIds([clientId])
+    setForm((current: any) => ({
+      ...current,
+      clientId,
+      clientIds: [clientId],
+      waitlistRequestId: requestId,
+      waitlistSlotKey: newWaitlistSlotKey,
+    }))
+    setNewSlotWaitlistMatches(null)
+    showToast?.('success', locale === 'sl' ? 'Stranka s čakalne vrste je dodana v termin.' : 'The waitlisted client was added to the booking.')
+  }
+
+  const releasedSlotPayload = () => ({
+    serviceId: Number(selectedBookedSession?.type?.id),
+    slotStart: selectedBookedSession?.startTime,
+    slotEnd: selectedBookedSession?.endTime,
+    employeeId: selectedBookedSession?.consultant?.id ? Number(selectedBookedSession.consultant.id) : null,
+    roomId: selectedBookedSession?.space?.id ? Number(selectedBookedSession.space.id) : null,
+    sessionId: selectedBookedSession?.id ? Number(selectedBookedSession.id) : null,
+    releasedSlot: true,
+    limit: 10,
+  })
+
+  const runReleasedSlotAction = async (prompt: any, offerFirst: boolean) => {
+    if (!prompt || releasedSlotWaitlistLoading) return
+    setReleasedSlotWaitlistLoading(true)
+    let createdOfferId: number | null = null
+    try {
+      if (offerFirst) {
+        const { data } = await api.post('/waitlists/offer-first', prompt.payload)
+        createdOfferId = Number(data?.currentOffer?.id) || null
+      }
+      if (prompt.action === 'DELETE') {
+        await deleteBookedSession(prompt.scope || 'SINGLE')
+      } else {
+        const cancelled = await transitionBookedStatus('CANCELLED', true, true)
+        if (cancelled !== true) throw new Error('Booking cancellation was not completed.')
+      }
+      if (offerFirst) {
+        showToast?.('success', locale === 'sl' ? 'Sproščeni termin je bil ponujen prvi ustrezni stranki.' : 'The released slot was offered to the first eligible client.')
+      }
+      setReleasedSlotWaitlistPrompt(null)
+    } catch (error: any) {
+      if (createdOfferId) {
+        try { await api.delete(`/waitlists/offers/${createdOfferId}`) } catch { /* best-effort rollback */ }
+      }
+      showToast?.('error', error?.response?.data?.message || (locale === 'sl' ? 'Dejanja ni bilo mogoče dokončati.' : 'The action could not be completed.'))
+    } finally {
+      setReleasedSlotWaitlistLoading(false)
+    }
+  }
+
+  const prepareReleasedSlotAction = async (action: 'DELETE' | 'CANCEL', scope: 'SINGLE' | 'THIS_AND_FOLLOWING' = 'SINGLE') => {
+    if (!selectedBookedSession?.id) return
+    if (scope !== 'SINGLE') {
+      await deleteBookedSession(scope)
+      return
+    }
+    const payload = releasedSlotPayload()
+    try {
+      const { data } = await api.post('/waitlists/matches', payload)
+      if (Number(data?.count) > 0 && data?.first) {
+        if (action === 'DELETE') setConfirmDelete(false)
+        setReleasedSlotWaitlistPrompt({ action, scope, payload, matches: data })
+        return
+      }
+    } catch {
+      // Waitlist lookup must never prevent a normal cancellation or deletion.
+    }
+    if (action === 'DELETE') await deleteBookedSession(scope)
+    else await transitionBookedStatus('CANCELLED')
+  }
 
   const openBookedSessionClientDetail = (clientOrId?: any) => {
     const id = Number(typeof clientOrId === 'object' ? clientOrId?.id : clientOrId)
@@ -608,7 +764,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       return
     }
     setNoShowClientPickerOpen(false)
-    void transitionBookedStatus(option.targetStatus)
+    if (option.targetStatus === 'CANCELLED') {
+      void prepareReleasedSlotAction('CANCEL')
+    } else {
+      void transitionBookedStatus(option.targetStatus)
+    }
   }
 
   const visibleBookingStatusOptions = bookingStatusOptions.filter(
@@ -1471,6 +1631,91 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         </div>
       )}
 
+      {releasedSlotWaitlistPrompt && (
+        <div
+          className="modal-backdrop calendar-booking-supplement"
+          onClick={() => !releasedSlotWaitlistLoading && setReleasedSlotWaitlistPrompt(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={locale === 'sl' ? 'Ponudi sproščeni termin' : 'Offer released slot'}
+        >
+          <div className="modal confirm-modal calendar-waitlist-release-modal" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="calendar-recurring-delete-modal__close"
+              onClick={() => setReleasedSlotWaitlistPrompt(null)}
+              disabled={releasedSlotWaitlistLoading}
+              aria-label={t('mobileNavClose')}
+            >
+              ×
+            </button>
+            <div className="calendar-waitlist-release-modal__head">
+              <span className="calendar-waitlist-release-modal__icon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none"><path d="M8 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.5 1.5h4m-2-2v4M2.5 20c.8-2.7 2.7-4 5.5-4s4.7 1.3 5.5 4M15 15h6M15 19h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+              <div>
+                <h3>{locale === 'sl' ? 'Ponudi sproščeni termin' : 'Offer the released slot'}</h3>
+                <p>
+                  {locale === 'sl'
+                    ? `Ta termin ustreza ${releasedSlotWaitlistPrompt.matches.count} ${Number(releasedSlotWaitlistPrompt.matches.count) === 1 ? 'stranki' : 'strankam'} na čakalni vrsti.`
+                    : `This slot matches ${releasedSlotWaitlistPrompt.matches.count} waitlisted ${Number(releasedSlotWaitlistPrompt.matches.count) === 1 ? 'client' : 'clients'}.`}
+                </p>
+              </div>
+            </div>
+            <div className="calendar-waitlist-release-modal__candidate">
+              <span className="calendar-waitlist-release-modal__avatar">
+                {String(releasedSlotWaitlistPrompt.matches.first.clientName || '?').split(/\s+/).slice(0, 2).map((part: string) => part[0]).join('').toUpperCase()}
+              </span>
+              <div>
+                <strong>{releasedSlotWaitlistPrompt.matches.first.clientName}</strong>
+                <span>{releasedSlotWaitlistPrompt.matches.first.clientPhone || releasedSlotWaitlistPrompt.matches.first.clientEmail || '—'}</span>
+              </div>
+              <span className="calendar-waitlist-release-modal__queue">
+                {locale === 'sl' ? 'Prva ustrezna' : 'First eligible'}
+              </span>
+            </div>
+            <div className="calendar-waitlist-release-modal__actions">
+              <button
+                type="button"
+                className="calendar-waitlist-release-modal__primary"
+                onClick={() => void runReleasedSlotAction(releasedSlotWaitlistPrompt, true)}
+                disabled={releasedSlotWaitlistLoading}
+              >
+                {releasedSlotWaitlistLoading
+                  ? (locale === 'sl' ? 'Obdelujem …' : 'Processing …')
+                  : (locale === 'sl' ? 'Ponudi prvi stranki' : 'Offer first client')}
+              </button>
+              <button
+                type="button"
+                className="calendar-waitlist-release-modal__secondary"
+                onClick={() => window.open('/appointments?tab=waitlist', '_blank', 'noopener,noreferrer')}
+                disabled={releasedSlotWaitlistLoading}
+              >
+                {locale === 'sl' ? 'Prikaži čakalno vrsto' : 'View waitlist'}
+              </button>
+              <button
+                type="button"
+                className="calendar-waitlist-release-modal__ghost"
+                onClick={() => void runReleasedSlotAction(releasedSlotWaitlistPrompt, false)}
+                disabled={releasedSlotWaitlistLoading}
+              >
+                {releasedSlotWaitlistPrompt.action === 'DELETE'
+                  ? (locale === 'sl' ? 'Izbriši brez ponudbe' : 'Delete without offer')
+                  : (locale === 'sl' ? 'Odpovej brez ponudbe' : 'Cancel without offer')}
+              </button>
+              <button
+                type="button"
+                className="calendar-waitlist-release-modal__cancel"
+                onClick={() => setReleasedSlotWaitlistPrompt(null)}
+                disabled={releasedSlotWaitlistLoading}
+              >
+                {locale === 'sl' ? 'Nazaj' : 'Back'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showRecurringDeleteDialog && (
         <div
           className="modal-backdrop calendar-booking-supplement"
@@ -1496,7 +1741,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               <button
                 type="button"
                 className="calendar-recurring-delete-modal__primary"
-                onClick={() => void deleteBookedSession('SINGLE')}
+                onClick={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}
               >
                 <span className="calendar-recurring-delete-modal__button-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1508,7 +1753,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               <button
                 type="button"
                 className="calendar-recurring-delete-modal__secondary"
-                onClick={() => void deleteBookedSession('THIS_AND_FOLLOWING')}
+                onClick={() => void prepareReleasedSlotAction('DELETE', 'THIS_AND_FOLLOWING')}
               >
                 <span className="calendar-recurring-delete-modal__button-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2222,7 +2467,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 showRecurringDeleteDialog ? null : (
                   <>
                     <span className="muted">{t('formDeleteSessionQuestion')}</span>
-                    <button className="danger" onClick={() => void deleteBookedSession('SINGLE')}>{t('formYesDelete')}</button>
+                    <button className="danger" onClick={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}>{t('formYesDelete')}</button>
                     <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
                   </>
                 )
@@ -4223,6 +4468,47 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   }}
                 />
               </div>
+              {!form.todo && !form.personal && !availabilitySelection && !bookingGroupMode && selectedFormClientIds.length === 0 && (
+                <div className={`calendar-waitlist-match-card${newSlotWaitlistMatches?.count > 0 ? ' is-visible' : ''}`}>
+                  {newSlotWaitlistLoading && !newSlotWaitlistMatches ? (
+                    <div className="calendar-waitlist-match-loading">
+                      <span className="calendar-waitlist-match-spinner" aria-hidden />
+                      <span>{locale === 'sl' ? 'Preverjam čakalno vrsto …' : 'Checking the waitlist …'}</span>
+                    </div>
+                  ) : newSlotWaitlistMatches?.first ? (
+                    <>
+                      <div className="calendar-waitlist-match-main">
+                        <span className="calendar-waitlist-match-icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none"><path d="M8 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.5 1.5h4m-2-2v4M2.5 20c.8-2.7 2.7-4 5.5-4s4.7 1.3 5.5 4M15 15h6M15 19h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </span>
+                        <div>
+                          <strong>
+                            {locale === 'sl'
+                              ? `${newSlotWaitlistMatches.count} ${Number(newSlotWaitlistMatches.count) === 1 ? 'ustrezna stranka' : 'ustreznih strank'} na čakalni vrsti`
+                              : `${newSlotWaitlistMatches.count} eligible waitlist ${Number(newSlotWaitlistMatches.count) === 1 ? 'client' : 'clients'}`}
+                          </strong>
+                          <span>
+                            {locale === 'sl' ? 'Prva po vrsti:' : 'First in queue:'} <b>{newSlotWaitlistMatches.first.clientName}</b>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="calendar-waitlist-match-actions">
+                        <button type="button" className="secondary" onClick={pullFirstWaitlistedGuestIntoBooking} disabled={newSlotWaitlistActionLoading}>
+                          {locale === 'sl' ? 'Dodaj v termin' : 'Add to booking'}
+                        </button>
+                        <button type="button" onClick={() => void offerNewSlotToFirstWaitlistedGuest()} disabled={newSlotWaitlistActionLoading}>
+                          {newSlotWaitlistActionLoading
+                            ? (locale === 'sl' ? 'Pošiljam …' : 'Sending …')
+                            : (locale === 'sl' ? 'Ponudi termin' : 'Offer slot')}
+                        </button>
+                        <button type="button" className="calendar-waitlist-link" onClick={() => window.open('/appointments?tab=waitlist', '_blank', 'noopener,noreferrer')}>
+                          {locale === 'sl' ? 'Prikaži čakalno vrsto' : 'View waitlist'}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
               {!form.todo && !form.personal && !availabilitySelection && (() => {
                 const dateLoc = locale === 'sl' ? 'sl-SI' : 'en-GB'
                 const startDate = form.startTime ? new Date(form.startTime) : null

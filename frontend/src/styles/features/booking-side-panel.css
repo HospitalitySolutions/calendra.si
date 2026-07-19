@@ -1928,3 +1928,282 @@
         height: 26px;
     }
 }
+
+/* Waitlist helpers inside the calendar booking flow */
+.calendar-waitlist-match-card {
+  display: none;
+  margin: 4px 0 2px;
+  padding: 14px 16px;
+  border: 1px solid #cfe0ff;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+  gap: 14px;
+}
+
+.calendar-waitlist-match-card.is-visible,
+.calendar-waitlist-match-card:has(.calendar-waitlist-match-loading) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-waitlist-match-main,
+.calendar-waitlist-match-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.calendar-waitlist-match-main > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.calendar-waitlist-match-main strong {
+  color: #10234b;
+  font-size: 14px;
+}
+
+.calendar-waitlist-match-main span,
+.calendar-waitlist-match-loading {
+  color: #60708f;
+  font-size: 12px;
+}
+
+.calendar-waitlist-match-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e2edff;
+  color: #1466e8;
+}
+
+.calendar-waitlist-match-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.calendar-waitlist-match-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendar-waitlist-match-actions button {
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.calendar-waitlist-match-actions .calendar-waitlist-link {
+  border: 0;
+  background: transparent;
+  color: #1263df;
+  box-shadow: none;
+  padding-inline: 6px;
+}
+
+.calendar-waitlist-match-spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid #bfd2f5;
+  border-top-color: #1466e8;
+  border-radius: 50%;
+  animation: calendar-waitlist-spin .8s linear infinite;
+}
+
+@keyframes calendar-waitlist-spin {
+  to { transform: rotate(360deg); }
+}
+
+.calendar-waitlist-release-modal {
+  position: relative;
+  width: min(520px, calc(100vw - 32px));
+  padding: 28px;
+  border-radius: 22px;
+}
+
+.calendar-waitlist-release-modal__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-right: 28px;
+}
+
+.calendar-waitlist-release-modal__head h3 {
+  margin: 1px 0 6px;
+  color: #10203f;
+  font-size: 21px;
+  letter-spacing: -.02em;
+}
+
+.calendar-waitlist-release-modal__head p {
+  margin: 0;
+  color: #687791;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.calendar-waitlist-release-modal__icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #e8f1ff;
+  color: #1466e8;
+}
+
+.calendar-waitlist-release-modal__icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.calendar-waitlist-release-modal__candidate {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0;
+  padding: 14px;
+  border: 1px solid #dce7f7;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.calendar-waitlist-release-modal__avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e5efff;
+  color: #155fcf;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.calendar-waitlist-release-modal__candidate > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.calendar-waitlist-release-modal__candidate strong {
+  color: #142343;
+  font-size: 14px;
+}
+
+.calendar-waitlist-release-modal__candidate span:not(.calendar-waitlist-release-modal__avatar):not(.calendar-waitlist-release-modal__queue) {
+  color: #738099;
+  font-size: 12px;
+}
+
+.calendar-waitlist-release-modal__queue {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #e8f7ee;
+  color: #168449;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.calendar-waitlist-release-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.calendar-waitlist-release-modal__actions button {
+  min-height: 43px;
+  border-radius: 11px;
+  padding: 0 14px;
+  font-weight: 800;
+}
+
+.calendar-waitlist-release-modal__primary {
+  border: 0;
+  background: #1263e5;
+  color: #fff;
+}
+
+.calendar-waitlist-release-modal__secondary {
+  border: 1px solid #ccd9eb;
+  background: #fff;
+  color: #24416d;
+}
+
+.calendar-waitlist-release-modal__ghost {
+  border: 1px solid #f3c7c7;
+  background: #fff8f8;
+  color: #c53b3b;
+}
+
+.calendar-waitlist-release-modal__cancel {
+  border: 0;
+  background: #f1f4f8;
+  color: #53627a;
+}
+
+.calendar-waitlist-release-modal__actions button:disabled {
+  opacity: .58;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .calendar-waitlist-match-card {
+  border-color: #29456d;
+  background: linear-gradient(135deg, #17243a 0%, #132139 100%);
+}
+
+[data-theme="dark"] .calendar-waitlist-match-main strong,
+[data-theme="dark"] .calendar-waitlist-release-modal__head h3,
+[data-theme="dark"] .calendar-waitlist-release-modal__candidate strong {
+  color: #edf4ff;
+}
+
+[data-theme="dark"] .calendar-waitlist-release-modal__candidate {
+  border-color: #2d4262;
+  background: #17253b;
+}
+
+[data-theme="dark"] .calendar-waitlist-release-modal__secondary {
+  border-color: #3a4f6d;
+  background: #18263a;
+  color: #e2ebf8;
+}
+
+@media (max-width: 760px) {
+  .calendar-waitlist-match-card.is-visible,
+  .calendar-waitlist-match-card:has(.calendar-waitlist-match-loading) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .calendar-waitlist-match-actions {
+    justify-content: stretch;
+  }
+
+  .calendar-waitlist-match-actions button {
+    flex: 1 1 auto;
+  }
+
+  .calendar-waitlist-release-modal {
+    padding: 24px 18px 18px;
+  }
+
+  .calendar-waitlist-release-modal__actions {
+    grid-template-columns: 1fr;
+  }
+}

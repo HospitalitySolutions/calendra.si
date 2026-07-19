@@ -1877,7 +1877,23 @@ export default function CalendarPage() {
             }
         api.post('/bookings', payload, {
           headers: { 'X-Skip-Conflict-Toast': 'true' },
-        }).then(() => {
+        }).then(async (response) => {
+          const waitlistRequestId = Number(pending.waitlistRequestId)
+          const createdBookingId = Number(response?.data?.id)
+          if (Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
+            && Number.isInteger(createdBookingId) && createdBookingId > 0) {
+            try {
+              await api.post(`/waitlists/${waitlistRequestId}/convert-to-booking`, { bookingId: createdBookingId })
+            } catch (waitlistError: any) {
+              showToast(
+                'error',
+                waitlistError?.response?.data?.message
+                  || (locale === 'sl'
+                    ? 'Termin je ustvarjen, vendar zahteve na čakalni vrsti ni bilo mogoče samodejno zapreti.'
+                    : 'The booking was created, but the waitlist request could not be closed automatically.'),
+              )
+            }
+          }
           load()
           window.dispatchEvent(new Event('todos-updated'))
           setSelection(null)
@@ -6743,6 +6759,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           typeId: form.typeId ?? null,
           notes: form.notes ?? '',
           meetingProvider: provider,
+          waitlistRequestId: form.waitlistRequestId ?? null,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
         }))
         if (provider === 'google') connectGoogle()
@@ -6788,6 +6805,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     setSaveBookingLoading(true)
     try {
+      let firstCreatedBookingId: number | null = null
       if (form.todo) {
         await api.post('/bookings/todos', {
           startTime: form.startTime,
@@ -6874,13 +6892,31 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           bookingDates.push({ startTime: form.startTime, endTime: form.endTime })
         }
         for (const dt of bookingDates) {
-          await api.post('/bookings', {
+          const createdResponse = await api.post('/bookings', {
             ...bookingPayloadBase,
             startTime: dt.startTime,
             endTime: dt.endTime,
           }, {
             headers: { 'X-Skip-Conflict-Toast': 'true' },
           })
+          const createdId = Number(createdResponse?.data?.id)
+          if (firstCreatedBookingId == null && Number.isInteger(createdId) && createdId > 0) {
+            firstCreatedBookingId = createdId
+          }
+        }
+        const waitlistRequestId = Number(form.waitlistRequestId)
+        if (Number.isInteger(waitlistRequestId) && waitlistRequestId > 0 && firstCreatedBookingId != null) {
+          try {
+            await api.post(`/waitlists/${waitlistRequestId}/convert-to-booking`, { bookingId: firstCreatedBookingId })
+          } catch (waitlistError: any) {
+            showToast(
+              'error',
+              waitlistError?.response?.data?.message
+                || (locale === 'sl'
+                  ? 'Termin je ustvarjen, vendar zahteve na čakalni vrsti ni bilo mogoče samodejno zapreti.'
+                  : 'The booking was created, but the waitlist request could not be closed automatically.'),
+            )
+          }
         }
       }
       // Keep the booking form open (with saving state) until calendar data refreshes,
@@ -7962,7 +7998,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
   }, [createOpenBillForPaymentStatus, loadCalendarRangeOnly, locale, noShowModuleEnabled, openBookedPaymentOpenBillEditor, selectedBookedSession, showToast])
 
-  const transitionBookedStatus = async (targetStatus: StoredBookingStatus) => {
+  const transitionBookedStatus = async (targetStatus: StoredBookingStatus, skipConfirmation = false, allowWaitlistHold = false) => {
     if (!selectedBookedSession?.id) return
     if (targetStatus === 'NO_SHOW' && !noShowModuleEnabled) {
       showToast('error', locale === 'sl' ? 'NO SHOW je izklopljen v modulih.' : 'NO SHOW is disabled in modules.')
@@ -7982,14 +8018,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       showToast('error', formatInvalidStatusTransitionMessage(transitionValidation.reason, targetStatus))
       return
     }
-    if (targetStatus === 'CHECKED_OUT') {
+    if (!skipConfirmation && targetStatus === 'CHECKED_OUT') {
       const checkoutConfirmed = window.confirm(
         locale === 'sl'
           ? 'Preklopim status na ZAKLJUČEN? Termin bo označen kot zaključen.'
           : 'Switch status to CHECKED OUT? The session will be marked as completed.',
       )
       if (!checkoutConfirmed) return
-    } else {
+    } else if (!skipConfirmation) {
       const confirmMessage = targetStatus === 'CANCELLED'
         ? (locale === 'sl'
           ? 'Preklopim status na ODPOVEDAN? To bo sprostilo razpoložljivost termina.'
@@ -7999,7 +8035,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : 'Switch status to NO SHOW? This will release the booking availability.')
       if (!window.confirm(confirmMessage)) return
     }
-    await updateBookedSession(false, false, false, targetStatus)
+    return await updateBookedSession(allowWaitlistHold, allowWaitlistHold, allowWaitlistHold, targetStatus)
   }
 
   const closePersonalModal = () => {
@@ -8344,7 +8380,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     } catch (e: any) {
       showToast('error', e?.response?.data?.message || e?.message || 'Failed to update session.')
       setSaveBookingLoading(false)
-      return
+      return false
     }
     if (requestedStoredStatus === 'CHECKED_OUT') {
       const fallbackStatuses = Array.isArray(selectedBookedSession?.paymentStatuses) ? selectedBookedSession.paymentStatuses : []
@@ -8429,6 +8465,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     load()
     leaveCompactFormRouteIfNeeded()
     setSaveBookingLoading(false)
+    return true
   }
 
   const saveBookedPaymentManager = useCallback(async () => {

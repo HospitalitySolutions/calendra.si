@@ -50,7 +50,7 @@ public class WaitlistSettingsService {
                     bool(node, "exactTimeEnabled", true),
                     bool(node, "flexibleWindowsEnabled", true),
                     bool(node, "employeePreferenceEnabled", true),
-                    bool(node, "autoOfferEnabled", true),
+                    bool(node, "autoOfferEnabled", false),
                     integer(node, "offerValidityMinutes", 15, 5, 1440),
                     integer(node, "maxActiveRequestsPerGuest", 5, 1, 100),
                     integer(node, "maxRequestedDateRangeDays", 30, 1, 365),
@@ -72,7 +72,7 @@ public class WaitlistSettingsService {
             value = new WaitlistSettings(
                     bool(node, "enabled", true), bool(node, "widgetEnabled", true), bool(node, "guestAppEnabled", true),
                     bool(node, "exactTimeEnabled", true), bool(node, "flexibleWindowsEnabled", true), bool(node, "employeePreferenceEnabled", true),
-                    bool(node, "autoOfferEnabled", true), integer(node, "offerValidityMinutes", 15, 5, 1440),
+                    bool(node, "autoOfferEnabled", false), integer(node, "offerValidityMinutes", 15, 5, 1440),
                     integer(node, "maxActiveRequestsPerGuest", 5, 1, 100), integer(node, "maxRequestedDateRangeDays", 30, 1, 365),
                     bool(node, "staffManualEntryEnabled", true), bool(node, "closeEquivalentAfterBooking", true),
                     bool(node, "notifyEmail", true), bool(node, "notifySms", false), bool(node, "notifyGuestApp", true));
@@ -103,7 +103,7 @@ public class WaitlistSettingsService {
     }
 
     private static WaitlistSettings defaults() {
-        return new WaitlistSettings(true, true, true, true, true, true, true, 15, 5, 30, true, true, true, false, true);
+        return new WaitlistSettings(true, true, true, true, true, true, false, 15, 5, 30, true, true, true, false, true);
     }
 
     private static boolean bool(JsonNode node, String key, boolean fallback) {

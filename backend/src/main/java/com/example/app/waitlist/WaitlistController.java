@@ -55,6 +55,16 @@ public class WaitlistController {
         return service.offer(me, id, input);
     }
 
+    @PostMapping("/matches")
+    public WaitlistService.MatchResult matches(@AuthenticationPrincipal User me, @RequestBody WaitlistService.MatchInput input) {
+        return service.findMatches(me, input);
+    }
+
+    @PostMapping("/offer-first")
+    public WaitlistService.RequestView offerFirst(@AuthenticationPrincipal User me, @RequestBody WaitlistService.MatchInput input) {
+        return service.offerFirst(me, input);
+    }
+
     @PostMapping("/{id}/skip")
     public WaitlistService.RequestView skip(@AuthenticationPrincipal User me, @PathVariable Long id, @RequestBody WaitlistService.OfferInput input) {
         return service.skip(me, id, input);
@@ -81,5 +91,11 @@ public class WaitlistController {
     @PostMapping("/offers/{offerId}/decline")
     public WaitlistService.RequestView decline(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
         return service.decline(me, offerId);
+    }
+
+    @DeleteMapping("/offers/{offerId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeOffer(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
+        service.revokeOffer(me, offerId);
     }
 }

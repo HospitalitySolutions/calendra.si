@@ -27,7 +27,7 @@ const defaults: WaitlistSettings = {
   exactTimeEnabled: true,
   flexibleWindowsEnabled: true,
   employeePreferenceEnabled: true,
-  autoOfferEnabled: true,
+  autoOfferEnabled: false,
   offerValidityMinutes: 15,
   maxActiveRequestsPerGuest: 5,
   maxRequestedDateRangeDays: 30,
