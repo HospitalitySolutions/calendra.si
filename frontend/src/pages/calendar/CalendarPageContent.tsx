@@ -7018,8 +7018,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const waitlistRequestId = Number(form.waitlistRequestId)
         const hasWaitlistRequest = Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
         for (const dt of bookingDates) {
-          const useWaitlistHoldExclusion = hasWaitlistRequest && firstCreatedBookingId == null
-          const createdResponse = await api.post('/bookings', {
+          const useWaitlistHoldExclusion: boolean = hasWaitlistRequest && firstCreatedBookingId == null
+          const createdResponse: { data?: { id?: unknown } } = await api.post('/bookings', {
             ...bookingPayloadBase,
             startTime: dt.startTime,
             endTime: dt.endTime,
@@ -7029,7 +7029,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               ...(useWaitlistHoldExclusion ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
             },
           })
-          const createdId = Number(createdResponse?.data?.id)
+          const createdId: number = Number(createdResponse.data?.id)
           if (firstCreatedBookingId == null && Number.isInteger(createdId) && createdId > 0) {
             firstCreatedBookingId = createdId
           }
