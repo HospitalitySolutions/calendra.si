@@ -11387,7 +11387,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             const props = info.event.extendedProps
             if (props.kind === 'waitlist-offer') {
               info.jsEvent.preventDefault()
-              if (props.requestId != null) navigate(`/appointments?tab=waitlist&requestId=${props.requestId}`)
+              if (props.requestId != null) navigate(`/appointments?requestId=${props.requestId}`)
               return
             }
             if (openSessionQuickActionMenu(info)) {

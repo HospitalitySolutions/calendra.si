@@ -342,7 +342,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const inboxAllowed = inboxModuleEnabled && canViewInbox
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
-  const appointmentsNavLabel = locale === 'sl' ? 'Termini' : locale === 'sr' ? 'Termini' : 'Appointments'
+  const appointmentsNavLabel = locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [aiBookingEnabled, setAiBookingEnabled] = useState(false)
   const [todos, setTodos] = useState<any[]>([])

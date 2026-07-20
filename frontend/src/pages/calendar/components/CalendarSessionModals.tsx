@@ -1723,7 +1723,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               <button
                 type="button"
                 className="calendar-waitlist-release-modal__secondary"
-                onClick={() => window.open('/appointments?tab=waitlist', '_blank', 'noopener,noreferrer')}
+                onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}
                 disabled={releasedSlotWaitlistLoading}
               >
                 {locale === 'sl' ? 'Prikaži čakalno vrsto' : 'View waitlist'}
@@ -4502,7 +4502,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         <button
                           type="button"
                           className="calendar-waitlist-link"
-                          onClick={() => window.open('/appointments?tab=waitlist', '_blank', 'noopener,noreferrer')}
+                          onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}
                         >
                           <span>{locale === 'sl' ? 'Prikaži čakalno vrsto' : locale === 'sr' ? 'Prikaži listu čekanja' : 'View waitlist'}</span>
                           <svg viewBox="0 0 24 24" fill="none" aria-hidden><path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
