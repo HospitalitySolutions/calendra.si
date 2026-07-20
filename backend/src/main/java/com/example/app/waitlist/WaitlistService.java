@@ -352,6 +352,99 @@ public class WaitlistService {
         return detail(me, row.getId());
     }
 
+    /**
+     * Creates a guest-submitted request from the public website booking flow.
+     * The public controller resolves the tenant, service and client identity first;
+     * this method keeps the same validation, duplicate prevention, notifications and
+     * audit history as a staff-created request without requiring an authenticated user.
+     */
+    @Transactional
+    public RequestView createFromWidget(Long companyId, Client client, RequestInput input) {
+        if (companyId == null || client == null || client.getId() == null
+                || client.getCompany() == null || !Objects.equals(client.getCompany().getId(), companyId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A tenant client is required.");
+        }
+        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
+        if (!cfg.enabled() || !cfg.widgetEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Website waitlist entry is disabled.");
+        }
+        if (requests.countByCompanyIdAndClientIdAndStatusIn(companyId, client.getId(), DUPLICATE_BLOCKING_STATUSES)
+                >= cfg.maxActiveRequestsPerGuest()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The maximum number of active waitlist requests has been reached.");
+        }
+
+        input = new RequestInput(
+                client.getId(),
+                input == null ? null : input.serviceId(),
+                input == null ? null : input.serviceScope(),
+                input == null ? null : input.serviceGroupId(),
+                input == null ? null : input.locationId(),
+                input == null ? null : input.targetType(),
+                input == null ? null : input.targetSessionId(),
+                input == null ? null : input.dateFrom(),
+                input == null ? null : input.dateTo(),
+                input == null ? null : input.employeePreferenceType(),
+                input == null ? null : input.specificEmployeeId(),
+                input == null ? List.of() : input.employeeIds(),
+                input == null ? 1 : input.requestedParticipants(),
+                WaitlistSource.WIDGET,
+                input == null ? null : input.notes(),
+                input == null ? List.of() : input.windows()
+        );
+        input = normalizeInput(input, cfg);
+        validateInput(input, cfg);
+
+        ServiceSelection selection = resolveServiceSelection(input, companyId);
+        Space location = input.locationId() == null ? null : spaces.findByIdAndCompanyId(input.locationId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
+        SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
+        User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
+        List<User> selectedEmployees = resolveEmployees(input.employeeIds(), companyId);
+        String duplicateKey = duplicateKey(companyId, client.getId(), input, selectedEmployees, selection.eligibleServices());
+        if (requests.existsByCompanyIdAndDuplicateKeyAndStatusIn(companyId, duplicateKey, DUPLICATE_BLOCKING_STATUSES)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "An equivalent active waitlist request already exists.");
+        }
+
+        WaitlistRequest row = new WaitlistRequest();
+        row.setCompany(companies.getReferenceById(companyId));
+        row.setClient(client);
+        applyServiceSelection(row, selection);
+        row.setLocation(location);
+        row.setTargetType(input.targetType());
+        row.setTargetSession(targetSession);
+        row.setDateFrom(input.dateFrom());
+        row.setDateTo(input.dateTo());
+        row.setEmployeePreferenceType(Optional.ofNullable(input.employeePreferenceType()).orElse(WaitlistEmployeePreferenceType.ANY));
+        row.setSpecificEmployee(specificEmployee);
+        row.setRequestedParticipants(Math.max(1, Optional.ofNullable(input.requestedParticipants()).orElse(1)));
+        row.setStatus(WaitlistRequestStatus.ACTIVE);
+        row.setSource(WaitlistSource.WIDGET);
+        row.setNotes(trimToNull(input.notes()));
+        row.setJoinedAt(Instant.now());
+        row.setExpiresAt(input.dateTo().plusDays(1).atStartOfDay(ZONE).toInstant());
+        row.setDuplicateKey(duplicateKey);
+        row = requests.save(row);
+        replaceWindows(row, input.windows());
+        replaceEmployees(row, selectedEmployees);
+        replaceEligibleServices(row, selection.eligibleServices());
+
+        String selectionName = serviceSelectionName(row);
+        addEvent(row, null, null, WaitlistEventType.JOINED, "Stranka se je prek spletnega naročanja pridružila čakalni vrsti za " + selectionName + ".");
+        tenantNotifications.createWaitlistNotification(companyId, row.getId(), "WAITLIST_JOINED", "Nova stranka na čakalni vrsti",
+                clientName(client) + " čaka na termin za " + selectionName + ".", "/appointments?requestId=" + row.getId());
+        guestNotifications.publish(row, null, WaitlistGuestNotificationService.EventKind.JOINED);
+
+        return toView(
+                row,
+                windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(row.getId()),
+                requestEmployees.findAllByRequestId(row.getId()),
+                requestServices.findAllByRequestIdOrderBySortOrderSnapshotAscIdAsc(row.getId()),
+                true
+        );
+    }
+
     @Transactional
     public RequestView update(User me, Long id, RequestInput input) {
         Long companyId = companyId(me);

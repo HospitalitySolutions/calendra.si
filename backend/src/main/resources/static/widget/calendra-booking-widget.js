@@ -151,6 +151,34 @@
       groupSessionBooked: 'booked',
       groupSessionNoOptions: 'No open group sessions for this date.',
       groupSessionSelectionHint: 'Group bookings use the consultant already assigned to the selected group session, or a consultant can be assigned later.',
+      waitlistCtaTitle: 'Can’t find a suitable time?',
+      waitlistCtaText: 'Join the waitlist and we will let you know when a matching slot becomes available.',
+      waitlistCtaButton: 'Join waitlist',
+      waitlistTitle: 'Join the waitlist',
+      waitlistSubtitle: 'Tell us what works for you and we will notify you when a suitable appointment becomes available.',
+      waitlistService: 'Service',
+      waitlistEmployee: 'Employee (optional)',
+      waitlistAnyEmployee: 'Any available employee',
+      waitlistFlexible: 'Flexible appointment',
+      waitlistFlexibleHelp: 'We will look for the closest matching appointments within your selected range.',
+      waitlistDateFrom: 'Date from',
+      waitlistDateTo: 'Date to',
+      waitlistTimeFrom: 'Time from',
+      waitlistTimeTo: 'Time to',
+      waitlistWeekdays: 'Days of the week (optional)',
+      waitlistNotes: 'Notes (optional)',
+      waitlistNotesPlaceholder: 'Add preferences or other useful information…',
+      waitlistGuestDetails: 'Your contact details',
+      waitlistCancel: 'Cancel',
+      waitlistSubmit: 'Send request',
+      waitlistSubmitting: 'Sending…',
+      waitlistSuccessTitle: 'You are on the waitlist',
+      waitlistSuccessText: 'We will contact you when a suitable appointment becomes available.',
+      waitlistClose: 'Close',
+      waitlistFailed: 'The waitlist request could not be sent.',
+      waitlistRequiredFields: 'Complete all required contact and appointment fields.',
+      waitlistInvalidRange: 'Check the selected date and time range.',
+      waitlistRangeTooLong: 'The selected date range is too long.',
     },
     sl: {
       badge: 'Naročanje',
@@ -293,6 +321,34 @@
       groupSessionBooked: 'prijavljenih',
       groupSessionNoOptions: 'Za ta datum ni odprtih skupinskih ur.',
       groupSessionSelectionHint: 'Za skupinske rezervacije se uporabi že dodeljeni svetovalec izbranega skupinskega termina, lahko pa se svetovalec določi tudi pozneje.',
+      waitlistCtaTitle: 'Ne najdete ustreznega termina?',
+      waitlistCtaText: 'Pridružite se čakalni vrsti in obvestili vas bomo, ko bo na voljo prost termin.',
+      waitlistCtaButton: 'Pridruži se čakalni vrsti',
+      waitlistTitle: 'Pridruži se čakalni vrsti',
+      waitlistSubtitle: 'Izpolnite podatke in obvestili vas bomo, ko bo na voljo prost termin.',
+      waitlistService: 'Storitev',
+      waitlistEmployee: 'Zaposleni (neobvezno)',
+      waitlistAnyEmployee: 'Katerikoli razpoložljivi zaposleni',
+      waitlistFlexible: 'Fleksibilen termin',
+      waitlistFlexibleHelp: 'Obvestili vas bomo o najbližjih ustreznih terminih v izbranem obdobju.',
+      waitlistDateFrom: 'Datum od',
+      waitlistDateTo: 'Datum do',
+      waitlistTimeFrom: 'Čas od',
+      waitlistTimeTo: 'Čas do',
+      waitlistWeekdays: 'Dnevi v tednu (neobvezno)',
+      waitlistNotes: 'Opombe (neobvezno)',
+      waitlistNotesPlaceholder: 'Napišite svoje želje ali dodatne informacije …',
+      waitlistGuestDetails: 'Vaši kontaktni podatki',
+      waitlistCancel: 'Prekliči',
+      waitlistSubmit: 'Pošlji zahtevo',
+      waitlistSubmitting: 'Pošiljam…',
+      waitlistSuccessTitle: 'Dodani ste na čakalno vrsto',
+      waitlistSuccessText: 'Obvestili vas bomo, ko bo na voljo termin, ki ustreza vašim željam.',
+      waitlistClose: 'Zapri',
+      waitlistFailed: 'Zahteve za čakalno vrsto ni bilo mogoče poslati.',
+      waitlistRequiredFields: 'Izpolnite vsa obvezna polja za termin in kontakt.',
+      waitlistInvalidRange: 'Preverite izbrano datumsko in časovno obdobje.',
+      waitlistRangeTooLong: 'Izbrano datumsko obdobje je predolgo.',
     },
   };
 
@@ -326,6 +382,21 @@
   const firstOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
   const addMonths = (date, offset) => new Date(date.getFullYear(), date.getMonth() + offset, 1);
+
+  const addIsoDays = (value, offset) => {
+    const date = parseIsoDate(value) || new Date();
+    return formatIsoDate(new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset));
+  };
+
+  const WAITLIST_WEEKDAYS = [
+    { value: 'MONDAY', en: 'Mon', sl: 'Pon' },
+    { value: 'TUESDAY', en: 'Tue', sl: 'Tor' },
+    { value: 'WEDNESDAY', en: 'Wed', sl: 'Sre' },
+    { value: 'THURSDAY', en: 'Thu', sl: 'Čet' },
+    { value: 'FRIDAY', en: 'Fri', sl: 'Pet' },
+    { value: 'SATURDAY', en: 'Sat', sl: 'Sob' },
+    { value: 'SUNDAY', en: 'Sun', sl: 'Ned' },
+  ];
 
   const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
@@ -366,6 +437,24 @@
         giftCardCodes: [],
         termsAccepted: true,
         paymentResult: null,
+        waitlistOpen: false,
+        waitlistSaving: false,
+        waitlistSuccess: null,
+        waitlistError: '',
+        waitlistForm: {
+          consultantId: '',
+          flexible: true,
+          dateFrom: '',
+          dateTo: '',
+          timeFrom: '09:00',
+          timeTo: '18:00',
+          weekdays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+          notes: '',
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+        },
       };
       this.options = { ...DEFAULTS };
       this.resizeObserver = null;
@@ -635,6 +724,8 @@
         check: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>',
         arrowRight: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
         arrowLeft: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
+        close: '<svg class="line-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>',
+        waitlist: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M8 4h8M6 8h12M5 12h10M5 16h7M18 15v6M15 18h6"/></svg>',
       };
       return icons[name] || icons.calendar;
     }
@@ -1627,6 +1718,254 @@
       void this.loadMonthAvailability();
     }
 
+    waitlistAvailable() {
+      const config = this.state.config;
+      return Boolean(
+        config?.waitlistEnabled
+        && this.state.selectedServiceId
+        && (config?.waitlistExactTimeEnabled || config?.waitlistFlexibleWindowsEnabled)
+      );
+    }
+
+    defaultWaitlistForm() {
+      const config = this.state.config || {};
+      const dateFrom = this.state.selectedDate || this.todayInWidgetTimezone();
+      const maxDays = Math.max(1, Number(config.waitlistMaxRequestedDateRangeDays || 30));
+      const flexibleAllowed = config.waitlistFlexibleWindowsEnabled !== false;
+      const exactAllowed = config.waitlistExactTimeEnabled !== false;
+      const flexible = flexibleAllowed || !exactAllowed;
+      const requestedDays = Math.min(14, maxDays);
+      const consultantId = config.waitlistEmployeePreferenceEnabled && this.state.selectedConsultantId != null
+        ? String(this.state.selectedConsultantId)
+        : '';
+      return {
+        consultantId,
+        flexible,
+        dateFrom,
+        dateTo: flexible ? addIsoDays(dateFrom, requestedDays - 1) : dateFrom,
+        timeFrom: config.workingHoursStart || '09:00',
+        timeTo: config.workingHoursEnd || '18:00',
+        weekdays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+        notes: '',
+        firstName: this.state.form.firstName || '',
+        lastName: this.state.form.lastName || '',
+        email: this.state.form.email || '',
+        phone: this.state.form.phone || '',
+      };
+    }
+
+    openWaitlist() {
+      if (!this.waitlistAvailable()) return;
+      this.setState({
+        waitlistOpen: true,
+        waitlistSaving: false,
+        waitlistSuccess: null,
+        waitlistError: '',
+        waitlistForm: this.defaultWaitlistForm(),
+      });
+    }
+
+    closeWaitlist() {
+      if (this.state.waitlistSaving) return;
+      this.setState({
+        waitlistOpen: false,
+        waitlistSuccess: null,
+        waitlistError: '',
+      });
+    }
+
+    updateWaitlistForm(field, value) {
+      const next = { ...this.state.waitlistForm, [field]: value };
+      if (field === 'dateFrom') {
+        const maxDate = addIsoDays(value, Math.max(0, Number(this.state.config?.waitlistMaxRequestedDateRangeDays || 30) - 1));
+        if (!next.flexible) next.dateTo = value;
+        else if (!next.dateTo || next.dateTo < value) next.dateTo = value;
+        else if (next.dateTo > maxDate) next.dateTo = maxDate;
+      }
+      if (field === 'flexible' && !value) {
+        next.dateTo = next.dateFrom;
+      }
+      this.setState({ waitlistForm: next, waitlistError: '' });
+    }
+
+    validateWaitlistForm() {
+      const t = this.text();
+      const form = this.state.waitlistForm || {};
+      if (!form.firstName?.trim() || !form.lastName?.trim() || !form.email?.trim() || !form.phone?.trim()
+          || !form.dateFrom || !form.dateTo || !form.timeFrom || !form.timeTo) {
+        return t.waitlistRequiredFields;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        return t.waitlistRequiredFields;
+      }
+      const dateFrom = parseIsoDate(form.dateFrom);
+      const dateTo = parseIsoDate(form.flexible ? form.dateTo : form.dateFrom);
+      if (!dateFrom || !dateTo || dateTo < dateFrom || form.timeTo <= form.timeFrom) {
+        return t.waitlistInvalidRange;
+      }
+      const rangeDays = Math.round((dateTo - dateFrom) / 86400000) + 1;
+      if (rangeDays > Number(this.state.config?.waitlistMaxRequestedDateRangeDays || 30)) {
+        return t.waitlistRangeTooLong;
+      }
+      return '';
+    }
+
+    async submitWaitlistRequest() {
+      if (this.state.waitlistSaving || !this.waitlistAvailable()) return;
+      const validationError = this.validateWaitlistForm();
+      if (validationError) {
+        this.setState({ waitlistError: validationError });
+        return;
+      }
+
+      const form = this.state.waitlistForm;
+      this.setState({ waitlistSaving: true, waitlistError: '' });
+      try {
+        const response = await this.fetchJson(
+          `/api/public/widget/${encodeURIComponent(this.options.tenant)}/waitlist`,
+          {
+            method: 'POST',
+            headers: { 'Idempotency-Key': this.newIdempotencyKey('waitlist') },
+            body: {
+              typeId: this.state.selectedServiceId,
+              consultantId: form.consultantId ? Number(form.consultantId) : null,
+              flexible: Boolean(form.flexible),
+              dateFrom: form.dateFrom,
+              dateTo: form.flexible ? form.dateTo : form.dateFrom,
+              timeFrom: form.timeFrom,
+              timeTo: form.timeTo,
+              weekdays: form.flexible ? form.weekdays : [],
+              notes: form.notes?.trim() || null,
+              firstName: form.firstName.trim(),
+              lastName: form.lastName.trim(),
+              email: form.email.trim(),
+              phone: form.phone.trim(),
+            },
+          }
+        );
+        this.setState({
+          waitlistSaving: false,
+          waitlistSuccess: response,
+          waitlistError: '',
+          form: {
+            ...this.state.form,
+            firstName: form.firstName.trim(),
+            lastName: form.lastName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+          },
+        });
+      } catch (error) {
+        this.setState({
+          waitlistSaving: false,
+          waitlistError: this.normalizeError(error, this.text().waitlistFailed),
+        });
+      }
+    }
+
+    waitlistCtaMarkup() {
+      if (!this.waitlistAvailable()) return '';
+      const t = this.text();
+      return `
+        <div class="waitlist-cta">
+          <span class="waitlist-cta__icon">${this.uiIcon('waitlist')}</span>
+          <span class="waitlist-cta__copy">
+            <strong>${escapeHtml(t.waitlistCtaTitle)}</strong>
+            <small>${escapeHtml(t.waitlistCtaText)}</small>
+          </span>
+          <button type="button" class="waitlist-cta__button" data-action="waitlist-open">${escapeHtml(t.waitlistCtaButton)}</button>
+        </div>
+      `;
+    }
+
+    waitlistModalMarkup() {
+      if (!this.state.waitlistOpen) return '';
+      const t = this.text();
+      const service = this.currentService();
+      const form = this.state.waitlistForm || {};
+      const localeKey = this.normalizedLocale() === 'sl' ? 'sl' : 'en';
+      const maxDate = form.dateFrom
+        ? addIsoDays(form.dateFrom, Math.max(0, Number(this.state.config?.waitlistMaxRequestedDateRangeDays || 30) - 1))
+        : '';
+      const canToggle = Boolean(this.state.config?.waitlistExactTimeEnabled && this.state.config?.waitlistFlexibleWindowsEnabled);
+      const showEmployee = Boolean(this.state.config?.waitlistEmployeePreferenceEnabled);
+
+      if (this.state.waitlistSuccess) {
+        return `
+          <div class="waitlist-backdrop" data-action="waitlist-backdrop">
+            <section class="waitlist-modal waitlist-modal--success" role="dialog" aria-modal="true" aria-labelledby="waitlist-title">
+              <button type="button" class="waitlist-modal__close" data-action="waitlist-close" aria-label="${escapeHtml(t.waitlistClose)}">${this.uiIcon('close')}</button>
+              <div class="waitlist-success__icon">${this.uiIcon('check')}</div>
+              <h3 id="waitlist-title">${escapeHtml(t.waitlistSuccessTitle)}</h3>
+              <p>${escapeHtml(t.waitlistSuccessText)}</p>
+              <button type="button" class="primary" data-action="waitlist-close">${escapeHtml(t.waitlistClose)}</button>
+            </section>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="waitlist-backdrop" data-action="waitlist-backdrop">
+          <section class="waitlist-modal" role="dialog" aria-modal="true" aria-labelledby="waitlist-title">
+            <header class="waitlist-modal__header">
+              <div>
+                <h3 id="waitlist-title">${escapeHtml(t.waitlistTitle)}</h3>
+                <p>${escapeHtml(t.waitlistSubtitle)}</p>
+              </div>
+              <button type="button" class="waitlist-modal__close" data-action="waitlist-close" aria-label="${escapeHtml(t.waitlistClose)}">${this.uiIcon('close')}</button>
+            </header>
+
+            <div class="waitlist-modal__body">
+              <div class="waitlist-form-grid">
+                <label class="waitlist-field waitlist-field--wide">
+                  <span>${escapeHtml(t.waitlistService)}</span>
+                  <div class="waitlist-readonly">${this.serviceIconMarkup(service, 0)}<strong>${escapeHtml(this.serviceDisplayName(service))}</strong></div>
+                </label>
+                ${showEmployee ? `
+                  <label class="waitlist-field waitlist-field--wide">
+                    <span>${escapeHtml(t.waitlistEmployee)}</span>
+                    <select id="waitlist-consultant">
+                      <option value="">${escapeHtml(t.waitlistAnyEmployee)}</option>
+                      ${this.state.consultants.map((item) => `<option value="${item.id}" ${String(form.consultantId) === String(item.id) ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}
+                    </select>
+                  </label>
+                ` : ''}
+
+                <div class="waitlist-flexible waitlist-field--wide">
+                  <span><strong>${escapeHtml(t.waitlistFlexible)}</strong><small>${escapeHtml(t.waitlistFlexibleHelp)}</small></span>
+                  <button type="button" class="waitlist-switch ${form.flexible ? 'is-on' : ''}" role="switch" aria-checked="${form.flexible ? 'true' : 'false'}" data-action="waitlist-flexible" ${canToggle ? '' : 'disabled'}><i></i></button>
+                </div>
+
+                <label class="waitlist-field"><span>${escapeHtml(t.waitlistDateFrom)}</span><input id="waitlist-date-from" type="date" value="${escapeHtml(form.dateFrom)}" min="${escapeHtml(this.todayInWidgetTimezone())}" /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.waitlistDateTo)}</span><input id="waitlist-date-to" type="date" value="${escapeHtml(form.flexible ? form.dateTo : form.dateFrom)}" min="${escapeHtml(form.dateFrom)}" max="${escapeHtml(maxDate)}" ${form.flexible ? '' : 'disabled'} /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.waitlistTimeFrom)}</span><input id="waitlist-time-from" type="time" value="${escapeHtml(form.timeFrom)}" /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.waitlistTimeTo)}</span><input id="waitlist-time-to" type="time" value="${escapeHtml(form.timeTo)}" /></label>
+
+                <div class="waitlist-weekdays waitlist-field--wide ${form.flexible ? '' : 'is-disabled'}">
+                  <span>${escapeHtml(t.waitlistWeekdays)}</span>
+                  <div>${WAITLIST_WEEKDAYS.map((day) => `<button type="button" data-action="waitlist-weekday" data-day="${day.value}" class="${(form.weekdays || []).includes(day.value) ? 'is-active' : ''}" ${form.flexible ? '' : 'disabled'}>${escapeHtml(day[localeKey])}</button>`).join('')}</div>
+                </div>
+
+                <label class="waitlist-field waitlist-field--wide"><span>${escapeHtml(t.waitlistNotes)}</span><textarea id="waitlist-notes" maxlength="200" rows="3" placeholder="${escapeHtml(t.waitlistNotesPlaceholder)}">${escapeHtml(form.notes)}</textarea><small class="waitlist-counter">${String(form.notes || '').length} / 200</small></label>
+
+                <div class="waitlist-section-title waitlist-field--wide">${escapeHtml(t.waitlistGuestDetails)}</div>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelFirstName)}</span><input id="waitlist-first-name" type="text" autocomplete="given-name" value="${escapeHtml(form.firstName)}" /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelLastName)}</span><input id="waitlist-last-name" type="text" autocomplete="family-name" value="${escapeHtml(form.lastName)}" /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelEmail)}</span><input id="waitlist-email" type="email" autocomplete="email" value="${escapeHtml(form.email)}" /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelPhone)}</span><input id="waitlist-phone" type="tel" autocomplete="tel" value="${escapeHtml(form.phone)}" /></label>
+              </div>
+              ${this.state.waitlistError ? `<div class="waitlist-error">${escapeHtml(this.state.waitlistError)}</div>` : ''}
+            </div>
+
+            <footer class="waitlist-modal__footer">
+              <button type="button" class="secondary" data-action="waitlist-close" ${this.state.waitlistSaving ? 'disabled' : ''}>${escapeHtml(t.waitlistCancel)}</button>
+              <button type="button" class="primary" data-action="waitlist-submit" ${this.state.waitlistSaving ? 'disabled' : ''}>${escapeHtml(this.state.waitlistSaving ? t.waitlistSubmitting : t.waitlistSubmit)}</button>
+            </footer>
+          </section>
+        </div>
+      `;
+    }
+
     monthLabel() {
       const monthDate = parseIsoDate(this.state.calendarMonth) || new Date();
       const locale = String(this.options?.locale || DEFAULTS.locale || 'en').toLowerCase().startsWith('sl')
@@ -2060,6 +2399,7 @@
                     </button>
                   `).join('')}</div>`
                 : `<div class="empty">${escapeHtml(t.groupSessionNoOptions)}</div>`}
+            ${this.waitlistCtaMarkup()}
           </div>
         `;
 
@@ -2102,6 +2442,7 @@
                 </select>
               </div>
             `}
+            ${this.waitlistCtaMarkup()}
           </div>
         `;
 
@@ -2252,7 +2593,7 @@
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
         * { box-sizing: border-box; }
-        button, input, select { font: inherit; }
+        button, input, select, textarea { font: inherit; }
         svg { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; }
         .line-icon path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .widget { width: 100%; }
@@ -2572,6 +2913,182 @@
         .slot-chip.is-active { background: var(--calendra-primary); color: #fff; border-color: var(--calendra-primary); }
         .slot-chip.is-active small { color: rgba(255,255,255,.8); }
         .manual-time-wrap select { width: 100%; min-height: 50px; border-radius: 13px; border: 1px solid var(--calendra-border); padding: 0 14px; background: #fff; }
+        .waitlist-cta {
+          display: grid;
+          grid-template-columns: 42px minmax(0,1fr) auto;
+          align-items: center;
+          gap: 13px;
+          margin-top: 8px;
+          padding: 15px;
+          border: 1px solid rgba(15,107,255,.18);
+          border-radius: 14px;
+          background: linear-gradient(135deg, rgba(15,107,255,.07), rgba(15,107,255,.025));
+        }
+        .waitlist-cta__icon {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 12px;
+          color: var(--calendra-primary);
+          background: #fff;
+          box-shadow: inset 0 0 0 1px rgba(15,107,255,.12);
+          font-size: 22px;
+        }
+        .waitlist-cta__copy { min-width: 0; display: grid; gap: 4px; }
+        .waitlist-cta__copy strong { color: #17355f; font-size: 14px; font-weight: 850; }
+        .waitlist-cta__copy small { color: #64748b; font-size: 12px; line-height: 1.42; }
+        .waitlist-cta__button {
+          min-height: 40px;
+          padding: 0 14px;
+          border: 1px solid rgba(15,107,255,.55);
+          border-radius: 10px;
+          background: #fff;
+          color: var(--calendra-primary);
+          font-size: 12px;
+          font-weight: 850;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .waitlist-cta__button:hover { background: var(--calendra-primary); color: #fff; }
+        .waitlist-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 10000;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          background: rgba(7,18,47,.38);
+          backdrop-filter: blur(5px);
+        }
+        .waitlist-modal {
+          width: min(620px, 100%);
+          max-height: calc(100vh - 40px);
+          display: grid;
+          grid-template-rows: auto minmax(0,1fr) auto;
+          overflow: hidden;
+          border: 1px solid rgba(207,216,230,.9);
+          border-radius: 20px;
+          background: #fff;
+          box-shadow: 0 32px 90px rgba(7,18,47,.28);
+          animation: waitlist-modal-in .16s ease-out;
+        }
+        @keyframes waitlist-modal-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+        .waitlist-modal__header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+          padding: 22px 24px 17px;
+          border-bottom: 1px solid #edf1f6;
+        }
+        .waitlist-modal__header h3, .waitlist-modal--success h3 { margin: 0; color: #12213b; font-size: 22px; line-height: 1.2; font-weight: 900; letter-spacing: -.025em; }
+        .waitlist-modal__header p { margin: 7px 0 0; color: #6b778d; font-size: 13px; line-height: 1.45; }
+        .waitlist-modal__close {
+          width: 36px;
+          height: 36px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
+          border: 0;
+          border-radius: 10px;
+          background: transparent;
+          color: #64748b;
+          cursor: pointer;
+          font-size: 20px;
+        }
+        .waitlist-modal__close:hover { background: #f3f6fa; color: #17243b; }
+        .waitlist-modal__body { overflow: auto; padding: 18px 24px 22px; }
+        .waitlist-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+        .waitlist-field { position: relative; min-width: 0; display: grid; gap: 7px; }
+        .waitlist-field--wide { grid-column: 1 / -1; }
+        .waitlist-field > span, .waitlist-weekdays > span { color: #536079; font-size: 12px; font-weight: 800; }
+        .waitlist-field input, .waitlist-field select, .waitlist-field textarea {
+          width: 100%;
+          min-height: 46px;
+          border: 1px solid #dbe3ee;
+          border-radius: 10px;
+          background: #fff;
+          color: #17243b;
+          padding: 10px 12px;
+          outline: none;
+        }
+        .waitlist-field textarea { min-height: 82px; resize: vertical; padding-right: 62px; line-height: 1.45; }
+        .waitlist-field input:focus, .waitlist-field select:focus, .waitlist-field textarea:focus { border-color: var(--calendra-primary); box-shadow: 0 0 0 3px rgba(15,107,255,.09); }
+        .waitlist-field input:disabled { color: #718096; background: #f5f7fa; }
+        .waitlist-readonly {
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 12px;
+          border: 1px solid #dbe3ee;
+          border-radius: 10px;
+          background: #f9fbfd;
+        }
+        .waitlist-readonly .service-icon { width: 30px; height: 30px; border-radius: 8px; font-size: 16px; }
+        .waitlist-readonly strong { overflow: hidden; color: #263650; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+        .waitlist-flexible {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          padding: 12px 14px;
+          border: 1px solid rgba(15,107,255,.14);
+          border-radius: 12px;
+          background: rgba(15,107,255,.035);
+        }
+        .waitlist-flexible > span { min-width: 0; display: grid; gap: 4px; }
+        .waitlist-flexible strong { color: #21324e; font-size: 13px; }
+        .waitlist-flexible small { color: #6b778d; font-size: 11px; line-height: 1.35; }
+        .waitlist-switch {
+          position: relative;
+          width: 48px;
+          height: 27px;
+          flex: 0 0 auto;
+          border: 0;
+          border-radius: 999px;
+          background: #cbd5e1;
+          cursor: pointer;
+          transition: background .15s ease;
+        }
+        .waitlist-switch i { position: absolute; left: 3px; top: 3px; width: 21px; height: 21px; border-radius: 999px; background: #fff; box-shadow: 0 2px 6px rgba(15,23,42,.22); transition: transform .15s ease; }
+        .waitlist-switch.is-on { background: var(--calendra-primary); }
+        .waitlist-switch.is-on i { transform: translateX(21px); }
+        .waitlist-switch:disabled { opacity: .62; cursor: default; }
+        .waitlist-weekdays { display: grid; gap: 8px; }
+        .waitlist-weekdays > div { display: flex; flex-wrap: wrap; gap: 7px; }
+        .waitlist-weekdays button {
+          min-width: 43px;
+          min-height: 34px;
+          padding: 0 10px;
+          border: 1px solid #dbe3ee;
+          border-radius: 8px;
+          background: #fff;
+          color: #536079;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .waitlist-weekdays button.is-active { border-color: var(--calendra-primary); background: var(--calendra-primary); color: #fff; }
+        .waitlist-weekdays.is-disabled { opacity: .5; }
+        .waitlist-counter { position: absolute; right: 10px; bottom: 8px; color: #8a96a8; font-size: 10px; }
+        .waitlist-section-title { margin-top: 2px; padding-top: 15px; border-top: 1px solid #edf1f6; color: #263650; font-size: 13px; font-weight: 900; }
+        .waitlist-error { margin-top: 14px; padding: 11px 12px; border: 1px solid rgba(220,38,38,.16); border-radius: 10px; background: rgba(220,38,38,.07); color: #b42318; font-size: 12px; line-height: 1.4; }
+        .waitlist-modal__footer { display: flex; justify-content: flex-end; gap: 10px; padding: 15px 24px; border-top: 1px solid #edf1f6; background: #fff; }
+        .waitlist-modal__footer .primary, .waitlist-modal__footer .secondary, .waitlist-modal--success .primary { min-height: 44px; border-radius: 10px; padding: 0 18px; font-size: 13px; }
+        .waitlist-modal--success {
+          position: relative;
+          width: min(440px, 100%);
+          grid-template-rows: auto;
+          justify-items: center;
+          gap: 12px;
+          padding: 42px 28px 30px;
+          text-align: center;
+        }
+        .waitlist-modal--success .waitlist-modal__close { position: absolute; right: 14px; top: 14px; }
+        .waitlist-modal--success p { max-width: 330px; margin: 0 0 8px; color: #66738d; font-size: 14px; line-height: 1.55; }
+        .waitlist-success__icon { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 999px; background: rgba(34,197,94,.12); color: #15803d; font-size: 30px; }
         .checkout-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(360px, .72fr); gap: clamp(30px, 5vw, 72px); align-items: start; }
         .checkout-main { display: grid; gap: 24px; min-width: 0; }
         .details-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }
@@ -2711,6 +3228,27 @@
         :host([data-layout="compact"]) .slot-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
         :host([data-layout="narrow"]) .slot-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
         :host([data-layout="micro"]) .slot-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        :host([data-layout="narrow"]) .waitlist-cta,
+        :host([data-layout="micro"]) .waitlist-cta { grid-template-columns: 40px minmax(0,1fr); }
+        :host([data-layout="narrow"]) .waitlist-cta__button,
+        :host([data-layout="micro"]) .waitlist-cta__button { grid-column: 1 / -1; width: 100%; }
+        :host([data-layout="micro"]) .waitlist-backdrop { padding: 0; place-items: stretch; }
+        :host([data-layout="micro"]) .waitlist-modal {
+          width: 100%;
+          max-height: none;
+          height: 100%;
+          border: 0;
+          border-radius: 0;
+        }
+        :host([data-layout="micro"]) .waitlist-modal__header,
+        :host([data-layout="micro"]) .waitlist-modal__body,
+        :host([data-layout="micro"]) .waitlist-modal__footer { padding-left: 17px; padding-right: 17px; }
+        :host([data-layout="micro"]) .waitlist-form-grid { grid-template-columns: 1fr; }
+        :host([data-layout="micro"]) .waitlist-field--wide,
+        :host([data-layout="micro"]) .waitlist-section-title { grid-column: auto; }
+        :host([data-layout="micro"]) .waitlist-modal__footer { display: grid; grid-template-columns: 1fr; }
+        :host([data-layout="micro"]) .waitlist-modal__footer button { width: 100%; }
+        :host([data-layout="micro"]) .waitlist-modal--success { place-self: center; width: calc(100% - 28px); height: auto; border-radius: 18px; }
         :host([data-layout="compact"]) .consultant-row,
         :host([data-layout="narrow"]) .consultant-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
         :host([data-layout="micro"]) .consultant-row { grid-template-columns: 1fr; }
@@ -2828,6 +3366,7 @@
               <span>${escapeHtml(t.poweredBy)}</span>
             </div>
           </div>
+          ${this.waitlistModalMarkup()}
         </div>
       `;
 
@@ -3069,6 +3608,74 @@
             error: '',
           });
         });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="waitlist-open"]').forEach((button) => {
+        button.addEventListener('click', () => this.openWaitlist());
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="waitlist-close"]').forEach((button) => {
+        button.addEventListener('click', () => this.closeWaitlist());
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="waitlist-backdrop"]').forEach((backdrop) => {
+        backdrop.addEventListener('mousedown', (event) => {
+          if (event.target === backdrop) this.closeWaitlist();
+        });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="waitlist-flexible"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (button.disabled) return;
+          this.updateWaitlistForm('flexible', !this.state.waitlistForm.flexible);
+        });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="waitlist-weekday"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (button.disabled) return;
+          const day = button.dataset.day;
+          const current = new Set(this.state.waitlistForm.weekdays || []);
+          if (current.has(day)) current.delete(day);
+          else current.add(day);
+          this.updateWaitlistForm('weekdays', WAITLIST_WEEKDAYS.map((item) => item.value).filter((value) => current.has(value)));
+        });
+      });
+
+      const waitlistSelect = this.shadowRoot.getElementById('waitlist-consultant');
+      if (waitlistSelect) waitlistSelect.addEventListener('change', (event) => this.updateWaitlistForm('consultantId', event.target.value));
+
+      const waitlistDateFrom = this.shadowRoot.getElementById('waitlist-date-from');
+      if (waitlistDateFrom) waitlistDateFrom.addEventListener('change', (event) => this.updateWaitlistForm('dateFrom', event.target.value));
+      const waitlistDateTo = this.shadowRoot.getElementById('waitlist-date-to');
+      if (waitlistDateTo) waitlistDateTo.addEventListener('change', (event) => this.updateWaitlistForm('dateTo', event.target.value));
+      const waitlistTimeFrom = this.shadowRoot.getElementById('waitlist-time-from');
+      if (waitlistTimeFrom) waitlistTimeFrom.addEventListener('change', (event) => this.updateWaitlistForm('timeFrom', event.target.value));
+      const waitlistTimeTo = this.shadowRoot.getElementById('waitlist-time-to');
+      if (waitlistTimeTo) waitlistTimeTo.addEventListener('change', (event) => this.updateWaitlistForm('timeTo', event.target.value));
+
+      const waitlistTextFields = {
+        'waitlist-first-name': 'firstName',
+        'waitlist-last-name': 'lastName',
+        'waitlist-email': 'email',
+        'waitlist-phone': 'phone',
+        'waitlist-notes': 'notes',
+      };
+      Object.entries(waitlistTextFields).forEach(([id, field]) => {
+        const input = this.shadowRoot.getElementById(id);
+        if (!input) return;
+        input.addEventListener('input', (event) => {
+          this.state.waitlistForm = { ...this.state.waitlistForm, [field]: event.target.value };
+          this.state.waitlistError = '';
+          if (field === 'notes') {
+            const counter = input.parentElement?.querySelector('.waitlist-counter');
+            if (counter) counter.textContent = `${String(event.target.value || '').length} / 200`;
+          }
+        });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="waitlist-submit"]').forEach((button) => {
+        button.addEventListener('click', () => void this.submitWaitlistRequest());
       });
 
       const restart = this.shadowRoot.querySelector('[data-action="restart"]');

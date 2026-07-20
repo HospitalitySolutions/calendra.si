@@ -24,6 +24,12 @@ import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.waitlist.WaitlistEmployeePreferenceType;
+import com.example.app.waitlist.WaitlistService;
+import com.example.app.waitlist.WaitlistServiceScope;
+import com.example.app.waitlist.WaitlistSettingsService;
+import com.example.app.waitlist.WaitlistSource;
+import com.example.app.waitlist.WaitlistTargetType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -34,6 +40,7 @@ import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -77,6 +84,8 @@ public class PublicBookingWidgetService {
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
     private final GuestSettingsService guestSettingsService;
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
+    private final WaitlistService waitlistService;
+    private final WaitlistSettingsService waitlistSettingsService;
     private final PaymentMethodRepository paymentMethods;
     private final StripeConnectService stripeConnectService;
     private final TimeService timeService;
@@ -97,6 +106,8 @@ public class PublicBookingWidgetService {
             WidgetPublicAuditLogger widgetPublicAuditLogger,
             GuestSettingsService guestSettingsService,
             WebsiteWidgetSettingsService websiteWidgetSettingsService,
+            WaitlistService waitlistService,
+            WaitlistSettingsService waitlistSettingsService,
             PaymentMethodRepository paymentMethods,
             StripeConnectService stripeConnectService,
             TimeService timeService,
@@ -117,6 +128,8 @@ public class PublicBookingWidgetService {
         this.widgetPublicAuditLogger = widgetPublicAuditLogger;
         this.guestSettingsService = guestSettingsService;
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
+        this.waitlistService = waitlistService;
+        this.waitlistSettingsService = waitlistSettingsService;
         this.paymentMethods = paymentMethods;
         this.stripeConnectService = stripeConnectService;
         this.timeService = timeService;
@@ -131,6 +144,7 @@ public class PublicBookingWidgetService {
         var cfg = loadConfig(company.getId());
         var websiteSettings = websiteWidgetSettingsService.widgetSettings(company.getId());
         var bookingRules = websiteWidgetSettingsService.bookingRules(company.getId());
+        var waitlistSettings = waitlistSettingsService.get(company.getId());
         var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
@@ -156,6 +170,11 @@ public class PublicBookingWidgetService {
                 bookingRules.cancelUntilHours(),
                 bookingRules.noShowMode(),
                 bookingRules.noShowAfterMinutes(),
+                waitlistSettings.enabled() && waitlistSettings.widgetEnabled(),
+                waitlistSettings.exactTimeEnabled(),
+                waitlistSettings.flexibleWindowsEnabled(),
+                waitlistSettings.employeePreferenceEnabled(),
+                waitlistSettings.maxRequestedDateRangeDays(),
                 allowedPaymentMethods
         );
     }
@@ -417,6 +436,164 @@ public class PublicBookingWidgetService {
         } catch (RuntimeException ex) {
             widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "failed", ex.getMessage());
             throw ex;
+        }
+    }
+
+    @Transactional
+    public PublicBookingWidgetController.WaitlistResponse createWaitlistRequest(
+            String tenantCode,
+            PublicBookingWidgetController.WaitlistRequest request,
+            String idempotencyKey,
+            HttpServletRequest httpRequest
+    ) {
+        Company company = resolveCompany(tenantCode);
+        SimulatedTimeContext.set(company.getId());
+        guardPublicWidgetRequest(company, httpRequest, true, "waitlist");
+
+        WaitlistSettingsService.WaitlistSettings waitlistCfg = waitlistSettingsService.get(company.getId());
+        if (!waitlistCfg.enabled() || !waitlistCfg.widgetEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Website waitlist is disabled.");
+        }
+        if (request.flexible() && !waitlistCfg.flexibleWindowsEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Flexible waitlist requests are disabled.");
+        }
+        if (!request.flexible() && !waitlistCfg.exactTimeEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exact-time waitlist requests are disabled.");
+        }
+
+        SessionType type = resolveType(company.getId(), request.typeId());
+        LocalDate dateFrom = parseDate(request.dateFrom());
+        LocalDate requestedDateTo = parseDate(request.dateTo());
+        LocalDate dateTo = request.flexible() ? requestedDateTo : dateFrom;
+        LocalDate today = timeService.localDate(loadConfig(company.getId()).zoneId());
+        if (dateFrom.isBefore(today)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateFrom cannot be in the past.");
+        }
+        if (dateTo.isBefore(dateFrom)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateTo must be on or after dateFrom.");
+        }
+        long requestedDays = ChronoUnit.DAYS.between(dateFrom, dateTo) + 1L;
+        if (requestedDays > waitlistCfg.maxRequestedDateRangeDays()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The requested date range is too long.");
+        }
+
+        LocalTime timeFrom = parseWaitlistTime(request.timeFrom(), "timeFrom");
+        LocalTime timeTo = parseWaitlistTime(request.timeTo(), "timeTo");
+        if (!timeTo.isAfter(timeFrom)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "timeTo must be later than timeFrom.");
+        }
+
+        User preferredEmployee = null;
+        if (request.consultantId() != null && waitlistCfg.employeePreferenceEnabled()) {
+            preferredEmployee = supportedConsultants(company.getId(), type).stream()
+                    .filter(candidate -> Objects.equals(candidate.getId(), request.consultantId()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee preference."));
+        }
+        User clientOwner = preferredEmployee != null ? preferredEmployee : resolveAdminActor(company.getId());
+        User finalPreferredEmployee = preferredEmployee;
+
+        try {
+            PublicBookingWidgetController.WaitlistResponse response = widgetBookingIdempotencyService.execute(
+                    company,
+                    "waitlist",
+                    idempotencyKey,
+                    request,
+                    PublicBookingWidgetController.WaitlistResponse.class,
+                    () -> {
+                        lockTenantForClientMatch(company);
+                        Client client = findOrCreateClient(
+                                company,
+                                clientOwner,
+                                request.firstName(),
+                                request.lastName(),
+                                request.email(),
+                                request.phone()
+                        );
+
+                        List<WaitlistService.WindowInput> requestWindows = buildPublicWaitlistWindows(
+                                request.flexible(),
+                                dateFrom,
+                                timeFrom,
+                                timeTo,
+                                request.weekdays()
+                        );
+                        WaitlistService.RequestView created = waitlistService.createFromWidget(
+                                company.getId(),
+                                client,
+                                new WaitlistService.RequestInput(
+                                        client.getId(),
+                                        type.getId(),
+                                        WaitlistServiceScope.EXACT_SERVICE,
+                                        null,
+                                        null,
+                                        request.flexible() ? WaitlistTargetType.FLEXIBLE_WINDOW : WaitlistTargetType.EXACT_TIME,
+                                        null,
+                                        dateFrom,
+                                        dateTo,
+                                        finalPreferredEmployee == null ? WaitlistEmployeePreferenceType.ANY : WaitlistEmployeePreferenceType.SPECIFIC,
+                                        finalPreferredEmployee == null ? null : finalPreferredEmployee.getId(),
+                                        List.of(),
+                                        1,
+                                        WaitlistSource.WIDGET,
+                                        request.notes(),
+                                        requestWindows
+                                )
+                        );
+                        return new PublicBookingWidgetController.WaitlistResponse(
+                                created.id(),
+                                created.status(),
+                                created.serviceName(),
+                                created.dateFrom().toString(),
+                                created.dateTo().toString(),
+                                client.getEmail()
+                        );
+                    }
+            );
+            widgetPublicAuditLogger.logAttempt(company, httpRequest, "waitlist", "success", "typeId=" + type.getId());
+            return response;
+        } catch (RuntimeException ex) {
+            widgetPublicAuditLogger.logAttempt(company, httpRequest, "waitlist", "failed", ex.getMessage());
+            throw ex;
+        }
+    }
+
+    private List<WaitlistService.WindowInput> buildPublicWaitlistWindows(
+            boolean flexible,
+            LocalDate dateFrom,
+            LocalTime timeFrom,
+            LocalTime timeTo,
+            List<String> weekdayNames
+    ) {
+        if (!flexible) {
+            return List.of(new WaitlistService.WindowInput(null, dateFrom, timeFrom, timeTo, false));
+        }
+        List<DayOfWeek> weekdays = Optional.ofNullable(weekdayNames).orElse(List.of()).stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(value -> {
+                    try {
+                        return DayOfWeek.valueOf(value.toUpperCase(Locale.ROOT));
+                    } catch (IllegalArgumentException ex) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid weekday preference.");
+                    }
+                })
+                .distinct()
+                .toList();
+        if (weekdays.isEmpty()) {
+            return List.of(new WaitlistService.WindowInput(null, null, timeFrom, timeTo, false));
+        }
+        return weekdays.stream()
+                .map(day -> new WaitlistService.WindowInput(day, null, timeFrom, timeTo, false))
+                .toList();
+    }
+
+    private LocalTime parseWaitlistTime(String value, String field) {
+        try {
+            return LocalTime.parse(value);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid " + field + ". Use HH:mm.");
         }
     }
 
@@ -898,8 +1075,26 @@ public class PublicBookingWidgetService {
     }
 
     private Client findOrCreateClient(Company company, User actor, PublicBookingWidgetController.BookingRequest request) {
-        String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
-        String normalizedPhone = request.phone().trim();
+        return findOrCreateClient(
+                company,
+                actor,
+                request.firstName(),
+                request.lastName(),
+                request.email(),
+                request.phone()
+        );
+    }
+
+    private Client findOrCreateClient(
+            Company company,
+            User actor,
+            String firstName,
+            String lastName,
+            String email,
+            String phone
+    ) {
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        String normalizedPhone = phone.trim();
 
         Optional<Client> existing = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail)
                 .stream()
@@ -927,8 +1122,8 @@ public class PublicBookingWidgetService {
         Client client = new Client();
         client.setCompany(company);
         client.setAssignedTo(actor);
-        client.setFirstName(request.firstName().trim());
-        client.setLastName(request.lastName().trim());
+        client.setFirstName(firstName.trim());
+        client.setLastName(lastName.trim());
         client.setEmail(normalizedEmail);
         client.setPhone(normalizedPhone);
         client.setWhatsappPhone(normalizedPhone);

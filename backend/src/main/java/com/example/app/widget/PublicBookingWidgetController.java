@@ -47,6 +47,11 @@ public class PublicBookingWidgetController {
             Integer cancelUntilHours,
             String noShowMode,
             Integer noShowAfterMinutes,
+            boolean waitlistEnabled,
+            boolean waitlistExactTimeEnabled,
+            boolean waitlistFlexibleWindowsEnabled,
+            boolean waitlistEmployeePreferenceEnabled,
+            int waitlistMaxRequestedDateRangeDays,
             AllowedPaymentMethodsResponse allowedPaymentMethods
     ) {}
 
@@ -131,6 +136,31 @@ public class PublicBookingWidgetController {
             String consultantName
     ) {}
 
+    public record WaitlistRequest(
+            @NotNull Long typeId,
+            Long consultantId,
+            boolean flexible,
+            @NotBlank String dateFrom,
+            @NotBlank String dateTo,
+            @NotBlank String timeFrom,
+            @NotBlank String timeTo,
+            List<String> weekdays,
+            String notes,
+            @NotBlank String firstName,
+            @NotBlank String lastName,
+            @NotBlank @Email String email,
+            @NotBlank String phone
+    ) {}
+
+    public record WaitlistResponse(
+            Long requestId,
+            String status,
+            String serviceName,
+            String dateFrom,
+            String dateTo,
+            String email
+    ) {}
+
     @GetMapping("/{tenantCode}/config")
     public WidgetConfigResponse config(@PathVariable String tenantCode, HttpServletRequest request) {
         return service.config(tenantCode, request);
@@ -180,5 +210,15 @@ public class PublicBookingWidgetController {
             HttpServletRequest httpRequest
     ) {
         return service.createBooking(tenantCode, request, idempotencyKey, httpRequest);
+    }
+
+    @PostMapping("/{tenantCode}/waitlist")
+    public WaitlistResponse createWaitlistRequest(
+            @PathVariable String tenantCode,
+            @Valid @RequestBody WaitlistRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest httpRequest
+    ) {
+        return service.createWaitlistRequest(tenantCode, request, idempotencyKey, httpRequest);
     }
 }

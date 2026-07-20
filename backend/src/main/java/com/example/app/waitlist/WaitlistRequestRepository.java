@@ -46,6 +46,8 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
 
     boolean existsByCompanyIdAndDuplicateKeyAndStatusIn(Long companyId, String duplicateKey, List<WaitlistRequestStatus> statuses);
 
+    long countByCompanyIdAndClientIdAndStatusIn(Long companyId, Long clientId, List<WaitlistRequestStatus> statuses);
+
     @Query("""
             select r from WaitlistRequest r
             left join fetch r.service service
