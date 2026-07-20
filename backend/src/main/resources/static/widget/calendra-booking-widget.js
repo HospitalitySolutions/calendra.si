@@ -2183,7 +2183,6 @@
       return `
         <button class="standalone-service-row ${selected ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
           <span class="standalone-service-select">${selected ? this.uiIcon('check') : ''}</span>
-          ${this.serviceIconMarkup(item, index)}
           <span class="standalone-service-main">
             <strong>${escapeHtml(this.serviceDisplayName(item))}</strong>
           </span>
@@ -2235,7 +2234,6 @@
                   data-group-key="${escapeHtml(section.key)}"
                   aria-expanded="${isExpanded ? 'true' : 'false'}"
                 >
-                  <span class="standalone-group-icon">${this.uiIcon('calendar')}</span>
                   <span class="standalone-group-copy">
                     <strong>${escapeHtml(section.name)}</strong>
                     <small>${escapeHtml(this.serviceGroupCountLabel(section.items.length))}</small>
@@ -2335,14 +2333,18 @@
       }
 
       if (this.state.activeStep === 'consultant') {
+        const consultantDurationText = `${service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60} ${t.durationSuffix}`;
         const consultantSummaryMarkup = `
           <aside class="summary-card summary-card--consultant-step">
             <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
-            <div class="summary-rows summary-rows--consultant-step">
-              <div class="summary-row summary-row--compact">
-                <span class="summary-row-label">${escapeHtml(t.selectedService)}</span>
-                <strong class="summary-row-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
-                <em class="summary-row-meta">${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
+            <div class="summary-detail-list">
+              <div class="summary-detail-row">
+                <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
+                <strong class="summary-detail-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+              </div>
+              <div class="summary-detail-row">
+                <span class="summary-detail-label">${escapeHtml(t.summaryDuration)}</span>
+                <strong class="summary-detail-value">${escapeHtml(consultantDurationText)}</strong>
               </div>
             </div>
           </aside>
@@ -2701,12 +2703,15 @@
         }
         .headline p { margin: 14px 0 0; color: var(--calendra-muted); font-size: clamp(16px, 1.4vw, 20px); line-height: 1.5; }
         .progress {
-          display: grid;
-          grid-template-columns: auto minmax(48px,1fr) auto minmax(48px,1fr) auto;
+          display: flex;
           align-items: center;
+          flex-wrap: nowrap;
           gap: clamp(12px, 2vw, 28px);
           width: 100%;
+          overflow-x: auto;
+          scrollbar-width: none;
         }
+        .progress::-webkit-scrollbar { display: none; }
         .progress-item { display: inline-flex; align-items: center; gap: 14px; min-width: max-content; color: #7a8498; font-weight: 750; }
         .progress-dot {
           width: 44px; height: 44px; border-radius: 999px;
@@ -2719,7 +2724,7 @@
         .progress-item.is-active { color: #0d1b3d; }
         .progress-item.is-active .progress-dot,
         .progress-item.is-done .progress-dot { background: var(--calendra-primary); color: #fff; border-color: var(--calendra-primary); box-shadow: 0 12px 22px rgba(15,107,255,.18); }
-        .progress-sep { height: 2px; border-radius: 999px; background: #e7edf5; }
+        .progress-sep { flex: 1 1 48px; min-width: 48px; height: 2px; border-radius: 999px; background: #e7edf5; }
         .progress-item.is-done + .progress-sep { background: var(--calendra-primary); }
         .section-copy { display: grid; gap: 8px; margin-bottom: 4px; }
         .section-copy h3, .block-title { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 850; color: var(--calendra-text); }
@@ -2741,7 +2746,7 @@
           width: 100%;
           min-height: 70px;
           display: grid;
-          grid-template-columns: 44px minmax(0,1fr) 38px;
+          grid-template-columns: minmax(0,1fr) 38px;
           align-items: center;
           gap: 14px;
           padding: 12px 16px;
@@ -2781,7 +2786,7 @@
         }
         .standalone-service-children {
           display: grid;
-          padding: 0 14px 12px 62px;
+          padding: 0 14px 12px 14px;
           border-top: 1px solid var(--calendra-border);
           background: #fff;
         }
@@ -2790,7 +2795,7 @@
           width: 100%;
           min-height: 62px;
           display: grid;
-          grid-template-columns: 28px 38px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
+          grid-template-columns: 28px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
           align-items: center;
           gap: 12px;
           padding: 8px 12px;
@@ -2823,12 +2828,6 @@
           font-size: 14px;
         }
         .standalone-service-row.is-active .standalone-service-select { border-color: var(--calendra-primary); background: var(--calendra-primary); }
-        .standalone-service-row .service-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 10px;
-          font-size: 18px;
-        }
         .standalone-service-main { min-width: 0; }
         .standalone-service-main strong { display: block; overflow: hidden; font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
         .standalone-service-duration,
@@ -3393,12 +3392,12 @@
         :host([data-layout="micro"]) .details-grid { grid-template-columns: 1fr; }
         :host([data-layout="narrow"]) .panel,
         :host([data-layout="micro"]) .panel { padding: 22px; border-radius: 22px; }
-        :host([data-layout="narrow"]) .progress { grid-template-columns: 1fr; gap: 8px; }
-        :host([data-layout="narrow"]) .progress-sep,
-        :host([data-layout="micro"]) .progress-sep { display: none; }
+        :host([data-layout="narrow"]) .progress,
+        :host([data-layout="micro"]) .progress { gap: 10px; overflow-x: auto; }
         :host([data-layout="narrow"]) .progress-item,
-        :host([data-layout="micro"]) .progress-item { padding: 10px 12px; border: 1px solid var(--calendra-border); border-radius: 14px; background: #fff; }
-        :host([data-layout="micro"]) .progress { grid-template-columns: 1fr; gap: 8px; }
+        :host([data-layout="micro"]) .progress-item { flex: 0 0 auto; padding: 0; border: 0; background: transparent; }
+        :host([data-layout="narrow"]) .progress-sep,
+        :host([data-layout="micro"]) .progress-sep { display: block; min-width: 36px; }
         :host([data-layout="micro"]) .headline h2 { font-size: 34px; }
         :host([data-layout="micro"]) .service-card { grid-template-columns: 54px minmax(0,1fr) auto 28px; gap: 12px; padding: 18px; }
         :host([data-layout="micro"]) .service-card.no-price { grid-template-columns: 54px minmax(0,1fr) 28px; }
@@ -3452,11 +3451,11 @@
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-children { padding-left: 14px; }
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-row,
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-row {
-          grid-template-columns: 26px 36px minmax(0,1fr) auto;
+          grid-template-columns: 26px minmax(0,1fr) auto;
           gap: 9px;
         }
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-price,
-        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 3 / 5; justify-content: flex-start; padding: 0 0 5px; }
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 2 / 4; justify-content: flex-start; padding: 0 0 5px; }
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-duration { font-size: 13px; }
         :host([presentation="standalone"][data-layout="narrow"]) .progress,
         :host([presentation="standalone"][data-layout="micro"]) .progress {
