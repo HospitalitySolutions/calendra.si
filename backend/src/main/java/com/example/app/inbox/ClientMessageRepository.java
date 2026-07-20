@@ -73,6 +73,27 @@ public interface ClientMessageRepository extends JpaRepository<ClientMessage, Lo
             Pageable pageable);
     java.util.Optional<ClientMessage> findFirstByCompanyIdAndExternalMessageId(Long companyId, String externalMessageId);
 
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update ClientMessage m
+               set m.status = :readStatus
+             where m.company.id = :companyId
+               and m.client.id = :clientId
+               and m.channel = :channel
+               and m.direction = :direction
+               and m.status in (:unreadStatuses)
+               and ((m.sentAt is not null and m.sentAt <= :readAt)
+                    or (m.sentAt is null and m.createdAt <= :readAt))
+            """)
+    int markGuestOutboundMessagesRead(
+            @Param("companyId") Long companyId,
+            @Param("clientId") Long clientId,
+            @Param("channel") MessageChannel channel,
+            @Param("direction") MessageDirection direction,
+            @Param("unreadStatuses") List<MessageStatus> unreadStatuses,
+            @Param("readStatus") MessageStatus readStatus,
+            @Param("readAt") Instant readAt);
+
     @Modifying
     @Query("delete from ClientMessage m where m.createdAt < :cutoff")
     int deleteAllByCreatedAtBefore(@Param("cutoff") Instant cutoff);

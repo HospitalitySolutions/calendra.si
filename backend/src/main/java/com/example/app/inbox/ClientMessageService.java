@@ -376,7 +376,7 @@ public class ClientMessageService {
         row.setBody(normalizedBody);
         row.setSentAt(sentAt);
         row.setErrorMessage(null);
-        markGuestMessagesRead(link, existingRows, sentAt);
+        markGuestMessagesRead(link, sentAt);
         ClientMessage saved = messages.save(row);
         linkAttachments(saved, attachmentFiles);
         finalizePendingInboxAttachments(attachmentFiles);
@@ -1358,6 +1358,23 @@ public class ClientMessageService {
                     row.setStatus(MessageStatus.READ);
                     messages.save(row);
                 });
+    }
+
+    private void markGuestMessagesRead(GuestTenantLink link, Instant readAt) {
+        Instant existing = link.getGuestInboxLastReadAt();
+        if (existing == null || readAt.isAfter(existing)) {
+            link.setGuestInboxLastReadAt(readAt);
+            guestTenantLinks.save(link);
+        }
+        messages.markGuestOutboundMessagesRead(
+                link.getCompany().getId(),
+                link.getClient().getId(),
+                MessageChannel.GUEST_APP,
+                MessageDirection.OUTBOUND,
+                List.of(MessageStatus.SENT, MessageStatus.DELIVERED),
+                MessageStatus.READ,
+                readAt
+        );
     }
 
     private void markGuestMessagesRead(GuestTenantLink link, List<ClientMessage> rows) {
