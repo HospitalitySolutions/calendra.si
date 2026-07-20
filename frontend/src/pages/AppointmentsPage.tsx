@@ -151,6 +151,22 @@ function sourceLabel(source: string, locale: string) {
   return (locale === 'sl' ? sl : en)[source] ?? source
 }
 
+const WAITLIST_WEEKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const
+
+function weekdayShortLabel(day: string, locale: string) {
+  const sl: Record<string, string> = { MONDAY: 'Pon', TUESDAY: 'Tor', WEDNESDAY: 'Sre', THURSDAY: 'Čet', FRIDAY: 'Pet', SATURDAY: 'Sob', SUNDAY: 'Ned' }
+  const en: Record<string, string> = { MONDAY: 'Mon', TUESDAY: 'Tue', WEDNESDAY: 'Wed', THURSDAY: 'Thu', FRIDAY: 'Fri', SATURDAY: 'Sat', SUNDAY: 'Sun' }
+  return (locale === 'sl' ? sl : en)[day] ?? day
+}
+
+function waitlistWindowTimeLabel(window: WindowView, locale: string) {
+  if (window.allDay) return locale === 'sl' ? 'Cel dan' : 'All day'
+  const from = window.timeFrom?.slice(0, 5) || ''
+  const to = window.timeTo?.slice(0, 5) || ''
+  if (from && to) return `${from}–${to}`
+  return from || to || '—'
+}
+
 function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'phone' | 'message' | 'trash' | 'offer' | 'booking' | 'skip' | 'close' | 'history' | 'mail' | 'pin' | 'user' | 'info' | 'refresh' | 'external' | 'save') {
   const paths: Record<string, ReactNode> = {
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></>,
@@ -231,7 +247,7 @@ export function AppointmentsPage() {
     client: 'Stranka', service: 'Storitev', wanted: 'Želeni termin', employee: 'Zaposleni', status: 'Status', joined: 'Pridružil/a se', source: 'Vir',
     noRows: 'Ni zahtev, ki ustrezajo izbranim filtrom.', details: 'Podrobnosti zahteve', contact: 'Kontakt', request: 'Zahteva', actions: 'Akcije',
     offer: 'Ponudi termin', reserve: 'Rezerviraj za stranko', call: 'Pokliči', message: 'Pošlji sporočilo', skip: 'Preskoči za ta termin', remove: 'Odstrani',
-    requestedWindow: 'Želeni čas', location: 'Lokacija', participants: 'Udeleženci', note: 'Opomba', audit: 'Zgodovina aktivnosti',
+    requestedWindow: 'Želeni čas', period: 'Obdobje', time: 'Ura', weekdays: 'Dnevi v tednu', flexibleBadge: 'Fleksibilno', location: 'Lokacija', participants: 'Udeleženci', note: 'Opomba', audit: 'Zgodovina aktivnosti',
     offerExpires: 'Ponudba poteče čez', temporaryHold: 'Termin je začasno rezerviran za stranko do', close: 'Zapri', save: 'Shrani', cancel: 'Prekliči',
     createTitle: 'Dodaj na čakalno vrsto', offerTitle: 'Ponudi prost termin', flexible: 'Prilagodljiv termin', exactService: 'Določena storitev', anyGroupService: 'Katerakoli storitev iz skupine', serviceGroup: 'Skupina storitev', concreteService: 'Ponujena storitev',
     flexibleHelp: 'Stranka sprejme katerikoli prost termin za izbrano storitev in zaposlenega, če je izbran.',
@@ -246,7 +262,7 @@ export function AppointmentsPage() {
     client: 'Client', service: 'Service', wanted: 'Preferred time', employee: 'Employee', status: 'Status', joined: 'Joined', source: 'Source',
     noRows: 'No requests match the selected filters.', details: 'Request details', contact: 'Contact', request: 'Request', actions: 'Actions',
     offer: 'Offer slot', reserve: 'Book for client', call: 'Call', message: 'Send message', skip: 'Skip for this slot', remove: 'Remove',
-    requestedWindow: 'Preferred time', location: 'Location', participants: 'Participants', note: 'Note', audit: 'Activity history',
+    requestedWindow: 'Preferred time', period: 'Period', time: 'Time', weekdays: 'Days of week', flexibleBadge: 'Flexible', location: 'Location', participants: 'Participants', note: 'Note', audit: 'Activity history',
     offerExpires: 'Offer expires in', temporaryHold: 'The slot is temporarily held for the client until', close: 'Close', save: 'Save', cancel: 'Cancel',
     createTitle: 'Add to waitlist', offerTitle: 'Offer available slot', flexible: 'Flexible appointment', exactService: 'Exact service', anyGroupService: 'Any service in this group', serviceGroup: 'Service group', concreteService: 'Offered service',
     flexibleHelp: 'The client accepts any available slot for the selected service and employee, when one is selected.',
@@ -575,7 +591,20 @@ export function AppointmentsPage() {
     ? '—'
     : selected.targetType === 'ANY_AVAILABLE'
       ? `${copy.anyAvailable} · ${copy.anyAvailableUntil} ${formatDate(selected.dateTo)}`
-      : `${formatDate(selected.dateFrom)} – ${formatDate(selected.dateTo)}${selected.windows.length ? ` · ${selected.windows.map(item => item.allDay ? (locale === 'sl' ? 'Cel dan' : 'All day') : `${item.timeFrom?.slice(0, 5) || ''}–${item.timeTo?.slice(0, 5) || ''}`).join(', ')}` : ''}`
+      : `${formatDate(selected.dateFrom)} – ${formatDate(selected.dateTo)}${selected.windows.length ? ` · ${selected.windows.map(item => waitlistWindowTimeLabel(item, locale)).join(', ')}` : ''}`
+  const selectedPeriod = selected ? `${formatDate(selected.dateFrom)} – ${formatDate(selected.dateTo)}` : '—'
+  const selectedWindowTimes = selected
+    ? Array.from(new Set(selected.windows.map(item => waitlistWindowTimeLabel(item, locale)).filter(value => value !== '—')))
+    : []
+  const selectedTime = selectedWindowTimes.length ? selectedWindowTimes.join(' · ') : (selected?.targetType === 'ANY_AVAILABLE' ? copy.anyAvailable : '—')
+  const selectedWeekdays = new Set(selected?.windows.map(item => item.dayOfWeek).filter((day): day is string => Boolean(day)) || [])
+  const showWeekdayPreferences = selected?.targetType === 'FLEXIBLE_WINDOW' || selected?.targetType === 'ANY_AVAILABLE'
+  const allWeekdaysAccepted = showWeekdayPreferences && selectedWeekdays.size === 0
+  const selectedPreferenceBadge = selected?.targetType === 'FLEXIBLE_WINDOW'
+    ? copy.flexibleBadge
+    : selected?.targetType === 'ANY_AVAILABLE'
+      ? copy.anyAvailable
+      : null
   const selectedHistory = selected ? [...selected.history].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()) : []
 
   return <div className="appointments-page">
@@ -652,7 +681,12 @@ export function AppointmentsPage() {
                 <h3>{icon('calendar')}{copy.request}</h3>
                 <dl className="waitlist-popup-dl">
                   <dt>{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
-                  <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
+                  <dt>{copy.period}</dt><dd>{selectedPeriod}</dd>
+                  <dt>{copy.time}</dt><dd><div className="waitlist-request-time"><span>{selectedTime}</span>{selectedPreferenceBadge && <span className="waitlist-preference-badge">{icon('history')}{selectedPreferenceBadge}</span>}</div></dd>
+                  {showWeekdayPreferences && <><dt>{copy.weekdays}</dt><dd><div className="waitlist-weekday-chips" aria-label={copy.weekdays}>{WAITLIST_WEEKDAYS.map(day => {
+                    const isSelected = allWeekdaysAccepted || selectedWeekdays.has(day)
+                    return <span key={day} className={`waitlist-weekday-chip${isSelected ? ' is-selected' : ''}`} aria-label={`${weekdayShortLabel(day, locale)}: ${isSelected ? (locale === 'sl' ? 'izbrano' : 'selected') : (locale === 'sl' ? 'ni izbrano' : 'not selected')}`}>{weekdayShortLabel(day, locale)}</span>
+                  })}</div></dd></>}
                   <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
                   <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
                   <dt>{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
@@ -824,13 +858,13 @@ export function AppointmentsPage() {
       @keyframes waitlistModalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
       .waitlist-detail-modal__header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:22px 28px;border-bottom:1px solid #e5eaf1}.waitlist-client--modal{align-items:center}.waitlist-detail-modal__title-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.waitlist-detail-modal__title-row h2{margin:0;color:#17243b;font-size:21px}.waitlist-detail-modal__header p{margin:5px 0 0;color:#748197;font-size:12px}.waitlist-detail-modal__close{align-self:flex-start}.waitlist-detail-modal__body{overflow:auto;padding:20px 28px}.waitlist-detail-modal__body--active{display:grid;gap:14px}.waitlist-detail-modal__body--offered{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:26px}.waitlist-detail-modal__body--history{display:grid;gap:14px}
       .waitlist-popup-card{padding:18px 20px;border:1px solid #dfe6ef;border-radius:13px;background:#fff}.waitlist-popup-card h3,.waitlist-popup-section h3{display:flex;align-items:center;gap:9px;margin:0 0 15px;color:#20304b;font-size:13px}.waitlist-popup-card hr{height:1px;margin:18px 0;border:0;background:#e7ebf1}.waitlist-popup-card--contact{padding:16px 20px}.waitlist-popup-card--notes p,.waitlist-offer-additional p{margin:0;color:#526077;font-size:12px;line-height:1.55}.waitlist-contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.waitlist-contact-grid>div,.waitlist-contact-stack>div{display:flex;align-items:center;gap:10px;color:#40516b;font-size:12px}.waitlist-contact-stack{display:grid;gap:13px}
-      .waitlist-popup-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:11px 18px;margin:0;font-size:12px}.waitlist-popup-dl dt{color:#758198}.waitlist-popup-dl dd{margin:0;color:#27364d;font-weight:650;line-height:1.45}.waitlist-popup-dl--icons dt{display:flex;align-items:center;gap:8px}.waitlist-popup-section{min-width:0}.waitlist-popup-section--offer{padding-left:26px;border-left:1px solid #e2e7ef}.waitlist-offer-additional{margin-top:18px;padding:13px 14px;border:1px solid #e2e8f1;border-radius:11px;background:#fafcff}.waitlist-offer-additional span{display:block;margin-bottom:7px;color:#758198;font-size:11px}
+      .waitlist-popup-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:11px 18px;margin:0;font-size:12px}.waitlist-popup-dl dt{color:#758198}.waitlist-popup-dl dd{margin:0;color:#27364d;font-weight:650;line-height:1.45}.waitlist-request-time{display:flex;align-items:center;flex-wrap:wrap;gap:9px}.waitlist-preference-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:#eaf2ff;color:#1463df;font-size:11px;font-weight:750;line-height:1}.waitlist-preference-badge svg{width:14px;height:14px}.waitlist-weekday-chips{display:flex;align-items:center;flex-wrap:wrap;gap:7px}.waitlist-weekday-chip{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:30px;padding:0 10px;border:1px solid #d6dfeb;border-radius:8px;background:#fff;color:#59677d;font-size:11px;font-weight:700;line-height:1}.waitlist-weekday-chip.is-selected{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 4px 10px rgba(20,99,223,.16)}.waitlist-popup-dl--icons dt{display:flex;align-items:center;gap:8px}.waitlist-popup-section{min-width:0}.waitlist-popup-section--offer{padding-left:26px;border-left:1px solid #e2e7ef}.waitlist-offer-additional{margin-top:18px;padding:13px 14px;border:1px solid #e2e8f1;border-radius:11px;background:#fafcff}.waitlist-offer-additional span{display:block;margin-bottom:7px;color:#758198;font-size:11px}
       .waitlist-active-offer-card{padding:18px;border:1px solid #d7e4f7;border-radius:14px;background:linear-gradient(180deg,#f9fbff,#f2f7ff)}.waitlist-active-offer-card__heading{display:flex;gap:14px;padding-bottom:16px;border-bottom:1px solid #dce6f4}.waitlist-active-offer-card__icon{display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:50%;background:#e5efff;color:#1463df}.waitlist-active-offer-card__heading small,.waitlist-active-offer-card__heading strong,.waitlist-active-offer-card__heading span{display:block}.waitlist-active-offer-card__heading small{color:#77849a;font-size:11px}.waitlist-active-offer-card__heading strong{margin:5px 0;color:#1463df;font-size:16px}.waitlist-active-offer-card__heading span{color:#31425d;font-size:13px}.waitlist-active-offer-card dl{display:grid;grid-template-columns:120px 1fr;gap:12px;margin:17px 0;font-size:12px}.waitlist-active-offer-card dt{color:#78859a}.waitlist-active-offer-card dd{margin:0;color:#27364d;font-weight:600}.waitlist-active-offer-card__info{display:flex;align-items:flex-start;gap:9px;padding:11px;border:1px solid #cbdcf5;border-radius:10px;background:#eaf3ff;color:#365b8f;font-size:11px;line-height:1.4}.waitlist-popup-empty-offer{padding:22px;border:1px dashed #d9e1ec;border-radius:12px;color:#758198;text-align:center;font-size:12px}
       .waitlist-popup-timeline{display:grid;gap:0}.waitlist-popup-timeline article{position:relative;display:grid;grid-template-columns:12px 145px 1fr;gap:10px;padding:0 0 13px}.waitlist-popup-timeline article:not(:last-child)::before{content:"";position:absolute;left:4px;top:10px;bottom:0;width:1px;background:#d5deea}.waitlist-popup-timeline .timeline-dot{margin-top:4px}.waitlist-popup-timeline time{color:#53627a;font-size:11px}.waitlist-popup-timeline strong{color:#34445c;font-size:11px}.waitlist-popup-timeline p{margin:3px 0 0;color:#7a8799;font-size:10px}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr 150px 100px;align-items:start}.waitlist-popup-timeline--wide small{color:#65748a;font-size:10px;text-align:right}
       .waitlist-history-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:14px}.waitlist-linked-booking-card{position:relative}.waitlist-linked-booking-card__icon{display:grid;place-items:center;width:50px;height:50px;margin-bottom:10px;border-radius:50%;background:#e6f8ed;color:#0b9d55}.waitlist-linked-booking-card>span{display:block;color:#7a879a;font-size:11px}.waitlist-linked-booking-card>strong{display:block;margin:5px 0;color:#253650;font-size:17px}.waitlist-linked-booking-card>p{color:#53627a;font-size:12px}.waitlist-linked-booking-card>button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:18px;padding:10px;border:1px solid #b9d0f5;border-radius:9px;background:#fff;color:#1463df;font-weight:700;cursor:pointer}.waitlist-popup-muted{color:#758198}
       .waitlist-detail-modal__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:16px 28px;border-top:1px solid #e4e9f0;background:#fff}.waitlist-detail-modal__footer button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 17px;border:1px solid #d7e0ec;border-radius:9px;background:#fff;color:#34445c;font-weight:700;cursor:pointer}.waitlist-detail-modal__footer button.primary{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 7px 17px rgba(20,99,223,.18)}.waitlist-detail-modal__footer button.danger{border-color:#f5b8b8;color:#dc2626}.waitlist-detail-modal__footer button:hover{background:#f6f9fd}.waitlist-detail-modal__footer button.primary:hover{background:#0f5ed9}
       @media(max-width:900px){.appointments-page{margin:12px;border-radius:16px}.waitlist-detail-modal__body--offered{grid-template-columns:1fr}.waitlist-popup-section--offer{padding-left:0;padding-top:20px;border-left:0;border-top:1px solid #e2e7ef}.waitlist-history-grid{grid-template-columns:1fr}.waitlist-detail-modal__footer{justify-content:stretch}.waitlist-detail-modal__footer button{flex:1 1 180px}}
-      @media(max-width:620px){.waitlist-detail-backdrop{padding:0}.waitlist-detail-modal,.waitlist-detail-modal--offered,.waitlist-detail-modal--history{width:100%;height:100%;max-height:none;border:0;border-radius:0}.waitlist-detail-modal__header,.waitlist-detail-modal__body,.waitlist-detail-modal__footer{padding-left:18px;padding-right:18px}.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:110px minmax(0,1fr)}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}.waitlist-detail-modal__footer button{flex-basis:100%}}
+      @media(max-width:620px){.waitlist-detail-backdrop{padding:0}.waitlist-detail-modal,.waitlist-detail-modal--offered,.waitlist-detail-modal--history{width:100%;height:100%;max-height:none;border:0;border-radius:0}.waitlist-detail-modal__header,.waitlist-detail-modal__body,.waitlist-detail-modal__footer{padding-left:18px;padding-right:18px}.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:105px minmax(0,1fr)}.waitlist-weekday-chips{gap:6px}.waitlist-weekday-chip{min-width:38px;height:29px;padding:0 8px}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}.waitlist-detail-modal__footer button{flex-basis:100%}}
     `}</style>
   </div>
 }
