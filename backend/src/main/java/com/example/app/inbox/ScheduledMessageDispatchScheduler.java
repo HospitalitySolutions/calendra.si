@@ -16,8 +16,8 @@ public class ScheduledMessageDispatchScheduler {
     }
 
     @Scheduled(cron = "0 * * * * *")
-    @SchedulerLock(name = "scheduledMessageDispatchScheduler_dispatchDue", lockAtMostFor = "PT5M", lockAtLeastFor = "PT1S")
+    @SchedulerLock(name = "scheduledMessageDispatchScheduler_dispatchDue", lockAtMostFor = "${app.inbox.scheduled-dispatch-lock-at-most:PT30M}", lockAtLeastFor = "PT1S")
     public void dispatchDue() {
-        jobTracker.run("scheduled-messages-dispatch", service::dispatchDueScheduledMessages);
+        jobTracker.run("scheduled-messages-dispatch", () -> { return service.dispatchDueScheduledMessages(); });
     }
 }

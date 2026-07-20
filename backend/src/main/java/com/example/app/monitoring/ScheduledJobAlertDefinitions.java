@@ -9,6 +9,8 @@ public final class ScheduledJobAlertDefinitions {
             def("reminder-scheduled-template-notifications", "Booking reminders", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Tenant-configured before/after session email/SMS reminders."),
             def("guest-booking-push-reminders", "Guest push reminders", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Guest-app push reminders before bookings."),
             def("scheduled-messages-dispatch", "Scheduled messages", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Scheduled inbox/client messages dispatch."),
+            def("waitlist-offer-expiry", "Waitlist offer expiry", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Bounded expiry and handoff of waitlist offers and holds."),
+            def("meeting-provisioning", "Online meeting provisioning", Duration.ofMinutes(10), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Durable Zoom/Google meeting creation after booking commit."),
             def("open-bill-sync-queue", "Open bill sync", Duration.ofMinutes(10), Duration.ofMinutes(5), ScheduledJobAlertSeverity.CRITICAL, "Dirty-queue sync for open bills."),
             def("google-calendar-sync-jobs", "Google Calendar sync", Duration.ofHours(2), Duration.ofMinutes(10), ScheduledJobAlertSeverity.WARNING, "Queued Google Calendar push/pull/full-sync jobs."),
             def("google-calendar-watch-renewal", "Google Calendar watch renewal", Duration.ofHours(2), Duration.ofMinutes(20), ScheduledJobAlertSeverity.WARNING, "Renewal of expiring Google Calendar webhook channels."),

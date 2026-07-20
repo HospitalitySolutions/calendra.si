@@ -1,14 +1,35 @@
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check, fail, sleep } from 'k6';
 import { BASE_URL, ORIGIN, adminEmail, currentMonth, futureDate, guestEmail, nextMonthDate, tenantCode } from './lib/data.js';
 import { bearer, expectStatus, firstAvailableSlot, firstLinkedTenant, firstProduct, jsonHeaders, loginAdmin, loginGuest, parseJson } from './lib/http.js';
 
-const QUICK = __ENV.QUICK === 'true';
+const MODE = (__ENV.TEST_MODE || (__ENV.QUICK === 'true' ? 'quick' : 'load')).toLowerCase();
+const QUICK = MODE === 'quick';
 const P95_MS = Number(__ENV.P95_MS || 800);
 const ERROR_RATE = Number(__ENV.ERROR_RATE || 0.01);
 
 function idempotencyKey(prefix) {
   return `${prefix}-${__VU}-${__ITER}-${Date.now()}`;
+}
+
+function stagesFor(target) {
+  if (MODE === 'quick') {
+    return [{ duration: '30s', target: Math.max(1, Math.ceil(target / 10)) }, { duration: '1m', target: Math.max(1, Math.ceil(target / 10)) }, { duration: '20s', target: 0 }];
+  }
+  if (MODE === 'spike') {
+    return [{ duration: '1m', target: Math.max(1, Math.ceil(target / 2)) }, { duration: '30s', target: target * 2 }, { duration: '3m', target: target * 2 }, { duration: '2m', target }, { duration: '1m', target: 0 }];
+  }
+  if (MODE === 'soak') {
+    return [{ duration: '5m', target }, { duration: __ENV.SOAK_DURATION || '8h', target }, { duration: '5m', target: 0 }];
+  }
+  return [{ duration: '2m', target }, { duration: __ENV.LOAD_DURATION || '1h', target }, { duration: '2m', target: 0 }];
+}
+
+function probeDuration() {
+  if (MODE === 'quick') return '1m';
+  if (MODE === 'spike') return '7m';
+  if (MODE === 'soak') return __ENV.SOAK_DURATION || '8h';
+  return __ENV.NOTIFICATION_PROBE_DURATION || __ENV.LOAD_DURATION || '1h';
 }
 
 export const options = {
@@ -17,47 +38,39 @@ export const options = {
       executor: 'ramping-vus',
       exec: 'guestBrowseWalletInbox',
       startVUs: 0,
-      stages: QUICK
-        ? [{ duration: '30s', target: 10 }, { duration: '1m', target: 10 }, { duration: '20s', target: 0 }]
-        : [{ duration: '2m', target: 100 }, { duration: '10m', target: 100 }, { duration: '2m', target: 0 }],
+      stages: stagesFor(100),
       tags: { test_type: 'load', flow: 'guest_browse_wallet_inbox' },
     },
     guest_order_booking_actions: {
       executor: 'ramping-vus',
       exec: 'guestOrderBookingActions',
       startVUs: 0,
-      stages: QUICK
-        ? [{ duration: '30s', target: 5 }, { duration: '1m', target: 5 }, { duration: '20s', target: 0 }]
-        : [{ duration: '2m', target: 40 }, { duration: '10m', target: 40 }, { duration: '2m', target: 0 }],
+      stages: stagesFor(40),
       tags: { test_type: 'load', flow: 'guest_order_booking_actions' },
     },
     widget_browse_and_book: {
       executor: 'ramping-vus',
       exec: 'widgetBrowseAndBook',
       startVUs: 0,
-      stages: QUICK
-        ? [{ duration: '30s', target: 5 }, { duration: '1m', target: 5 }, { duration: '20s', target: 0 }]
-        : [{ duration: '2m', target: 40 }, { duration: '10m', target: 40 }, { duration: '2m', target: 0 }],
+      stages: stagesFor(40),
       tags: { test_type: 'load', flow: 'widget_browse_and_book' },
     },
     admin_calendar_billing_logs: {
       executor: 'ramping-vus',
       exec: 'adminCalendarBillingLogs',
       startVUs: 0,
-      stages: QUICK
-        ? [{ duration: '30s', target: 5 }, { duration: '1m', target: 5 }, { duration: '20s', target: 0 }]
-        : [{ duration: '2m', target: 30 }, { duration: '10m', target: 30 }, { duration: '2m', target: 0 }],
+      stages: stagesFor(30),
       tags: { test_type: 'load', flow: 'admin_calendar_billing_logs' },
     },
-    notification_dispatch_probe: {
+    delivery_log_read_probe: {
       executor: 'constant-arrival-rate',
-      exec: 'notificationDispatchProbe',
+      exec: 'deliveryLogReadProbe',
       rate: QUICK ? 2 : Number(__ENV.NOTIFICATION_PROBE_RATE || 10),
       timeUnit: '1s',
-      duration: QUICK ? '1m' : (__ENV.NOTIFICATION_PROBE_DURATION || '10m'),
+      duration: probeDuration(),
       preAllocatedVUs: QUICK ? 5 : 30,
       maxVUs: QUICK ? 20 : 100,
-      tags: { test_type: 'load', flow: 'notification_dispatch_probe' },
+      tags: { test_type: 'load', flow: 'delivery_log_read_probe' },
     },
   },
   thresholds: {
@@ -202,12 +215,12 @@ export function adminCalendarBillingLogs() {
   sleep(1);
 }
 
-export function notificationDispatchProbe() {
+export function deliveryLogReadProbe() {
   const login = loginAdmin(adminEmail());
   if (!login.token) return;
   const h = bearer(login.token);
-  const logs = http.get(`${BASE_URL}/api/delivery-logs?page=0&size=20`, { headers: h, tags: { endpoint: 'notification_dispatch_logs_probe' } });
-  expectStatus(logs, 'delivery logs probe 200');
+  const logs = http.get(`${BASE_URL}/api/delivery-logs?page=0&size=20`, { headers: h, tags: { endpoint: 'delivery_logs_read_probe' } });
+  expectStatus(logs, 'delivery logs read probe 200');
   const body = parseJson(logs, {});
   check(body, {
     'delivery logs response has items or page payload': (b) => Array.isArray(b.items) || Array.isArray(b.content) || typeof b.totalElements === 'number',
@@ -216,6 +229,13 @@ export function notificationDispatchProbe() {
 }
 
 export function setup() {
-  const health = http.get(`${BASE_URL}/actuator/health`, { tags: { endpoint: 'actuator_health', test_type: 'setup' } });
-  check(health, { 'backend health is reachable': (r) => r.status === 200 || r.status === 401 || r.status === 403 });
+  const health = http.get(`${BASE_URL}/api/actuator/health/readiness`, { tags: { endpoint: 'actuator_readiness', test_type: 'setup' } });
+  const body = parseJson(health, {});
+  const ready = check(health, {
+    'backend readiness is HTTP 200': (r) => r.status === 200,
+    'backend readiness is UP': () => body && body.status === 'UP',
+  });
+  if (!ready) {
+    fail(`Backend is not ready: HTTP ${health.status}, body=${health.body}`);
+  }
 }

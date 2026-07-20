@@ -1,0 +1,2297 @@
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+--- a/.github/workflows/ci.yml	2026-07-20 16:04:42.000000000 +0000
++++ b/.github/workflows/ci.yml	2026-07-20 19:48:42.760200164 +0000
+@@ -122,6 +122,18 @@
+           APP_JWT_SECRET: ci-compose-config-placeholder-at-least-32-characters
+         run: docker compose -f docker-compose.staging.yml --env-file .env.staging.example config >/tmp/calendra-staging-compose.yml
+ 
++      - name: Validate production compose files
++        env:
++          POSTGRES_PASSWORD: ci-compose-config-placeholder
++          SPRING_DATASOURCE_URL: jdbc:postgresql://managed-postgres.example:5432/calendra
++          SPRING_DATASOURCE_USERNAME: calendra
++          SPRING_DATASOURCE_PASSWORD: ci-compose-config-placeholder
++          SPRING_DATA_REDIS_HOST: managed-redis.example
++          SPRING_DATA_REDIS_PASSWORD: ci-compose-config-placeholder
++        run: |
++          docker compose -f docker-compose.prod.yml config >/tmp/calendra-production-compose.yml
++          docker compose -f docker-compose.prod-ha.yml config >/tmp/calendra-production-ha-compose.yml
++
+   k6-quick-smoke:
+     name: Optional staging k6 quick smoke
+     runs-on: ubuntu-latest
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/Caddyfile.production.ha b/Caddyfile.production.ha
+--- a/Caddyfile.production.ha	1970-01-01 00:00:00.000000000 +0000
++++ b/Caddyfile.production.ha	2026-07-20 19:42:52.861885999 +0000
+@@ -0,0 +1,77 @@
++(backend_cluster) {
++	reverse_proxy backend-a:4000 backend-b:4000 {
++		lb_policy least_conn
++		lb_try_duration 5s
++		lb_try_interval 250ms
++		health_uri /api/actuator/health/readiness
++		health_interval 10s
++		health_timeout 3s
++		fail_duration 30s
++		max_fails 3
++		header_up X-Forwarded-Proto https
++	}
++}
++
++app.calendra.si {
++	encode gzip
++
++	header {
++		Strict-Transport-Security "max-age=31536000; includeSubDomains"
++		X-Content-Type-Options "nosniff"
++		Referrer-Policy "strict-origin-when-cross-origin"
++		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.mediadelivery.net; connect-src 'self' https: wss:; frame-src 'self' https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; child-src 'self' https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; media-src 'self' blob: data: https:; frame-ancestors 'self' https://*.zoom.us;"
++	}
++
++	handle /api/* {
++		import backend_cluster
++	}
++
++	handle /oauth2/* {
++		import backend_cluster
++	}
++
++	handle /login/oauth2/* {
++		import backend_cluster
++	}
++
++	handle /widget/* {
++		import backend_cluster
++	}
++
++	handle {
++		reverse_proxy frontend:80 {
++			header_up X-Forwarded-Proto https
++		}
++	}
++}
++
++www.calendra.si {
++	redir https://calendra.si{uri} permanent
++}
++
++calendra.si {
++	encode gzip
++
++	header {
++		Strict-Transport-Security "max-age=31536000; includeSubDomains"
++		X-Content-Type-Options "nosniff"
++		Referrer-Policy "strict-origin-when-cross-origin"
++	}
++
++	handle /narocanje/* {
++		uri replace /narocanje/ /widget/
++		import backend_cluster
++	}
++
++	handle /widget/* {
++		import backend_cluster
++	}
++
++	handle /api/public/widget/* {
++		import backend_cluster
++	}
++
++	handle {
++		reverse_proxy host.docker.internal:8080
++	}
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/PRODUCTION_HARDENING_PATCH.md b/PRODUCTION_HARDENING_PATCH.md
+--- a/PRODUCTION_HARDENING_PATCH.md	1970-01-01 00:00:00.000000000 +0000
++++ b/PRODUCTION_HARDENING_PATCH.md	2026-07-20 20:08:22.996925420 +0000
+@@ -0,0 +1,29 @@
++# Production hardening patch
++
++This patch addresses the repository-level blockers identified in the 1,000-tenant / 10,000-daily-user readiness review.
++
++## Implemented
++
++- Replaced billing startup DDL with forward-only Flyway migration `V9__production_hardening.sql`.
++- Added a data-preserving safety gate for obsolete singular waitlist tables. Empty tables are removed; non-empty tables abort deployment with an explicit migration error.
++- Added clean-schema, V8-to-V9 upgrade, non-empty legacy-data, and full Spring/PostgreSQL context tests using Testcontainers.
++- Added cluster-wide ShedLock scheduling and bounded batches for waitlist expiry.
++- Changed scheduled inbox dispatch to query only due rows, cap each run, lock one row at a time, and use one transaction per message.
++- Replaced full client-history scans on inbox write paths with indexed latest-open-conversation queries.
++- Moved Zoom/Google meeting creation out of the booking transaction into a durable retrying worker. Booking confirmation waits until the generated link is persisted.
++- Ensured pending, retrying, and failed online sessions are never counted as physical room usage.
++- Added explicit production Hikari, Tomcat, JVM/container, graceful-shutdown, readiness, and scheduler settings.
++- Added a two-backend Caddy topology that expects managed PostgreSQL and Redis.
++- Added logical backup/restore-drill helpers and a production deployment runbook.
++- Corrected the k6 readiness endpoint and health assertion, added load/spike/soak modes, and stopped describing a delivery-log read as a provider delivery test.
++- Updated Axios and pinned the frontend runtime requirement to Node 24.
++
++## Still requires deployment work
++
++Repository code cannot provision high availability by itself. Before approving 1,000 tenants, provision managed PostgreSQL with failover, automated backups and PITR; managed Redis; private metrics/tracing; alert delivery; and production-equivalent staging. Run the included PostgreSQL tests and the k6 load, spike, and 8–24 hour soak gates there.
++
++The generic email/SMS/push paths still use direct provider calls rather than a universal transactional outbox. The meeting-provider path is now durable, and scheduler batches are bounded, but a general notification outbox remains the recommended next reliability phase.
++
++## Migration warning
++
++`V9` changes numeric column types and can take table locks. Apply it first to a restored production copy, inspect the legacy waitlist safety check, and schedule the production migration in a controlled maintenance window. Never bypass the non-empty legacy-table failure by deleting data.
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/analytics/AnalyticsService.java b/backend/src/main/java/com/example/app/analytics/AnalyticsService.java
+--- a/backend/src/main/java/com/example/app/analytics/AnalyticsService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/analytics/AnalyticsService.java	2026-07-20 19:58:12.897375478 +0000
+@@ -421,7 +421,7 @@
+             Bucket yy = yearBuckets.computeIfAbsent(y, k -> new Bucket());
+             Bucket ww = weekBuckets.computeIfAbsent(weekStart, k -> new Bucket());
+             Bucket dd = weekdayBuckets.computeIfAbsent(dayOfWeek, k -> new Bucket());
+-            boolean online = b.getMeetingLink() != null && !b.getMeetingLink().isBlank();
++            boolean online = b.isOnlineSession();
+             Long clientId = b.getClient() != null ? b.getClient().getId() : null;
+             long durationMinutes = durationMinutes(b);
+ 
+@@ -789,7 +789,7 @@
+         long onsite = 0;
+ 
+         for (SessionBooking booking : bookings) {
+-            boolean isOnline = booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank();
++            boolean isOnline = booking.isOnlineSession();
+             String source = normalizeSourceChannelValue(booking.getSourceChannel());
+             String effectiveStatus = SessionBookingStatus.deriveLifecycleStatus(
+                     booking.getStartTime(),
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/billing/BillingPricePrecisionSchemaFix.java b/backend/src/main/java/com/example/app/billing/BillingPricePrecisionSchemaFix.java
+--- a/backend/src/main/java/com/example/app/billing/BillingPricePrecisionSchemaFix.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/billing/BillingPricePrecisionSchemaFix.java	1970-01-01 00:00:00.000000000 +0000
+@@ -1,78 +0,0 @@
+-package com.example.app.billing;
+-
+-import jakarta.annotation.PostConstruct;
+-import java.sql.Connection;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-import org.springframework.jdbc.core.JdbcTemplate;
+-import org.springframework.stereotype.Component;
+-
+-/**
+- * Keeps gross-first billing stable.
+- *
+- * Gross is the user-entered source of truth. Net prices are kept at 4 decimals
+- * only as derived taxable-base values, and open-bill rows store their own gross
+- * unit price so Billing does not need to recalculate gross from net.
+- */
+-@Component
+-public class BillingPricePrecisionSchemaFix {
+-    private static final Logger log = LoggerFactory.getLogger(BillingPricePrecisionSchemaFix.class);
+-
+-    private final JdbcTemplate jdbc;
+-
+-    public BillingPricePrecisionSchemaFix(JdbcTemplate jdbc) {
+-        this.jdbc = jdbc;
+-    }
+-
+-    @PostConstruct
+-    public void ensureGrossFirstBillingColumns() {
+-        if (!isPostgres()) {
+-            return;
+-        }
+-        try {
+-            jdbc.execute("ALTER TABLE IF EXISTS open_bill_items ALTER COLUMN net_price TYPE NUMERIC(12,4)");
+-            jdbc.execute("ALTER TABLE IF EXISTS bill_item ALTER COLUMN net_price TYPE NUMERIC(12,4)");
+-            jdbc.execute("ALTER TABLE IF EXISTS open_bill_items ADD COLUMN IF NOT EXISTS unit_gross_price NUMERIC(12,2)");
+-            jdbc.execute("ALTER TABLE IF EXISTS open_bills ADD COLUMN IF NOT EXISTS proforma_number VARCHAR(80)");
+-            jdbc.execute("ALTER TABLE IF EXISTS open_bills ADD COLUMN IF NOT EXISTS proforma_sequence_number BIGINT");
+-            jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_open_bills_company_proforma_number ON open_bills(company_id, proforma_number) WHERE proforma_number IS NOT NULL");
+-            jdbc.execute("""
+-                    UPDATE open_bill_items obi
+-                    SET unit_gross_price = ROUND((COALESCE(
+-                        CASE
+-                            -- Existing rows may have already lost precision (e.g. 36.8852 -> 36.89),
+-                            -- so when the rounded row matches the configured service price, backfill from
+-                            -- the higher-precision transaction-service net price to preserve the original gross.
+-                            WHEN ROUND(COALESCE(obi.net_price, 0), 2) = ROUND(COALESCE(ts.net_price, 0), 2)
+-                                THEN ts.net_price
+-                            ELSE obi.net_price
+-                        END,
+-                        0
+-                    ) *
+-                        CASE ts.tax_rate
+-                            WHEN 'VAT_22' THEN 1.22
+-                            WHEN 'VAT_9_5' THEN 1.095
+-                            ELSE 1
+-                        END)::numeric, 2)
+-                    FROM transaction_service ts
+-                    WHERE obi.transaction_service_id = ts.id
+-                      AND obi.unit_gross_price IS NULL
+-                    """);
+-            log.info("Ensured gross-first billing columns are available.");
+-        } catch (Exception ex) {
+-            log.warn("Could not prepare gross-first billing columns; Billing prices may round incorrectly until the schema is updated.", ex);
+-        }
+-    }
+-
+-    private boolean isPostgres() {
+-        try {
+-            return Boolean.TRUE.equals(jdbc.execute((Connection connection) -> {
+-                String product = connection.getMetaData().getDatabaseProductName();
+-                return product != null && product.toLowerCase().contains("postgres");
+-            }));
+-        } catch (Exception ex) {
+-            log.warn("Could not detect database product for billing line precision check.", ex);
+-            return false;
+-        }
+-    }
+-}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/common/SimulatedTimeService.java b/backend/src/main/java/com/example/app/common/SimulatedTimeService.java
+--- a/backend/src/main/java/com/example/app/common/SimulatedTimeService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/common/SimulatedTimeService.java	2026-07-20 20:02:14.676322836 +0000
+@@ -22,6 +22,7 @@
+ import java.util.Map;
+ import java.util.Objects;
+ import java.util.Optional;
++import java.util.Set;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ import org.springframework.scheduling.annotation.Scheduled;
+@@ -109,6 +110,11 @@
+         return !offsetCache.isEmpty();
+     }
+ 
++    /** Immutable snapshot of tenant ids with an active non-zero simulation offset. */
++    public Set<Long> activeTenantIds() {
++        return Set.copyOf(offsetCache.keySet());
++    }
++
+     public List<Simulation> listSimulations() {
+         List<Simulation> all = readAll();
+         all.sort(Comparator.comparing(s -> s.tenantName == null ? "" : s.tenantName.toLowerCase()));
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/common/TimeService.java b/backend/src/main/java/com/example/app/common/TimeService.java
+--- a/backend/src/main/java/com/example/app/common/TimeService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/common/TimeService.java	2026-07-20 19:38:43.460799030 +0000
+@@ -6,6 +6,7 @@
+ import java.time.LocalDateTime;
+ import java.time.OffsetDateTime;
+ import java.time.ZoneId;
++import java.util.Set;
+ import org.springframework.stereotype.Service;
+ 
+ /**
+@@ -80,4 +81,9 @@
+     public boolean isSimulated(Long tenantId) {
+         return !offset(tenantId).isZero();
+     }
++
++    /** Tenant ids whose effective clock is currently shifted; used by bounded schedulers. */
++    public Set<Long> simulatedTenantIds() {
++        return simulatedTimeService.activeTenantIds();
++    }
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/guest/common/GuestBookingActionsController.java b/backend/src/main/java/com/example/app/guest/common/GuestBookingActionsController.java
+--- a/backend/src/main/java/com/example/app/guest/common/GuestBookingActionsController.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/guest/common/GuestBookingActionsController.java	2026-07-20 19:58:12.897947554 +0000
+@@ -243,7 +243,7 @@
+                 bookingCreationService.isSpacesEnabled(booking.getCompany().getId()),
+                 bookingCreationService.isMultipleSessionsPerSpaceEnabled(booking.getCompany().getId()),
+                 bookingCreationService.isMultipleClientsPerSessionEnabled(booking.getCompany().getId()),
+-                booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank(),
++                booking.isOnlineSession(),
+                 false
+         );
+ 
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/inbox/ClientMessageRepository.java b/backend/src/main/java/com/example/app/inbox/ClientMessageRepository.java
+--- a/backend/src/main/java/com/example/app/inbox/ClientMessageRepository.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/inbox/ClientMessageRepository.java	2026-07-20 19:37:52.880803038 +0000
+@@ -11,6 +11,9 @@
+ public interface ClientMessageRepository extends JpaRepository<ClientMessage, Long> {
+     List<ClientMessage> findAllByCompanyIdOrderByCreatedAtDesc(Long companyId);
+     List<ClientMessage> findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(Long companyId, Long clientId);
++    java.util.Optional<ClientMessage> findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(Long companyId, Long clientId);
++    java.util.Optional<ClientMessage> findFirstByCompanyIdAndClientIdAndChannelAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
++            Long companyId, Long clientId, MessageChannel channel);
+ 
+ 
+     @Query("""
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/inbox/ClientMessageService.java b/backend/src/main/java/com/example/app/inbox/ClientMessageService.java
+--- a/backend/src/main/java/com/example/app/inbox/ClientMessageService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/inbox/ClientMessageService.java	2026-07-20 19:38:45.297227189 +0000
+@@ -60,7 +60,9 @@
+ import org.springframework.mail.javamail.JavaMailSender;
+ import org.springframework.mail.javamail.MimeMessageHelper;
+ import org.springframework.stereotype.Service;
++import org.springframework.transaction.PlatformTransactionManager;
+ import org.springframework.transaction.annotation.Transactional;
++import org.springframework.transaction.support.TransactionTemplate;
+ import org.springframework.web.client.RestClientException;
+ import org.springframework.web.multipart.MultipartFile;
+ import org.springframework.web.client.RestTemplate;
+@@ -97,6 +99,8 @@
+     private final ScheduledMessageRepository scheduledMessages;
+     private final TenantSmsQuotaService smsQuotaService;
+     private final com.example.app.common.TimeService timeService;
++    private final TransactionTemplate transactionTemplate;
++    private final int scheduledDispatchBatchSize;
+     private final RestTemplate restTemplate = new RestTemplate();
+ 
+     @Autowired(required = false)
+@@ -118,6 +122,8 @@
+             GuestSettingsService guestSettingsService,
+             ScheduledMessageRepository scheduledMessages,
+             com.example.app.common.TimeService timeService,
++            PlatformTransactionManager transactionManager,
++            @Value("${app.inbox.scheduled-dispatch-batch-size:100}") int scheduledDispatchBatchSize,
+             TenantSmsQuotaService smsQuotaService,
+             SmsGateway smsGateway,
+             @Autowired(required = false) JavaMailSender mailSender,
+@@ -142,6 +148,8 @@
+         this.guestSettingsService = guestSettingsService;
+         this.scheduledMessages = scheduledMessages;
+         this.timeService = timeService;
++        this.transactionTemplate = new TransactionTemplate(transactionManager);
++        this.scheduledDispatchBatchSize = Math.max(10, Math.min(1000, scheduledDispatchBatchSize));
+         this.smsQuotaService = smsQuotaService;
+         this.smsGateway = smsGateway;
+         this.smsConfigured = smsGateway != null && smsGateway.isConfigured();
+@@ -347,10 +355,11 @@
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
+         }
+ 
+-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+-                .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
+-                .toList();
+-        String conversationKey = resolveOpenConversationKey(link.getClient(), existingRows);
++        String conversationKey = resolveOpenConversationKey(
++                link.getClient(),
++                messages.findFirstByCompanyIdAndClientIdAndChannelAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
++                        companyId, link.getClient().getId(), MessageChannel.GUEST_APP)
++        );
+ 
+         ClientMessage row = new ClientMessage();
+         row.setCompany(link.getCompany());
+@@ -588,22 +597,47 @@
+         scheduledMessages.delete(row);
+     }
+ 
+-    /** Dispatches all due scheduled messages, honoring the per-tenant time simulator. Called by the scheduler. */
+-    @Transactional
+-    public void dispatchDueScheduledMessages() {
+-        for (ScheduledMessage row : scheduledMessages.findByStatus(ScheduledMessageStatus.ACTIVE)) {
+-            try {
+-                dispatchOne(row);
+-            } catch (Exception ex) {
+-                row.setLastError(truncateError(ex.getMessage()));
+-                if (row.getRecurrence() == MessageRecurrence.NONE) {
+-                    row.setStatus(ScheduledMessageStatus.FAILED);
+-                } else {
+-                    advanceRecurrence(row);
+-                }
+-                scheduledMessages.save(row);
++    /**
++     * Dispatches a bounded set of due rows. Each message gets its own transaction and
++     * pessimistic row lock, so one slow provider cannot keep every scheduled message
++     * in a single global transaction.
++     */
++    public int dispatchDueScheduledMessages() {
++        var page = PageRequest.of(0, scheduledDispatchBatchSize);
++        var ids = new java.util.LinkedHashSet<Long>(scheduledMessages.findDueIds(Instant.now(), page));
++        var simulatedTenantIds = timeService.simulatedTenantIds();
++        if (!simulatedTenantIds.isEmpty() && ids.size() < scheduledDispatchBatchSize) {
++            int remaining = scheduledDispatchBatchSize - ids.size();
++            ids.addAll(scheduledMessages.findActiveIdsForCompanies(
++                    simulatedTenantIds, PageRequest.of(0, remaining)));
++        }
++
++        int processed = 0;
++        for (Long id : ids) {
++            Boolean didProcess = transactionTemplate.execute(status -> dispatchOneLocked(id));
++            if (Boolean.TRUE.equals(didProcess)) processed++;
++        }
++        return processed;
++    }
++
++    private boolean dispatchOneLocked(Long id) {
++        ScheduledMessage row = scheduledMessages.findActiveForUpdate(id).orElse(null);
++        if (row == null) return false;
++        Long companyId = row.getCompany() != null ? row.getCompany().getId() : null;
++        Instant now = timeService.instant(companyId);
++        if (row.getNextRunAt() == null || now.isBefore(row.getNextRunAt())) return false;
++        try {
++            dispatchOne(row);
++        } catch (Exception ex) {
++            row.setLastError(truncateError(ex.getMessage()));
++            if (row.getRecurrence() == MessageRecurrence.NONE) {
++                row.setStatus(ScheduledMessageStatus.FAILED);
++            } else {
++                advanceRecurrence(row);
+             }
++            scheduledMessages.save(row);
+         }
++        return true;
+     }
+ 
+     private void dispatchOne(ScheduledMessage row) {
+@@ -671,8 +705,11 @@
+         Client client = requireVisibleClient(me, clientId);
+         String normalized = normalizeBody(body);
+         if (normalized.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Note body is required.");
+-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
+-        String conversationKey = resolveOpenConversationKey(client, existingRows);
++        String conversationKey = resolveOpenConversationKey(
++                client,
++                messages.findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
++                        me.getCompany().getId(), client.getId())
++        );
+ 
+         ClientMessage row = new ClientMessage();
+         row.setCompany(me.getCompany());
+@@ -839,8 +876,11 @@
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest App is disabled for this tenant.");
+         }
+ 
+-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
+-        String conversationKey = resolveOpenConversationKey(client, existingRows);
++        String conversationKey = resolveOpenConversationKey(
++                client,
++                messages.findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
++                        me.getCompany().getId(), client.getId())
++        );
+ 
+         ClientMessage row = new ClientMessage();
+         row.setCompany(me.getCompany());
+@@ -1015,8 +1055,11 @@
+     }
+ 
+     private void persistInboundMessage(Company company, Client client, MessageChannel channel, String recipient, String subject, String body, String externalId) {
+-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(company.getId(), client.getId());
+-        String conversationKey = resolveOpenConversationKey(client, existingRows);
++        String conversationKey = resolveOpenConversationKey(
++                client,
++                messages.findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
++                        company.getId(), client.getId())
++        );
+ 
+         ClientMessage row = new ClientMessage();
+         row.setCompany(company);
+@@ -1164,6 +1207,20 @@
+                 .orElse("conversation-" + UUID.randomUUID());
+     }
+ 
++    /** Hot-path variant that reads only the newest open row instead of the client's full history. */
++    private String resolveOpenConversationKey(Client client, Optional<ClientMessage> latestOpenRow) {
++        if (latestOpenRow != null && latestOpenRow.isPresent()) {
++            ClientMessage row = latestOpenRow.get();
++            if (row.getConversationKey() != null && !row.getConversationKey().isBlank()) {
++                return row.getConversationKey();
++            }
++            if (client != null && !client.isInboxClosed()) {
++                return legacyConversationKey(client.getId());
++            }
++        }
++        return "conversation-" + UUID.randomUUID();
++    }
++
+     private ConversationSelection requireConversationSelection(Long companyId, Client client, String threadKey) {
+         if (client == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.");
+         List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, client.getId());
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/inbox/ScheduledMessageDispatchScheduler.java b/backend/src/main/java/com/example/app/inbox/ScheduledMessageDispatchScheduler.java
+--- a/backend/src/main/java/com/example/app/inbox/ScheduledMessageDispatchScheduler.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/inbox/ScheduledMessageDispatchScheduler.java	2026-07-20 19:53:42.050796562 +0000
+@@ -16,8 +16,8 @@
+     }
+ 
+     @Scheduled(cron = "0 * * * * *")
+-    @SchedulerLock(name = "scheduledMessageDispatchScheduler_dispatchDue", lockAtMostFor = "PT5M", lockAtLeastFor = "PT1S")
++    @SchedulerLock(name = "scheduledMessageDispatchScheduler_dispatchDue", lockAtMostFor = "${app.inbox.scheduled-dispatch-lock-at-most:PT30M}", lockAtLeastFor = "PT1S")
+     public void dispatchDue() {
+-        jobTracker.run("scheduled-messages-dispatch", service::dispatchDueScheduledMessages);
++        jobTracker.run("scheduled-messages-dispatch", () -> { return service.dispatchDueScheduledMessages(); });
+     }
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/inbox/ScheduledMessageRepository.java b/backend/src/main/java/com/example/app/inbox/ScheduledMessageRepository.java
+--- a/backend/src/main/java/com/example/app/inbox/ScheduledMessageRepository.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/inbox/ScheduledMessageRepository.java	2026-07-20 19:38:43.461791441 +0000
+@@ -1,11 +1,43 @@
+ package com.example.app.inbox;
+ 
++import jakarta.persistence.LockModeType;
++import java.time.Instant;
++import java.util.Collection;
+ import java.util.List;
+ import java.util.Optional;
++import org.springframework.data.domain.Pageable;
++import org.springframework.data.jpa.repository.EntityGraph;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Lock;
++import org.springframework.data.jpa.repository.Query;
++import org.springframework.data.repository.query.Param;
+ 
+ public interface ScheduledMessageRepository extends JpaRepository<ScheduledMessage, Long> {
+     List<ScheduledMessage> findByCompanyIdAndStatusOrderByNextRunAtAsc(Long companyId, ScheduledMessageStatus status);
+-    List<ScheduledMessage> findByStatus(ScheduledMessageStatus status);
+     Optional<ScheduledMessage> findByIdAndCompanyId(Long id, Long companyId);
++
++    @Query("""
++            select s.id from ScheduledMessage s
++            where s.status = com.example.app.inbox.ScheduledMessageStatus.ACTIVE
++              and s.nextRunAt <= :now
++            order by s.nextRunAt asc, s.id asc
++            """)
++    List<Long> findDueIds(@Param("now") Instant now, Pageable pageable);
++
++    @Query("""
++            select s.id from ScheduledMessage s
++            where s.status = com.example.app.inbox.ScheduledMessageStatus.ACTIVE
++              and s.company.id in :companyIds
++            order by s.nextRunAt asc, s.id asc
++            """)
++    List<Long> findActiveIdsForCompanies(@Param("companyIds") Collection<Long> companyIds, Pageable pageable);
++
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    @EntityGraph(attributePaths = {"company", "client", "senderUser"})
++    @Query("""
++            select s from ScheduledMessage s
++            where s.id = :id
++              and s.status = com.example.app.inbox.ScheduledMessageStatus.ACTIVE
++            """)
++    Optional<ScheduledMessage> findActiveForUpdate(@Param("id") Long id);
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/monitoring/ScheduledJobAlertDefinitions.java b/backend/src/main/java/com/example/app/monitoring/ScheduledJobAlertDefinitions.java
+--- a/backend/src/main/java/com/example/app/monitoring/ScheduledJobAlertDefinitions.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/monitoring/ScheduledJobAlertDefinitions.java	2026-07-20 19:53:07.708268764 +0000
+@@ -9,6 +9,8 @@
+             def("reminder-scheduled-template-notifications", "Booking reminders", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Tenant-configured before/after session email/SMS reminders."),
+             def("guest-booking-push-reminders", "Guest push reminders", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Guest-app push reminders before bookings."),
+             def("scheduled-messages-dispatch", "Scheduled messages", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Scheduled inbox/client messages dispatch."),
++            def("waitlist-offer-expiry", "Waitlist offer expiry", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Bounded expiry and handoff of waitlist offers and holds."),
++            def("meeting-provisioning", "Online meeting provisioning", Duration.ofMinutes(10), Duration.ofMinutes(10), ScheduledJobAlertSeverity.CRITICAL, "Durable Zoom/Google meeting creation after booking commit."),
+             def("open-bill-sync-queue", "Open bill sync", Duration.ofMinutes(10), Duration.ofMinutes(5), ScheduledJobAlertSeverity.CRITICAL, "Dirty-queue sync for open bills."),
+             def("google-calendar-sync-jobs", "Google Calendar sync", Duration.ofHours(2), Duration.ofMinutes(10), ScheduledJobAlertSeverity.WARNING, "Queued Google Calendar push/pull/full-sync jobs."),
+             def("google-calendar-watch-renewal", "Google Calendar watch renewal", Duration.ofHours(2), Duration.ofMinutes(20), ScheduledJobAlertSeverity.WARNING, "Renewal of expiring Google Calendar webhook channels."),
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/reminder/ReminderService.java b/backend/src/main/java/com/example/app/reminder/ReminderService.java
+--- a/backend/src/main/java/com/example/app/reminder/ReminderService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/reminder/ReminderService.java	2026-07-20 19:58:12.895875393 +0000
+@@ -803,9 +803,7 @@
+     }
+ 
+     private static boolean isOnlineBooking(SessionBooking booking) {
+-        return booking != null
+-                && booking.getMeetingLink() != null
+-                && !booking.getMeetingLink().isBlank();
++        return booking != null && booking.isOnlineSession();
+     }
+ 
+     private static String firstNonBlank(String... values) {
+@@ -859,7 +857,7 @@
+                 : (nz(consultant.getFirstName()) + " " + nz(consultant.getLastName())).trim();
+         String consultantPhone = consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "";
+         String onlineMeetingLink = booking.getMeetingLink() != null ? booking.getMeetingLink().trim() : "";
+-        String deliveryType = onlineMeetingLink.isBlank() ? "V živo" : "Online";
++        String deliveryType = booking.isOnlineSession() ? "Online" : "V živo";
+         String rescheduleLink = buildRescheduleLink(company);
+         String originalAppointmentDateTime;
+         if (originalStart != null) {
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/session/MeetingProvisioningScheduler.java b/backend/src/main/java/com/example/app/session/MeetingProvisioningScheduler.java
+--- a/backend/src/main/java/com/example/app/session/MeetingProvisioningScheduler.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/main/java/com/example/app/session/MeetingProvisioningScheduler.java	2026-07-20 19:53:42.052185751 +0000
+@@ -0,0 +1,30 @@
++package com.example.app.session;
++
++import com.example.app.monitoring.ScheduledJobTrackerService;
++import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
++import org.springframework.scheduling.annotation.Scheduled;
++import org.springframework.stereotype.Component;
++
++@Component
++public class MeetingProvisioningScheduler {
++    private final MeetingProvisioningService provisioningService;
++    private final ScheduledJobTrackerService jobTracker;
++
++    public MeetingProvisioningScheduler(
++            MeetingProvisioningService provisioningService,
++            ScheduledJobTrackerService jobTracker
++    ) {
++        this.provisioningService = provisioningService;
++        this.jobTracker = jobTracker;
++    }
++
++    @Scheduled(fixedDelayString = "${app.meetings.provisioning.poll-ms:10000}")
++    @SchedulerLock(
++            name = "meetingProvisioningScheduler_processDue",
++            lockAtMostFor = "${app.meetings.provisioning.lock-at-most:PT10M}",
++            lockAtLeastFor = "PT1S"
++    )
++    public void processDue() {
++        jobTracker.run("meeting-provisioning", () -> { return provisioningService.processDueBatch(); });
++    }
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/session/MeetingProvisioningService.java b/backend/src/main/java/com/example/app/session/MeetingProvisioningService.java
+--- a/backend/src/main/java/com/example/app/session/MeetingProvisioningService.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/main/java/com/example/app/session/MeetingProvisioningService.java	2026-07-20 20:06:36.904041024 +0000
+@@ -0,0 +1,193 @@
++package com.example.app.session;
++
++import com.example.app.google.GoogleMeetService;
++import com.example.app.reminder.ReminderService;
++import com.example.app.zoom.ZoomService;
++import java.time.Duration;
++import java.time.Instant;
++import java.time.LocalDateTime;
++import java.util.List;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.beans.factory.annotation.Value;
++import org.springframework.data.domain.PageRequest;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.PlatformTransactionManager;
++import org.springframework.transaction.support.TransactionTemplate;
++
++/**
++ * Durable, bounded online-meeting provisioning. Provider calls happen outside
++ * the booking transaction and therefore never hold the per-tenant booking lock.
++ */
++@Service
++public class MeetingProvisioningService {
++    private static final Logger log = LoggerFactory.getLogger(MeetingProvisioningService.class);
++
++    private final SessionBookingRepository bookings;
++    private final ZoomService zoomService;
++    private final GoogleMeetService googleMeetService;
++    private final ReminderService reminderService;
++    private final BookingChangePublisher bookingChangePublisher;
++    private final TransactionTemplate transactions;
++    private final int batchSize;
++    private final int maxAttempts;
++    private final Duration processingLease;
++    private final Duration retryBase;
++
++    public MeetingProvisioningService(
++            SessionBookingRepository bookings,
++            ZoomService zoomService,
++            GoogleMeetService googleMeetService,
++            ReminderService reminderService,
++            BookingChangePublisher bookingChangePublisher,
++            PlatformTransactionManager transactionManager,
++            @Value("${app.meetings.provisioning.batch-size:50}") int batchSize,
++            @Value("${app.meetings.provisioning.max-attempts:6}") int maxAttempts,
++            @Value("${app.meetings.provisioning.processing-lease:PT5M}") Duration processingLease,
++            @Value("${app.meetings.provisioning.retry-base:PT30S}") Duration retryBase
++    ) {
++        this.bookings = bookings;
++        this.zoomService = zoomService;
++        this.googleMeetService = googleMeetService;
++        this.reminderService = reminderService;
++        this.bookingChangePublisher = bookingChangePublisher;
++        this.transactions = new TransactionTemplate(transactionManager);
++        this.batchSize = Math.max(1, Math.min(500, batchSize));
++        this.maxAttempts = Math.max(1, Math.min(20, maxAttempts));
++        this.processingLease = processingLease == null || processingLease.isNegative() || processingLease.isZero()
++                ? Duration.ofMinutes(5) : processingLease;
++        this.retryBase = retryBase == null || retryBase.isNegative() || retryBase.isZero()
++                ? Duration.ofSeconds(30) : retryBase;
++    }
++
++    public int processDueBatch() {
++        Instant now = Instant.now();
++        transactions.executeWithoutResult(status -> bookings.recoverStaleMeetingProvisioning(
++                now.minus(processingLease), now));
++        List<Long> ids = bookings.findDueMeetingRepresentativeIds(now, PageRequest.of(0, batchSize));
++        int processed = 0;
++        for (Long id : ids) {
++            if (processOne(id)) processed++;
++        }
++        return processed;
++    }
++
++    private boolean processOne(Long representativeId) {
++        ProvisioningSnapshot snapshot = transactions.execute(status -> claim(representativeId));
++        if (snapshot == null) return false;
++
++        try {
++            String meetingLink = createMeetingUrl(snapshot);
++            if (meetingLink == null || meetingLink.isBlank()) {
++                throw new IllegalStateException("Meeting provider returned an empty URL.");
++            }
++            transactions.executeWithoutResult(status -> complete(snapshot, meetingLink.trim()));
++            return true;
++        } catch (Exception ex) {
++            String message = safeMessage(ex);
++            Boolean terminal = transactions.execute(status -> fail(snapshot, message));
++            log.warn("Online meeting provisioning failed companyId={} bookingGroupKey={} provider={} attempt={}: {}",
++                    snapshot.companyId(), snapshot.bookingGroupKey(), snapshot.provider(), snapshot.attempt(), message);
++            if (Boolean.TRUE.equals(terminal)) {
++                throw new IllegalStateException(
++                        "Online meeting provisioning exhausted all retries for booking group "
++                                + snapshot.bookingGroupKey() + ": " + message,
++                        ex);
++            }
++            return true;
++        }
++    }
++
++    private ProvisioningSnapshot claim(Long representativeId) {
++        SessionBooking representative = bookings.findMeetingProvisioningRepresentative(representativeId).orElse(null);
++        if (representative == null
++                || representative.getCompany() == null
++                || representative.getCompany().getId() == null
++                || representative.getBookingGroupKey() == null
++                || representative.getBookingGroupKey().isBlank()
++                || representative.getConsultant() == null
++                || representative.getConsultant().getId() == null) {
++            return null;
++        }
++        Instant startedAt = Instant.now();
++        int claimed = bookings.claimMeetingProvisioning(
++                representative.getCompany().getId(), representative.getBookingGroupKey(), startedAt);
++        if (claimed <= 0) return null;
++        return new ProvisioningSnapshot(
++                representative.getCompany().getId(),
++                representative.getBookingGroupKey(),
++                representative.getId(),
++                representative.getConsultant().getId(),
++                representative.getStartTime(),
++                representative.getEndTime(),
++                normalizeProvider(representative.getMeetingProvider()),
++                representative.getMeetingProvisioningAttempts() + 1
++        );
++    }
++
++    private String createMeetingUrl(ProvisioningSnapshot snapshot) {
++        if ("google".equals(snapshot.provider())) {
++            return googleMeetService.createMeetingUrl(
++                    snapshot.consultantId(), snapshot.startTime(), snapshot.endTime(), "Session");
++        }
++        return zoomService.createMeetingUrl(
++                snapshot.consultantId(), snapshot.startTime(), snapshot.endTime(), "Session");
++    }
++
++    private void complete(ProvisioningSnapshot snapshot, String meetingLink) {
++        bookings.markMeetingProvisioningReady(snapshot.companyId(), snapshot.bookingGroupKey(), meetingLink);
++        List<SessionBooking> rows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(
++                snapshot.bookingGroupKey(), snapshot.companyId());
++        for (SessionBooking row : rows) {
++            if (row.isMeetingConfirmationPending()) {
++                reminderService.sendBookingConfirmation(row);
++                row.setMeetingConfirmationPending(false);
++            }
++        }
++        bookings.saveAll(rows);
++        bookingChangePublisher.publish(
++                snapshot.companyId(), snapshot.representativeId(), snapshot.startTime(), snapshot.endTime(),
++                BookingChangePublisher.BOOKING_UPDATED);
++    }
++
++    private boolean fail(ProvisioningSnapshot snapshot, String error) {
++        boolean terminal = snapshot.attempt() >= maxAttempts;
++        Instant nextAttempt = terminal ? null : Instant.now().plus(retryDelay(snapshot.attempt()));
++        bookings.markMeetingProvisioningFailed(
++                snapshot.companyId(), snapshot.bookingGroupKey(), terminal ? "FAILED" : "RETRY", error, nextAttempt);
++        return terminal;
++    }
++
++    private Duration retryDelay(int attempt) {
++        long multiplier = 1L << Math.min(10, Math.max(0, attempt - 1));
++        long seconds;
++        try {
++            seconds = Math.multiplyExact(retryBase.getSeconds(), multiplier);
++        } catch (ArithmeticException ex) {
++            seconds = 1800;
++        }
++        return Duration.ofSeconds(Math.min(1800, Math.max(5, seconds)));
++    }
++
++    private static String normalizeProvider(String provider) {
++        return provider != null && "google".equalsIgnoreCase(provider.trim()) ? "google" : "zoom";
++    }
++
++    private static String safeMessage(Exception ex) {
++        String message = ex == null ? null : ex.getMessage();
++        if (message == null || message.isBlank()) message = ex == null ? "Unknown error" : ex.getClass().getSimpleName();
++        message = message.replaceAll("[\\r\\n\\t]+", " ");
++        return message.length() <= 1000 ? message : message.substring(0, 1000);
++    }
++
++    private record ProvisioningSnapshot(
++            Long companyId,
++            String bookingGroupKey,
++            Long representativeId,
++            Long consultantId,
++            LocalDateTime startTime,
++            LocalDateTime endTime,
++            String provider,
++            int attempt
++    ) {}
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/session/SessionBooking.java b/backend/src/main/java/com/example/app/session/SessionBooking.java
+--- a/backend/src/main/java/com/example/app/session/SessionBooking.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/session/SessionBooking.java	2026-07-20 19:58:12.892239116 +0000
+@@ -9,6 +9,7 @@
+ import jakarta.persistence.*;
+ import java.time.LocalDate;
+ import java.time.LocalDateTime;
++import java.time.Instant;
+ import lombok.Getter;
+ import lombok.Setter;
+ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+@@ -89,6 +90,34 @@
+     @Column(length = 20)
+     private String meetingProvider;
+ 
++    /** Durable post-commit meeting provisioning state: NONE, PENDING, PROCESSING, RETRY, READY, FAILED. */
++    @Column(name = "meeting_provisioning_status", nullable = false, length = 20)
++    private String meetingProvisioningStatus = "NONE";
++
++    @Column(name = "meeting_provisioning_error", length = 1000)
++    private String meetingProvisioningError;
++
++    @Column(name = "meeting_provisioning_attempts", nullable = false)
++    private int meetingProvisioningAttempts = 0;
++
++    @Column(name = "meeting_provisioning_started_at")
++    private Instant meetingProvisioningStartedAt;
++
++    @Column(name = "meeting_provisioning_next_attempt_at")
++    private Instant meetingProvisioningNextAttemptAt;
++
++    /** Creation confirmation is delayed until the generated online meeting link is ready. */
++    @Column(name = "meeting_confirmation_pending", nullable = false)
++    private boolean meetingConfirmationPending = false;
++
++    /** True while an online session is waiting for a link, after it is ready, or after a terminal provider failure. */
++    @Transient
++    public boolean isOnlineSession() {
++        if (meetingLink != null && !meetingLink.isBlank()) return true;
++        String status = meetingProvisioningStatus == null ? "NONE" : meetingProvisioningStatus.trim();
++        return !status.isEmpty() && !"NONE".equalsIgnoreCase(status);
++    }
++
+     /** When set, this session has been billed and should not create new open bills. */
+     private LocalDate billedAt;
+ 
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/session/SessionBookingController.java b/backend/src/main/java/com/example/app/session/SessionBookingController.java
+--- a/backend/src/main/java/com/example/app/session/SessionBookingController.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/session/SessionBookingController.java	2026-07-20 19:58:12.893129124 +0000
+@@ -301,8 +301,8 @@
+         var excludes = new ArrayList<Long>();
+         aGroup.forEach(row -> excludes.add(row.getId()));
+         bGroup.forEach(row -> excludes.add(row.getId()));
+-        boolean aOnline = aRep.getMeetingLink() != null && !aRep.getMeetingLink().isBlank();
+-        boolean bOnline = bRep.getMeetingLink() != null && !bRep.getMeetingLink().isBlank();
++        boolean aOnline = aRep.isOnlineSession();
++        boolean bOnline = bRep.isOnlineSession();
+         bookingCreationService.validateBookingWindow(
+                 companyId,
+                 clientIdsOf(aGroup),
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/session/SessionBookingCreationService.java b/backend/src/main/java/com/example/app/session/SessionBookingCreationService.java
+--- a/backend/src/main/java/com/example/app/session/SessionBookingCreationService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/session/SessionBookingCreationService.java	2026-07-20 19:58:12.894548595 +0000
+@@ -23,6 +23,7 @@
+ import com.example.app.zoom.ZoomService;
+ import com.example.app.waitlist.WaitlistBookingHold;
+ import com.example.app.waitlist.WaitlistBookingHoldRepository;
++import java.time.Instant;
+ import java.time.LocalDateTime;
+ import java.time.OffsetDateTime;
+ import java.time.ZoneId;
+@@ -203,12 +204,9 @@
+                 excludedWaitlistOfferId
+         );
+         var meetingLink = req.meetingLink();
+-        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank())) {
+-            if (consultantId == null) {
+-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+-                        "Online sessions require a meeting link when no consultant is assigned.");
+-            }
+-            meetingLink = createMeetingUrl(consultantId, start, end, req.meetingProvider());
++        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
++            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
++                    "Online sessions require a meeting link when no consultant is assigned.");
+         }
+         String groupKey = UUID.randomUUID().toString();
+         List<SessionBooking> saved = new ArrayList<>();
+@@ -222,7 +220,7 @@
+             mergeSessionPayeeOverride(booking, req, companyId, null);
+             booking = repo.save(booking);
+             saved.add(booking);
+-            reminderService.sendBookingConfirmation(booking);
++            booking = sendBookingConfirmationWhenReady(booking);
+         } else {
+             for (Long clientId : requestedClientIds) {
+                 var booking = new SessionBooking();
+@@ -234,7 +232,7 @@
+                 mergeSessionPayeeOverride(booking, req, companyId, clientId);
+                 booking = repo.save(booking);
+                 saved.add(booking);
+-                reminderService.sendBookingConfirmation(booking);
++                booking = sendBookingConfirmationWhenReady(booking);
+             }
+         }
+         if (consumableService != null) {
+@@ -324,12 +322,9 @@
+                 Boolean.TRUE.equals(req.allowPersonalBlockOverlap())
+         );
+         var meetingLink = req.meetingLink();
+-        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank())) {
+-            if (consultantId == null) {
+-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+-                        "Online sessions require a meeting link when no consultant is assigned.");
+-            }
+-            meetingLink = createMeetingUrl(consultantId, start, end, req.meetingProvider());
++        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
++            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
++                    "Online sessions require a meeting link when no consultant is assigned.");
+         }
+         String groupKey = SessionBookingController.groupKey(representative);
+         if (requestedClientIds.isEmpty() && representative.getClientGroup() != null) {
+@@ -391,7 +386,7 @@
+             row = repo.save(row);
+             saved.add(row);
+             if (created || clientChanged) {
+-                reminderService.sendBookingConfirmation(row);
++                row = sendBookingConfirmationWhenReady(row);
+             } else {
+                 restoreGuestCreditIfNoLongerBlocking(row, previouslyBlockedAvailability);
+                 boolean timeChanged = !Objects.equals(previousStart, row.getStartTime()) || !Objects.equals(previousEnd, row.getEndTime());
+@@ -524,12 +519,9 @@
+ 
+         User actor = resolveAdminActor(companyId);
+         String meetingLink = request.meetingLink();
+-        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank())) {
+-            if (request.consultantId() == null) {
+-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+-                        "Online sessions require a meeting link when no consultant is assigned.");
+-            }
+-            meetingLink = createMeetingUrl(request.consultantId(), start, end, request.meetingProvider());
++        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank()) && request.consultantId() == null) {
++            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
++                    "Online sessions require a meeting link when no consultant is assigned.");
+         }
+ 
+         SessionBookingController.BookingRequest internalRequest = new SessionBookingController.BookingRequest(
+@@ -570,7 +562,7 @@
+         booking = repo.save(booking);
+         repo.flush();
+         if (request.sendConfirmation()) {
+-            reminderService.sendBookingConfirmation(booking);
++            booking = sendBookingConfirmationWhenReady(booking);
+         }
+         if (consumableService != null) {
+             consumableService.ensureSessionDefaultsForBookings(java.util.List.of(booking), companyId);
+@@ -644,7 +636,7 @@
+                 isSpacesEnabled(companyId),
+                 isMultipleSessionsPerSpaceEnabled(companyId),
+                 true,
+-                representative.getMeetingLink() != null && !representative.getMeetingLink().isBlank(),
++                representative.isOnlineSession(),
+                 false
+         );
+ 
+@@ -661,6 +653,11 @@
+         joined.setNotes(representative.getNotes());
+         joined.setMeetingLink(representative.getMeetingLink());
+         joined.setMeetingProvider(representative.getMeetingProvider());
++        joined.setMeetingProvisioningStatus(representative.getMeetingProvisioningStatus());
++        joined.setMeetingProvisioningError(representative.getMeetingProvisioningError());
++        joined.setMeetingProvisioningAttempts(representative.getMeetingProvisioningAttempts());
++        joined.setMeetingProvisioningStartedAt(representative.getMeetingProvisioningStartedAt());
++        joined.setMeetingProvisioningNextAttemptAt(representative.getMeetingProvisioningNextAttemptAt());
+         joined.setClientGroup(representative.getClientGroup());
+         joined.setSessionGroupEmailOverride(representative.getSessionGroupEmailOverride());
+         joined.setSessionGroupBillingCompany(representative.getSessionGroupBillingCompany());
+@@ -672,7 +669,7 @@
+         applyChannelMetadata(joined, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+         joined = repo.save(joined);
+         if (request.sendConfirmation()) {
+-            reminderService.sendBookingConfirmation(joined);
++            joined = sendBookingConfirmationWhenReady(joined);
+         }
+         if (consumableService != null) {
+             var refreshedForConsumables = new java.util.ArrayList<>(loadGroupedRows(representative, companyId));
+@@ -1031,12 +1028,24 @@
+         }
+         booking.setNotes(req.notes() != null ? req.notes().trim() : "");
+         boolean hasMeeting = meetingLink != null && !meetingLink.isBlank();
+-        booking.setMeetingLink(hasMeeting ? meetingLink : null);
+-        if (hasMeeting) {
++        boolean onlineRequested = Boolean.TRUE.equals(req.online()) || hasMeeting;
++        booking.setMeetingLink(hasMeeting ? meetingLink.trim() : null);
++        if (onlineRequested) {
+             String provider = req.meetingProvider();
+             booking.setMeetingProvider(provider != null && "google".equalsIgnoreCase(provider) ? "google" : "zoom");
++            booking.setMeetingProvisioningStatus(hasMeeting ? "READY" : "PENDING");
++            booking.setMeetingProvisioningError(null);
++            booking.setMeetingProvisioningStartedAt(null);
++            booking.setMeetingProvisioningNextAttemptAt(hasMeeting ? null : Instant.now());
++            if (hasMeeting) booking.setMeetingProvisioningAttempts(0);
+         } else {
+             booking.setMeetingProvider(null);
++            booking.setMeetingProvisioningStatus("NONE");
++            booking.setMeetingProvisioningError(null);
++            booking.setMeetingProvisioningStartedAt(null);
++            booking.setMeetingProvisioningNextAttemptAt(null);
++            booking.setMeetingProvisioningAttempts(0);
++            booking.setMeetingConfirmationPending(false);
+         }
+     }
+ 
+@@ -1058,11 +1067,16 @@
+         return rows;
+     }
+ 
+-    private String createMeetingUrl(Long consultantId, LocalDateTime start, LocalDateTime end, String provider) {
+-        if (provider != null && "google".equalsIgnoreCase(provider)) {
+-            return googleMeetService.createMeetingUrl(consultantId, start, end, "Session");
++    private SessionBooking sendBookingConfirmationWhenReady(SessionBooking booking) {
++        if (booking == null) return null;
++        if ("PENDING".equals(booking.getMeetingProvisioningStatus())
++                || "RETRY".equals(booking.getMeetingProvisioningStatus())
++                || "PROCESSING".equals(booking.getMeetingProvisioningStatus())) {
++            booking.setMeetingConfirmationPending(true);
++            return repo.save(booking);
+         }
+-        return zoomService.createMeetingUrl(consultantId, start, end, "Session");
++        reminderService.sendBookingConfirmation(booking);
++        return booking;
+     }
+ 
+     public void restoreGuestCreditsForBookings(Iterable<SessionBooking> bookingsToRestore) {
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/session/SessionBookingRepository.java b/backend/src/main/java/com/example/app/session/SessionBookingRepository.java
+--- a/backend/src/main/java/com/example/app/session/SessionBookingRepository.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/session/SessionBookingRepository.java	2026-07-20 19:58:38.150211127 +0000
+@@ -3,10 +3,12 @@
+ import org.springframework.data.jpa.repository.JpaRepository;
+ import org.springframework.data.domain.Pageable;
+ import org.springframework.data.jpa.repository.Modifying;
++import org.springframework.data.jpa.repository.EntityGraph;
+ import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.query.Param;
+ 
+ import java.time.LocalDateTime;
++import java.time.Instant;
+ import java.util.Collection;
+ import java.util.List;
+ import java.util.Optional;
+@@ -58,6 +60,7 @@
+            "AND sb.startTime < :end AND sb.endTime > :start AND sb.id NOT IN :excludeIds " +
+             "AND :spaceId IS NOT NULL AND sb.space IS NOT NULL AND sb.space.id = :spaceId " +
+             "AND (sb.meetingLink IS NULL OR sb.meetingLink = '') " +
++            "AND UPPER(COALESCE(sb.meetingProvisioningStatus, 'NONE')) = 'NONE' " +
+             "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
+     boolean existsOverlappingForSpaceExcluding(
+             @Param("companyId") Long companyId,
+@@ -70,6 +73,7 @@
+            "AND sb.startTime < :end AND sb.endTime > :start AND sb.id <> :excludeBookingId " +
+            "AND :spaceId IS NOT NULL AND sb.space IS NOT NULL AND sb.space.id = :spaceId " +
+            "AND (sb.meetingLink IS NULL OR sb.meetingLink = '') " +
++           "AND UPPER(COALESCE(sb.meetingProvisioningStatus, 'NONE')) = 'NONE' " +
+            "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
+     boolean existsOverlappingForSpaceExceptBooking(
+             @Param("companyId") Long companyId,
+@@ -142,6 +146,7 @@
+               and sb.id not in (:excludeIds)
+               and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+               and (sb.meeting_link is null or sb.meeting_link = '')
++              and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
+               and sb.start_time < :requestedBusyEnd
+               and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+             """, nativeQuery = true)
+@@ -160,6 +165,7 @@
+               and sb.id not in (:excludeIds)
+               and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+               and (sb.meeting_link is null or sb.meeting_link = '')
++              and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
+               and sb.start_time < :requestedBusyEnd
+               and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+             """, nativeQuery = true)
+@@ -171,6 +177,88 @@
+ 
+     List<SessionBooking> findByBookingGroupKeyAndCompanyIdOrderByIdAsc(String bookingGroupKey, Long companyId);
+ 
++    @Query(value = """
++            select min(sb.id)
++            from session_booking sb
++            where sb.meeting_link is null
++              and sb.booking_group_key is not null
++              and sb.meeting_provisioning_status in ('PENDING', 'RETRY')
++              and (sb.meeting_provisioning_next_attempt_at is null or sb.meeting_provisioning_next_attempt_at <= :now)
++            group by sb.company_id, sb.booking_group_key
++            order by min(sb.id)
++            """, nativeQuery = true)
++    List<Long> findDueMeetingRepresentativeIds(@Param("now") Instant now, Pageable pageable);
++
++    @Modifying(flushAutomatically = true, clearAutomatically = true)
++    @Query(value = """
++            update session_booking
++            set meeting_provisioning_status = 'RETRY',
++                meeting_provisioning_started_at = null,
++                meeting_provisioning_next_attempt_at = :retryAt,
++                meeting_provisioning_error = 'Recovered stale meeting provisioning lease',
++                updated_at = now()
++            where meeting_link is null
++              and meeting_provisioning_status = 'PROCESSING'
++              and meeting_provisioning_started_at < :staleBefore
++            """, nativeQuery = true)
++    int recoverStaleMeetingProvisioning(@Param("staleBefore") Instant staleBefore, @Param("retryAt") Instant retryAt);
++
++    @Modifying(flushAutomatically = true, clearAutomatically = true)
++    @Query(value = """
++            update session_booking
++            set meeting_provisioning_status = 'PROCESSING',
++                meeting_provisioning_started_at = :startedAt,
++                meeting_provisioning_attempts = meeting_provisioning_attempts + 1,
++                meeting_provisioning_error = null,
++                updated_at = now()
++            where company_id = :companyId
++              and booking_group_key = :bookingGroupKey
++              and meeting_link is null
++              and meeting_provisioning_status in ('PENDING', 'RETRY')
++              and (meeting_provisioning_next_attempt_at is null or meeting_provisioning_next_attempt_at <= :startedAt)
++            """, nativeQuery = true)
++    int claimMeetingProvisioning(
++            @Param("companyId") Long companyId,
++            @Param("bookingGroupKey") String bookingGroupKey,
++            @Param("startedAt") Instant startedAt);
++
++    @EntityGraph(attributePaths = {"company", "consultant"})
++    @Query("select sb from SessionBooking sb where sb.id = :id")
++    Optional<SessionBooking> findMeetingProvisioningRepresentative(@Param("id") Long id);
++
++    @Modifying(flushAutomatically = true, clearAutomatically = true)
++    @Query(value = """
++            update session_booking
++            set meeting_link = :meetingLink,
++                meeting_provisioning_status = 'READY',
++                meeting_provisioning_error = null,
++                meeting_provisioning_started_at = null,
++                meeting_provisioning_next_attempt_at = null,
++                updated_at = now()
++            where company_id = :companyId and booking_group_key = :bookingGroupKey
++            """, nativeQuery = true)
++    int markMeetingProvisioningReady(
++            @Param("companyId") Long companyId,
++            @Param("bookingGroupKey") String bookingGroupKey,
++            @Param("meetingLink") String meetingLink);
++
++    @Modifying(flushAutomatically = true, clearAutomatically = true)
++    @Query(value = """
++            update session_booking
++            set meeting_provisioning_status = :status,
++                meeting_provisioning_error = :error,
++                meeting_provisioning_started_at = null,
++                meeting_provisioning_next_attempt_at = :nextAttemptAt,
++                updated_at = now()
++            where company_id = :companyId and booking_group_key = :bookingGroupKey
++            """, nativeQuery = true)
++    int markMeetingProvisioningFailed(
++            @Param("companyId") Long companyId,
++            @Param("bookingGroupKey") String bookingGroupKey,
++            @Param("status") String status,
++            @Param("error") String error,
++            @Param("nextAttemptAt") Instant nextAttemptAt);
++
+     List<SessionBooking> findByCompanyIdAndRecurrenceSeriesKeyAndStartTimeGreaterThanEqualOrderByStartTimeAscIdAsc(
+             Long companyId,
+             String recurrenceSeriesKey,
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/waitlist/WaitlistBookingHoldRepository.java b/backend/src/main/java/com/example/app/waitlist/WaitlistBookingHoldRepository.java
+--- a/backend/src/main/java/com/example/app/waitlist/WaitlistBookingHoldRepository.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/waitlist/WaitlistBookingHoldRepository.java	2026-07-20 19:36:17.351491076 +0000
+@@ -4,7 +4,10 @@
+ import java.time.LocalDateTime;
+ import java.util.List;
+ import java.util.Optional;
++import org.springframework.data.domain.Pageable;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Lock;
++import jakarta.persistence.LockModeType;
+ import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.query.Param;
+ 
+@@ -174,5 +177,6 @@
+             @Param("now") Instant now);
+ 
+     @Query("select h from WaitlistBookingHold h where h.status = com.example.app.waitlist.WaitlistHoldStatus.ACTIVE and h.expiresAt <= :now")
+-    List<WaitlistBookingHold> findExpiredActive(@Param("now") Instant now);
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    List<WaitlistBookingHold> findExpiredActive(@Param("now") Instant now, Pageable pageable);
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/waitlist/WaitlistExpiryScheduler.java b/backend/src/main/java/com/example/app/waitlist/WaitlistExpiryScheduler.java
+--- a/backend/src/main/java/com/example/app/waitlist/WaitlistExpiryScheduler.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/main/java/com/example/app/waitlist/WaitlistExpiryScheduler.java	2026-07-20 19:53:42.051538200 +0000
+@@ -0,0 +1,28 @@
++package com.example.app.waitlist;
++
++import com.example.app.monitoring.ScheduledJobTrackerService;
++import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
++import org.springframework.scheduling.annotation.Scheduled;
++import org.springframework.stereotype.Component;
++
++/** Runs one bounded waitlist-expiry batch across the whole cluster. */
++@Component
++public class WaitlistExpiryScheduler {
++    private final WaitlistService waitlistService;
++    private final ScheduledJobTrackerService jobTracker;
++
++    public WaitlistExpiryScheduler(WaitlistService waitlistService, ScheduledJobTrackerService jobTracker) {
++        this.waitlistService = waitlistService;
++        this.jobTracker = jobTracker;
++    }
++
++    @Scheduled(fixedDelayString = "${app.waitlist.expiry-check-ms:60000}")
++    @SchedulerLock(
++            name = "waitlistExpiryScheduler_expireOffers",
++            lockAtMostFor = "${app.waitlist.expiry-lock-at-most:PT10M}",
++            lockAtLeastFor = "PT1S"
++    )
++    public void expireOffers() {
++        jobTracker.run("waitlist-offer-expiry", () -> { return waitlistService.expireOffersBatch(); });
++    }
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/waitlist/WaitlistOfferRepository.java b/backend/src/main/java/com/example/app/waitlist/WaitlistOfferRepository.java
+--- a/backend/src/main/java/com/example/app/waitlist/WaitlistOfferRepository.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/waitlist/WaitlistOfferRepository.java	2026-07-20 19:36:17.350900547 +0000
+@@ -4,6 +4,7 @@
+ import java.time.Instant;
+ import java.util.List;
+ import java.util.Optional;
++import org.springframework.data.domain.Pageable;
+ import org.springframework.data.jpa.repository.EntityGraph;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ import org.springframework.data.jpa.repository.Lock;
+@@ -31,9 +32,11 @@
+               and o.expiresAt <= :threshold
+             order by o.expiresAt asc, o.id asc
+             """)
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
+     List<WaitlistOffer> findPendingExpiring(
+             @Param("now") Instant now,
+-            @Param("threshold") Instant threshold);
++            @Param("threshold") Instant threshold,
++            Pageable pageable);
+ 
+     @Query("""
+             select o from WaitlistOffer o
+@@ -53,5 +56,6 @@
+             @Param("to") Instant to);
+ 
+     @Query("select o from WaitlistOffer o where o.status = com.example.app.waitlist.WaitlistOfferStatus.PENDING and o.expiresAt <= :now order by o.expiresAt asc, o.id asc")
+-    List<WaitlistOffer> findExpiredPending(@Param("now") Instant now);
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    List<WaitlistOffer> findExpiredPending(@Param("now") Instant now, Pageable pageable);
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/waitlist/WaitlistService.java b/backend/src/main/java/com/example/app/waitlist/WaitlistService.java
+--- a/backend/src/main/java/com/example/app/waitlist/WaitlistService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/waitlist/WaitlistService.java	2026-07-20 19:36:15.234425443 +0000
+@@ -48,8 +48,8 @@
+ import java.util.function.Function;
+ import java.util.stream.Collectors;
+ import org.springframework.beans.factory.annotation.Value;
++import org.springframework.data.domain.PageRequest;
+ import org.springframework.http.HttpStatus;
+-import org.springframework.scheduling.annotation.Scheduled;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ import org.springframework.transaction.support.TransactionSynchronization;
+@@ -89,6 +89,7 @@
+     private final SessionBookingRealtimeService calendarRealtime;
+     private final WaitlistGuestNotificationService guestNotifications;
+     private final int offerExpiringMinutes;
++    private final int expiryBatchSize;
+ 
+     public WaitlistService(
+             WaitlistRequestRepository requests,
+@@ -114,7 +115,8 @@
+             TenantNotificationService tenantNotifications,
+             SessionBookingRealtimeService calendarRealtime,
+             WaitlistGuestNotificationService guestNotifications,
+-            @Value("${app.waitlist.offer-expiring-minutes:5}") int offerExpiringMinutes
++            @Value("${app.waitlist.offer-expiring-minutes:5}") int offerExpiringMinutes,
++            @Value("${app.waitlist.expiry-batch-size:100}") int expiryBatchSize
+     ) {
+         this.requests = requests;
+         this.windows = windows;
+@@ -140,6 +142,7 @@
+         this.calendarRealtime = calendarRealtime;
+         this.guestNotifications = guestNotifications;
+         this.offerExpiringMinutes = Math.max(1, offerExpiringMinutes);
++        this.expiryBatchSize = Math.max(10, Math.min(1000, expiryBatchSize));
+     }
+ 
+     public record WindowInput(DayOfWeek dayOfWeek, LocalDate date, LocalTime timeFrom, LocalTime timeTo, Boolean allDay) {}
+@@ -817,18 +820,25 @@
+         offerNextCandidate(companyId, releasedStart, releasedEnd, employeeId, roomId, bookingId, null);
+     }
+ 
+-    @Scheduled(fixedDelayString = "${app.waitlist.expiry-check-ms:60000}")
++    /**
++     * Processes a bounded expiry batch. Scheduling and cross-instance locking live in
++     * {@link WaitlistExpiryScheduler}; this method only owns the database transaction.
++     */
+     @Transactional
+-    public void expireOffers() {
++    public int expireOffersBatch() {
+         Instant now = Instant.now();
+         Instant expiringThreshold = now.plus(Duration.ofMinutes(offerExpiringMinutes));
+-        for (WaitlistOffer offer : offers.findPendingExpiring(now, expiringThreshold)) {
++        var page = PageRequest.of(0, expiryBatchSize);
++        int processed = 0;
++
++        for (WaitlistOffer offer : offers.findPendingExpiring(now, expiringThreshold, page)) {
+             if (offer.getStatus() != WaitlistOfferStatus.PENDING || offer.getExpiringNotifiedAt() != null) continue;
+             offer.setExpiringNotifiedAt(now);
+             offers.save(offer);
+             guestNotifications.publish(offer.getRequest(), offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRING);
++            processed++;
+         }
+-        for (WaitlistOffer offer : offers.findExpiredPending(now)) {
++        for (WaitlistOffer offer : offers.findExpiredPending(now, page)) {
+             if (offer.getStatus() != WaitlistOfferStatus.PENDING) continue;
+             offer.setStatus(WaitlistOfferStatus.EXPIRED);
+             offers.save(offer);
+@@ -844,12 +854,16 @@
+                     "Ponudba za " + clientName(request.getClient()) + " je potekla.", "/appointments?requestId=" + request.getId());
+             guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
+             offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offerAvailableEnd(offer), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
++            processed++;
+         }
+-        for (WaitlistBookingHold hold : holds.findExpiredActive(now)) {
++        for (WaitlistBookingHold hold : holds.findExpiredActive(now, page)) {
++            if (hold.getStatus() != WaitlistHoldStatus.ACTIVE) continue;
+             hold.setStatus(WaitlistHoldStatus.EXPIRED);
+             holds.save(hold);
+             publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_EXPIRED");
++            processed++;
+         }
++        return processed;
+     }
+ 
+     public boolean hasActiveHold(Long companyId, Long employeeId, Long roomId, LocalDateTime start, LocalDateTime end, Long excludeOfferId) {
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/java/com/example/app/widget/manage/PublicBookingManageService.java b/backend/src/main/java/com/example/app/widget/manage/PublicBookingManageService.java
+--- a/backend/src/main/java/com/example/app/widget/manage/PublicBookingManageService.java	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/java/com/example/app/widget/manage/PublicBookingManageService.java	2026-07-20 19:58:12.896531271 +0000
+@@ -427,7 +427,7 @@
+     }
+ 
+     private boolean isOnline(SessionBooking booking) {
+-        return booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank();
++        return booking.isOnlineSession();
+     }
+ 
+     private String tenantName(Company company) {
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/resources/application-production.yml b/backend/src/main/resources/application-production.yml
+--- a/backend/src/main/resources/application-production.yml	2026-07-20 16:04:42.000000000 +0000
++++ b/backend/src/main/resources/application-production.yml	2026-07-20 20:02:14.677728445 +0000
+@@ -10,13 +10,34 @@
+ # be able to call secretsmanager:GetSecretValue for this secret before the JSON is loaded (see application-staging.yml).
+ server:
+   forward-headers-strategy: framework
++  shutdown: graceful
++  tomcat:
++    threads:
++      max: ${SERVER_TOMCAT_THREADS_MAX:200}
++      min-spare: ${SERVER_TOMCAT_THREADS_MIN_SPARE:20}
++    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:200}
++    max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}
++    connection-timeout: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:5s}
+   error:
+     include-message: never
+     include-binding-errors: never
+     include-stacktrace: never
+ spring:
++  lifecycle:
++    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_SHUTDOWN_TIMEOUT:30s}
+   flyway:
+     enabled: ${SPRING_FLYWAY_ENABLED:true}
++    validate-on-migrate: true
++    clean-disabled: true
++  datasource:
++    hikari:
++      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
++      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:5}
++      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:5000}
++      validation-timeout: ${SPRING_DATASOURCE_HIKARI_VALIDATION_TIMEOUT:3000}
++      idle-timeout: ${SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT:600000}
++      max-lifetime: ${SPRING_DATASOURCE_HIKARI_MAX_LIFETIME:1500000}
++      keepalive-time: ${SPRING_DATASOURCE_HIKARI_KEEPALIVE_TIME:300000}
+   jpa:
+     hibernate:
+       ddl-auto: validate
+@@ -79,15 +100,38 @@
+     redis:
+       enabled: ${APP_REALTIME_REDIS_ENABLED:true}
+       channel: ${APP_REALTIME_REDIS_CHANNEL:calendra:session-bookings:events}
++  waitlist:
++    expiry-batch-size: ${APP_WAITLIST_EXPIRY_BATCH_SIZE:100}
++    expiry-lock-at-most: ${APP_WAITLIST_EXPIRY_LOCK_AT_MOST:PT10M}
++  inbox:
++    scheduled-dispatch-batch-size: ${APP_INBOX_SCHEDULED_DISPATCH_BATCH_SIZE:100}
++    scheduled-dispatch-lock-at-most: ${APP_INBOX_SCHEDULED_DISPATCH_LOCK_AT_MOST:PT30M}
++  meetings:
++    provisioning:
++      batch-size: ${APP_MEETING_PROVISIONING_BATCH_SIZE:50}
++      max-attempts: ${APP_MEETING_PROVISIONING_MAX_ATTEMPTS:6}
++      processing-lease: ${APP_MEETING_PROVISIONING_PROCESSING_LEASE:PT5M}
++      retry-base: ${APP_MEETING_PROVISIONING_RETRY_BASE:PT30S}
++      poll-ms: ${APP_MEETING_PROVISIONING_POLL_MS:10000}
++      lock-at-most: ${APP_MEETING_PROVISIONING_LOCK_AT_MOST:PT10M}
+ 
+ 
+ management:
+   endpoints:
+     web:
+-      # Public production monitoring only needs the health/info endpoints. Keep Prometheus
+-      # disabled here unless it is protected behind private networking/authentication.
++      # Keep Prometheus behind private networking/authentication. Override to health,info
++      # when no private scraper is configured.
+       exposure:
+-        include: health,info
++        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE_INCLUDE:health,info,prometheus}
++  endpoint:
++    health:
++      probes:
++        enabled: true
++      group:
++        liveness:
++          include: livenessState,ping
++        readiness:
++          include: readinessState,db,redis
+   tracing:
+     enabled: ${MANAGEMENT_TRACING_ENABLED:false}
+     sampling:
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/main/resources/db/migration/V9__production_hardening.sql b/backend/src/main/resources/db/migration/V9__production_hardening.sql
+--- a/backend/src/main/resources/db/migration/V9__production_hardening.sql	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/main/resources/db/migration/V9__production_hardening.sql	2026-07-20 20:06:36.904638137 +0000
+@@ -0,0 +1,117 @@
++-- Production hardening:
++-- 1) move billing precision changes out of application startup and into Flyway;
++-- 2) align persisted numeric precision with the JPA mappings;
++-- 3) remove the obsolete singular waitlist schema only when it is provably empty;
++-- 4) add bounded-worker indexes used by scheduled jobs.
++
++ALTER TABLE open_bill_items ADD COLUMN IF NOT EXISTS unit_gross_price NUMERIC(12,2);
++
++ALTER TABLE open_bill_items
++    ALTER COLUMN net_price TYPE NUMERIC(12,4) USING net_price::NUMERIC(12,4),
++    ALTER COLUMN unit_gross_price TYPE NUMERIC(12,2) USING ROUND(unit_gross_price::NUMERIC, 2);
++
++ALTER TABLE bill_item
++    ALTER COLUMN net_price TYPE NUMERIC(12,4) USING net_price::NUMERIC(12,4),
++    ALTER COLUMN gross_price TYPE NUMERIC(12,2) USING ROUND(gross_price::NUMERIC, 2);
++
++ALTER TABLE transaction_service
++    ALTER COLUMN net_price TYPE NUMERIC(12,4) USING net_price::NUMERIC(12,4);
++
++ALTER TABLE open_bills ADD COLUMN IF NOT EXISTS proforma_number VARCHAR(80);
++ALTER TABLE open_bills ADD COLUMN IF NOT EXISTS proforma_sequence_number BIGINT;
++
++CREATE UNIQUE INDEX IF NOT EXISTS ux_open_bills_company_proforma_number
++    ON open_bills(company_id, proforma_number)
++    WHERE proforma_number IS NOT NULL;
++
++-- Gross is the user-entered source of truth. Backfill only missing snapshots and
++-- retain the higher-precision transaction-service net value when a legacy row
++-- was previously rounded to two decimals.
++UPDATE open_bill_items obi
++SET unit_gross_price = ROUND((COALESCE(
++    CASE
++        WHEN ROUND(COALESCE(obi.net_price, 0), 2) = ROUND(COALESCE(ts.net_price, 0), 2)
++            THEN ts.net_price
++        ELSE obi.net_price
++    END,
++    0
++) *
++    CASE ts.tax_rate
++        WHEN 'VAT_22' THEN 1.22
++        WHEN 'VAT_9_5' THEN 1.095
++        ELSE 1
++    END)::NUMERIC, 2)
++FROM transaction_service ts
++WHERE obi.transaction_service_id = ts.id
++  AND obi.unit_gross_price IS NULL;
++
++-- V4 created an obsolete singular waitlist model and V5 introduced the
++-- canonical plural model used by the application. Never discard legacy data
++-- silently: fail the migration if any singular table contains rows.
++DO $$
++DECLARE
++    table_name TEXT;
++    row_count BIGINT;
++BEGIN
++    FOREACH table_name IN ARRAY ARRAY[
++        'waitlist_event',
++        'waitlist_offer',
++        'booking_hold',
++        'waitlist_request_employee',
++        'waitlist_request_window',
++        'waitlist_request'
++    ] LOOP
++        IF to_regclass('public.' || table_name) IS NOT NULL THEN
++            EXECUTE format('SELECT count(*) FROM %I', table_name) INTO row_count;
++            IF row_count > 0 THEN
++                RAISE EXCEPTION
++                    'Legacy table % contains % row(s). Migrate these rows to the canonical plural waitlist schema before applying V9.',
++                    table_name, row_count;
++            END IF;
++        END IF;
++    END LOOP;
++END $$;
++
++DROP TABLE IF EXISTS waitlist_event;
++DROP TABLE IF EXISTS waitlist_offer;
++DROP TABLE IF EXISTS booking_hold;
++DROP TABLE IF EXISTS waitlist_request_employee;
++DROP TABLE IF EXISTS waitlist_request_window;
++DROP TABLE IF EXISTS waitlist_request;
++
++CREATE INDEX IF NOT EXISTS idx_scheduled_messages_due
++    ON scheduled_messages(status, next_run_at, id);
++
++CREATE INDEX IF NOT EXISTS idx_waitlist_offers_pending_expiry
++    ON waitlist_offers(expires_at, id)
++    WHERE status = 'PENDING';
++
++CREATE INDEX IF NOT EXISTS idx_waitlist_holds_active_expiry
++    ON waitlist_booking_holds(expires_at, id)
++    WHERE status = 'ACTIVE';
++
++CREATE INDEX IF NOT EXISTS idx_client_messages_latest_open
++    ON client_messages(company_id, client_id, created_at DESC, id DESC)
++    INCLUDE (conversation_key, channel)
++    WHERE conversation_closed = FALSE;
++
++-- Online meeting provisioning is durable and happens after the booking transaction,
++-- so Zoom/Google latency never holds the per-tenant booking lock.
++ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS meeting_provisioning_status VARCHAR(20) NOT NULL DEFAULT 'NONE';
++ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS meeting_provisioning_error VARCHAR(1000);
++ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS meeting_provisioning_attempts INTEGER NOT NULL DEFAULT 0;
++ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS meeting_provisioning_started_at TIMESTAMP WITH TIME ZONE;
++ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS meeting_provisioning_next_attempt_at TIMESTAMP WITH TIME ZONE;
++ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS meeting_confirmation_pending BOOLEAN NOT NULL DEFAULT FALSE;
++
++UPDATE session_booking
++SET meeting_provisioning_status = CASE
++    WHEN meeting_link IS NOT NULL AND trim(meeting_link) <> '' THEN 'READY'
++    ELSE 'NONE'
++END
++WHERE meeting_provisioning_status IS NULL OR meeting_provisioning_status = 'NONE';
++
++CREATE INDEX IF NOT EXISTS idx_session_booking_meeting_provisioning_due
++    ON session_booking(meeting_provisioning_status, meeting_provisioning_next_attempt_at, id)
++    WHERE meeting_link IS NULL
++      AND meeting_provisioning_status IN ('PENDING', 'RETRY', 'PROCESSING');
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/test/java/com/example/app/integration/FlywayLegacyWaitlistSafetyTest.java b/backend/src/test/java/com/example/app/integration/FlywayLegacyWaitlistSafetyTest.java
+--- a/backend/src/test/java/com/example/app/integration/FlywayLegacyWaitlistSafetyTest.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/test/java/com/example/app/integration/FlywayLegacyWaitlistSafetyTest.java	2026-07-20 20:08:20.973703890 +0000
+@@ -0,0 +1,67 @@
++package com.example.app.integration;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++import org.flywaydb.core.Flyway;
++import org.junit.jupiter.api.Test;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DriverManagerDataSource;
++import org.testcontainers.containers.PostgreSQLContainer;
++import org.testcontainers.junit.jupiter.Container;
++import org.testcontainers.junit.jupiter.Testcontainers;
++
++@Testcontainers(disabledWithoutDocker = true)
++class FlywayLegacyWaitlistSafetyTest {
++    @Container
++    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
++            .withDatabaseName("calendra_legacy_waitlist")
++            .withUsername("calendra")
++            .withPassword("calendra");
++
++    @Test
++    void refusesToDropNonEmptyLegacyWaitlistTables() {
++        flyway("8").migrate();
++        JdbcTemplate jdbc = jdbc();
++
++        // The safety gate only needs to prove that a legacy row exists. Disable FK
++        // enforcement for this deliberately synthetic migration fixture.
++        jdbc.execute("set session_replication_role = replica");
++        try {
++            jdbc.update("""
++                    insert into waitlist_request (
++                        company_id, target_type, date_from, date_to,
++                        employee_preference_type, requested_participants, status, source
++                    ) values (999999, 'FLEXIBLE', current_date, current_date,
++                              'ANY', 1, 'ACTIVE', 'STAFF')
++                    """);
++        } finally {
++            jdbc.execute("set session_replication_role = origin");
++        }
++
++        assertThatThrownBy(() -> flyway(null).migrate())
++                .hasMessageContaining("Legacy table waitlist_request")
++                .hasMessageContaining("Migrate these rows");
++
++        assertThat(jdbc.queryForObject("select count(*) from waitlist_request", Long.class)).isEqualTo(1L);
++        assertThat(jdbc.queryForObject(
++                "select to_regclass('public.waitlist_request') is not null", Boolean.class)).isTrue();
++        assertThat(jdbc.queryForObject(
++                "select count(*) from flyway_schema_history where version = '9' and success", Long.class)).isZero();
++    }
++
++    private Flyway flyway(String target) {
++        var configuration = Flyway.configure()
++                .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
++                .locations("classpath:db/migration")
++                .baselineOnMigrate(true)
++                .baselineVersion("0");
++        if (target != null) configuration.target(target);
++        return configuration.load();
++    }
++
++    private JdbcTemplate jdbc() {
++        return new JdbcTemplate(new DriverManagerDataSource(
++                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword()));
++    }
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/test/java/com/example/app/integration/FlywayUpgradeMigrationTest.java b/backend/src/test/java/com/example/app/integration/FlywayUpgradeMigrationTest.java
+--- a/backend/src/test/java/com/example/app/integration/FlywayUpgradeMigrationTest.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/test/java/com/example/app/integration/FlywayUpgradeMigrationTest.java	2026-07-20 20:08:22.769696304 +0000
+@@ -0,0 +1,63 @@
++package com.example.app.integration;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import org.flywaydb.core.Flyway;
++import org.junit.jupiter.api.Test;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DriverManagerDataSource;
++import org.testcontainers.containers.PostgreSQLContainer;
++import org.testcontainers.junit.jupiter.Container;
++import org.testcontainers.junit.jupiter.Testcontainers;
++
++@Testcontainers(disabledWithoutDocker = true)
++class FlywayUpgradeMigrationTest {
++    @Container
++    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
++            .withDatabaseName("calendra_upgrade")
++            .withUsername("calendra")
++            .withPassword("calendra");
++
++    @Test
++    void upgradesV8SchemaAndRemovesOnlyEmptyLegacyWaitlistTables() {
++        Flyway firstStage = flyway("8");
++        firstStage.migrate();
++
++        JdbcTemplate jdbc = jdbc();
++        assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_request') is not null", Boolean.class)).isTrue();
++        assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_requests') is not null", Boolean.class)).isTrue();
++
++        flyway(null).migrate();
++
++        assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_request') is null", Boolean.class)).isTrue();
++        assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_requests') is not null", Boolean.class)).isTrue();
++        assertThat(numericScale(jdbc, "open_bill_items", "unit_gross_price")).isEqualTo(2);
++        assertThat(numericScale(jdbc, "open_bill_items", "net_price")).isEqualTo(4);
++        assertThat(numericScale(jdbc, "bill_item", "gross_price")).isEqualTo(2);
++    }
++
++    private Flyway flyway(String target) {
++        var configuration = Flyway.configure()
++                .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
++                .locations("classpath:db/migration")
++                .baselineOnMigrate(true)
++                .baselineVersion("0");
++        if (target != null) configuration.target(target);
++        return configuration.load();
++    }
++
++    private JdbcTemplate jdbc() {
++        DriverManagerDataSource ds = new DriverManagerDataSource(
++                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
++        return new JdbcTemplate(ds);
++    }
++
++    private int numericScale(JdbcTemplate jdbc, String table, String column) {
++        Integer scale = jdbc.queryForObject("""
++                select numeric_scale
++                from information_schema.columns
++                where table_schema = 'public' and table_name = ? and column_name = ?
++                """, Integer.class, table, column);
++        return scale == null ? -1 : scale;
++    }
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/test/java/com/example/app/integration/PostgresApplicationContextTest.java b/backend/src/test/java/com/example/app/integration/PostgresApplicationContextTest.java
+--- a/backend/src/test/java/com/example/app/integration/PostgresApplicationContextTest.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/test/java/com/example/app/integration/PostgresApplicationContextTest.java	2026-07-20 20:08:22.770333533 +0000
+@@ -0,0 +1,60 @@
++package com.example.app.integration;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import javax.sql.DataSource;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.test.context.ActiveProfiles;
++import org.springframework.test.context.DynamicPropertyRegistry;
++import org.springframework.test.context.DynamicPropertySource;
++import org.testcontainers.containers.PostgreSQLContainer;
++import org.testcontainers.junit.jupiter.Container;
++import org.testcontainers.junit.jupiter.Testcontainers;
++
++@Testcontainers(disabledWithoutDocker = true)
++@ActiveProfiles("test")
++@SpringBootTest(
++        webEnvironment = SpringBootTest.WebEnvironment.NONE,
++        properties = {
++                "spring.flyway.enabled=true",
++                "spring.jpa.hibernate.ddl-auto=validate",
++                "spring.task.scheduling.enabled=false",
++                "spring.cloud.aws.s3.enabled=false",
++                "app.rate-limit.enabled=false",
++                "app.realtime.redis.enabled=false",
++                "app.widget.turnstile.required-for-public-actions=false",
++                "app.settings.encryption-key=integration-test-encryption-key-32-bytes-minimum",
++                "app.jwt.secret=integration-test-jwt-secret-at-least-32-characters"
++        }
++)
++class PostgresApplicationContextTest {
++    @Container
++    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
++            .withDatabaseName("calendra_context")
++            .withUsername("calendra")
++            .withPassword("calendra");
++
++    @DynamicPropertySource
++    static void databaseProperties(DynamicPropertyRegistry registry) {
++        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
++        registry.add("spring.datasource.username", POSTGRES::getUsername);
++        registry.add("spring.datasource.password", POSTGRES::getPassword);
++    }
++
++    @Autowired
++    DataSource dataSource;
++
++    @Test
++    void applicationStartsAgainstFullyMigratedPostgresSchema() {
++        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
++        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history where success", Long.class))
++                .isGreaterThanOrEqualTo(9L);
++        assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_requests') is not null", Boolean.class))
++                .isTrue();
++        assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_request') is null", Boolean.class))
++                .isTrue();
++    }
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/backend/src/test/java/com/example/app/session/SessionBookingOnlineStateTest.java b/backend/src/test/java/com/example/app/session/SessionBookingOnlineStateTest.java
+--- a/backend/src/test/java/com/example/app/session/SessionBookingOnlineStateTest.java	1970-01-01 00:00:00.000000000 +0000
++++ b/backend/src/test/java/com/example/app/session/SessionBookingOnlineStateTest.java	2026-07-20 20:08:20.985492126 +0000
+@@ -0,0 +1,23 @@
++package com.example.app.session;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import org.junit.jupiter.api.Test;
++
++class SessionBookingOnlineStateTest {
++    @Test
++    void provisioningStateKeepsOnlineBookingsOutOfPhysicalRoomCapacity() {
++        SessionBooking booking = new SessionBooking();
++        assertThat(booking.isOnlineSession()).isFalse();
++
++        booking.setMeetingProvisioningStatus("PENDING");
++        assertThat(booking.isOnlineSession()).isTrue();
++
++        booking.setMeetingProvisioningStatus("FAILED");
++        assertThat(booking.isOnlineSession()).isTrue();
++
++        booking.setMeetingProvisioningStatus("NONE");
++        booking.setMeetingLink("https://meet.example/session");
++        assertThat(booking.isOnlineSession()).isTrue();
++    }
++}
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/docker-compose.prod-ha.yml b/docker-compose.prod-ha.yml
+--- a/docker-compose.prod-ha.yml	1970-01-01 00:00:00.000000000 +0000
++++ b/docker-compose.prod-ha.yml	2026-07-20 20:08:45.101318554 +0000
+@@ -0,0 +1,76 @@
++x-backend-common: &backend-common
++  build:
++    context: ./backend
++    dockerfile: Dockerfile
++  restart: unless-stopped
++  environment: &backend-environment
++    SPRING_PROFILES_ACTIVE: production
++    SERVER_ADDRESS: 0.0.0.0
++    SERVER_PORT: 4000
++    SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?Managed PostgreSQL JDBC URL is required}
++    SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?Managed PostgreSQL username is required}
++    SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Managed PostgreSQL password is required}
++    SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:?Managed Redis host is required}
++    SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
++    SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-}
++    APP_RATE_LIMIT_BACKEND: redis
++    APP_WIDGET_RATE_LIMIT_BACKEND: redis
++    AWS_REGION: ${AWS_REGION:-eu-central-1}
++    AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
++    AWS_PRODUCTION_SECRET_ID: ${AWS_PRODUCTION_SECRET_ID:-calendra-app}
++    JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
++  mem_limit: ${BACKEND_MEMORY_LIMIT:-2g}
++  cpus: ${BACKEND_CPU_LIMIT:-2.0}
++  stop_grace_period: 45s
++  healthcheck:
++    test:
++      - CMD-SHELL
++      - >-
++        curl -fsS http://localhost:4000/api/actuator/health/readiness | grep -q '"status":"UP"'
++    interval: 15s
++    timeout: 5s
++    retries: 5
++    start_period: 120s
++
++services:
++  proxy:
++    image: caddy:2
++    restart: unless-stopped
++    ports:
++      - "80:80"
++      - "443:443"
++    volumes:
++      - ./Caddyfile.production.ha:/etc/caddy/Caddyfile:ro
++      - caddy_data:/data
++      - caddy_config:/config
++    extra_hosts:
++      - "host.docker.internal:host-gateway"
++    depends_on:
++      backend-a:
++        condition: service_healthy
++      backend-b:
++        condition: service_healthy
++      frontend:
++        condition: service_started
++
++  backend-a:
++    <<: *backend-common
++    hostname: calendra-backend-a
++
++  backend-b:
++    <<: *backend-common
++    hostname: calendra-backend-b
++
++  frontend:
++    build:
++      context: ./frontend
++      dockerfile: Dockerfile.prod
++      args:
++        BUILD_SCRIPT: build:production
++    restart: unless-stopped
++    mem_limit: ${FRONTEND_MEMORY_LIMIT:-512m}
++    cpus: ${FRONTEND_CPU_LIMIT:-0.5}
++
++volumes:
++  caddy_data:
++  caddy_config:
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/docker-compose.prod.yml b/docker-compose.prod.yml
+--- a/docker-compose.prod.yml	2026-07-20 16:04:42.000000000 +0000
++++ b/docker-compose.prod.yml	2026-07-20 20:08:45.100935480 +0000
+@@ -61,17 +61,24 @@
+       SPRING_DATA_REDIS_PORT: 6379
+       APP_RATE_LIMIT_BACKEND: ${APP_RATE_LIMIT_BACKEND:-redis}
+       APP_WIDGET_RATE_LIMIT_BACKEND: ${APP_WIDGET_RATE_LIMIT_BACKEND:-redis}
++      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
++    mem_limit: ${BACKEND_MEMORY_LIMIT:-2g}
++    cpus: ${BACKEND_CPU_LIMIT:-2.0}
++    stop_grace_period: 45s
+     depends_on:
+       db:
+         condition: service_healthy
+       redis:
+         condition: service_healthy
+     healthcheck:
+-      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/api/actuator/health | grep -q '\"status\":\"UP\"'"]
+-      interval: 30s
++      test:
++        - CMD-SHELL
++        - >-
++          curl -fsS http://localhost:4000/api/actuator/health/readiness | grep -q '"status":"UP"'
++      interval: 15s
+       timeout: 5s
+-      retries: 3
+-      start_period: 90s
++      retries: 5
++      start_period: 120s
+ 
+   frontend:
+     build:
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/docs/operations/PRODUCTION_1000_TENANTS.md b/docs/operations/PRODUCTION_1000_TENANTS.md
+--- a/docs/operations/PRODUCTION_1000_TENANTS.md	1970-01-01 00:00:00.000000000 +0000
++++ b/docs/operations/PRODUCTION_1000_TENANTS.md	2026-07-20 19:42:52.901357338 +0000
+@@ -0,0 +1,40 @@
++# Production baseline for 1,000 tenants
++
++Use `docker-compose.prod-ha.yml`, not the single-node compose file, for the production topology. It runs two stateless backend instances behind Caddy and expects managed PostgreSQL and Redis endpoints.
++
++## Required managed PostgreSQL settings
++
++- Automated backups and point-in-time recovery enabled.
++- Multi-AZ/standby failover enabled.
++- TLS required.
++- Connection budget sized for every backend replica. The repository default is 20 Hikari connections per replica; keep total application pools below roughly 60–70% of the database connection limit.
++- Slow-query, CPU, storage, IOPS, connection, replication-lag, and lock-wait alerts enabled.
++- A tested restore at least quarterly and before large migrations.
++
++## Required managed Redis settings
++
++- Persistence/replication appropriate for the provider.
++- TLS and authentication enabled.
++- Memory and eviction alerts enabled. Do not use an eviction policy that silently discards rate-limit or realtime keys without accepting that degradation.
++
++## Deployment gate
++
++1. Back up the database and confirm the latest restore drill.
++2. Run Flyway against a restored staging copy first.
++3. Run backend tests, including the PostgreSQL Testcontainers tests.
++4. Deploy one backend instance and wait for `/api/actuator/health/readiness` to report `UP`.
++5. Deploy the second instance, then restart the first to prove traffic failover.
++6. Run the corrected k6 quick test and inspect p95/p99, errors, DB connections, lock waits, Redis latency, and JVM memory.
++7. Keep the previous image tag available for rollback. Database migrations are forward-only; do not run `flyway clean` in production.
++
++## Restore drill
++
++A restore is successful only when:
++
++- the restored database passes Flyway validation;
++- the application starts with `ddl-auto=validate`;
++- representative login, booking, billing, waitlist, and guest-app flows work;
++- row counts and latest invoice/booking records are verified;
++- the measured restore time is within the chosen RTO and the recovered point is within the chosen RPO.
++
++The helper scripts in `scripts/postgres-logical-backup.sh` and `scripts/postgres-restore-drill.sh` provide an additional logical backup/restore check. They complement, but do not replace, managed snapshots and PITR.
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/frontend/.nvmrc b/frontend/.nvmrc
+--- a/frontend/.nvmrc	1970-01-01 00:00:00.000000000 +0000
++++ b/frontend/.nvmrc	2026-07-20 20:03:35.214360586 +0000
+@@ -0,0 +1 @@
++24
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/frontend/package-lock.json b/frontend/package-lock.json
+--- a/frontend/package-lock.json	2026-07-20 16:04:42.000000000 +0000
++++ b/frontend/package-lock.json	2026-07-20 20:03:35.214057776 +0000
+@@ -19,7 +19,7 @@
+         "@fullcalendar/timegrid": "^6.1.17",
+         "@tanstack/react-query": "^5.76.1",
+         "@zxing/browser": "^0.2.0",
+-        "axios": "^1.8.4",
++        "axios": "^1.18.1",
+         "dompurify": "^3.4.8",
+         "react": "^19.0.0",
+         "react-dom": "^19.0.0",
+@@ -34,6 +34,9 @@
+         "patch-package": "^8.0.1",
+         "typescript": "^5.8.3",
+         "vite": "^6.2.5"
++      },
++      "engines": {
++        "node": ">=24"
+       }
+     },
+     "node_modules/@babel/code-frame": {
+@@ -1508,6 +1511,18 @@
+       "license": "(Unlicense OR Apache-2.0)",
+       "optional": true
+     },
++    "node_modules/agent-base": {
++      "version": "6.0.2",
++      "resolved": "https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/agent-base/-/agent-base-6.0.2.tgz",
++      "integrity": "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==",
++      "license": "MIT",
++      "dependencies": {
++        "debug": "4"
++      },
++      "engines": {
++        "node": ">= 6.0.0"
++      }
++    },
+     "node_modules/ansi-styles": {
+       "version": "4.3.0",
+       "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-4.3.0.tgz",
+@@ -1529,13 +1544,13 @@
+       "license": "MIT"
+     },
+     "node_modules/axios": {
+-      "version": "1.16.0",
+-      "resolved": "https://registry.npmjs.org/axios/-/axios-1.16.0.tgz",
+-      "integrity": "sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==",
+-      "license": "MIT",
++      "version": "1.18.1",
++      "resolved": "https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/axios/-/axios-1.18.1.tgz",
++      "integrity": "sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==",
+       "dependencies": {
+         "follow-redirects": "^1.16.0",
+         "form-data": "^4.0.5",
++        "https-proxy-agent": "^5.0.1",
+         "proxy-from-env": "^2.1.0"
+       }
+     },
+@@ -1902,7 +1917,6 @@
+       "version": "4.4.3",
+       "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+       "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "ms": "^2.1.3"
+@@ -2306,6 +2320,19 @@
+         "node": ">= 0.4"
+       }
+     },
++    "node_modules/https-proxy-agent": {
++      "version": "5.0.1",
++      "resolved": "https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz",
++      "integrity": "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==",
++      "license": "MIT",
++      "dependencies": {
++        "agent-base": "6",
++        "debug": "4"
++      },
++      "engines": {
++        "node": ">= 6"
++      }
++    },
+     "node_modules/immer": {
+       "version": "10.2.0",
+       "resolved": "https://registry.npmjs.org/immer/-/immer-10.2.0.tgz",
+@@ -2537,7 +2564,6 @@
+       "version": "2.1.3",
+       "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+       "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+-      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/nanoid": {
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/frontend/package.json b/frontend/package.json
+--- a/frontend/package.json	2026-07-20 16:04:42.000000000 +0000
++++ b/frontend/package.json	2026-07-20 20:03:35.210716044 +0000
+@@ -25,7 +25,7 @@
+     "@fullcalendar/timegrid": "^6.1.17",
+     "@tanstack/react-query": "^5.76.1",
+     "@zxing/browser": "^0.2.0",
+-    "axios": "^1.8.4",
++    "axios": "^1.18.1",
+     "dompurify": "^3.4.8",
+     "react": "^19.0.0",
+     "react-dom": "^19.0.0",
+@@ -40,5 +40,8 @@
+     "patch-package": "^8.0.1",
+     "typescript": "^5.8.3",
+     "vite": "^6.2.5"
++  },
++  "engines": {
++    "node": ">=24"
+   }
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/load-tests/README.md b/load-tests/README.md
+--- a/load-tests/README.md	2026-07-20 16:04:42.000000000 +0000
++++ b/load-tests/README.md	2026-07-20 20:03:06.367315329 +0000
+@@ -151,7 +151,7 @@
+ - open-bill list pagination
+ - delivery-log list pagination and filtering
+ - admin inbox thread listing
+-- notification-dispatch health probe through delivery logs
++- delivery-log read-path probe (real provider delivery is tested separately)
+ 
+ Current readiness thresholds:
+ 
+@@ -218,3 +218,27 @@
+   -e DURATION=2m \
+   load-tests/k6/widget-smoke.js
+ ```
++
++
++## Test modes
++
++Set `TEST_MODE=quick` for the CI smoke or `TEST_MODE=load` for the normal production-readiness run.
++The `delivery_log_read_probe` scenario measures the delivery-log hot path only; it intentionally does not claim to validate real email/SMS/push provider throughput. Provider sandbox tests must be run separately with non-production recipients.
++
++The setup check uses `/api/actuator/health/readiness` and fails unless it receives HTTP 200 with status `UP`.
++
++### Spike and soak runs
++
++Run a burst test after the normal load test passes:
++
++```bash
++TEST_MODE=spike ./scripts/run-k6-production-readiness.sh load-tests/env/staging.env
++```
++
++Run the final endurance gate for at least eight hours:
++
++```bash
++TEST_MODE=soak SOAK_DURATION=8h ./scripts/run-k6-production-readiness.sh load-tests/env/staging.env
++```
++
++Store the k6 summary together with database, Redis, JVM, proxy, and provider metrics. A repository containing a test definition is not evidence of capacity until these runs pass against production-equivalent infrastructure and data.
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/load-tests/k6/production-readiness.js b/load-tests/k6/production-readiness.js
+--- a/load-tests/k6/production-readiness.js	2026-07-20 16:04:42.000000000 +0000
++++ b/load-tests/k6/production-readiness.js	2026-07-20 20:03:06.366885120 +0000
+@@ -1,9 +1,10 @@
+ import http from 'k6/http';
+-import { check, sleep } from 'k6';
++import { check, fail, sleep } from 'k6';
+ import { BASE_URL, ORIGIN, adminEmail, currentMonth, futureDate, guestEmail, nextMonthDate, tenantCode } from './lib/data.js';
+ import { bearer, expectStatus, firstAvailableSlot, firstLinkedTenant, firstProduct, jsonHeaders, loginAdmin, loginGuest, parseJson } from './lib/http.js';
+ 
+-const QUICK = __ENV.QUICK === 'true';
++const MODE = (__ENV.TEST_MODE || (__ENV.QUICK === 'true' ? 'quick' : 'load')).toLowerCase();
++const QUICK = MODE === 'quick';
+ const P95_MS = Number(__ENV.P95_MS || 800);
+ const ERROR_RATE = Number(__ENV.ERROR_RATE || 0.01);
+ 
+@@ -11,53 +12,65 @@
+   return `${prefix}-${__VU}-${__ITER}-${Date.now()}`;
+ }
+ 
++function stagesFor(target) {
++  if (MODE === 'quick') {
++    return [{ duration: '30s', target: Math.max(1, Math.ceil(target / 10)) }, { duration: '1m', target: Math.max(1, Math.ceil(target / 10)) }, { duration: '20s', target: 0 }];
++  }
++  if (MODE === 'spike') {
++    return [{ duration: '1m', target: Math.max(1, Math.ceil(target / 2)) }, { duration: '30s', target: target * 2 }, { duration: '3m', target: target * 2 }, { duration: '2m', target }, { duration: '1m', target: 0 }];
++  }
++  if (MODE === 'soak') {
++    return [{ duration: '5m', target }, { duration: __ENV.SOAK_DURATION || '8h', target }, { duration: '5m', target: 0 }];
++  }
++  return [{ duration: '2m', target }, { duration: __ENV.LOAD_DURATION || '1h', target }, { duration: '2m', target: 0 }];
++}
++
++function probeDuration() {
++  if (MODE === 'quick') return '1m';
++  if (MODE === 'spike') return '7m';
++  if (MODE === 'soak') return __ENV.SOAK_DURATION || '8h';
++  return __ENV.NOTIFICATION_PROBE_DURATION || __ENV.LOAD_DURATION || '1h';
++}
++
+ export const options = {
+   scenarios: {
+     guest_browse_wallet_inbox: {
+       executor: 'ramping-vus',
+       exec: 'guestBrowseWalletInbox',
+       startVUs: 0,
+-      stages: QUICK
+-        ? [{ duration: '30s', target: 10 }, { duration: '1m', target: 10 }, { duration: '20s', target: 0 }]
+-        : [{ duration: '2m', target: 100 }, { duration: '10m', target: 100 }, { duration: '2m', target: 0 }],
++      stages: stagesFor(100),
+       tags: { test_type: 'load', flow: 'guest_browse_wallet_inbox' },
+     },
+     guest_order_booking_actions: {
+       executor: 'ramping-vus',
+       exec: 'guestOrderBookingActions',
+       startVUs: 0,
+-      stages: QUICK
+-        ? [{ duration: '30s', target: 5 }, { duration: '1m', target: 5 }, { duration: '20s', target: 0 }]
+-        : [{ duration: '2m', target: 40 }, { duration: '10m', target: 40 }, { duration: '2m', target: 0 }],
++      stages: stagesFor(40),
+       tags: { test_type: 'load', flow: 'guest_order_booking_actions' },
+     },
+     widget_browse_and_book: {
+       executor: 'ramping-vus',
+       exec: 'widgetBrowseAndBook',
+       startVUs: 0,
+-      stages: QUICK
+-        ? [{ duration: '30s', target: 5 }, { duration: '1m', target: 5 }, { duration: '20s', target: 0 }]
+-        : [{ duration: '2m', target: 40 }, { duration: '10m', target: 40 }, { duration: '2m', target: 0 }],
++      stages: stagesFor(40),
+       tags: { test_type: 'load', flow: 'widget_browse_and_book' },
+     },
+     admin_calendar_billing_logs: {
+       executor: 'ramping-vus',
+       exec: 'adminCalendarBillingLogs',
+       startVUs: 0,
+-      stages: QUICK
+-        ? [{ duration: '30s', target: 5 }, { duration: '1m', target: 5 }, { duration: '20s', target: 0 }]
+-        : [{ duration: '2m', target: 30 }, { duration: '10m', target: 30 }, { duration: '2m', target: 0 }],
++      stages: stagesFor(30),
+       tags: { test_type: 'load', flow: 'admin_calendar_billing_logs' },
+     },
+-    notification_dispatch_probe: {
++    delivery_log_read_probe: {
+       executor: 'constant-arrival-rate',
+-      exec: 'notificationDispatchProbe',
++      exec: 'deliveryLogReadProbe',
+       rate: QUICK ? 2 : Number(__ENV.NOTIFICATION_PROBE_RATE || 10),
+       timeUnit: '1s',
+-      duration: QUICK ? '1m' : (__ENV.NOTIFICATION_PROBE_DURATION || '10m'),
++      duration: probeDuration(),
+       preAllocatedVUs: QUICK ? 5 : 30,
+       maxVUs: QUICK ? 20 : 100,
+-      tags: { test_type: 'load', flow: 'notification_dispatch_probe' },
++      tags: { test_type: 'load', flow: 'delivery_log_read_probe' },
+     },
+   },
+   thresholds: {
+@@ -202,12 +215,12 @@
+   sleep(1);
+ }
+ 
+-export function notificationDispatchProbe() {
++export function deliveryLogReadProbe() {
+   const login = loginAdmin(adminEmail());
+   if (!login.token) return;
+   const h = bearer(login.token);
+-  const logs = http.get(`${BASE_URL}/api/delivery-logs?page=0&size=20`, { headers: h, tags: { endpoint: 'notification_dispatch_logs_probe' } });
+-  expectStatus(logs, 'delivery logs probe 200');
++  const logs = http.get(`${BASE_URL}/api/delivery-logs?page=0&size=20`, { headers: h, tags: { endpoint: 'delivery_logs_read_probe' } });
++  expectStatus(logs, 'delivery logs read probe 200');
+   const body = parseJson(logs, {});
+   check(body, {
+     'delivery logs response has items or page payload': (b) => Array.isArray(b.items) || Array.isArray(b.content) || typeof b.totalElements === 'number',
+@@ -216,6 +229,13 @@
+ }
+ 
+ export function setup() {
+-  const health = http.get(`${BASE_URL}/actuator/health`, { tags: { endpoint: 'actuator_health', test_type: 'setup' } });
+-  check(health, { 'backend health is reachable': (r) => r.status === 200 || r.status === 401 || r.status === 403 });
++  const health = http.get(`${BASE_URL}/api/actuator/health/readiness`, { tags: { endpoint: 'actuator_readiness', test_type: 'setup' } });
++  const body = parseJson(health, {});
++  const ready = check(health, {
++    'backend readiness is HTTP 200': (r) => r.status === 200,
++    'backend readiness is UP': () => body && body.status === 'UP',
++  });
++  if (!ready) {
++    fail(`Backend is not ready: HTTP ${health.status}, body=${health.body}`);
++  }
+ }
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/scripts/postgres-logical-backup.sh b/scripts/postgres-logical-backup.sh
+--- a/scripts/postgres-logical-backup.sh	1970-01-01 00:00:00.000000000 +0000
++++ b/scripts/postgres-logical-backup.sh	2026-07-20 19:42:52.914713208 +0000
+@@ -0,0 +1,19 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++: "${SPRING_DATASOURCE_URL:?Set SPRING_DATASOURCE_URL, e.g. jdbc:postgresql://host:5432/db}"
++: "${SPRING_DATASOURCE_USERNAME:?Set SPRING_DATASOURCE_USERNAME}"
++: "${SPRING_DATASOURCE_PASSWORD:?Set SPRING_DATASOURCE_PASSWORD}"
++
++output="${1:-calendra-$(date -u +%Y%m%dT%H%M%SZ).dump}"
++url="${SPRING_DATASOURCE_URL#jdbc:}"
++
++PGPASSWORD="$SPRING_DATASOURCE_PASSWORD" pg_dump \
++  --format=custom \
++  --no-owner \
++  --no-privileges \
++  --username="$SPRING_DATASOURCE_USERNAME" \
++  --dbname="$url" \
++  --file="$output"
++
++printf 'Created logical backup: %s\n' "$output"
+diff -ruN '--exclude=node_modules' '--exclude=dist' '--exclude=target' '--exclude=.gradle' '--exclude=build' a/scripts/postgres-restore-drill.sh b/scripts/postgres-restore-drill.sh
+--- a/scripts/postgres-restore-drill.sh	1970-01-01 00:00:00.000000000 +0000
++++ b/scripts/postgres-restore-drill.sh	2026-07-20 19:42:52.925741081 +0000
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++: "${RESTORE_DATABASE_URL:?Set RESTORE_DATABASE_URL to an EMPTY non-production PostgreSQL URL}"
++: "${RESTORE_DATABASE_USERNAME:?Set RESTORE_DATABASE_USERNAME}"
++: "${RESTORE_DATABASE_PASSWORD:?Set RESTORE_DATABASE_PASSWORD}"
++
++backup="${1:?Usage: postgres-restore-drill.sh <backup.dump>}"
++url="${RESTORE_DATABASE_URL#jdbc:}"
++
++PGPASSWORD="$RESTORE_DATABASE_PASSWORD" pg_restore \
++  --clean \
++  --if-exists \
++  --no-owner \
++  --no-privileges \
++  --exit-on-error \
++  --username="$RESTORE_DATABASE_USERNAME" \
++  --dbname="$url" \
++  "$backup"
++
++printf 'Restore completed. Start the backend against this database with Flyway enabled and ddl-auto=validate.\n'

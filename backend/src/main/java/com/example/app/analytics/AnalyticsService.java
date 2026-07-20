@@ -421,7 +421,7 @@ public class AnalyticsService {
             Bucket yy = yearBuckets.computeIfAbsent(y, k -> new Bucket());
             Bucket ww = weekBuckets.computeIfAbsent(weekStart, k -> new Bucket());
             Bucket dd = weekdayBuckets.computeIfAbsent(dayOfWeek, k -> new Bucket());
-            boolean online = b.getMeetingLink() != null && !b.getMeetingLink().isBlank();
+            boolean online = b.isOnlineSession();
             Long clientId = b.getClient() != null ? b.getClient().getId() : null;
             long durationMinutes = durationMinutes(b);
 
@@ -789,7 +789,7 @@ public class AnalyticsService {
         long onsite = 0;
 
         for (SessionBooking booking : bookings) {
-            boolean isOnline = booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank();
+            boolean isOnline = booking.isOnlineSession();
             String source = normalizeSourceChannelValue(booking.getSourceChannel());
             String effectiveStatus = SessionBookingStatus.deriveLifecycleStatus(
                     booking.getStartTime(),

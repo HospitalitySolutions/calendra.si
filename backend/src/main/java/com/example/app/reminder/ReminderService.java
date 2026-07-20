@@ -803,9 +803,7 @@ public class ReminderService {
     }
 
     private static boolean isOnlineBooking(SessionBooking booking) {
-        return booking != null
-                && booking.getMeetingLink() != null
-                && !booking.getMeetingLink().isBlank();
+        return booking != null && booking.isOnlineSession();
     }
 
     private static String firstNonBlank(String... values) {
@@ -859,7 +857,7 @@ public class ReminderService {
                 : (nz(consultant.getFirstName()) + " " + nz(consultant.getLastName())).trim();
         String consultantPhone = consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "";
         String onlineMeetingLink = booking.getMeetingLink() != null ? booking.getMeetingLink().trim() : "";
-        String deliveryType = onlineMeetingLink.isBlank() ? "V živo" : "Online";
+        String deliveryType = booking.isOnlineSession() ? "Online" : "V živo";
         String rescheduleLink = buildRescheduleLink(company);
         String originalAppointmentDateTime;
         if (originalStart != null) {

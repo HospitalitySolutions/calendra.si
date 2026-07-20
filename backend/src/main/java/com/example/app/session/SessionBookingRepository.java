@@ -3,10 +3,12 @@ package com.example.app.session;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +60,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
            "AND sb.startTime < :end AND sb.endTime > :start AND sb.id NOT IN :excludeIds " +
             "AND :spaceId IS NOT NULL AND sb.space IS NOT NULL AND sb.space.id = :spaceId " +
             "AND (sb.meetingLink IS NULL OR sb.meetingLink = '') " +
+            "AND UPPER(COALESCE(sb.meetingProvisioningStatus, 'NONE')) = 'NONE' " +
             "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
     boolean existsOverlappingForSpaceExcluding(
             @Param("companyId") Long companyId,
@@ -70,6 +73,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
            "AND sb.startTime < :end AND sb.endTime > :start AND sb.id <> :excludeBookingId " +
            "AND :spaceId IS NOT NULL AND sb.space IS NOT NULL AND sb.space.id = :spaceId " +
            "AND (sb.meetingLink IS NULL OR sb.meetingLink = '') " +
+           "AND UPPER(COALESCE(sb.meetingProvisioningStatus, 'NONE')) = 'NONE' " +
            "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
     boolean existsOverlappingForSpaceExceptBooking(
             @Param("companyId") Long companyId,
@@ -142,6 +146,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               and sb.id not in (:excludeIds)
               and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
               and (sb.meeting_link is null or sb.meeting_link = '')
+              and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
               and sb.start_time < :requestedBusyEnd
               and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
             """, nativeQuery = true)
@@ -160,6 +165,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               and sb.id not in (:excludeIds)
               and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
               and (sb.meeting_link is null or sb.meeting_link = '')
+              and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
               and sb.start_time < :requestedBusyEnd
               and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
             """, nativeQuery = true)
@@ -170,6 +176,88 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("excludeIds") List<Long> excludeIds);
 
     List<SessionBooking> findByBookingGroupKeyAndCompanyIdOrderByIdAsc(String bookingGroupKey, Long companyId);
+
+    @Query(value = """
+            select min(sb.id)
+            from session_booking sb
+            where sb.meeting_link is null
+              and sb.booking_group_key is not null
+              and sb.meeting_provisioning_status in ('PENDING', 'RETRY')
+              and (sb.meeting_provisioning_next_attempt_at is null or sb.meeting_provisioning_next_attempt_at <= :now)
+            group by sb.company_id, sb.booking_group_key
+            order by min(sb.id)
+            """, nativeQuery = true)
+    List<Long> findDueMeetingRepresentativeIds(@Param("now") Instant now, Pageable pageable);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            update session_booking
+            set meeting_provisioning_status = 'RETRY',
+                meeting_provisioning_started_at = null,
+                meeting_provisioning_next_attempt_at = :retryAt,
+                meeting_provisioning_error = 'Recovered stale meeting provisioning lease',
+                updated_at = now()
+            where meeting_link is null
+              and meeting_provisioning_status = 'PROCESSING'
+              and meeting_provisioning_started_at < :staleBefore
+            """, nativeQuery = true)
+    int recoverStaleMeetingProvisioning(@Param("staleBefore") Instant staleBefore, @Param("retryAt") Instant retryAt);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            update session_booking
+            set meeting_provisioning_status = 'PROCESSING',
+                meeting_provisioning_started_at = :startedAt,
+                meeting_provisioning_attempts = meeting_provisioning_attempts + 1,
+                meeting_provisioning_error = null,
+                updated_at = now()
+            where company_id = :companyId
+              and booking_group_key = :bookingGroupKey
+              and meeting_link is null
+              and meeting_provisioning_status in ('PENDING', 'RETRY')
+              and (meeting_provisioning_next_attempt_at is null or meeting_provisioning_next_attempt_at <= :startedAt)
+            """, nativeQuery = true)
+    int claimMeetingProvisioning(
+            @Param("companyId") Long companyId,
+            @Param("bookingGroupKey") String bookingGroupKey,
+            @Param("startedAt") Instant startedAt);
+
+    @EntityGraph(attributePaths = {"company", "consultant"})
+    @Query("select sb from SessionBooking sb where sb.id = :id")
+    Optional<SessionBooking> findMeetingProvisioningRepresentative(@Param("id") Long id);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            update session_booking
+            set meeting_link = :meetingLink,
+                meeting_provisioning_status = 'READY',
+                meeting_provisioning_error = null,
+                meeting_provisioning_started_at = null,
+                meeting_provisioning_next_attempt_at = null,
+                updated_at = now()
+            where company_id = :companyId and booking_group_key = :bookingGroupKey
+            """, nativeQuery = true)
+    int markMeetingProvisioningReady(
+            @Param("companyId") Long companyId,
+            @Param("bookingGroupKey") String bookingGroupKey,
+            @Param("meetingLink") String meetingLink);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            update session_booking
+            set meeting_provisioning_status = :status,
+                meeting_provisioning_error = :error,
+                meeting_provisioning_started_at = null,
+                meeting_provisioning_next_attempt_at = :nextAttemptAt,
+                updated_at = now()
+            where company_id = :companyId and booking_group_key = :bookingGroupKey
+            """, nativeQuery = true)
+    int markMeetingProvisioningFailed(
+            @Param("companyId") Long companyId,
+            @Param("bookingGroupKey") String bookingGroupKey,
+            @Param("status") String status,
+            @Param("error") String error,
+            @Param("nextAttemptAt") Instant nextAttemptAt);
 
     List<SessionBooking> findByCompanyIdAndRecurrenceSeriesKeyAndStartTimeGreaterThanEqualOrderByStartTimeAscIdAsc(
             Long companyId,

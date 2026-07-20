@@ -9,6 +9,7 @@ import com.example.app.user.User;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -88,6 +89,34 @@ public class SessionBooking extends BaseEntity {
     /** Meeting provider: "zoom" or "google". Used to show correct link label. */
     @Column(length = 20)
     private String meetingProvider;
+
+    /** Durable post-commit meeting provisioning state: NONE, PENDING, PROCESSING, RETRY, READY, FAILED. */
+    @Column(name = "meeting_provisioning_status", nullable = false, length = 20)
+    private String meetingProvisioningStatus = "NONE";
+
+    @Column(name = "meeting_provisioning_error", length = 1000)
+    private String meetingProvisioningError;
+
+    @Column(name = "meeting_provisioning_attempts", nullable = false)
+    private int meetingProvisioningAttempts = 0;
+
+    @Column(name = "meeting_provisioning_started_at")
+    private Instant meetingProvisioningStartedAt;
+
+    @Column(name = "meeting_provisioning_next_attempt_at")
+    private Instant meetingProvisioningNextAttemptAt;
+
+    /** Creation confirmation is delayed until the generated online meeting link is ready. */
+    @Column(name = "meeting_confirmation_pending", nullable = false)
+    private boolean meetingConfirmationPending = false;
+
+    /** True while an online session is waiting for a link, after it is ready, or after a terminal provider failure. */
+    @Transient
+    public boolean isOnlineSession() {
+        if (meetingLink != null && !meetingLink.isBlank()) return true;
+        String status = meetingProvisioningStatus == null ? "NONE" : meetingProvisioningStatus.trim();
+        return !status.isEmpty() && !"NONE".equalsIgnoreCase(status);
+    }
 
     /** When set, this session has been billed and should not create new open bills. */
     private LocalDate billedAt;

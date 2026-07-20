@@ -61,17 +61,24 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       APP_RATE_LIMIT_BACKEND: ${APP_RATE_LIMIT_BACKEND:-redis}
       APP_WIDGET_RATE_LIMIT_BACKEND: ${APP_WIDGET_RATE_LIMIT_BACKEND:-redis}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-2g}
+    cpus: ${BACKEND_CPU_LIMIT:-2.0}
+    stop_grace_period: 45s
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/api/actuator/health | grep -q '\"status\":\"UP\"'"]
-      interval: 30s
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS http://localhost:4000/api/actuator/health/readiness | grep -q '"status":"UP"'
+      interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 90s
+      retries: 5
+      start_period: 120s
 
   frontend:
     build:

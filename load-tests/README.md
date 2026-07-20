@@ -151,7 +151,7 @@ The main test covers:
 - open-bill list pagination
 - delivery-log list pagination and filtering
 - admin inbox thread listing
-- notification-dispatch health probe through delivery logs
+- delivery-log read-path probe (real provider delivery is tested separately)
 
 Current readiness thresholds:
 
@@ -218,3 +218,27 @@ k6 run \
   -e DURATION=2m \
   load-tests/k6/widget-smoke.js
 ```
+
+
+## Test modes
+
+Set `TEST_MODE=quick` for the CI smoke or `TEST_MODE=load` for the normal production-readiness run.
+The `delivery_log_read_probe` scenario measures the delivery-log hot path only; it intentionally does not claim to validate real email/SMS/push provider throughput. Provider sandbox tests must be run separately with non-production recipients.
+
+The setup check uses `/api/actuator/health/readiness` and fails unless it receives HTTP 200 with status `UP`.
+
+### Spike and soak runs
+
+Run a burst test after the normal load test passes:
+
+```bash
+TEST_MODE=spike ./scripts/run-k6-production-readiness.sh load-tests/env/staging.env
+```
+
+Run the final endurance gate for at least eight hours:
+
+```bash
+TEST_MODE=soak SOAK_DURATION=8h ./scripts/run-k6-production-readiness.sh load-tests/env/staging.env
+```
+
+Store the k6 summary together with database, Redis, JVM, proxy, and provider metrics. A repository containing a test definition is not evidence of capacity until these runs pass against production-equivalent infrastructure and data.

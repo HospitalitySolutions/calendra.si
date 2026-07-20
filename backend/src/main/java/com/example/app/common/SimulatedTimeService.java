@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -107,6 +108,11 @@ public class SimulatedTimeService {
 
     public boolean hasAnySimulation() {
         return !offsetCache.isEmpty();
+    }
+
+    /** Immutable snapshot of tenant ids with an active non-zero simulation offset. */
+    public Set<Long> activeTenantIds() {
+        return Set.copyOf(offsetCache.keySet());
     }
 
     public List<Simulation> listSimulations() {

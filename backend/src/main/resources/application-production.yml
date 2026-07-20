@@ -10,13 +10,34 @@
 # be able to call secretsmanager:GetSecretValue for this secret before the JSON is loaded (see application-staging.yml).
 server:
   forward-headers-strategy: framework
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_THREADS_MAX:200}
+      min-spare: ${SERVER_TOMCAT_THREADS_MIN_SPARE:20}
+    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:200}
+    max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}
+    connection-timeout: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:5s}
   error:
     include-message: never
     include-binding-errors: never
     include-stacktrace: never
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_SHUTDOWN_TIMEOUT:30s}
   flyway:
     enabled: ${SPRING_FLYWAY_ENABLED:true}
+    validate-on-migrate: true
+    clean-disabled: true
+  datasource:
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:5}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:5000}
+      validation-timeout: ${SPRING_DATASOURCE_HIKARI_VALIDATION_TIMEOUT:3000}
+      idle-timeout: ${SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${SPRING_DATASOURCE_HIKARI_MAX_LIFETIME:1500000}
+      keepalive-time: ${SPRING_DATASOURCE_HIKARI_KEEPALIVE_TIME:300000}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -79,15 +100,38 @@ app:
     redis:
       enabled: ${APP_REALTIME_REDIS_ENABLED:true}
       channel: ${APP_REALTIME_REDIS_CHANNEL:calendra:session-bookings:events}
+  waitlist:
+    expiry-batch-size: ${APP_WAITLIST_EXPIRY_BATCH_SIZE:100}
+    expiry-lock-at-most: ${APP_WAITLIST_EXPIRY_LOCK_AT_MOST:PT10M}
+  inbox:
+    scheduled-dispatch-batch-size: ${APP_INBOX_SCHEDULED_DISPATCH_BATCH_SIZE:100}
+    scheduled-dispatch-lock-at-most: ${APP_INBOX_SCHEDULED_DISPATCH_LOCK_AT_MOST:PT30M}
+  meetings:
+    provisioning:
+      batch-size: ${APP_MEETING_PROVISIONING_BATCH_SIZE:50}
+      max-attempts: ${APP_MEETING_PROVISIONING_MAX_ATTEMPTS:6}
+      processing-lease: ${APP_MEETING_PROVISIONING_PROCESSING_LEASE:PT5M}
+      retry-base: ${APP_MEETING_PROVISIONING_RETRY_BASE:PT30S}
+      poll-ms: ${APP_MEETING_PROVISIONING_POLL_MS:10000}
+      lock-at-most: ${APP_MEETING_PROVISIONING_LOCK_AT_MOST:PT10M}
 
 
 management:
   endpoints:
     web:
-      # Public production monitoring only needs the health/info endpoints. Keep Prometheus
-      # disabled here unless it is protected behind private networking/authentication.
+      # Keep Prometheus behind private networking/authentication. Override to health,info
+      # when no private scraper is configured.
       exposure:
-        include: health,info
+        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE_INCLUDE:health,info,prometheus}
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,redis
   tracing:
     enabled: ${MANAGEMENT_TRACING_ENABLED:false}
     sampling:

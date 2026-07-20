@@ -427,7 +427,7 @@ public class PublicBookingManageService {
     }
 
     private boolean isOnline(SessionBooking booking) {
-        return booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank();
+        return booking.isOnlineSession();
     }
 
     private String tenantName(Company company) {

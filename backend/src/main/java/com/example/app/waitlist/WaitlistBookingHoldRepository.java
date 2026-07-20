@@ -4,7 +4,10 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -174,5 +177,6 @@ public interface WaitlistBookingHoldRepository extends JpaRepository<WaitlistBoo
             @Param("now") Instant now);
 
     @Query("select h from WaitlistBookingHold h where h.status = com.example.app.waitlist.WaitlistHoldStatus.ACTIVE and h.expiresAt <= :now")
-    List<WaitlistBookingHold> findExpiredActive(@Param("now") Instant now);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<WaitlistBookingHold> findExpiredActive(@Param("now") Instant now, Pageable pageable);
 }

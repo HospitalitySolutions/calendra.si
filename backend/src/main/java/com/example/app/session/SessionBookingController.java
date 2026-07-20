@@ -301,8 +301,8 @@ public class SessionBookingController {
         var excludes = new ArrayList<Long>();
         aGroup.forEach(row -> excludes.add(row.getId()));
         bGroup.forEach(row -> excludes.add(row.getId()));
-        boolean aOnline = aRep.getMeetingLink() != null && !aRep.getMeetingLink().isBlank();
-        boolean bOnline = bRep.getMeetingLink() != null && !bRep.getMeetingLink().isBlank();
+        boolean aOnline = aRep.isOnlineSession();
+        boolean bOnline = bRep.isOnlineSession();
         bookingCreationService.validateBookingWindow(
                 companyId,
                 clientIdsOf(aGroup),

@@ -1,0 +1,76 @@
+x-backend-common: &backend-common
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment: &backend-environment
+    SPRING_PROFILES_ACTIVE: production
+    SERVER_ADDRESS: 0.0.0.0
+    SERVER_PORT: 4000
+    SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?Managed PostgreSQL JDBC URL is required}
+    SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?Managed PostgreSQL username is required}
+    SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Managed PostgreSQL password is required}
+    SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:?Managed Redis host is required}
+    SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+    SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-}
+    APP_RATE_LIMIT_BACKEND: redis
+    APP_WIDGET_RATE_LIMIT_BACKEND: redis
+    AWS_REGION: ${AWS_REGION:-eu-central-1}
+    AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+    AWS_PRODUCTION_SECRET_ID: ${AWS_PRODUCTION_SECRET_ID:-calendra-app}
+    JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
+  mem_limit: ${BACKEND_MEMORY_LIMIT:-2g}
+  cpus: ${BACKEND_CPU_LIMIT:-2.0}
+  stop_grace_period: 45s
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        curl -fsS http://localhost:4000/api/actuator/health/readiness | grep -q '"status":"UP"'
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 120s
+
+services:
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.production.ha:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      backend-a:
+        condition: service_healthy
+      backend-b:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+  backend-a:
+    <<: *backend-common
+    hostname: calendra-backend-a
+
+  backend-b:
+    <<: *backend-common
+    hostname: calendra-backend-b
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        BUILD_SCRIPT: build:production
+    restart: unless-stopped
+    mem_limit: ${FRONTEND_MEMORY_LIMIT:-512m}
+    cpus: ${FRONTEND_CPU_LIMIT:-0.5}
+
+volumes:
+  caddy_data:
+  caddy_config:

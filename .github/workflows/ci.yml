@@ -122,6 +122,18 @@ jobs:
           APP_JWT_SECRET: ci-compose-config-placeholder-at-least-32-characters
         run: docker compose -f docker-compose.staging.yml --env-file .env.staging.example config >/tmp/calendra-staging-compose.yml
 
+      - name: Validate production compose files
+        env:
+          POSTGRES_PASSWORD: ci-compose-config-placeholder
+          SPRING_DATASOURCE_URL: jdbc:postgresql://managed-postgres.example:5432/calendra
+          SPRING_DATASOURCE_USERNAME: calendra
+          SPRING_DATASOURCE_PASSWORD: ci-compose-config-placeholder
+          SPRING_DATA_REDIS_HOST: managed-redis.example
+          SPRING_DATA_REDIS_PASSWORD: ci-compose-config-placeholder
+        run: |
+          docker compose -f docker-compose.prod.yml config >/tmp/calendra-production-compose.yml
+          docker compose -f docker-compose.prod-ha.yml config >/tmp/calendra-production-ha-compose.yml
+
   k6-quick-smoke:
     name: Optional staging k6 quick smoke
     runs-on: ubuntu-latest

@@ -23,6 +23,7 @@ import com.example.app.user.UserRepository;
 import com.example.app.zoom.ZoomService;
 import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -203,12 +204,9 @@ public class SessionBookingCreationService {
                 excludedWaitlistOfferId
         );
         var meetingLink = req.meetingLink();
-        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank())) {
-            if (consultantId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Online sessions require a meeting link when no consultant is assigned.");
-            }
-            meetingLink = createMeetingUrl(consultantId, start, end, req.meetingProvider());
+        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Online sessions require a meeting link when no consultant is assigned.");
         }
         String groupKey = UUID.randomUUID().toString();
         List<SessionBooking> saved = new ArrayList<>();
@@ -222,7 +220,7 @@ public class SessionBookingCreationService {
             mergeSessionPayeeOverride(booking, req, companyId, null);
             booking = repo.save(booking);
             saved.add(booking);
-            reminderService.sendBookingConfirmation(booking);
+            booking = sendBookingConfirmationWhenReady(booking);
         } else {
             for (Long clientId : requestedClientIds) {
                 var booking = new SessionBooking();
@@ -234,7 +232,7 @@ public class SessionBookingCreationService {
                 mergeSessionPayeeOverride(booking, req, companyId, clientId);
                 booking = repo.save(booking);
                 saved.add(booking);
-                reminderService.sendBookingConfirmation(booking);
+                booking = sendBookingConfirmationWhenReady(booking);
             }
         }
         if (consumableService != null) {
@@ -324,12 +322,9 @@ public class SessionBookingCreationService {
                 Boolean.TRUE.equals(req.allowPersonalBlockOverlap())
         );
         var meetingLink = req.meetingLink();
-        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank())) {
-            if (consultantId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Online sessions require a meeting link when no consultant is assigned.");
-            }
-            meetingLink = createMeetingUrl(consultantId, start, end, req.meetingProvider());
+        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Online sessions require a meeting link when no consultant is assigned.");
         }
         String groupKey = SessionBookingController.groupKey(representative);
         if (requestedClientIds.isEmpty() && representative.getClientGroup() != null) {
@@ -391,7 +386,7 @@ public class SessionBookingCreationService {
             row = repo.save(row);
             saved.add(row);
             if (created || clientChanged) {
-                reminderService.sendBookingConfirmation(row);
+                row = sendBookingConfirmationWhenReady(row);
             } else {
                 restoreGuestCreditIfNoLongerBlocking(row, previouslyBlockedAvailability);
                 boolean timeChanged = !Objects.equals(previousStart, row.getStartTime()) || !Objects.equals(previousEnd, row.getEndTime());
@@ -524,12 +519,9 @@ public class SessionBookingCreationService {
 
         User actor = resolveAdminActor(companyId);
         String meetingLink = request.meetingLink();
-        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank())) {
-            if (request.consultantId() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Online sessions require a meeting link when no consultant is assigned.");
-            }
-            meetingLink = createMeetingUrl(request.consultantId(), start, end, request.meetingProvider());
+        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank()) && request.consultantId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Online sessions require a meeting link when no consultant is assigned.");
         }
 
         SessionBookingController.BookingRequest internalRequest = new SessionBookingController.BookingRequest(
@@ -570,7 +562,7 @@ public class SessionBookingCreationService {
         booking = repo.save(booking);
         repo.flush();
         if (request.sendConfirmation()) {
-            reminderService.sendBookingConfirmation(booking);
+            booking = sendBookingConfirmationWhenReady(booking);
         }
         if (consumableService != null) {
             consumableService.ensureSessionDefaultsForBookings(java.util.List.of(booking), companyId);
@@ -644,7 +636,7 @@ public class SessionBookingCreationService {
                 isSpacesEnabled(companyId),
                 isMultipleSessionsPerSpaceEnabled(companyId),
                 true,
-                representative.getMeetingLink() != null && !representative.getMeetingLink().isBlank(),
+                representative.isOnlineSession(),
                 false
         );
 
@@ -661,6 +653,11 @@ public class SessionBookingCreationService {
         joined.setNotes(representative.getNotes());
         joined.setMeetingLink(representative.getMeetingLink());
         joined.setMeetingProvider(representative.getMeetingProvider());
+        joined.setMeetingProvisioningStatus(representative.getMeetingProvisioningStatus());
+        joined.setMeetingProvisioningError(representative.getMeetingProvisioningError());
+        joined.setMeetingProvisioningAttempts(representative.getMeetingProvisioningAttempts());
+        joined.setMeetingProvisioningStartedAt(representative.getMeetingProvisioningStartedAt());
+        joined.setMeetingProvisioningNextAttemptAt(representative.getMeetingProvisioningNextAttemptAt());
         joined.setClientGroup(representative.getClientGroup());
         joined.setSessionGroupEmailOverride(representative.getSessionGroupEmailOverride());
         joined.setSessionGroupBillingCompany(representative.getSessionGroupBillingCompany());
@@ -672,7 +669,7 @@ public class SessionBookingCreationService {
         applyChannelMetadata(joined, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
         joined = repo.save(joined);
         if (request.sendConfirmation()) {
-            reminderService.sendBookingConfirmation(joined);
+            joined = sendBookingConfirmationWhenReady(joined);
         }
         if (consumableService != null) {
             var refreshedForConsumables = new java.util.ArrayList<>(loadGroupedRows(representative, companyId));
@@ -1031,12 +1028,24 @@ public class SessionBookingCreationService {
         }
         booking.setNotes(req.notes() != null ? req.notes().trim() : "");
         boolean hasMeeting = meetingLink != null && !meetingLink.isBlank();
-        booking.setMeetingLink(hasMeeting ? meetingLink : null);
-        if (hasMeeting) {
+        boolean onlineRequested = Boolean.TRUE.equals(req.online()) || hasMeeting;
+        booking.setMeetingLink(hasMeeting ? meetingLink.trim() : null);
+        if (onlineRequested) {
             String provider = req.meetingProvider();
             booking.setMeetingProvider(provider != null && "google".equalsIgnoreCase(provider) ? "google" : "zoom");
+            booking.setMeetingProvisioningStatus(hasMeeting ? "READY" : "PENDING");
+            booking.setMeetingProvisioningError(null);
+            booking.setMeetingProvisioningStartedAt(null);
+            booking.setMeetingProvisioningNextAttemptAt(hasMeeting ? null : Instant.now());
+            if (hasMeeting) booking.setMeetingProvisioningAttempts(0);
         } else {
             booking.setMeetingProvider(null);
+            booking.setMeetingProvisioningStatus("NONE");
+            booking.setMeetingProvisioningError(null);
+            booking.setMeetingProvisioningStartedAt(null);
+            booking.setMeetingProvisioningNextAttemptAt(null);
+            booking.setMeetingProvisioningAttempts(0);
+            booking.setMeetingConfirmationPending(false);
         }
     }
 
@@ -1058,11 +1067,16 @@ public class SessionBookingCreationService {
         return rows;
     }
 
-    private String createMeetingUrl(Long consultantId, LocalDateTime start, LocalDateTime end, String provider) {
-        if (provider != null && "google".equalsIgnoreCase(provider)) {
-            return googleMeetService.createMeetingUrl(consultantId, start, end, "Session");
+    private SessionBooking sendBookingConfirmationWhenReady(SessionBooking booking) {
+        if (booking == null) return null;
+        if ("PENDING".equals(booking.getMeetingProvisioningStatus())
+                || "RETRY".equals(booking.getMeetingProvisioningStatus())
+                || "PROCESSING".equals(booking.getMeetingProvisioningStatus())) {
+            booking.setMeetingConfirmationPending(true);
+            return repo.save(booking);
         }
-        return zoomService.createMeetingUrl(consultantId, start, end, "Session");
+        reminderService.sendBookingConfirmation(booking);
+        return booking;
     }
 
     public void restoreGuestCreditsForBookings(Iterable<SessionBooking> bookingsToRestore) {

@@ -243,7 +243,7 @@ public class GuestBookingActionsController {
                 bookingCreationService.isSpacesEnabled(booking.getCompany().getId()),
                 bookingCreationService.isMultipleSessionsPerSpaceEnabled(booking.getCompany().getId()),
                 bookingCreationService.isMultipleClientsPerSessionEnabled(booking.getCompany().getId()),
-                booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank(),
+                booking.isOnlineSession(),
                 false
         );
 

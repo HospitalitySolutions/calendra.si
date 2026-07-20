@@ -4,6 +4,7 @@ import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -31,9 +32,11 @@ public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer, Lo
               and o.expiresAt <= :threshold
             order by o.expiresAt asc, o.id asc
             """)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<WaitlistOffer> findPendingExpiring(
             @Param("now") Instant now,
-            @Param("threshold") Instant threshold);
+            @Param("threshold") Instant threshold,
+            Pageable pageable);
 
     @Query("""
             select o from WaitlistOffer o
@@ -53,5 +56,6 @@ public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer, Lo
             @Param("to") Instant to);
 
     @Query("select o from WaitlistOffer o where o.status = com.example.app.waitlist.WaitlistOfferStatus.PENDING and o.expiresAt <= :now order by o.expiresAt asc, o.id asc")
-    List<WaitlistOffer> findExpiredPending(@Param("now") Instant now);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<WaitlistOffer> findExpiredPending(@Param("now") Instant now, Pageable pageable);
 }

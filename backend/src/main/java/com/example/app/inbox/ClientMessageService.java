@@ -60,7 +60,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.client.RestTemplate;
@@ -97,6 +99,8 @@ public class ClientMessageService {
     private final ScheduledMessageRepository scheduledMessages;
     private final TenantSmsQuotaService smsQuotaService;
     private final com.example.app.common.TimeService timeService;
+    private final TransactionTemplate transactionTemplate;
+    private final int scheduledDispatchBatchSize;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Autowired(required = false)
@@ -118,6 +122,8 @@ public class ClientMessageService {
             GuestSettingsService guestSettingsService,
             ScheduledMessageRepository scheduledMessages,
             com.example.app.common.TimeService timeService,
+            PlatformTransactionManager transactionManager,
+            @Value("${app.inbox.scheduled-dispatch-batch-size:100}") int scheduledDispatchBatchSize,
             TenantSmsQuotaService smsQuotaService,
             SmsGateway smsGateway,
             @Autowired(required = false) JavaMailSender mailSender,
@@ -142,6 +148,8 @@ public class ClientMessageService {
         this.guestSettingsService = guestSettingsService;
         this.scheduledMessages = scheduledMessages;
         this.timeService = timeService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.scheduledDispatchBatchSize = Math.max(10, Math.min(1000, scheduledDispatchBatchSize));
         this.smsQuotaService = smsQuotaService;
         this.smsGateway = smsGateway;
         this.smsConfigured = smsGateway != null && smsGateway.isConfigured();
@@ -347,10 +355,11 @@ public class ClientMessageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
         }
 
-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
-                .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
-                .toList();
-        String conversationKey = resolveOpenConversationKey(link.getClient(), existingRows);
+        String conversationKey = resolveOpenConversationKey(
+                link.getClient(),
+                messages.findFirstByCompanyIdAndClientIdAndChannelAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
+                        companyId, link.getClient().getId(), MessageChannel.GUEST_APP)
+        );
 
         ClientMessage row = new ClientMessage();
         row.setCompany(link.getCompany());
@@ -588,22 +597,47 @@ public class ClientMessageService {
         scheduledMessages.delete(row);
     }
 
-    /** Dispatches all due scheduled messages, honoring the per-tenant time simulator. Called by the scheduler. */
-    @Transactional
-    public void dispatchDueScheduledMessages() {
-        for (ScheduledMessage row : scheduledMessages.findByStatus(ScheduledMessageStatus.ACTIVE)) {
-            try {
-                dispatchOne(row);
-            } catch (Exception ex) {
-                row.setLastError(truncateError(ex.getMessage()));
-                if (row.getRecurrence() == MessageRecurrence.NONE) {
-                    row.setStatus(ScheduledMessageStatus.FAILED);
-                } else {
-                    advanceRecurrence(row);
-                }
-                scheduledMessages.save(row);
-            }
+    /**
+     * Dispatches a bounded set of due rows. Each message gets its own transaction and
+     * pessimistic row lock, so one slow provider cannot keep every scheduled message
+     * in a single global transaction.
+     */
+    public int dispatchDueScheduledMessages() {
+        var page = PageRequest.of(0, scheduledDispatchBatchSize);
+        var ids = new java.util.LinkedHashSet<Long>(scheduledMessages.findDueIds(Instant.now(), page));
+        var simulatedTenantIds = timeService.simulatedTenantIds();
+        if (!simulatedTenantIds.isEmpty() && ids.size() < scheduledDispatchBatchSize) {
+            int remaining = scheduledDispatchBatchSize - ids.size();
+            ids.addAll(scheduledMessages.findActiveIdsForCompanies(
+                    simulatedTenantIds, PageRequest.of(0, remaining)));
         }
+
+        int processed = 0;
+        for (Long id : ids) {
+            Boolean didProcess = transactionTemplate.execute(status -> dispatchOneLocked(id));
+            if (Boolean.TRUE.equals(didProcess)) processed++;
+        }
+        return processed;
+    }
+
+    private boolean dispatchOneLocked(Long id) {
+        ScheduledMessage row = scheduledMessages.findActiveForUpdate(id).orElse(null);
+        if (row == null) return false;
+        Long companyId = row.getCompany() != null ? row.getCompany().getId() : null;
+        Instant now = timeService.instant(companyId);
+        if (row.getNextRunAt() == null || now.isBefore(row.getNextRunAt())) return false;
+        try {
+            dispatchOne(row);
+        } catch (Exception ex) {
+            row.setLastError(truncateError(ex.getMessage()));
+            if (row.getRecurrence() == MessageRecurrence.NONE) {
+                row.setStatus(ScheduledMessageStatus.FAILED);
+            } else {
+                advanceRecurrence(row);
+            }
+            scheduledMessages.save(row);
+        }
+        return true;
     }
 
     private void dispatchOne(ScheduledMessage row) {
@@ -671,8 +705,11 @@ public class ClientMessageService {
         Client client = requireVisibleClient(me, clientId);
         String normalized = normalizeBody(body);
         if (normalized.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Note body is required.");
-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
-        String conversationKey = resolveOpenConversationKey(client, existingRows);
+        String conversationKey = resolveOpenConversationKey(
+                client,
+                messages.findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
+                        me.getCompany().getId(), client.getId())
+        );
 
         ClientMessage row = new ClientMessage();
         row.setCompany(me.getCompany());
@@ -839,8 +876,11 @@ public class ClientMessageService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest App is disabled for this tenant.");
         }
 
-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
-        String conversationKey = resolveOpenConversationKey(client, existingRows);
+        String conversationKey = resolveOpenConversationKey(
+                client,
+                messages.findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
+                        me.getCompany().getId(), client.getId())
+        );
 
         ClientMessage row = new ClientMessage();
         row.setCompany(me.getCompany());
@@ -1015,8 +1055,11 @@ public class ClientMessageService {
     }
 
     private void persistInboundMessage(Company company, Client client, MessageChannel channel, String recipient, String subject, String body, String externalId) {
-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(company.getId(), client.getId());
-        String conversationKey = resolveOpenConversationKey(client, existingRows);
+        String conversationKey = resolveOpenConversationKey(
+                client,
+                messages.findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
+                        company.getId(), client.getId())
+        );
 
         ClientMessage row = new ClientMessage();
         row.setCompany(company);
@@ -1162,6 +1205,20 @@ public class ClientMessageService {
                 .map(Map.Entry::getKey)
                 .findFirst()
                 .orElse("conversation-" + UUID.randomUUID());
+    }
+
+    /** Hot-path variant that reads only the newest open row instead of the client's full history. */
+    private String resolveOpenConversationKey(Client client, Optional<ClientMessage> latestOpenRow) {
+        if (latestOpenRow != null && latestOpenRow.isPresent()) {
+            ClientMessage row = latestOpenRow.get();
+            if (row.getConversationKey() != null && !row.getConversationKey().isBlank()) {
+                return row.getConversationKey();
+            }
+            if (client != null && !client.isInboxClosed()) {
+                return legacyConversationKey(client.getId());
+            }
+        }
+        return "conversation-" + UUID.randomUUID();
     }
 
     private ConversationSelection requireConversationSelection(Long companyId, Client client, String threadKey) {

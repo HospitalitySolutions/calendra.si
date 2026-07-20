@@ -11,6 +11,9 @@ import org.springframework.data.repository.query.Param;
 public interface ClientMessageRepository extends JpaRepository<ClientMessage, Long> {
     List<ClientMessage> findAllByCompanyIdOrderByCreatedAtDesc(Long companyId);
     List<ClientMessage> findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(Long companyId, Long clientId);
+    java.util.Optional<ClientMessage> findFirstByCompanyIdAndClientIdAndConversationClosedFalseOrderByCreatedAtDescIdDesc(Long companyId, Long clientId);
+    java.util.Optional<ClientMessage> findFirstByCompanyIdAndClientIdAndChannelAndConversationClosedFalseOrderByCreatedAtDescIdDesc(
+            Long companyId, Long clientId, MessageChannel channel);
 
 
     @Query("""

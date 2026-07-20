@@ -48,8 +48,8 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -89,6 +89,7 @@ public class WaitlistService {
     private final SessionBookingRealtimeService calendarRealtime;
     private final WaitlistGuestNotificationService guestNotifications;
     private final int offerExpiringMinutes;
+    private final int expiryBatchSize;
 
     public WaitlistService(
             WaitlistRequestRepository requests,
@@ -114,7 +115,8 @@ public class WaitlistService {
             TenantNotificationService tenantNotifications,
             SessionBookingRealtimeService calendarRealtime,
             WaitlistGuestNotificationService guestNotifications,
-            @Value("${app.waitlist.offer-expiring-minutes:5}") int offerExpiringMinutes
+            @Value("${app.waitlist.offer-expiring-minutes:5}") int offerExpiringMinutes,
+            @Value("${app.waitlist.expiry-batch-size:100}") int expiryBatchSize
     ) {
         this.requests = requests;
         this.windows = windows;
@@ -140,6 +142,7 @@ public class WaitlistService {
         this.calendarRealtime = calendarRealtime;
         this.guestNotifications = guestNotifications;
         this.offerExpiringMinutes = Math.max(1, offerExpiringMinutes);
+        this.expiryBatchSize = Math.max(10, Math.min(1000, expiryBatchSize));
     }
 
     public record WindowInput(DayOfWeek dayOfWeek, LocalDate date, LocalTime timeFrom, LocalTime timeTo, Boolean allDay) {}
@@ -817,18 +820,25 @@ public class WaitlistService {
         offerNextCandidate(companyId, releasedStart, releasedEnd, employeeId, roomId, bookingId, null);
     }
 
-    @Scheduled(fixedDelayString = "${app.waitlist.expiry-check-ms:60000}")
+    /**
+     * Processes a bounded expiry batch. Scheduling and cross-instance locking live in
+     * {@link WaitlistExpiryScheduler}; this method only owns the database transaction.
+     */
     @Transactional
-    public void expireOffers() {
+    public int expireOffersBatch() {
         Instant now = Instant.now();
         Instant expiringThreshold = now.plus(Duration.ofMinutes(offerExpiringMinutes));
-        for (WaitlistOffer offer : offers.findPendingExpiring(now, expiringThreshold)) {
+        var page = PageRequest.of(0, expiryBatchSize);
+        int processed = 0;
+
+        for (WaitlistOffer offer : offers.findPendingExpiring(now, expiringThreshold, page)) {
             if (offer.getStatus() != WaitlistOfferStatus.PENDING || offer.getExpiringNotifiedAt() != null) continue;
             offer.setExpiringNotifiedAt(now);
             offers.save(offer);
             guestNotifications.publish(offer.getRequest(), offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRING);
+            processed++;
         }
-        for (WaitlistOffer offer : offers.findExpiredPending(now)) {
+        for (WaitlistOffer offer : offers.findExpiredPending(now, page)) {
             if (offer.getStatus() != WaitlistOfferStatus.PENDING) continue;
             offer.setStatus(WaitlistOfferStatus.EXPIRED);
             offers.save(offer);
@@ -844,12 +854,16 @@ public class WaitlistService {
                     "Ponudba za " + clientName(request.getClient()) + " je potekla.", "/appointments?requestId=" + request.getId());
             guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
             offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offerAvailableEnd(offer), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
+            processed++;
         }
-        for (WaitlistBookingHold hold : holds.findExpiredActive(now)) {
+        for (WaitlistBookingHold hold : holds.findExpiredActive(now, page)) {
+            if (hold.getStatus() != WaitlistHoldStatus.ACTIVE) continue;
             hold.setStatus(WaitlistHoldStatus.EXPIRED);
             holds.save(hold);
             publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_EXPIRED");
+            processed++;
         }
+        return processed;
     }
 
     public boolean hasActiveHold(Long companyId, Long employeeId, Long roomId, LocalDateTime start, LocalDateTime end, Long excludeOfferId) {

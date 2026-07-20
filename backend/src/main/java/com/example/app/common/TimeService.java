@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
@@ -79,5 +80,10 @@ public class TimeService {
     /** Whether the effective clock for the current/!given tenant is shifted from real time. */
     public boolean isSimulated(Long tenantId) {
         return !offset(tenantId).isZero();
+    }
+
+    /** Tenant ids whose effective clock is currently shifted; used by bounded schedulers. */
+    public Set<Long> simulatedTenantIds() {
+        return simulatedTimeService.activeTenantIds();
     }
 }
