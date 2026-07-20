@@ -2540,6 +2540,51 @@
         </button>
       `;
 
+      const summaryConsultant = this.currentSummaryConsultant();
+      const dateLabel = this.displaySelectedDate();
+      const timeLabel = this.selectedTimeLabel();
+      const durationText = service ? `${service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60} ${t.durationSuffix}` : '';
+      const activePaymentMethod = this.state.paymentMethod || (payAtVenueOnly ? 'PAY_AT_VENUE' : null);
+      const paymentLabel = activePaymentMethod ? this.paymentMethodSummaryLabel(activePaymentMethod) : '';
+      const detailsSummaryRows = [
+        service ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
+            <strong class="summary-detail-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+          </div>
+        ` : '',
+        dateLabel ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.summaryDateTime || t.labelDate)}</span>
+            <strong class="summary-detail-value">${escapeHtml(dateLabel)}</strong>
+          </div>
+        ` : '',
+        timeLabel ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.summaryTime || t.labelTime)}</span>
+            <strong class="summary-detail-value">${escapeHtml(timeLabel)}</strong>
+          </div>
+        ` : '',
+        durationText ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.summaryDuration)}</span>
+            <strong class="summary-detail-value">${escapeHtml(durationText)}</strong>
+          </div>
+        ` : '',
+        this.shouldShowConsultantStep() && summaryConsultant?.name ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.stepConsultant)}</span>
+            <strong class="summary-detail-value">${escapeHtml(summaryConsultant.name)}</strong>
+          </div>
+        ` : '',
+        paymentLabel ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.summaryPayment)}</span>
+            <strong class="summary-detail-value">${escapeHtml(paymentLabel)}</strong>
+          </div>
+        ` : ''
+      ].filter(Boolean).join('');
+
       return `
         <section class="panel-section panel-section--details">
           <div class="checkout-layout">
@@ -2594,7 +2639,12 @@
               </label>
             </div>
             <div class="checkout-summary-col">
-              ${this.summaryMarkup()}
+              <aside class="summary-card summary-card--details-step">
+                <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
+                <div class="summary-detail-list">
+                  ${detailsSummaryRows}
+                </div>
+              </aside>
             </div>
           </div>
           <div class="panel-actions panel-actions--footer panel-actions--details">
@@ -2948,7 +2998,7 @@
           font-style: normal;
           font-weight: 650;
         }
-        .summary-card--datetime-step { position: static; }
+        .summary-card--datetime-step, .summary-card--details-step { position: static; }
         .summary-detail-list {
           display: grid;
           border-top: 1px solid var(--calendra-border);
@@ -3180,18 +3230,19 @@
         }
         .details-grid input:focus { border-color: var(--calendra-primary); box-shadow: 0 0 0 3px rgba(15,107,255,.10); }
         .payment-block { display: grid; gap: 16px; }
-        .payment-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+        .payment-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
         .payment-tile {
-          min-height: 116px;
+          min-height: 84px;
           position: relative;
           border-radius: 13px;
           border: 1px solid var(--calendra-border);
           background: #fff;
           color: inherit;
-          padding: 18px;
+          padding: 18px 56px 18px 18px;
           text-align: left;
           display: grid;
-          grid-template-columns: 40px 1fr;
+          grid-template-columns: 40px minmax(0,1fr);
+          align-items: center;
           gap: 16px;
           cursor: pointer;
         }
@@ -3379,15 +3430,19 @@
         :host([presentation="standalone"]) .widget.step-service .headline,
         :host([presentation="standalone"]) .widget.step-consultant .headline,
         :host([presentation="standalone"]) .widget.step-datetime .headline,
+        :host([presentation="standalone"]) .widget.step-details .headline,
         :host([presentation="directory"]) .widget.step-service .headline,
         :host([presentation="directory"]) .widget.step-consultant .headline,
-        :host([presentation="directory"]) .widget.step-datetime .headline { display: none; }
+        :host([presentation="directory"]) .widget.step-datetime .headline,
+        :host([presentation="directory"]) .widget.step-details .headline { display: none; }
         :host([presentation="standalone"]) .widget.step-service .panel-section,
         :host([presentation="standalone"]) .widget.step-consultant .panel-section,
         :host([presentation="standalone"]) .widget.step-datetime .panel-section,
+        :host([presentation="standalone"]) .widget.step-details .panel-section,
         :host([presentation="directory"]) .widget.step-service .panel-section,
         :host([presentation="directory"]) .widget.step-consultant .panel-section,
-        :host([presentation="directory"]) .widget.step-datetime .panel-section { margin-top: 28px; }
+        :host([presentation="directory"]) .widget.step-datetime .panel-section,
+        :host([presentation="directory"]) .widget.step-details .panel-section { margin-top: 28px; }
         :host([presentation="standalone"]) .progress-dot { width: 36px; height: 36px; font-size: 14px; }
         :host([presentation="standalone"]) .progress-item { gap: 10px; font-size: 14px; }
         :host([presentation="standalone"]) .panel-actions--footer { margin-top: 8px; }
