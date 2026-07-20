@@ -2458,6 +2458,29 @@
           </div>
         `;
 
+        const summaryConsultant = this.currentSummaryConsultant();
+        const durationText = service ? `${service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60} ${t.durationSuffix}` : '';
+        const datetimeSummaryRows = [
+          `
+            <div class="summary-detail-row">
+              <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
+              <strong class="summary-detail-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+            </div>
+          `,
+          showConsultantPicker && summaryConsultant?.name ? `
+            <div class="summary-detail-row">
+              <span class="summary-detail-label">${escapeHtml(t.stepConsultant)}</span>
+              <strong class="summary-detail-value">${escapeHtml(summaryConsultant.name)}</strong>
+            </div>
+          ` : '',
+          durationText ? `
+            <div class="summary-detail-row">
+              <span class="summary-detail-label">${escapeHtml(t.summaryDuration)}</span>
+              <strong class="summary-detail-value">${escapeHtml(durationText)}</strong>
+            </div>
+          ` : ''
+        ].filter(Boolean).join('');
+
         return `
           <section class="panel-section panel-section--datetime">
             <div class="datetime-layout">
@@ -2465,14 +2488,12 @@
                 ${this.calendarMarkup()}
               </div>
               <div class="datetime-side-col">
-                <div class="selected-service-card">
-                  ${this.serviceIconMarkup(service, 0)}
-                  <span>
-                    <small>${escapeHtml(t.selectedService)}</small>
-                    <strong>${escapeHtml(this.serviceDisplayName(service))}</strong>
-                    <em>${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
-                  </span>
-                </div>
+                <aside class="summary-card summary-card--datetime-step">
+                  <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
+                  <div class="summary-detail-list">
+                    ${datetimeSummaryRows}
+                  </div>
+                </aside>
                 ${this.currentServiceSupportsGroupSessions() ? groupSessionsMarkup : slotsMarkup}
               </div>
             </div>
@@ -2927,6 +2948,30 @@
           font-style: normal;
           font-weight: 650;
         }
+        .summary-card--datetime-step { position: static; }
+        .summary-detail-list {
+          display: grid;
+          border-top: 1px solid var(--calendra-border);
+        }
+        .summary-detail-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 14px 0;
+          border-bottom: 1px solid var(--calendra-border);
+        }
+        .summary-detail-label {
+          color: #748099;
+          font-size: 14px;
+          font-weight: 700;
+        }
+        .summary-detail-value {
+          color: var(--calendra-text);
+          font-size: 16px;
+          font-weight: 850;
+          text-align: right;
+        }
         .times-card { padding: 0; border: 0; box-shadow: none; background: transparent; display: grid; gap: 13px; }
         .times-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
         .text-link { border: 0; background: transparent; color: var(--calendra-primary); font-size: 13px; font-weight: 800; cursor: pointer; padding: 2px 0; }
@@ -3333,12 +3378,16 @@
         :host([presentation="standalone"]) .headline h2 { font-size: clamp(30px, 3vw, 40px); line-height: 1.05; letter-spacing: -.04em; }
         :host([presentation="standalone"]) .widget.step-service .headline,
         :host([presentation="standalone"]) .widget.step-consultant .headline,
+        :host([presentation="standalone"]) .widget.step-datetime .headline,
         :host([presentation="directory"]) .widget.step-service .headline,
-        :host([presentation="directory"]) .widget.step-consultant .headline { display: none; }
+        :host([presentation="directory"]) .widget.step-consultant .headline,
+        :host([presentation="directory"]) .widget.step-datetime .headline { display: none; }
         :host([presentation="standalone"]) .widget.step-service .panel-section,
         :host([presentation="standalone"]) .widget.step-consultant .panel-section,
+        :host([presentation="standalone"]) .widget.step-datetime .panel-section,
         :host([presentation="directory"]) .widget.step-service .panel-section,
-        :host([presentation="directory"]) .widget.step-consultant .panel-section { margin-top: 28px; }
+        :host([presentation="directory"]) .widget.step-consultant .panel-section,
+        :host([presentation="directory"]) .widget.step-datetime .panel-section { margin-top: 28px; }
         :host([presentation="standalone"]) .progress-dot { width: 36px; height: 36px; font-size: 14px; }
         :host([presentation="standalone"]) .progress-item { gap: 10px; font-size: 14px; }
         :host([presentation="standalone"]) .panel-actions--footer { margin-top: 8px; }
