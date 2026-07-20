@@ -1918,6 +1918,25 @@
     display: none;
 }
 
+/* Bold glyphs can extend fractionally to the left of their CSS text box.
+   Expand the clipping area by 1px without changing the visible text position. */
+@media (min-width: 940px) {
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-title-wrap,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-title-wrap {
+        box-sizing: border-box;
+        margin-inline-start: -1px;
+        padding-inline-start: 1px;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title.calendar-event-personal-title--full,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-title {
+        box-sizing: border-box;
+        margin-inline-start: -1px;
+        padding-inline-start: 1px;
+    }
+}
+
 .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title,
 .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title.calendar-event-personal-title--full {
     width: auto;

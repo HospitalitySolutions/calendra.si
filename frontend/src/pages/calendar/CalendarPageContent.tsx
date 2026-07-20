@@ -1273,10 +1273,24 @@ export default function CalendarPage() {
   }, [isNativeAndroid, view, calendarMode, clearForcedHoverRow])
 
   const handleCalendarMouseMove = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
-    updateCalendarHoverRow(e.clientY)
+    const target = e.target as Element | null
+    const isOverSessionBlock = Boolean(target?.closest?.([
+      '.calendar-event-booked-visual',
+      '.calendar-event-personal-visual',
+      '.calendar-event-todo-visual',
+      '.calendar-event-waitlist-offer',
+      '.calendar-event-partial-overlap-visual',
+      '.calendar-event-draft-preview',
+    ].join(', ')))
+
+    // The row guide is useful over empty calendar space, but it must not paint
+    // through an existing appointment/task block while that block is hovered.
+    if (isOverSessionBlock) clearForcedHoverRow()
+    else updateCalendarHoverRow(e.clientY)
+
     if (!isDraggingEventRef.current) return
     handleDragEdgeAutoNavigate(e.clientX)
-  }, [updateCalendarHoverRow, handleDragEdgeAutoNavigate])
+  }, [updateCalendarHoverRow, clearForcedHoverRow, handleDragEdgeAutoNavigate])
 
   const handleCalendarMouseLeave = useCallback(() => {
     clearForcedHoverRow()

@@ -321,7 +321,7 @@ public class WaitlistService {
         replaceEmployees(row, selectedEmployees);
         addEvent(row, null, me, WaitlistEventType.JOINED, "Stranka je bila dodana na čakalno vrsto.");
         tenantNotifications.createWaitlistNotification(companyId, row.getId(), "WAITLIST_JOINED", "Nova stranka na čakalni vrsti",
-                clientName(client) + " čaka na termin za " + service.getName() + ".", "/appointments?tab=waitlist&requestId=" + row.getId());
+                clientName(client) + " čaka na termin za " + service.getName() + ".", "/appointments?requestId=" + row.getId());
         guestNotifications.publish(row, null, WaitlistGuestNotificationService.EventKind.JOINED);
         return detail(me, row.getId());
     }
@@ -424,8 +424,8 @@ public class WaitlistService {
         requests.save(request);
         addEvent(request, offer, me, WaitlistEventType.OFFER_DECLINED, "Ponudba termina je bila zavrnjena.");
         tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_DECLINED", "Ponudba termina zavrnjena",
-                clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
-        offerNextCandidate(companyId, offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getService().getId(), request.getId());
+                clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?requestId=" + request.getId());
+        offerNextCandidate(companyId, offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
         return detail(me, request.getId());
     }
 
@@ -545,8 +545,8 @@ public class WaitlistService {
             requests.save(request);
             addEvent(request, offer, null, WaitlistEventType.OFFER_DECLINED, "Ponudba termina je bila zavrnjena.");
             tenantNotifications.createWaitlistNotification(companyId(request.getCompany()), request.getId(), "WAITLIST_OFFER_DECLINED", "Ponudba termina zavrnjena",
-                    clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?tab=waitlist&requestId=" + request.getId());
-            offerNextCandidate(companyId(request.getCompany()), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getService().getId(), request.getId());
+                    clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?requestId=" + request.getId());
+            offerNextCandidate(companyId(request.getCompany()), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
         }
         return toPublicOfferView(offer);
     }
@@ -655,7 +655,7 @@ public class WaitlistService {
         // In that case the hold already owns the released slot, so automatic offering
         // must not attempt to notify another candidate for the same availability.
         if (hasActiveHold(companyId, employeeId, roomId, releasedStart, releasedEnd, null)) return;
-        offerNextCandidate(companyId, releasedStart, releasedEnd, employeeId, roomId, bookingId, serviceId, null);
+        offerNextCandidate(companyId, releasedStart, releasedEnd, employeeId, roomId, bookingId, null);
     }
 
     @Scheduled(fixedDelayString = "${app.waitlist.expiry-check-ms:60000}")
@@ -682,9 +682,9 @@ public class WaitlistService {
             }
             addEvent(request, offer, null, WaitlistEventType.OFFER_EXPIRED, "Ponudba termina je potekla.");
             tenantNotifications.createWaitlistNotification(request.getCompany().getId(), request.getId(), "WAITLIST_OFFER_EXPIRED", "Ponudba termina je potekla",
-                    "Ponudba za " + clientName(request.getClient()) + " je potekla.", "/appointments?tab=waitlist&requestId=" + request.getId());
+                    "Ponudba za " + clientName(request.getClient()) + " je potekla.", "/appointments?requestId=" + request.getId());
             guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
-            offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getService().getId(), request.getId());
+            offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
         }
         for (WaitlistBookingHold hold : holds.findExpiredActive(now)) {
             hold.setStatus(WaitlistHoldStatus.EXPIRED);
@@ -721,7 +721,11 @@ public class WaitlistService {
         boolean releasedSlot = Boolean.TRUE.equals(input.releasedSlot());
         List<WaitlistRequest> matched = new ArrayList<>();
         for (WaitlistRequest candidate : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
-            if (candidate.getService() == null || !Objects.equals(candidate.getService().getId(), service.getId())) continue;
+            if (candidate.getService() == null) continue;
+            // A newly selected slot belongs to the selected service. A released slot,
+            // however, is simply free time: match it by requested date/time and any
+            // employee/location preferences, regardless of the cancelled service.
+            if (!releasedSlot && !Objects.equals(candidate.getService().getId(), service.getId())) continue;
             if (skips.existsByRequestIdAndSlotStartAndEmployeeId(candidate.getId(), start, input.employeeId())) continue;
             List<WaitlistRequestWindow> candidateWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(candidate.getId());
             List<WaitlistRequestEmployee> candidateEmployees = requestEmployees.findAllByRequestId(candidate.getId());
@@ -826,19 +830,22 @@ public class WaitlistService {
         addEvent(request, offer, actor, WaitlistEventType.OFFER_SENT,
                 (automatic ? "Samodejna" : "Ročna") + " ponudba termina je bila poslana. Velja do " + offer.getExpiresAt() + ".");
         tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_SENT", "Ponudba prostega termina",
-                "Ponudba za " + clientName(request.getClient()) + " velja do " + offer.getExpiresAt() + ".", "/appointments?tab=waitlist&requestId=" + request.getId());
+                "Ponudba za " + clientName(request.getClient()) + " velja do " + offer.getExpiresAt() + ".", "/appointments?requestId=" + request.getId());
         guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.SLOT_AVAILABLE);
         return toView(request, requestWindows, selected, true);
     }
 
-    private void offerNextCandidate(Long companyId, LocalDateTime start, LocalDateTime end, Long employeeId, Long roomId, Long sessionId, Long serviceId, Long excludedRequestId) {
+    private void offerNextCandidate(Long companyId, LocalDateTime start, LocalDateTime end, Long employeeId, Long roomId, Long sessionId, Long excludedRequestId) {
         if (!waitlistSettings.get(companyId).autoOfferEnabled()) return;
         User employee = employeeId == null ? null : users.findByIdAndCompanyIdAndActiveTrue(employeeId, companyId).orElse(null);
         Space room = roomId == null ? null : spaces.findByIdAndCompanyId(roomId, companyId).orElse(null);
         SessionBooking session = sessionId == null ? null : bookings.findByIdAndCompanyId(sessionId, companyId).orElse(null);
         for (WaitlistRequest candidate : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
             if (Objects.equals(candidate.getId(), excludedRequestId)) continue;
-            if (!Objects.equals(candidate.getService().getId(), serviceId)) continue;
+            if (candidate.getService() == null) continue;
+            // Once time becomes free, the previous booking's service no longer owns
+            // the slot. Candidate eligibility is determined by time and optional
+            // employee/location constraints, then by normal conflict validation.
             if (skips.existsByRequestIdAndSlotStartAndEmployeeId(candidate.getId(), start, employeeId)) continue;
             List<WaitlistRequestWindow> candidateWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(candidate.getId());
             List<WaitlistRequestEmployee> candidateEmployees = requestEmployees.findAllByRequestId(candidate.getId());
@@ -852,7 +859,7 @@ public class WaitlistService {
             }
         }
         tenantNotifications.createWaitlistNotification(companyId, null, "WAITLIST_ATTENTION", "Prost termin brez ustreznega kandidata",
-                "Za sproščeni termin " + start + " ni bilo mogoče samodejno poslati ponudbe.", "/appointments?tab=waitlist");
+                "Za sproščeni termin " + start + " ni bilo mogoče samodejno poslati ponudbe.", "/appointments");
     }
 
     private void validateSlotAvailable(WaitlistRequest request, LocalDateTime start, LocalDateTime end, User employee, Space room, SessionBooking session, Long excludeOfferId, boolean releasedSlot) {
@@ -881,7 +888,11 @@ public class WaitlistService {
                 .toList();
         bookingValidation.validateBookingWindow(companyId, clientIds, id(employee), id(room), start, end, request.getService().getId(),
                 excluded.isEmpty() ? List.of(-1L) : excluded, true, false, true, false, false);
-        if (session != null) validateGroupCapacity(request, session, releasedSlot);
+        boolean sameServiceSession = session != null
+                && session.getType() != null
+                && request.getService() != null
+                && Objects.equals(session.getType().getId(), request.getService().getId());
+        if (sameServiceSession) validateGroupCapacity(request, session, releasedSlot);
     }
 
     private boolean isInsideWorkingSlot(Long companyId, Long employeeId, LocalDateTime start, LocalDateTime busyEnd) {

@@ -372,7 +372,7 @@ public class WaitlistGuestNotificationService {
     }
 
     private String waitlistUrl(Long requestId) {
-        String path = "/appointments?tab=waitlist&requestId=" + requestId;
+        String path = "/appointments?requestId=" + requestId;
         return frontendBaseUrl.isBlank() ? path : frontendBaseUrl + path;
     }
 
