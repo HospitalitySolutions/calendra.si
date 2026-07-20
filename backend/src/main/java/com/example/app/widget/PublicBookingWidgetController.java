@@ -26,6 +26,8 @@ public class PublicBookingWidgetController {
     public record WidgetConfigResponse(
             String tenantCode,
             String companyName,
+            String companyLogoUrl,
+            String companyAddress,
             boolean availabilityEnabled,
             boolean typesEnabled,
             int sessionLengthMinutes,

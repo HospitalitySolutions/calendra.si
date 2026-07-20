@@ -53,5 +53,28 @@ calendra.si {
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 
-	reverse_proxy host.docker.internal:8080
+	# Keep the public booking URL on calendra.si while serving the booking
+	# experience and its public API from the Calendra application backend.
+	handle /narocanje/* {
+		uri replace /narocanje/ /widget/
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle /widget/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle /api/public/widget/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle {
+		reverse_proxy host.docker.internal:8080
+	}
 }

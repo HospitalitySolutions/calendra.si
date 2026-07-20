@@ -81,6 +81,22 @@ class WidgetOriginValidatorTest {
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
     }
 
+    @Test
+    void allowsSameOriginStandaloneBookingRequestUsingForwardedHost() {
+        AppSettingRepository settings = mock(AppSettingRepository.class);
+        WidgetSecurityProperties properties = new WidgetSecurityProperties();
+        properties.setAllowedOrigins(java.util.List.of("https://calendra.si"));
+        WidgetOriginValidator validator = new WidgetOriginValidator(settings, properties);
+        Company company = company(42L);
+        when(settings.findByCompanyIdAndKey(42L, SettingKey.WIDGET_ALLOWED_ORIGINS.name()))
+                .thenReturn(Optional.empty());
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Forwarded-Proto", "https");
+        request.addHeader("X-Forwarded-Host", "calendra.si");
+
+        assertDoesNotThrow(() -> validator.validate(company, request));
+    }
+
     private static Company company(Long id) {
         Company company = new Company();
         company.setId(id);

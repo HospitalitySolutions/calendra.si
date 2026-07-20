@@ -37,6 +37,9 @@ public class WidgetOriginValidator {
             candidate = normalizeOriginFromReferer(request.getHeader("Referer"));
         }
         if (candidate == null || candidate.isBlank()) {
+            candidate = normalizeOriginFromRequestHost(request);
+        }
+        if (candidate == null || candidate.isBlank()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This website is not allowed to use the booking widget.");
         }
         if (!isAllowed(allowed, candidate)) {
@@ -95,6 +98,24 @@ public class WidgetOriginValidator {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private String normalizeOriginFromRequestHost(HttpServletRequest request) {
+        if (request == null) return null;
+        String forwardedHost = firstHeaderValue(request.getHeader("X-Forwarded-Host"));
+        String host = forwardedHost == null ? firstHeaderValue(request.getHeader("Host")) : forwardedHost;
+        if (host == null || host.isBlank()) return null;
+
+        String forwardedProto = firstHeaderValue(request.getHeader("X-Forwarded-Proto"));
+        String scheme = forwardedProto == null || forwardedProto.isBlank() ? request.getScheme() : forwardedProto;
+        if (scheme == null || scheme.isBlank()) scheme = "https";
+        return normalizeOrigin(scheme + "://" + host.trim());
+    }
+
+    private static String firstHeaderValue(String value) {
+        if (value == null || value.isBlank()) return null;
+        String first = value.split(",", 2)[0].trim();
+        return first.isBlank() ? null : first;
     }
 
     private String normalizeOrigin(String origin) {

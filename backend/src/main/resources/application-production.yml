@@ -56,6 +56,7 @@ app:
     security:
       require-allowed-origin: ${APP_WIDGET_REQUIRE_ALLOWED_ORIGIN:true}
       trust-referer-when-origin-missing: ${APP_WIDGET_TRUST_REFERER_WHEN_ORIGIN_MISSING:false}
+      allowed-origins: ${APP_WIDGET_ALLOWED_ORIGINS:https://app.calendra.si,https://calendra.si,https://www.calendra.si}
       rate-limit-backend: ${APP_WIDGET_RATE_LIMIT_BACKEND:redis}
       general-requests-per-minute-per-ip: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_IP:60}
       general-requests-per-minute-per-tenant: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_TENANT:600}

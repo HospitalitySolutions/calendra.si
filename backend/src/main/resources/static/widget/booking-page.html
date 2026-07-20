@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="index,follow" />
+  <meta name="theme-color" content="#f7faff" />
+  <title>Nova rezervacija | Calendra</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --booking-blue: #0f6bff;
+      --booking-ink: #07122f;
+      --booking-muted: #68758d;
+      --booking-line: #dfe7f2;
+      --booking-soft: #f7faff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      color: var(--booking-ink);
+      background:
+        radial-gradient(circle at 7% 86%, rgba(50, 119, 246, .10), transparent 28%),
+        radial-gradient(circle at 94% 8%, rgba(96, 165, 250, .09), transparent 26%),
+        linear-gradient(135deg, #fbfdff 0%, #f1f6fd 48%, #fbfdff 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, select { font: inherit; }
+
+    .booking-site-header {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(207, 218, 232, .78);
+      background: rgba(255, 255, 255, .76);
+      backdrop-filter: blur(14px);
+    }
+
+    .booking-site-header__inner {
+      width: min(100% - 36px, 1180px);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .booking-calendra-link {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+
+    .booking-calendra-link img {
+      display: block;
+      width: auto;
+      height: 30px;
+      object-fit: contain;
+    }
+
+    .booking-language {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: #596780;
+    }
+
+    .booking-language svg { width: 17px; height: 17px; }
+
+    .booking-language select {
+      appearance: none;
+      min-width: 112px;
+      border: 0;
+      outline: 0;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+      font-weight: 650;
+    }
+
+    .booking-page {
+      width: min(100% - 32px, 1180px);
+      margin: 34px auto 56px;
+    }
+
+    .booking-shell {
+      overflow: hidden;
+      border: 1px solid rgba(207, 218, 232, .9);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, .96);
+      box-shadow: 0 30px 78px rgba(15, 35, 70, .10);
+    }
+
+    .booking-shell__header {
+      padding: clamp(28px, 4vw, 48px) clamp(24px, 5vw, 58px) 30px;
+    }
+
+    .booking-business {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      min-width: 0;
+    }
+
+    .booking-business__logo {
+      width: 54px;
+      height: 54px;
+      flex: 0 0 auto;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--booking-line);
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 9px 24px rgba(31, 58, 105, .08);
+    }
+
+    .booking-business__logo img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .booking-business__fallback {
+      color: var(--booking-blue);
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .booking-business__copy { min-width: 0; }
+
+    .booking-business__copy strong {
+      display: block;
+      overflow: hidden;
+      color: #10203f;
+      font-size: 19px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .booking-business__copy span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      color: var(--booking-muted);
+      font-size: 14px;
+    }
+
+    .booking-business__copy svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
+    .booking-heading { margin-top: 30px; }
+
+    .booking-heading h1 {
+      margin: 0;
+      color: var(--booking-ink);
+      font-size: clamp(36px, 5vw, 56px);
+      line-height: 1;
+      letter-spacing: -.052em;
+      font-weight: 900;
+    }
+
+    .booking-heading p {
+      max-width: 720px;
+      margin: 12px 0 0;
+      color: var(--booking-muted);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .booking-widget-host {
+      border-top: 1px solid rgba(223, 231, 242, .85);
+      padding: 0 clamp(18px, 3vw, 34px) 8px;
+    }
+
+    .booking-loading,
+    .booking-error {
+      margin: 0 clamp(24px, 5vw, 58px) 42px;
+      padding: 18px 20px;
+      border-radius: 16px;
+      color: var(--booking-muted);
+      background: #f8fbff;
+      border: 1px solid var(--booking-line);
+    }
+
+    .booking-error {
+      color: #a42828;
+      background: #fff7f7;
+      border-color: #f0cece;
+    }
+
+    .is-hidden { display: none !important; }
+
+    @media (max-width: 720px) {
+      .booking-site-header { min-height: 64px; }
+      .booking-site-header__inner { width: min(100% - 28px, 1180px); }
+      .booking-calendra-link img { height: 26px; }
+      .booking-language select { min-width: 96px; }
+      .booking-page { width: min(100% - 20px, 1180px); margin-top: 18px; }
+      .booking-shell { border-radius: 22px; }
+      .booking-shell__header { padding: 24px 20px 22px; }
+      .booking-heading { margin-top: 24px; }
+      .booking-heading h1 { font-size: 36px; }
+      .booking-heading p { font-size: 15px; }
+      .booking-widget-host { padding-inline: 8px; }
+    }
+  </style>
+  <script defer src="/widget/calendra-booking-widget.js"></script>
+</head>
+<body>
+  <header class="booking-site-header">
+    <div class="booking-site-header__inner">
+      <a class="booking-calendra-link" href="https://calendra.si" aria-label="Calendra">
+        <img src="/widget/calendra-transparent-logo.png" alt="Calendra" />
+      </a>
+      <label class="booking-language">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+        <select id="booking-language" aria-label="Jezik">
+          <option value="sl">Slovenščina</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="booking-page">
+    <section class="booking-shell" aria-labelledby="booking-title">
+      <header class="booking-shell__header">
+        <div class="booking-business">
+          <div class="booking-business__logo" id="booking-business-logo" aria-hidden="true">
+            <span class="booking-business__fallback" id="booking-business-fallback">C</span>
+          </div>
+          <div class="booking-business__copy">
+            <strong id="booking-company-name">Calendra</strong>
+            <span id="booking-company-address" class="is-hidden">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+              <i style="font-style:normal"></i>
+            </span>
+          </div>
+        </div>
+        <div class="booking-heading">
+          <h1 id="booking-title">Nova rezervacija</h1>
+          <p id="booking-subtitle">Izberite storitev, nato zaposlenega ter datum in uro, ki vam najbolj ustrezata.</p>
+        </div>
+      </header>
+
+      <div id="booking-loading" class="booking-loading">Nalaganje naročanja…</div>
+      <div id="booking-error" class="booking-error is-hidden" role="alert"></div>
+      <div id="booking-widget-host" class="booking-widget-host"></div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const copy = {
+        sl: {
+          pageTitle: 'Nova rezervacija | Calendra',
+          title: 'Nova rezervacija',
+          subtitle: 'Izberite storitev, nato zaposlenega ter datum in uro, ki vam najbolj ustrezata.',
+          loading: 'Nalaganje naročanja…',
+          failed: 'Naročanja trenutno ni bilo mogoče naložiti.',
+        },
+        en: {
+          pageTitle: 'New booking | Calendra',
+          title: 'New booking',
+          subtitle: 'Choose a service, then an employee and the date and time that suit you best.',
+          loading: 'Loading booking…',
+          failed: 'Booking could not be loaded right now.',
+        },
+      };
+
+      const pathnameSegments = window.location.pathname.split('/').filter(Boolean);
+      const tenantCode = decodeURIComponent(pathnameSegments[pathnameSegments.length - 1] || '').trim();
+      const query = new URLSearchParams(window.location.search);
+      const requestedLocale = String(query.get('lang') || document.documentElement.lang || 'sl').toLowerCase();
+      let locale = requestedLocale.startsWith('en') ? 'en' : 'sl';
+
+      const language = document.getElementById('booking-language');
+      const loading = document.getElementById('booking-loading');
+      const errorBox = document.getElementById('booking-error');
+      const host = document.getElementById('booking-widget-host');
+      const companyName = document.getElementById('booking-company-name');
+      const companyAddress = document.getElementById('booking-company-address');
+      const companyAddressText = companyAddress.querySelector('i');
+      const logoHost = document.getElementById('booking-business-logo');
+      const fallback = document.getElementById('booking-business-fallback');
+
+      function applyCopy() {
+        const t = copy[locale];
+        document.documentElement.lang = locale;
+        document.title = t.pageTitle;
+        document.getElementById('booking-title').textContent = t.title;
+        document.getElementById('booking-subtitle').textContent = t.subtitle;
+        loading.textContent = t.loading;
+        language.value = locale;
+      }
+
+      function showError(message) {
+        loading.classList.add('is-hidden');
+        errorBox.textContent = message || copy[locale].failed;
+        errorBox.classList.remove('is-hidden');
+      }
+
+      function resolveLogoUrl(raw) {
+        const value = String(raw || '').trim();
+        if (!value) return '';
+        if (/^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('/')) return value;
+        return `/api/public/widget/guest-assets?key=${encodeURIComponent(value)}`;
+      }
+
+      function setBranding(config) {
+        const name = String(config && config.companyName || 'Calendra').trim() || 'Calendra';
+        companyName.textContent = name;
+        fallback.textContent = name.slice(0, 1).toLocaleUpperCase(locale === 'sl' ? 'sl-SI' : 'en-US');
+
+        const address = String(config && config.companyAddress || '').trim();
+        if (address) {
+          companyAddressText.textContent = address;
+          companyAddress.classList.remove('is-hidden');
+        }
+
+        const logoUrl = resolveLogoUrl(config && config.companyLogoUrl);
+        if (logoUrl) {
+          const image = new Image();
+          image.alt = name;
+          image.onload = function () {
+            logoHost.innerHTML = '';
+            logoHost.appendChild(image);
+          };
+          image.src = logoUrl;
+        }
+      }
+
+      function mountWidget() {
+        if (!tenantCode) {
+          showError(copy[locale].failed);
+          return;
+        }
+        if (!window.customElements || !customElements.get('calendra-booking-widget')) {
+          window.setTimeout(mountWidget, 40);
+          return;
+        }
+        const widget = document.createElement('calendra-booking-widget');
+        widget.setAttribute('tenant', tenantCode);
+        widget.setAttribute('base-url', window.location.origin);
+        widget.setAttribute('locale', locale);
+        widget.setAttribute('presentation', 'standalone');
+        widget.addEventListener('calendra-widget-ready', function () {
+          loading.classList.add('is-hidden');
+        });
+        widget.addEventListener('calendra-widget-error', function (event) {
+          showError(event && event.detail && event.detail.message);
+        });
+        host.replaceChildren(widget);
+      }
+
+      language.addEventListener('change', function () {
+        locale = language.value === 'en' ? 'en' : 'sl';
+        const next = new URL(window.location.href);
+        next.searchParams.set('lang', locale);
+        window.history.replaceState({}, '', next);
+        applyCopy();
+        const widget = host.querySelector('calendra-booking-widget');
+        if (widget) widget.setAttribute('locale', locale);
+      });
+
+      applyCopy();
+
+      if (!tenantCode) {
+        showError(copy[locale].failed);
+        return;
+      }
+
+      fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/config`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error(copy[locale].failed);
+          return response.json();
+        })
+        .then(setBranding)
+        .catch(function () {
+          // The widget performs its own load and error handling. A missing branding
+          // response should not prevent the booking flow from attempting to mount.
+        })
+        .finally(mountWidget);
+    })();
+  </script>
+</body>
+</html>

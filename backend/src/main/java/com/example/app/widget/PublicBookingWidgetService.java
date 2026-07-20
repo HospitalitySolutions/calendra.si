@@ -135,6 +135,8 @@ public class PublicBookingWidgetService {
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
                 cfg.companyName(),
+                cfg.companyLogoUrl(),
+                cfg.companyAddress(),
                 cfg.availabilityEnabled(),
                 cfg.typesEnabled(),
                 cfg.sessionLengthMinutes(),
@@ -1065,10 +1067,83 @@ public class PublicBookingWidgetService {
         int sessionLengthMinutes = parseInteger(values.get(SettingKey.SESSION_LENGTH_MINUTES.name()), 60);
         LocalTime workingHoursStart = parseTime(values.get(SettingKey.WORKING_HOURS_START.name()), LocalTime.of(8, 0));
         LocalTime workingHoursEnd = parseTime(values.get(SettingKey.WORKING_HOURS_END.name()), LocalTime.of(18, 0));
-        String companyName = Optional.ofNullable(values.get(SettingKey.COMPANY_NAME.name()))
-                .filter(v -> !v.isBlank())
-                .orElse("Calendra");
-        return new WidgetConfig(companyName, availabilityEnabled, typesEnabled, sessionLengthMinutes, workingHoursStart, workingHoursEnd, widgetZoneId);
+        JsonNode guestSettings = parseJson(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
+        String companyName = firstNonBlank(
+                textValue(guestSettings.path("publicName")),
+                values.get(SettingKey.COMPANY_NAME.name()),
+                "Calendra"
+        );
+        String companyLogoUrl = firstNonBlank(
+                values.get(SettingKey.COMPANY_LOGO_URL.name()),
+                textValue(guestSettings.path("logoImageUrl"))
+        );
+        String companyAddress = formatAddress(
+                firstNonBlank(
+                        values.get(SettingKey.COMPANY_PHYSICAL_ADDRESS.name()),
+                        values.get(SettingKey.COMPANY_ADDRESS.name())
+                ),
+                firstNonBlank(
+                        values.get(SettingKey.COMPANY_PHYSICAL_POSTAL_CODE.name()),
+                        values.get(SettingKey.COMPANY_POSTAL_CODE.name())
+                ),
+                firstNonBlank(
+                        values.get(SettingKey.COMPANY_PHYSICAL_CITY.name()),
+                        values.get(SettingKey.COMPANY_CITY.name())
+                )
+        );
+        return new WidgetConfig(
+                companyName,
+                companyLogoUrl,
+                companyAddress,
+                availabilityEnabled,
+                typesEnabled,
+                sessionLengthMinutes,
+                workingHoursStart,
+                workingHoursEnd,
+                widgetZoneId
+        );
+    }
+
+    private static JsonNode parseJson(String raw) {
+        if (raw == null || raw.isBlank()) return JSON.createObjectNode();
+        try {
+            return JSON.readTree(raw);
+        } catch (Exception ignored) {
+            return JSON.createObjectNode();
+        }
+    }
+
+    private static String textValue(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return null;
+        String value = node.asText("").trim();
+        return value.isBlank() ? null : value;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.trim().isBlank()) return value.trim();
+        }
+        return null;
+    }
+
+    private static String formatAddress(String street, String postalCode, String city) {
+        String locality = firstNonBlank(
+                joinWithSpace(postalCode, city),
+                city,
+                postalCode
+        );
+        if (street == null || street.isBlank()) return locality;
+        if (locality == null || locality.isBlank()) return street.trim();
+        return street.trim() + ", " + locality;
+    }
+
+    private static String joinWithSpace(String first, String second) {
+        String left = first == null ? "" : first.trim();
+        String right = second == null ? "" : second.trim();
+        if (left.isBlank()) return right.isBlank() ? null : right;
+        if (right.isBlank()) return left;
+        return left + " " + right;
     }
 
     private ZoneId tenantZoneId(Long companyId) {
@@ -1093,6 +1168,8 @@ public class PublicBookingWidgetService {
 
     private record WidgetConfig(
             String companyName,
+            String companyLogoUrl,
+            String companyAddress,
             boolean availabilityEnabled,
             boolean typesEnabled,
             int sessionLengthMinutes,

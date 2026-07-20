@@ -340,6 +340,7 @@
         error: '',
         config: null,
         services: [],
+        expandedServiceGroupKeys: [],
         consultants: [],
         selectedServiceId: null,
         selectedConsultantId: null,
@@ -376,7 +377,7 @@
     }
 
     static get observedAttributes() {
-      return ['tenant', 'base-url', 'locale', 'primary-color', 'accent-color'];
+      return ['tenant', 'base-url', 'locale', 'primary-color', 'accent-color', 'presentation'];
     }
 
     connectedCallback() {
@@ -528,6 +529,13 @@
       ]);
 
       const selectedServiceId = services.length ? services[0].id : null;
+      const selectedService = services.length ? services[0] : null;
+      const firstGroupedService = services.find((item) => item && item.serviceGroupId != null && item.serviceGroupName);
+      const initiallyExpandedGroup = selectedService && selectedService.serviceGroupId != null && selectedService.serviceGroupName
+        ? `group-${selectedService.serviceGroupId}`
+        : firstGroupedService
+          ? `group-${firstGroupedService.serviceGroupId}`
+          : null;
       const selectedDate = this.todayInWidgetTimezone();
 
       const defaultPaymentMethod = this.defaultPaymentMethod(config);
@@ -536,6 +544,7 @@
         loading: false,
         config,
         services,
+        expandedServiceGroupKeys: initiallyExpandedGroup ? [initiallyExpandedGroup] : [],
         selectedServiceId,
         selectedDate,
         calendarMonth: this.monthKeyForDate(selectedDate),
@@ -1818,8 +1827,103 @@
       `;
     }
 
+    serviceGroupCountLabel(count) {
+      const total = Number(count) || 0;
+      if (this.normalizedLocale() !== 'sl') {
+        return `${total} ${total === 1 ? 'service' : 'services'}`;
+      }
+      if (total === 1) return '1 storitev';
+      if (total === 2) return '2 storitvi';
+      if (total === 3 || total === 4) return `${total} storitve`;
+      return `${total} storitev`;
+    }
+
+    standaloneServiceRowMarkup(item, index) {
+      const t = this.text();
+      const selected = this.state.selectedServiceId === item.id;
+      return `
+        <button class="standalone-service-row ${selected ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
+          <span class="standalone-service-select">${selected ? this.uiIcon('check') : ''}</span>
+          ${this.serviceIconMarkup(item, index)}
+          <span class="standalone-service-main">
+            <strong>${escapeHtml(this.serviceDisplayName(item))}</strong>
+          </span>
+          <span class="standalone-service-duration">${this.uiIcon('clock')}${escapeHtml(String(item.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}</span>
+          ${item.priceLabel ? `<span class="standalone-service-price">${escapeHtml(item.priceLabel)}</span>` : '<span class="standalone-service-price"></span>'}
+        </button>
+      `;
+    }
+
+    standaloneServiceSelectionMarkup(services) {
+      const sections = [];
+      const groupsByKey = new Map();
+      const ungrouped = [];
+
+      services.forEach((item, index) => {
+        const grouped = item && item.serviceGroupId != null && item.serviceGroupName;
+        if (!grouped) {
+          ungrouped.push({ item, index });
+          return;
+        }
+        const key = `group-${item.serviceGroupId}`;
+        if (!groupsByKey.has(key)) {
+          const section = {
+            key,
+            name: String(item.serviceGroupName),
+            groupOrder: Number.isFinite(Number(item.serviceGroupSortOrder)) ? Number(item.serviceGroupSortOrder) : Number.MAX_SAFE_INTEGER,
+            items: [],
+          };
+          groupsByKey.set(key, section);
+          sections.push(section);
+        }
+        groupsByKey.get(key).items.push({ item, index });
+      });
+
+      sections.sort((a, b) => a.groupOrder - b.groupOrder || a.name.localeCompare(b.name));
+      const expanded = new Set(Array.isArray(this.state.expandedServiceGroupKeys) ? this.state.expandedServiceGroupKeys : []);
+      const otherLabel = this.normalizedLocale() === 'sl' ? 'Ostale storitve' : 'Other services';
+
+      return `
+        <div class="standalone-service-list">
+          ${sections.map((section) => {
+            const isExpanded = expanded.has(section.key);
+            return `
+              <section class="standalone-service-group ${isExpanded ? 'is-expanded' : ''}">
+                <button
+                  class="standalone-service-group-toggle"
+                  type="button"
+                  data-action="service-group-toggle"
+                  data-group-key="${escapeHtml(section.key)}"
+                  aria-expanded="${isExpanded ? 'true' : 'false'}"
+                >
+                  <span class="standalone-group-icon">${this.uiIcon('calendar')}</span>
+                  <span class="standalone-group-copy">
+                    <strong>${escapeHtml(section.name)}</strong>
+                    <small>${escapeHtml(this.serviceGroupCountLabel(section.items.length))}</small>
+                  </span>
+                  <span class="standalone-group-control" aria-hidden="true">${isExpanded ? '−' : '+'}</span>
+                </button>
+                ${isExpanded ? `<div class="standalone-service-children">${section.items.map((entry) => this.standaloneServiceRowMarkup(entry.item, entry.index)).join('')}</div>` : ''}
+              </section>
+            `;
+          }).join('')}
+          ${ungrouped.length ? `
+            <section class="standalone-ungrouped-services">
+              ${sections.length ? `<div class="standalone-ungrouped-title">${escapeHtml(otherLabel)}</div>` : ''}
+              <div class="standalone-service-children standalone-service-children--ungrouped">
+                ${ungrouped.map((entry) => this.standaloneServiceRowMarkup(entry.item, entry.index)).join('')}
+              </div>
+            </section>
+          ` : ''}
+        </div>
+      `;
+    }
+
     serviceSelectionMarkup() {
       const services = Array.isArray(this.state.services) ? this.state.services : [];
+      if (this.getAttribute('presentation') === 'standalone') {
+        return this.standaloneServiceSelectionMarkup(services);
+      }
       const hasGroups = services.some(item => item && item.serviceGroupId != null && item.serviceGroupName);
       if (!hasGroups) {
         return `<div class="service-grid">${services.map((item, index) => this.serviceCardMarkup(item, index)).join('')}</div>`;
@@ -2201,6 +2305,122 @@
         .service-groups { display: grid; gap: 28px; }
         .service-group-section { display: grid; gap: 14px; }
         .service-group-title { margin: 0; color: var(--calendra-text); font-size: 18px; font-weight: 850; letter-spacing: -.01em; }
+        .standalone-service-list { display: grid; gap: 12px; }
+        .standalone-service-group,
+        .standalone-ungrouped-services {
+          overflow: hidden;
+          border: 1px solid var(--calendra-border);
+          border-radius: 18px;
+          background: #fff;
+        }
+        .standalone-service-group-toggle {
+          width: 100%;
+          min-height: 70px;
+          display: grid;
+          grid-template-columns: 44px minmax(0,1fr) 38px;
+          align-items: center;
+          gap: 14px;
+          padding: 12px 16px;
+          border: 0;
+          color: var(--calendra-text);
+          background: #fff;
+          text-align: left;
+          cursor: pointer;
+        }
+        .standalone-service-group-toggle:hover { background: #fbfdff; }
+        .standalone-group-icon {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 12px;
+          color: var(--calendra-primary);
+          background: var(--calendra-blue-soft);
+          font-size: 22px;
+        }
+        .standalone-group-copy { min-width: 0; display: grid; gap: 3px; }
+        .standalone-group-copy strong { overflow: hidden; font-size: 17px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+        .standalone-group-copy small { color: var(--calendra-muted); font-size: 13px; font-weight: 650; }
+        .standalone-group-control {
+          width: 36px;
+          height: 36px;
+          display: grid;
+          place-items: center;
+          justify-self: end;
+          border: 1px solid var(--calendra-border);
+          border-radius: 999px;
+          color: #18345f;
+          background: #fff;
+          font-size: 22px;
+          font-weight: 500;
+          line-height: 1;
+        }
+        .standalone-service-children {
+          display: grid;
+          padding: 0 14px 12px 62px;
+          border-top: 1px solid var(--calendra-border);
+          background: #fff;
+        }
+        .standalone-service-children--ungrouped { padding-top: 12px; border-top: 0; }
+        .standalone-service-row {
+          width: 100%;
+          min-height: 62px;
+          display: grid;
+          grid-template-columns: 28px 38px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          border: 0;
+          border-bottom: 1px solid #e9eef5;
+          color: var(--calendra-text);
+          background: #fff;
+          text-align: left;
+          cursor: pointer;
+        }
+        .standalone-service-row:last-child { border-bottom: 0; }
+        .standalone-service-row:hover { background: #f9fbff; }
+        .standalone-service-row.is-active {
+          margin-block: 4px;
+          border: 1px solid rgba(15,107,255,.26);
+          border-radius: 13px;
+          background: rgba(15,107,255,.065);
+          box-shadow: inset 0 0 0 1px rgba(15,107,255,.04);
+        }
+        .standalone-service-row.is-active + .standalone-service-row { border-top-color: transparent; }
+        .standalone-service-select {
+          width: 24px;
+          height: 24px;
+          display: grid;
+          place-items: center;
+          border: 1.5px solid #c6d1df;
+          border-radius: 999px;
+          color: #fff;
+          background: #fff;
+          font-size: 14px;
+        }
+        .standalone-service-row.is-active .standalone-service-select { border-color: var(--calendra-primary); background: var(--calendra-primary); }
+        .standalone-service-row .service-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          font-size: 18px;
+        }
+        .standalone-service-main { min-width: 0; }
+        .standalone-service-main strong { display: block; overflow: hidden; font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+        .standalone-service-duration,
+        .standalone-service-price {
+          display: inline-flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 7px;
+          color: var(--calendra-muted);
+          font-size: 14px;
+          font-weight: 650;
+          white-space: nowrap;
+        }
+        .standalone-service-duration svg { width: 16px; height: 16px; }
+        .standalone-service-row.is-active .standalone-service-price { color: var(--calendra-primary); font-weight: 850; }
+        .standalone-ungrouped-title { padding: 14px 18px 0; color: var(--calendra-muted); font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
         .service-card {
           position: relative;
           min-height: 134px;
@@ -2524,6 +2744,52 @@
         :host([data-layout="micro"]) .primary,
         :host([data-layout="micro"]) .secondary { width: 100%; }
 
+        :host([presentation="standalone"]) .shell { gap: 0; }
+        :host([presentation="standalone"]) .panel {
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          background: transparent;
+          padding: 28px clamp(6px, 2.8vw, 28px) 34px;
+        }
+        :host([presentation="standalone"]) .powered-by { display: none; }
+        :host([presentation="standalone"]) .headline { margin: 24px 0 22px; }
+        :host([presentation="standalone"]) .headline h2 { font-size: clamp(30px, 3vw, 40px); line-height: 1.05; letter-spacing: -.04em; }
+        :host([presentation="standalone"]) .widget.step-service .headline { display: none; }
+        :host([presentation="standalone"]) .widget.step-service .panel-section { margin-top: 28px; }
+        :host([presentation="standalone"]) .progress-dot { width: 36px; height: 36px; font-size: 14px; }
+        :host([presentation="standalone"]) .progress-item { gap: 10px; font-size: 14px; }
+        :host([presentation="standalone"]) .panel-actions--footer { margin-top: 8px; }
+
+        :host([presentation="standalone"][data-layout="compact"]) .standalone-service-children,
+        :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-children,
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-children { padding-left: 14px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-row,
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-row {
+          grid-template-columns: 26px 36px minmax(0,1fr) auto;
+          gap: 9px;
+        }
+        :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-price,
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 3 / 5; justify-content: flex-start; padding: 0 0 5px; }
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-duration { font-size: 13px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .progress,
+        :host([presentation="standalone"][data-layout="micro"]) .progress {
+          display: flex;
+          overflow-x: auto;
+          gap: 10px;
+          padding-bottom: 4px;
+          scrollbar-width: none;
+        }
+        :host([presentation="standalone"][data-layout="narrow"]) .progress::-webkit-scrollbar,
+        :host([presentation="standalone"][data-layout="micro"]) .progress::-webkit-scrollbar { display: none; }
+        :host([presentation="standalone"][data-layout="narrow"]) .progress-item,
+        :host([presentation="standalone"][data-layout="micro"]) .progress-item {
+          flex: 0 0 auto;
+          padding: 0;
+          border: 0;
+          background: transparent;
+        }
+
         :host([presentation="directory"]) .shell { gap: 12px; }
         :host([presentation="directory"]) .panel {
           border: 0;
@@ -2545,7 +2811,7 @@
       const headlineSubtitle = this.activeStepSubtitle();
       this.shadowRoot.innerHTML = `
         <style>${this.styles()}</style>
-        <div class="widget">
+        <div class="widget step-${escapeHtml(this.state.activeStep || 'service')}">
           <div class="shell">
             <div class="panel">
               ${this.renderProgress()}
@@ -2593,6 +2859,17 @@
     }
 
     bindEvents() {
+      this.shadowRoot.querySelectorAll('[data-action="service-group-toggle"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const key = String(button.dataset.groupKey || '').trim();
+          if (!key) return;
+          const current = new Set(Array.isArray(this.state.expandedServiceGroupKeys) ? this.state.expandedServiceGroupKeys : []);
+          if (current.has(key)) current.delete(key);
+          else current.add(key);
+          this.setState({ expandedServiceGroupKeys: Array.from(current) });
+        });
+      });
+
       this.shadowRoot.querySelectorAll('[data-action="service"]').forEach((button) => {
         button.addEventListener('click', async () => {
           this.resetTurnstile();
