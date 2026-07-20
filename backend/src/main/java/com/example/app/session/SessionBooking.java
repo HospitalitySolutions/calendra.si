@@ -59,6 +59,25 @@ public class SessionBooking extends BaseEntity {
     @ManyToOne
     private SessionType type;
 
+    /** Historical service-group snapshot used by analytics even after regrouping. */
+    @Column(name = "service_group_id_snapshot")
+    private Long serviceGroupIdSnapshot;
+
+    @Column(name = "service_group_name_snapshot", length = 120)
+    private String serviceGroupNameSnapshot;
+
+    @Column(name = "service_group_snapshot_captured", nullable = false)
+    private boolean serviceGroupSnapshotCaptured = false;
+
+    @PrePersist
+    void snapshotServiceGroup() {
+        if (serviceGroupSnapshotCaptured) return;
+        ServiceGroup group = type == null ? null : type.getServiceGroup();
+        serviceGroupIdSnapshot = group == null ? null : group.getId();
+        serviceGroupNameSnapshot = group == null ? null : group.getName();
+        serviceGroupSnapshotCaptured = true;
+    }
+
     @Column(length = 1000)
     private String notes;
 

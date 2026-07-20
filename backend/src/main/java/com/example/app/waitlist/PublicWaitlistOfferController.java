@@ -29,4 +29,9 @@ public class PublicWaitlistOfferController {
     public WaitlistService.PublicOfferView decline(@PathVariable Long offerId) {
         return waitlistService.publicDecline(offerId);
     }
+
+    @PostMapping("/{offerId}/decline-and-leave")
+    public WaitlistService.PublicOfferView declineAndLeave(@PathVariable Long offerId) {
+        return waitlistService.publicDeclineAndLeave(offerId);
+    }
 }

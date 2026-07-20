@@ -420,6 +420,30 @@ const pageStyles = `
   }
   .public-offer-menu-panel a:hover,
   .public-offer-menu-panel button:hover { background: #eef5ff; }
+  .public-offer-decline-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 20px;
+  }
+  .public-offer-choice {
+    display: grid;
+    gap: 7px;
+    min-height: 122px;
+    padding: 20px;
+    text-align: left;
+    border: 1px solid #d7e3f2;
+    border-radius: 19px;
+    background: #fff;
+    color: #102349;
+    cursor: pointer;
+    font: inherit;
+  }
+  .public-offer-choice:hover { border-color: #8eb7f8; background: #f7faff; }
+  .public-offer-choice--danger:hover { border-color: #f3a5a5; background: #fff8f8; }
+  .public-offer-choice strong { font-size: 1rem; }
+  .public-offer-choice span { color: #64748b; line-height: 1.45; }
+  .public-offer-choice:disabled { cursor: wait; opacity: .65; }
   @media (max-width: 860px) {
     .public-offer-illustration { position: relative; top: 0; right: 0; margin: 0 0 10px auto; }
     .public-offer-summary { grid-template-columns: 1fr; }
@@ -429,6 +453,7 @@ const pageStyles = `
     .public-offer-brand { margin-bottom: 28px; }
     .public-offer-heading { margin-bottom: 24px; }
     .public-offer-actions, .public-offer-menu, .public-offer-menu-button, .public-offer-link-button { width: 100%; }
+    .public-offer-decline-choices { grid-template-columns: 1fr; }
     .public-offer-menu-panel { left: 0; right: 0; min-width: 0; }
   }
 `
@@ -446,13 +471,23 @@ export function PublicWaitlistOfferPage() {
   const [data, setData] = useState<OfferResponse | null>(null)
   const [tenantLogoFailed, setTenantLogoFailed] = useState(false)
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false)
+  const [declineSubmitting, setDeclineSubmitting] = useState(false)
+  const [declineChoiceCompleted, setDeclineChoiceCompleted] = useState(false)
+  const [leftWaitlist, setLeftWaitlist] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   const copy = useMemo(() => sl ? {
     acceptedTitle: 'Ponudba potrjena',
     declinedTitle: 'Ponudba zavrnjena',
     acceptedSubtitle: 'Vaš termin je potrjen. Spodaj ga lahko dodate v svoj koledar.',
-    declinedSubtitle: 'Ponudba je bila zavrnjena. Če želite, si lahko ogledate druge proste termine.',
+    declinedSubtitle: 'Ponudba je bila zavrnjena. Ostajate v čakalni vrsti za naslednjo ustrezno ponudbo.',
+    declinedLeaveSubtitle: 'Ponudba je bila zavrnjena in vaša zahteva je bila odstranjena iz čakalne vrste.',
+    declineChoiceTitle: 'Zavrni ponudbo',
+    declineChoiceSubtitle: 'Izberite, ali želite ostati v čakalni vrsti za naslednjo ustrezno ponudbo.',
+    declineRemain: 'Zavrni in ostani v čakalni vrsti',
+    declineRemainHelp: 'Ta termin boste zavrnili, vaša zahteva pa bo ostala aktivna.',
+    declineLeave: 'Zavrni in zapusti čakalno vrsto',
+    declineLeaveHelp: 'Ta termin boste zavrnili in zaključili celotno zahtevo.',
     loading: 'Nalaganje…',
     invalid: 'Ta povezava ni veljavna ali je potekla.',
     acceptedLabel: 'Potrjeni termin',
@@ -474,7 +509,14 @@ export function PublicWaitlistOfferPage() {
     acceptedTitle: 'Offer confirmed',
     declinedTitle: 'Offer declined',
     acceptedSubtitle: 'Your appointment slot is confirmed. You can add it to your calendar below.',
-    declinedSubtitle: 'This offer was declined. If you wish, you can browse other available slots.',
+    declinedSubtitle: 'This offer was declined. You remain on the waitlist for the next suitable offer.',
+    declinedLeaveSubtitle: 'This offer was declined and your request was removed from the waitlist.',
+    declineChoiceTitle: 'Decline offer',
+    declineChoiceSubtitle: 'Choose whether to remain on the waitlist for the next suitable offer.',
+    declineRemain: 'Decline and remain on waitlist',
+    declineRemainHelp: 'Decline this slot while keeping your waitlist request active.',
+    declineLeave: 'Decline and leave waitlist',
+    declineLeaveHelp: 'Decline this slot and close the complete waitlist request.',
     loading: 'Loading…',
     invalid: 'This link is invalid or has expired.',
     acceptedLabel: 'Confirmed slot',
@@ -512,14 +554,23 @@ export function PublicWaitlistOfferPage() {
     let cancelled = false
     setLoading(true)
     setError('')
+    setDeclineChoiceCompleted(false)
+    setLeftWaitlist(false)
     if (!offerId) {
       setError(copy.invalid)
       setLoading(false)
       return () => { cancelled = true }
     }
-    api.post(`/public-waitlists/offers/${encodeURIComponent(offerId)}/${requestedAction}`, {}, {
-      headers: { 'X-Skip-CSRF-Prefetch': 'true' },
-    })
+
+    const request = requestedAction === 'decline'
+      ? api.get(`/public-waitlists/offers/${encodeURIComponent(offerId)}`, {
+          headers: { 'X-Skip-CSRF-Prefetch': 'true' },
+        })
+      : api.post(`/public-waitlists/offers/${encodeURIComponent(offerId)}/accept`, {}, {
+          headers: { 'X-Skip-CSRF-Prefetch': 'true' },
+        })
+
+    request
       .then((res) => {
         if (!cancelled) setData(res.data as OfferResponse)
       })
@@ -541,11 +592,31 @@ export function PublicWaitlistOfferPage() {
     return () => { cancelled = true }
   }, [copy.invalid, offerId, requestedAction, location.key])
 
+  const submitDecline = async (leaveWaitlist: boolean) => {
+    if (!offerId || declineSubmitting) return
+    setDeclineSubmitting(true)
+    setError('')
+    try {
+      const action = leaveWaitlist ? 'decline-and-leave' : 'decline'
+      const response = await api.post(`/public-waitlists/offers/${encodeURIComponent(offerId)}/${action}`, {}, {
+        headers: { 'X-Skip-CSRF-Prefetch': 'true' },
+      })
+      setData(response.data as OfferResponse)
+      setLeftWaitlist(leaveWaitlist)
+      setDeclineChoiceCompleted(true)
+    } catch (err) {
+      setError(getApiErrorMessage(err, copy.invalid))
+    } finally {
+      setDeclineSubmitting(false)
+    }
+  }
+
   const isDeclineFlow = requestedAction === 'decline'
   const status = String(data?.offerStatus || '').toUpperCase()
   const tenantLogoUrl = data?.tenantLogoUrl?.trim() || ''
   const useTenantLogo = Boolean(tenantLogoUrl) && !tenantLogoFailed
   const otherSlotsUrl = data?.otherSlotsUrl || (data?.tenantCode ? `/widget/${data.tenantCode}` : '#')
+  const showDeclineChoice = isDeclineFlow && status === 'PENDING' && !declineChoiceCompleted
   const showDeclinedUi = status === 'DECLINED' ? true : status === 'ACCEPTED' ? false : isDeclineFlow
 
   const statusInfo = useMemo(() => {
@@ -571,8 +642,8 @@ export function PublicWaitlistOfferPage() {
           </div>
 
           <header className="public-offer-heading">
-            <h1>{showDeclinedUi ? copy.declinedTitle : copy.acceptedTitle}</h1>
-            <p>{showDeclinedUi ? copy.declinedSubtitle : copy.acceptedSubtitle}</p>
+            <h1>{showDeclineChoice ? copy.declineChoiceTitle : showDeclinedUi ? copy.declinedTitle : copy.acceptedTitle}</h1>
+            <p>{showDeclineChoice ? copy.declineChoiceSubtitle : showDeclinedUi ? (leftWaitlist ? copy.declinedLeaveSubtitle : copy.declinedSubtitle) : copy.acceptedSubtitle}</p>
           </header>
 
           {loading && <p className="public-offer-muted">{copy.loading}</p>}
@@ -597,6 +668,19 @@ export function PublicWaitlistOfferPage() {
                   </div>
                 </div>
               </section>
+
+              {showDeclineChoice && (
+                <div className="public-offer-decline-choices">
+                  <button type="button" className="public-offer-choice" onClick={() => submitDecline(false)} disabled={declineSubmitting}>
+                    <strong>{copy.declineRemain}</strong>
+                    <span>{copy.declineRemainHelp}</span>
+                  </button>
+                  <button type="button" className="public-offer-choice public-offer-choice--danger" onClick={() => submitDecline(true)} disabled={declineSubmitting}>
+                    <strong>{copy.declineLeave}</strong>
+                    <span>{copy.declineLeaveHelp}</span>
+                  </button>
+                </div>
+              )}
 
               <div className="public-offer-actions">
                 {status === 'ACCEPTED' ? (

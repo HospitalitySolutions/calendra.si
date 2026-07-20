@@ -3,6 +3,7 @@ package com.example.app.waitlist;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionType;
 import com.example.app.session.Space;
 import com.example.app.user.User;
 import jakarta.persistence.*;
@@ -27,11 +28,27 @@ public class WaitlistOffer extends BaseEntity {
     @JoinColumn(name = "waitlist_request_id", nullable = false)
     private WaitlistRequest request;
 
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id", nullable = false)
+    private SessionType service;
+
+    @Column(name = "service_name_snapshot", nullable = false, length = 255)
+    private String serviceNameSnapshot;
+
+    @Column(name = "service_group_id_snapshot")
+    private Long serviceGroupIdSnapshot;
+
+    @Column(name = "service_group_name_snapshot", length = 120)
+    private String serviceGroupNameSnapshot;
+
     @Column(name = "slot_start", nullable = false)
     private LocalDateTime slotStart;
 
     @Column(name = "slot_end", nullable = false)
     private LocalDateTime slotEnd;
+
+    @Column(name = "available_slot_end", nullable = false)
+    private LocalDateTime availableSlotEnd;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id")

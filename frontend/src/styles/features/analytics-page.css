@@ -1058,3 +1058,148 @@
         margin: 14mm;
     }
 }
+
+/* Service-group analytics */
+.analytics-service-groups-card {
+    padding: 18px;
+    border-radius: 22px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    min-width: 0;
+}
+
+.analytics-service-groups-card__heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.analytics-service-groups-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    background: var(--color-surface);
+}
+
+.analytics-service-groups-table {
+    width: 100%;
+    min-width: 1180px;
+    border-collapse: collapse;
+}
+
+.analytics-service-groups-table th,
+.analytics-service-groups-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 0.86rem;
+}
+
+.analytics-service-groups-table th {
+    background: var(--color-surface-soft);
+    color: var(--color-text-muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.analytics-service-groups-table th:first-child,
+.analytics-service-groups-table td:first-child {
+    min-width: 210px;
+    text-align: left;
+    white-space: normal;
+}
+
+.analytics-service-groups-table th:last-child,
+.analytics-service-groups-table td:last-child {
+    min-width: 158px;
+    text-align: right;
+}
+
+.analytics-service-groups-table tbody:last-child tr:last-child td {
+    border-bottom: 0;
+}
+
+.analytics-service-group-row td {
+    font-weight: 600;
+}
+
+.analytics-service-group-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.analytics-service-group-status {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: rgba(100, 116, 139, 0.12);
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.analytics-service-group-toggle {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.analytics-service-row td {
+    background: rgba(22, 114, 243, 0.035);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.analytics-service-row td:first-child {
+    padding-left: 28px;
+    color: var(--color-text);
+}
+
+.analytics-service-row td:first-child span {
+    color: var(--color-primary);
+    font-weight: 800;
+}
+
+.analytics-business-report__service-row td {
+    background: var(--color-surface-soft);
+    color: var(--color-text-muted);
+}
+
+.analytics-business-report__service-row td:first-child {
+    padding-left: 24px;
+}
+
+[data-theme="dark"] .analytics-service-groups-card {
+    box-shadow: 0 20px 44px rgba(2, 6, 23, 0.36);
+}
+
+[data-theme="dark"] .analytics-service-row td {
+    background: rgba(255, 255, 255, 0.035);
+}
+
+@media (max-width: 760px) {
+    .analytics-service-groups-card {
+        padding: 14px;
+    }
+
+    .analytics-service-groups-card__heading {
+        display: grid;
+    }
+}
+
+@media print {
+    .analytics-business-report__service-row td {
+        background: #f8fafc !important;
+    }
+}

@@ -150,6 +150,20 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM guest_products WHERE company_id = ?", companyId);
         exec("DELETE FROM tenant_invites WHERE company_id = ?", companyId);
 
+        // Waitlist (both current and legacy schemas)
+        exec("DELETE FROM waitlist_events WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
+        exec("DELETE FROM waitlist_slot_skips WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
+        exec("DELETE FROM waitlist_booking_holds WHERE company_id = ?", companyId);
+        exec("DELETE FROM waitlist_offers WHERE company_id = ?", companyId);
+        exec("DELETE FROM waitlist_request_services WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
+        exec("DELETE FROM waitlist_request_employees WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
+        exec("DELETE FROM waitlist_request_windows WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
+        exec("DELETE FROM waitlist_requests WHERE company_id = ?", companyId);
+        exec("DELETE FROM waitlist_event WHERE company_id = ?", companyId);
+        exec("DELETE FROM waitlist_offer WHERE company_id = ?", companyId);
+        exec("DELETE FROM booking_hold WHERE company_id = ?", companyId);
+        exec("DELETE FROM waitlist_request WHERE company_id = ?", companyId);
+
         // Sessions and calendar
         exec("DELETE FROM session_booking WHERE company_id = ?", companyId);
         exec("DELETE FROM bookable_slot WHERE company_id = ?", companyId);

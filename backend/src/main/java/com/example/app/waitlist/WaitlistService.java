@@ -9,6 +9,8 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.session.BookableSlotRepository;
+import com.example.app.session.ServiceGroup;
+import com.example.app.session.ServiceGroupRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingController;
 import com.example.app.session.SessionBookingStatus;
@@ -66,6 +68,7 @@ public class WaitlistService {
     private final WaitlistRequestRepository requests;
     private final WaitlistRequestWindowRepository windows;
     private final WaitlistRequestEmployeeRepository requestEmployees;
+    private final WaitlistRequestServiceRepository requestServices;
     private final WaitlistOfferRepository offers;
     private final WaitlistBookingHoldRepository holds;
     private final WaitlistEventRepository events;
@@ -73,6 +76,7 @@ public class WaitlistService {
     private final ClientRepository clients;
     private final UserRepository users;
     private final SessionTypeRepository sessionTypes;
+    private final ServiceGroupRepository serviceGroups;
     private final SpaceRepository spaces;
     private final SessionBookingRepository bookings;
     private final CompanyRepository companies;
@@ -90,6 +94,7 @@ public class WaitlistService {
             WaitlistRequestRepository requests,
             WaitlistRequestWindowRepository windows,
             WaitlistRequestEmployeeRepository requestEmployees,
+            WaitlistRequestServiceRepository requestServices,
             WaitlistOfferRepository offers,
             WaitlistBookingHoldRepository holds,
             WaitlistEventRepository events,
@@ -97,6 +102,7 @@ public class WaitlistService {
             ClientRepository clients,
             UserRepository users,
             SessionTypeRepository sessionTypes,
+            ServiceGroupRepository serviceGroups,
             SpaceRepository spaces,
             SessionBookingRepository bookings,
             CompanyRepository companies,
@@ -113,6 +119,7 @@ public class WaitlistService {
         this.requests = requests;
         this.windows = windows;
         this.requestEmployees = requestEmployees;
+        this.requestServices = requestServices;
         this.offers = offers;
         this.holds = holds;
         this.events = events;
@@ -120,6 +127,7 @@ public class WaitlistService {
         this.clients = clients;
         this.users = users;
         this.sessionTypes = sessionTypes;
+        this.serviceGroups = serviceGroups;
         this.spaces = spaces;
         this.bookings = bookings;
         this.companies = companies;
@@ -138,6 +146,8 @@ public class WaitlistService {
     public record RequestInput(
             Long clientId,
             Long serviceId,
+            WaitlistServiceScope serviceScope,
+            Long serviceGroupId,
             Long locationId,
             WaitlistTargetType targetType,
             Long targetSessionId,
@@ -151,7 +161,7 @@ public class WaitlistService {
             String notes,
             List<WindowInput> windows
     ) {}
-    public record OfferInput(LocalDateTime slotStart, LocalDateTime slotEnd, Long employeeId, Long roomId, Long sessionId, Integer validityMinutes) {}
+    public record OfferInput(Long serviceId, LocalDateTime slotStart, LocalDateTime slotEnd, Long employeeId, Long roomId, Long sessionId, Integer validityMinutes) {}
     public record MatchInput(
             Long serviceId,
             LocalDateTime slotStart,
@@ -171,6 +181,9 @@ public class WaitlistService {
             String clientPhone,
             Long serviceId,
             String serviceName,
+            String serviceScope,
+            Long serviceGroupId,
+            String serviceGroupName,
             String targetType,
             Integer requestedParticipants,
             Instant joinedAt,
@@ -179,7 +192,9 @@ public class WaitlistService {
     public record MatchResult(int count, MatchView first, List<MatchView> matches) {}
     public record WindowView(Long id, String dayOfWeek, LocalDate date, LocalTime timeFrom, LocalTime timeTo, boolean allDay) {}
     public record EmployeeView(Long id, String name) {}
-    public record OfferView(Long id, String status, LocalDateTime slotStart, LocalDateTime slotEnd, EmployeeView employee, String roomName,
+    public record EligibleServiceView(Long id, String name, Integer durationMinutes, Integer breakMinutes, Long serviceGroupId, String serviceGroupName) {}
+    public record OfferView(Long id, String status, Long serviceId, String serviceName, Long serviceGroupId, String serviceGroupName,
+                            LocalDateTime slotStart, LocalDateTime slotEnd, EmployeeView employee, String roomName,
                             Instant offeredAt, Instant expiresAt, Instant acceptedAt, Instant declinedAt, long secondsRemaining) {}
     public record EventView(Long id, String type, String detail, Instant occurredAt, String actorName) {}
     public record RequestView(
@@ -190,6 +205,10 @@ public class WaitlistService {
             Long clientId,
             Long serviceId,
             String serviceName,
+            String serviceScope,
+            Long serviceGroupId,
+            String serviceGroupName,
+            List<EligibleServiceView> eligibleServices,
             Integer serviceDurationMinutes,
             Integer breakMinutes,
             Long locationId,
@@ -212,6 +231,9 @@ public class WaitlistService {
             OfferView currentOffer,
             List<EventView> history
     ) {}
+
+    private record ServiceSelection(WaitlistServiceScope scope, SessionType exactService, ServiceGroup group, List<SessionType> eligibleServices) {}
+    private record MatchCandidate(WaitlistRequest request, SessionType service, LocalDateTime slotEnd) {}
 
     public record PublicOfferView(
             Long offerId,
@@ -252,26 +274,29 @@ public class WaitlistService {
                 .collect(Collectors.groupingBy(row -> row.getRequest().getId()));
         Map<Long, List<WaitlistRequestEmployee>> employeeMap = rows.isEmpty() ? Map.of() : requestEmployees.findAllByRequestIdIn(ids(rows)).stream()
                 .collect(Collectors.groupingBy(row -> row.getRequest().getId()));
+        Map<Long, List<WaitlistRequestService>> serviceMap = rows.isEmpty() ? Map.of() : requestServices.findAllByRequestIdIn(ids(rows)).stream()
+                .collect(Collectors.groupingBy(row -> row.getRequest().getId()));
 
         return rows.stream()
                 .filter(row -> viewMatches(row, normalizedView))
                 .filter(row -> dateFrom == null || !row.getDateTo().isBefore(dateFrom))
                 .filter(row -> dateTo == null || !row.getDateFrom().isAfter(dateTo))
-                .filter(row -> serviceId == null || Objects.equals(row.getService().getId(), serviceId))
+                .filter(row -> serviceId == null || requestContainsService(row, serviceMap.getOrDefault(row.getId(), List.of()), serviceId))
                 .filter(row -> locationId == null || row.getLocation() != null && Objects.equals(row.getLocation().getId(), locationId))
                 .filter(row -> targetType == null || targetType.isBlank() || row.getTargetType().name().equalsIgnoreCase(targetType))
                 .filter(row -> source == null || source.isBlank() || row.getSource().name().equalsIgnoreCase(source))
                 .filter(row -> status == null || status.isBlank() || row.getStatus().name().equalsIgnoreCase(status))
                 .filter(row -> employeeMatchesFilter(row, employeeMap.getOrDefault(row.getId(), List.of()), employeeId))
-                .filter(row -> searchMatches(row, normalizedSearch))
-                .map(row -> toView(row, windowMap.getOrDefault(row.getId(), List.of()), employeeMap.getOrDefault(row.getId(), List.of()), false))
+                .filter(row -> searchMatches(row, serviceMap.getOrDefault(row.getId(), List.of()), normalizedSearch))
+                .map(row -> toView(row, windowMap.getOrDefault(row.getId(), List.of()), employeeMap.getOrDefault(row.getId(), List.of()), serviceMap.getOrDefault(row.getId(), List.of()), false))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public RequestView detail(User me, Long id) {
         WaitlistRequest row = requestDetailed(id, companyId(me));
-        return toView(row, windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(id), requestEmployees.findAllByRequestId(id), true);
+        return toView(row, windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(id), requestEmployees.findAllByRequestId(id),
+                requestServices.findAllByRequestIdOrderBySortOrderSnapshotAscIdAsc(id), true);
     }
 
     @Transactional
@@ -285,8 +310,7 @@ public class WaitlistService {
         validateInput(input, cfg);
         Client client = clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found."));
-        SessionType service = sessionTypes.findByIdAndCompanyIdWithLinkedServices(input.serviceId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+        ServiceSelection selection = resolveServiceSelection(input, companyId);
         Space location = input.locationId() == null ? null : spaces.findByIdAndCompanyId(input.locationId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
         SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
@@ -294,14 +318,14 @@ public class WaitlistService {
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
         List<User> selectedEmployees = resolveEmployees(input.employeeIds(), companyId);
-        String duplicateKey = duplicateKey(companyId, client.getId(), input, selectedEmployees);
+        String duplicateKey = duplicateKey(companyId, client.getId(), input, selectedEmployees, selection.eligibleServices());
         if (requests.existsByCompanyIdAndDuplicateKeyAndStatusIn(companyId, duplicateKey, DUPLICATE_BLOCKING_STATUSES)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An equivalent active waitlist request already exists.");
         }
         WaitlistRequest row = new WaitlistRequest();
         row.setCompany(companies.getReferenceById(companyId));
         row.setClient(client);
-        row.setService(service);
+        applyServiceSelection(row, selection);
         row.setLocation(location);
         row.setTargetType(input.targetType());
         row.setTargetSession(targetSession);
@@ -319,9 +343,11 @@ public class WaitlistService {
         row = requests.save(row);
         replaceWindows(row, input.windows());
         replaceEmployees(row, selectedEmployees);
-        addEvent(row, null, me, WaitlistEventType.JOINED, "Stranka je bila dodana na čakalno vrsto.");
+        replaceEligibleServices(row, selection.eligibleServices());
+        String selectionName = serviceSelectionName(row);
+        addEvent(row, null, me, WaitlistEventType.JOINED, "Stranka je bila dodana na čakalno vrsto za " + selectionName + ".");
         tenantNotifications.createWaitlistNotification(companyId, row.getId(), "WAITLIST_JOINED", "Nova stranka na čakalni vrsti",
-                clientName(client) + " čaka na termin za " + service.getName() + ".", "/appointments?requestId=" + row.getId());
+                clientName(client) + " čaka na termin za " + selectionName + ".", "/appointments?requestId=" + row.getId());
         guestNotifications.publish(row, null, WaitlistGuestNotificationService.EventKind.JOINED);
         return detail(me, row.getId());
     }
@@ -337,10 +363,10 @@ public class WaitlistService {
         WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
         input = normalizeInput(input, cfg);
         validateInput(input, cfg);
+        ServiceSelection selection = resolveServiceSelection(input, companyId);
         row.setClient(clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.")));
-        row.setService(sessionTypes.findByIdAndCompanyIdWithLinkedServices(input.serviceId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found.")));
+        applyServiceSelection(row, selection);
         row.setLocation(input.locationId() == null ? null : spaces.findByIdAndCompanyId(input.locationId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found.")));
         row.setTargetSession(input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
@@ -355,10 +381,11 @@ public class WaitlistService {
         row.setRequestedParticipants(Math.max(1, Optional.ofNullable(input.requestedParticipants()).orElse(1)));
         row.setNotes(trimToNull(input.notes()));
         row.setExpiresAt(input.dateTo().plusDays(1).atStartOfDay(ZONE).toInstant());
-        row.setDuplicateKey(duplicateKey(companyId, row.getClient().getId(), input, selected));
+        row.setDuplicateKey(duplicateKey(companyId, row.getClient().getId(), input, selected, selection.eligibleServices()));
         requests.save(row);
         replaceWindows(row, input.windows());
         replaceEmployees(row, selected);
+        replaceEligibleServices(row, selection.eligibleServices());
         addEvent(row, null, me, WaitlistEventType.EDITED, "Zahteva na čakalni vrsti je bila posodobljena.");
         guestNotifications.publish(row, null, WaitlistGuestNotificationService.EventKind.UPDATED);
         return detail(me, id);
@@ -385,6 +412,7 @@ public class WaitlistService {
                 companyId,
                 result.first().requestId(),
                 new OfferInput(
+                        result.first().serviceId(),
                         required(input.slotStart(), "slotStart"),
                         required(input.slotEnd(), "slotEnd"),
                         input.employeeId(),
@@ -425,8 +453,17 @@ public class WaitlistService {
         addEvent(request, offer, me, WaitlistEventType.OFFER_DECLINED, "Ponudba termina je bila zavrnjena.");
         tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_DECLINED", "Ponudba termina zavrnjena",
                 clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?requestId=" + request.getId());
-        offerNextCandidate(companyId, offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
+        offerNextCandidate(companyId, offer.getSlotStart(), offerAvailableEnd(offer), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
         return detail(me, request.getId());
+    }
+
+    @Transactional
+    public RequestView declineAndLeave(User me, Long offerId) {
+        Long companyId = companyId(me);
+        WaitlistOffer offer = offers.findForUpdateByIdAndCompanyId(offerId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        declineOffer(offer, me, true);
+        return detail(me, offer.getRequest().getId());
     }
 
     @Transactional
@@ -494,7 +531,7 @@ public class WaitlistService {
                     offer.getSlotStart().toString(),
                     offer.getSlotEnd().toString(),
                     id(offer.getRoom()),
-                    request.getService().getId(),
+                    offer.getService().getId(),
                     request.getNotes(),
                     null,
                     false,
@@ -546,9 +583,38 @@ public class WaitlistService {
             addEvent(request, offer, null, WaitlistEventType.OFFER_DECLINED, "Ponudba termina je bila zavrnjena.");
             tenantNotifications.createWaitlistNotification(companyId(request.getCompany()), request.getId(), "WAITLIST_OFFER_DECLINED", "Ponudba termina zavrnjena",
                     clientName(request.getClient()) + " je zavrnil/a ponujeni termin.", "/appointments?requestId=" + request.getId());
-            offerNextCandidate(companyId(request.getCompany()), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
+            offerNextCandidate(companyId(request.getCompany()), offer.getSlotStart(), offerAvailableEnd(offer), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
         }
         return toPublicOfferView(offer);
+    }
+
+    @Transactional
+    public PublicOfferView publicDeclineAndLeave(Long offerId) {
+        WaitlistOffer offer = offers.findForUpdateById(offerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        expireIfNeeded(offer);
+        if (offer.getStatus() == WaitlistOfferStatus.PENDING) declineOffer(offer, null, true);
+        return toPublicOfferView(offer);
+    }
+
+    private void declineOffer(WaitlistOffer offer, User actor, boolean leaveWaitlist) {
+        if (offer.getStatus() != WaitlistOfferStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Offer is no longer pending.");
+        }
+        offer.setStatus(WaitlistOfferStatus.DECLINED);
+        offer.setDeclinedAt(Instant.now());
+        offers.save(offer);
+        releaseHold(offer, WaitlistHoldStatus.RELEASED);
+        WaitlistRequest request = offer.getRequest();
+        request.setStatus(leaveWaitlist ? WaitlistRequestStatus.CANCELLED : WaitlistRequestStatus.ACTIVE);
+        requests.save(request);
+        addEvent(request, offer, actor, WaitlistEventType.OFFER_DECLINED,
+                leaveWaitlist ? "Ponudba je bila zavrnjena in stranka je zapustila čakalno vrsto." : "Ponudba termina je bila zavrnjena; zahteva ostaja aktivna.");
+        Long companyId = companyId(request.getCompany());
+        tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_DECLINED", "Ponudba termina zavrnjena",
+                clientName(request.getClient()) + (leaveWaitlist ? " je zavrnil/a ponudbo in zapustil/a čakalno vrsto." : " je zavrnil/a ponudbo in ostaja na čakalni vrsti."),
+                "/appointments?requestId=" + request.getId());
+        offerNextCandidate(companyId, offer.getSlotStart(), offerAvailableEnd(offer), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
     }
 
     @Transactional
@@ -684,7 +750,7 @@ public class WaitlistService {
             tenantNotifications.createWaitlistNotification(request.getCompany().getId(), request.getId(), "WAITLIST_OFFER_EXPIRED", "Ponudba termina je potekla",
                     "Ponudba za " + clientName(request.getClient()) + " je potekla.", "/appointments?requestId=" + request.getId());
             guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
-            offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offer.getSlotEnd(), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
+            offerNextCandidate(request.getCompany().getId(), offer.getSlotStart(), offerAvailableEnd(offer), id(offer.getEmployee()), id(offer.getRoom()), id(offer.getSession()), request.getId());
         }
         for (WaitlistBookingHold hold : holds.findExpiredActive(now)) {
             hold.setStatus(WaitlistHoldStatus.EXPIRED);
@@ -702,11 +768,11 @@ public class WaitlistService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "serviceId, slotStart and slotEnd are required.");
         }
         LocalDateTime start = input.slotStart();
-        LocalDateTime end = input.slotEnd();
-        if (!end.isAfter(start)) {
+        LocalDateTime availableEnd = input.slotEnd();
+        if (!availableEnd.isAfter(start)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "slotEnd must be after slotStart.");
         }
-        SessionType service = sessionTypes.findByIdAndCompanyIdWithLinkedServices(input.serviceId(), companyId)
+        SessionType selectedService = sessionTypes.findByIdAndCompanyIdWithLinkedServices(input.serviceId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
         User employee = input.employeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.employeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
@@ -714,38 +780,53 @@ public class WaitlistService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found."));
         SessionBooking session = input.sessionId() == null ? null : bookings.findByIdAndCompanyId(input.sessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found."));
-        if (session != null && session.getType() != null && !Objects.equals(session.getType().getId(), service.getId())) {
+        boolean releasedSlot = Boolean.TRUE.equals(input.releasedSlot());
+        if (!releasedSlot && session != null && session.getType() != null && !Objects.equals(session.getType().getId(), selectedService.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected session uses another service.");
         }
-
-        boolean releasedSlot = Boolean.TRUE.equals(input.releasedSlot());
-        List<WaitlistRequest> matched = new ArrayList<>();
-        for (WaitlistRequest candidate : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
-            if (candidate.getService() == null) continue;
-            // A newly selected slot belongs to the selected service. A released slot,
-            // however, is simply free time: match it by requested date/time and any
-            // employee/location preferences, regardless of the cancelled service.
-            if (!releasedSlot && !Objects.equals(candidate.getService().getId(), service.getId())) continue;
-            if (skips.existsByRequestIdAndSlotStartAndEmployeeId(candidate.getId(), start, input.employeeId())) continue;
-            List<WaitlistRequestWindow> candidateWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(candidate.getId());
-            List<WaitlistRequestEmployee> candidateEmployees = requestEmployees.findAllByRequestId(candidate.getId());
-            if (!requestMatchesSlot(candidate, candidateWindows, candidateEmployees, start, end, employee, room, session)) continue;
-            try {
-                validateSlotAvailable(candidate, start, end, employee, room, session, null, releasedSlot);
-                matched.add(candidate);
-            } catch (ResponseStatusException ignored) {
-                // A matching request can still be ineligible because of availability,
-                // another active hold, booking notice or group capacity.
+        List<MatchCandidate> matched = new ArrayList<>();
+        for (WaitlistRequest request : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
+            if (skips.existsByRequestIdAndSlotStartAndEmployeeId(request.getId(), start, input.employeeId())) continue;
+            List<WaitlistRequestWindow> requestWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(request.getId());
+            List<WaitlistRequestEmployee> selectedEmployees = requestEmployees.findAllByRequestId(request.getId());
+            List<SessionType> eligible = eligibleServicesForRequest(request);
+            if (!releasedSlot) {
+                eligible = eligible.stream().filter(service -> Objects.equals(service.getId(), selectedService.getId())).toList();
             }
+            MatchCandidate best = null;
+            for (SessionType service : eligible) {
+                if (service == null || !service.isActive()) continue;
+                LocalDateTime concreteEnd = session != null && !releasedSlot ? session.getEndTime() : serviceEnd(start, service);
+                if (concreteEnd == null || concreteEnd.isAfter(availableEnd)) continue;
+                if (!requestMatchesSlot(request, requestWindows, selectedEmployees, start, concreteEnd, employee, room, session)) continue;
+                try {
+                    validateSlotAvailable(request, service, start, concreteEnd, employee, room, session, null, releasedSlot);
+                    MatchCandidate candidate = new MatchCandidate(request, service, concreteEnd);
+                    if (best == null || compareCandidateServices(candidate, best, availableEnd) < 0) best = candidate;
+                } catch (ResponseStatusException ignored) {
+                    // Normal conflict validation can make a request ineligible for this concrete service.
+                }
+            }
+            if (best != null) matched.add(best);
         }
         matched.sort(Comparator
-                .comparingInt((WaitlistRequest request) -> matchPriority(request, session))
-                .thenComparing(WaitlistRequest::getJoinedAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(WaitlistRequest::getId));
+                .comparingInt((MatchCandidate candidate) -> matchPriority(candidate.request(), session))
+                .thenComparing(candidate -> candidate.request().getJoinedAt(), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(candidate -> candidate.request().getId()));
         int total = matched.size();
         int limit = Math.max(1, Math.min(Optional.ofNullable(input.limit()).orElse(10), 50));
-        List<MatchView> views = matched.stream().limit(limit).map(request -> toMatchView(request, session)).toList();
+        List<MatchView> views = matched.stream().limit(limit).map(candidate -> toMatchView(candidate, session)).toList();
         return new MatchResult(total, views.isEmpty() ? null : views.get(0), views);
+    }
+
+    private int compareCandidateServices(MatchCandidate left, MatchCandidate right, LocalDateTime availableEnd) {
+        long leftUnused = Math.max(0, Duration.between(left.slotEnd(), availableEnd).toMinutes());
+        long rightUnused = Math.max(0, Duration.between(right.slotEnd(), availableEnd).toMinutes());
+        int unused = Long.compare(leftUnused, rightUnused);
+        if (unused != 0) return unused;
+        int order = Integer.compare(left.service().getGuestSortOrder(), right.service().getGuestSortOrder());
+        if (order != 0) return order;
+        return Long.compare(left.service().getId(), right.service().getId());
     }
 
     private int matchPriority(WaitlistRequest request, SessionBooking session) {
@@ -758,15 +839,20 @@ public class WaitlistService {
         return 3;
     }
 
-    private MatchView toMatchView(WaitlistRequest request, SessionBooking session) {
+    private MatchView toMatchView(MatchCandidate candidate, SessionBooking session) {
+        WaitlistRequest request = candidate.request();
+        ServiceGroup group = candidate.service().getServiceGroup();
         return new MatchView(
                 request.getId(),
                 id(request.getClient()),
                 clientName(request.getClient()),
                 request.getClient() == null ? null : request.getClient().getEmail(),
                 request.getClient() == null ? null : request.getClient().getPhone(),
-                id(request.getService()),
-                request.getService() == null ? null : request.getService().getName(),
+                candidate.service().getId(),
+                candidate.service().getName(),
+                request.getServiceScope().name(),
+                group == null ? request.getServiceGroupIdSnapshot() : group.getId(),
+                group == null ? request.getServiceGroupNameSnapshot() : group.getName(),
                 request.getTargetType().name(),
                 request.getRequestedParticipants(),
                 request.getJoinedAt(),
@@ -781,30 +867,46 @@ public class WaitlistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only an active request can receive an offer.");
         }
         LocalDateTime start = required(input.slotStart(), "slotStart");
-        LocalDateTime end = required(input.slotEnd(), "slotEnd");
-        if (!end.isAfter(start)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "slotEnd must be after slotStart.");
+        LocalDateTime availableEnd = required(input.slotEnd(), "slotEnd");
+        if (!availableEnd.isAfter(start)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "slotEnd must be after slotStart.");
+        SessionType concreteService = resolveOfferService(request, input.serviceId(), companyId);
         User employee = input.employeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.employeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
         Space room = input.roomId() == null ? null : spaces.findByIdAndCompanyId(input.roomId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found."));
         SessionBooking session = input.sessionId() == null ? null : bookings.findByIdAndCompanyId(input.sessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found."));
+        if (!releasedSlot && session != null && session.getType() != null && !Objects.equals(session.getType().getId(), concreteService.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected session uses another service.");
+        }
+        LocalDateTime end = session != null && !releasedSlot ? session.getEndTime() : serviceEnd(start, concreteService);
+        SessionBooking offeredSession = releasedSlot ? null : session;
+        if (end == null || end.isAfter(availableEnd)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service does not fit inside the proposed slot.");
+        }
         List<WaitlistRequestWindow> requestWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(requestId);
         List<WaitlistRequestEmployee> selected = requestEmployees.findAllByRequestId(requestId);
+        List<WaitlistRequestService> eligible = requestServices.findAllByRequestIdOrderBySortOrderSnapshotAscIdAsc(requestId);
         if (!requestMatchesSlot(request, requestWindows, selected, start, end, employee, room, session)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The proposed slot does not match the waitlist request.");
         }
-        validateSlotAvailable(request, start, end, employee, room, session, null, releasedSlot);
+        validateSlotAvailable(request, concreteService, start, end, employee, room, session, null, releasedSlot);
         int validity = Math.max(5, Math.min(Optional.ofNullable(input.validityMinutes()).orElse(waitlistSettings.get(companyId).offerValidityMinutes()), 1440));
         Instant now = Instant.now();
         WaitlistOffer offer = new WaitlistOffer();
         offer.setCompany(request.getCompany());
         offer.setRequest(request);
+        offer.setService(concreteService);
+        offer.setServiceNameSnapshot(concreteService.getName());
+        ServiceGroup group = concreteService.getServiceGroup();
+        offer.setServiceGroupIdSnapshot(group == null ? null : group.getId());
+        offer.setServiceGroupNameSnapshot(group == null ? null : group.getName());
         offer.setSlotStart(start);
         offer.setSlotEnd(end);
+        offer.setAvailableSlotEnd(availableEnd);
         offer.setEmployee(employee);
         offer.setRoom(room);
-        offer.setSession(session);
+        offer.setSession(offeredSession);
         offer.setStatus(WaitlistOfferStatus.PENDING);
         offer.setOfferedAt(now);
         offer.setExpiresAt(now.plus(Duration.ofMinutes(validity)));
@@ -815,11 +917,11 @@ public class WaitlistService {
         hold.setCompany(request.getCompany());
         hold.setOffer(offer);
         hold.setSlotStart(start);
-        int serviceBreakMinutes = request.getService().getBreakMinutes() == null ? 0 : Math.max(0, request.getService().getBreakMinutes());
+        int serviceBreakMinutes = concreteService.getBreakMinutes() == null ? 0 : Math.max(0, concreteService.getBreakMinutes());
         hold.setSlotEnd(end.plusMinutes(serviceBreakMinutes));
         hold.setEmployee(employee);
         hold.setRoom(room);
-        hold.setSession(session);
+        hold.setSession(offeredSession);
         hold.setStatus(WaitlistHoldStatus.ACTIVE);
         hold.setExpiresAt(offer.getExpiresAt());
         holds.save(hold);
@@ -828,43 +930,57 @@ public class WaitlistService {
         request.setStatus(WaitlistRequestStatus.OFFERED);
         requests.save(request);
         addEvent(request, offer, actor, WaitlistEventType.OFFER_SENT,
-                (automatic ? "Samodejna" : "Ročna") + " ponudba termina je bila poslana. Velja do " + offer.getExpiresAt() + ".");
+                (automatic ? "Samodejna" : "Ročna") + " ponudba za " + concreteService.getName() + " je bila poslana. Velja do " + offer.getExpiresAt() + ".");
         tenantNotifications.createWaitlistNotification(companyId, request.getId(), "WAITLIST_OFFER_SENT", "Ponudba prostega termina",
-                "Ponudba za " + clientName(request.getClient()) + " velja do " + offer.getExpiresAt() + ".", "/appointments?requestId=" + request.getId());
+                "Ponudba za " + clientName(request.getClient()) + " (" + concreteService.getName() + ") velja do " + offer.getExpiresAt() + ".", "/appointments?requestId=" + request.getId());
         guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.SLOT_AVAILABLE);
-        return toView(request, requestWindows, selected, true);
+        return toView(request, requestWindows, selected, eligible, true);
     }
 
-    private void offerNextCandidate(Long companyId, LocalDateTime start, LocalDateTime end, Long employeeId, Long roomId, Long sessionId, Long excludedRequestId) {
+    private void offerNextCandidate(Long companyId, LocalDateTime start, LocalDateTime availableEnd, Long employeeId, Long roomId, Long sessionId, Long excludedRequestId) {
         if (!waitlistSettings.get(companyId).autoOfferEnabled()) return;
         User employee = employeeId == null ? null : users.findByIdAndCompanyIdAndActiveTrue(employeeId, companyId).orElse(null);
         Space room = roomId == null ? null : spaces.findByIdAndCompanyId(roomId, companyId).orElse(null);
         SessionBooking session = sessionId == null ? null : bookings.findByIdAndCompanyId(sessionId, companyId).orElse(null);
-        for (WaitlistRequest candidate : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
-            if (Objects.equals(candidate.getId(), excludedRequestId)) continue;
-            if (candidate.getService() == null) continue;
-            // Once time becomes free, the previous booking's service no longer owns
-            // the slot. Candidate eligibility is determined by time and optional
-            // employee/location constraints, then by normal conflict validation.
-            if (skips.existsByRequestIdAndSlotStartAndEmployeeId(candidate.getId(), start, employeeId)) continue;
-            List<WaitlistRequestWindow> candidateWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(candidate.getId());
-            List<WaitlistRequestEmployee> candidateEmployees = requestEmployees.findAllByRequestId(candidate.getId());
-            if (!requestMatchesSlot(candidate, candidateWindows, candidateEmployees, start, end, employee, room, session)) continue;
-            try {
-                validateSlotAvailable(candidate, start, end, employee, room, session, null, true);
-                offerInternal(companyId, candidate.getId(), new OfferInput(start, end, employeeId, roomId, sessionId, null), null, true, true);
-                return;
-            } catch (ResponseStatusException ex) {
-                addEvent(candidate, null, null, WaitlistEventType.MATCH_REJECTED, ex.getReason());
+        List<MatchCandidate> candidates = new ArrayList<>();
+        for (WaitlistRequest request : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
+            if (Objects.equals(request.getId(), excludedRequestId)) continue;
+            if (skips.existsByRequestIdAndSlotStartAndEmployeeId(request.getId(), start, employeeId)) continue;
+            List<WaitlistRequestWindow> requestWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(request.getId());
+            List<WaitlistRequestEmployee> selectedEmployees = requestEmployees.findAllByRequestId(request.getId());
+            MatchCandidate best = null;
+            for (SessionType service : eligibleServicesForRequest(request)) {
+                if (service == null || !service.isActive()) continue;
+                LocalDateTime concreteEnd = serviceEnd(start, service);
+                if (concreteEnd == null || concreteEnd.isAfter(availableEnd)) continue;
+                if (!requestMatchesSlot(request, requestWindows, selectedEmployees, start, concreteEnd, employee, room, session)) continue;
+                try {
+                    validateSlotAvailable(request, service, start, concreteEnd, employee, room, session, null, true);
+                    MatchCandidate candidate = new MatchCandidate(request, service, concreteEnd);
+                    if (best == null || compareCandidateServices(candidate, best, availableEnd) < 0) best = candidate;
+                } catch (ResponseStatusException ex) {
+                    addEvent(request, null, null, WaitlistEventType.MATCH_REJECTED, ex.getReason());
+                }
             }
+            if (best != null) candidates.add(best);
+        }
+        candidates.sort(Comparator
+                .comparingInt((MatchCandidate candidate) -> matchPriority(candidate.request(), session))
+                .thenComparing(candidate -> candidate.request().getJoinedAt(), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(candidate -> candidate.request().getId()));
+        if (!candidates.isEmpty()) {
+            MatchCandidate first = candidates.get(0);
+            offerInternal(companyId, first.request().getId(),
+                    new OfferInput(first.service().getId(), start, availableEnd, employeeId, roomId, sessionId, null), null, true, true);
+            return;
         }
         tenantNotifications.createWaitlistNotification(companyId, null, "WAITLIST_ATTENTION", "Prost termin brez ustreznega kandidata",
                 "Za sproščeni termin " + start + " ni bilo mogoče samodejno poslati ponudbe.", "/appointments");
     }
 
-    private void validateSlotAvailable(WaitlistRequest request, LocalDateTime start, LocalDateTime end, User employee, Space room, SessionBooking session, Long excludeOfferId, boolean releasedSlot) {
+    private void validateSlotAvailable(WaitlistRequest request, SessionType service, LocalDateTime start, LocalDateTime end, User employee, Space room, SessionBooking session, Long excludeOfferId, boolean releasedSlot) {
         Long companyId = request.getCompany().getId();
-        int breakMinutes = request.getService().getBreakMinutes() == null ? 0 : Math.max(0, request.getService().getBreakMinutes());
+        int breakMinutes = service.getBreakMinutes() == null ? 0 : Math.max(0, service.getBreakMinutes());
         LocalDateTime busyEnd = end.plusMinutes(breakMinutes);
         if (hasActiveHold(companyId, id(employee), id(room), start, busyEnd, excludeOfferId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The slot is temporarily held for another waitlist offer.");
@@ -886,13 +1002,12 @@ public class WaitlistService {
                 : bookings.findAllByBookingGroupKeyOrderByIdAsc(session.getBookingGroupKey()).stream()
                 .map(SessionBooking::getId)
                 .toList();
-        bookingValidation.validateBookingWindow(companyId, clientIds, id(employee), id(room), start, end, request.getService().getId(),
+        bookingValidation.validateBookingWindow(companyId, clientIds, id(employee), id(room), start, end, service.getId(),
                 excluded.isEmpty() ? List.of(-1L) : excluded, true, false, true, false, false);
         boolean sameServiceSession = session != null
                 && session.getType() != null
-                && request.getService() != null
-                && Objects.equals(session.getType().getId(), request.getService().getId());
-        if (sameServiceSession) validateGroupCapacity(request, session, releasedSlot);
+                && Objects.equals(session.getType().getId(), service.getId());
+        if (sameServiceSession) validateGroupCapacity(request, service, session, releasedSlot);
     }
 
     private boolean isInsideWorkingSlot(Long companyId, Long employeeId, LocalDateTime start, LocalDateTime busyEnd) {
@@ -901,8 +1016,8 @@ public class WaitlistService {
         return slots.stream().anyMatch(slot -> !start.toLocalTime().isBefore(slot.getStartTime()) && !busyEnd.toLocalTime().isAfter(slot.getEndTime()));
     }
 
-    private void validateGroupCapacity(WaitlistRequest request, SessionBooking session, boolean releasedSlot) {
-        Integer max = request.getService().getMaxParticipantsPerSession();
+    private void validateGroupCapacity(WaitlistRequest request, SessionType service, SessionBooking session, boolean releasedSlot) {
+        Integer max = service.getMaxParticipantsPerSession();
         if (max == null || max <= 0) return;
         Collection<SessionBooking> rows = session.getBookingGroupKey() == null
                 ? List.of(session)
@@ -945,16 +1060,23 @@ public class WaitlistService {
         LocalDate dateFrom = LocalDate.now(ZONE);
         LocalDate dateTo = dateFrom.plusDays(Math.max(0, cfg.maxRequestedDateRangeDays() - 1L));
         return new RequestInput(
-                input.clientId(), input.serviceId(), input.locationId(), input.targetType(), null,
+                input.clientId(), input.serviceId(), input.serviceScope(), input.serviceGroupId(), input.locationId(), input.targetType(), null,
                 dateFrom, dateTo, input.employeePreferenceType(), input.specificEmployeeId(), input.employeeIds(),
                 input.requestedParticipants(), input.source(), input.notes(), List.of()
         );
     }
 
     private void validateInput(RequestInput input, WaitlistSettingsService.WaitlistSettings cfg) {
-        if (input == null || input.clientId() == null || input.serviceId() == null || input.targetType() == null
+        if (input == null || input.clientId() == null || input.targetType() == null
                 || input.dateFrom() == null || input.dateTo() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client, service, request type and date range are required.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client, service selection, request type and date range are required.");
+        }
+        WaitlistServiceScope scope = Optional.ofNullable(input.serviceScope()).orElse(WaitlistServiceScope.EXACT_SERVICE);
+        if (scope == WaitlistServiceScope.EXACT_SERVICE && input.serviceId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An exact service is required.");
+        }
+        if (scope == WaitlistServiceScope.SERVICE_GROUP && input.serviceGroupId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A service group is required.");
         }
         if (input.dateTo().isBefore(input.dateFrom())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateTo must be on or after dateFrom.");
         if (Duration.between(input.dateFrom().atStartOfDay(), input.dateTo().plusDays(1).atStartOfDay()).toDays() > cfg.maxRequestedDateRangeDays()) {
@@ -984,18 +1106,36 @@ public class WaitlistService {
     }
 
     private RequestView toView(WaitlistRequest row, List<WaitlistRequestWindow> requestWindows,
-                               List<WaitlistRequestEmployee> selectedEmployees, boolean includeHistory) {
+                               List<WaitlistRequestEmployee> selectedEmployees,
+                               List<WaitlistRequestService> eligibleServices,
+                               boolean includeHistory) {
         WaitlistOffer current = offers.findFirstByRequestIdAndStatusOrderByOfferedAtDesc(row.getId(), WaitlistOfferStatus.PENDING).orElse(null);
+        List<EligibleServiceView> eligibleViews = eligibleServices.stream().map(this::eligibleServiceView).toList();
+        Integer duration = row.getService() == null ? null : row.getService().getDurationMinutes();
+        Integer breakMinutes = row.getService() == null ? null : row.getService().getBreakMinutes();
         return new RequestView(
                 row.getId(), clientName(row.getClient()), row.getClient() == null ? null : row.getClient().getEmail(),
                 row.getClient() == null ? null : row.getClient().getPhone(), id(row.getClient()), id(row.getService()),
-                row.getService() == null ? null : row.getService().getName(), row.getService() == null ? null : row.getService().getDurationMinutes(),
-                row.getService() == null ? null : row.getService().getBreakMinutes(), id(row.getLocation()), row.getLocation() == null ? null : row.getLocation().getName(),
+                row.getService() == null ? null : row.getService().getName(), row.getServiceScope().name(), id(row.getServiceGroup()),
+                row.getServiceGroupNameSnapshot(), eligibleViews, duration, breakMinutes,
+                id(row.getLocation()), row.getLocation() == null ? null : row.getLocation().getName(),
                 row.getTargetType().name(), id(row.getTargetSession()), row.getDateFrom(), row.getDateTo(), row.getEmployeePreferenceType().name(),
                 employeeView(row.getSpecificEmployee()), selectedEmployees.stream().map(WaitlistRequestEmployee::getEmployee).map(this::employeeView).toList(),
                 row.getRequestedParticipants(), row.getStatus().name(), row.getSource().name(), row.getNotes(), row.getJoinedAt(), row.getExpiresAt(),
                 id(row.getBookedBooking()), requestWindows.stream().map(this::windowView).toList(), offerView(current),
                 includeHistory ? events.findAllByRequestIdOrderByOccurredAtDescIdDesc(row.getId()).stream().map(this::eventView).toList() : List.of());
+    }
+
+    private EligibleServiceView eligibleServiceView(WaitlistRequestService row) {
+        SessionType service = row.getService();
+        return new EligibleServiceView(
+                service == null ? null : service.getId(),
+                row.getServiceNameSnapshot(),
+                row.getDurationMinutesSnapshot(),
+                service == null ? null : service.getBreakMinutes(),
+                row.getServiceGroupIdSnapshot(),
+                row.getServiceGroupNameSnapshot()
+        );
     }
 
     private WindowView windowView(WaitlistRequestWindow row) {
@@ -1005,7 +1145,8 @@ public class WaitlistService {
     private OfferView offerView(WaitlistOffer row) {
         if (row == null) return null;
         long remaining = Math.max(0, Duration.between(Instant.now(), row.getExpiresAt()).getSeconds());
-        return new OfferView(row.getId(), row.getStatus().name(), row.getSlotStart(), row.getSlotEnd(), employeeView(row.getEmployee()),
+        return new OfferView(row.getId(), row.getStatus().name(), id(row.getService()), row.getServiceNameSnapshot(),
+                row.getServiceGroupIdSnapshot(), row.getServiceGroupNameSnapshot(), row.getSlotStart(), row.getSlotEnd(), employeeView(row.getEmployee()),
                 row.getRoom() == null ? null : row.getRoom().getName(), row.getOfferedAt(), row.getExpiresAt(), row.getAcceptedAt(), row.getDeclinedAt(), remaining);
     }
 
@@ -1040,6 +1181,107 @@ public class WaitlistService {
             row.setEmployee(employee);
             requestEmployees.save(row);
         }
+    }
+
+    private ServiceSelection resolveServiceSelection(RequestInput input, Long companyId) {
+        WaitlistServiceScope scope = Optional.ofNullable(input.serviceScope()).orElse(WaitlistServiceScope.EXACT_SERVICE);
+        if (scope == WaitlistServiceScope.EXACT_SERVICE) {
+            SessionType service = sessionTypes.findByIdAndCompanyIdWithLinkedServices(input.serviceId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+            if (!service.isActive()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service is inactive.");
+            return new ServiceSelection(scope, service, null, List.of(service));
+        }
+        ServiceGroup group = serviceGroups.findById(input.serviceGroupId())
+                .filter(value -> value.getCompany() != null && Objects.equals(value.getCompany().getId(), companyId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service group not found."));
+        if (!group.isActive()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service group is inactive.");
+        List<SessionType> eligible = sessionTypes.findAllByCompanyIdAndServiceGroupId(companyId, group.getId()).stream()
+                .filter(SessionType::isActive)
+                .sorted(Comparator.comparingInt(SessionType::getGuestSortOrder).thenComparing(SessionType::getName).thenComparing(SessionType::getId))
+                .toList();
+        if (eligible.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service group has no active services.");
+        }
+        return new ServiceSelection(scope, null, group, eligible);
+    }
+
+    private void applyServiceSelection(WaitlistRequest request, ServiceSelection selection) {
+        request.setServiceScope(selection.scope());
+        request.setService(selection.exactService());
+        request.setServiceGroup(selection.group());
+        ServiceGroup snapshotGroup = selection.group();
+        if (snapshotGroup == null && selection.exactService() != null) snapshotGroup = selection.exactService().getServiceGroup();
+        request.setServiceGroupIdSnapshot(snapshotGroup == null ? null : snapshotGroup.getId());
+        request.setServiceGroupNameSnapshot(snapshotGroup == null ? null : snapshotGroup.getName());
+    }
+
+    private void replaceEligibleServices(WaitlistRequest request, List<SessionType> services) {
+        requestServices.deleteAllByRequestId(request.getId());
+        int order = 0;
+        for (SessionType service : services) {
+            WaitlistRequestService row = new WaitlistRequestService();
+            row.setRequest(request);
+            row.setService(service);
+            row.setServiceNameSnapshot(service.getName());
+            ServiceGroup group = service.getServiceGroup();
+            row.setServiceGroupIdSnapshot(group == null ? null : group.getId());
+            row.setServiceGroupNameSnapshot(group == null ? null : group.getName());
+            row.setDurationMinutesSnapshot(service.getDurationMinutes() == null ? 60 : service.getDurationMinutes());
+            row.setSortOrderSnapshot(order++);
+            requestServices.save(row);
+        }
+    }
+
+    private List<SessionType> eligibleServicesForRequest(WaitlistRequest request) {
+        List<SessionType> snapshot = requestServices.findAllByRequestIdOrderBySortOrderSnapshotAscIdAsc(request.getId()).stream()
+                .map(WaitlistRequestService::getService)
+                .filter(Objects::nonNull)
+                .filter(SessionType::isActive)
+                .filter(service -> request.getServiceScope() != WaitlistServiceScope.SERVICE_GROUP
+                        || service.getServiceGroup() != null
+                        && Objects.equals(service.getServiceGroup().getId(), request.getServiceGroupIdSnapshot()))
+                .toList();
+        if (!snapshot.isEmpty()) return snapshot;
+        return request.getService() == null || !request.getService().isActive() ? List.of() : List.of(request.getService());
+    }
+
+    private SessionType resolveOfferService(WaitlistRequest request, Long serviceId, Long companyId) {
+        Long resolvedId = serviceId;
+        if (resolvedId == null && request.getServiceScope() == WaitlistServiceScope.EXACT_SERVICE && request.getService() != null) {
+            resolvedId = request.getService().getId();
+        }
+        if (resolvedId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A concrete service must be selected for the offer.");
+        }
+        SessionType service = sessionTypes.findByIdAndCompanyIdWithLinkedServices(resolvedId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+        if (!service.isActive()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service is inactive.");
+        if (request.getServiceScope() == WaitlistServiceScope.SERVICE_GROUP
+                && (service.getServiceGroup() == null
+                || !Objects.equals(service.getServiceGroup().getId(), request.getServiceGroupIdSnapshot()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service no longer belongs to this waitlist group.");
+        }
+        if (!requestServices.existsByRequestIdAndServiceId(request.getId(), service.getId())
+                && (request.getService() == null || !Objects.equals(request.getService().getId(), service.getId()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service was not included in this waitlist request.");
+        }
+        return service;
+    }
+
+    private LocalDateTime offerAvailableEnd(WaitlistOffer offer) {
+        return offer.getAvailableSlotEnd() == null ? offer.getSlotEnd() : offer.getAvailableSlotEnd();
+    }
+
+    private LocalDateTime serviceEnd(LocalDateTime start, SessionType service) {
+        int duration = service == null || service.getDurationMinutes() == null ? 60 : Math.max(1, service.getDurationMinutes());
+        return start.plusMinutes(duration);
+    }
+
+    private String serviceSelectionName(WaitlistRequest request) {
+        if (request.getServiceScope() == WaitlistServiceScope.SERVICE_GROUP) {
+            return request.getServiceGroupNameSnapshot() == null ? "skupino storitev" : request.getServiceGroupNameSnapshot();
+        }
+        return request.getService() == null ? "storitev" : request.getService().getName();
     }
 
     private List<User> resolveEmployees(List<Long> ids, Long companyId) {
@@ -1136,16 +1378,26 @@ public class WaitlistService {
         return selected.stream().anyMatch(item -> Objects.equals(item.getEmployee().getId(), employeeId));
     }
 
-    private boolean searchMatches(WaitlistRequest row, String search) {
+    private boolean searchMatches(WaitlistRequest row, List<WaitlistRequestService> eligible, String search) {
         if (search == null || search.isBlank()) return true;
         Client client = row.getClient();
+        String serviceNames = eligible.stream().map(WaitlistRequestService::getServiceNameSnapshot).collect(Collectors.joining(" "));
         String haystack = String.join(" ", clientName(client), client == null ? "" : String.valueOf(client.getEmail()),
-                client == null ? "" : String.valueOf(client.getPhone()), row.getService() == null ? "" : row.getService().getName()).toLowerCase(Locale.ROOT);
+                client == null ? "" : String.valueOf(client.getPhone()), row.getServiceGroupNameSnapshot() == null ? "" : row.getServiceGroupNameSnapshot(),
+                row.getService() == null ? "" : row.getService().getName(), serviceNames).toLowerCase(Locale.ROOT);
         return haystack.contains(search.toLowerCase(Locale.ROOT));
     }
 
-    private String duplicateKey(Long companyId, Long clientId, RequestInput input, List<User> selectedEmployees) {
-        String raw = companyId + "|" + clientId + "|" + input.serviceId() + "|" + input.targetType() + "|" + input.targetSessionId()
+    private boolean requestContainsService(WaitlistRequest row, List<WaitlistRequestService> eligible, Long serviceId) {
+        if (serviceId == null) return true;
+        if (row.getService() != null && Objects.equals(row.getService().getId(), serviceId)) return true;
+        return eligible.stream().anyMatch(item -> item.getService() != null && Objects.equals(item.getService().getId(), serviceId));
+    }
+
+    private String duplicateKey(Long companyId, Long clientId, RequestInput input, List<User> selectedEmployees, List<SessionType> eligible) {
+        String raw = companyId + "|" + clientId + "|" + Optional.ofNullable(input.serviceScope()).orElse(WaitlistServiceScope.EXACT_SERVICE)
+                + "|" + input.serviceId() + "|" + input.serviceGroupId() + "|" + eligible.stream().map(SessionType::getId).sorted().toList()
+                + "|" + input.targetType() + "|" + input.targetSessionId()
                 + "|" + input.dateFrom() + "|" + input.dateTo() + "|" + input.employeePreferenceType() + "|" + input.specificEmployeeId()
                 + "|" + selectedEmployees.stream().map(User::getId).sorted().toList() + "|" + normalizeWindows(input.windows());
         return sha256(raw);
@@ -1176,7 +1428,7 @@ public class WaitlistService {
                 tenantCode,
                 tenantName(company),
                 tenantLogoUrl(companyId),
-                request == null || request.getService() == null ? "" : String.valueOf(request.getService().getName()),
+                offer.getServiceNameSnapshot() == null ? "" : offer.getServiceNameSnapshot(),
                 offer.getSlotStart() == null ? null : offer.getSlotStart().toString(),
                 offer.getSlotEnd() == null ? null : offer.getSlotEnd().toString(),
                 offer.getSlotStart() == null ? null : offer.getSlotStart().toString(),

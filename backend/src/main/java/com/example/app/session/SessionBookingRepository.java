@@ -225,6 +225,23 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               AND (:consultantId IS NULL OR consultant.id = :consultantId)
               AND (:spaceId IS NULL OR space.id = :spaceId)
               AND (:typeId IS NULL OR sessionType.id = :typeId)
+              AND (
+                    :serviceGroupId IS NULL
+                    OR (
+                        :serviceGroupId = -1
+                        AND (
+                            (sb.serviceGroupSnapshotCaptured = true AND sb.serviceGroupIdSnapshot IS NULL)
+                            OR (sb.serviceGroupSnapshotCaptured = false AND sessionType.serviceGroup IS NULL)
+                        )
+                    )
+                    OR (
+                        :serviceGroupId <> -1
+                        AND (
+                            (sb.serviceGroupSnapshotCaptured = true AND sb.serviceGroupIdSnapshot = :serviceGroupId)
+                            OR (sb.serviceGroupSnapshotCaptured = false AND sessionType.serviceGroup.id = :serviceGroupId)
+                        )
+                    )
+              )
             ORDER BY sb.startTime ASC, sb.id ASC
             """)
     List<SessionBooking> findAnalyticsByCompanyIdAndRange(
@@ -233,7 +250,19 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("rangeEnd") LocalDateTime rangeEnd,
             @Param("consultantId") Long consultantId,
             @Param("spaceId") Long spaceId,
-            @Param("typeId") Long typeId
+            @Param("typeId") Long typeId,
+            @Param("serviceGroupId") Long serviceGroupId
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.type sessionType
+            LEFT JOIN FETCH sessionType.serviceGroup
+            WHERE sb.company.id = :companyId AND sb.id IN :ids
+            """)
+    List<SessionBooking> findAnalyticsSnapshotsByCompanyIdAndIds(
+            @Param("companyId") Long companyId,
+            @Param("ids") List<Long> ids
     );
 
     @Query("""

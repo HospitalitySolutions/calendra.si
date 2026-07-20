@@ -80,6 +80,38 @@ type UsageRanking = {
   sessionsTotal: number
 }
 
+type ServiceMetric = {
+  serviceId: number | null
+  serviceName: string
+  bookings: number
+  completed: number
+  cancelled: number
+  noShows: number
+  bookedMinutes: number
+  revenueGross: number
+  waitlistRequests: number
+  waitlistOffers: number
+  acceptedOffers: number
+  waitlistConversionRate: number
+}
+
+type ServiceGroupMetric = {
+  serviceGroupId: number | null
+  serviceGroupName: string
+  active: boolean
+  bookings: number
+  completed: number
+  cancelled: number
+  noShows: number
+  bookedMinutes: number
+  revenueGross: number
+  waitlistRequests: number
+  waitlistOffers: number
+  acceptedOffers: number
+  waitlistConversionRate: number
+  services: ServiceMetric[]
+}
+
 type AnalyticsOverview = {
   period: 'day' | '7d' | 'month' | 'year' | 'custom'
   rangeStart: string
@@ -93,11 +125,13 @@ type AnalyticsOverview = {
   topConsultants: RankedAmount[]
   topClients: RankedAmount[]
   topSpaces: UsageRanking[]
+  serviceGroups: ServiceGroupMetric[]
 }
 
 type ConsultantOption = { id: number; firstName: string; lastName: string; consultant?: boolean }
 type SpaceOption = { id: number; name: string }
-type TypeOption = { id: number; name: string }
+type TypeOption = { id: number; name: string; serviceGroupId?: number | null; serviceGroupName?: string | null }
+type ServiceGroupOption = { id: number; name: string; active: boolean; sortOrder: number; serviceCount: number }
 type Preset = 'day' | '7d' | 'month' | 'year' | 'custom'
 type ReportFrequency = 'DAILY' | 'WEEKLY'
 
@@ -981,6 +1015,100 @@ const ANALYTICS_COPY: Record<ReportLanguage, AnalyticsCopy> = {
   },
 }
 
+const SERVICE_GROUP_ANALYTICS_COPY: Record<ReportLanguage, {
+  allGroups: string
+  ungrouped: string
+  title: string
+  subtitle: string
+  selectedGroup: string
+  group: string
+  bookings: string
+  completed: string
+  cancelledNoShow: string
+  revenue: string
+  bookedTime: string
+  waitlistRequests: string
+  offers: string
+  accepted: string
+  conversion: string
+  services: string
+  showServices: string
+  hideServices: string
+  inactive: string
+  service: string
+  noData: string
+}> = {
+  en: {
+    allGroups: 'All service groups',
+    ungrouped: 'Ungrouped',
+    title: 'Service groups',
+    subtitle: 'Bookings, revenue and waitlist performance by service group.',
+    selectedGroup: 'Service group',
+    group: 'Group',
+    bookings: 'Bookings',
+    completed: 'Completed',
+    cancelledNoShow: 'Cancelled / no-show',
+    revenue: 'Revenue',
+    bookedTime: 'Booked time',
+    waitlistRequests: 'Waitlist requests',
+    offers: 'Offers',
+    accepted: 'Accepted',
+    conversion: 'Conversion',
+    services: 'Services',
+    showServices: 'Show services',
+    hideServices: 'Hide services',
+    inactive: 'Inactive or deleted',
+    service: 'Service',
+    noData: 'No service-group activity in this period.',
+  },
+  sl: {
+    allGroups: 'Vse skupine storitev',
+    ungrouped: 'Brez skupine',
+    title: 'Skupine storitev',
+    subtitle: 'Rezervacije, prihodki in uspešnost čakalne vrste po skupinah storitev.',
+    selectedGroup: 'Skupina storitev',
+    group: 'Skupina',
+    bookings: 'Rezervacije',
+    completed: 'Zaključeno',
+    cancelledNoShow: 'Odpovedi / ni prišel',
+    revenue: 'Prihodki',
+    bookedTime: 'Rezervirani čas',
+    waitlistRequests: 'Zahteve v čakalni vrsti',
+    offers: 'Ponudbe',
+    accepted: 'Sprejete',
+    conversion: 'Konverzija',
+    services: 'Storitve',
+    showServices: 'Prikaži storitve',
+    hideServices: 'Skrij storitve',
+    inactive: 'Neaktivna ali izbrisana',
+    service: 'Storitev',
+    noData: 'V izbranem obdobju ni aktivnosti po skupinah storitev.',
+  },
+  sr: {
+    allGroups: 'Sve grupe usluga',
+    ungrouped: 'Bez grupe',
+    title: 'Grupe usluga',
+    subtitle: 'Rezervacije, prihod i uspešnost liste čekanja po grupama usluga.',
+    selectedGroup: 'Grupa usluga',
+    group: 'Grupa',
+    bookings: 'Rezervacije',
+    completed: 'Završeno',
+    cancelledNoShow: 'Otkazano / nedolazak',
+    revenue: 'Prihod',
+    bookedTime: 'Rezervisano vreme',
+    waitlistRequests: 'Zahtevi na listi čekanja',
+    offers: 'Ponude',
+    accepted: 'Prihvaćene',
+    conversion: 'Konverzija',
+    services: 'Usluge',
+    showServices: 'Prikaži usluge',
+    hideServices: 'Sakrij usluge',
+    inactive: 'Neaktivna ili obrisana',
+    service: 'Usluga',
+    noData: 'Nema aktivnosti po grupama usluga u izabranom periodu.',
+  },
+}
+
 function localeTagFor(locale: ReportLanguage) {
   if (locale === 'sl') return 'sl-SI'
   if (locale === 'sr') return 'sr-Latn-RS'
@@ -1024,6 +1152,10 @@ function safeNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function serviceGroupMetricKey(group: ServiceGroupMetric) {
+  return `${group.serviceGroupId ?? 'ungrouped'}:${group.serviceGroupName}`
+}
+
 export function AnalyticsPage() {
   const me = getStoredUser()!
   const { locale } = useLocale()
@@ -1033,7 +1165,9 @@ export function AnalyticsPage() {
   const [customTo, setCustomTo] = useState('')
   const [consultantId, setConsultantId] = useState('')
   const [spaceId, setSpaceId] = useState('')
+  const [serviceGroupId, setServiceGroupId] = useState('')
   const [typeId, setTypeId] = useState('')
+  const [expandedServiceGroups, setExpandedServiceGroups] = useState<Set<string>>(new Set())
   const [reportEnabled, setReportEnabled] = useState(false)
   const [reportFrequency, setReportFrequency] = useState<ReportFrequency>('WEEKLY')
   const [reportEmail, setReportEmail] = useState(me.email ?? '')
@@ -1055,6 +1189,8 @@ export function AnalyticsPage() {
 
   const text = ANALYTICS_COPY[toReportLanguage(locale)]
   const reportText = ANALYTICS_COPY[reportLanguage]
+  const groupText = SERVICE_GROUP_ANALYTICS_COPY[toReportLanguage(locale)]
+  const reportGroupText = SERVICE_GROUP_ANALYTICS_COPY[reportLanguage]
 
   useEffect(() => {
     setReportLanguage(toReportLanguage(locale))
@@ -1069,21 +1205,40 @@ export function AnalyticsPage() {
     consultants: ConsultantOption[]
     spaces: SpaceOption[]
     types: TypeOption[]
+    serviceGroups: ServiceGroupOption[]
   }>({
     queryKey: ['analytics-filters-meta', me.role],
     queryFn: async () => {
-      const [usersRes, spacesRes, typesRes] = await Promise.all([
+      const [usersRes, spacesRes, typesRes, serviceGroupsRes] = await Promise.all([
         isAdmin ? api.get<ConsultantOption[]>('/users').catch(() => ({ data: [] as ConsultantOption[] })) : Promise.resolve({ data: [] as ConsultantOption[] }),
         api.get<SpaceOption[]>('/spaces').catch(() => ({ data: [] as SpaceOption[] })),
         api.get<TypeOption[]>('/types').catch(() => ({ data: [] as TypeOption[] })),
+        api.get<ServiceGroupOption[]>('/service-groups').catch(() => ({ data: [] as ServiceGroupOption[] })),
       ])
       return {
         consultants: (usersRes.data ?? []).filter((u) => u.consultant),
         spaces: spacesRes.data ?? [],
         types: typesRes.data ?? [],
+        serviceGroups: serviceGroupsRes.data ?? [],
       }
     },
   })
+
+  const filteredTypeOptions = useMemo(() => {
+    const types = filterData?.types ?? []
+    if (!serviceGroupId) return types
+    const selectedGroupId = Number(serviceGroupId)
+    return types.filter((item) => selectedGroupId === -1
+      ? item.serviceGroupId == null
+      : item.serviceGroupId === selectedGroupId)
+  }, [filterData?.types, serviceGroupId])
+
+  useEffect(() => {
+    if (!filterData || !typeId) return
+    if (!filteredTypeOptions.some((item) => String(item.id) === typeId)) {
+      setTypeId('')
+    }
+  }, [filterData, filteredTypeOptions, typeId])
 
   const settingsQuery = useQuery<Record<string, string>>({
     queryKey: ['analytics-report-settings'],
@@ -1119,7 +1274,7 @@ export function AnalyticsPage() {
   })
 
   const { data, isLoading, isError } = useQuery<AnalyticsOverview>({
-    queryKey: ['analytics-overview', periodPreset, customFrom, customTo, consultantId, spaceId, typeId],
+    queryKey: ['analytics-overview', periodPreset, customFrom, customTo, consultantId, spaceId, serviceGroupId, typeId],
     enabled: canFetch,
     queryFn: async () => {
       const params: Record<string, string | number> = { period: periodPreset }
@@ -1129,6 +1284,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
+      if (serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
       const res = await api.get<AnalyticsOverview>('/analytics/overview', { params })
       return res.data
@@ -1141,7 +1297,7 @@ export function AnalyticsPage() {
   }, [data?.rangeStart, data?.rangeEnd])
 
   const previousOverviewQuery = useQuery<AnalyticsOverview>({
-    queryKey: ['analytics-business-overview-previous', reportPreviousRange?.from, reportPreviousRange?.to, consultantId, spaceId, typeId, activeTab, reportComparePrevious],
+    queryKey: ['analytics-business-overview-previous', reportPreviousRange?.from, reportPreviousRange?.to, consultantId, spaceId, serviceGroupId, typeId, activeTab, reportComparePrevious],
     enabled: activeTab === 'reports' && reportComparePrevious && !!reportPreviousRange && canFetch,
     queryFn: async () => {
       if (!reportPreviousRange) throw new Error('Missing previous report range')
@@ -1152,6 +1308,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
+      if (serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
       const res = await api.get<AnalyticsOverview>('/analytics/overview', { params })
       return res.data
@@ -1200,6 +1357,7 @@ export function AnalyticsPage() {
       customTo,
       consultantId,
       spaceId,
+      serviceGroupId,
       typeId,
       bookingStatusFilter,
       bookingSourceFilter,
@@ -1216,6 +1374,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
+      if (serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
       if (bookingStatusFilter !== 'ALL') params.bookingStatus = bookingStatusFilter
       if (bookingSourceFilter !== 'ALL') params.sourceChannel = bookingSourceFilter
@@ -1384,6 +1543,13 @@ export function AnalyticsPage() {
     const match = (filterData?.spaces ?? []).find((item) => String(item.id) === spaceId)
     return match?.name || reportText.allSpaces
   }, [spaceId, filterData?.spaces, reportText.allSpaces])
+
+  const selectedServiceGroupName = useMemo(() => {
+    if (!serviceGroupId) return reportGroupText.allGroups
+    if (serviceGroupId === '-1') return reportGroupText.ungrouped
+    const match = (filterData?.serviceGroups ?? []).find((item) => String(item.id) === serviceGroupId)
+    return match?.name || reportGroupText.allGroups
+  }, [serviceGroupId, filterData?.serviceGroups, reportGroupText.allGroups, reportGroupText.ungrouped])
 
   const selectedTypeName = useMemo(() => {
     if (!typeId) return reportText.allTypes
@@ -1557,6 +1723,7 @@ export function AnalyticsPage() {
       [reportText.filterSnapshot],
       [reportText.selectedConsultant, selectedConsultantName],
       [reportText.selectedSpace, selectedSpaceName],
+      [reportGroupText.selectedGroup, selectedServiceGroupName],
       [reportText.selectedType, selectedTypeName],
       [reportText.reportLanguage, reportLanguageLabel],
       [reportText.reportComparePrevious, reportComparePrevious ? 'Yes' : 'No'],
@@ -1583,6 +1750,46 @@ export function AnalyticsPage() {
       [reportText.topSpacesTitle],
       [reportText.nameLabel, reportText.bookedTimeLabel, reportText.sessionsLabel],
       ...data.topSpaces.map((item) => [item.label, minutesFormatter(item.minutes), item.sessionsTotal]),
+      [],
+      [reportGroupText.title],
+      [
+        reportGroupText.group,
+        reportGroupText.bookings,
+        reportGroupText.completed,
+        reportGroupText.cancelledNoShow,
+        reportGroupText.revenue,
+        reportGroupText.bookedTime,
+        reportGroupText.waitlistRequests,
+        reportGroupText.offers,
+        reportGroupText.accepted,
+        reportGroupText.conversion,
+      ],
+      ...data.serviceGroups.flatMap((group) => [
+        [
+          group.serviceGroupName,
+          group.bookings,
+          group.completed,
+          group.cancelled + group.noShows,
+          reportRevenue(group.revenueGross),
+          minutesFormatter(group.bookedMinutes),
+          group.waitlistRequests,
+          group.waitlistOffers,
+          group.acceptedOffers,
+          reportPercent(group.waitlistConversionRate / 100),
+        ],
+        ...group.services.map((service) => [
+          `↳ ${service.serviceName}`,
+          service.bookings,
+          service.completed,
+          service.cancelled + service.noShows,
+          reportRevenue(service.revenueGross),
+          minutesFormatter(service.bookedMinutes),
+          service.waitlistRequests,
+          service.waitlistOffers,
+          service.acceptedOffers,
+          reportPercent(service.waitlistConversionRate / 100),
+        ]),
+      ]),
       [],
       [reportText.reportTrendTitle],
       [reportText.reportTrendLabel, reportText.sessionsLabel, reportText.newClientsLabel, reportText.kpiRevenue],
@@ -1670,6 +1877,7 @@ export function AnalyticsPage() {
       [reportText.filterSnapshot],
       [reportText.selectedConsultant, selectedConsultantName],
       [reportText.selectedSpace, selectedSpaceName],
+      [reportGroupText.selectedGroup, selectedServiceGroupName],
       [reportText.selectedType, selectedTypeName],
       [reportText.bookingStatus, bookingStatusFilter],
       [reportText.sourceChannel, bookingSourceFilter],
@@ -1750,6 +1958,46 @@ export function AnalyticsPage() {
       [text.topSpacesTitle],
       ['Name', text.spaceHoursLabel, text.sessionsLabel],
       ...data.topSpaces.map((item) => [item.label, minutesFormatter(item.minutes), item.sessionsTotal]),
+      [],
+      [groupText.title],
+      [
+        groupText.group,
+        groupText.bookings,
+        groupText.completed,
+        groupText.cancelledNoShow,
+        groupText.revenue,
+        groupText.bookedTime,
+        groupText.waitlistRequests,
+        groupText.offers,
+        groupText.accepted,
+        groupText.conversion,
+      ],
+      ...data.serviceGroups.flatMap((group) => [
+        [
+          group.serviceGroupName,
+          group.bookings,
+          group.completed,
+          group.cancelled + group.noShows,
+          Number(group.revenueGross || 0),
+          minutesFormatter(group.bookedMinutes),
+          group.waitlistRequests,
+          group.waitlistOffers,
+          group.acceptedOffers,
+          `${safeNumber(group.waitlistConversionRate).toFixed(1)}%`,
+        ],
+        ...group.services.map((service) => [
+          `↳ ${service.serviceName}`,
+          service.bookings,
+          service.completed,
+          service.cancelled + service.noShows,
+          Number(service.revenueGross || 0),
+          minutesFormatter(service.bookedMinutes),
+          service.waitlistRequests,
+          service.waitlistOffers,
+          service.acceptedOffers,
+          `${safeNumber(service.waitlistConversionRate).toFixed(1)}%`,
+        ]),
+      ]),
     ]
     const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -1792,6 +2040,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) payload.consultantId = Number(consultantId)
       if (spaceId) payload.spaceId = Number(spaceId)
+      if (serviceGroupId) payload.serviceGroupId = Number(serviceGroupId)
       if (typeId) payload.typeId = Number(typeId)
       await api.post('/analytics/report/send', payload)
       showToast('success', text.reportSent)
@@ -1825,6 +2074,10 @@ export function AnalyticsPage() {
         <div>
           <span>{reportText.selectedSpace}</span>
           <strong>{selectedSpaceName}</strong>
+        </div>
+        <div>
+          <span>{reportGroupText.selectedGroup}</span>
+          <strong>{selectedServiceGroupName}</strong>
         </div>
         <div>
           <span>{reportText.selectedType}</span>
@@ -1877,6 +2130,56 @@ export function AnalyticsPage() {
             {reportComparePrevious && <em>{reportDelta(summary.sessionsStandard, previousSummary?.sessionsStandard)}</em>}
           </div>
         </div>
+      </section>
+
+      <section className="analytics-business-report__section">
+        <div className="analytics-business-report__section-heading">
+          <h3>{reportGroupText.title}</h3>
+          <p>{reportGroupText.subtitle}</p>
+        </div>
+        {data.serviceGroups.length === 0 ? (
+          <div className="muted analytics-ranking-empty">{reportGroupText.noData}</div>
+        ) : (
+          <div className="analytics-business-report__table-wrap">
+            <table className="analytics-business-report__table analytics-business-report__table--compact">
+              <thead>
+                <tr>
+                  <th>{reportGroupText.group}</th>
+                  <th>{reportGroupText.bookings}</th>
+                  <th>{reportGroupText.revenue}</th>
+                  <th>{reportGroupText.bookedTime}</th>
+                  <th>{reportGroupText.waitlistRequests}</th>
+                  <th>{reportGroupText.conversion}</th>
+                </tr>
+              </thead>
+              {data.serviceGroups.map((group) => (
+                <tbody key={serviceGroupMetricKey(group)}>
+                  <tr>
+                    <td>
+                      <strong>{group.serviceGroupName}</strong>
+                      {!group.active && group.serviceGroupId != null && <span className="analytics-service-group-status">{reportGroupText.inactive}</span>}
+                    </td>
+                    <td>{reportNumber(group.bookings)}</td>
+                    <td>{reportRevenue(group.revenueGross)}</td>
+                    <td>{minutesFormatter(group.bookedMinutes)}</td>
+                    <td>{reportNumber(group.waitlistRequests)}</td>
+                    <td>{reportPercent(group.waitlistConversionRate / 100)}</td>
+                  </tr>
+                  {group.services.map((service) => (
+                    <tr key={`${serviceGroupMetricKey(group)}:${service.serviceId ?? service.serviceName}`} className="analytics-business-report__service-row">
+                      <td>↳ {service.serviceName}</td>
+                      <td>{reportNumber(service.bookings)}</td>
+                      <td>{reportRevenue(service.revenueGross)}</td>
+                      <td>{minutesFormatter(service.bookedMinutes)}</td>
+                      <td>{reportNumber(service.waitlistRequests)}</td>
+                      <td>{reportPercent(service.waitlistConversionRate / 100)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              ))}
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="analytics-business-report__section">
@@ -2081,6 +2384,7 @@ export function AnalyticsPage() {
       <div className="analytics-business-report__parameter-grid">
         <div><span>{reportText.selectedConsultant}</span><strong>{selectedConsultantName}</strong></div>
         <div><span>{reportText.selectedSpace}</span><strong>{selectedSpaceName}</strong></div>
+        <div><span>{reportGroupText.selectedGroup}</span><strong>{selectedServiceGroupName}</strong></div>
         <div><span>{reportText.selectedType}</span><strong>{selectedTypeName}</strong></div>
         <div><span>{reportText.deliveryMode}</span><strong>{bookingDeliveryMode === 'ONLINE' ? reportText.deliveryOnline : bookingDeliveryMode === 'ONSITE' ? reportText.deliveryOnsite : reportText.deliveryAll}</strong></div>
       </div>
@@ -2210,9 +2514,18 @@ export function AnalyticsPage() {
               <option value="">{text.allSpaces}</option>
               {(filterData?.spaces ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+            <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
+              <option value="">{groupText.allGroups}</option>
+              <option value="-1">{groupText.ungrouped}</option>
+              {(filterData?.serviceGroups ?? []).map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}{group.active ? '' : ` · ${groupText.inactive}`}
+                </option>
+              ))}
+            </select>
             <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
               <option value="">{text.allTypes}</option>
-              {(filterData?.types ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              {filteredTypeOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
         </div>
@@ -2360,6 +2673,96 @@ export function AnalyticsPage() {
               </div>
             </Card>
           </div>
+
+          <Card className="analytics-service-groups-card">
+            <div className="analytics-card-heading analytics-service-groups-card__heading">
+              <div>
+                <h3>{groupText.title}</h3>
+                <p>{groupText.subtitle}</p>
+              </div>
+            </div>
+            {data.serviceGroups.length === 0 ? (
+              <div className="muted analytics-ranking-empty">{groupText.noData}</div>
+            ) : (
+              <div className="analytics-service-groups-table-wrap">
+                <table className="analytics-service-groups-table">
+                  <thead>
+                    <tr>
+                      <th>{groupText.group}</th>
+                      <th>{groupText.bookings}</th>
+                      <th>{groupText.completed}</th>
+                      <th>{groupText.cancelledNoShow}</th>
+                      <th>{groupText.revenue}</th>
+                      <th>{groupText.bookedTime}</th>
+                      <th>{groupText.waitlistRequests}</th>
+                      <th>{groupText.offers}</th>
+                      <th>{groupText.accepted}</th>
+                      <th>{groupText.conversion}</th>
+                      <th aria-label={groupText.services} />
+                    </tr>
+                  </thead>
+                  {data.serviceGroups.map((group) => {
+                    const key = serviceGroupMetricKey(group)
+                    const expanded = expandedServiceGroups.has(key)
+                    return (
+                      <tbody key={key}>
+                        <tr className="analytics-service-group-row">
+                          <td>
+                            <div className="analytics-service-group-name">
+                              <strong>{group.serviceGroupName}</strong>
+                              {!group.active && group.serviceGroupId != null && (
+                                <span className="analytics-service-group-status">{groupText.inactive}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td>{group.bookings}</td>
+                          <td>{group.completed}</td>
+                          <td>{group.cancelled + group.noShows}</td>
+                          <td>{revenueFormatter(group.revenueGross)}</td>
+                          <td>{minutesFormatter(group.bookedMinutes)}</td>
+                          <td>{group.waitlistRequests}</td>
+                          <td>{group.waitlistOffers}</td>
+                          <td>{group.acceptedOffers}</td>
+                          <td>{safeNumber(group.waitlistConversionRate).toFixed(1)}%</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="analytics-service-group-toggle secondary"
+                              onClick={() => setExpandedServiceGroups((current) => {
+                                const next = new Set(current)
+                                if (next.has(key)) next.delete(key)
+                                else next.add(key)
+                                return next
+                              })}
+                              disabled={group.services.length === 0}
+                              aria-expanded={expanded}
+                            >
+                              {expanded ? groupText.hideServices : `${groupText.showServices} (${group.services.length})`}
+                            </button>
+                          </td>
+                        </tr>
+                        {expanded && group.services.map((service) => (
+                          <tr key={`${key}:${service.serviceId ?? service.serviceName}`} className="analytics-service-row">
+                            <td><span>↳</span> {service.serviceName}</td>
+                            <td>{service.bookings}</td>
+                            <td>{service.completed}</td>
+                            <td>{service.cancelled + service.noShows}</td>
+                            <td>{revenueFormatter(service.revenueGross)}</td>
+                            <td>{minutesFormatter(service.bookedMinutes)}</td>
+                            <td>{service.waitlistRequests}</td>
+                            <td>{service.waitlistOffers}</td>
+                            <td>{service.acceptedOffers}</td>
+                            <td>{safeNumber(service.waitlistConversionRate).toFixed(1)}%</td>
+                            <td />
+                          </tr>
+                        ))}
+                      </tbody>
+                    )
+                  })}
+                </table>
+              </div>
+            )}
+          </Card>
 
           <div className="analytics-grid analytics-grid--modern analytics-grid--insights">
             <RankingCard
@@ -2551,6 +2954,10 @@ export function AnalyticsPage() {
               <div className="analytics-report-parameter-summary">
                 <span>{reportText.selectedSpace}</span>
                 <strong>{selectedSpaceName}</strong>
+              </div>
+              <div className="analytics-report-parameter-summary">
+                <span>{reportGroupText.selectedGroup}</span>
+                <strong>{selectedServiceGroupName}</strong>
               </div>
               <div className="analytics-report-parameter-summary">
                 <span>{reportText.selectedType}</span>

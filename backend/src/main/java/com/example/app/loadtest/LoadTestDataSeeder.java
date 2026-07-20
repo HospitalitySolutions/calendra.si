@@ -372,6 +372,18 @@ public class LoadTestDataSeeder implements CommandLineRunner {
         jdbc.update("delete from bill_item where bill_id in (select id from bills where company_id in (select id from company where tenant_code like 'lt-%'))");
         jdbc.update("delete from bills where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from booking_push_reminders where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from waitlist_events where waitlist_request_id in (select id from waitlist_requests where company_id in (select id from company where tenant_code like 'lt-%'))");
+        jdbc.update("delete from waitlist_slot_skips where waitlist_request_id in (select id from waitlist_requests where company_id in (select id from company where tenant_code like 'lt-%'))");
+        jdbc.update("delete from waitlist_booking_holds where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from waitlist_offers where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from waitlist_request_services where waitlist_request_id in (select id from waitlist_requests where company_id in (select id from company where tenant_code like 'lt-%'))");
+        jdbc.update("delete from waitlist_request_employees where waitlist_request_id in (select id from waitlist_requests where company_id in (select id from company where tenant_code like 'lt-%'))");
+        jdbc.update("delete from waitlist_request_windows where waitlist_request_id in (select id from waitlist_requests where company_id in (select id from company where tenant_code like 'lt-%'))");
+        jdbc.update("delete from waitlist_requests where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from waitlist_event where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from waitlist_offer where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from booking_hold where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from waitlist_request where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from session_booking where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from guest_tenant_links where company_id in (select id from company where tenant_code like 'lt-%') or guest_user_id in (select id from guest_users where email like '%@loadtest.local')");
         jdbc.update("delete from guest_device_tokens where guest_user_id in (select id from guest_users where email like '%@loadtest.local')");

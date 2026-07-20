@@ -32,6 +32,16 @@ public class BillItem extends BaseEntity {
     @Column(name = "source_session_booking_id")
     private Long sourceSessionBookingId;
 
+    /** Historical service-group snapshot for service-group revenue analytics. */
+    @Column(name = "service_group_id_snapshot")
+    private Long serviceGroupIdSnapshot;
+
+    @Column(name = "service_group_name_snapshot", length = 120)
+    private String serviceGroupNameSnapshot;
+
+    @Column(name = "service_group_snapshot_captured", nullable = false)
+    private boolean serviceGroupSnapshotCaptured = false;
+
     /** When set, this folio line consumes part of an advance bill (same id as {@link Bill#getId()} of the ADVANCE bill). */
     @Column(name = "source_advance_bill_id")
     private Long sourceAdvanceBillId;

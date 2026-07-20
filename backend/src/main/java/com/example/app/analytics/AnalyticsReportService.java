@@ -59,6 +59,7 @@ public class AnalyticsReportService {
         Long consultantId = request != null ? request.consultantId() : null;
         Long spaceId = request != null ? request.spaceId() : null;
         Long typeId = request != null ? request.typeId() : null;
+        Long serviceGroupId = request != null ? request.serviceGroupId() : null;
 
         AnalyticsService.AnalyticsOverviewResponse overview = analyticsService.overview(
                 me,
@@ -67,7 +68,8 @@ public class AnalyticsReportService {
                 to,
                 consultantId,
                 spaceId,
-                typeId
+                typeId,
+                serviceGroupId
         );
         sendReportEmail(me.getCompany(), email, overview, buildPeriodLabel(overview.rangeStart(), overview.rangeEnd()));
         return email;
@@ -84,6 +86,7 @@ public class AnalyticsReportService {
                 "custom",
                 from,
                 to,
+                null,
                 null,
                 null,
                 null
@@ -134,6 +137,7 @@ public class AnalyticsReportService {
         appendRankingSection(html, "Top consultants", overview.topConsultants(), currency);
         appendRankingSection(html, "Top clients", overview.topClients(), currency);
         appendSpaceSection(html, overview.topSpaces());
+        appendServiceGroupSection(html, overview.serviceGroups(), currency);
 
         if (!overview.weeks().isEmpty()) {
             html.append("<h3 style='margin:24px 0 8px'>Weekly trend</h3>");
@@ -200,6 +204,49 @@ public class AnalyticsReportService {
                     .append("<td align='right' style='padding:8px;border-bottom:1px solid #f1f5f9'>").append(escape(formatMinutes(item.minutes()))).append("</td>")
                     .append("<td align='right' style='padding:8px;border-bottom:1px solid #f1f5f9'>").append(item.sessionsTotal()).append("</td>")
                     .append("</tr>");
+        }
+        html.append("</table>");
+    }
+
+    private void appendServiceGroupSection(
+            StringBuilder html,
+            List<AnalyticsService.ServiceGroupMetric> groups,
+            NumberFormat currency
+    ) {
+        html.append("<h3 style='margin:24px 0 8px'>Service groups</h3>");
+        if (groups == null || groups.isEmpty()) {
+            html.append("<p style='margin:0;color:#64748b'>No service-group activity yet.</p>");
+            return;
+        }
+        html.append("<table style='width:100%;border-collapse:collapse'>")
+                .append("<tr><th align='left' style='padding:8px;border-bottom:1px solid #e2e8f0'>Group / service</th>")
+                .append("<th align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>Bookings</th>")
+                .append("<th align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>Revenue</th>")
+                .append("<th align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>Booked time</th>")
+                .append("<th align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>Waitlist</th>")
+                .append("<th align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>Conversion</th></tr>");
+        for (AnalyticsService.ServiceGroupMetric group : groups) {
+            html.append("<tr>")
+                    .append("<td style='padding:8px;border-bottom:1px solid #e2e8f0;font-weight:700'>")
+                    .append(escape(group.serviceGroupName()))
+                    .append(!group.active() && group.serviceGroupId() != null ? " <span style='color:#64748b;font-weight:400'>(inactive/deleted)</span>" : "")
+                    .append("</td>")
+                    .append("<td align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>").append(group.bookings()).append("</td>")
+                    .append("<td align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>").append(currency.format(nullSafe(group.revenueGross()))).append("</td>")
+                    .append("<td align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>").append(escape(formatMinutes(group.bookedMinutes()))).append("</td>")
+                    .append("<td align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>").append(group.waitlistRequests()).append(" / ").append(group.waitlistOffers()).append("</td>")
+                    .append("<td align='right' style='padding:8px;border-bottom:1px solid #e2e8f0'>").append(String.format(Locale.ROOT, "%.1f%%", group.waitlistConversionRate())).append("</td>")
+                    .append("</tr>");
+            for (AnalyticsService.ServiceMetric service : group.services()) {
+                html.append("<tr>")
+                        .append("<td style='padding:7px 8px 7px 24px;border-bottom:1px solid #f1f5f9;color:#475569'>↳ ").append(escape(service.serviceName())).append("</td>")
+                        .append("<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5f9;color:#475569'>").append(service.bookings()).append("</td>")
+                        .append("<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5f9;color:#475569'>").append(currency.format(nullSafe(service.revenueGross()))).append("</td>")
+                        .append("<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5f9;color:#475569'>").append(escape(formatMinutes(service.bookedMinutes()))).append("</td>")
+                        .append("<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5f9;color:#475569'>").append(service.waitlistRequests()).append(" / ").append(service.waitlistOffers()).append("</td>")
+                        .append("<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5f9;color:#475569'>").append(String.format(Locale.ROOT, "%.1f%%", service.waitlistConversionRate())).append("</td>")
+                        .append("</tr>");
+            }
         }
         html.append("</table>");
     }

@@ -353,7 +353,12 @@ public class WaitlistGuestNotificationService {
         values.put("{{clientFirstName}}", client == null ? "" : safe(client.getFirstName()));
         values.put("{{clientLastName}}", client == null ? "" : safe(client.getLastName()));
         values.put("{{clientName}}", client == null ? "" : fullName(client.getFirstName(), client.getLastName()));
-        values.put("{{serviceName}}", request.getService() == null ? "" : safe(request.getService().getName()));
+        String serviceName = offer != null && offer.getServiceNameSnapshot() != null
+                ? offer.getServiceNameSnapshot()
+                : request.getService() != null
+                ? request.getService().getName()
+                : request.getServiceGroupNameSnapshot();
+        values.put("{{serviceName}}", safe(serviceName));
         values.put("{{employeeName}}", employee == null ? "" : fullName(employee.getFirstName(), employee.getLastName()));
         values.put("{{date}}", start == null ? dateRange(request) : DATE.format(start));
         values.put("{{startTime}}", start != null ? TIME.format(start) : requestedStartTime == null ? "" : TIME.format(requestedStartTime));

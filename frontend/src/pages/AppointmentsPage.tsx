@@ -8,6 +8,10 @@ type WindowView = { id: number; dayOfWeek?: string | null; date?: string | null;
 type OfferView = {
   id: number
   status: string
+  serviceId: number
+  serviceName: string
+  serviceGroupId?: number | null
+  serviceGroupName?: string | null
   slotStart: string
   slotEnd: string
   employee?: Employee | null
@@ -25,8 +29,12 @@ type WaitlistRequest = {
   clientEmail?: string | null
   clientPhone?: string | null
   clientId?: number | null
-  serviceId: number
-  serviceName: string
+  serviceId?: number | null
+  serviceName?: string | null
+  serviceScope: 'EXACT_SERVICE' | 'SERVICE_GROUP'
+  serviceGroupId?: number | null
+  serviceGroupName?: string | null
+  eligibleServices: Array<{ id?: number | null; name: string; durationMinutes?: number | null; breakMinutes?: number | null; serviceGroupId?: number | null; serviceGroupName?: string | null }>
   serviceDurationMinutes?: number | null
   breakMinutes?: number | null
   locationId?: number | null
@@ -50,12 +58,15 @@ type WaitlistRequest = {
   history: EventView[]
 }
 
-type LookupItem = { id: number; name: string }
+type LookupItem = { id: number; name: string; durationMinutes?: number | null; serviceGroupId?: number | null; serviceGroupName?: string | null }
+type ServiceGroupItem = { id: number; name: string; active: boolean; serviceCount: number }
 type ClientItem = { id: number; firstName?: string; lastName?: string; email?: string; phone?: string }
 
 type RequestForm = {
   clientId: string
+  serviceScope: 'EXACT_SERVICE' | 'SERVICE_GROUP'
   serviceId: string
+  serviceGroupId: string
   locationId: string
   anyAvailableSlot: boolean
   dateFrom: string
@@ -68,6 +79,7 @@ type RequestForm = {
 }
 
 type OfferForm = {
+  serviceId: string
   slotStart: string
   slotEnd: string
   employeeId: string
@@ -76,11 +88,11 @@ type OfferForm = {
 }
 
 const emptyRequestForm = (): RequestForm => ({
-  clientId: '', serviceId: '', locationId: '', anyAvailableSlot: false, dateFrom: '', dateTo: '',
+  clientId: '', serviceScope: 'EXACT_SERVICE', serviceId: '', serviceGroupId: '', locationId: '', anyAvailableSlot: false, dateFrom: '', dateTo: '',
   specificEmployeeId: '', requestedParticipants: '1', timeFrom: '08:00', timeTo: '18:00', notes: '',
 })
 
-const emptyOfferForm = (): OfferForm => ({ slotStart: '', slotEnd: '', employeeId: '', roomId: '', validityMinutes: '15' })
+const emptyOfferForm = (): OfferForm => ({ serviceId: '', slotStart: '', slotEnd: '', employeeId: '', roomId: '', validityMinutes: '15' })
 
 const formatDate = (value?: string | null) => {
   if (!value) return '—'
@@ -100,6 +112,14 @@ const remainingLabel = (seconds: number) => {
   const secs = safe % 60
   return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
+
+const requestServiceLabel = (request: WaitlistRequest) => request.serviceScope === 'SERVICE_GROUP'
+  ? request.serviceGroupName || request.eligibleServices?.[0]?.serviceGroupName || '—'
+  : request.serviceName || '—'
+
+const requestServiceDetails = (request: WaitlistRequest) => request.serviceScope === 'SERVICE_GROUP'
+  ? request.eligibleServices?.map(item => item.name).join(', ') || '—'
+  : `${request.serviceDurationMinutes || '—'} min${request.breakMinutes ? ` + ${request.breakMinutes} min` : ''}`
 
 function statusLabel(status: string, locale: string) {
   const sl: Record<string, string> = {
@@ -195,6 +215,7 @@ export function AppointmentsPage() {
   const [offerForm, setOfferForm] = useState<OfferForm>(emptyOfferForm)
   const [clients, setClients] = useState<ClientItem[]>([])
   const [services, setServices] = useState<LookupItem[]>([])
+  const [serviceGroups, setServiceGroups] = useState<ServiceGroupItem[]>([])
   const [employees, setEmployees] = useState<LookupItem[]>([])
   const [spaces, setSpaces] = useState<LookupItem[]>([])
   const [saving, setSaving] = useState(false)
@@ -212,7 +233,7 @@ export function AppointmentsPage() {
     offer: 'Ponudi termin', reserve: 'Rezerviraj za stranko', call: 'Pokliči', message: 'Pošlji sporočilo', skip: 'Preskoči za ta termin', remove: 'Odstrani',
     requestedWindow: 'Želeni čas', location: 'Lokacija', participants: 'Udeleženci', note: 'Opomba', audit: 'Zgodovina aktivnosti',
     offerExpires: 'Ponudba poteče čez', temporaryHold: 'Termin je začasno rezerviran za stranko do', close: 'Zapri', save: 'Shrani', cancel: 'Prekliči',
-    createTitle: 'Dodaj na čakalno vrsto', offerTitle: 'Ponudi prost termin', flexible: 'Prilagodljiv termin',
+    createTitle: 'Dodaj na čakalno vrsto', offerTitle: 'Ponudi prost termin', flexible: 'Prilagodljiv termin', exactService: 'Določena storitev', anyGroupService: 'Katerakoli storitev iz skupine', serviceGroup: 'Skupina storitev', concreteService: 'Ponujena storitev',
     flexibleHelp: 'Stranka sprejme katerikoli prost termin za izbrano storitev in zaposlenega, če je izbran.',
     anyAvailable: 'Katerikoli prost termin', anyAvailableUntil: 'Velja do', any: 'Katerikoli zaposleni', employeeOptional: 'Zaposleni (neobvezno)',
     dateFrom: 'Datum od', dateTo: 'Datum do', timeFrom: 'Čas od', timeTo: 'Čas do', timeWindowHelp: 'Čas od in čas do določata dovoljeni čas začetka termina.',
@@ -227,7 +248,7 @@ export function AppointmentsPage() {
     offer: 'Offer slot', reserve: 'Book for client', call: 'Call', message: 'Send message', skip: 'Skip for this slot', remove: 'Remove',
     requestedWindow: 'Preferred time', location: 'Location', participants: 'Participants', note: 'Note', audit: 'Activity history',
     offerExpires: 'Offer expires in', temporaryHold: 'The slot is temporarily held for the client until', close: 'Close', save: 'Save', cancel: 'Cancel',
-    createTitle: 'Add to waitlist', offerTitle: 'Offer available slot', flexible: 'Flexible appointment',
+    createTitle: 'Add to waitlist', offerTitle: 'Offer available slot', flexible: 'Flexible appointment', exactService: 'Exact service', anyGroupService: 'Any service in this group', serviceGroup: 'Service group', concreteService: 'Offered service',
     flexibleHelp: 'The client accepts any available slot for the selected service and employee, when one is selected.',
     anyAvailable: 'Any available slot', anyAvailableUntil: 'Valid until', any: 'Any employee', employeeOptional: 'Employee (optional)',
     dateFrom: 'Date from', dateTo: 'Date to', timeFrom: 'Time from', timeTo: 'Time to', timeWindowHelp: 'Time from and time to define the allowed appointment start time.',
@@ -272,8 +293,8 @@ export function AppointmentsPage() {
   }, [view, search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
 
   const loadLookups = useCallback(async () => {
-    const [clientsResult, servicesResult, employeesResult, spacesResult] = await Promise.allSettled([
-      api.get('/clients', { params: { size: 500 } }), api.get('/types'), api.get('/users/consultants'), api.get('/spaces'),
+    const [clientsResult, servicesResult, groupsResult, employeesResult, spacesResult] = await Promise.allSettled([
+      api.get('/clients', { params: { size: 500 } }), api.get('/types'), api.get('/service-groups'), api.get('/users/consultants'), api.get('/spaces'),
     ])
     if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data : [])
     if (servicesResult.status === 'fulfilled') {
@@ -281,8 +302,12 @@ export function AppointmentsPage() {
       setServices(
         value
           .filter((item: any) => item.active !== false)
-          .map((item: any) => ({ id: item.id, name: item.description || item.name || `#${item.id}` })),
+          .map((item: any) => ({ id: item.id, name: item.description || item.name || `#${item.id}`, durationMinutes: item.durationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName })),
       )
+    }
+    if (groupsResult.status === 'fulfilled') {
+      const value = Array.isArray(groupsResult.value.data) ? groupsResult.value.data : []
+      setServiceGroups(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name, active: item.active !== false, serviceCount: Number(item.serviceCount || 0) })))
     }
     if (employeesResult.status === 'fulfilled') {
       const value = Array.isArray(employeesResult.value.data) ? employeesResult.value.data : []
@@ -308,9 +333,12 @@ export function AppointmentsPage() {
   }, [])
 
   const serviceOptions = useMemo(() => {
-    const map = new Map<number, string>(services.map(item => [item.id, item.name]))
-    rows.forEach(item => map.set(item.serviceId, item.serviceName))
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+    const map = new Map<number, LookupItem>(services.map(item => [item.id, item]))
+    rows.forEach(item => {
+      item.eligibleServices?.forEach(service => { if (service.id) map.set(service.id, { id: service.id, name: service.name, durationMinutes: service.durationMinutes, serviceGroupId: service.serviceGroupId, serviceGroupName: service.serviceGroupName }) })
+      if (item.serviceId && item.serviceName) map.set(item.serviceId, { id: item.serviceId, name: item.serviceName, durationMinutes: item.serviceDurationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName })
+    })
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
   }, [services, rows])
   const employeeOptions = useMemo(() => {
     const map = new Map<number, string>(employees.map(item => [item.id, item.name]))
@@ -348,11 +376,23 @@ export function AppointmentsPage() {
         return
       }
     }
+    if (requestForm.serviceScope === 'EXACT_SERVICE' && !requestForm.serviceId) {
+      window.alert(locale === 'sl' ? 'Izberite storitev.' : 'Select a service.')
+      return
+    }
+    if (requestForm.serviceScope === 'SERVICE_GROUP' && !requestForm.serviceGroupId) {
+      window.alert(locale === 'sl' ? 'Izberite skupino storitev.' : 'Select a service group.')
+      return
+    }
     setSaving(true)
     try {
       const anyAvailableSlot = requestForm.anyAvailableSlot
       const payload = {
-        clientId: Number(requestForm.clientId), serviceId: Number(requestForm.serviceId), locationId: requestForm.locationId ? Number(requestForm.locationId) : null,
+        clientId: Number(requestForm.clientId),
+        serviceScope: requestForm.serviceScope,
+        serviceId: requestForm.serviceScope === 'EXACT_SERVICE' ? Number(requestForm.serviceId) : null,
+        serviceGroupId: requestForm.serviceScope === 'SERVICE_GROUP' ? Number(requestForm.serviceGroupId) : null,
+        locationId: requestForm.locationId ? Number(requestForm.locationId) : null,
         targetType: anyAvailableSlot ? 'ANY_AVAILABLE' : 'FLEXIBLE_WINDOW', targetSessionId: null,
         dateFrom: anyAvailableSlot ? null : requestForm.dateFrom, dateTo: anyAvailableSlot ? null : requestForm.dateTo,
         employeePreferenceType: requestForm.specificEmployeeId ? 'SPECIFIC' : 'ANY',
@@ -375,13 +415,29 @@ export function AppointmentsPage() {
   const openOffer = (request: WaitlistRequest | null = selected) => {
     if (!request) return
     const defaultDate = request.dateFrom
+    const concrete = request.serviceScope === 'SERVICE_GROUP'
+      ? request.eligibleServices?.find(item => item.id)
+      : request.eligibleServices?.find(item => item.id === request.serviceId) || (request.serviceId ? { id: request.serviceId, name: request.serviceName || '', durationMinutes: request.serviceDurationMinutes } : undefined)
+    const serviceId = concrete?.id ? String(concrete.id) : ''
     const start = `${defaultDate}T09:00`
-    const duration = request.serviceDurationMinutes || 60
+    const duration = concrete?.durationMinutes || request.serviceDurationMinutes || 60
     const endDate = new Date(`${start}:00`)
     endDate.setMinutes(endDate.getMinutes() + duration)
     const end = `${defaultDate}T${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`
-    setOfferForm({ slotStart: start, slotEnd: end, employeeId: request.specificEmployee?.id ? String(request.specificEmployee.id) : '', roomId: request.locationId ? String(request.locationId) : '', validityMinutes: '15' })
+    setOfferForm({ serviceId, slotStart: start, slotEnd: end, employeeId: request.specificEmployee?.id ? String(request.specificEmployee.id) : '', roomId: request.locationId ? String(request.locationId) : '', validityMinutes: '15' })
     setShowOffer(true)
+  }
+
+  const updateOfferService = (serviceId: string) => {
+    setOfferForm(value => {
+      if (!serviceId || !value.slotStart) return { ...value, serviceId }
+      const option = selected?.eligibleServices?.find(item => String(item.id || '') === serviceId) || serviceOptions.find(item => String(item.id) === serviceId)
+      const duration = option?.durationMinutes || 60
+      const date = new Date(`${value.slotStart}:00`)
+      date.setMinutes(date.getMinutes() + duration)
+      const slotEnd = `${value.slotStart.slice(0, 11)}${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+      return { ...value, serviceId, slotEnd }
+    })
   }
 
   const sendOffer = async (event: FormEvent) => {
@@ -390,6 +446,7 @@ export function AppointmentsPage() {
     setSaving(true)
     try {
       const { data } = await api.post(`/waitlists/${selected.id}/offer`, {
+        serviceId: offerForm.serviceId ? Number(offerForm.serviceId) : null,
         slotStart: offerForm.slotStart, slotEnd: offerForm.slotEnd, employeeId: offerForm.employeeId ? Number(offerForm.employeeId) : null,
         roomId: offerForm.roomId ? Number(offerForm.roomId) : null, sessionId: selected.targetSessionId || null, validityMinutes: Number(offerForm.validityMinutes || 15),
       })
@@ -485,7 +542,9 @@ export function AppointmentsPage() {
     const firstWindow = selected.windows[0]
     setRequestForm({
       clientId: selected.clientId ? String(selected.clientId) : '',
-      serviceId: String(selected.serviceId),
+      serviceScope: selected.serviceScope || 'EXACT_SERVICE',
+      serviceId: selected.serviceId ? String(selected.serviceId) : '',
+      serviceGroupId: selected.serviceGroupId ? String(selected.serviceGroupId) : '',
       locationId: selected.locationId ? String(selected.locationId) : '',
       anyAvailableSlot: selected.targetType === 'ANY_AVAILABLE',
       dateFrom: selected.dateFrom || '',
@@ -549,7 +608,7 @@ export function AppointmentsPage() {
               <tbody>
                 {loading ? <tr><td colSpan={7} className="waitlist-empty">…</td></tr> : rows.length === 0 ? <tr><td colSpan={7} className="waitlist-empty">{copy.noRows}</td></tr> : rows.map(row => <tr key={row.id} className={selected?.id === row.id ? 'selected' : ''} onClick={() => void selectRequest(row)}>
                   <td><div className="waitlist-client"><span className="waitlist-avatar">{row.clientName.split(/\s+/).slice(0,2).map(value => value[0]).join('').toUpperCase()}</span><div><strong>{row.clientName}</strong><small>{row.clientPhone || row.clientEmail || '—'}</small></div></div></td>
-                  <td><strong>{row.serviceName}</strong><small>{row.serviceDurationMinutes ? `${row.serviceDurationMinutes} min` : '—'}{row.breakMinutes ? ` + ${row.breakMinutes} min pavza` : ''}</small></td>
+                  <td><strong>{requestServiceLabel(row)}</strong><small>{row.serviceScope === 'SERVICE_GROUP' ? row.eligibleServices?.map(item => item.name).join(', ') : `${row.serviceDurationMinutes || '—'} min${row.breakMinutes ? ` + ${row.breakMinutes} min pavza` : ''}`}</small></td>
                   <td>{row.targetType === 'ANY_AVAILABLE' ? <><strong>{copy.anyAvailable}</strong><small>{copy.anyAvailableUntil} {formatDate(row.dateTo)}</small></> : <><strong>{formatDate(row.dateFrom)} – {formatDate(row.dateTo)}</strong><small>{targetTypeLabel(row.targetType, locale)}{row.windows[0] && !row.windows[0].allDay ? ` · ${row.windows[0].timeFrom?.slice(0,5) || ''}–${row.windows[0].timeTo?.slice(0,5) || ''}` : ''}</small></>}</td>
                   <td>{row.specificEmployee?.name || (row.selectedEmployees.length ? row.selectedEmployees.map(item => item.name).join(', ') : copy.any)}</td>
                   <td><span className={`waitlist-status status-${row.status.toLowerCase()}`}>{statusLabel(row.status, locale)}</span>{row.currentOffer && <small className="waitlist-countdown">{remainingLabel(Math.max(0, Math.floor((new Date(row.currentOffer.expiresAt).getTime() - Date.now()) / 1000)))}</small>}</td>
@@ -592,7 +651,7 @@ export function AppointmentsPage() {
               <section className="waitlist-popup-card">
                 <h3>{icon('calendar')}{copy.request}</h3>
                 <dl className="waitlist-popup-dl">
-                  <dt>{copy.service}</dt><dd>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min{selected.breakMinutes ? ` + ${selected.breakMinutes} min` : ''}</dd>
+                  <dt>{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
                   <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
                   <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
                   <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
@@ -632,7 +691,7 @@ export function AppointmentsPage() {
                 <dl className="waitlist-popup-dl waitlist-popup-dl--icons">
                   <dt>{icon('mail')}{locale === 'sl' ? 'E-pošta' : 'Email'}</dt><dd>{selected.clientEmail || '—'}</dd>
                   <dt>{icon('phone')}{locale === 'sl' ? 'Telefon' : 'Phone'}</dt><dd>{selected.clientPhone || '—'}</dd>
-                  <dt>{icon('history')}{copy.service}</dt><dd>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min</dd>
+                  <dt>{icon('history')}{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
                   <dt>{icon('calendar')}{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
                   <dt>{icon('user')}{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
                   <dt>{icon('pin')}{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
@@ -675,7 +734,7 @@ export function AppointmentsPage() {
                   <hr/>
                   <h3>{copy.closedRequest}</h3>
                   <dl className="waitlist-popup-dl">
-                    <dt>{copy.service}</dt><dd>{selected.serviceName} · {selected.serviceDurationMinutes || '—'} min</dd>
+                    <dt>{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
                     <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
                     <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
                     <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
@@ -690,7 +749,7 @@ export function AppointmentsPage() {
                     <div className="waitlist-linked-booking-card__icon">{icon('booking')}</div>
                     <span>{locale === 'sl' ? 'Rezervacija' : 'Booking'}</span>
                     <strong>#{selected.bookedBookingId}</strong>
-                    <p>{selected.serviceName}</p>
+                    <p>{selected.currentOffer?.serviceName || requestServiceLabel(selected)}</p>
                     <button type="button" onClick={openSelectedBooking}>{copy.openBooking}{icon('external')}</button>
                   </> : <p className="waitlist-popup-muted">{statusLabel(selected.status, locale)}</p>}
                 </section>
@@ -720,7 +779,13 @@ export function AppointmentsPage() {
 
     {showCreate && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowCreate(false)}><form className="waitlist-modal" onSubmit={createRequest} onMouseDown={event => event.stopPropagation()}><header><h2>{copy.createTitle}</h2><button type="button" className="icon-button" onClick={() => setShowCreate(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
       <label><span>{copy.client}</span><select required value={requestForm.clientId} onChange={event => setRequestForm(value => ({ ...value, clientId: event.target.value }))}><option value="">{copy.select}</option>{clients.map(client => <option key={client.id} value={client.id}>{`${client.firstName || ''} ${client.lastName || ''}`.trim()} {client.email ? `· ${client.email}` : ''}</option>)}</select></label>
-      <label><span>{copy.service}</span><select required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <div className="waitlist-service-scope wide">
+        <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'EXACT_SERVICE'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'EXACT_SERVICE', serviceGroupId: '' }))}/><span>{copy.exactService}</span></label>
+        <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'SERVICE_GROUP'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'SERVICE_GROUP', serviceId: '' }))}/><span>{copy.anyGroupService}</span></label>
+      </div>
+      {requestForm.serviceScope === 'EXACT_SERVICE' ?
+        <label><span>{copy.service}</span><select required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> :
+        <label><span>{copy.serviceGroup}</span><select required value={requestForm.serviceGroupId} onChange={event => setRequestForm(value => ({ ...value, serviceGroupId: event.target.value }))}><option value="">{copy.select}</option>{serviceGroups.filter(group => group.serviceCount > 0).map(group => <option key={group.id} value={group.id}>{group.name} · {group.serviceCount}</option>)}</select></label>}
       <label><span>{copy.employeeOptional}</span><select value={requestForm.specificEmployeeId} onChange={event => setRequestForm(value => ({ ...value, specificEmployeeId: event.target.value }))}><option value="">{copy.any}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label><span>{copy.location}</span><select value={requestForm.locationId} onChange={event => setRequestForm(value => ({ ...value, locationId: event.target.value }))}><option value="">—</option>{spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <div className="waitlist-flexible-option wide">
@@ -738,7 +803,8 @@ export function AppointmentsPage() {
       <label className="wide"><span>{copy.note}</span><textarea rows={3} value={requestForm.notes} onChange={event => setRequestForm(value => ({ ...value, notes: event.target.value }))}/></label>
     </div><footer><button type="submit" className="primary" disabled={saving}>{icon('save')}<span>{saving ? '…' : copy.save}</span></button></footer></form></div>}
 
-    {showOffer && selected && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowOffer(false)}><form className="waitlist-modal compact" onSubmit={sendOffer} onMouseDown={event => event.stopPropagation()}><header><div><h2>{copy.offerTitle}</h2><p>{selected.clientName} · {selected.serviceName}</p></div><button type="button" className="icon-button" onClick={() => setShowOffer(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
+    {showOffer && selected && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowOffer(false)}><form className="waitlist-modal compact" onSubmit={sendOffer} onMouseDown={event => event.stopPropagation()}><header><div><h2>{copy.offerTitle}</h2><p>{selected.clientName} · {requestServiceLabel(selected)}</p></div><button type="button" className="icon-button" onClick={() => setShowOffer(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
+      <label className="wide"><span>{copy.concreteService}</span><select required value={offerForm.serviceId} onChange={event => updateOfferService(event.target.value)}><option value="">{copy.select}</option>{selected.eligibleServices?.filter(item => item.id).map(item => <option key={item.id} value={item.id || ''}>{item.name}{item.durationMinutes ? ` · ${item.durationMinutes} min` : ''}</option>)}</select></label>
       <label><span>{copy.start}</span><input required type="datetime-local" value={offerForm.slotStart} onChange={event => setOfferForm(value => ({ ...value, slotStart: event.target.value }))}/></label>
       <label><span>{copy.end}</span><input required type="datetime-local" value={offerForm.slotEnd} onChange={event => setOfferForm(value => ({ ...value, slotEnd: event.target.value }))}/></label>
       <label><span>{copy.employee}</span><select value={offerForm.employeeId} onChange={event => setOfferForm(value => ({ ...value, employeeId: event.target.value }))}><option value="">—</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -747,7 +813,7 @@ export function AppointmentsPage() {
     </div><div className="waitlist-modal-info">{copy.temporaryHold} <strong>{offerForm.validityMinutes} min</strong>. V tem času termin ni na voljo drugim rezervacijam.</div><footer><button type="button" onClick={() => setShowOffer(false)}>{copy.cancel}</button><button type="submit" className="primary" disabled={saving}>{saving ? '…' : copy.offer}</button></footer></form></div>}
 
     <style>{`
-      .appointments-page{padding:28px 30px 70px;min-height:100%;background:#f7f9fc;color:#14213a}.appointments-page-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.appointments-page-header h1{margin:0;font-size:28px;color:#13213a}.appointments-subtabs{display:flex;gap:28px;border-bottom:1px solid #dfe5ee}.appointments-subtabs button{display:flex;align-items:center;gap:8px;padding:0 2px 13px;border:0;background:transparent;color:#69758b;font-weight:700;cursor:pointer;position:relative}.appointments-subtabs button.active{color:#1463df}.appointments-subtabs button.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:#1463df}.appointments-primary,.waitlist-actions .primary,.waitlist-modal .primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;background:#1463df;color:#fff;padding:11px 16px;font-weight:750;cursor:pointer;box-shadow:0 6px 18px rgba(20,99,223,.18)}.appointments-coming{max-width:700px;margin:90px auto;text-align:center;background:#fff;border:1px solid #e1e7f0;border-radius:18px;padding:52px}.appointments-coming-icon{width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:#eef5ff;color:#1463df;display:grid;place-items:center}.appointments-coming h2{margin:0 0 8px}.appointments-coming p{color:#6a758a}.waitlist-view-tabs{display:flex;gap:4px;margin-bottom:14px}.waitlist-view-tabs button{border:1px solid transparent;background:transparent;padding:9px 15px;border-radius:9px;color:#667085;font-weight:700;cursor:pointer}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff}.waitlist-filters{display:grid;grid-template-columns:minmax(240px,1.6fr) repeat(3,minmax(130px,1fr)) minmax(125px,.8fr) minmax(125px,.8fr);gap:9px;margin-bottom:14px}.waitlist-filters select,.waitlist-filters input,.waitlist-form-grid select,.waitlist-form-grid input,.waitlist-form-grid textarea{width:100%;box-sizing:border-box;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#1b2940;padding:10px 11px;font:inherit;outline:none}.waitlist-filters select:focus,.waitlist-filters input:focus,.waitlist-form-grid select:focus,.waitlist-form-grid input:focus,.waitlist-form-grid textarea:focus{border-color:#5e9af2;box-shadow:0 0 0 3px rgba(20,99,223,.1)}.waitlist-search{display:flex;align-items:center;gap:8px;border:1px solid #dce3ed;border-radius:10px;background:#fff;padding:0 11px;color:#8792a5}.waitlist-search input{border:0;padding-left:0;box-shadow:none!important}.waitlist-date{display:flex;align-items:center;background:#fff;border:1px solid #dce3ed;border-radius:10px;padding-left:9px}.waitlist-date span{font-size:11px;color:#7c8799;white-space:nowrap}.waitlist-date input{border:0;padding-left:7px}.waitlist-error{margin-bottom:12px;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;color:#b42318;border-radius:10px}.waitlist-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 390px}.waitlist-table-card,.waitlist-detail{background:#fff;border:1px solid #e0e6ef;border-radius:15px;box-shadow:0 7px 22px rgba(24,39,75,.045)}.waitlist-table-wrap{overflow:auto;border-radius:15px}.waitlist-table-card table{width:100%;border-collapse:collapse;min-width:1030px}.waitlist-table-card th{padding:13px 14px;text-align:left;background:#f8fafc;border-bottom:1px solid #e7ebf1;color:#68758a;font-size:11px;text-transform:uppercase;letter-spacing:.035em}.waitlist-table-card td{padding:14px;border-bottom:1px solid #edf0f5;color:#3b475a;font-size:13px;vertical-align:middle}.waitlist-table-card tr:last-child td{border-bottom:0}.waitlist-table-card tbody tr{cursor:pointer;transition:.15s}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#f2f7ff}.waitlist-table-card td strong,.waitlist-table-card td small{display:block}.waitlist-table-card td strong{color:#19263b;font-size:13px}.waitlist-table-card td small{margin-top:3px;color:#7b8798;font-size:11px}.waitlist-client{display:flex;align-items:center;gap:10px}.waitlist-avatar{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:#eee9ff;color:#6841c6;font-size:11px;font-weight:800}.waitlist-avatar.large{width:46px;height:46px;font-size:13px}.waitlist-status{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:750;background:#eef2f6;color:#475467;white-space:nowrap}.status-active{background:#fff5d9;color:#9a6700}.status-offered{background:#eaf2ff;color:#175cd3}.status-offer_accepted,.status-booked{background:#e9f8ef;color:#087a3e}.status-expired,.status-cancelled,.status-removed,.status-declined{background:#f1f3f6;color:#596579}.waitlist-countdown{color:#175cd3!important;font-variant-numeric:tabular-nums}.waitlist-empty{text-align:center!important;color:#7b8798!important;padding:45px!important}.waitlist-detail{position:sticky;top:84px;max-height:calc(100vh - 105px);overflow:auto}.waitlist-detail-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px;border-bottom:1px solid #e9edf3}.waitlist-detail-head h2{font-size:18px;margin:0 0 6px}.icon-button{border:0;background:transparent;color:#657187;display:grid;place-items:center;padding:5px;cursor:pointer;border-radius:7px}.icon-button:hover{background:#eef2f6}.waitlist-hold{margin:14px 16px 0;padding:12px 13px;border-radius:10px;background:#edf5ff;border:1px solid #cfe1ff;color:#175cd3}.waitlist-hold strong,.waitlist-hold span{display:block}.waitlist-hold span{font-size:12px;margin-top:4px}.waitlist-detail section{padding:16px 18px;border-bottom:1px solid #edf0f4}.waitlist-detail section:last-child{border-bottom:0}.waitlist-detail h3{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:13px;color:#26364d}.waitlist-detail-grid{display:grid;grid-template-columns:120px minmax(0,1fr);gap:9px 12px;font-size:12px}.waitlist-detail-grid span{color:#7b8798}.waitlist-detail-grid strong{font-weight:650;color:#344054}.waitlist-note{margin-top:12px;background:#f7f9fc;border-radius:9px;padding:10px 11px}.waitlist-note span{font-size:11px;color:#7b8798}.waitlist-note p{margin:5px 0 0;font-size:12px}.waitlist-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.waitlist-actions button,.waitlist-actions a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;text-decoration:none;font-size:12px;font-weight:700;cursor:pointer}.waitlist-actions .primary{border-color:#1463df;color:#fff}.waitlist-actions .danger{color:#d92d20;border-color:#f7c5c1}.waitlist-timeline article{display:grid;grid-template-columns:12px 1fr;gap:8px;position:relative;padding-bottom:14px}.waitlist-timeline article:not(:last-child):before{content:"";position:absolute;left:4px;top:11px;bottom:0;width:1px;background:#dce3ec}.timeline-dot{width:9px;height:9px;border-radius:50%;background:#1463df;margin-top:3px;z-index:1}.waitlist-timeline strong{font-size:11px;text-transform:capitalize}.waitlist-timeline p{font-size:11px;margin:3px 0;color:#667085}.waitlist-timeline small{font-size:10px;color:#98a2b3}.waitlist-modal-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(18,30,52,.55);display:grid;place-items:center;padding:18px}.waitlist-modal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:16px;box-shadow:0 26px 70px rgba(10,20,40,.28)}.waitlist-modal.compact{width:min(650px,calc(100vw - 32px))}.waitlist-modal header{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e8edf3}.waitlist-modal h2{margin:0;font-size:20px}.waitlist-modal header p{margin:4px 0 0;color:#7b8798;font-size:12px}.waitlist-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px}.waitlist-form-grid label{display:grid;gap:6px}.waitlist-form-grid label span{font-size:12px;font-weight:700;color:#475467}.waitlist-form-grid .wide{grid-column:1/-1}.waitlist-flexible-option{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 15px;border:1px solid #dce3ed;border-radius:12px;background:#f8fbff}.waitlist-flexible-option>span{display:grid;gap:4px}.waitlist-flexible-option strong{font-size:13px;color:#26364d}.waitlist-flexible-option small{font-size:12px;line-height:1.45;color:#6b778c}.waitlist-flexible-option .waitlist-payment-switch{position:relative;display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;width:78px;height:40px;padding:0 10px;border:0;border-radius:999px;background:#d7e0ed;color:#617087;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease;box-shadow:inset 0 0 0 1px rgba(148,163,184,.18),0 3px 8px rgba(15,23,42,.08)}.waitlist-flexible-option .waitlist-payment-switch span{position:absolute;right:10px;font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1;pointer-events:none}.waitlist-flexible-option .waitlist-payment-switch i{position:absolute;top:4px;left:4px;width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.2);transition:transform .18s ease}.waitlist-flexible-option .waitlist-payment-switch.is-on{justify-content:flex-start;background:#2468e8;color:#fff;box-shadow:0 5px 12px rgba(36,104,232,.24)}.waitlist-flexible-option .waitlist-payment-switch.is-on span{left:11px;right:auto}.waitlist-flexible-option .waitlist-payment-switch.is-on i{transform:translateX(38px)}.waitlist-flexible-option .waitlist-payment-switch:focus-visible{outline:3px solid rgba(37,99,235,.2);outline-offset:2px}.waitlist-form-hint{margin:-4px 0 0;color:#7b8798;font-size:11px;line-height:1.4}.waitlist-modal-info{margin:0 20px 18px;padding:11px 12px;border-radius:9px;background:#f0f6ff;color:#365b8f;font-size:12px}.waitlist-modal footer{display:flex;justify-content:flex-end;gap:9px;padding:15px 20px;border-top:1px solid #e8edf3}.waitlist-modal footer button{border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;padding:9px 15px;font-weight:700;cursor:pointer}.waitlist-modal footer .primary{color:#fff;border-color:#1463df;display:inline-flex;align-items:center;justify-content:center;gap:8px}.waitlist-modal footer .primary svg{flex:0 0 auto}.waitlist-modal button:disabled{opacity:.6;cursor:wait}@media(max-width:1250px){.waitlist-filters{grid-template-columns:repeat(4,minmax(0,1fr))}.waitlist-search{grid-column:span 2}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 350px}}@media(max-width:900px){.appointments-page{padding:20px 14px 70px}.appointments-page-header{align-items:stretch;flex-direction:column}.appointments-primary{align-self:flex-start}.waitlist-filters{grid-template-columns:1fr 1fr}.waitlist-search{grid-column:1/-1}.waitlist-layout.has-detail{grid-template-columns:1fr}.waitlist-detail{position:static;max-height:none}.waitlist-form-grid{grid-template-columns:1fr}.waitlist-form-grid .wide{grid-column:auto}}@media(max-width:540px){.waitlist-filters{grid-template-columns:1fr}.waitlist-search{grid-column:auto}.waitlist-actions{grid-template-columns:1fr}.appointments-subtabs{gap:17px}}
+      .appointments-page{padding:28px 30px 70px;min-height:100%;background:#f7f9fc;color:#14213a}.appointments-page-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.appointments-page-header h1{margin:0;font-size:28px;color:#13213a}.appointments-subtabs{display:flex;gap:28px;border-bottom:1px solid #dfe5ee}.appointments-subtabs button{display:flex;align-items:center;gap:8px;padding:0 2px 13px;border:0;background:transparent;color:#69758b;font-weight:700;cursor:pointer;position:relative}.appointments-subtabs button.active{color:#1463df}.appointments-subtabs button.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:#1463df}.appointments-primary,.waitlist-actions .primary,.waitlist-modal .primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;background:#1463df;color:#fff;padding:11px 16px;font-weight:750;cursor:pointer;box-shadow:0 6px 18px rgba(20,99,223,.18)}.appointments-coming{max-width:700px;margin:90px auto;text-align:center;background:#fff;border:1px solid #e1e7f0;border-radius:18px;padding:52px}.appointments-coming-icon{width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:#eef5ff;color:#1463df;display:grid;place-items:center}.appointments-coming h2{margin:0 0 8px}.appointments-coming p{color:#6a758a}.waitlist-view-tabs{display:flex;gap:4px;margin-bottom:14px}.waitlist-view-tabs button{border:1px solid transparent;background:transparent;padding:9px 15px;border-radius:9px;color:#667085;font-weight:700;cursor:pointer}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff}.waitlist-filters{display:grid;grid-template-columns:minmax(240px,1.6fr) repeat(3,minmax(130px,1fr)) minmax(125px,.8fr) minmax(125px,.8fr);gap:9px;margin-bottom:14px}.waitlist-filters select,.waitlist-filters input,.waitlist-form-grid select,.waitlist-form-grid input,.waitlist-form-grid textarea{width:100%;box-sizing:border-box;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#1b2940;padding:10px 11px;font:inherit;outline:none}.waitlist-filters select:focus,.waitlist-filters input:focus,.waitlist-form-grid select:focus,.waitlist-form-grid input:focus,.waitlist-form-grid textarea:focus{border-color:#5e9af2;box-shadow:0 0 0 3px rgba(20,99,223,.1)}.waitlist-search{display:flex;align-items:center;gap:8px;border:1px solid #dce3ed;border-radius:10px;background:#fff;padding:0 11px;color:#8792a5}.waitlist-search input{border:0;padding-left:0;box-shadow:none!important}.waitlist-date{display:flex;align-items:center;background:#fff;border:1px solid #dce3ed;border-radius:10px;padding-left:9px}.waitlist-date span{font-size:11px;color:#7c8799;white-space:nowrap}.waitlist-date input{border:0;padding-left:7px}.waitlist-error{margin-bottom:12px;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;color:#b42318;border-radius:10px}.waitlist-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 390px}.waitlist-table-card,.waitlist-detail{background:#fff;border:1px solid #e0e6ef;border-radius:15px;box-shadow:0 7px 22px rgba(24,39,75,.045)}.waitlist-table-wrap{overflow:auto;border-radius:15px}.waitlist-table-card table{width:100%;border-collapse:collapse;min-width:1030px}.waitlist-table-card th{padding:13px 14px;text-align:left;background:#f8fafc;border-bottom:1px solid #e7ebf1;color:#68758a;font-size:11px;text-transform:uppercase;letter-spacing:.035em}.waitlist-table-card td{padding:14px;border-bottom:1px solid #edf0f5;color:#3b475a;font-size:13px;vertical-align:middle}.waitlist-table-card tr:last-child td{border-bottom:0}.waitlist-table-card tbody tr{cursor:pointer;transition:.15s}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#f2f7ff}.waitlist-table-card td strong,.waitlist-table-card td small{display:block}.waitlist-table-card td strong{color:#19263b;font-size:13px}.waitlist-table-card td small{margin-top:3px;color:#7b8798;font-size:11px}.waitlist-client{display:flex;align-items:center;gap:10px}.waitlist-avatar{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:#eee9ff;color:#6841c6;font-size:11px;font-weight:800}.waitlist-avatar.large{width:46px;height:46px;font-size:13px}.waitlist-status{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:750;background:#eef2f6;color:#475467;white-space:nowrap}.status-active{background:#fff5d9;color:#9a6700}.status-offered{background:#eaf2ff;color:#175cd3}.status-offer_accepted,.status-booked{background:#e9f8ef;color:#087a3e}.status-expired,.status-cancelled,.status-removed,.status-declined{background:#f1f3f6;color:#596579}.waitlist-countdown{color:#175cd3!important;font-variant-numeric:tabular-nums}.waitlist-empty{text-align:center!important;color:#7b8798!important;padding:45px!important}.waitlist-detail{position:sticky;top:84px;max-height:calc(100vh - 105px);overflow:auto}.waitlist-detail-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px;border-bottom:1px solid #e9edf3}.waitlist-detail-head h2{font-size:18px;margin:0 0 6px}.icon-button{border:0;background:transparent;color:#657187;display:grid;place-items:center;padding:5px;cursor:pointer;border-radius:7px}.icon-button:hover{background:#eef2f6}.waitlist-hold{margin:14px 16px 0;padding:12px 13px;border-radius:10px;background:#edf5ff;border:1px solid #cfe1ff;color:#175cd3}.waitlist-hold strong,.waitlist-hold span{display:block}.waitlist-hold span{font-size:12px;margin-top:4px}.waitlist-detail section{padding:16px 18px;border-bottom:1px solid #edf0f4}.waitlist-detail section:last-child{border-bottom:0}.waitlist-detail h3{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:13px;color:#26364d}.waitlist-detail-grid{display:grid;grid-template-columns:120px minmax(0,1fr);gap:9px 12px;font-size:12px}.waitlist-detail-grid span{color:#7b8798}.waitlist-detail-grid strong{font-weight:650;color:#344054}.waitlist-note{margin-top:12px;background:#f7f9fc;border-radius:9px;padding:10px 11px}.waitlist-note span{font-size:11px;color:#7b8798}.waitlist-note p{margin:5px 0 0;font-size:12px}.waitlist-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.waitlist-actions button,.waitlist-actions a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;text-decoration:none;font-size:12px;font-weight:700;cursor:pointer}.waitlist-actions .primary{border-color:#1463df;color:#fff}.waitlist-actions .danger{color:#d92d20;border-color:#f7c5c1}.waitlist-timeline article{display:grid;grid-template-columns:12px 1fr;gap:8px;position:relative;padding-bottom:14px}.waitlist-timeline article:not(:last-child):before{content:"";position:absolute;left:4px;top:11px;bottom:0;width:1px;background:#dce3ec}.timeline-dot{width:9px;height:9px;border-radius:50%;background:#1463df;margin-top:3px;z-index:1}.waitlist-timeline strong{font-size:11px;text-transform:capitalize}.waitlist-timeline p{font-size:11px;margin:3px 0;color:#667085}.waitlist-timeline small{font-size:10px;color:#98a2b3}.waitlist-modal-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(18,30,52,.55);display:grid;place-items:center;padding:18px}.waitlist-modal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:16px;box-shadow:0 26px 70px rgba(10,20,40,.28)}.waitlist-modal.compact{width:min(650px,calc(100vw - 32px))}.waitlist-modal header{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e8edf3}.waitlist-modal h2{margin:0;font-size:20px}.waitlist-modal header p{margin:4px 0 0;color:#7b8798;font-size:12px}.waitlist-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px}.waitlist-form-grid label{display:grid;gap:6px}.waitlist-form-grid label span{font-size:12px;font-weight:700;color:#475467}.waitlist-form-grid .wide{grid-column:1/-1}.waitlist-flexible-option{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 15px;border:1px solid #dce3ed;border-radius:12px;background:#f8fbff}.waitlist-flexible-option>span{display:grid;gap:4px}.waitlist-flexible-option strong{font-size:13px;color:#26364d}.waitlist-flexible-option small{font-size:12px;line-height:1.45;color:#6b778c}.waitlist-flexible-option .waitlist-payment-switch{position:relative;display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;width:78px;height:40px;padding:0 10px;border:0;border-radius:999px;background:#d7e0ed;color:#617087;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease;box-shadow:inset 0 0 0 1px rgba(148,163,184,.18),0 3px 8px rgba(15,23,42,.08)}.waitlist-flexible-option .waitlist-payment-switch span{position:absolute;right:10px;font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1;pointer-events:none}.waitlist-flexible-option .waitlist-payment-switch i{position:absolute;top:4px;left:4px;width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.2);transition:transform .18s ease}.waitlist-flexible-option .waitlist-payment-switch.is-on{justify-content:flex-start;background:#2468e8;color:#fff;box-shadow:0 5px 12px rgba(36,104,232,.24)}.waitlist-flexible-option .waitlist-payment-switch.is-on span{left:11px;right:auto}.waitlist-flexible-option .waitlist-payment-switch.is-on i{transform:translateX(38px)}.waitlist-flexible-option .waitlist-payment-switch:focus-visible{outline:3px solid rgba(37,99,235,.2);outline-offset:2px}.waitlist-service-scope{display:flex;gap:10px;flex-wrap:wrap;padding:4px 0}.waitlist-service-scope label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #dce4ef;border-radius:10px;background:#fff;color:#344054;font-weight:700;cursor:pointer}.waitlist-service-scope input{margin:0}.waitlist-form-hint{margin:-4px 0 0;color:#7b8798;font-size:11px;line-height:1.4}.waitlist-modal-info{margin:0 20px 18px;padding:11px 12px;border-radius:9px;background:#f0f6ff;color:#365b8f;font-size:12px}.waitlist-modal footer{display:flex;justify-content:flex-end;gap:9px;padding:15px 20px;border-top:1px solid #e8edf3}.waitlist-modal footer button{border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;padding:9px 15px;font-weight:700;cursor:pointer}.waitlist-modal footer .primary{color:#fff;border-color:#1463df;display:inline-flex;align-items:center;justify-content:center;gap:8px}.waitlist-modal footer .primary svg{flex:0 0 auto}.waitlist-modal button:disabled{opacity:.6;cursor:wait}@media(max-width:1250px){.waitlist-filters{grid-template-columns:repeat(4,minmax(0,1fr))}.waitlist-search{grid-column:span 2}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 350px}}@media(max-width:900px){.appointments-page{padding:20px 14px 70px}.appointments-page-header{align-items:stretch;flex-direction:column}.appointments-primary{align-self:flex-start}.waitlist-filters{grid-template-columns:1fr 1fr}.waitlist-search{grid-column:1/-1}.waitlist-layout.has-detail{grid-template-columns:1fr}.waitlist-detail{position:static;max-height:none}.waitlist-form-grid{grid-template-columns:1fr}.waitlist-form-grid .wide{grid-column:auto}}@media(max-width:540px){.waitlist-filters{grid-template-columns:1fr}.waitlist-search{grid-column:auto}.waitlist-actions{grid-template-columns:1fr}.appointments-subtabs{gap:17px}}
 
       /* Clients-style waitlist layout and centered row-detail popups */
       .appointments-page{margin:22px;border:1px solid #e3e9f2;border-radius:20px;background:#fff;box-shadow:0 9px 30px rgba(16,36,70,.055);min-height:calc(100vh - 118px)}

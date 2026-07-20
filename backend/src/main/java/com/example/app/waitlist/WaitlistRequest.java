@@ -3,6 +3,7 @@ package com.example.app.waitlist;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.session.ServiceGroup;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionType;
 import com.example.app.session.Space;
@@ -33,9 +34,23 @@ public class WaitlistRequest extends BaseEntity {
     @Column(name = "guest_user_id")
     private Long guestUserId;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "service_id", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_scope", nullable = false, length = 24)
+    private WaitlistServiceScope serviceScope = WaitlistServiceScope.EXACT_SERVICE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
     private SessionType service;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_group_id")
+    private ServiceGroup serviceGroup;
+
+    @Column(name = "service_group_id_snapshot")
+    private Long serviceGroupIdSnapshot;
+
+    @Column(name = "service_group_name_snapshot", length = 120)
+    private String serviceGroupNameSnapshot;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "location_id")

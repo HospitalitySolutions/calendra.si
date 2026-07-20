@@ -93,6 +93,11 @@ public class WaitlistController {
         return service.decline(me, offerId);
     }
 
+    @PostMapping("/offers/{offerId}/decline-and-leave")
+    public WaitlistService.RequestView declineAndLeave(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
+        return service.declineAndLeave(me, offerId);
+    }
+
     @DeleteMapping("/offers/{offerId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revokeOffer(@AuthenticationPrincipal User me, @PathVariable Long offerId) {

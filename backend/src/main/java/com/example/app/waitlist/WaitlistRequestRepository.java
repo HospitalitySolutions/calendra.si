@@ -14,7 +14,9 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
     @Query("""
             select distinct r from WaitlistRequest r
             left join fetch r.client
-            left join fetch r.service
+            left join fetch r.service service
+            left join fetch service.serviceGroup
+            left join fetch r.serviceGroup
             left join fetch r.location
             left join fetch r.specificEmployee
             left join fetch r.targetSession
@@ -27,7 +29,9 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
     @Query("""
             select distinct r from WaitlistRequest r
             left join fetch r.client
-            left join fetch r.service
+            left join fetch r.service service
+            left join fetch service.serviceGroup
+            left join fetch r.serviceGroup
             left join fetch r.location
             left join fetch r.specificEmployee
             left join fetch r.targetSession
@@ -44,6 +48,9 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
 
     @Query("""
             select r from WaitlistRequest r
+            left join fetch r.service service
+            left join fetch service.serviceGroup
+            left join fetch r.serviceGroup
             where r.company.id = :companyId
               and r.status = com.example.app.waitlist.WaitlistRequestStatus.ACTIVE
               and r.dateFrom <= :date
@@ -55,4 +62,19 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
             @Param("companyId") Long companyId,
             @Param("date") LocalDate date,
             @Param("now") Instant now);
+
+    @Query("""
+            select r from WaitlistRequest r
+            left join fetch r.service service
+            left join fetch service.serviceGroup
+            left join fetch r.serviceGroup
+            where r.company.id = :companyId
+              and r.joinedAt >= :from
+              and r.joinedAt < :to
+            order by r.joinedAt asc, r.id asc
+            """)
+    List<WaitlistRequest> findAnalyticsByCompanyIdAndJoinedAtRange(
+            @Param("companyId") Long companyId,
+            @Param("from") Instant from,
+            @Param("to") Instant to);
 }

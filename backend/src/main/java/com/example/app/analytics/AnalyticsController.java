@@ -31,7 +31,8 @@ public class AnalyticsController {
             LocalDate to,
             Long consultantId,
             Long spaceId,
-            Long typeId
+            Long typeId,
+            Long serviceGroupId
     ) {}
 
     @GetMapping("/overview")
@@ -42,9 +43,10 @@ public class AnalyticsController {
             @RequestParam(required = false) LocalDate to,
             @RequestParam(required = false) Long consultantId,
             @RequestParam(required = false) Long spaceId,
-            @RequestParam(required = false) Long typeId
+            @RequestParam(required = false) Long typeId,
+            @RequestParam(required = false) Long serviceGroupId
     ) {
-        return analyticsService.overview(me, period, from, to, consultantId, spaceId, typeId);
+        return analyticsService.overview(me, period, from, to, consultantId, spaceId, typeId, serviceGroupId);
     }
 
     @GetMapping("/reports/revenue-invoices")
@@ -72,12 +74,13 @@ public class AnalyticsController {
             @RequestParam(required = false) Long consultantId,
             @RequestParam(required = false) Long spaceId,
             @RequestParam(required = false) Long typeId,
+            @RequestParam(required = false) Long serviceGroupId,
             @RequestParam(required = false) String bookingStatus,
             @RequestParam(required = false) String sourceChannel,
             @RequestParam(required = false) String deliveryMode
     ) {
         return analyticsService.bookingsAttendanceReport(
-                me, period, from, to, consultantId, spaceId, typeId, bookingStatus, sourceChannel, deliveryMode);
+                me, period, from, to, consultantId, spaceId, typeId, serviceGroupId, bookingStatus, sourceChannel, deliveryMode);
     }
 
     @PostMapping("/report/send")
