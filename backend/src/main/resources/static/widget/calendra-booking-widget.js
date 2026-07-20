@@ -462,6 +462,11 @@
       this.turnstileRenderScheduled = false;
       this.turnstileRendering = false;
       this.submitInFlight = false;
+      this.availabilityAbortController = null;
+      this.availabilityRequestSequence = 0;
+      this.monthAvailabilityAbortController = null;
+      this.monthAvailabilityRequestSequence = 0;
+      this.monthAvailabilityCache = new Map();
       this.ensureTurnstileScript = this.ensureTurnstileScript.bind(this);
     }
 
@@ -510,6 +515,14 @@
       if (this.handleWindowResize) {
         window.removeEventListener('resize', this.handleWindowResize);
         this.handleWindowResize = null;
+      }
+      if (this.availabilityAbortController) {
+        this.availabilityAbortController.abort();
+        this.availabilityAbortController = null;
+      }
+      if (this.monthAvailabilityAbortController) {
+        this.monthAvailabilityAbortController.abort();
+        this.monthAvailabilityAbortController = null;
       }
     }
 
@@ -800,6 +813,7 @@
           ...(options?.headers || {}),
         },
         body: options?.body ? JSON.stringify(options.body) : undefined,
+        signal: options?.signal,
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -884,19 +898,28 @@
       if (!selectedServiceId || !selectedDate) return;
 
       const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
-      // When the employee-selection step is on we wait for the user to pick a consultant
-      // before loading slots; without the step we show merged slots for all consultants.
       const consultantRequiredForRegularSlots = !supportsGroupSessions
         && this.shouldShowConsultantStep()
         && config?.availabilityEnabled
         && !selectedConsultantId;
 
       if (!config?.availabilityEnabled && !supportsGroupSessions) {
+        if (this.availabilityAbortController) {
+          this.availabilityAbortController.abort();
+          this.availabilityAbortController = null;
+        }
         this.setState({ slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: false, error: '' });
         return;
       }
 
       const requestKey = `${selectedServiceId}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
+      if (this.availabilityAbortController) {
+        this.availabilityAbortController.abort();
+      }
+      const controller = new AbortController();
+      const requestSequence = ++this.availabilityRequestSequence;
+      this.availabilityAbortController = controller;
+
       this.setState({ error: '', slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: true });
       try {
         const params = new URLSearchParams({
@@ -906,9 +929,11 @@
         if (selectedConsultantId != null) {
           params.set('consultantId', String(selectedConsultantId));
         }
-        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability?${params.toString()}`);
+        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability?${params.toString()}`, {
+          signal: controller.signal,
+        });
         const currentKey = `${this.state.selectedServiceId}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
-        if (currentKey !== requestKey) return;
+        if (requestSequence !== this.availabilityRequestSequence || currentKey !== requestKey) return;
 
         const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
         const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
@@ -918,9 +943,14 @@
           loadingAvailability: false,
         });
       } catch (error) {
+        if (error?.name === 'AbortError') return;
         const currentKey = `${this.state.selectedServiceId}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
-        if (currentKey === requestKey) {
+        if (requestSequence === this.availabilityRequestSequence && currentKey === requestKey) {
           this.setState({ loadingAvailability: false, error: this.normalizeError(error, this.text().failedToLoadAvailability) });
+        }
+      } finally {
+        if (requestSequence === this.availabilityRequestSequence && this.availabilityAbortController === controller) {
+          this.availabilityAbortController = null;
         }
       }
     }
@@ -956,22 +986,39 @@
       if (!selectedServiceId || !calendarMonth) return;
 
       const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
-      // When the employee-selection step is on, per-date availability depends on the chosen consultant.
-      // Until one is picked we cannot know it, so leave every date selectable (unknown state).
       const consultantRequired = !supportsGroupSessions
         && this.shouldShowConsultantStep()
         && config?.availabilityEnabled
         && !selectedConsultantId;
       if (consultantRequired) {
-        this.setState({ availableDates: null, monthAvailabilityKey: 'pending-consultant' });
+        if (this.monthAvailabilityAbortController) {
+          this.monthAvailabilityAbortController.abort();
+          this.monthAvailabilityAbortController = null;
+        }
+        this.monthAvailabilityRequestSequence += 1;
+        this.setState({ availableDates: null, monthAvailabilityKey: 'pending-consultant', loadingMonthAvailability: false });
         return;
       }
 
       const monthKey = String(calendarMonth).slice(0, 7);
       const cacheKey = `${selectedServiceId}|${selectedConsultantId != null ? selectedConsultantId : ''}|${monthKey}`;
-      if (cacheKey === this.state.monthAvailabilityKey) return;
+      const cachedDates = this.monthAvailabilityCache.get(cacheKey);
+      if (Array.isArray(cachedDates)) {
+        if (cacheKey !== this.state.monthAvailabilityKey || this.state.availableDates !== cachedDates) {
+          this.setState({ availableDates: cachedDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
+        }
+        return;
+      }
+      if (cacheKey === this.state.monthAvailabilityKey && this.state.loadingMonthAvailability) return;
 
-      this.setState({ loadingMonthAvailability: true });
+      if (this.monthAvailabilityAbortController) {
+        this.monthAvailabilityAbortController.abort();
+      }
+      const controller = new AbortController();
+      const requestSequence = ++this.monthAvailabilityRequestSequence;
+      this.monthAvailabilityAbortController = controller;
+      this.setState({ loadingMonthAvailability: true, monthAvailabilityKey: cacheKey });
+
       try {
         const params = new URLSearchParams({
           typeId: String(selectedServiceId),
@@ -980,15 +1027,31 @@
         if (selectedConsultantId != null) {
           params.set('consultantId', String(selectedConsultantId));
         }
-        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability-month?${params.toString()}`);
+        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability-month?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
+        const currentCacheKey = `${this.state.selectedServiceId}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+        if (requestSequence !== this.monthAvailabilityRequestSequence || currentCacheKey !== cacheKey) return;
+
+        const availableDates = Array.isArray(data.availableDates) ? data.availableDates : [];
+        this.monthAvailabilityCache.set(cacheKey, availableDates);
         this.setState({
-          availableDates: Array.isArray(data.availableDates) ? data.availableDates : [],
+          availableDates,
           monthAvailabilityKey: cacheKey,
           loadingMonthAvailability: false,
         });
       } catch (error) {
-        // On failure fall back to the unknown state so dates stay selectable rather than wrongly blocked.
-        this.setState({ availableDates: null, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
+        if (error?.name === 'AbortError') return;
+        const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
+        const currentCacheKey = `${this.state.selectedServiceId}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+        if (requestSequence === this.monthAvailabilityRequestSequence && currentCacheKey === cacheKey) {
+          this.setState({ availableDates: null, monthAvailabilityKey: '', loadingMonthAvailability: false });
+        }
+      } finally {
+        if (requestSequence === this.monthAvailabilityRequestSequence && this.monthAvailabilityAbortController === controller) {
+          this.monthAvailabilityAbortController = null;
+        }
       }
     }
 

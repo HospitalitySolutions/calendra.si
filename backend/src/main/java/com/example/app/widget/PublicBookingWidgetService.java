@@ -52,6 +52,8 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -60,6 +62,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class PublicBookingWidgetService {
+    private static final Logger LOG = LoggerFactory.getLogger(PublicBookingWidgetService.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final List<String> ALL_ALLOWED_GUEST_PRODUCT_TYPES = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
 
@@ -328,26 +331,154 @@ public class PublicBookingWidgetService {
         LocalDate monthEnd = month.atEndOfMonth();
 
         List<String> availableDates = new ArrayList<>();
-        for (LocalDate date = cursor; !date.isAfter(monthEnd); date = date.plusDays(1)) {
-            if (dateAllowedByReservationRules(date, cfg, rules)
-                    && dayHasAvailability(company, cfg, type, date, resolvedConsultantId, groupOnlyWebsiteBooking)) {
-                availableDates.add(DATE_FORMAT.format(date));
+        try {
+            for (LocalDate date = cursor; !date.isAfter(monthEnd); date = date.plusDays(1)) {
+                if (dateAllowedByReservationRules(date, cfg, rules)
+                        && dayHasAvailability(company, cfg, type, date, resolvedConsultantId, groupOnlyWebsiteBooking, rules)) {
+                    availableDates.add(DATE_FORMAT.format(date));
+                }
             }
+        } catch (RuntimeException ex) {
+            LOG.error(
+                    "Widget month availability failed: tenantCode={}, companyId={}, typeId={}, consultantId={}, month={}",
+                    tenantCode,
+                    company.getId(),
+                    typeId,
+                    resolvedConsultantId,
+                    month,
+                    ex
+            );
+            throw ex;
         }
         return new PublicBookingWidgetController.AvailabilityMonthResponse(month.toString(), availableDates);
     }
 
-    private boolean dayHasAvailability(Company company, WidgetConfig cfg, SessionType type, LocalDate date, Long consultantId, boolean groupOnlyWebsiteBooking) {
+    private boolean dayHasAvailability(
+            Company company,
+            WidgetConfig cfg,
+            SessionType type,
+            LocalDate date,
+            Long consultantId,
+            boolean groupOnlyWebsiteBooking,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
         if (groupOnlyWebsiteBooking) {
             return !buildGroupSessions(company, cfg, type, date, consultantId).isEmpty();
         }
         if (cfg.availabilityEnabled()) {
-            if (!buildBookableSlots(company, cfg, type, date, consultantId).isEmpty()) {
+            if (hasAnyBookableSlot(company, cfg, type, date, consultantId, rules)) {
                 return true;
             }
-            return !buildWorkingHoursSlots(company, cfg, type, date, consultantId).isEmpty();
+            return hasAnyWorkingHoursSlot(company, cfg, type, date, consultantId, rules);
         }
-        return !buildFallbackSlots(company, cfg, type, date, consultantId).isEmpty();
+        return hasAnyFallbackSlot(company, cfg, type, date, consultantId, rules);
+    }
+
+    /**
+     * Month availability only needs to know whether one slot exists. Avoid building every slot for
+     * every day because that can trigger hundreds of overlap queries and exhaust the request/DB pool.
+     */
+    private boolean hasAnyBookableSlot(
+            Company company,
+            WidgetConfig cfg,
+            SessionType type,
+            LocalDate date,
+            Long consultantId,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
+        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(
+                        company.getId(), date.getDayOfWeek(), date, consultantId
+                ).stream()
+                .filter(slot -> slot.getConsultant() != null)
+                .filter(slot -> consultantSupportsType(slot.getConsultant(), type))
+                .sorted(Comparator.comparing((BookableSlot slot) -> slot.getConsultant().getId())
+                        .thenComparing(BookableSlot::getStartTime))
+                .toList();
+
+        for (BookableSlot window : windows) {
+            LocalTime cursor = window.getStartTime();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
+                LocalDateTime start = date.atTime(cursor);
+                LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (slotAllowedByReservationRules(start, cfg, rules)
+                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, type.getId())) {
+                    return true;
+                }
+                cursor = cursor.plusMinutes(30);
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAnyWorkingHoursSlot(
+            Company company,
+            WidgetConfig cfg,
+            SessionType type,
+            LocalDate date,
+            Long consultantId,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
+        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        List<User> consultants = supportedConsultants(company.getId(), type).stream()
+                .filter(candidate -> consultantId == null || candidate.getId().equals(consultantId))
+                .toList();
+
+        for (User consultant : consultants) {
+            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
+            if (dayWindow.isEmpty()) {
+                continue;
+            }
+            LocalTime cursor = dayWindow.get().start();
+            LocalTime rangeEnd = dayWindow.get().end();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
+                LocalDateTime start = date.atTime(cursor);
+                LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (slotAllowedByReservationRules(start, cfg, rules)
+                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, type.getId())) {
+                    return true;
+                }
+                cursor = cursor.plusMinutes(30);
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAnyFallbackSlot(
+            Company company,
+            WidgetConfig cfg,
+            SessionType type,
+            LocalDate date,
+            Long consultantId,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
+        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        LocalTime rangeStart;
+        LocalTime rangeEnd;
+        if (consultantId != null) {
+            User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, company.getId()).orElse(null);
+            if (consultant == null) {
+                return false;
+            }
+            Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date);
+            if (window.isEmpty()) {
+                return false;
+            }
+            rangeStart = window.get().start();
+            rangeEnd = window.get().end();
+        } else {
+            rangeStart = cfg.workingHoursStart();
+            rangeEnd = cfg.workingHoursEnd();
+        }
+
+        LocalTime cursor = rangeStart;
+        while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
+            if (slotAllowedByReservationRules(date.atTime(cursor), cfg, rules)) {
+                return true;
+            }
+            cursor = cursor.plusMinutes(30);
+        }
+        return false;
     }
 
     private YearMonth parseMonth(String monthText) {
