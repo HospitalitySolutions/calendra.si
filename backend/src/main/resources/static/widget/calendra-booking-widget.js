@@ -2153,7 +2153,6 @@
       const t = this.text();
       return `
         <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
-          ${this.serviceIconMarkup(item, index)}
           <span class="service-card-main">
             <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
             <span class="service-card-meta">
@@ -2183,7 +2182,6 @@
       return `
         <button class="standalone-service-row ${selected ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
           <span class="standalone-service-select">${selected ? this.uiIcon('check') : ''}</span>
-          ${this.serviceIconMarkup(item, index)}
           <span class="standalone-service-main">
             <strong>${escapeHtml(this.serviceDisplayName(item))}</strong>
           </span>
@@ -2235,7 +2233,6 @@
                   data-group-key="${escapeHtml(section.key)}"
                   aria-expanded="${isExpanded ? 'true' : 'false'}"
                 >
-                  <span class="standalone-group-icon">${this.uiIcon('calendar')}</span>
                   <span class="standalone-group-copy">
                     <strong>${escapeHtml(section.name)}</strong>
                     <small>${escapeHtml(this.serviceGroupCountLabel(section.items.length))}</small>
@@ -2618,13 +2615,22 @@
         }
         .headline p { margin: 14px 0 0; color: var(--calendra-muted); font-size: clamp(16px, 1.4vw, 20px); line-height: 1.5; }
         .progress {
-          display: grid;
-          grid-template-columns: auto minmax(48px,1fr) auto minmax(48px,1fr) auto;
+          display: flex;
           align-items: center;
-          gap: clamp(12px, 2vw, 28px);
+          gap: clamp(10px, 1.5vw, 20px);
           width: 100%;
+          min-width: 0;
         }
-        .progress-item { display: inline-flex; align-items: center; gap: 14px; min-width: max-content; color: #7a8498; font-weight: 750; }
+        .progress-item {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          min-width: max-content;
+          color: #7a8498;
+          font-weight: 750;
+          white-space: nowrap;
+        }
         .progress-dot {
           width: 44px; height: 44px; border-radius: 999px;
           display: inline-grid; place-items: center;
@@ -2636,7 +2642,13 @@
         .progress-item.is-active { color: #0d1b3d; }
         .progress-item.is-active .progress-dot,
         .progress-item.is-done .progress-dot { background: var(--calendra-primary); color: #fff; border-color: var(--calendra-primary); box-shadow: 0 12px 22px rgba(15,107,255,.18); }
-        .progress-sep { height: 2px; border-radius: 999px; background: #e7edf5; }
+        .progress-sep {
+          flex: 1 1 56px;
+          min-width: 24px;
+          height: 2px;
+          border-radius: 999px;
+          background: #e7edf5;
+        }
         .progress-item.is-done + .progress-sep { background: var(--calendra-primary); }
         .section-copy { display: grid; gap: 8px; margin-bottom: 4px; }
         .section-copy h3, .block-title { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 850; color: var(--calendra-text); }
@@ -2658,9 +2670,9 @@
           width: 100%;
           min-height: 70px;
           display: grid;
-          grid-template-columns: 44px minmax(0,1fr) 38px;
+          grid-template-columns: minmax(0,1fr) 38px;
           align-items: center;
-          gap: 14px;
+          gap: 16px;
           padding: 12px 16px;
           border: 0;
           color: var(--calendra-text);
@@ -2669,16 +2681,6 @@
           cursor: pointer;
         }
         .standalone-service-group-toggle:hover { background: #fbfdff; }
-        .standalone-group-icon {
-          width: 42px;
-          height: 42px;
-          display: grid;
-          place-items: center;
-          border-radius: 12px;
-          color: var(--calendra-primary);
-          background: var(--calendra-blue-soft);
-          font-size: 22px;
-        }
         .standalone-group-copy { min-width: 0; display: grid; gap: 3px; }
         .standalone-group-copy strong { overflow: hidden; font-size: 17px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
         .standalone-group-copy small { color: var(--calendra-muted); font-size: 13px; font-weight: 650; }
@@ -2698,7 +2700,7 @@
         }
         .standalone-service-children {
           display: grid;
-          padding: 0 14px 12px 62px;
+          padding: 0 14px 12px;
           border-top: 1px solid var(--calendra-border);
           background: #fff;
         }
@@ -2707,7 +2709,7 @@
           width: 100%;
           min-height: 62px;
           display: grid;
-          grid-template-columns: 28px 38px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
+          grid-template-columns: 28px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
           align-items: center;
           gap: 12px;
           padding: 8px 12px;
@@ -2740,12 +2742,6 @@
           font-size: 14px;
         }
         .standalone-service-row.is-active .standalone-service-select { border-color: var(--calendra-primary); background: var(--calendra-primary); }
-        .standalone-service-row .service-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 10px;
-          font-size: 18px;
-        }
         .standalone-service-main { min-width: 0; }
         .standalone-service-main strong { display: block; overflow: hidden; font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
         .standalone-service-duration,
@@ -2767,7 +2763,7 @@
           min-height: 134px;
           width: 100%;
           display: grid;
-          grid-template-columns: 78px minmax(0,1fr) auto 32px;
+          grid-template-columns: minmax(0,1fr) auto 32px;
           gap: 18px;
           align-items: center;
           text-align: left;
@@ -2780,7 +2776,7 @@
           box-shadow: 0 4px 15px rgba(15, 23, 42, .035);
           transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
         }
-        .service-card.no-price { grid-template-columns: 78px minmax(0,1fr) 32px; }
+        .service-card.no-price { grid-template-columns: minmax(0,1fr) 32px; }
         .service-card:hover, .consultant-pill:hover, .slot-chip:hover, .payment-tile:hover, .calendar-cell:hover:not(:disabled) { transform: translateY(-1px); border-color: rgba(15,107,255,.45); box-shadow: var(--calendra-card-shadow); }
         .service-card.is-active, .consultant-pill.is-active, .slot-chip.is-active, .payment-tile.is-active {
           border-color: var(--calendra-primary);
@@ -3259,15 +3255,28 @@
         :host([data-layout="micro"]) .details-grid { grid-template-columns: 1fr; }
         :host([data-layout="narrow"]) .panel,
         :host([data-layout="micro"]) .panel { padding: 22px; border-radius: 22px; }
-        :host([data-layout="narrow"]) .progress { grid-template-columns: 1fr; gap: 8px; }
+        :host([data-layout="narrow"]) .progress,
+        :host([data-layout="micro"]) .progress {
+          display: flex;
+          overflow-x: auto;
+          gap: 10px;
+          padding-bottom: 4px;
+          scrollbar-width: none;
+        }
+        :host([data-layout="narrow"]) .progress::-webkit-scrollbar,
+        :host([data-layout="micro"]) .progress::-webkit-scrollbar { display: none; }
         :host([data-layout="narrow"]) .progress-sep,
-        :host([data-layout="micro"]) .progress-sep { display: none; }
+        :host([data-layout="micro"]) .progress-sep { flex: 0 0 24px; min-width: 24px; }
         :host([data-layout="narrow"]) .progress-item,
-        :host([data-layout="micro"]) .progress-item { padding: 10px 12px; border: 1px solid var(--calendra-border); border-radius: 14px; background: #fff; }
-        :host([data-layout="micro"]) .progress { grid-template-columns: 1fr; gap: 8px; }
+        :host([data-layout="micro"]) .progress-item {
+          flex: 0 0 auto;
+          padding: 0;
+          border: 0;
+          background: transparent;
+        }
         :host([data-layout="micro"]) .headline h2 { font-size: 34px; }
-        :host([data-layout="micro"]) .service-card { grid-template-columns: 54px minmax(0,1fr) auto 28px; gap: 12px; padding: 18px; }
-        :host([data-layout="micro"]) .service-card.no-price { grid-template-columns: 54px minmax(0,1fr) 28px; }
+        :host([data-layout="micro"]) .service-card { grid-template-columns: minmax(0,1fr) auto 28px; gap: 12px; padding: 18px; }
+        :host([data-layout="micro"]) .service-card.no-price { grid-template-columns: minmax(0,1fr) 28px; }
         :host([data-layout="micro"]) .service-card-price { min-width: 46px; padding: 6px 10px; font-size: 15px; }
         :host([data-layout="micro"]) .service-icon { width: 52px; height: 52px; font-size: 26px; }
         :host([data-layout="micro"]) .calendar-card { padding: 16px; }
@@ -3304,29 +3313,12 @@
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-children { padding-left: 14px; }
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-row,
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-row {
-          grid-template-columns: 26px 36px minmax(0,1fr) auto;
+          grid-template-columns: 26px minmax(0,1fr) auto;
           gap: 9px;
         }
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-price,
-        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 3 / 5; justify-content: flex-start; padding: 0 0 5px; }
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 2 / 4; justify-content: flex-start; padding: 0 0 5px; }
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-duration { font-size: 13px; }
-        :host([presentation="standalone"][data-layout="narrow"]) .progress,
-        :host([presentation="standalone"][data-layout="micro"]) .progress {
-          display: flex;
-          overflow-x: auto;
-          gap: 10px;
-          padding-bottom: 4px;
-          scrollbar-width: none;
-        }
-        :host([presentation="standalone"][data-layout="narrow"]) .progress::-webkit-scrollbar,
-        :host([presentation="standalone"][data-layout="micro"]) .progress::-webkit-scrollbar { display: none; }
-        :host([presentation="standalone"][data-layout="narrow"]) .progress-item,
-        :host([presentation="standalone"][data-layout="micro"]) .progress-item {
-          flex: 0 0 auto;
-          padding: 0;
-          border: 0;
-          background: transparent;
-        }
 
         :host([presentation="directory"]) .shell { gap: 12px; }
         :host([presentation="directory"]) .panel {

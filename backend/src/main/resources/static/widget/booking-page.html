@@ -97,7 +97,7 @@
     }
 
     .booking-shell__header {
-      padding: clamp(28px, 4vw, 48px) clamp(24px, 5vw, 58px) 30px;
+      padding: clamp(24px, 3vw, 34px) clamp(24px, 5vw, 58px);
     }
 
     .booking-business {
@@ -155,25 +155,6 @@
 
     .booking-business__copy svg { width: 15px; height: 15px; flex: 0 0 auto; }
 
-    .booking-heading { margin-top: 30px; }
-
-    .booking-heading h1 {
-      margin: 0;
-      color: var(--booking-ink);
-      font-size: clamp(36px, 5vw, 56px);
-      line-height: 1;
-      letter-spacing: -.052em;
-      font-weight: 900;
-    }
-
-    .booking-heading p {
-      max-width: 720px;
-      margin: 12px 0 0;
-      color: var(--booking-muted);
-      font-size: 16px;
-      line-height: 1.55;
-    }
-
     .booking-widget-host {
       border-top: 1px solid rgba(223, 231, 242, .85);
       padding: 0 clamp(18px, 3vw, 34px) 8px;
@@ -204,10 +185,7 @@
       .booking-language select { min-width: 96px; }
       .booking-page { width: min(100% - 20px, 1180px); margin-top: 18px; }
       .booking-shell { border-radius: 22px; }
-      .booking-shell__header { padding: 24px 20px 22px; }
-      .booking-heading { margin-top: 24px; }
-      .booking-heading h1 { font-size: 36px; }
-      .booking-heading p { font-size: 15px; }
+      .booking-shell__header { padding: 22px 20px; }
       .booking-widget-host { padding-inline: 8px; }
     }
   </style>
@@ -232,7 +210,7 @@
   </header>
 
   <main class="booking-page">
-    <section class="booking-shell" aria-labelledby="booking-title">
+    <section class="booking-shell" aria-label="Naročanje">
       <header class="booking-shell__header">
         <div class="booking-business">
           <div class="booking-business__logo" id="booking-business-logo" aria-hidden="true">
@@ -245,10 +223,6 @@
               <i style="font-style:normal"></i>
             </span>
           </div>
-        </div>
-        <div class="booking-heading">
-          <h1 id="booking-title">Nova rezervacija</h1>
-          <p id="booking-subtitle">Izberite storitev, nato zaposlenega ter datum in uro, ki vam najbolj ustrezata.</p>
         </div>
       </header>
 
@@ -263,15 +237,11 @@
       const copy = {
         sl: {
           pageTitle: 'Nova rezervacija | Calendra',
-          title: 'Nova rezervacija',
-          subtitle: 'Izberite storitev, nato zaposlenega ter datum in uro, ki vam najbolj ustrezata.',
           loading: 'Nalaganje naročanja…',
           failed: 'Naročanja trenutno ni bilo mogoče naložiti.',
         },
         en: {
           pageTitle: 'New booking | Calendra',
-          title: 'New booking',
-          subtitle: 'Choose a service, then an employee and the date and time that suit you best.',
           loading: 'Loading booking…',
           failed: 'Booking could not be loaded right now.',
         },
@@ -297,8 +267,6 @@
         const t = copy[locale];
         document.documentElement.lang = locale;
         document.title = t.pageTitle;
-        document.getElementById('booking-title').textContent = t.title;
-        document.getElementById('booking-subtitle').textContent = t.subtitle;
         loading.textContent = t.loading;
         language.value = locale;
       }
