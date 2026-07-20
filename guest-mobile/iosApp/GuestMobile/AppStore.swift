@@ -302,11 +302,24 @@ final class AppStore: ObservableObject {
                         currency: product.currency,
                         durationMinutes: product.durationMinutes,
                         sessionTypeId: sessionTypeId,
+                        serviceGroupId: product.serviceGroupId,
+                        serviceGroupName: product.serviceGroupName,
+                        serviceGroupSortOrder: product.serviceGroupSortOrder,
+                        serviceSortOrder: product.serviceSortOrder,
                         tenantType: dashboard.tenant.tenantType
                     )
                 }
             }
-            .sorted { $0.name < $1.name }
+            .sorted { lhs, rhs in
+                if lhs.companyId != rhs.companyId { return lhs.companyId < rhs.companyId }
+                let leftGroup = lhs.serviceGroupSortOrder ?? Int.max
+                let rightGroup = rhs.serviceGroupSortOrder ?? Int.max
+                if leftGroup != rightGroup { return leftGroup < rightGroup }
+                let leftOrder = lhs.serviceSortOrder ?? 0
+                let rightOrder = rhs.serviceSortOrder ?? 0
+                if leftOrder != rightOrder { return leftOrder < rightOrder }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
     }
 
     var entitlements: [EntitlementModel] {

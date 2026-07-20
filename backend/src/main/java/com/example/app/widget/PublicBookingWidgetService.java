@@ -201,16 +201,27 @@ public class PublicBookingWidgetService {
         WidgetConfig cfg = loadConfig(company.getId());
         return types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
                 .filter(this::isWebsiteBookingEnabled)
-                .sorted(Comparator.comparing(SessionType::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(type -> new PublicBookingWidgetController.WidgetServiceResponse(
-                        type.getId(),
-                        type.getName(),
-                        type.getDescription(),
-                        type.getDurationMinutes() != null ? type.getDurationMinutes() : 60,
-                        toPriceLabel(type),
-                        type.getMaxParticipantsPerSession(),
-                        isWebsiteBookingEnabled(type)
-                ))
+                .sorted(Comparator
+                        .comparing((SessionType type) -> publicGroup(type) == null ? Integer.MAX_VALUE : publicGroup(type).getSortOrder())
+                        .thenComparing(type -> publicGroup(type) == null ? "" : publicGroup(type).getName(), String.CASE_INSENSITIVE_ORDER)
+                        .thenComparingInt(SessionType::getGuestSortOrder)
+                        .thenComparing(SessionType::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(type -> {
+                    var group = publicGroup(type);
+                    return new PublicBookingWidgetController.WidgetServiceResponse(
+                            type.getId(),
+                            type.getName(),
+                            type.getDescription(),
+                            type.getDurationMinutes() != null ? type.getDurationMinutes() : 60,
+                            toPriceLabel(type),
+                            type.getMaxParticipantsPerSession(),
+                            isWebsiteBookingEnabled(type),
+                            group == null ? null : group.getId(),
+                            group == null ? null : group.getName(),
+                            group == null ? null : group.getSortOrder(),
+                            type.getGuestSortOrder()
+                    );
+                })
                 .toList();
     }
 
@@ -559,6 +570,11 @@ public class PublicBookingWidgetService {
             return booking.getBookingGroupKey();
         }
         return "legacy-" + booking.getId();
+    }
+
+    private com.example.app.session.ServiceGroup publicGroup(SessionType type) {
+        if (type == null || type.getServiceGroup() == null || !type.getServiceGroup().isActive()) return null;
+        return type.getServiceGroup();
     }
 
     private boolean isWebsiteBookingEnabled(SessionType type) {

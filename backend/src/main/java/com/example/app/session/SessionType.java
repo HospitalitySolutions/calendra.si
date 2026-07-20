@@ -24,6 +24,11 @@ public class SessionType extends BaseEntity {
     private String name;
     private String description;
 
+    /** Optional parent used to present closely related service variants together. */
+    @ManyToOne
+    @JoinColumn(name = "service_group_id")
+    private ServiceGroup serviceGroup;
+
     /**
      * Pastel HEX colour used to visually distinguish this service on the calendar.
      */

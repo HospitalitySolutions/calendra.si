@@ -3172,11 +3172,21 @@ private fun aggregatedServices(state: GuestUiState): List<ServiceOption> =
                     currency = product.currency,
                     durationMinutes = product.durationMinutes,
                     sessionTypeId = product.sessionTypeId.orEmpty(),
+                    serviceGroupId = product.serviceGroupId,
+                    serviceGroupName = product.serviceGroupName,
+                    serviceGroupSortOrder = product.serviceGroupSortOrder,
+                    serviceSortOrder = product.serviceSortOrder,
                     tenantType = it.tenantType
                 )
             }
         }
-    }.sortedBy { it.name }
+    }.sortedWith(
+        compareBy<ServiceOption> { it.companyId }
+            .thenBy { it.serviceGroupSortOrder ?: Int.MAX_VALUE }
+            .thenBy { it.serviceGroupName.orEmpty() }
+            .thenBy { it.serviceSortOrder }
+            .thenBy { it.name }
+    )
 
 private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<RedeemableEntitlementOption> =
     selectedTenantIds(state).flatMap { tenantId ->

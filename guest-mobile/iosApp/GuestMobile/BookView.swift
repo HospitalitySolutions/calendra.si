@@ -76,11 +76,25 @@ struct BookView: View {
         store.serviceOptions
             .filter { $0.companyId == selectedProviderId }
             .sorted { lhs, rhs in
-                if lhs.priceGross == rhs.priceGross {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return lhs.priceGross < rhs.priceGross
+                let leftGroup = lhs.serviceGroupSortOrder ?? Int.max
+                let rightGroup = rhs.serviceGroupSortOrder ?? Int.max
+                if leftGroup != rightGroup { return leftGroup < rightGroup }
+                let leftOrder = lhs.serviceSortOrder ?? 0
+                let rightOrder = rhs.serviceSortOrder ?? 0
+                if leftOrder != rightOrder { return leftOrder < rightOrder }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
+    }
+
+    private var serviceSections: [[ServiceOptionModel]] {
+        var order: [String] = []
+        var grouped: [String: [ServiceOptionModel]] = [:]
+        for service in servicesForSelectedProvider {
+            let key = service.serviceGroupId?.nilIfBlank ?? "__ungrouped__"
+            if grouped[key] == nil { order.append(key) }
+            grouped[key, default: []].append(service)
+        }
+        return order.compactMap { grouped[$0] }
     }
 
     private var selectedProvider: TenantModel? {
@@ -638,14 +652,22 @@ struct BookView: View {
             } else if servicesForSelectedProvider.isEmpty {
                 emptyInlineMessage(tr("No services available", "Ni razpoložljivih storitev"), tr("This provider does not currently expose any guest-app services.", "Ta ponudnik trenutno nima storitev za goste."))
             } else {
-                VStack(spacing: 12) {
-                    ForEach(servicesForSelectedProvider) { service in
-                        Button {
-                            selectedServiceId = service.id
-                        } label: {
-                            serviceLineRow(service: service, selected: selectedServiceId == service.id)
+                VStack(alignment: .leading, spacing: 18) {
+                    let hasGroups = servicesForSelectedProvider.contains { $0.serviceGroupId?.nilIfBlank != nil && $0.serviceGroupName?.nilIfBlank != nil }
+                    ForEach(Array(serviceSections.enumerated()), id: \.offset) { _, section in
+                        VStack(alignment: .leading, spacing: 12) {
+                            if hasGroups, let groupName = section.first?.serviceGroupName?.nilIfBlank {
+                                straightSectionHeader(groupName.uppercased())
+                            }
+                            ForEach(section) { service in
+                                Button {
+                                    selectedServiceId = service.id
+                                } label: {
+                                    serviceLineRow(service: service, selected: selectedServiceId == service.id)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }

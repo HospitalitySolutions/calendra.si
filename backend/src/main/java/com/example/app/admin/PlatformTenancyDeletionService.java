@@ -207,6 +207,7 @@ public class PlatformTenancyDeletionService {
                 "DELETE FROM user_types WHERE type_id IN (SELECT id FROM session_type WHERE company_id = ?)",
                 companyId);
         exec("DELETE FROM session_type WHERE company_id = ?", companyId);
+        exec("DELETE FROM service_group WHERE company_id = ?", companyId);
         exec("DELETE FROM space WHERE company_id = ?", companyId);
         exec("DELETE FROM payment_methods WHERE company_id = ?", companyId);
         exec("DELETE FROM transaction_service WHERE company_id = ?", companyId);

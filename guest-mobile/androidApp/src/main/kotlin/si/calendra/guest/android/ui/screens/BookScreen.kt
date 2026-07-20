@@ -182,6 +182,10 @@ data class ServiceOption(
     val currency: String,
     val durationMinutes: Int?,
     val sessionTypeId: String,
+    val serviceGroupId: String? = null,
+    val serviceGroupName: String? = null,
+    val serviceGroupSortOrder: Int? = null,
+    val serviceSortOrder: Int = 0,
     /** Tenant config type (salon, gym, spa, therapy, personal_training) driving the card icon. */
     val tenantType: String? = null
 )
@@ -325,7 +329,12 @@ fun BookScreen(
     var launchRequestInitialized by remember(launchRequest?.id) { mutableStateOf(false) }
 
     val providerScopedServices = remember(services, selectedProviderId) {
-        services.filter { it.companyId == selectedProviderId }.sortedBy { it.name }
+        services.filter { it.companyId == selectedProviderId }.sortedWith(
+            compareBy<ServiceOption> { it.serviceGroupSortOrder ?: Int.MAX_VALUE }
+                .thenBy { it.serviceGroupName.orEmpty() }
+                .thenBy { it.serviceSortOrder }
+                .thenBy { it.name }
+        )
     }
 
     LaunchedEffect(providers) {
@@ -711,16 +720,28 @@ fun BookScreen(
                             EmptyInlineMessage(bookTr(languageCode, "No services available", "Ni razpoložljivih storitev"), bookTr(languageCode, "This provider does not currently expose any guest-app services.", "Ta ponudnik trenutno nima storitev za goste."))
                         }
                     } else {
-                        items(providerScopedServices, key = { it.id }) { service ->
-                            ServiceListRow(
-                                service = service,
-                                languageCode = languageCode,
-                                selected = service.id == selectedServiceId,
-                                onClick = {
-                                    selectedServiceId = service.id
-                                    selectedSlotId = null
+                        val hasGroups = providerScopedServices.any { !it.serviceGroupId.isNullOrBlank() && !it.serviceGroupName.isNullOrBlank() }
+                        val sections = providerScopedServices.groupBy { service ->
+                            service.serviceGroupId?.takeIf { it.isNotBlank() } ?: "__ungrouped__"
+                        }
+                        sections.forEach { (groupKey, groupServices) ->
+                            val groupName = groupServices.firstOrNull()?.serviceGroupName?.takeIf { it.isNotBlank() }
+                            if (hasGroups && groupName != null) {
+                                item(key = "service-group-$groupKey") {
+                                    StraightSectionHeader(groupName.uppercase())
                                 }
-                            )
+                            }
+                            items(groupServices, key = { it.id }) { service ->
+                                ServiceListRow(
+                                    service = service,
+                                    languageCode = languageCode,
+                                    selected = service.id == selectedServiceId,
+                                    onClick = {
+                                        selectedServiceId = service.id
+                                        selectedSlotId = null
+                                    }
+                                )
+                            }
                         }
                     }
                 }

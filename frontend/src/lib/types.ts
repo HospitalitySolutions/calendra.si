@@ -135,6 +135,15 @@ export type TypeServiceLink = {
   /** Per-line gross for one unit, derived server-side for guest-card pricing. */
   unitGross?: number | null
 }
+export type ServiceGroup = {
+  id: number
+  name: string
+  description?: string | null
+  active?: boolean
+  sortOrder: number
+  serviceCount?: number
+}
+
 export type SessionType = {
   id: number
   name: string
@@ -149,6 +158,11 @@ export type SessionType = {
   guestBookingEnabled?: boolean
   priceCalculationMode?: 'PER_CLIENT' | 'TOTAL'
   guestLimitUserEmails?: string[]
+  serviceGroupId?: number | null
+  serviceGroupName?: string | null
+  serviceGroupActive?: boolean
+  serviceGroupSortOrder?: number | null
+  sortOrder?: number
   createdAt?: string
   linkedServices?: TypeServiceLink[]
 }

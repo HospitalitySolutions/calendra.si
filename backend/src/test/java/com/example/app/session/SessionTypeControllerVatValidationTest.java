@@ -30,6 +30,8 @@ class SessionTypeControllerVatValidationTest {
     private TransactionServiceRepository txRepo;
     @Mock
     private SessionBookingRepository bookingRepo;
+    @Mock
+    private ServiceGroupRepository groupRepo;
 
     private SessionTypeController controller;
     private User me;
@@ -37,7 +39,7 @@ class SessionTypeControllerVatValidationTest {
 
     @BeforeEach
     void setUp() {
-        controller = new SessionTypeController(repo, txRepo, bookingRepo);
+        controller = new SessionTypeController(repo, txRepo, bookingRepo, groupRepo);
         company = new Company();
         company.setId(1L);
         me = new User();

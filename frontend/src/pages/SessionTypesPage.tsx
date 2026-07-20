@@ -17,6 +17,7 @@ import { getStoredUser } from "../auth";
 import type {
   BillingService,
   Client,
+  ServiceGroup,
   SessionType as SessionTypeT,
   TaxRate,
 } from "../lib/types";
@@ -42,6 +43,7 @@ import {
 } from "./CardsMembershipsSection";
 import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 
+const SESSION_TYPES_SUBTAB_GROUPS = "service-groups";
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 const SESSION_TYPES_SUBTAB_CARDS = "cards-memberships";
 const SESSION_TYPES_SUBTAB_COURSES = "courses";
@@ -259,6 +261,7 @@ type TypeFormState = {
   guestBookingMode: GuestBookingMode;
   priceCalculationMode: PriceCalculationMode;
   guestLimitUserEmailsText: string;
+  serviceGroupId: string;
   serviceLines: TypeServiceLine[];
 };
 
@@ -286,6 +289,7 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   }
   if (a.guestBookingMode !== b.guestBookingMode) return false;
   if (a.priceCalculationMode !== b.priceCalculationMode) return false;
+  if (a.serviceGroupId !== b.serviceGroupId) return false;
   if (a.serviceLines.length !== b.serviceLines.length) return false;
   for (let i = 0; i < a.serviceLines.length; i++) {
     if (
@@ -710,6 +714,8 @@ export function SessionTypesPage() {
   const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
+  const showServiceGroups =
+    searchParams.get("subtab") === SESSION_TYPES_SUBTAB_GROUPS;
   const showCardsMemberships =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_CARDS;
   const showCoursesParam =
@@ -718,8 +724,10 @@ export function SessionTypesPage() {
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_TRANSACTION;
 
   const setSessionTypesSubtab = useCallback(
-    (next: "types" | "transactionServices" | "cardsMemberships" | "courses") => {
-      if (next === "transactionServices") {
+    (next: "types" | "groups" | "transactionServices" | "cardsMemberships" | "courses") => {
+      if (next === "groups") {
+        setSearchParams({ subtab: SESSION_TYPES_SUBTAB_GROUPS }, { replace: true });
+      } else if (next === "transactionServices") {
         setSearchParams(
           { subtab: SESSION_TYPES_SUBTAB_TRANSACTION },
           { replace: true },
@@ -754,10 +762,14 @@ export function SessionTypesPage() {
     !websiteWidgetModuleEnabled && !guestAppModuleEnabled;
   const showCourses = showCoursesParam && coursesModuleEnabled;
   const [types, setTypes] = useState<SessionTypeT[]>([]);
+  const [groups, setGroups] = useState<ServiceGroup[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [editingType, setEditingType] = useState<SessionTypeT | null>(null);
   const [showTypeModal, setShowTypeModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<ServiceGroup | null>(null);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name: "", description: "", active: true });
   const [typeModalActiveTab, setTypeModalActiveTab] =
     useState<ServiceTypeModalTab>("basic");
   const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
@@ -788,6 +800,7 @@ export function SessionTypesPage() {
     ),
     priceCalculationMode: "PER_CLIENT",
     guestLimitUserEmailsText: "",
+    serviceGroupId: "",
     serviceLines: [],
   });
   /** Snapshot when the type modal opens; used to detect edits (footer only when dirty). */
@@ -831,6 +844,8 @@ export function SessionTypesPage() {
   const [typeActiveFilter, setTypeActiveFilter] = useState<
     "active" | "inactive"
   >("active");
+  const [groupActiveFilter, setGroupActiveFilter] = useState<"active" | "inactive">("active");
+  const [typeGroupFilter, setTypeGroupFilter] = useState<string>("all");
   const [serviceActiveFilter, setServiceActiveFilter] = useState<
     "active" | "inactive"
   >("active");
@@ -841,6 +856,7 @@ export function SessionTypesPage() {
     "active" | "inactive"
   >("active");
   const [typeSearch, setTypeSearch] = useState("");
+  const [groupSearch, setGroupSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [cardSearch, setCardSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
@@ -1031,14 +1047,16 @@ export function SessionTypesPage() {
   }, [openServiceMenuId]);
 
   const load = async () => {
-    const [settingsRes, typesRes, servicesRes, clientsRes] = await Promise.all([
+    const [settingsRes, typesRes, groupsRes, servicesRes, clientsRes] = await Promise.all([
       api.get("/settings"),
       api.get("/types").catch(() => ({ data: [] })),
+      api.get("/service-groups").catch(() => ({ data: [] })),
       api.get("/billing/services").catch(() => ({ data: [] })),
       api.get<Client[]>("/clients").catch(() => ({ data: [] as Client[] })),
     ]);
     setSettings(settingsRes.data || {});
     setTypes(typesRes.data || []);
+    setGroups(groupsRes.data || []);
     setServices(servicesRes.data || []);
     setClients(clientsRes.data || []);
   };
@@ -1054,23 +1072,42 @@ export function SessionTypesPage() {
         ? type.active === false
         : type.active !== false,
     );
+    const byGroup = byStatus.filter((type) => {
+      if (typeGroupFilter === "all") return true;
+      if (typeGroupFilter === "ungrouped") return type.serviceGroupId == null;
+      return String(type.serviceGroupId ?? "") === typeGroupFilter;
+    });
     const q = typeSearch.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter((type) => {
+    const matched = !q ? byGroup : byGroup.filter((type) => {
       const linked = (type.linkedServices || [])
         .map((ls) => `${ls.code} ${ls.price != null ? String(ls.price) : ""}`)
         .join(" ");
-      const hay = [type.name, type.description ?? "", String(type.id), linked]
+      const hay = [type.name, type.description ?? "", type.serviceGroupName ?? "", String(type.id), linked]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [types, typeSearch, typeActiveFilter]);
+    return [...matched].sort((a, b) => {
+      const ga = a.serviceGroupSortOrder ?? Number.MAX_SAFE_INTEGER;
+      const gb = b.serviceGroupSortOrder ?? Number.MAX_SAFE_INTEGER;
+      if (ga !== gb) return ga - gb;
+      const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      return so || a.name.localeCompare(b.name);
+    });
+  }, [types, typeSearch, typeActiveFilter, typeGroupFilter]);
 
   const activeTypes = useMemo(
     () => types.filter((type) => type.active !== false),
     [types],
   );
+
+  const filteredGroups = useMemo(() => {
+    const q = groupSearch.trim().toLowerCase();
+    return groups
+      .filter((group) => groupActiveFilter === "inactive" ? group.active === false : group.active !== false)
+      .filter((group) => !q || `${group.name} ${group.description ?? ""}`.toLowerCase().includes(q))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }, [groups, groupSearch, groupActiveFilter]);
 
   const filteredServices = useMemo(() => {
     const byStatus = services.filter((service) =>
@@ -1318,6 +1355,11 @@ export function SessionTypesPage() {
       guestLimitUserEmails: effectiveGroupBookingEnabled
         ? parseGuestLimitUserEmails(typeForm.guestLimitUserEmailsText)
         : [],
+      serviceGroupId: typeForm.serviceGroupId ? Number(typeForm.serviceGroupId) : null,
+      sortOrder:
+        editingType && String(editingType.serviceGroupId ?? "") === typeForm.serviceGroupId
+          ? editingType.sortOrder ?? 0
+          : undefined,
       services: typeForm.serviceLines.map((l) => ({
         // UI edits gross per line; API keeps the type-link price in net.
         // Convert using the selected transaction service tax rate.
@@ -1354,6 +1396,7 @@ export function SessionTypesPage() {
         ),
         priceCalculationMode: "PER_CLIENT",
         guestLimitUserEmailsText: "",
+        serviceGroupId: "",
         serviceLines: [],
       });
       setTypeFormSnapshot(null);
@@ -1374,6 +1417,101 @@ export function SessionTypesPage() {
       void load();
     } catch (err) {
       window.alert(readApiMessage(err, "Failed to delete service type."));
+    }
+  };
+
+  const submitGroup = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !groupForm.name.trim()) return;
+    const payload = {
+      name: groupForm.name.trim(),
+      description: groupForm.description.trim(),
+      active: groupForm.active,
+      sortOrder: editingGroup?.sortOrder,
+    };
+    try {
+      if (editingGroup) await api.put(`/service-groups/${editingGroup.id}`, payload);
+      else await api.post("/service-groups", payload);
+      setShowGroupModal(false);
+      setEditingGroup(null);
+      setGroupForm({ name: "", description: "", active: true });
+      await load();
+    } catch (err) {
+      window.alert(readApiMessage(err, locale === "sl" ? "Skupine storitev ni bilo mogoče shraniti." : "Failed to save service group."));
+    }
+  };
+
+  const openNewGroupModal = () => {
+    setEditingGroup(null);
+    setGroupForm({ name: "", description: "", active: true });
+    setShowGroupModal(true);
+  };
+
+  const openGroupEdit = (group: ServiceGroup) => {
+    setEditingGroup(group);
+    setGroupForm({ name: group.name, description: group.description || "", active: group.active !== false });
+    setShowGroupModal(true);
+  };
+
+  const toggleGroupActive = async (group: ServiceGroup, nextActive: boolean) => {
+    try {
+      await api.put(`/service-groups/${group.id}`, {
+        name: group.name,
+        description: group.description || "",
+        active: nextActive,
+        sortOrder: group.sortOrder,
+      });
+      await load();
+    } catch (err) {
+      window.alert(readApiMessage(err, locale === "sl" ? "Statusa skupine ni bilo mogoče spremeniti." : "Failed to update service group status."));
+    }
+  };
+
+  const removeGroup = async (group: ServiceGroup) => {
+    const message = locale === "sl"
+      ? `Izbrišem skupino »${group.name}«? Dodeljene storitve bodo ostale in bodo premaknjene med storitve brez skupine.`
+      : `Delete “${group.name}”? Assigned services will remain and become ungrouped.`;
+    if (!window.confirm(message)) return;
+    try {
+      await api.delete(`/service-groups/${group.id}`);
+      if (typeGroupFilter === String(group.id)) setTypeGroupFilter("all");
+      await load();
+    } catch (err) {
+      window.alert(readApiMessage(err, locale === "sl" ? "Skupine ni bilo mogoče izbrisati." : "Failed to delete service group."));
+    }
+  };
+
+  const moveGroup = async (group: ServiceGroup, delta: -1 | 1) => {
+    const ordered = [...groups].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    const index = ordered.findIndex((item) => item.id === group.id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    try {
+      const response = await api.put<ServiceGroup[]>("/service-groups/reorder", { ids: ordered.map((item) => item.id) });
+      setGroups(response.data || []);
+      await load();
+    } catch (err) {
+      window.alert(readApiMessage(err, locale === "sl" ? "Vrstnega reda ni bilo mogoče shraniti." : "Failed to save group order."));
+    }
+  };
+
+  const moveTypeWithinGroup = async (type: SessionTypeT, delta: -1 | 1) => {
+    const groupId = type.serviceGroupId ?? null;
+    const ordered = types
+      .filter((item) => (item.serviceGroupId ?? null) === groupId)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+    const index = ordered.findIndex((item) => item.id === type.id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    try {
+      await api.put("/types/reorder", {
+        items: ordered.map((item, sortOrder) => ({ id: item.id, serviceGroupId: groupId, sortOrder })),
+      });
+      await load();
+    } catch (err) {
+      window.alert(readApiMessage(err, locale === "sl" ? "Vrstnega reda storitev ni bilo mogoče shraniti." : "Failed to save service order."));
     }
   };
 
@@ -1411,6 +1549,8 @@ export function SessionTypesPage() {
           groupBookingModuleEnabled && type.groupBookingEnabled === true
             ? type.guestLimitUserEmails ?? []
             : [],
+        serviceGroupId: type.serviceGroupId ?? null,
+        sortOrder: type.sortOrder ?? 0,
         services: (type.linkedServices || []).map((ls) => ({
           transactionServiceId: ls.transactionServiceId,
           price: ls.price ?? null,
@@ -1625,6 +1765,7 @@ export function SessionTypesPage() {
       guestLimitUserEmailsText: guestLimitUserEmailsTextFromApi(
         groupBookingModuleEnabled ? type.guestLimitUserEmails : [],
       ),
+      serviceGroupId: type.serviceGroupId == null ? "" : String(type.serviceGroupId),
       serviceLines: (type.linkedServices || []).map((ls) => ({
         transactionServiceId: ls.transactionServiceId,
         price:
@@ -1683,6 +1824,76 @@ export function SessionTypesPage() {
   const activeStatusLabel = locale === "sl" ? "Aktivna" : "Active";
   const inactiveStatusLabel = locale === "sl" ? "Neaktivna" : "Inactive";
 
+  const groupsPanelBody =
+    groups.length === 0 ? (
+      <EmptyState
+        title={locale === "sl" ? "Še ni skupin storitev" : "No service groups yet"}
+        text={locale === "sl" ? "Ustvarite skupino in vanjo povežite različna trajanja ali različice iste storitve." : "Create a group and assign related service variants or durations to it."}
+      />
+    ) : filteredGroups.length === 0 ? (
+      <EmptyState
+        title={t("calendarFilterSearchNoResults")}
+        text={locale === "sl" ? "Nobena skupina ne ustreza izbranim filtrom." : "No service groups match the selected filters."}
+      />
+    ) : (
+      <div className="clients-list-shell service-config-list-shell service-groups-list-shell">
+        <div className="clients-mobile-list service-config-mobile-list">
+          {filteredGroups.map((group, index) => (
+            <article
+              key={group.id}
+              className="clients-mobile-card service-config-mobile-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => openGroupEdit(group)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openGroupEdit(group); } }}
+            >
+              <div className="clients-mobile-card-head">
+                <ServiceConfigNameCell
+                  title={group.name}
+                  subtitle={group.description?.trim() || (locale === "sl" ? "Brez opisa" : "No description")}
+                  visual={serviceConfigVisual(index)}
+                />
+              </div>
+              <div className="clients-mobile-meta">
+                <div><span>{locale === "sl" ? "Storitve" : "Services"}</span><strong>{group.serviceCount ?? 0}</strong></div>
+                <div><span>{locale === "sl" ? "Vrstni red" : "Order"}</span><strong className="service-order-controls"><button type="button" onClick={(e) => { e.stopPropagation(); void moveGroup(group, -1); }} aria-label="Move up">↑</button><button type="button" onClick={(e) => { e.stopPropagation(); void moveGroup(group, 1); }} aria-label="Move down">↓</button></strong></div>
+                <div><span>Status</span><strong><button type="button" className={`clients-status-pill clients-status-pill-btn${group.active === false ? " clients-status-pill--inactive" : ""}`} onClick={(e) => { e.stopPropagation(); void toggleGroupActive(group, group.active === false); }}><span />{group.active === false ? inactiveStatusLabel : activeStatusLabel}</button></strong></div>
+                <div><span>{locale === "sl" ? "Dejanja" : "Actions"}</span><strong><button type="button" className="account-table-action-danger" onClick={(e) => { e.stopPropagation(); void removeGroup(group); }}>{t("formDelete")}</button></strong></div>
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="simple-table-wrap clients-table-wrap clients-table-desktop service-config-table-wrap">
+          <table className="clients-table service-config-table service-groups-table">
+            <thead><tr>
+              <th>{locale === "sl" ? "Naziv" : "Name"}</th>
+              <th>{locale === "sl" ? "Opis" : "Description"}</th>
+              <th>{locale === "sl" ? "Storitve" : "Services"}</th>
+              <th>{locale === "sl" ? "Vrstni red" : "Order"}</th>
+              <th>Status</th>
+              <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
+            </tr></thead>
+            <tbody>
+              {filteredGroups.map((group, index) => (
+                <tr key={group.id} className="clients-row clients-row--clickable" onClick={() => openGroupEdit(group)}>
+                  <td><ServiceConfigNameCell title={group.name} subtitle={`ID #${group.id}`} visual={serviceConfigVisual(index)} /></td>
+                  <td className="clients-muted">{group.description?.trim() || "—"}</td>
+                  <td className="clients-muted">{group.serviceCount ?? 0}</td>
+                  <td onClick={(e) => e.stopPropagation()}><span className="service-order-controls"><button type="button" onClick={() => void moveGroup(group, -1)} aria-label="Move up">↑</button><button type="button" onClick={() => void moveGroup(group, 1)} aria-label="Move down">↓</button></span></td>
+                  <td><button type="button" className={`clients-status-pill clients-status-pill-btn${group.active === false ? " clients-status-pill--inactive" : ""}`} onClick={(e) => { e.stopPropagation(); void toggleGroupActive(group, group.active === false); }}><span />{group.active === false ? inactiveStatusLabel : activeStatusLabel}</button></td>
+                  <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" onClick={() => openGroupEdit(group)}>{locale === "sl" ? "Uredi" : "Edit"}</button>
+                    <button type="button" onClick={() => void toggleGroupActive(group, group.active === false)}>{group.active === false ? (locale === "sl" ? "Aktiviraj" : "Activate") : (locale === "sl" ? "Deaktiviraj" : "Deactivate")}</button>
+                    <button type="button" className="account-table-action-danger" onClick={() => void removeGroup(group)}>{t("formDelete")}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+
   const typesPanelBody =
     types.length === 0 ? (
       <EmptyState
@@ -1698,7 +1909,6 @@ export function SessionTypesPage() {
       <div className="clients-list-shell service-config-list-shell">
         <div className="clients-mobile-list service-config-mobile-list">
           {filteredTypes.map((type, index) => {
-            const linkedSummary = typeLinkedCategory(type);
             const price = typeGrossPrice(type);
             return (
               <article
@@ -1776,8 +1986,15 @@ export function SessionTypesPage() {
                 </div>
                 <div className="clients-mobile-meta">
                   <div>
-                    <span>{locale === "sl" ? "Kategorija" : "Category"}</span>
-                    <strong>{linkedSummary}</strong>
+                    <span>{locale === "sl" ? "Skupina" : "Group"}</span>
+                    <strong>{type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}</strong>
+                  </div>
+                  <div>
+                    <span>{locale === "sl" ? "Vrstni red" : "Order"}</span>
+                    <strong className="service-order-controls">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void moveTypeWithinGroup(type, -1); }} aria-label="Move up">↑</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void moveTypeWithinGroup(type, 1); }} aria-label="Move down">↓</button>
+                    </strong>
                   </div>
                   <div>
                     <span>{locale === "sl" ? "Trajanje" : "Duration"}</span>
@@ -1865,15 +2082,20 @@ export function SessionTypesPage() {
                     }}
                   >
                     <td>
-                      <ServiceConfigNameCell
-                        title={type.name}
-                        subtitle={
-                          type.description?.trim()
-                            ? type.description
-                            : `ID #${type.id}`
-                        }
-                        visual={serviceConfigVisual(index)}
-                      />
+                      <div className="service-config-name-with-group">
+                        <ServiceConfigNameCell
+                          title={type.name}
+                          subtitle={
+                            type.description?.trim()
+                              ? type.description
+                              : `ID #${type.id}`
+                          }
+                          visual={serviceConfigVisual(index)}
+                        />
+                        <span className={`service-group-indicator${type.serviceGroupId == null ? " is-ungrouped" : ""}`}>
+                          {type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}
+                        </span>
+                      </div>
                     </td>
                     <td className="clients-muted service-config-category-cell">
                       {typeLinkedCategory(type)}
@@ -1903,6 +2125,10 @@ export function SessionTypesPage() {
                       </button>
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                      <span className="service-order-controls" aria-label={locale === "sl" ? "Vrstni red" : "Order"}>
+                        <button type="button" onClick={() => void moveTypeWithinGroup(type, -1)} aria-label="Move up">↑</button>
+                        <button type="button" onClick={() => void moveTypeWithinGroup(type, 1)} aria-label="Move down">↓</button>
+                      </span>
                       <button
                         type="button"
                         disabled={activatingSessionTypeId === type.id}
@@ -2197,6 +2423,7 @@ export function SessionTypesPage() {
       ),
       priceCalculationMode: "PER_CLIENT",
       guestLimitUserEmailsText: "",
+      serviceGroupId: "",
       serviceLines: [],
     };
     setTypeForm(empty);
@@ -2268,10 +2495,10 @@ export function SessionTypesPage() {
                 type="button"
                 role="tab"
                 aria-selected={
-                  !showTransactionServices && !showCardsMemberships && !showCourses
+                  !showServiceGroups && !showTransactionServices && !showCardsMemberships && !showCourses
                 }
                 className={
-                  !showTransactionServices && !showCardsMemberships && !showCourses
+                  !showServiceGroups && !showTransactionServices && !showCardsMemberships && !showCourses
                     ? "clients-session-tab active"
                     : "clients-session-tab"
                 }
@@ -2279,6 +2506,16 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="types" />
                 <span>{t("sessionTypesSubtabTypes")}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showServiceGroups}
+                className={showServiceGroups ? "clients-session-tab active" : "clients-session-tab"}
+                onClick={() => setSessionTypesSubtab("groups")}
+              >
+                <ServiceConfigTabIcon name="group" />
+                <span>{locale === "sl" ? "Skupine storitev" : "Service groups"}</span>
               </button>
               <button
                 type="button"
@@ -2329,6 +2566,8 @@ export function SessionTypesPage() {
                 placeholder={
                   showCourses
                     ? (locale === "sl" ? "Išči tečaje..." : "Search courses...")
+                    : showServiceGroups
+                      ? (locale === "sl" ? "Išči skupine storitev..." : "Search service groups...")
                     : showCardsMemberships
                       ? t("sessionTypesSearchCardsPlaceholder")
                       : showTransactionServices
@@ -2338,6 +2577,8 @@ export function SessionTypesPage() {
                 value={
                   showCourses
                     ? courseSearch
+                    : showServiceGroups
+                      ? groupSearch
                     : showCardsMemberships
                       ? cardSearch
                       : showTransactionServices
@@ -2347,6 +2588,8 @@ export function SessionTypesPage() {
                 onChange={(e) =>
                   showCourses
                     ? setCourseSearch(e.target.value)
+                    : showServiceGroups
+                      ? setGroupSearch(e.target.value)
                     : showCardsMemberships
                       ? setCardSearch(e.target.value)
                       : showTransactionServices
@@ -2359,6 +2602,18 @@ export function SessionTypesPage() {
               </span>
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
+              {!showServiceGroups && !showTransactionServices && !showCardsMemberships && !showCourses ? (
+                <select
+                  className="service-group-filter-select"
+                  value={typeGroupFilter}
+                  onChange={(e) => setTypeGroupFilter(e.target.value)}
+                  aria-label={locale === "sl" ? "Filtriraj po skupini" : "Filter by group"}
+                >
+                  <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
+                  <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
+                  {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
+                </select>
+              ) : null}
               <div
                 className="clients-session-tabs clients-filter-tabs service-config-filter-tabs"
                 style={{ marginBottom: 0 }}
@@ -2371,6 +2626,8 @@ export function SessionTypesPage() {
                       setCoursesActiveFilter((prev) =>
                         prev === "active" ? "inactive" : "active",
                       );
+                    } else if (showServiceGroups) {
+                      setGroupActiveFilter((prev) => prev === "active" ? "inactive" : "active");
                     } else if (showCardsMemberships) {
                       setCardsActiveFilter((prev) =>
                         prev === "active" ? "inactive" : "active",
@@ -2390,6 +2647,8 @@ export function SessionTypesPage() {
                     className={
                       (showCourses
                         ? coursesActiveFilter
+                        : showServiceGroups
+                          ? groupActiveFilter
                         : showCardsMemberships
                           ? cardsActiveFilter
                           : showTransactionServices
@@ -2402,6 +2661,8 @@ export function SessionTypesPage() {
                   />
                   {(showCourses
                     ? coursesActiveFilter
+                    : showServiceGroups
+                      ? groupActiveFilter
                     : showCardsMemberships
                       ? cardsActiveFilter
                       : showTransactionServices
@@ -2420,6 +2681,8 @@ export function SessionTypesPage() {
               >
                 {showCourses
                   ? (locale === "sl" ? `${coursesFilteredCount} tečajev` : `${coursesFilteredCount} courses`)
+                  : showServiceGroups
+                    ? (locale === "sl" ? `${filteredGroups.length} skupin` : `${filteredGroups.length} groups`)
                   : showCardsMemberships
                     ? guestCardListCountLabel(guestCardsFilteredCount, locale)
                     : showTransactionServices
@@ -2435,6 +2698,8 @@ export function SessionTypesPage() {
                 onClick={
                   showCourses
                     ? () => coursesRef.current?.openNew()
+                    : showServiceGroups
+                      ? openNewGroupModal
                     : showCardsMemberships
                       ? () => cardsMembershipsRef.current?.openNew()
                       : showTransactionServices
@@ -2459,6 +2724,8 @@ export function SessionTypesPage() {
               activeFilter={coursesActiveFilter}
               onFilteredCountChange={onCoursesFilteredCount}
             />
+          ) : showServiceGroups ? (
+            groupsPanelBody
           ) : showCardsMemberships ? (
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
@@ -2655,6 +2922,45 @@ export function SessionTypesPage() {
         </Card>
       )}
 
+      {showGroupModal ? (
+        <div
+          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowGroupModal(false); }}
+          role="presentation"
+        >
+          <div className="modal booking-side-panel service-group-config-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="session-type-config-modal-header">
+              <div className="session-type-config-modal-heading">
+                <span className="session-type-config-modal-icon" aria-hidden><ServiceConfigTabIcon name="group" /></span>
+                <div><h2>{editingGroup ? (locale === "sl" ? "Uredi skupino storitev" : "Edit service group") : (locale === "sl" ? "Nova skupina storitev" : "New service group")}</h2></div>
+              </div>
+              <button type="button" className="secondary session-type-config-modal-close" onClick={() => setShowGroupModal(false)} aria-label={locale === "sl" ? "Zapri" : "Close"}>×</button>
+            </div>
+            <form id="service-group-edit-form" className="booking-side-panel-body service-group-config-form" onSubmit={submitGroup}>
+              <Field label={locale === "sl" ? "Naziv skupine" : "Group name"}>
+                <input autoFocus required maxLength={120} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} placeholder={locale === "sl" ? "npr. Masaža" : "e.g. Massage"} />
+              </Field>
+              <Field label={locale === "sl" ? "Opis" : "Description"}>
+                <textarea rows={4} value={groupForm.description} onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })} />
+              </Field>
+              <label className="transaction-service-switch-row service-group-active-switch">
+                <span className="transaction-service-switch-copy"><strong>{locale === "sl" ? "Aktivna skupina" : "Active group"}</strong><span>{locale === "sl" ? "Neaktivna skupina se v widgetu in aplikaciji za goste ne prikazuje kot skupina; njene storitve ostanejo aktivne." : "Inactive groups are not shown as group headings in guest booking; their services remain available."}</span></span>
+                <span className="session-type-config-switch transaction-service-option-switch">
+                  <input type="checkbox" checked={groupForm.active} onChange={(e) => setGroupForm({ ...groupForm, active: e.target.checked })} />
+                  <span className="session-type-config-switch-track" aria-hidden><span className="session-type-config-switch-thumb">{groupForm.active ? "✓" : ""}</span></span>
+                </span>
+              </label>
+            </form>
+            <div className="form-actions booking-side-panel-footer session-type-config-modal-footer">
+              <button form="service-group-edit-form" type="submit" className="gapp-primary-button" disabled={!groupForm.name.trim()}>
+                <GuestConfigSaveIcon />
+                {editingGroup ? (locale === "sl" ? "Shrani spremembe" : "Save changes") : (locale === "sl" ? "Ustvari skupino" : "Create group")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showTypeModal ? (
         <div
           className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop"
@@ -2780,6 +3086,25 @@ export function SessionTypesPage() {
                       }}
                     />
                   </Field>
+                </div>
+
+                <div className="session-type-config-grid session-type-config-grid--two">
+                  <Field label={locale === "sl" ? "Skupina storitve" : "Service group"}>
+                    <select
+                      value={typeForm.serviceGroupId}
+                      onChange={(e) => setTypeForm({ ...typeForm, serviceGroupId: e.target.value })}
+                    >
+                      <option value="">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
+                      {groups.filter((group) => group.active !== false || String(group.id) === typeForm.serviceGroupId).map((group) => (
+                        <option key={group.id} value={String(group.id)}>{group.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="service-group-field-hint">
+                    {locale === "sl"
+                      ? "Povežite različna trajanja ali različice iste storitve, npr. Masaža 30, 45 in 60 min."
+                      : "Group related durations or variants, for example Massage 30, 45 and 60 min."}
+                  </div>
                 </div>
 
                 <div className="session-type-config-grid session-type-config-grid--two session-type-config-duration-grid">

@@ -172,7 +172,12 @@ public final class GuestDtos {
             /** Validity in days; passed through so the Buy card can preview expiry. */
             Integer validityDays,
             /** Usage limit / pack count; null = unlimited. */
-            Integer usageLimit
+            Integer usageLimit,
+            /** Optional active service group used to organize the booking service step. */
+            String serviceGroupId,
+            String serviceGroupName,
+            Integer serviceGroupSortOrder,
+            int serviceSortOrder
     ) {}
     public record AvailabilitySlotResponse(String slotId, String startsAt, String endsAt, boolean available) {}
     public record AvailabilityResponse(String sessionTypeId, String date, List<AvailabilitySlotResponse> slots) {}

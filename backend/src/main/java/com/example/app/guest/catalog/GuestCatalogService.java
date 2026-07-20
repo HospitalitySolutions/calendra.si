@@ -112,7 +112,11 @@ public class GuestCatalogService {
                     type.getDurationMinutes() == null ? 60 : type.getDurationMinutes(),
                     null,
                     null,
-                    null
+                    null,
+                    publicGroup(type) == null ? null : String.valueOf(publicGroup(type).getId()),
+                    publicGroup(type) == null ? null : publicGroup(type).getName(),
+                    publicGroup(type) == null ? null : publicGroup(type).getSortOrder(),
+                    type.getGuestSortOrder()
             ));
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
@@ -140,11 +144,22 @@ public class GuestCatalogService {
                     product.getSessionType() != null && product.getSessionType().getDurationMinutes() != null ? product.getSessionType().getDurationMinutes() : 60,
                     product.getPromoText(),
                     product.getValidityDays(),
-                    product.getUsageLimit()
+                    product.getUsageLimit(),
+                    product.getSessionType() == null || publicGroup(product.getSessionType()) == null
+                            ? null : String.valueOf(publicGroup(product.getSessionType()).getId()),
+                    product.getSessionType() == null || publicGroup(product.getSessionType()) == null
+                            ? null : publicGroup(product.getSessionType()).getName(),
+                    product.getSessionType() == null || publicGroup(product.getSessionType()) == null
+                            ? null : publicGroup(product.getSessionType()).getSortOrder(),
+                    product.getSessionType() == null ? Integer.MAX_VALUE : product.getSessionType().getGuestSortOrder()
             ));
         }
-        out.sort(Comparator.comparing(GuestDtos.ProductResponse::name, String.CASE_INSENSITIVE_ORDER));
         return out;
+    }
+
+    private com.example.app.session.ServiceGroup publicGroup(SessionType type) {
+        if (type == null || type.getServiceGroup() == null || !type.getServiceGroup().isActive()) return null;
+        return type.getServiceGroup();
     }
 
     @Transactional(readOnly = true)

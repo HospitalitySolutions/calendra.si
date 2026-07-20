@@ -383,6 +383,7 @@ public class LoadTestDataSeeder implements CommandLineRunner {
         jdbc.update("delete from user_spaces where user_id in (select id from users where company_id in (select id from company where tenant_code like 'lt-%'))");
         jdbc.update("delete from user_types where user_id in (select id from users where company_id in (select id from company where tenant_code like 'lt-%'))");
         jdbc.update("delete from session_type where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from service_group where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from space where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from payment_methods where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from clients where company_id in (select id from company where tenant_code like 'lt-%')");

@@ -62,7 +62,11 @@ public class PublicBookingWidgetController {
             Integer durationMinutes,
             String priceLabel,
             Integer maxParticipantsPerSession,
-            boolean widgetGroupBookingEnabled
+            boolean widgetGroupBookingEnabled,
+            Long serviceGroupId,
+            String serviceGroupName,
+            Integer serviceGroupSortOrder,
+            int serviceSortOrder
     ) {}
 
     public record WidgetConsultantResponse(

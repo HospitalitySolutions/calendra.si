@@ -563,8 +563,12 @@ struct ProductModel: Identifiable, Codable, Hashable {
     let promoText: String?
     let validityDays: Int?
     let usageLimit: Int?
+    let serviceGroupId: String?
+    let serviceGroupName: String?
+    let serviceGroupSortOrder: Int?
+    let serviceSortOrder: Int?
 
-    init(id: String, name: String, productType: String, priceGross: Double, currency: String, sessionTypeId: String?, sessionTypeName: String?, bookable: Bool, description: String?, durationMinutes: Int?, promoText: String?, validityDays: Int?, usageLimit: Int?) {
+    init(id: String, name: String, productType: String, priceGross: Double, currency: String, sessionTypeId: String?, sessionTypeName: String?, bookable: Bool, description: String?, durationMinutes: Int?, promoText: String?, validityDays: Int?, usageLimit: Int?, serviceGroupId: String? = nil, serviceGroupName: String? = nil, serviceGroupSortOrder: Int? = nil, serviceSortOrder: Int? = nil) {
         self.id = id
         self.name = name
         self.productType = productType
@@ -578,11 +582,15 @@ struct ProductModel: Identifiable, Codable, Hashable {
         self.promoText = promoText
         self.validityDays = validityDays
         self.usageLimit = usageLimit
+        self.serviceGroupId = serviceGroupId
+        self.serviceGroupName = serviceGroupName
+        self.serviceGroupSortOrder = serviceGroupSortOrder
+        self.serviceSortOrder = serviceSortOrder
     }
 
     enum CodingKeys: String, CodingKey {
         case id = "productId"
-        case name, productType, priceGross, currency, sessionTypeId, sessionTypeName, bookable, description, durationMinutes, promoText, validityDays, usageLimit
+        case name, productType, priceGross, currency, sessionTypeId, sessionTypeName, bookable, description, durationMinutes, promoText, validityDays, usageLimit, serviceGroupId, serviceGroupName, serviceGroupSortOrder, serviceSortOrder
     }
 }
 
@@ -872,6 +880,10 @@ struct ServiceOptionModel: Identifiable, Hashable {
     let currency: String
     let durationMinutes: Int?
     let sessionTypeId: String
+    let serviceGroupId: String?
+    let serviceGroupName: String?
+    let serviceGroupSortOrder: Int?
+    let serviceSortOrder: Int?
     let tenantType: String?
 }
 

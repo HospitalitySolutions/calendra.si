@@ -1801,6 +1801,56 @@
       `;
     }
 
+    serviceCardMarkup(item, index) {
+      const t = this.text();
+      return `
+        <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
+          ${this.serviceIconMarkup(item, index)}
+          <span class="service-card-main">
+            <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
+            <span class="service-card-meta">
+              <span>${this.uiIcon('clock')}${escapeHtml(String(item.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}</span>
+            </span>
+          </span>
+          ${item.priceLabel ? `<span class="service-card-price">${escapeHtml(item.priceLabel)}</span>` : ''}
+          <span class="service-card-check">${this.uiIcon('check')}</span>
+        </button>
+      `;
+    }
+
+    serviceSelectionMarkup() {
+      const services = Array.isArray(this.state.services) ? this.state.services : [];
+      const hasGroups = services.some(item => item && item.serviceGroupId != null && item.serviceGroupName);
+      if (!hasGroups) {
+        return `<div class="service-grid">${services.map((item, index) => this.serviceCardMarkup(item, index)).join('')}</div>`;
+      }
+
+      const sections = [];
+      const byKey = new Map();
+      services.forEach((item, index) => {
+        const grouped = item && item.serviceGroupId != null && item.serviceGroupName;
+        const key = grouped ? `group-${item.serviceGroupId}` : 'ungrouped';
+        if (!byKey.has(key)) {
+          const section = {
+            key,
+            name: grouped ? String(item.serviceGroupName) : '',
+            groupOrder: grouped && Number.isFinite(Number(item.serviceGroupSortOrder)) ? Number(item.serviceGroupSortOrder) : Number.MAX_SAFE_INTEGER,
+            items: [],
+          };
+          byKey.set(key, section);
+          sections.push(section);
+        }
+        byKey.get(key).items.push({ item, index });
+      });
+      sections.sort((a, b) => a.groupOrder - b.groupOrder || a.name.localeCompare(b.name));
+      return `<div class="service-groups">${sections.map(section => `
+        <section class="service-group-section">
+          ${section.name ? `<h3 class="service-group-title">${escapeHtml(section.name)}</h3>` : ''}
+          <div class="service-grid">${section.items.map(entry => this.serviceCardMarkup(entry.item, entry.index)).join('')}</div>
+        </section>
+      `).join('')}</div>`;
+    }
+
     renderStepContent() {
       const t = this.text();
       const service = this.currentService();
@@ -1832,21 +1882,7 @@
       if (this.state.activeStep === 'service') {
         return `
           <section class="panel-section panel-section--service">
-            <div class="service-grid">
-              ${this.state.services.map((item, index) => `
-                <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
-                  ${this.serviceIconMarkup(item, index)}
-                  <span class="service-card-main">
-                    <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
-                    <span class="service-card-meta">
-                      <span>${this.uiIcon('clock')}${escapeHtml(String(item.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}</span>
-                    </span>
-                  </span>
-                  ${item.priceLabel ? `<span class="service-card-price">${escapeHtml(item.priceLabel)}</span>` : ''}
-                  <span class="service-card-check">${this.uiIcon('check')}</span>
-                </button>
-              `).join('')}
-            </div>
+            ${this.serviceSelectionMarkup()}
             <div class="panel-actions panel-actions--footer">
               <div class="trust-note">${this.uiIcon('shield')}<span>${escapeHtml(t.secureData)}</span></div>
               <button class="primary" type="button" data-action="next" ${!service ? 'disabled' : ''}>${escapeHtml(t.continue)} ${this.uiIcon('arrowRight')}</button>
@@ -2162,6 +2198,9 @@
         .section-copy p, .block-subtitle { margin: 0; color: var(--calendra-muted); line-height: 1.55; font-size: 15px; }
         .panel-section { display: grid; gap: 24px; }
         .service-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+        .service-groups { display: grid; gap: 28px; }
+        .service-group-section { display: grid; gap: 14px; }
+        .service-group-title { margin: 0; color: var(--calendra-text); font-size: 18px; font-weight: 850; letter-spacing: -.01em; }
         .service-card {
           position: relative;
           min-height: 134px;

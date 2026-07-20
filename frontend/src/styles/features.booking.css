@@ -6970,3 +6970,116 @@ button.course-edit-save-button.gapp-primary-button {
 .calendar-personal-field-with-visibility .form-field-inline-control {
   width: 100%;
 }
+
+/* Service groups */
+.service-group-filter-select {
+  min-width: 170px;
+  height: 38px;
+  padding: 0 34px 0 12px;
+  border: 1px solid var(--border, #dfe5ec);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--text, #172033);
+  font: inherit;
+}
+
+.service-config-name-with-group {
+  display: grid;
+  gap: 7px;
+}
+
+.service-config-name-with-group > .service-group-indicator {
+  width: max-content;
+  margin-left: 68px;
+}
+
+.service-group-indicator {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #1769e8;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.service-group-indicator.is-ungrouped {
+  background: #f3f5f7;
+  color: #748094;
+}
+
+.service-order-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.service-order-controls button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border, #dfe5ec);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--text, #172033);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.service-order-controls button:hover {
+  border-color: #8ab6ff;
+  color: #1769e8;
+  background: #f3f8ff;
+}
+
+.service-group-field-hint {
+  align-self: end;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  color: var(--muted, #687386);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.service-group-config-modal.modal.booking-side-panel {
+  width: min(600px, calc(100vw - 32px));
+  max-width: 600px;
+}
+
+.service-group-config-form {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  overflow: auto;
+}
+
+.service-group-config-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.service-group-active-switch {
+  margin-top: 4px;
+  border: 1px solid var(--border, #e2e7ee);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.service-groups-table td:nth-child(2) {
+  max-width: 460px;
+}
+
+@media (max-width: 720px) {
+  .service-group-filter-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .service-group-field-hint {
+    min-height: 0;
+  }
+}

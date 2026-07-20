@@ -29,6 +29,8 @@ class SessionTypeControllerInactivationTest {
     private TransactionServiceRepository txRepo;
     @Mock
     private SessionBookingRepository bookingRepo;
+    @Mock
+    private ServiceGroupRepository groupRepo;
 
     private SessionTypeController controller;
     private User me;
@@ -36,7 +38,7 @@ class SessionTypeControllerInactivationTest {
 
     @BeforeEach
     void setUp() {
-        controller = new SessionTypeController(repo, txRepo, bookingRepo);
+        controller = new SessionTypeController(repo, txRepo, bookingRepo, groupRepo);
 
         Company company = new Company();
         company.setId(1L);

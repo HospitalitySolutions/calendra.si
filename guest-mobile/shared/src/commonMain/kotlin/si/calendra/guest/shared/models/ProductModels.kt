@@ -19,7 +19,11 @@ data class ProductSummary(
     /** Validity in days; drives "Valid until" visibility in the wallet UI. */
     val validityDays: Int? = null,
     /** Usage limit / pack count shown as remaining tickets; null = unlimited. */
-    val usageLimit: Int? = null
+    val usageLimit: Int? = null,
+    val serviceGroupId: String? = null,
+    val serviceGroupName: String? = null,
+    val serviceGroupSortOrder: Int? = null,
+    val serviceSortOrder: Int = 0
 )
 
 @Serializable
