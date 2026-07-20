@@ -2153,6 +2153,7 @@
       const t = this.text();
       return `
         <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
+          ${this.serviceIconMarkup(item, index)}
           <span class="service-card-main">
             <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
             <span class="service-card-meta">
@@ -2182,6 +2183,7 @@
       return `
         <button class="standalone-service-row ${selected ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
           <span class="standalone-service-select">${selected ? this.uiIcon('check') : ''}</span>
+          ${this.serviceIconMarkup(item, index)}
           <span class="standalone-service-main">
             <strong>${escapeHtml(this.serviceDisplayName(item))}</strong>
           </span>
@@ -2233,6 +2235,7 @@
                   data-group-key="${escapeHtml(section.key)}"
                   aria-expanded="${isExpanded ? 'true' : 'false'}"
                 >
+                  <span class="standalone-group-icon">${this.uiIcon('calendar')}</span>
                   <span class="standalone-group-copy">
                     <strong>${escapeHtml(section.name)}</strong>
                     <small>${escapeHtml(this.serviceGroupCountLabel(section.items.length))}</small>
@@ -2332,15 +2335,28 @@
       }
 
       if (this.state.activeStep === 'consultant') {
+        const consultantSummaryMarkup = `
+          <aside class="summary-card summary-card--consultant-step">
+            <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
+            <div class="summary-rows summary-rows--consultant-step">
+              <div class="summary-row summary-row--compact">
+                <span class="summary-row-label">${escapeHtml(t.selectedService)}</span>
+                <strong class="summary-row-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+                <em class="summary-row-meta">${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
+              </div>
+            </div>
+          </aside>
+        `;
+
         const consultantOptionsMarkup = `
           <div class="consultants-block consultants-block--step">
             <div class="block-title">${escapeHtml(this.consultantSelectionOptional() ? t.chooseConsultantOptional : t.chooseConsultantRequired)}</div>
-            <div class="consultant-row">
+            <div class="consultant-list">
               ${this.state.consultants.length ? this.state.consultants.map((item) => `
-                <button class="consultant-pill ${this.state.selectedConsultantId === item.id ? 'is-active' : ''}" type="button" data-action="consultant" data-id="${item.id}">
+                <button class="consultant-option ${this.state.selectedConsultantId === item.id ? 'is-active' : ''}" type="button" data-action="consultant" data-id="${item.id}">
                   <span class="radio-dot"></span>
                   ${this.consultantAvatarMarkup(item)}
-                  <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(t.stepConsultant)}</small></span>
+                  <span class="consultant-option-copy"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(t.stepConsultant)}</small></span>
                 </button>
               `).join('') : `<div class="empty">${escapeHtml(t.noConsultants)}</div>`}
             </div>
@@ -2349,15 +2365,14 @@
 
         return `
           <section class="panel-section panel-section--consultant">
-            <div class="selected-service-card">
-              ${this.serviceIconMarkup(service, 0)}
-              <span>
-                <small>${escapeHtml(t.selectedService)}</small>
-                <strong>${escapeHtml(this.serviceDisplayName(service))}</strong>
-                <em>${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
-              </span>
+            <div class="consultant-layout">
+              <div class="consultant-main-col">
+                ${consultantOptionsMarkup}
+              </div>
+              <div class="consultant-summary-col">
+                ${consultantSummaryMarkup}
+              </div>
             </div>
-            ${consultantOptionsMarkup}
             <div class="panel-actions panel-actions--footer">
               <div class="trust-note">${this.uiIcon('shield')}<span>${escapeHtml(t.secureData)}</span></div>
               <div class="action-pair">
@@ -2615,22 +2630,13 @@
         }
         .headline p { margin: 14px 0 0; color: var(--calendra-muted); font-size: clamp(16px, 1.4vw, 20px); line-height: 1.5; }
         .progress {
-          display: flex;
+          display: grid;
+          grid-template-columns: auto minmax(48px,1fr) auto minmax(48px,1fr) auto;
           align-items: center;
-          gap: clamp(10px, 1.5vw, 20px);
+          gap: clamp(12px, 2vw, 28px);
           width: 100%;
-          min-width: 0;
         }
-        .progress-item {
-          flex: 0 0 auto;
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          min-width: max-content;
-          color: #7a8498;
-          font-weight: 750;
-          white-space: nowrap;
-        }
+        .progress-item { display: inline-flex; align-items: center; gap: 14px; min-width: max-content; color: #7a8498; font-weight: 750; }
         .progress-dot {
           width: 44px; height: 44px; border-radius: 999px;
           display: inline-grid; place-items: center;
@@ -2642,13 +2648,7 @@
         .progress-item.is-active { color: #0d1b3d; }
         .progress-item.is-active .progress-dot,
         .progress-item.is-done .progress-dot { background: var(--calendra-primary); color: #fff; border-color: var(--calendra-primary); box-shadow: 0 12px 22px rgba(15,107,255,.18); }
-        .progress-sep {
-          flex: 1 1 56px;
-          min-width: 24px;
-          height: 2px;
-          border-radius: 999px;
-          background: #e7edf5;
-        }
+        .progress-sep { height: 2px; border-radius: 999px; background: #e7edf5; }
         .progress-item.is-done + .progress-sep { background: var(--calendra-primary); }
         .section-copy { display: grid; gap: 8px; margin-bottom: 4px; }
         .section-copy h3, .block-title { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 850; color: var(--calendra-text); }
@@ -2670,9 +2670,9 @@
           width: 100%;
           min-height: 70px;
           display: grid;
-          grid-template-columns: minmax(0,1fr) 38px;
+          grid-template-columns: 44px minmax(0,1fr) 38px;
           align-items: center;
-          gap: 16px;
+          gap: 14px;
           padding: 12px 16px;
           border: 0;
           color: var(--calendra-text);
@@ -2681,6 +2681,16 @@
           cursor: pointer;
         }
         .standalone-service-group-toggle:hover { background: #fbfdff; }
+        .standalone-group-icon {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 12px;
+          color: var(--calendra-primary);
+          background: var(--calendra-blue-soft);
+          font-size: 22px;
+        }
         .standalone-group-copy { min-width: 0; display: grid; gap: 3px; }
         .standalone-group-copy strong { overflow: hidden; font-size: 17px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
         .standalone-group-copy small { color: var(--calendra-muted); font-size: 13px; font-weight: 650; }
@@ -2700,7 +2710,7 @@
         }
         .standalone-service-children {
           display: grid;
-          padding: 0 14px 12px;
+          padding: 0 14px 12px 62px;
           border-top: 1px solid var(--calendra-border);
           background: #fff;
         }
@@ -2709,7 +2719,7 @@
           width: 100%;
           min-height: 62px;
           display: grid;
-          grid-template-columns: 28px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
+          grid-template-columns: 28px 38px minmax(0,1fr) minmax(92px,auto) minmax(74px,auto);
           align-items: center;
           gap: 12px;
           padding: 8px 12px;
@@ -2742,6 +2752,12 @@
           font-size: 14px;
         }
         .standalone-service-row.is-active .standalone-service-select { border-color: var(--calendra-primary); background: var(--calendra-primary); }
+        .standalone-service-row .service-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          font-size: 18px;
+        }
         .standalone-service-main { min-width: 0; }
         .standalone-service-main strong { display: block; overflow: hidden; font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
         .standalone-service-duration,
@@ -2763,7 +2779,7 @@
           min-height: 134px;
           width: 100%;
           display: grid;
-          grid-template-columns: minmax(0,1fr) auto 32px;
+          grid-template-columns: 78px minmax(0,1fr) auto 32px;
           gap: 18px;
           align-items: center;
           text-align: left;
@@ -2776,9 +2792,9 @@
           box-shadow: 0 4px 15px rgba(15, 23, 42, .035);
           transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
         }
-        .service-card.no-price { grid-template-columns: minmax(0,1fr) 32px; }
-        .service-card:hover, .consultant-pill:hover, .slot-chip:hover, .payment-tile:hover, .calendar-cell:hover:not(:disabled) { transform: translateY(-1px); border-color: rgba(15,107,255,.45); box-shadow: var(--calendra-card-shadow); }
-        .service-card.is-active, .consultant-pill.is-active, .slot-chip.is-active, .payment-tile.is-active {
+        .service-card.no-price { grid-template-columns: 78px minmax(0,1fr) 32px; }
+        .service-card:hover, .consultant-option:hover, .consultant-pill:hover, .slot-chip:hover, .payment-tile:hover, .calendar-cell:hover:not(:disabled) { transform: translateY(-1px); border-color: rgba(15,107,255,.45); box-shadow: var(--calendra-card-shadow); }
+        .service-card.is-active, .consultant-option.is-active, .consultant-pill.is-active, .slot-chip.is-active, .payment-tile.is-active {
           border-color: var(--calendra-primary);
           box-shadow: 0 0 0 3px rgba(15,107,255,.10), var(--calendra-card-shadow);
         }
@@ -2866,28 +2882,51 @@
         .selected-service-card strong { font-size: 17px; font-weight: 850; }
         .selected-service-card em { display: inline-flex; align-items: center; gap: 7px; color: #536079; font-style: normal; font-weight: 650; }
         .consultants-block { display: grid; gap: 12px; }
-        .panel-section--consultant .selected-service-card { margin-bottom: 20px; }
-        .panel-section--consultant .consultants-block { max-width: 820px; }
-        .consultant-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-        .consultant-pill {
-          min-height: 78px;
+        .consultant-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 24px; align-items: start; }
+        .consultant-main-col, .consultant-summary-col { min-width: 0; }
+        .panel-section--consultant .consultants-block { max-width: none; }
+        .consultant-list { display: grid; gap: 14px; }
+        .consultant-option {
+          min-height: 88px;
+          width: 100%;
           background: #fff;
           border: 1px solid var(--calendra-border);
-          border-radius: 13px;
-          padding: 12px 14px;
+          border-radius: 16px;
+          padding: 18px 18px;
           display: grid;
           grid-template-columns: 18px 42px minmax(0,1fr);
           align-items: center;
-          gap: 12px;
+          gap: 14px;
           text-align: left;
           cursor: pointer;
           color: inherit;
         }
+        .consultant-option-copy { min-width: 0; display: grid; gap: 4px; }
         .radio-dot { width: 16px; height: 16px; border-radius: 999px; border: 1.5px solid #9aa6bb; display: inline-block; }
-        .consultant-pill.is-active .radio-dot { border: 5px solid var(--calendra-primary); }
+        .consultant-option.is-active .radio-dot, .consultant-pill.is-active .radio-dot { border: 5px solid var(--calendra-primary); }
         .consultant-avatar { width: 42px; height: 42px; border-radius: 999px; display: grid; place-items: center; background: linear-gradient(135deg, #eaf2ff, #f8fbff); color: var(--calendra-primary); font-weight: 900; }
-        .consultant-pill strong { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .consultant-pill small { display: block; color: var(--calendra-muted); margin-top: 3px; }
+        .consultant-option strong, .consultant-pill strong { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .consultant-option small, .consultant-pill small { display: block; color: var(--calendra-muted); margin-top: 3px; }
+        .summary-card--consultant-step { position: static; }
+        .summary-rows--consultant-step { display: grid; gap: 12px; }
+        .summary-row--compact {
+          display: grid;
+          gap: 8px;
+          padding: 0;
+          border: 0;
+          box-shadow: none;
+          background: transparent;
+        }
+        .summary-row--compact .summary-row-value { font-size: 17px; font-weight: 850; }
+        .summary-row-meta {
+          display: inline-flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 7px;
+          color: #536079;
+          font-style: normal;
+          font-weight: 650;
+        }
         .times-card { padding: 0; border: 0; box-shadow: none; background: transparent; display: grid; gap: 13px; }
         .times-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
         .text-link { border: 0; background: transparent; color: var(--calendra-primary); font-size: 13px; font-weight: 800; cursor: pointer; padding: 2px 0; }
@@ -3245,9 +3284,12 @@
         :host([data-layout="micro"]) .waitlist-modal__footer { display: grid; grid-template-columns: 1fr; }
         :host([data-layout="micro"]) .waitlist-modal__footer button { width: 100%; }
         :host([data-layout="micro"]) .waitlist-modal--success { place-self: center; width: calc(100% - 28px); height: auto; border-radius: 18px; }
-        :host([data-layout="compact"]) .consultant-row,
-        :host([data-layout="narrow"]) .consultant-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
-        :host([data-layout="micro"]) .consultant-row { grid-template-columns: 1fr; }
+        :host([data-layout="compact"]) .consultant-layout,
+        :host([data-layout="narrow"]) .consultant-layout,
+        :host([data-layout="micro"]) .consultant-layout { grid-template-columns: 1fr; }
+        :host([data-layout="compact"]) .consultant-list,
+        :host([data-layout="narrow"]) .consultant-list,
+        :host([data-layout="micro"]) .consultant-list { grid-template-columns: 1fr; }
         :host([data-layout="compact"]) .payment-grid,
         :host([data-layout="narrow"]) .payment-grid,
         :host([data-layout="micro"]) .payment-grid { grid-template-columns: 1fr; }
@@ -3255,28 +3297,15 @@
         :host([data-layout="micro"]) .details-grid { grid-template-columns: 1fr; }
         :host([data-layout="narrow"]) .panel,
         :host([data-layout="micro"]) .panel { padding: 22px; border-radius: 22px; }
-        :host([data-layout="narrow"]) .progress,
-        :host([data-layout="micro"]) .progress {
-          display: flex;
-          overflow-x: auto;
-          gap: 10px;
-          padding-bottom: 4px;
-          scrollbar-width: none;
-        }
-        :host([data-layout="narrow"]) .progress::-webkit-scrollbar,
-        :host([data-layout="micro"]) .progress::-webkit-scrollbar { display: none; }
+        :host([data-layout="narrow"]) .progress { grid-template-columns: 1fr; gap: 8px; }
         :host([data-layout="narrow"]) .progress-sep,
-        :host([data-layout="micro"]) .progress-sep { flex: 0 0 24px; min-width: 24px; }
+        :host([data-layout="micro"]) .progress-sep { display: none; }
         :host([data-layout="narrow"]) .progress-item,
-        :host([data-layout="micro"]) .progress-item {
-          flex: 0 0 auto;
-          padding: 0;
-          border: 0;
-          background: transparent;
-        }
+        :host([data-layout="micro"]) .progress-item { padding: 10px 12px; border: 1px solid var(--calendra-border); border-radius: 14px; background: #fff; }
+        :host([data-layout="micro"]) .progress { grid-template-columns: 1fr; gap: 8px; }
         :host([data-layout="micro"]) .headline h2 { font-size: 34px; }
-        :host([data-layout="micro"]) .service-card { grid-template-columns: minmax(0,1fr) auto 28px; gap: 12px; padding: 18px; }
-        :host([data-layout="micro"]) .service-card.no-price { grid-template-columns: minmax(0,1fr) 28px; }
+        :host([data-layout="micro"]) .service-card { grid-template-columns: 54px minmax(0,1fr) auto 28px; gap: 12px; padding: 18px; }
+        :host([data-layout="micro"]) .service-card.no-price { grid-template-columns: 54px minmax(0,1fr) 28px; }
         :host([data-layout="micro"]) .service-card-price { min-width: 46px; padding: 6px 10px; font-size: 15px; }
         :host([data-layout="micro"]) .service-icon { width: 52px; height: 52px; font-size: 26px; }
         :host([data-layout="micro"]) .calendar-card { padding: 16px; }
@@ -3302,8 +3331,14 @@
         :host([presentation="standalone"]) .powered-by { display: none; }
         :host([presentation="standalone"]) .headline { margin: 24px 0 22px; }
         :host([presentation="standalone"]) .headline h2 { font-size: clamp(30px, 3vw, 40px); line-height: 1.05; letter-spacing: -.04em; }
-        :host([presentation="standalone"]) .widget.step-service .headline { display: none; }
-        :host([presentation="standalone"]) .widget.step-service .panel-section { margin-top: 28px; }
+        :host([presentation="standalone"]) .widget.step-service .headline,
+        :host([presentation="standalone"]) .widget.step-consultant .headline,
+        :host([presentation="directory"]) .widget.step-service .headline,
+        :host([presentation="directory"]) .widget.step-consultant .headline { display: none; }
+        :host([presentation="standalone"]) .widget.step-service .panel-section,
+        :host([presentation="standalone"]) .widget.step-consultant .panel-section,
+        :host([presentation="directory"]) .widget.step-service .panel-section,
+        :host([presentation="directory"]) .widget.step-consultant .panel-section { margin-top: 28px; }
         :host([presentation="standalone"]) .progress-dot { width: 36px; height: 36px; font-size: 14px; }
         :host([presentation="standalone"]) .progress-item { gap: 10px; font-size: 14px; }
         :host([presentation="standalone"]) .panel-actions--footer { margin-top: 8px; }
@@ -3313,12 +3348,29 @@
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-children { padding-left: 14px; }
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-row,
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-row {
-          grid-template-columns: 26px minmax(0,1fr) auto;
+          grid-template-columns: 26px 36px minmax(0,1fr) auto;
           gap: 9px;
         }
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-price,
-        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 2 / 4; justify-content: flex-start; padding: 0 0 5px; }
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-service-price { grid-column: 3 / 5; justify-content: flex-start; padding: 0 0 5px; }
         :host([presentation="standalone"][data-layout="micro"]) .standalone-service-duration { font-size: 13px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .progress,
+        :host([presentation="standalone"][data-layout="micro"]) .progress {
+          display: flex;
+          overflow-x: auto;
+          gap: 10px;
+          padding-bottom: 4px;
+          scrollbar-width: none;
+        }
+        :host([presentation="standalone"][data-layout="narrow"]) .progress::-webkit-scrollbar,
+        :host([presentation="standalone"][data-layout="micro"]) .progress::-webkit-scrollbar { display: none; }
+        :host([presentation="standalone"][data-layout="narrow"]) .progress-item,
+        :host([presentation="standalone"][data-layout="micro"]) .progress-item {
+          flex: 0 0 auto;
+          padding: 0;
+          border: 0;
+          background: transparent;
+        }
 
         :host([presentation="directory"]) .shell { gap: 12px; }
         :host([presentation="directory"]) .panel {
