@@ -357,7 +357,7 @@ const pageStyles = `
   .public-offer-alert--error { background: #fff1f2; border-color: #fecdd3; color: #b42318; }
   .public-offer-alert--success { background: #effaf3; border-color: #b7e4c7; color: #107243; }
   .public-offer-alert--info { background: #eff6ff; border-color: #c7d8ff; color: #1d4ed8; }
-  .public-offer-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .public-offer-actions { position: relative; z-index: 10; display: flex; flex-wrap: wrap; gap: 12px; }
   .public-offer-primary,
   .public-offer-menu-button,
   .public-offer-link-button {
@@ -391,7 +391,8 @@ const pageStyles = `
   .public-offer-menu { position: relative; }
   .public-offer-menu-panel {
     position: absolute;
-    top: calc(100% + 10px);
+    top: auto;
+    bottom: calc(100% + 10px);
     left: 0;
     min-width: 230px;
     padding: 10px;
@@ -401,7 +402,7 @@ const pageStyles = `
     box-shadow: 0 22px 48px rgba(15, 35, 70, .15);
     display: grid;
     gap: 6px;
-    z-index: 5;
+    z-index: 30;
   }
   .public-offer-menu-panel a,
   .public-offer-menu-panel button {

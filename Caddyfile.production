@@ -5,7 +5,7 @@ app.calendra.si {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.mediadelivery.net; connect-src 'self' https: wss:; frame-src 'self' https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; child-src 'self' https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; media-src 'self' blob: data: https:; frame-ancestors 'self' https://*.zoom.us;"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.mediadelivery.net https://challenges.cloudflare.com; connect-src 'self' https: wss:; frame-src 'self' https://challenges.cloudflare.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; child-src 'self' https://challenges.cloudflare.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; media-src 'self' blob: data: https:; frame-ancestors 'self' https://*.zoom.us;"
 	}
 
 	handle /api/* {
