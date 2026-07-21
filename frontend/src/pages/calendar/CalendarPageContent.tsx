@@ -169,17 +169,30 @@ function blendHexColor(base: string, target: string, targetWeight: number): stri
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
 }
 
+function calendarSessionContrastText(color: string): '#0F172A' | '#FFFFFF' {
+  const normalized = normalizeCalendarHexColor(color)
+  if (!normalized) return '#FFFFFF'
+  const channel = (offset: number) => {
+    const value = Number.parseInt(normalized.slice(offset, offset + 2), 16) / 255
+    return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+  }
+  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+  return luminance > 0.52 ? '#0F172A' : '#FFFFFF'
+}
+
 function buildCalendarSessionPalette(color: string | null) {
   const normalized = normalizeCalendarHexColor(color) || CALENDAR_DEFAULT_BOOKED_COLOR
+  const accent = blendHexColor(normalized, '#0F172A', 0.08)
+  const solidText = calendarSessionContrastText(accent)
 
-  // Calendar blocks should hint the selected service colour without becoming loud.
-  // Keep the real service colour as the small accent, but render the tile itself as a soft pastel.
   return {
-    accent: blendHexColor(normalized, '#0F172A', 0.08),
+    accent,
     bg: blendHexColor(normalized, '#FFFFFF', 0.78),
     bgStrong: blendHexColor(normalized, '#FFFFFF', 0.64),
     border: blendHexColor(normalized, '#FFFFFF', 0.38),
     muted: blendHexColor(normalized, '#0F172A', 0.46),
+    solidText,
+    solidMuted: solidText === '#FFFFFF' ? 'rgba(255, 255, 255, 0.94)' : 'rgba(15, 23, 42, 0.78)',
   }
 }
 
@@ -191,6 +204,8 @@ function applyCalendarSessionColor(el: HTMLElement, color: string | null) {
   el.style.setProperty('--calendar-session-border', palette.border)
   el.style.setProperty('--calendar-session-accent', palette.accent)
   el.style.setProperty('--calendar-session-muted', palette.muted)
+  el.style.setProperty('--calendar-session-solid-text', palette.solidText)
+  el.style.setProperty('--calendar-session-solid-muted', palette.solidMuted)
 }
 
 function CalendarPaymentPersonIcon({ className }: { className?: string }) {
@@ -11838,12 +11853,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             if (props.kind === 'booked') {
               if (groupBookingEnabled && props.groupId != null && Number(props.groupId) > 0) {
                 const label = String(arg.event.title || '').trim() || '—'
-                const showTimeBelowTitle = Boolean(mainTimeRange) && !overlapCompactContent && !overlapQueueIndicator
+                const showCompactOneLine = Boolean(mainTimeRange)
+                  && eventDurationMinutes > 0
+                  && eventDurationMinutes <= 30
+                  && !overlapCompactContent
+                  && !overlapQueueIndicator
+                const showTimeBelowTitle = Boolean(mainTimeRange)
+                  && !showCompactOneLine
+                  && !overlapCompactContent
+                  && !overlapQueueIndicator
                 if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                   return renderPartialOverlapContent(label)
                 }
                 return (
-                  <div className="calendar-event-mobile-content calendar-event-mobile-content--single">
+                  <div className={`calendar-event-mobile-content calendar-event-mobile-content--single${showCompactOneLine ? ' calendar-event-mobile-content--compact' : ''}`}>
                     <div className="calendar-event-main-row">
                       <div className="calendar-event-main-title-wrap">
                         <div className="calendar-event-mobile-title calendar-event-booked-label--narrow">
@@ -11851,7 +11874,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                         </div>
                         <div className="calendar-event-mobile-title calendar-event-booked-label--wide">{label}</div>
                       </div>
-                      {mainTimeRange && !showTimeBelowTitle ? <div className="calendar-event-main-time">{mainTimeRange}</div> : null}
+                      {mainTimeRange && !showTimeBelowTitle ? (
+                        <div className={`calendar-event-main-time${showCompactOneLine ? ' calendar-event-main-time--compact' : ''}`}>{mainTimeRange}</div>
+                      ) : null}
                     </div>
                     {showTimeBelowTitle ? <div className="calendar-event-main-time calendar-event-main-time--below">{mainTimeRange}</div> : null}
                     {quickAddButton}
@@ -11875,12 +11900,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const narrowPrimaryLabel = isMultiClient
                 ? (narrowTypeName || fullClientLabel)
                 : fullClientLabel
-              const showTimeBelowTitle = Boolean(mainTimeRange) && !overlapCompactContent && !overlapQueueIndicator
+              const showCompactOneLine = Boolean(mainTimeRange)
+                && eventDurationMinutes > 0
+                && eventDurationMinutes <= 30
+                && !overlapCompactContent
+                && !overlapQueueIndicator
+              const showTimeBelowTitle = Boolean(mainTimeRange)
+                && !showCompactOneLine
+                && !overlapCompactContent
+                && !overlapQueueIndicator
               if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                 return renderPartialOverlapContent(wide)
               }
               return (
-                <div className="calendar-event-mobile-content calendar-event-mobile-content--single">
+                <div className={`calendar-event-mobile-content calendar-event-mobile-content--single${showCompactOneLine ? ' calendar-event-mobile-content--compact' : ''}`}>
                   <div className="calendar-event-main-row">
                     <div className="calendar-event-main-title-wrap">
                       <div className="calendar-event-mobile-title calendar-event-booked-label--narrow">
@@ -11888,7 +11921,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                       </div>
                       <div className="calendar-event-mobile-title calendar-event-booked-label--wide">{wide}</div>
                     </div>
-                    {mainTimeRange && !showTimeBelowTitle ? <div className="calendar-event-main-time">{mainTimeRange}</div> : null}
+                    {mainTimeRange && !showTimeBelowTitle ? (
+                      <div className={`calendar-event-main-time${showCompactOneLine ? ' calendar-event-main-time--compact' : ''}`}>{mainTimeRange}</div>
+                    ) : null}
                   </div>
                   {showTimeBelowTitle ? <div className="calendar-event-main-time calendar-event-main-time--below">{mainTimeRange}</div> : null}
                   {quickAddButton}
@@ -11903,18 +11938,28 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const titleParts = fullTitle.split(/\s+/).filter(Boolean)
               const shortTitle =
                 titleParts.length > 1 ? String(titleParts[titleParts.length - 1]) : fullTitle
-              const showTimeBelowTitle = Boolean(mainTimeRange) && !overlapCompactContent && !overlapQueueIndicator
+              const showCompactOneLine = Boolean(mainTimeRange)
+                && eventDurationMinutes > 0
+                && eventDurationMinutes <= 30
+                && !overlapCompactContent
+                && !overlapQueueIndicator
+              const showTimeBelowTitle = Boolean(mainTimeRange)
+                && !showCompactOneLine
+                && !overlapCompactContent
+                && !overlapQueueIndicator
               if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                 return renderPartialOverlapContent(fullTitle)
               }
               return (
-                <div className="calendar-event-mobile-content calendar-event-mobile-content--single">
+                <div className={`calendar-event-mobile-content calendar-event-mobile-content--single${showCompactOneLine ? ' calendar-event-mobile-content--compact' : ''}`}>
                   <div className="calendar-event-main-row">
                     <div className="calendar-event-main-title-wrap">
                       <div className="calendar-event-mobile-title calendar-event-personal-title--full">{fullTitle}</div>
                       <div className="calendar-event-mobile-title calendar-event-personal-title--short">{shortTitle}</div>
                     </div>
-                    {mainTimeRange && !showTimeBelowTitle ? <div className="calendar-event-main-time">{mainTimeRange}</div> : null}
+                    {mainTimeRange && !showTimeBelowTitle ? (
+                      <div className={`calendar-event-main-time${showCompactOneLine ? ' calendar-event-main-time--compact' : ''}`}>{mainTimeRange}</div>
+                    ) : null}
                   </div>
                   {showTimeBelowTitle ? <div className="calendar-event-main-time calendar-event-main-time--below">{mainTimeRange}</div> : null}
                   {quickAddButton}
