@@ -453,7 +453,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     key: 'firstName' | 'lastName' | 'email' | 'phone',
     label: string,
     wide = false,
-    inputType: 'text' | 'email' = 'text',
+    inputType: 'text' | 'email' | 'tel' = 'text',
   ) => {
     const isEditing = calendarNewClientEditField === key
     return (
@@ -479,6 +479,16 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             <input
               autoFocus
               type={inputType}
+              name={`calendra-calendar-new-client-${key}`}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize={key === 'firstName' || key === 'lastName' ? 'words' : 'none'}
+              spellCheck={false}
+              inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+              enterKeyHint={key === 'phone' ? 'done' : 'next'}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-bwignore="true"
               value={String(newClientForm[key] ?? '')}
               onChange={(e) => setNewClientForm({ ...newClientForm, [key]: e.target.value })}
               onKeyDown={(e) => {
@@ -1959,6 +1969,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       ) : (
                         <input
                           ref={bookedClientSearchInputRef}
+                          type="search"
+                          name="calendra-booked-session-client-search"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          inputMode="search"
+                          enterKeyHint="search"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-bwignore="true"
                           placeholder={clientSearchPlaceholder}
                           value={bookedClientSearch}
                           onChange={(e) => {
@@ -4196,6 +4217,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       ) : (
                         <input
                           ref={clientSearchInputRef}
+                          type="search"
+                          name="calendra-new-session-client-search"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          inputMode="search"
+                          enterKeyHint="search"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-bwignore="true"
                           placeholder={clientSearchPlaceholder}
                           value={clientSearch}
                           onChange={(e) => {
@@ -4902,6 +4934,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           >
             <form
               className="clients-create-modal-form"
+              autoComplete="off"
               onSubmit={(e) => {
                 e.preventDefault()
                 if (!calendarCreateClientDisabled) void createClientFromBooking()
@@ -4928,7 +4961,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
                     {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
                     {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
-                    {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true)}
+                    {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true, 'tel')}
                   </div>
                   {clientError && <div className="error">{clientError}</div>}
                 </div>

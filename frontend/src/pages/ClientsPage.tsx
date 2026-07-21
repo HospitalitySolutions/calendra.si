@@ -2574,6 +2574,16 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <input
           autoFocus={key === 'firstName'}
           type={inputType}
+          name={`calendra-new-client-${key}`}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize={key === 'firstName' || key === 'lastName' ? 'words' : 'none'}
+          spellCheck={false}
+          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+          enterKeyHint={key === 'phone' ? 'done' : 'next'}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-bwignore="true"
           value={form[key]}
           placeholder={placeholder}
           onFocus={() => setNewClientEditField(key)}
@@ -4577,7 +4587,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <form className="clients-create-modal-form" onSubmit={handleSubmit}>
+            <form className="clients-create-modal-form" autoComplete="off" onSubmit={handleSubmit}>
               <div className="clients-action-workspace-header">
                 <div className="clients-action-workspace-client">
                   <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
