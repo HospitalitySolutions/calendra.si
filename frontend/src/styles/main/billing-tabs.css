@@ -2629,3 +2629,137 @@
         width: 100%;
     }
 }
+
+/* Mobile billing navigation — horizontal waitlist-style tabs */
+.billing-tab-label--mobile {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .billing-modern-card.card {
+        overflow: hidden;
+    }
+
+    .billing-modern-header {
+        position: relative;
+        margin-bottom: 14px;
+    }
+
+    .billing-modern-tabs.clients-session-tabs {
+        display: flex;
+        grid-template-columns: none;
+        align-items: center;
+        width: 100%;
+        gap: 8px;
+        margin: 0;
+        padding: 2px 10px 6px 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-bottom: 1px solid #e6edf5;
+        scroll-snap-type: x proximity;
+        scroll-padding-inline: 12px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        -webkit-overflow-scrolling: touch;
+        mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+    }
+
+    .billing-modern-tabs.clients-session-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .billing-modern-tabs .clients-session-tab {
+        flex: 0 0 auto;
+        flex-direction: row;
+        justify-content: center;
+        min-width: max-content;
+        min-height: 46px;
+        padding: 9px 12px;
+        gap: 8px;
+        border: 1px solid transparent;
+        border-radius: 11px;
+        background: transparent;
+        color: #334155;
+        font-size: .84rem;
+        line-height: 1;
+        white-space: nowrap;
+        text-align: left;
+        box-shadow: none;
+        scroll-snap-align: center;
+    }
+
+    .billing-modern-tabs .clients-session-tab:hover {
+        background: #f8fafc;
+        box-shadow: none;
+    }
+
+    .billing-modern-tabs .clients-session-tab.active {
+        border-color: #bfd8ff;
+        background: #eaf2ff;
+        color: #1463df;
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .06), 0 4px 12px rgba(37, 99, 235, .12);
+    }
+
+    .billing-modern-tabs .clients-session-tab span {
+        display: inline;
+        line-height: 1;
+    }
+
+    .billing-tab-label--desktop {
+        display: none !important;
+    }
+
+    .billing-tab-label--mobile {
+        display: inline !important;
+    }
+
+    .billing-tab-icon,
+    .billing-tab-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .billing-tab-count {
+        min-width: 23px;
+        height: 23px;
+        padding: 0 7px;
+        font-size: 11px;
+    }
+
+    .billing-modern-card--open .billing-modern-stats--two {
+        display: none;
+    }
+
+    .billing-modern-card--open .billing-modern-content {
+        gap: 16px;
+    }
+
+    .billing-modern-card--open .billing-modern-filter-row {
+        gap: 14px;
+    }
+
+    .billing-modern-card--open .billing-modern-search.clients-search-input {
+        min-height: 50px;
+        border-radius: 14px;
+    }
+
+    .billing-modern-card--open .billing-modern-filter-row .clients-modern-new-btn {
+        min-height: 54px;
+        border-radius: 16px;
+    }
+}
+
+@media (max-width: 420px) {
+    .billing-modern-tabs .clients-session-tab {
+        min-height: 44px;
+        padding: 8px 11px;
+        font-size: .8rem;
+    }
+
+    .billing-tab-icon,
+    .billing-tab-icon svg {
+        width: 17px;
+        height: 17px;
+    }
+}

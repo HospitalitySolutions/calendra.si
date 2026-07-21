@@ -1190,6 +1190,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [splittingSessionKey, setSplittingSessionKey] = useState<string | null>(null)
   const [expandedBatchSessionId, setExpandedBatchSessionId] = useState<number | null>(null)
   const batchInvoicesRef = useRef<HTMLDivElement | null>(null)
+  const billingTabsRef = useRef<HTMLDivElement | null>(null)
   const [creatingManualOpenBill, setCreatingManualOpenBill] = useState(false)
   const [isOpenBillsMobile, setIsOpenBillsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false,
@@ -1573,6 +1574,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [])
+
+
+  useEffect(() => {
+    if (!isOpenBillsMobile) return
+    const container = billingTabsRef.current
+    const activeTab = container?.querySelector<HTMLButtonElement>('.clients-session-tab.active')
+    if (!container || !activeTab) return
+    const left = activeTab.offsetLeft - (container.clientWidth - activeTab.offsetWidth) / 2
+    container.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+  }, [billingTab, isOpenBillsMobile])
 
   useEffect(() => {
     if (!openBillsSortMenuOpen && !historySortMenuOpen) return
@@ -7512,34 +7523,39 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
           <Card className={`${billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell ' : ''}billing-modern-card billing-modern-card--${billingTab}`}>
             <div className="billing-modern-header">
-              <div className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
+              <div ref={billingTabsRef} className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
                   {billingTabIcon('open')}
-                  <span>{t('billingTabOpenBills')}</span>
+                  <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenBills')}</span>
+                  <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Odprti računi' : 'Open bills'}</span>
                   <strong className="billing-tab-count">{billingTabCounts.open}</strong>
                 </button>
                 <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('openPayments')}>
                   {billingTabIcon('openPayments')}
-                  <span>{t('billingTabOpenPayments')}</span>
+                  <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenPayments')}</span>
+                  <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Odprta plačila' : 'Payments'}</span>
                   <strong className="billing-tab-count">{billingTabCounts.openPayments}</strong>
                 </button>
                 {advanceBillingEnabled && (
                   <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('unusedAdvances')}>
                     {billingTabIcon('unusedAdvances')}
-                    <span>{t('billingTabUnusedAdvances')}</span>
+                    <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabUnusedAdvances')}</span>
+                    <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span>
                     <strong className="billing-tab-count">{billingTabCounts.unusedAdvances}</strong>
                   </button>
                 )}
                 {giftCardsEnabled && (
                   <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('giftCards')}>
                     {billingTabIcon('giftCards')}
-                    <span>{t('billingTabGiftCards')}</span>
+                    <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabGiftCards')}</span>
+                    <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Darilne kartice' : 'Gift cards'}</span>
                     <strong className="billing-tab-count">{billingTabCounts.giftCards}</strong>
                   </button>
                 )}
                 <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>
                   {billingTabIcon('history')}
-                  <span>{t('billingTabFolioHistory')}</span>
+                  <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabFolioHistory')}</span>
+                  <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Zgodovina' : 'History'}</span>
                   <strong className="billing-tab-count">{billingTabCounts.history}</strong>
                 </button>
               </div>
