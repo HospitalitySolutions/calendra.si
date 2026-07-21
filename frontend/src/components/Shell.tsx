@@ -318,6 +318,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
+  const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
   const canViewCalendar = hasEmployeePermission(user, 'CALENDAR_BOOKINGS_VIEW')
   const canViewClients = hasEmployeePermission(user, 'CLIENTS_VIEW')
@@ -338,6 +339,7 @@ function ShellInner({ children }: PropsWithChildren) {
     'GUEST_MOBILE_APP_VIEW',
   ])
   const billingAllowed = billingModuleEnabled && canViewBilling
+  const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
   const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
   const inboxAllowed = inboxModuleEnabled && canViewInbox
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
@@ -432,6 +434,7 @@ function ShellInner({ children }: PropsWithChildren) {
         setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
         setInboxModuleEnabled(settingsData.INBOX_ENABLED !== 'false')
         setScannerModuleEnabled(settingsData.SCANNER_MODULE_ENABLED !== 'false')
+        setWaitlistModuleEnabled(settingsData.WAITLIST_ENABLED !== 'false')
       })
       .catch(() => {})
       .finally(() => setSettingsLoaded(true))
@@ -739,7 +742,7 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
               </NavLink>
             )}
-            {canViewAppointments && (
+            {appointmentsAllowed && (
               <NavLink
                 to="/appointments"
                 className={() => `mobile-nav-overlay-link${location.pathname === '/appointments' ? ' active' : ''}`}
@@ -1256,7 +1259,7 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="sidebar-rail-link-label">{t('navClients')}</span>
               </NavLink>
             )}
-            {canViewAppointments && (
+            {appointmentsAllowed && (
               <NavLink
                 className={() => `sidebar-rail-link${location.pathname === '/appointments' ? ' active' : ''}`}
                 to="/appointments"

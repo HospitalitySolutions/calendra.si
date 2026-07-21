@@ -1201,19 +1201,31 @@ export function AnalyticsPage() {
   const appLocaleTag = localeTagFor(toReportLanguage(locale))
   const reportLocaleTag = localeTagFor(reportLanguage)
 
+  const settingsQuery = useQuery<Record<string, string>>({
+    queryKey: ['analytics-report-settings'],
+    queryFn: async () => {
+      const res = await api.get<Record<string, string>>('/settings')
+      return res.data ?? {}
+    },
+  })
+
   const { data: filterData } = useQuery<{
     consultants: ConsultantOption[]
     spaces: SpaceOption[]
     types: TypeOption[]
     serviceGroups: ServiceGroupOption[]
   }>({
-    queryKey: ['analytics-filters-meta', me.role],
+    queryKey: ['analytics-filters-meta', me.role, settingsQuery.data?.SERVICE_GROUPS_ENABLED],
+    enabled: settingsQuery.isSuccess,
     queryFn: async () => {
+      const groupsEnabled = (settingsQuery.data?.SERVICE_GROUPS_ENABLED ?? 'true') !== 'false'
       const [usersRes, spacesRes, typesRes, serviceGroupsRes] = await Promise.all([
         isAdmin ? api.get<ConsultantOption[]>('/users').catch(() => ({ data: [] as ConsultantOption[] })) : Promise.resolve({ data: [] as ConsultantOption[] }),
         api.get<SpaceOption[]>('/spaces').catch(() => ({ data: [] as SpaceOption[] })),
         api.get<TypeOption[]>('/types').catch(() => ({ data: [] as TypeOption[] })),
-        api.get<ServiceGroupOption[]>('/service-groups').catch(() => ({ data: [] as ServiceGroupOption[] })),
+        groupsEnabled
+          ? api.get<ServiceGroupOption[]>('/service-groups').catch(() => ({ data: [] as ServiceGroupOption[] }))
+          : Promise.resolve({ data: [] as ServiceGroupOption[] }),
       ])
       return {
         consultants: (usersRes.data ?? []).filter((u) => u.consultant),
@@ -1240,14 +1252,6 @@ export function AnalyticsPage() {
     }
   }, [filterData, filteredTypeOptions, typeId])
 
-  const settingsQuery = useQuery<Record<string, string>>({
-    queryKey: ['analytics-report-settings'],
-    queryFn: async () => {
-      const res = await api.get<Record<string, string>>('/settings')
-      return res.data ?? {}
-    },
-  })
-
   useEffect(() => {
     const settings = settingsQuery.data
     if (!settings) return
@@ -1257,6 +1261,12 @@ export function AnalyticsPage() {
   }, [settingsQuery.data, me.email])
 
   const billingReportsEnabled = (settingsQuery.data?.BILLING_ENABLED ?? 'true') !== 'false'
+  const waitlistReportsEnabled = (settingsQuery.data?.WAITLIST_ENABLED ?? 'true') !== 'false'
+  const serviceGroupsReportsEnabled = (settingsQuery.data?.SERVICE_GROUPS_ENABLED ?? 'true') !== 'false'
+
+  useEffect(() => {
+    if (!serviceGroupsReportsEnabled && serviceGroupId) setServiceGroupId('')
+  }, [serviceGroupId, serviceGroupsReportsEnabled])
 
   useEffect(() => {
     if (!billingReportsEnabled && activeReportTemplate === 'revenueInvoices') {
@@ -1284,7 +1294,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
-      if (serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
+      if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
       const res = await api.get<AnalyticsOverview>('/analytics/overview', { params })
       return res.data
@@ -1308,7 +1318,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
-      if (serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
+      if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
       const res = await api.get<AnalyticsOverview>('/analytics/overview', { params })
       return res.data
@@ -1374,7 +1384,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
-      if (serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
+      if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
       if (bookingStatusFilter !== 'ALL') params.bookingStatus = bookingStatusFilter
       if (bookingSourceFilter !== 'ALL') params.sourceChannel = bookingSourceFilter
@@ -1723,7 +1733,7 @@ export function AnalyticsPage() {
       [reportText.filterSnapshot],
       [reportText.selectedConsultant, selectedConsultantName],
       [reportText.selectedSpace, selectedSpaceName],
-      [reportGroupText.selectedGroup, selectedServiceGroupName],
+      ...(serviceGroupsReportsEnabled ? [[reportGroupText.selectedGroup, selectedServiceGroupName] as Array<string | number>] : []),
       [reportText.selectedType, selectedTypeName],
       [reportText.reportLanguage, reportLanguageLabel],
       [reportText.reportComparePrevious, reportComparePrevious ? 'Yes' : 'No'],
@@ -1750,46 +1760,39 @@ export function AnalyticsPage() {
       [reportText.topSpacesTitle],
       [reportText.nameLabel, reportText.bookedTimeLabel, reportText.sessionsLabel],
       ...data.topSpaces.map((item) => [item.label, minutesFormatter(item.minutes), item.sessionsTotal]),
-      [],
-      [reportGroupText.title],
-      [
-        reportGroupText.group,
-        reportGroupText.bookings,
-        reportGroupText.completed,
-        reportGroupText.cancelledNoShow,
-        reportGroupText.revenue,
-        reportGroupText.bookedTime,
-        reportGroupText.waitlistRequests,
-        reportGroupText.offers,
-        reportGroupText.accepted,
-        reportGroupText.conversion,
-      ],
-      ...data.serviceGroups.flatMap((group) => [
+      ...(serviceGroupsReportsEnabled ? [
+        [] as Array<string | number>,
+        [reportGroupText.title] as Array<string | number>,
         [
-          group.serviceGroupName,
-          group.bookings,
-          group.completed,
-          group.cancelled + group.noShows,
-          reportRevenue(group.revenueGross),
-          minutesFormatter(group.bookedMinutes),
-          group.waitlistRequests,
-          group.waitlistOffers,
-          group.acceptedOffers,
-          reportPercent(group.waitlistConversionRate / 100),
-        ],
-        ...group.services.map((service) => [
-          `↳ ${service.serviceName}`,
-          service.bookings,
-          service.completed,
-          service.cancelled + service.noShows,
-          reportRevenue(service.revenueGross),
-          minutesFormatter(service.bookedMinutes),
-          service.waitlistRequests,
-          service.waitlistOffers,
-          service.acceptedOffers,
-          reportPercent(service.waitlistConversionRate / 100),
+          reportGroupText.group,
+          reportGroupText.bookings,
+          reportGroupText.completed,
+          reportGroupText.cancelledNoShow,
+          reportGroupText.revenue,
+          reportGroupText.bookedTime,
+          ...(waitlistReportsEnabled ? [reportGroupText.waitlistRequests, reportGroupText.offers, reportGroupText.accepted, reportGroupText.conversion] : []),
+        ] as Array<string | number>,
+        ...data.serviceGroups.flatMap((group) => [
+          [
+            group.serviceGroupName,
+            group.bookings,
+            group.completed,
+            group.cancelled + group.noShows,
+            reportRevenue(group.revenueGross),
+            minutesFormatter(group.bookedMinutes),
+            ...(waitlistReportsEnabled ? [group.waitlistRequests, group.waitlistOffers, group.acceptedOffers, reportPercent(group.waitlistConversionRate / 100)] : []),
+          ],
+          ...group.services.map((service) => [
+            `↳ ${service.serviceName}`,
+            service.bookings,
+            service.completed,
+            service.cancelled + service.noShows,
+            reportRevenue(service.revenueGross),
+            minutesFormatter(service.bookedMinutes),
+            ...(waitlistReportsEnabled ? [service.waitlistRequests, service.waitlistOffers, service.acceptedOffers, reportPercent(service.waitlistConversionRate / 100)] : []),
+          ]),
         ]),
-      ]),
+      ] : []),
       [],
       [reportText.reportTrendTitle],
       [reportText.reportTrendLabel, reportText.sessionsLabel, reportText.newClientsLabel, reportText.kpiRevenue],
@@ -1877,7 +1880,7 @@ export function AnalyticsPage() {
       [reportText.filterSnapshot],
       [reportText.selectedConsultant, selectedConsultantName],
       [reportText.selectedSpace, selectedSpaceName],
-      [reportGroupText.selectedGroup, selectedServiceGroupName],
+      ...(serviceGroupsReportsEnabled ? [[reportGroupText.selectedGroup, selectedServiceGroupName] as Array<string | number>] : []),
       [reportText.selectedType, selectedTypeName],
       [reportText.bookingStatus, bookingStatusFilter],
       [reportText.sourceChannel, bookingSourceFilter],
@@ -1958,46 +1961,39 @@ export function AnalyticsPage() {
       [text.topSpacesTitle],
       ['Name', text.spaceHoursLabel, text.sessionsLabel],
       ...data.topSpaces.map((item) => [item.label, minutesFormatter(item.minutes), item.sessionsTotal]),
-      [],
-      [groupText.title],
-      [
-        groupText.group,
-        groupText.bookings,
-        groupText.completed,
-        groupText.cancelledNoShow,
-        groupText.revenue,
-        groupText.bookedTime,
-        groupText.waitlistRequests,
-        groupText.offers,
-        groupText.accepted,
-        groupText.conversion,
-      ],
-      ...data.serviceGroups.flatMap((group) => [
+      ...(serviceGroupsReportsEnabled ? [
+        [] as Array<string | number>,
+        [groupText.title] as Array<string | number>,
         [
-          group.serviceGroupName,
-          group.bookings,
-          group.completed,
-          group.cancelled + group.noShows,
-          Number(group.revenueGross || 0),
-          minutesFormatter(group.bookedMinutes),
-          group.waitlistRequests,
-          group.waitlistOffers,
-          group.acceptedOffers,
-          `${safeNumber(group.waitlistConversionRate).toFixed(1)}%`,
-        ],
-        ...group.services.map((service) => [
-          `↳ ${service.serviceName}`,
-          service.bookings,
-          service.completed,
-          service.cancelled + service.noShows,
-          Number(service.revenueGross || 0),
-          minutesFormatter(service.bookedMinutes),
-          service.waitlistRequests,
-          service.waitlistOffers,
-          service.acceptedOffers,
-          `${safeNumber(service.waitlistConversionRate).toFixed(1)}%`,
+          groupText.group,
+          groupText.bookings,
+          groupText.completed,
+          groupText.cancelledNoShow,
+          groupText.revenue,
+          groupText.bookedTime,
+          ...(waitlistReportsEnabled ? [groupText.waitlistRequests, groupText.offers, groupText.accepted, groupText.conversion] : []),
+        ] as Array<string | number>,
+        ...data.serviceGroups.flatMap((group) => [
+          [
+            group.serviceGroupName,
+            group.bookings,
+            group.completed,
+            group.cancelled + group.noShows,
+            Number(group.revenueGross || 0),
+            minutesFormatter(group.bookedMinutes),
+            ...(waitlistReportsEnabled ? [group.waitlistRequests, group.waitlistOffers, group.acceptedOffers, `${safeNumber(group.waitlistConversionRate).toFixed(1)}%`] : []),
+          ],
+          ...group.services.map((service) => [
+            `↳ ${service.serviceName}`,
+            service.bookings,
+            service.completed,
+            service.cancelled + service.noShows,
+            Number(service.revenueGross || 0),
+            minutesFormatter(service.bookedMinutes),
+            ...(waitlistReportsEnabled ? [service.waitlistRequests, service.waitlistOffers, service.acceptedOffers, `${safeNumber(service.waitlistConversionRate).toFixed(1)}%`] : []),
+          ]),
         ]),
-      ]),
+      ] : []),
     ]
     const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -2040,7 +2036,7 @@ export function AnalyticsPage() {
       }
       if (consultantId) payload.consultantId = Number(consultantId)
       if (spaceId) payload.spaceId = Number(spaceId)
-      if (serviceGroupId) payload.serviceGroupId = Number(serviceGroupId)
+      if (serviceGroupsReportsEnabled && serviceGroupId) payload.serviceGroupId = Number(serviceGroupId)
       if (typeId) payload.typeId = Number(typeId)
       await api.post('/analytics/report/send', payload)
       showToast('success', text.reportSent)
@@ -2075,10 +2071,12 @@ export function AnalyticsPage() {
           <span>{reportText.selectedSpace}</span>
           <strong>{selectedSpaceName}</strong>
         </div>
-        <div>
-          <span>{reportGroupText.selectedGroup}</span>
-          <strong>{selectedServiceGroupName}</strong>
-        </div>
+        {serviceGroupsReportsEnabled && (
+          <div>
+            <span>{reportGroupText.selectedGroup}</span>
+            <strong>{selectedServiceGroupName}</strong>
+          </div>
+        )}
         <div>
           <span>{reportText.selectedType}</span>
           <strong>{selectedTypeName}</strong>
@@ -2132,7 +2130,7 @@ export function AnalyticsPage() {
         </div>
       </section>
 
-      <section className="analytics-business-report__section">
+      {serviceGroupsReportsEnabled && <section className="analytics-business-report__section">
         <div className="analytics-business-report__section-heading">
           <h3>{reportGroupText.title}</h3>
           <p>{reportGroupText.subtitle}</p>
@@ -2148,8 +2146,8 @@ export function AnalyticsPage() {
                   <th>{reportGroupText.bookings}</th>
                   <th>{reportGroupText.revenue}</th>
                   <th>{reportGroupText.bookedTime}</th>
-                  <th>{reportGroupText.waitlistRequests}</th>
-                  <th>{reportGroupText.conversion}</th>
+                  {waitlistReportsEnabled && <th>{reportGroupText.waitlistRequests}</th>}
+                  {waitlistReportsEnabled && <th>{reportGroupText.conversion}</th>}
                 </tr>
               </thead>
               {data.serviceGroups.map((group) => (
@@ -2162,8 +2160,8 @@ export function AnalyticsPage() {
                     <td>{reportNumber(group.bookings)}</td>
                     <td>{reportRevenue(group.revenueGross)}</td>
                     <td>{minutesFormatter(group.bookedMinutes)}</td>
-                    <td>{reportNumber(group.waitlistRequests)}</td>
-                    <td>{reportPercent(group.waitlistConversionRate / 100)}</td>
+                    {waitlistReportsEnabled && <td>{reportNumber(group.waitlistRequests)}</td>}
+                    {waitlistReportsEnabled && <td>{reportPercent(group.waitlistConversionRate / 100)}</td>}
                   </tr>
                   {group.services.map((service) => (
                     <tr key={`${serviceGroupMetricKey(group)}:${service.serviceId ?? service.serviceName}`} className="analytics-business-report__service-row">
@@ -2171,8 +2169,8 @@ export function AnalyticsPage() {
                       <td>{reportNumber(service.bookings)}</td>
                       <td>{reportRevenue(service.revenueGross)}</td>
                       <td>{minutesFormatter(service.bookedMinutes)}</td>
-                      <td>{reportNumber(service.waitlistRequests)}</td>
-                      <td>{reportPercent(service.waitlistConversionRate / 100)}</td>
+                      {waitlistReportsEnabled && <td>{reportNumber(service.waitlistRequests)}</td>}
+                      {waitlistReportsEnabled && <td>{reportPercent(service.waitlistConversionRate / 100)}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -2180,7 +2178,7 @@ export function AnalyticsPage() {
             </table>
           </div>
         )}
-      </section>
+      </section>}
 
       <section className="analytics-business-report__section">
         <div className="analytics-business-report__section-heading">
@@ -2384,7 +2382,7 @@ export function AnalyticsPage() {
       <div className="analytics-business-report__parameter-grid">
         <div><span>{reportText.selectedConsultant}</span><strong>{selectedConsultantName}</strong></div>
         <div><span>{reportText.selectedSpace}</span><strong>{selectedSpaceName}</strong></div>
-        <div><span>{reportGroupText.selectedGroup}</span><strong>{selectedServiceGroupName}</strong></div>
+        {serviceGroupsReportsEnabled && <div><span>{reportGroupText.selectedGroup}</span><strong>{selectedServiceGroupName}</strong></div>}
         <div><span>{reportText.selectedType}</span><strong>{selectedTypeName}</strong></div>
         <div><span>{reportText.deliveryMode}</span><strong>{bookingDeliveryMode === 'ONLINE' ? reportText.deliveryOnline : bookingDeliveryMode === 'ONSITE' ? reportText.deliveryOnsite : reportText.deliveryAll}</strong></div>
       </div>
@@ -2514,15 +2512,17 @@ export function AnalyticsPage() {
               <option value="">{text.allSpaces}</option>
               {(filterData?.spaces ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
-              <option value="">{groupText.allGroups}</option>
-              <option value="-1">{groupText.ungrouped}</option>
-              {(filterData?.serviceGroups ?? []).map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}{group.active ? '' : ` · ${groupText.inactive}`}
-                </option>
-              ))}
-            </select>
+            {serviceGroupsReportsEnabled && (
+              <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
+                <option value="">{groupText.allGroups}</option>
+                <option value="-1">{groupText.ungrouped}</option>
+                {(filterData?.serviceGroups ?? []).map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}{group.active ? '' : ` · ${groupText.inactive}`}
+                  </option>
+                ))}
+              </select>
+            )}
             <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
               <option value="">{text.allTypes}</option>
               {filteredTypeOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -2674,7 +2674,7 @@ export function AnalyticsPage() {
             </Card>
           </div>
 
-          <Card className="analytics-service-groups-card">
+          {serviceGroupsReportsEnabled && <Card className="analytics-service-groups-card">
             <div className="analytics-card-heading analytics-service-groups-card__heading">
               <div>
                 <h3>{groupText.title}</h3>
@@ -2694,10 +2694,10 @@ export function AnalyticsPage() {
                       <th>{groupText.cancelledNoShow}</th>
                       <th>{groupText.revenue}</th>
                       <th>{groupText.bookedTime}</th>
-                      <th>{groupText.waitlistRequests}</th>
-                      <th>{groupText.offers}</th>
-                      <th>{groupText.accepted}</th>
-                      <th>{groupText.conversion}</th>
+                      {waitlistReportsEnabled && <th>{groupText.waitlistRequests}</th>}
+                      {waitlistReportsEnabled && <th>{groupText.offers}</th>}
+                      {waitlistReportsEnabled && <th>{groupText.accepted}</th>}
+                      {waitlistReportsEnabled && <th>{groupText.conversion}</th>}
                       <th aria-label={groupText.services} />
                     </tr>
                   </thead>
@@ -2720,10 +2720,10 @@ export function AnalyticsPage() {
                           <td>{group.cancelled + group.noShows}</td>
                           <td>{revenueFormatter(group.revenueGross)}</td>
                           <td>{minutesFormatter(group.bookedMinutes)}</td>
-                          <td>{group.waitlistRequests}</td>
-                          <td>{group.waitlistOffers}</td>
-                          <td>{group.acceptedOffers}</td>
-                          <td>{safeNumber(group.waitlistConversionRate).toFixed(1)}%</td>
+                          {waitlistReportsEnabled && <td>{group.waitlistRequests}</td>}
+                          {waitlistReportsEnabled && <td>{group.waitlistOffers}</td>}
+                          {waitlistReportsEnabled && <td>{group.acceptedOffers}</td>}
+                          {waitlistReportsEnabled && <td>{safeNumber(group.waitlistConversionRate).toFixed(1)}%</td>}
                           <td>
                             <button
                               type="button"
@@ -2749,10 +2749,10 @@ export function AnalyticsPage() {
                             <td>{service.cancelled + service.noShows}</td>
                             <td>{revenueFormatter(service.revenueGross)}</td>
                             <td>{minutesFormatter(service.bookedMinutes)}</td>
-                            <td>{service.waitlistRequests}</td>
-                            <td>{service.waitlistOffers}</td>
-                            <td>{service.acceptedOffers}</td>
-                            <td>{safeNumber(service.waitlistConversionRate).toFixed(1)}%</td>
+                            {waitlistReportsEnabled && <td>{service.waitlistRequests}</td>}
+                            {waitlistReportsEnabled && <td>{service.waitlistOffers}</td>}
+                            {waitlistReportsEnabled && <td>{service.acceptedOffers}</td>}
+                            {waitlistReportsEnabled && <td>{safeNumber(service.waitlistConversionRate).toFixed(1)}%</td>}
                             <td />
                           </tr>
                         ))}
@@ -2762,7 +2762,7 @@ export function AnalyticsPage() {
                 </table>
               </div>
             )}
-          </Card>
+          </Card>}
 
           <div className="analytics-grid analytics-grid--modern analytics-grid--insights">
             <RankingCard
@@ -2955,10 +2955,12 @@ export function AnalyticsPage() {
                 <span>{reportText.selectedSpace}</span>
                 <strong>{selectedSpaceName}</strong>
               </div>
-              <div className="analytics-report-parameter-summary">
-                <span>{reportGroupText.selectedGroup}</span>
-                <strong>{selectedServiceGroupName}</strong>
-              </div>
+              {serviceGroupsReportsEnabled && (
+                <div className="analytics-report-parameter-summary">
+                  <span>{reportGroupText.selectedGroup}</span>
+                  <strong>{selectedServiceGroupName}</strong>
+                </div>
+              )}
               <div className="analytics-report-parameter-summary">
                 <span>{reportText.selectedType}</span>
                 <strong>{selectedTypeName}</strong>

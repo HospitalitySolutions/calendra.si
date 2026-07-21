@@ -2337,6 +2337,8 @@ export function ConfigurationPage() {
     paymentGlobalCapabilities.stripeEnabled;
   const notificationsEnabledCommitted =
     settingsLoaded && settings.NOTIFICATIONS_ENABLED !== "false";
+  const waitlistEnabledCommitted =
+    settingsLoaded && settings.WAITLIST_ENABLED !== "false";
   const websiteWidgetEnabledCommitted =
     settingsLoaded && settings.WEBSITE_WIDGET_ENABLED !== "false";
   const googleCalendarModuleEnabledCommitted =
@@ -2365,7 +2367,7 @@ export function ConfigurationPage() {
     if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "customFields" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
-    if (tabId === "booking") return spacesEnabledCommitted;
+    if (tabId === "booking") return spacesEnabledCommitted || waitlistEnabledCommitted;
     if (tabId === "billing") return billingEnabledCommitted;
     if (tabId === "notifications") return notificationsEnabledCommitted;
     if (tabId === "whatsapp")
@@ -3018,11 +3020,23 @@ export function ConfigurationPage() {
     billingEnabledCommitted,
     notificationsEnabledCommitted,
     spacesEnabledCommitted,
+    waitlistEnabledCommitted,
   ]);
 
   useEffect(() => {
     setOpenSpaceMenuId(null);
   }, [bookingSubtab]);
+
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    if (!spacesEnabledCommitted && waitlistEnabledCommitted && bookingSubtab === "spaces") {
+      setBookingSubtab("waitlist");
+      return;
+    }
+    if (!waitlistEnabledCommitted && spacesEnabledCommitted && bookingSubtab === "waitlist") {
+      setBookingSubtab("spaces");
+    }
+  }, [bookingSubtab, settingsLoaded, spacesEnabledCommitted, waitlistEnabledCommitted]);
 
   useEffect(() => {
     if (openSpaceMenuId == null) return;
@@ -4828,6 +4842,7 @@ export function ConfigurationPage() {
   ];
   const servicesModuleKeys: ModulesStringKey[] = [
     "TYPES_ENABLED",
+    "SERVICE_GROUPS_ENABLED",
     "COURSES_ENABLED",
   ];
   const guestModuleKeys: ModulesBooleanKey[] = [
@@ -4887,6 +4902,19 @@ export function ConfigurationPage() {
                 ),
             },
           ],
+        },
+        {
+          id: "booking-waitlist",
+          ...moduleVisibilityProps("WAITLIST_ENABLED"),
+          icon: "calendar",
+          title: locale === "sl" ? "Čakalne vrste" : "Waitlist",
+          subtitle:
+            locale === "sl"
+              ? "Omogoči čakalne vrste v aplikaciji, koledarju, spletnem vtičniku in aplikaciji za goste."
+              : "Enable waitlists in the app, calendar, website widget and guest app.",
+          checked: moduleOn("WAITLIST_ENABLED"),
+          onChange: (checked) =>
+            setModuleStringSetting("WAITLIST_ENABLED", checked),
         },
         {
           id: "booking-online-session-booking",
@@ -5144,6 +5172,23 @@ export function ConfigurationPage() {
           onChange: (checked) =>
             setModuleStringSetting("TYPES_ENABLED", checked),
           children: [
+            {
+              id: "services-service-groups",
+              ...moduleVisibilityProps("SERVICE_GROUPS_ENABLED"),
+              icon: "group",
+              title:
+                locale === "sl" ? "Skupine storitev" : "Service groups",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči razvrščanje storitev v skupine v aplikaciji, spletnem vtičniku in aplikaciji za goste."
+                  : "Enable grouping services in the app, website widget and guest app.",
+              checked:
+                moduleOn("TYPES_ENABLED") &&
+                moduleOn("SERVICE_GROUPS_ENABLED"),
+              disabled: !moduleOn("TYPES_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting("SERVICE_GROUPS_ENABLED", checked),
+            },
             {
               id: "services-courses",
               ...moduleVisibilityProps("COURSES_ENABLED"),
@@ -9429,28 +9474,32 @@ export function ConfigurationPage() {
                   <section className="booking-panel-card">
                     <div className="booking-tabs-card">
                       <div className="booking-tabs" role="tablist" aria-label="Nastavitve rezervacij">
-                        <button
-                          type="button"
-                          className={`booking-tab${bookingSubtab === "spaces" ? " is-active" : ""}`}
-                          onClick={() => setBookingSubtab("spaces")}
-                          role="tab"
-                          aria-selected={bookingSubtab === "spaces"}
-                        >
-                          Prostori
-                        </button>
-                        <button
-                          type="button"
-                          className={`booking-tab${bookingSubtab === "waitlist" ? " is-active" : ""}`}
-                          onClick={() => setBookingSubtab("waitlist")}
-                          role="tab"
-                          aria-selected={bookingSubtab === "waitlist"}
-                        >
-                          Čakalna vrsta
-                        </button>
+                        {spacesEnabledCommitted ? (
+                          <button
+                            type="button"
+                            className={`booking-tab${bookingSubtab === "spaces" ? " is-active" : ""}`}
+                            onClick={() => setBookingSubtab("spaces")}
+                            role="tab"
+                            aria-selected={bookingSubtab === "spaces"}
+                          >
+                            Prostori
+                          </button>
+                        ) : null}
+                        {waitlistEnabledCommitted ? (
+                          <button
+                            type="button"
+                            className={`booking-tab${bookingSubtab === "waitlist" ? " is-active" : ""}`}
+                            onClick={() => setBookingSubtab("waitlist")}
+                            role="tab"
+                            aria-selected={bookingSubtab === "waitlist"}
+                          >
+                            Čakalna vrsta
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                     <div className="booking-content-panel">
-                      {bookingSubtab === "spaces" ? (
+                      {bookingSubtab === "spaces" && spacesEnabledCommitted ? (
                         <div>
                           <div className="booking-spaces-header">
                             <div
@@ -9731,9 +9780,9 @@ export function ConfigurationPage() {
                             </div>
                           )}
                         </div>
-                      ) : (
+                      ) : waitlistEnabledCommitted ? (
                         <ConfigurationWaitlistSettingsSection />
-                      )}
+                      ) : null}
                     </div>
                   </section>
                 </div>
@@ -13007,6 +13056,7 @@ export function ConfigurationPage() {
                   onSave={saveSettings}
                   t={t}
                   locale={locale}
+                  waitlistEnabled={waitlistEnabledCommitted}
                 />
               ) : tab === "deliveryLogs" ? (
                 <ConfigurationDeliveryLogsSection

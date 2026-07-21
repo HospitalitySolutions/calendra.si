@@ -3,6 +3,7 @@ package com.example.app.session;
 import com.example.app.billing.PriceMath;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -32,17 +33,30 @@ public class SessionTypeController {
     private final TransactionServiceRepository txRepo;
     private final SessionBookingRepository bookingRepo;
     private final ServiceGroupRepository groupRepo;
+    private final TenantFeatureAccessService featureAccess;
 
     public SessionTypeController(
             SessionTypeRepository repo,
             TransactionServiceRepository txRepo,
             SessionBookingRepository bookingRepo,
-            ServiceGroupRepository groupRepo
+            ServiceGroupRepository groupRepo,
+            TenantFeatureAccessService featureAccess
     ) {
         this.repo = repo;
         this.txRepo = txRepo;
         this.bookingRepo = bookingRepo;
         this.groupRepo = groupRepo;
+        this.featureAccess = featureAccess;
+    }
+
+    /** Backwards-compatible constructor used by existing controller unit tests. */
+    SessionTypeController(
+            SessionTypeRepository repo,
+            TransactionServiceRepository txRepo,
+            SessionBookingRepository bookingRepo,
+            ServiceGroupRepository groupRepo
+    ) {
+        this(repo, txRepo, bookingRepo, groupRepo, null);
     }
 
     public record TypeServiceItem(Long transactionServiceId, BigDecimal price) {}
@@ -133,10 +147,12 @@ public class SessionTypeController {
     @GetMapping
     @Transactional(readOnly = true)
     public List<TypeResponse> list(@AuthenticationPrincipal User me) {
-        return repo.findAllWithLinkedServicesByCompanyId(me.getCompany().getId())
+        Long companyId = me.getCompany().getId();
+        boolean groupsEnabled = serviceGroupsEnabled(companyId);
+        return repo.findAllWithLinkedServicesByCompanyId(companyId)
                 .stream()
-                .sorted(sessionTypeOrder())
-                .map(this::toResponse)
+                .sorted(sessionTypeOrder(groupsEnabled))
+                .map(type -> toResponse(type, groupsEnabled))
                 .toList();
     }
 
@@ -160,7 +176,8 @@ public class SessionTypeController {
         type.setGuestBookingEnabled(req.guestBookingEnabled() == null || Boolean.TRUE.equals(req.guestBookingEnabled()));
         type.setPriceCalculationMode(normalizePriceCalculationMode(req.priceCalculationMode()));
         type.setGuestLimitUserEmails(serializeGuestLimitUserEmails(req.guestLimitUserEmails()));
-        ServiceGroup serviceGroup = resolveServiceGroup(companyId, req.serviceGroupId());
+        boolean groupsEnabled = serviceGroupsEnabled(companyId);
+        ServiceGroup serviceGroup = groupsEnabled ? resolveServiceGroup(companyId, req.serviceGroupId()) : null;
         type.setServiceGroup(serviceGroup);
         type.setGuestSortOrder(req.sortOrder() == null
                 ? nextSortOrder(companyId, serviceGroup == null ? null : serviceGroup.getId())
@@ -172,7 +189,7 @@ public class SessionTypeController {
         return toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(x -> x.getId().equals(createdId))
                 .findFirst()
-                .orElseThrow());
+                .orElseThrow(), groupsEnabled);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -197,8 +214,11 @@ public class SessionTypeController {
         type.setGuestBookingEnabled(req.guestBookingEnabled() == null || Boolean.TRUE.equals(req.guestBookingEnabled()));
         type.setPriceCalculationMode(normalizePriceCalculationMode(req.priceCalculationMode()));
         type.setGuestLimitUserEmails(serializeGuestLimitUserEmails(req.guestLimitUserEmails()));
+        boolean groupsEnabled = serviceGroupsEnabled(companyId);
         Long previousGroupId = type.getServiceGroup() == null ? null : type.getServiceGroup().getId();
-        ServiceGroup serviceGroup = resolveServiceGroup(companyId, req.serviceGroupId());
+        ServiceGroup serviceGroup = groupsEnabled
+                ? resolveServiceGroup(companyId, req.serviceGroupId())
+                : type.getServiceGroup();
         Long nextGroupId = serviceGroup == null ? null : serviceGroup.getId();
         type.setServiceGroup(serviceGroup);
         if (req.sortOrder() != null) {
@@ -220,7 +240,7 @@ public class SessionTypeController {
         return toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(t -> t.getId().equals(id))
                 .findFirst()
-                .orElseThrow());
+                .orElseThrow(), groupsEnabled);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -228,19 +248,20 @@ public class SessionTypeController {
     @Transactional
     public List<TypeResponse> reorder(@RequestBody TypeReorderRequest request, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        boolean groupsEnabled = serviceGroupsEnabled(companyId);
         List<TypeOrderItem> items = request == null || request.items() == null ? List.of() : request.items();
         for (TypeOrderItem item : items) {
             if (item == null || item.id() == null) continue;
             SessionType type = repo.findById(item.id())
                     .filter(candidate -> candidate.getCompany().getId().equals(companyId))
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-            type.setServiceGroup(resolveServiceGroup(companyId, item.serviceGroupId()));
+            if (groupsEnabled) type.setServiceGroup(resolveServiceGroup(companyId, item.serviceGroupId()));
             type.setGuestSortOrder(Math.max(0, item.sortOrder() == null ? 0 : item.sortOrder()));
             repo.save(type);
         }
         return repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
-                .sorted(sessionTypeOrder())
-                .map(this::toResponse)
+                .sorted(sessionTypeOrder(groupsEnabled))
+                .map(type -> toResponse(type, groupsEnabled))
                 .toList();
     }
 
@@ -333,7 +354,7 @@ public class SessionTypeController {
         }
     }
 
-    private TypeResponse toResponse(SessionType t) {
+    private TypeResponse toResponse(SessionType t, boolean groupsEnabled) {
         var services = t.getLinkedServices().stream()
                 .map(link -> {
                     var tx = link.getTransactionService();
@@ -365,10 +386,10 @@ public class SessionTypeController {
                 t.getPriceCalculationMode() != null ? t.getPriceCalculationMode() : SessionPriceCalculationMode.PER_CLIENT,
                 t.isActive(),
                 parseGuestLimitUserEmails(t.getGuestLimitUserEmails()),
-                t.getServiceGroup() == null ? null : t.getServiceGroup().getId(),
-                t.getServiceGroup() == null ? null : t.getServiceGroup().getName(),
-                t.getServiceGroup() != null && t.getServiceGroup().isActive(),
-                t.getServiceGroup() == null ? null : t.getServiceGroup().getSortOrder(),
+                !groupsEnabled || t.getServiceGroup() == null ? null : t.getServiceGroup().getId(),
+                !groupsEnabled || t.getServiceGroup() == null ? null : t.getServiceGroup().getName(),
+                groupsEnabled && t.getServiceGroup() != null && t.getServiceGroup().isActive(),
+                !groupsEnabled || t.getServiceGroup() == null ? null : t.getServiceGroup().getSortOrder(),
                 t.getGuestSortOrder(),
                 services
         );
@@ -385,7 +406,16 @@ public class SessionTypeController {
         return repo.findMaxSortOrderByCompanyIdAndServiceGroupId(companyId, serviceGroupId) + 1;
     }
 
-    private Comparator<SessionType> sessionTypeOrder() {
+    private boolean serviceGroupsEnabled(Long companyId) {
+        return featureAccess == null || featureAccess.areServiceGroupsEnabled(companyId);
+    }
+
+    private Comparator<SessionType> sessionTypeOrder(boolean groupsEnabled) {
+        if (!groupsEnabled) {
+            return Comparator
+                    .comparingInt(SessionType::getGuestSortOrder)
+                    .thenComparing(SessionType::getName, String.CASE_INSENSITIVE_ORDER);
+        }
         return Comparator
                 .comparing((SessionType type) -> type.getServiceGroup() == null ? Integer.MAX_VALUE : type.getServiceGroup().getSortOrder())
                 .thenComparing(type -> type.getServiceGroup() == null ? "" : type.getServiceGroup().getName(), String.CASE_INSENSITIVE_ORDER)

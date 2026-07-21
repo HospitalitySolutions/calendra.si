@@ -19,6 +19,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -61,6 +62,7 @@ public class GuestCatalogService {
     private final GuestSettingsService guestSettings;
     private final TimeService timeService;
     private final CourseModuleAccessService courseModuleAccessService;
+    private final TenantFeatureAccessService featureAccess;
     private final ZoneId zoneId;
 
     public GuestCatalogService(
@@ -73,6 +75,7 @@ public class GuestCatalogService {
             GuestSettingsService guestSettings,
             TimeService timeService,
             CourseModuleAccessService courseModuleAccessService,
+            TenantFeatureAccessService featureAccess,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.sessionTypes = sessionTypes;
@@ -84,6 +87,7 @@ public class GuestCatalogService {
         this.guestSettings = guestSettings;
         this.timeService = timeService;
         this.courseModuleAccessService = courseModuleAccessService;
+        this.featureAccess = featureAccess;
         this.zoneId = ZoneId.of((timezoneId == null || timezoneId.isBlank()) ? "Europe/Ljubljana" : timezoneId.trim());
     }
 
@@ -158,7 +162,9 @@ public class GuestCatalogService {
     }
 
     private com.example.app.session.ServiceGroup publicGroup(SessionType type) {
-        if (type == null || type.getServiceGroup() == null || !type.getServiceGroup().isActive()) return null;
+        if (type == null || type.getCompany() == null
+                || !featureAccess.areServiceGroupsEnabled(type.getCompany().getId())
+                || type.getServiceGroup() == null || !type.getServiceGroup().isActive()) return null;
         return type.getServiceGroup();
     }
 

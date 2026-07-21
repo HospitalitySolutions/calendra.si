@@ -32,6 +32,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedEntitlementScanningLockRef = useRef(false)
   const bookedEntitlementWalletRequestRef = useRef(0)
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
+  const waitlistModuleEnabled = settings?.WAITLIST_ENABLED !== 'false'
   const allDayDateRangeLabels = {
     startLabel: locale === 'sl' ? 'Od datuma' : 'From date',
     endLabel: locale === 'sl' ? 'Do datuma' : 'To date',
@@ -144,7 +145,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }, [newWaitlistSlotKey])
 
   useEffect(() => {
-    const canCheck = !!selection
+    const canCheck = waitlistModuleEnabled
+      && !!selection
       && !availabilitySelection
       && !form?.todo
       && !form?.personal
@@ -184,10 +186,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, selectedFormClientIds.length, form?.waitlistRequestId])
+  }, [waitlistModuleEnabled, selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, selectedFormClientIds.length, form?.waitlistRequestId])
 
   const offerNewSlotToFirstWaitlistedGuest = async () => {
-    if (!visibleNewSlotWaitlistMatches?.first || newSlotWaitlistActionLoading) return
+    if (!waitlistModuleEnabled || !visibleNewSlotWaitlistMatches?.first || newSlotWaitlistActionLoading) return
     setNewSlotWaitlistActionLoading(true)
     try {
       await api.post('/waitlists/offer-first', newWaitlistMatchPayload())
@@ -205,6 +207,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   const pullFirstWaitlistedGuestIntoBooking = () => {
+    if (!waitlistModuleEnabled) return
     const first = visibleNewSlotWaitlistMatches?.first
     const clientId = Number(first?.clientId)
     const requestId = Number(first?.requestId)
@@ -272,6 +275,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     if (!selectedBookedSession?.id) return
     if (scope !== 'SINGLE') {
       await deleteBookedSession(scope)
+      return
+    }
+    if (!waitlistModuleEnabled) {
+      if (action === 'DELETE') await deleteBookedSession(scope)
+      else await transitionBookedStatus('CANCELLED')
       return
     }
     const payload = releasedSlotPayload()
@@ -1676,7 +1684,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         </div>
       )}
 
-      {releasedSlotWaitlistPrompt && (
+      {waitlistModuleEnabled && releasedSlotWaitlistPrompt && (
         <div
           className="modal-backdrop calendar-booking-supplement"
           onClick={() => !releasedSlotWaitlistLoading && setReleasedSlotWaitlistPrompt(null)}
@@ -4474,7 +4482,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 </div>
               )}
-              {!form.todo && !form.personal && !availabilitySelection && !bookingGroupMode && selectedFormClientIds.length === 0 && (
+              {waitlistModuleEnabled && !form.todo && !form.personal && !availabilitySelection && !bookingGroupMode && selectedFormClientIds.length === 0 && (
                 <div className={`calendar-waitlist-match-card${visibleNewSlotWaitlistMatches?.count > 0 ? ' is-visible' : ''}`}>
                   {visibleNewSlotWaitlistMatches?.first ? (
                     <>

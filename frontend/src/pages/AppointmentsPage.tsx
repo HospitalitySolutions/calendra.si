@@ -114,12 +114,16 @@ const remainingLabel = (seconds: number) => {
   return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-const requestServiceLabel = (request: WaitlistRequest) => request.serviceScope === 'SERVICE_GROUP'
-  ? request.serviceGroupName || request.eligibleServices?.[0]?.serviceGroupName || '—'
+const requestServiceLabel = (request: WaitlistRequest, serviceGroupsEnabled = true) => request.serviceScope === 'SERVICE_GROUP'
+  ? serviceGroupsEnabled
+    ? request.serviceGroupName || request.eligibleServices?.[0]?.serviceGroupName || '—'
+    : request.eligibleServices?.map(item => item.name).filter(Boolean).join(', ') || request.serviceName || '—'
   : request.serviceName || '—'
 
-const requestServiceDetails = (request: WaitlistRequest) => request.serviceScope === 'SERVICE_GROUP'
-  ? request.eligibleServices?.map(item => item.name).join(', ') || '—'
+const requestServiceDetails = (request: WaitlistRequest, serviceGroupsEnabled = true) => request.serviceScope === 'SERVICE_GROUP'
+  ? serviceGroupsEnabled
+    ? request.eligibleServices?.map(item => item.name).join(', ') || '—'
+    : request.eligibleServices?.map(item => item.durationMinutes ? `${item.name} · ${item.durationMinutes} min` : item.name).join(', ') || '—'
   : `${request.serviceDurationMinutes || '—'} min${request.breakMinutes ? ` + ${request.breakMinutes} min` : ''}`
 
 function statusLabel(status: string, locale: string) {
@@ -237,6 +241,7 @@ export function AppointmentsPage() {
   const [clients, setClients] = useState<ClientItem[]>([])
   const [services, setServices] = useState<LookupItem[]>([])
   const [serviceGroups, setServiceGroups] = useState<ServiceGroupItem[]>([])
+  const [serviceGroupsModuleEnabled, setServiceGroupsModuleEnabled] = useState(true)
   const [employees, setEmployees] = useState<LookupItem[]>([])
   const [spaces, setSpaces] = useState<LookupItem[]>([])
   const [saving, setSaving] = useState(false)
@@ -334,8 +339,15 @@ export function AppointmentsPage() {
   }, [search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter])
 
   const loadLookups = useCallback(async () => {
+    const settingsResult = await api.get<Record<string, string>>('/settings').catch(() => ({ data: {} as Record<string, string> }))
+    const groupsEnabled = settingsResult.data?.SERVICE_GROUPS_ENABLED !== 'false'
+    setServiceGroupsModuleEnabled(groupsEnabled)
     const [clientsResult, servicesResult, groupsResult, employeesResult, spacesResult] = await Promise.allSettled([
-      api.get('/clients', { params: { size: 500 } }), api.get('/types'), api.get('/service-groups'), api.get('/users/consultants'), api.get('/spaces'),
+      api.get('/clients', { params: { size: 500 } }),
+      api.get('/types'),
+      groupsEnabled ? api.get('/service-groups') : Promise.resolve({ data: [] }),
+      api.get('/users/consultants'),
+      api.get('/spaces'),
     ])
     if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data : [])
     if (servicesResult.status === 'fulfilled') {
@@ -346,9 +358,11 @@ export function AppointmentsPage() {
           .map((item: any) => ({ id: item.id, name: item.description || item.name || `#${item.id}`, durationMinutes: item.durationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName })),
       )
     }
-    if (groupsResult.status === 'fulfilled') {
+    if (groupsEnabled && groupsResult.status === 'fulfilled') {
       const value = Array.isArray(groupsResult.value.data) ? groupsResult.value.data : []
       setServiceGroups(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name, active: item.active !== false, serviceCount: Number(item.serviceCount || 0) })))
+    } else {
+      setServiceGroups([])
     }
     if (employeesResult.status === 'fulfilled') {
       const value = Array.isArray(employeesResult.value.data) ? employeesResult.value.data : []
@@ -418,11 +432,12 @@ export function AppointmentsPage() {
         return
       }
     }
-    if (requestForm.serviceScope === 'EXACT_SERVICE' && !requestForm.serviceId) {
+    const effectiveServiceScope = serviceGroupsModuleEnabled ? requestForm.serviceScope : 'EXACT_SERVICE'
+    if (effectiveServiceScope === 'EXACT_SERVICE' && !requestForm.serviceId) {
       window.alert(locale === 'sl' ? 'Izberite storitev.' : 'Select a service.')
       return
     }
-    if (requestForm.serviceScope === 'SERVICE_GROUP' && !requestForm.serviceGroupId) {
+    if (effectiveServiceScope === 'SERVICE_GROUP' && !requestForm.serviceGroupId) {
       window.alert(locale === 'sl' ? 'Izberite skupino storitev.' : 'Select a service group.')
       return
     }
@@ -431,9 +446,9 @@ export function AppointmentsPage() {
       const anyAvailableSlot = requestForm.anyAvailableSlot
       const payload = {
         clientId: Number(requestForm.clientId),
-        serviceScope: requestForm.serviceScope,
-        serviceId: requestForm.serviceScope === 'EXACT_SERVICE' ? Number(requestForm.serviceId) : null,
-        serviceGroupId: requestForm.serviceScope === 'SERVICE_GROUP' ? Number(requestForm.serviceGroupId) : null,
+        serviceScope: effectiveServiceScope,
+        serviceId: effectiveServiceScope === 'EXACT_SERVICE' ? Number(requestForm.serviceId) : null,
+        serviceGroupId: effectiveServiceScope === 'SERVICE_GROUP' ? Number(requestForm.serviceGroupId) : null,
         locationId: requestForm.locationId ? Number(requestForm.locationId) : null,
         targetType: anyAvailableSlot ? 'ANY_AVAILABLE' : 'FLEXIBLE_WINDOW', targetSessionId: null,
         dateFrom: anyAvailableSlot ? null : requestForm.dateFrom, dateTo: anyAvailableSlot ? null : requestForm.dateTo,
@@ -592,11 +607,12 @@ export function AppointmentsPage() {
   const reAddSelected = () => {
     if (!selected) return
     const firstWindow = selected.windows[0]
+    const fallbackServiceId = selected.serviceId || selected.eligibleServices?.find(item => item.id)?.id || null
     setRequestForm({
       clientId: selected.clientId ? String(selected.clientId) : '',
-      serviceScope: selected.serviceScope || 'EXACT_SERVICE',
-      serviceId: selected.serviceId ? String(selected.serviceId) : '',
-      serviceGroupId: selected.serviceGroupId ? String(selected.serviceGroupId) : '',
+      serviceScope: serviceGroupsModuleEnabled ? selected.serviceScope || 'EXACT_SERVICE' : 'EXACT_SERVICE',
+      serviceId: fallbackServiceId ? String(fallbackServiceId) : '',
+      serviceGroupId: serviceGroupsModuleEnabled && selected.serviceGroupId ? String(selected.serviceGroupId) : '',
       locationId: selected.locationId ? String(selected.locationId) : '',
       anyAvailableSlot: selected.targetType === 'ANY_AVAILABLE',
       dateFrom: selected.dateFrom || '',
@@ -691,7 +707,7 @@ export function AppointmentsPage() {
               <tbody>
                 {loading ? <tr><td colSpan={7} className="waitlist-empty">…</td></tr> : rows.length === 0 ? <tr><td colSpan={7} className="waitlist-empty">{copy.noRows}</td></tr> : rows.map(row => <tr key={row.id} className={selected?.id === row.id ? 'selected' : ''} onClick={() => void selectRequest(row)}>
                   <td><div className="waitlist-client"><span className="waitlist-avatar">{row.clientName.split(/\s+/).slice(0,2).map(value => value[0]).join('').toUpperCase()}</span><div><strong>{row.clientName}</strong><small>{row.clientPhone || row.clientEmail || '—'}</small></div></div></td>
-                  <td><strong>{requestServiceLabel(row)}</strong><small>{row.serviceScope === 'SERVICE_GROUP' ? row.eligibleServices?.map(item => item.name).join(', ') : `${row.serviceDurationMinutes || '—'} min${row.breakMinutes ? ` + ${row.breakMinutes} min pavza` : ''}`}</small></td>
+                  <td><strong>{requestServiceLabel(row, serviceGroupsModuleEnabled)}</strong><small>{requestServiceDetails(row, serviceGroupsModuleEnabled)}</small></td>
                   <td>{row.targetType === 'ANY_AVAILABLE' ? <><strong>{copy.anyAvailable}</strong><small>{copy.anyAvailableUntil} {formatDate(row.dateTo)}</small></> : <><strong>{formatDate(row.dateFrom)} – {formatDate(row.dateTo)}</strong><small>{targetTypeLabel(row.targetType, locale)}{row.windows[0] && !row.windows[0].allDay ? ` · ${row.windows[0].timeFrom?.slice(0,5) || ''}–${row.windows[0].timeTo?.slice(0,5) || ''}` : ''}</small></>}</td>
                   <td>{row.specificEmployee?.name || (row.selectedEmployees.length ? row.selectedEmployees.map(item => item.name).join(', ') : copy.any)}</td>
                   <td><span className={`waitlist-status status-${row.status.toLowerCase()}`}>{statusLabel(row.status, locale)}</span>{row.currentOffer && <small className="waitlist-countdown">{remainingLabel(Math.max(0, Math.floor((new Date(row.currentOffer.expiresAt).getTime() - Date.now()) / 1000)))}</small>}</td>
@@ -734,7 +750,7 @@ export function AppointmentsPage() {
               <section className="waitlist-popup-card">
                 <h3>{icon('calendar')}{copy.request}</h3>
                 <dl className="waitlist-popup-dl">
-                  <dt>{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
+                  <dt>{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
                   <dt>{copy.period}</dt><dd>{selectedPeriod}</dd>
                   <dt>{copy.time}</dt><dd><div className="waitlist-request-time"><span>{selectedTime}</span>{selectedPreferenceBadge && <span className="waitlist-preference-badge">{icon('history')}{selectedPreferenceBadge}</span>}</div></dd>
                   {showWeekdayPreferences && <><dt>{copy.weekdays}</dt><dd><div className="waitlist-weekday-chips" aria-label={copy.weekdays}>{WAITLIST_WEEKDAYS.map(day => {
@@ -779,7 +795,7 @@ export function AppointmentsPage() {
                 <dl className="waitlist-popup-dl waitlist-popup-dl--icons">
                   <dt>{icon('mail')}{locale === 'sl' ? 'E-pošta' : 'Email'}</dt><dd>{selected.clientEmail || '—'}</dd>
                   <dt>{icon('phone')}{locale === 'sl' ? 'Telefon' : 'Phone'}</dt><dd>{selected.clientPhone || '—'}</dd>
-                  <dt>{icon('history')}{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
+                  <dt>{icon('history')}{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
                   <dt>{icon('calendar')}{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
                   <dt>{icon('user')}{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
                   <dt>{icon('pin')}{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
@@ -822,7 +838,7 @@ export function AppointmentsPage() {
                   <hr/>
                   <h3>{copy.closedRequest}</h3>
                   <dl className="waitlist-popup-dl">
-                    <dt>{copy.service}</dt><dd>{requestServiceLabel(selected)} · {requestServiceDetails(selected)}</dd>
+                    <dt>{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
                     <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
                     <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
                     <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
@@ -837,7 +853,7 @@ export function AppointmentsPage() {
                     <div className="waitlist-linked-booking-card__icon">{icon('booking')}</div>
                     <span>{locale === 'sl' ? 'Rezervacija' : 'Booking'}</span>
                     <strong>#{selected.bookedBookingId}</strong>
-                    <p>{selected.currentOffer?.serviceName || requestServiceLabel(selected)}</p>
+                    <p>{selected.currentOffer?.serviceName || requestServiceLabel(selected, serviceGroupsModuleEnabled)}</p>
                     <button type="button" onClick={openSelectedBooking}>{copy.openBooking}{icon('external')}</button>
                   </> : <p className="waitlist-popup-muted">{statusLabel(selected.status, locale)}</p>}
                 </section>
@@ -875,13 +891,15 @@ export function AppointmentsPage() {
 
     {showCreate && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowCreate(false)}><form className="waitlist-modal" onSubmit={createRequest} onMouseDown={event => event.stopPropagation()}><header><h2>{copy.createTitle}</h2><button type="button" className="icon-button" onClick={() => setShowCreate(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
       <label><span>{copy.client}</span><select required value={requestForm.clientId} onChange={event => setRequestForm(value => ({ ...value, clientId: event.target.value }))}><option value="">{copy.select}</option>{clients.map(client => <option key={client.id} value={client.id}>{`${client.firstName || ''} ${client.lastName || ''}`.trim()} {client.email ? `· ${client.email}` : ''}</option>)}</select></label>
-      <div className="waitlist-service-scope wide">
-        <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'EXACT_SERVICE'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'EXACT_SERVICE', serviceGroupId: '' }))}/><span>{copy.exactService}</span></label>
-        <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'SERVICE_GROUP'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'SERVICE_GROUP', serviceId: '' }))}/><span>{copy.anyGroupService}</span></label>
-      </div>
-      {requestForm.serviceScope === 'EXACT_SERVICE' ?
-        <label><span>{copy.service}</span><select required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> :
-        <label><span>{copy.serviceGroup}</span><select required value={requestForm.serviceGroupId} onChange={event => setRequestForm(value => ({ ...value, serviceGroupId: event.target.value }))}><option value="">{copy.select}</option>{serviceGroups.filter(group => group.serviceCount > 0).map(group => <option key={group.id} value={group.id}>{group.name} · {group.serviceCount}</option>)}</select></label>}
+      {serviceGroupsModuleEnabled && (
+        <div className="waitlist-service-scope wide">
+          <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'EXACT_SERVICE'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'EXACT_SERVICE', serviceGroupId: '' }))}/><span>{copy.exactService}</span></label>
+          <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'SERVICE_GROUP'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'SERVICE_GROUP', serviceId: '' }))}/><span>{copy.anyGroupService}</span></label>
+        </div>
+      )}
+      {serviceGroupsModuleEnabled && requestForm.serviceScope === 'SERVICE_GROUP' ?
+        <label><span>{copy.serviceGroup}</span><select required value={requestForm.serviceGroupId} onChange={event => setRequestForm(value => ({ ...value, serviceGroupId: event.target.value }))}><option value="">{copy.select}</option>{serviceGroups.filter(group => group.serviceCount > 0).map(group => <option key={group.id} value={group.id}>{group.name} · {group.serviceCount}</option>)}</select></label> :
+        <label><span>{copy.service}</span><select required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
       <label><span>{copy.employeeOptional}</span><select value={requestForm.specificEmployeeId} onChange={event => setRequestForm(value => ({ ...value, specificEmployeeId: event.target.value }))}><option value="">{copy.any}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label><span>{copy.location}</span><select value={requestForm.locationId} onChange={event => setRequestForm(value => ({ ...value, locationId: event.target.value }))}><option value="">—</option>{spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <div className="waitlist-flexible-option wide">
@@ -899,7 +917,7 @@ export function AppointmentsPage() {
       <label className="wide"><span>{copy.note}</span><textarea rows={3} value={requestForm.notes} onChange={event => setRequestForm(value => ({ ...value, notes: event.target.value }))}/></label>
     </div><footer><button type="submit" className="primary" disabled={saving}>{icon('save')}<span>{saving ? '…' : copy.save}</span></button></footer></form></div>}
 
-    {showOffer && selected && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowOffer(false)}><form className="waitlist-modal compact" onSubmit={sendOffer} onMouseDown={event => event.stopPropagation()}><header><div><h2>{copy.offerTitle}</h2><p>{selected.clientName} · {requestServiceLabel(selected)}</p></div><button type="button" className="icon-button" onClick={() => setShowOffer(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
+    {showOffer && selected && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowOffer(false)}><form className="waitlist-modal compact" onSubmit={sendOffer} onMouseDown={event => event.stopPropagation()}><header><div><h2>{copy.offerTitle}</h2><p>{selected.clientName} · {requestServiceLabel(selected, serviceGroupsModuleEnabled)}</p></div><button type="button" className="icon-button" onClick={() => setShowOffer(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
       <label className="wide"><span>{copy.concreteService}</span><select required value={offerForm.serviceId} onChange={event => updateOfferService(event.target.value)}><option value="">{copy.select}</option>{selected.eligibleServices?.filter(item => item.id).map(item => <option key={item.id} value={item.id || ''}>{item.name}{item.durationMinutes ? ` · ${item.durationMinutes} min` : ''}</option>)}</select></label>
       <label><span>{copy.start}</span><input required type="datetime-local" value={offerForm.slotStart} onChange={event => setOfferForm(value => ({ ...value, slotStart: event.target.value }))}/></label>
       <label><span>{copy.end}</span><input required type="datetime-local" value={offerForm.slotEnd} onChange={event => setOfferForm(value => ({ ...value, slotEnd: event.target.value }))}/></label>

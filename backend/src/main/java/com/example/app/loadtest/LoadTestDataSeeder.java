@@ -463,7 +463,9 @@ public class LoadTestDataSeeder implements CommandLineRunner {
     private void seedSettings(Long companyId, int index) {
         upsertSetting(companyId, "SPACES_ENABLED", "true");
         upsertSetting(companyId, "TYPES_ENABLED", "true");
+        upsertSetting(companyId, "SERVICE_GROUPS_ENABLED", "true");
         upsertSetting(companyId, "BOOKABLE_ENABLED", "true");
+        upsertSetting(companyId, "WAITLIST_ENABLED", "true");
         upsertSetting(companyId, "ONLINE_SESSION_BOOKING_ENABLED", "true");
         upsertSetting(companyId, "WEBSITE_WIDGET_ENABLED", "true");
         upsertSetting(companyId, "BILLING_ENABLED", "true");

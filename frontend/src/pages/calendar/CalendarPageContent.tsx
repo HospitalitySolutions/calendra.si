@@ -231,6 +231,7 @@ export default function CalendarPage() {
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const todosModuleEnabled = settings.TODOS_ENABLED !== 'false'
   const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== 'false'
+  const waitlistModuleEnabled = settings.WAITLIST_ENABLED !== 'false'
   const [meta, setMeta] = useState({ clients: [], users: [], spaces: [], types: [] } as any)
   const EMPTY_ARR: any[] = useMemo(() => [], [])
   const metaUsers: any[] = Array.isArray(meta.users) ? meta.users : EMPTY_ARR
@@ -1907,7 +1908,7 @@ export default function CalendarPage() {
               payees: Array.isArray(pending.payees) ? pending.payees : [],
             }
         const waitlistRequestId = Number(pending.waitlistRequestId)
-        const hasWaitlistRequest = Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
+        const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
         api.post('/bookings', payload, {
           headers: {
             'X-Skip-Conflict-Toast': 'true',
@@ -3301,7 +3302,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       ? bookedAll.filter((ev: any) => ev.resourceId !== (spacesUseResourceColumns ? SPACE_RESOURCE_UNASSIGNED_ID : CONSULTANT_RESOURCE_UNASSIGNED_ID))
       : bookedAll
 
-    const waitlistOfferRows = (calendarData.waitlistOffers || [])
+    const waitlistOfferRows = (waitlistModuleEnabled ? calendarData.waitlistOffers || [] : [])
       .filter((hold: any) => {
         const employeeId = Number(hold?.employeeId)
         if (!isTenantAdmin) return Number.isFinite(employeeId) && employeeId === user.id
@@ -7030,7 +7031,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           bookingDates.push({ startTime: form.startTime, endTime: form.endTime })
         }
         const waitlistRequestId = Number(form.waitlistRequestId)
-        const hasWaitlistRequest = Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
+        const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
         for (const dt of bookingDates) {
           const useWaitlistHoldExclusion: boolean = hasWaitlistRequest && firstCreatedBookingId == null
           const createdResponse: { data?: { id?: unknown } } = await api.post('/bookings', {

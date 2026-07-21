@@ -45,6 +45,7 @@ public class ManualTenantService {
     private static final List<FeatureDefinition> FEATURES = List.of(
             new FeatureDefinition("SPACES_ENABLED", "Spaces / resources", SettingKey.SPACES_ENABLED),
             new FeatureDefinition("TYPES_ENABLED", "Services", SettingKey.TYPES_ENABLED),
+            new FeatureDefinition("SERVICE_GROUPS_ENABLED", "Service groups", SettingKey.SERVICE_GROUPS_ENABLED),
             new FeatureDefinition("COURSES_ENABLED", "Courses", SettingKey.COURSES_ENABLED),
             new FeatureDefinition("BOOKABLE_ENABLED", "Bookable sessions", SettingKey.BOOKABLE_ENABLED),
             new FeatureDefinition("ONLINE_SESSION_BOOKING_ENABLED", "Online session booking", SettingKey.ONLINE_SESSION_BOOKING_ENABLED),
@@ -72,6 +73,7 @@ public class ManualTenantService {
             new FeatureDefinition("PERSONAL_ENABLED", "Personal calendar blocks", SettingKey.PERSONAL_ENABLED),
             new FeatureDefinition("TODOS_ENABLED", "Calendar todos", SettingKey.TODOS_ENABLED),
             new FeatureDefinition("NO_SHOW_ENABLED", "No-show handling", SettingKey.NO_SHOW_ENABLED),
+            new FeatureDefinition("WAITLIST_ENABLED", "Waitlist", SettingKey.WAITLIST_ENABLED),
             new FeatureDefinition("MULTIPLE_SESSIONS_PER_SPACE_ENABLED", "Multiple sessions per resource", SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED),
             new FeatureDefinition("MULTIPLE_CLIENTS_PER_SESSION_ENABLED", "Multiple clients per session", SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED),
             new FeatureDefinition("GROUP_BOOKING_ENABLED", "Group booking", SettingKey.GROUP_BOOKING_ENABLED),
@@ -391,7 +393,7 @@ public class ManualTenantService {
     private Set<String> defaultFeaturesFor(String packageName) {
         String pkg = normalizePackage(packageName);
         Set<String> out = new LinkedHashSet<>();
-        out.addAll(List.of("TYPES_ENABLED", "BOOKABLE_ENABLED", "ONLINE_SESSION_BOOKING_ENABLED", "WEBSITE_WIDGET_ENABLED", "COMMUNICATION_ENABLED", "NOTIFICATIONS_ENABLED", "NOTIFICATIONS_EMAIL_ALERTS_ENABLED", "NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED", "PERSONAL_ENABLED", "TODOS_ENABLED", "NO_SHOW_ENABLED", "SECURITY_MODULE_ENABLED", "SECURITY_SESSION_SECURITY_ENABLED"));
+        out.addAll(List.of("TYPES_ENABLED", "SERVICE_GROUPS_ENABLED", "BOOKABLE_ENABLED", "WAITLIST_ENABLED", "ONLINE_SESSION_BOOKING_ENABLED", "WEBSITE_WIDGET_ENABLED", "COMMUNICATION_ENABLED", "NOTIFICATIONS_ENABLED", "NOTIFICATIONS_EMAIL_ALERTS_ENABLED", "NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED", "PERSONAL_ENABLED", "TODOS_ENABLED", "NO_SHOW_ENABLED", "SECURITY_MODULE_ENABLED", "SECURITY_SESSION_SECURITY_ENABLED"));
         if ("PROFESSIONAL".equals(pkg) || "PREMIUM".equals(pkg)) {
             out.addAll(List.of("SPACES_ENABLED", "COURSES_ENABLED", "BILLING_ENABLED", "BILLING_INVOICES_ENABLED", "BILLING_BANK_TRANSFER_ENABLED", "BILLING_ONLINE_CARD_PAYMENTS_ENABLED", "BILLING_ADVANCE_ENABLED", "MULTIPLE_SESSIONS_PER_SPACE_ENABLED", "GROUP_BOOKING_ENABLED", "MULTIPLE_CLIENTS_PER_SESSION_ENABLED", "guestAppEnabled", "guestWalletEnabled", "guestOrdersEnabled", "guestBuyTabEnabled", "guestEntitlementsEnabled"));
         }

@@ -42,6 +42,7 @@ type ConfigurationNotificationsSectionProps = {
   onSave: () => void | Promise<void>;
   t: (key: string) => string;
   locale: AppLocale;
+  waitlistEnabled: boolean;
 };
 
 const escapeHtml = (value: string) =>
@@ -1300,6 +1301,7 @@ export function ConfigurationNotificationsSection({
   onSave,
   t,
   locale,
+  waitlistEnabled,
 }: ConfigurationNotificationsSectionProps) {
   const [channel, setChannel] = useState<NotificationChannel>("email");
   const [editingEvent, setEditingEvent] =
@@ -1340,10 +1342,19 @@ export function ConfigurationNotificationsSection({
   const availableChannels = (["email", "sms", "guestApp"] as const).filter(
     (id) => channelAvailability[id],
   );
-  const visibleNotificationEvents =
+  const baseVisibleNotificationEvents =
     channel === "email"
       ? [...notificationEvents, invoiceDeliveryEvent]
       : notificationEvents;
+  const visibleNotificationEvents = baseVisibleNotificationEvents.filter(
+    (event) => waitlistEnabled || event.category !== "waitlist",
+  );
+
+  useEffect(() => {
+    if (!waitlistEnabled && editingEvent?.startsWith("waitlist")) {
+      setEditingEvent(null);
+    }
+  }, [editingEvent, waitlistEnabled]);
 
   useEffect(() => {
     if (availableChannels.length === 0) return;

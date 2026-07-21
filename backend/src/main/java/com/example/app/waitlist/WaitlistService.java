@@ -22,6 +22,7 @@ import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.Space;
 import com.example.app.session.SpaceRepository;
 import com.example.app.settings.TenantReservationRulesService;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -85,6 +86,7 @@ public class WaitlistService {
     private final SessionBookingCreationService bookingValidation;
     private final TenantReservationRulesService reservationRules;
     private final WaitlistSettingsService waitlistSettings;
+    private final TenantFeatureAccessService featureAccess;
     private final TenantNotificationService tenantNotifications;
     private final SessionBookingRealtimeService calendarRealtime;
     private final WaitlistGuestNotificationService guestNotifications;
@@ -112,6 +114,7 @@ public class WaitlistService {
             SessionBookingCreationService bookingValidation,
             TenantReservationRulesService reservationRules,
             WaitlistSettingsService waitlistSettings,
+            TenantFeatureAccessService featureAccess,
             TenantNotificationService tenantNotifications,
             SessionBookingRealtimeService calendarRealtime,
             WaitlistGuestNotificationService guestNotifications,
@@ -138,6 +141,7 @@ public class WaitlistService {
         this.bookingValidation = bookingValidation;
         this.reservationRules = reservationRules;
         this.waitlistSettings = waitlistSettings;
+        this.featureAccess = featureAccess;
         this.tenantNotifications = tenantNotifications;
         this.calendarRealtime = calendarRealtime;
         this.guestNotifications = guestNotifications;
@@ -363,6 +367,7 @@ public class WaitlistService {
      */
     @Transactional
     public RequestView createFromWidget(Long companyId, Client client, RequestInput input) {
+        featureAccess.assertWaitlistEnabled(companyId);
         if (companyId == null || client == null || client.getId() == null
                 || client.getCompany() == null || !Objects.equals(client.getCompany().getId(), companyId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A tenant client is required.");
@@ -566,6 +571,7 @@ public class WaitlistService {
     public PublicOfferView publicOffer(Long offerId) {
         WaitlistOffer offer = offers.findById(offerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        assertWaitlistEnabled(offer);
         expireIfNeeded(offer);
         return toPublicOfferView(offer);
     }
@@ -574,11 +580,13 @@ public class WaitlistService {
     public PublicOfferView publicAccept(Long offerId) {
         WaitlistOffer offer = offers.findForUpdateById(offerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        assertWaitlistEnabled(offer);
         acceptOfferAndCreateBooking(offer, null);
         return toPublicOfferView(offer);
     }
 
     private SessionBooking acceptOfferAndCreateBooking(WaitlistOffer offer, User actor) {
+        assertWaitlistEnabled(offer);
         expireIfNeeded(offer);
         WaitlistRequest request = offer.getRequest();
         if (request == null || request.getCompany() == null) {
@@ -667,6 +675,7 @@ public class WaitlistService {
     public PublicOfferView publicDecline(Long offerId) {
         WaitlistOffer offer = offers.findForUpdateById(offerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        assertWaitlistEnabled(offer);
         expireIfNeeded(offer);
         if (offer.getStatus() == WaitlistOfferStatus.PENDING) {
             offer.setStatus(WaitlistOfferStatus.DECLINED);
@@ -688,6 +697,7 @@ public class WaitlistService {
     public PublicOfferView publicDeclineAndLeave(Long offerId) {
         WaitlistOffer offer = offers.findForUpdateById(offerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
+        assertWaitlistEnabled(offer);
         expireIfNeeded(offer);
         if (offer.getStatus() == WaitlistOfferStatus.PENDING) declineOffer(offer, null, true);
         return toPublicOfferView(offer);
@@ -803,6 +813,7 @@ public class WaitlistService {
     @Transactional
     public void handleReleasedSlot(Long companyId, Long bookingId, LocalDateTime slotStart, LocalDateTime slotEnd, String kind, LocalDateTime previousStart) {
         if (companyId == null || slotStart == null || slotEnd == null) return;
+        if (!featureAccess.isWaitlistEnabled(companyId)) return;
         WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
         if (!cfg.enabled() || !cfg.autoOfferEnabled()) return;
         SessionBooking booking = bookingId == null ? null : bookings.findById(bookingId).orElse(null);
@@ -833,6 +844,7 @@ public class WaitlistService {
 
         for (WaitlistOffer offer : offers.findPendingExpiring(now, expiringThreshold, page)) {
             if (offer.getStatus() != WaitlistOfferStatus.PENDING || offer.getExpiringNotifiedAt() != null) continue;
+            if (!isWaitlistEnabled(offer)) continue;
             offer.setExpiringNotifiedAt(now);
             offers.save(offer);
             guestNotifications.publish(offer.getRequest(), offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRING);
@@ -840,6 +852,7 @@ public class WaitlistService {
         }
         for (WaitlistOffer offer : offers.findExpiredPending(now, page)) {
             if (offer.getStatus() != WaitlistOfferStatus.PENDING) continue;
+            if (!isWaitlistEnabled(offer)) continue;
             offer.setStatus(WaitlistOfferStatus.EXPIRED);
             offers.save(offer);
             releaseHold(offer, WaitlistHoldStatus.EXPIRED);
@@ -858,6 +871,7 @@ public class WaitlistService {
         }
         for (WaitlistBookingHold hold : holds.findExpiredActive(now, page)) {
             if (hold.getStatus() != WaitlistHoldStatus.ACTIVE) continue;
+            if (hold.getOffer() != null && !isWaitlistEnabled(hold.getOffer())) continue;
             hold.setStatus(WaitlistHoldStatus.EXPIRED);
             holds.save(hold);
             publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_EXPIRED");
@@ -867,10 +881,12 @@ public class WaitlistService {
     }
 
     public boolean hasActiveHold(Long companyId, Long employeeId, Long roomId, LocalDateTime start, LocalDateTime end, Long excludeOfferId) {
+        if (!featureAccess.isWaitlistEnabled(companyId)) return false;
         return holds.existsActiveOverlap(companyId, employeeId, roomId, start, end, Instant.now(), excludeOfferId);
     }
 
     private MatchResult matchResult(Long companyId, MatchInput input) {
+        featureAccess.assertWaitlistEnabled(companyId);
         if (input == null || input.serviceId() == null || input.slotStart() == null || input.slotEnd() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "serviceId, slotStart and slotEnd are required.");
         }
@@ -1045,6 +1061,7 @@ public class WaitlistService {
     }
 
     private void offerNextCandidate(Long companyId, LocalDateTime start, LocalDateTime availableEnd, Long employeeId, Long roomId, Long sessionId, Long excludedRequestId) {
+        if (!featureAccess.isWaitlistEnabled(companyId)) return;
         if (!waitlistSettings.get(companyId).autoOfferEnabled()) return;
         User employee = employeeId == null ? null : users.findByIdAndCompanyIdAndActiveTrue(employeeId, companyId).orElse(null);
         Space room = roomId == null ? null : spaces.findByIdAndCompanyId(roomId, companyId).orElse(null);
@@ -1298,6 +1315,7 @@ public class WaitlistService {
             if (!service.isActive()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service is inactive.");
             return new ServiceSelection(scope, service, null, List.of(service));
         }
+        featureAccess.assertServiceGroupsEnabled(companyId);
         ServiceGroup group = serviceGroups.findById(input.serviceGroupId())
                 .filter(value -> value.getCompany() != null && Objects.equals(value.getCompany().getId(), companyId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service group not found."));
@@ -1310,6 +1328,18 @@ public class WaitlistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected service group has no active services.");
         }
         return new ServiceSelection(scope, null, group, eligible);
+    }
+
+    private boolean isWaitlistEnabled(WaitlistOffer offer) {
+        WaitlistRequest request = offer == null ? null : offer.getRequest();
+        return featureAccess.isWaitlistEnabled(request == null || request.getCompany() == null
+                ? null : request.getCompany().getId());
+    }
+
+    private void assertWaitlistEnabled(WaitlistOffer offer) {
+        WaitlistRequest request = offer == null ? null : offer.getRequest();
+        featureAccess.assertWaitlistEnabled(request == null || request.getCompany() == null
+                ? null : request.getCompany().getId());
     }
 
     private void applyServiceSelection(WaitlistRequest request, ServiceSelection selection) {

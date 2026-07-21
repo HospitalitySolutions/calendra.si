@@ -18,6 +18,7 @@ import com.example.app.reminder.ReminderService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -39,6 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,7 +74,9 @@ public class SessionBookingController {
     private final AppSettingRepository settings;
     private final TimeService timeService;
     private final WaitlistBookingHoldRepository waitlistHolds;
+    private final TenantFeatureAccessService featureAccess;
 
+    @Autowired
     public SessionBookingController(SessionBookingRepository repo,
                                     BookableSlotRepository bookableSlots,
                                     PersonalCalendarBlockRepository personalBlocks, CalendarTodoRepository calendarTodos,
@@ -88,7 +92,8 @@ public class SessionBookingController {
                                     ConsumableService consumableService,
                                     AppSettingRepository settings,
                                     TimeService timeService,
-                                    WaitlistBookingHoldRepository waitlistHolds) {
+                                    WaitlistBookingHoldRepository waitlistHolds,
+                                    TenantFeatureAccessService featureAccess) {
         this.repo = repo;
         this.bookableSlots = bookableSlots;
         this.personalBlocks = personalBlocks;
@@ -106,6 +111,30 @@ public class SessionBookingController {
         this.settings = settings;
         this.timeService = timeService;
         this.waitlistHolds = waitlistHolds;
+        this.featureAccess = featureAccess;
+    }
+
+    /** Backwards-compatible constructor used by existing controller unit tests. */
+    public SessionBookingController(SessionBookingRepository repo,
+                                    BookableSlotRepository bookableSlots,
+                                    PersonalCalendarBlockRepository personalBlocks, CalendarTodoRepository calendarTodos,
+                                    CompanyRepository companies,
+                                    SessionBookingCreationService bookingCreationService,
+                                    ReminderService reminderService,
+                                    SessionBookingRealtimeService bookingRealtimeService,
+                                    BookingChangePublisher bookingChangePublisher,
+                                    OpenBillSyncService openBillSyncService,
+                                    OpenBillRepository openBills,
+                                    BillRepository bills,
+                                    GuestEntitlementUsageRepository entitlementUsages,
+                                    ConsumableService consumableService,
+                                    AppSettingRepository settings,
+                                    TimeService timeService,
+                                    WaitlistBookingHoldRepository waitlistHolds) {
+        this(repo, bookableSlots, personalBlocks, calendarTodos, companies, bookingCreationService,
+                reminderService, bookingRealtimeService, bookingChangePublisher, openBillSyncService,
+                openBills, bills, entitlementUsages, consumableService, settings, timeService,
+                waitlistHolds, new TenantFeatureAccessService(settings));
     }
 
     public record BookingRequest(
@@ -638,12 +667,14 @@ public class SessionBookingController {
                 : calendarTodos.findByOwnerAndDateRange(me.getId(), companyId, rangeStart, rangeEnd)).stream()
                 .map(t -> new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes()))
                 .toList();
-        var waitlistOffers = (SecurityUtils.isAdmin(me)
-                ? waitlistHolds.findActiveOverlappingByCompany(companyId, rangeStart, rangeEnd, timeService.instant(companyId))
-                : waitlistHolds.findActiveOverlappingByEmployee(companyId, me.getId(), rangeStart, rangeEnd, timeService.instant(companyId)))
-                .stream()
-                .map(SessionBookingController::toWaitlistOfferHoldSummary)
-                .toList();
+        var waitlistOffers = featureAccess.isWaitlistEnabled(companyId)
+                ? (SecurityUtils.isAdmin(me)
+                    ? waitlistHolds.findActiveOverlappingByCompany(companyId, rangeStart, rangeEnd, timeService.instant(companyId))
+                    : waitlistHolds.findActiveOverlappingByEmployee(companyId, me.getId(), rangeStart, rangeEnd, timeService.instant(companyId)))
+                    .stream()
+                    .map(SessionBookingController::toWaitlistOfferHoldSummary)
+                    .toList()
+                : List.<WaitlistOfferHoldSummary>of();
         result.put("booked", bookings);
         result.put("bookable", slots);
         result.put("personal", personal);

@@ -15,6 +15,7 @@ import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionType;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import com.example.app.waitlist.WaitlistOffer;
 import com.example.app.waitlist.WaitlistOfferRepository;
@@ -59,6 +60,7 @@ public class AnalyticsService {
     private final WaitlistRequestServiceRepository waitlistRequestServiceRepository;
     private final WaitlistOfferRepository waitlistOfferRepository;
     private final TimeService timeService;
+    private final TenantFeatureAccessService featureAccess;
 
     @Value("${app.reminders.timezone:Europe/Ljubljana}")
     private String remindersTimezone;
@@ -71,7 +73,8 @@ public class AnalyticsService {
             WaitlistRequestRepository waitlistRequestRepository,
             WaitlistRequestServiceRepository waitlistRequestServiceRepository,
             WaitlistOfferRepository waitlistOfferRepository,
-            TimeService timeService) {
+            TimeService timeService,
+            TenantFeatureAccessService featureAccess) {
         this.bookingRepository = bookingRepository;
         this.clientRepository = clientRepository;
         this.billRepository = billRepository;
@@ -80,6 +83,7 @@ public class AnalyticsService {
         this.waitlistRequestServiceRepository = waitlistRequestServiceRepository;
         this.waitlistOfferRepository = waitlistOfferRepository;
         this.timeService = timeService;
+        this.featureAccess = featureAccess;
     }
 
     public record PeriodPoint(
@@ -352,6 +356,10 @@ public class AnalyticsService {
             Long typeId,
             Long serviceGroupId
     ) {
+        boolean serviceGroupsEnabled = featureAccess.areServiceGroupsEnabled(companyId);
+        boolean waitlistEnabled = featureAccess.isWaitlistEnabled(companyId);
+        if (!serviceGroupsEnabled) serviceGroupId = null;
+
         ZoneId zone = ZoneId.of(remindersTimezone);
         String period = normalizePeriod(periodRaw);
         DateRange range = resolveRange(period, fromParam, toParam, zone);
@@ -395,20 +403,22 @@ public class AnalyticsService {
         Map<Long, Boolean> currentGroupActive = new HashMap<>();
         Bucket summaryBucket = new Bucket();
 
-        for (ServiceGroup group : serviceGroupRepository.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId)) {
-            currentGroupActive.put(group.getId(), group.isActive());
-            if (matchesServiceGroupFilter(serviceGroupId, group.getId())) {
-                groupAnalytics.put(
-                        new GroupKey(group.getId(), safeAnalyticsName(group.getName(), "Service group")),
-                        new GroupAnalyticsBucket(group.getId(), safeAnalyticsName(group.getName(), "Service group"), group.isActive())
+        if (serviceGroupsEnabled) {
+            for (ServiceGroup group : serviceGroupRepository.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId)) {
+                currentGroupActive.put(group.getId(), group.isActive());
+                if (matchesServiceGroupFilter(serviceGroupId, group.getId())) {
+                    groupAnalytics.put(
+                            new GroupKey(group.getId(), safeAnalyticsName(group.getName(), "Service group")),
+                            new GroupAnalyticsBucket(group.getId(), safeAnalyticsName(group.getName(), "Service group"), group.isActive())
+                    );
+                }
+            }
+            if (Long.valueOf(-1L).equals(serviceGroupId)) {
+                groupAnalytics.putIfAbsent(
+                        new GroupKey(null, "Ungrouped"),
+                        new GroupAnalyticsBucket(null, "Ungrouped", true)
                 );
             }
-        }
-        if (Long.valueOf(-1L).equals(serviceGroupId)) {
-            groupAnalytics.putIfAbsent(
-                    new GroupKey(null, "Ungrouped"),
-                    new GroupAnalyticsBucket(null, "Ungrouped", true)
-            );
         }
 
         for (SessionBooking b : bookings) {
@@ -437,12 +447,14 @@ public class AnalyticsService {
                 spaceBucket.sessionsTotal++;
             }
 
-            GroupAnalyticsBucket groupBucket = groupBucketForBooking(groupAnalytics, currentGroupActive, b);
-            ServiceAnalyticsBucket serviceBucket = groupBucket.service(
-                    b.getType() == null ? null : b.getType().getId(),
-                    b.getType() == null ? "Service" : b.getType().getName()
-            );
-            accumulateBookingMetric(groupBucket, serviceBucket, b.getBookingStatus(), durationMinutes);
+            if (serviceGroupsEnabled) {
+                GroupAnalyticsBucket groupBucket = groupBucketForBooking(groupAnalytics, currentGroupActive, b);
+                ServiceAnalyticsBucket serviceBucket = groupBucket.service(
+                        b.getType() == null ? null : b.getType().getId(),
+                        b.getType() == null ? "Service" : b.getType().getName()
+                );
+                accumulateBookingMetric(groupBucket, serviceBucket, b.getBookingStatus(), durationMinutes);
+            }
         }
 
         for (Client c : clients) {
@@ -512,7 +524,7 @@ public class AnalyticsService {
                         : safeServiceLabel(item);
                 accumulateAmount(serviceRanking, label, lineGross, quantity);
 
-                if (serviceLinkedLine) {
+                if (serviceGroupsEnabled && serviceLinkedLine) {
                     GroupAnalyticsBucket groupBucket = groupBucket(
                             groupAnalytics,
                             currentGroupActive,
@@ -544,66 +556,69 @@ public class AnalyticsService {
             }
         }
 
-        List<WaitlistRequest> waitlistRequests = waitlistRequestRepository.findAnalyticsByCompanyIdAndJoinedAtRange(
-                companyId,
-                clientCreatedFrom,
-                clientCreatedToExclusive
-        );
-        Map<Long, List<WaitlistRequestService>> eligibleByRequest = new HashMap<>();
-        if (!waitlistRequests.isEmpty()) {
-            List<Long> requestIds = waitlistRequests.stream().map(WaitlistRequest::getId).toList();
-            for (WaitlistRequestService eligible : waitlistRequestServiceRepository.findAllByRequestIdIn(requestIds)) {
-                eligibleByRequest.computeIfAbsent(eligible.getRequest().getId(), ignored -> new ArrayList<>()).add(eligible);
-            }
-        }
-        for (WaitlistRequest request : waitlistRequests) {
-            List<WaitlistRequestService> eligible = eligibleByRequest.getOrDefault(request.getId(), List.of());
-            if (typeId != null) {
-                boolean eligibleType = eligible.stream()
-                        .anyMatch(row -> row.getService() != null && typeId.equals(row.getService().getId()));
-                boolean exactType = request.getService() != null && typeId.equals(request.getService().getId());
-                if (!eligibleType && !exactType) {
-                    continue;
-                }
-            }
-            Long requestGroupId = requestGroupId(request, eligible);
-            String requestGroupName = requestGroupName(request, eligible);
-            if (!matchesServiceGroupFilter(serviceGroupId, requestGroupId)) continue;
-            GroupAnalyticsBucket groupBucket = groupBucket(groupAnalytics, currentGroupActive, requestGroupId, requestGroupName);
-            groupBucket.waitlistRequests++;
-            if (eligible.isEmpty() && request.getService() != null) {
-                groupBucket.service(request.getService().getId(), request.getService().getName()).waitlistRequests++;
-            } else {
-                for (WaitlistRequestService row : eligible) {
-                    if (typeId != null && (row.getService() == null || !typeId.equals(row.getService().getId()))) continue;
-                    groupBucket.service(
-                            row.getService() == null ? null : row.getService().getId(),
-                            row.getServiceNameSnapshot()
-                    ).waitlistRequests++;
-                }
-            }
-        }
-
-        for (WaitlistOffer offer : waitlistOfferRepository.findAnalyticsByCompanyIdAndOfferedAtRange(
-                companyId,
-                clientCreatedFrom,
-                clientCreatedToExclusive
-        )) {
-            if (typeId != null && (offer.getService() == null || !typeId.equals(offer.getService().getId()))) continue;
-            Long offerGroupId = offer.getServiceGroupIdSnapshot();
-            String offerGroupName = offer.getServiceGroupNameSnapshot();
-            if (!matchesServiceGroupFilter(serviceGroupId, offerGroupId)) continue;
-            GroupAnalyticsBucket groupBucket = groupBucket(groupAnalytics, currentGroupActive, offerGroupId, offerGroupName);
-            ServiceAnalyticsBucket serviceBucket = groupBucket.service(
-                    offer.getService() == null ? null : offer.getService().getId(),
-                    offer.getServiceNameSnapshot()
+        if (serviceGroupsEnabled && waitlistEnabled) {
+            List<WaitlistRequest> waitlistRequests = waitlistRequestRepository.findAnalyticsByCompanyIdAndJoinedAtRange(
+                    companyId,
+                    clientCreatedFrom,
+                    clientCreatedToExclusive
             );
-            groupBucket.waitlistOffers++;
-            serviceBucket.waitlistOffers++;
-            if (offer.getStatus() == WaitlistOfferStatus.ACCEPTED) {
-                groupBucket.acceptedOffers++;
-                serviceBucket.acceptedOffers++;
+            Map<Long, List<WaitlistRequestService>> eligibleByRequest = new HashMap<>();
+            if (!waitlistRequests.isEmpty()) {
+                List<Long> requestIds = waitlistRequests.stream().map(WaitlistRequest::getId).toList();
+                for (WaitlistRequestService eligible : waitlistRequestServiceRepository.findAllByRequestIdIn(requestIds)) {
+                    eligibleByRequest.computeIfAbsent(eligible.getRequest().getId(), ignored -> new ArrayList<>()).add(eligible);
+                }
             }
+            for (WaitlistRequest request : waitlistRequests) {
+                List<WaitlistRequestService> eligible = eligibleByRequest.getOrDefault(request.getId(), List.of());
+                if (typeId != null) {
+                    boolean eligibleType = eligible.stream()
+                            .anyMatch(row -> row.getService() != null && typeId.equals(row.getService().getId()));
+                    boolean exactType = request.getService() != null && typeId.equals(request.getService().getId());
+                    if (!eligibleType && !exactType) {
+                        continue;
+                    }
+                }
+                Long requestGroupId = requestGroupId(request, eligible);
+                String requestGroupName = requestGroupName(request, eligible);
+                if (!matchesServiceGroupFilter(serviceGroupId, requestGroupId)) continue;
+                GroupAnalyticsBucket groupBucket = groupBucket(groupAnalytics, currentGroupActive, requestGroupId, requestGroupName);
+                groupBucket.waitlistRequests++;
+                if (eligible.isEmpty() && request.getService() != null) {
+                    groupBucket.service(request.getService().getId(), request.getService().getName()).waitlistRequests++;
+                } else {
+                    for (WaitlistRequestService row : eligible) {
+                        if (typeId != null && (row.getService() == null || !typeId.equals(row.getService().getId()))) continue;
+                        groupBucket.service(
+                                row.getService() == null ? null : row.getService().getId(),
+                                row.getServiceNameSnapshot()
+                        ).waitlistRequests++;
+                    }
+                }
+            }
+
+            for (WaitlistOffer offer : waitlistOfferRepository.findAnalyticsByCompanyIdAndOfferedAtRange(
+                    companyId,
+                    clientCreatedFrom,
+                    clientCreatedToExclusive
+            )) {
+                if (typeId != null && (offer.getService() == null || !typeId.equals(offer.getService().getId()))) continue;
+                Long offerGroupId = offer.getServiceGroupIdSnapshot();
+                String offerGroupName = offer.getServiceGroupNameSnapshot();
+                if (!matchesServiceGroupFilter(serviceGroupId, offerGroupId)) continue;
+                GroupAnalyticsBucket groupBucket = groupBucket(groupAnalytics, currentGroupActive, offerGroupId, offerGroupName);
+                ServiceAnalyticsBucket serviceBucket = groupBucket.service(
+                        offer.getService() == null ? null : offer.getService().getId(),
+                        offer.getServiceNameSnapshot()
+                );
+                groupBucket.waitlistOffers++;
+                serviceBucket.waitlistOffers++;
+                if (offer.getStatus() == WaitlistOfferStatus.ACCEPTED) {
+                    groupBucket.acceptedOffers++;
+                    serviceBucket.acceptedOffers++;
+                }
+            }
+
         }
 
         List<PeriodPoint> months = "month".equals(period) ? toMonthPoints(monthBuckets) : List.of();
@@ -632,7 +647,7 @@ public class AnalyticsService {
                 toRankedAmounts(consultantRevenueRanking, 5),
                 toRankedAmounts(clientRevenueRanking, 5),
                 toUsageRankings(spaceUsageRanking, 5),
-                toServiceGroupMetrics(groupAnalytics)
+                serviceGroupsEnabled ? toServiceGroupMetrics(groupAnalytics) : List.of()
         );
     }
 
@@ -758,6 +773,7 @@ public class AnalyticsService {
     ) {
         Long consultantFilter = resolveConsultantFilter(me, consultantIdParam);
         Long companyId = me.getCompany().getId();
+        if (!featureAccess.areServiceGroupsEnabled(companyId)) serviceGroupId = null;
         ZoneId zone = ZoneId.of(remindersTimezone);
         DateRange range = resolveRange(normalizePeriod(periodRaw), fromParam, toParam, zone);
         LocalDateTime rangeStart = range.from().atStartOfDay();

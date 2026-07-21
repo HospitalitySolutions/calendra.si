@@ -1,5 +1,6 @@
 package com.example.app.session;
 
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,10 +25,16 @@ import org.springframework.web.server.ResponseStatusException;
 public class ServiceGroupController {
     private final ServiceGroupRepository groups;
     private final SessionTypeRepository sessionTypes;
+    private final TenantFeatureAccessService featureAccess;
 
-    public ServiceGroupController(ServiceGroupRepository groups, SessionTypeRepository sessionTypes) {
+    public ServiceGroupController(
+            ServiceGroupRepository groups,
+            SessionTypeRepository sessionTypes,
+            TenantFeatureAccessService featureAccess
+    ) {
         this.groups = groups;
         this.sessionTypes = sessionTypes;
+        this.featureAccess = featureAccess;
     }
 
     public record ServiceGroupRequest(
@@ -52,6 +59,7 @@ public class ServiceGroupController {
     @Transactional(readOnly = true)
     public List<ServiceGroupResponse> list(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        featureAccess.assertServiceGroupsEnabled(companyId);
         return groups.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId).stream()
                 .map(group -> toResponse(group, companyId))
                 .toList();
@@ -62,6 +70,7 @@ public class ServiceGroupController {
     @Transactional
     public ServiceGroupResponse create(@RequestBody ServiceGroupRequest request, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        featureAccess.assertServiceGroupsEnabled(companyId);
         String name = normalizeName(request.name());
         ensureUnique(companyId, name, null);
 
@@ -86,6 +95,7 @@ public class ServiceGroupController {
             @AuthenticationPrincipal User me
     ) {
         Long companyId = me.getCompany().getId();
+        featureAccess.assertServiceGroupsEnabled(companyId);
         ServiceGroup group = requireOwned(id, companyId);
         String name = normalizeName(request.name());
         ensureUnique(companyId, name, id);
@@ -102,6 +112,7 @@ public class ServiceGroupController {
     @Transactional
     public List<ServiceGroupResponse> reorder(@RequestBody ReorderRequest request, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        featureAccess.assertServiceGroupsEnabled(companyId);
         List<Long> ids = request == null || request.ids() == null ? List.of() : request.ids();
         List<ServiceGroup> existing = groups.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId);
         Set<Long> ownedIds = existing.stream().map(ServiceGroup::getId).collect(java.util.stream.Collectors.toSet());
@@ -132,6 +143,7 @@ public class ServiceGroupController {
     @Transactional
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        featureAccess.assertServiceGroupsEnabled(companyId);
         ServiceGroup group = requireOwned(id, companyId);
         List<SessionType> assigned = sessionTypes.findAllByCompanyIdAndServiceGroupId(companyId, id);
         for (SessionType type : assigned) {

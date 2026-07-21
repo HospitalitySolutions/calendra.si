@@ -19,6 +19,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
@@ -89,6 +90,7 @@ public class PublicBookingWidgetService {
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final WaitlistService waitlistService;
     private final WaitlistSettingsService waitlistSettingsService;
+    private final TenantFeatureAccessService featureAccess;
     private final PaymentMethodRepository paymentMethods;
     private final StripeConnectService stripeConnectService;
     private final TimeService timeService;
@@ -111,6 +113,7 @@ public class PublicBookingWidgetService {
             WebsiteWidgetSettingsService websiteWidgetSettingsService,
             WaitlistService waitlistService,
             WaitlistSettingsService waitlistSettingsService,
+            TenantFeatureAccessService featureAccess,
             PaymentMethodRepository paymentMethods,
             StripeConnectService stripeConnectService,
             TimeService timeService,
@@ -133,6 +136,7 @@ public class PublicBookingWidgetService {
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
         this.waitlistService = waitlistService;
         this.waitlistSettingsService = waitlistSettingsService;
+        this.featureAccess = featureAccess;
         this.paymentMethods = paymentMethods;
         this.stripeConnectService = stripeConnectService;
         this.timeService = timeService;
@@ -173,7 +177,8 @@ public class PublicBookingWidgetService {
                 bookingRules.cancelUntilHours(),
                 bookingRules.noShowMode(),
                 bookingRules.noShowAfterMinutes(),
-                waitlistSettings.enabled() && waitlistSettings.widgetEnabled(),
+                featureAccess.isWaitlistEnabled(company.getId())
+                        && waitlistSettings.enabled() && waitlistSettings.widgetEnabled(),
                 waitlistSettings.exactTimeEnabled(),
                 waitlistSettings.flexibleWindowsEnabled(),
                 waitlistSettings.employeePreferenceEnabled(),
@@ -580,6 +585,7 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, httpRequest, true, "waitlist");
+        featureAccess.assertWaitlistEnabled(company.getId());
 
         WaitlistSettingsService.WaitlistSettings waitlistCfg = waitlistSettingsService.get(company.getId());
         if (!waitlistCfg.enabled() || !waitlistCfg.widgetEnabled()) {
@@ -883,7 +889,9 @@ public class PublicBookingWidgetService {
     }
 
     private com.example.app.session.ServiceGroup publicGroup(SessionType type) {
-        if (type == null || type.getServiceGroup() == null || !type.getServiceGroup().isActive()) return null;
+        if (type == null || type.getCompany() == null
+                || !featureAccess.areServiceGroupsEnabled(type.getCompany().getId())
+                || type.getServiceGroup() == null || !type.getServiceGroup().isActive()) return null;
         return type.getServiceGroup();
     }
 

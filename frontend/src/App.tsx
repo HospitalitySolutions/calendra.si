@@ -106,6 +106,7 @@ export default function App() {
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
+  const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
 
 
@@ -136,6 +137,7 @@ export default function App() {
       setBillingModuleEnabled(true)
       setInboxModuleEnabled(true)
       setScannerModuleEnabled(true)
+      setWaitlistModuleEnabled(true)
       return
     }
 
@@ -147,6 +149,7 @@ export default function App() {
             setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
             setInboxModuleEnabled(res.data?.INBOX_ENABLED !== 'false')
             setScannerModuleEnabled(res.data?.SCANNER_MODULE_ENABLED !== 'false')
+            setWaitlistModuleEnabled(res.data?.WAITLIST_ENABLED !== 'false')
           }
         })
         .catch(() => {
@@ -154,6 +157,7 @@ export default function App() {
             setBillingModuleEnabled(true)
             setInboxModuleEnabled(true)
             setScannerModuleEnabled(true)
+            setWaitlistModuleEnabled(true)
           }
         })
     }
@@ -398,6 +402,7 @@ export default function App() {
     'GUEST_MOBILE_APP_VIEW',
   ])
   const billingAllowed = billingModuleEnabled && canViewBilling
+  const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
   const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
   const inboxAllowed = inboxModuleEnabled && canViewInbox
   const canScanWalletEntitlements = scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
@@ -405,7 +410,7 @@ export default function App() {
   const routeCandidates = [
     { path: '/calendar', allowed: canViewCalendar },
     { path: '/clients', allowed: canViewClients },
-    { path: '/appointments', allowed: canViewAppointments },
+    { path: '/appointments', allowed: appointmentsAllowed },
     { path: '/billing', allowed: billingAllowed },
     { path: '/inbox', allowed: inboxAllowed },
     { path: '/analytics', allowed: canViewReports },
@@ -427,7 +432,7 @@ export default function App() {
           <Route path="/sessions/booked" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/bookable" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/clients" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/appointments" element={canViewAppointments ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/appointments" element={appointmentsAllowed ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
             path="/scanner"
             element={canScanWalletEntitlements ? <WalletScannerPage /> : <Navigate to={fallbackRoute} replace />}

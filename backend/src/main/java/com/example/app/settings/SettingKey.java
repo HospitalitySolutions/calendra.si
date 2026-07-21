@@ -9,6 +9,8 @@ public enum SettingKey {
     NO_SHOW_ENABLED,
     ONLINE_SESSION_BOOKING_ENABLED,
     WEBSITE_WIDGET_ENABLED,
+    /** Enables all tenant waitlist functionality across staff, calendar, widget and guest surfaces. */
+    WAITLIST_ENABLED,
     MODULE_CONFIG_TYPE,
     AI_BOOKING_ENABLED,
     /** Personal time blocks on the calendar (and personal-task presets tab). */
@@ -18,6 +20,8 @@ public enum SettingKey {
     MULTIPLE_SESSIONS_PER_SPACE_ENABLED,
     MULTIPLE_CLIENTS_PER_SESSION_ENABLED,
     GROUP_BOOKING_ENABLED,
+    /** Enables service-group management and service grouping across tenant and public surfaces. */
+    SERVICE_GROUPS_ENABLED,
     BILLING_ENABLED,
     BILLING_INVOICES_ENABLED,
     BILLING_ONLINE_CARD_PAYMENTS_ENABLED,

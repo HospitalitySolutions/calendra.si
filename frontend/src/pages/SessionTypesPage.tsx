@@ -731,7 +731,7 @@ export function SessionTypesPage() {
   const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
-  const showServiceGroups =
+  const showServiceGroupsParam =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_GROUPS;
   const showCardsMemberships =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_CARDS;
@@ -769,6 +769,8 @@ export function SessionTypesPage() {
   const [boot, setBoot] = useState(true);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
+  const serviceGroupsModuleEnabled =
+    settings.SERVICE_GROUPS_ENABLED !== "false";
   const coursesModuleEnabled = settings.COURSES_ENABLED !== "false";
   const giftCardsModuleEnabled = settings.BILLING_GIFT_CARDS_ENABLED === "true";
   const websiteWidgetModuleEnabled = settings.WEBSITE_WIDGET_ENABLED !== "false";
@@ -778,6 +780,8 @@ export function SessionTypesPage() {
   const guestBookingDisabledByModules =
     !websiteWidgetModuleEnabled && !guestAppModuleEnabled;
   const showCourses = showCoursesParam && coursesModuleEnabled;
+  const showServiceGroups =
+    showServiceGroupsParam && serviceGroupsModuleEnabled;
   const [types, setTypes] = useState<SessionTypeT[]>([]);
   const [groups, setGroups] = useState<ServiceGroup[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
@@ -1079,14 +1083,18 @@ export function SessionTypesPage() {
   }, [openServiceMenuId]);
 
   const load = async () => {
-    const [settingsRes, typesRes, groupsRes, servicesRes, clientsRes] = await Promise.all([
-      api.get("/settings"),
+    const settingsRes = await api.get("/settings");
+    const nextSettings = settingsRes.data || {};
+    const groupsEnabled = nextSettings.SERVICE_GROUPS_ENABLED !== "false";
+    const [typesRes, groupsRes, servicesRes, clientsRes] = await Promise.all([
       api.get("/types").catch(() => ({ data: [] })),
-      api.get("/service-groups").catch(() => ({ data: [] })),
+      groupsEnabled
+        ? api.get("/service-groups").catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
       api.get("/billing/services").catch(() => ({ data: [] })),
       api.get<Client[]>("/clients").catch(() => ({ data: [] as Client[] })),
     ]);
-    setSettings(settingsRes.data || {});
+    setSettings(nextSettings);
     setTypes(typesRes.data || []);
     setGroups(groupsRes.data || []);
     setServices(servicesRes.data || []);
@@ -1098,6 +1106,12 @@ export function SessionTypesPage() {
     void load().finally(() => setBoot(false));
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (!boot && showServiceGroupsParam && !serviceGroupsModuleEnabled) {
+      setSessionTypesSubtab("types");
+    }
+  }, [boot, serviceGroupsModuleEnabled, setSessionTypesSubtab, showServiceGroupsParam]);
+
   const filteredTypes = useMemo(() => {
     const byStatus = types.filter((type) =>
       typeActiveFilter === "inactive"
@@ -1105,6 +1119,7 @@ export function SessionTypesPage() {
         : type.active !== false,
     );
     const byGroup = byStatus.filter((type) => {
+      if (!serviceGroupsModuleEnabled) return true;
       if (typeGroupFilter === "all") return true;
       if (typeGroupFilter === "ungrouped") return type.serviceGroupId == null;
       return String(type.serviceGroupId ?? "") === typeGroupFilter;
@@ -1408,9 +1423,15 @@ export function SessionTypesPage() {
       guestLimitUserEmails: effectiveGroupBookingEnabled
         ? parseGuestLimitUserEmails(typeForm.guestLimitUserEmailsText)
         : [],
-      serviceGroupId: typeForm.serviceGroupId ? Number(typeForm.serviceGroupId) : null,
+      serviceGroupId: serviceGroupsModuleEnabled
+        ? typeForm.serviceGroupId
+          ? Number(typeForm.serviceGroupId)
+          : null
+        : undefined,
       sortOrder:
-        editingType && String(editingType.serviceGroupId ?? "") === typeForm.serviceGroupId
+        editingType &&
+        (!serviceGroupsModuleEnabled ||
+          String(editingType.serviceGroupId ?? "") === typeForm.serviceGroupId)
           ? editingType.sortOrder ?? 0
           : undefined,
       services: typeForm.serviceLines.map((l) => ({
@@ -1794,7 +1815,7 @@ export function SessionTypesPage() {
     if (showServiceGroups) return 1;
     if (showTransactionServices) return 1;
     let count = 1;
-    if (typeGroupFilter !== "all") count += 1;
+    if (serviceGroupsModuleEnabled && typeGroupFilter !== "all") count += 1;
     if (typeCategoryFilter !== "all") count += 1;
     if (typeDurationFilter !== "all") count += 1;
     if (typeVisibilityFilter !== "all") count += 1;
@@ -1804,6 +1825,7 @@ export function SessionTypesPage() {
     showCardsMemberships,
     showServiceGroups,
     showTransactionServices,
+    serviceGroupsModuleEnabled,
     typeGroupFilter,
     typeCategoryFilter,
     typeDurationFilter,
@@ -2068,10 +2090,12 @@ export function SessionTypesPage() {
                   </div>
                 </div>
                 <div className="clients-mobile-meta">
-                  <div>
-                    <span>{locale === "sl" ? "Skupina" : "Group"}</span>
-                    <strong>{type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}</strong>
-                  </div>
+                  {serviceGroupsModuleEnabled ? (
+                    <div>
+                      <span>{locale === "sl" ? "Skupina" : "Group"}</span>
+                      <strong>{type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}</strong>
+                    </div>
+                  ) : null}
                   <div>
                     <span>{locale === "sl" ? "Vrstni red" : "Order"}</span>
                     <strong className="service-order-controls">
@@ -2175,9 +2199,11 @@ export function SessionTypesPage() {
                           }
                           visual={serviceConfigVisual(index)}
                         />
-                        <span className={`service-group-indicator${type.serviceGroupId == null ? " is-ungrouped" : ""}`}>
-                          {type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}
-                        </span>
+                        {serviceGroupsModuleEnabled ? (
+                          <span className={`service-group-indicator${type.serviceGroupId == null ? " is-ungrouped" : ""}`}>
+                            {type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="clients-muted service-config-category-cell">
@@ -2633,17 +2659,19 @@ export function SessionTypesPage() {
                 <span>{t("sessionTypesSubtabTypes")}</span>
                 <span className="service-config-tab-count">{filteredTypes.length}</span>
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={showServiceGroups}
-                className={showServiceGroups ? "clients-session-tab active" : "clients-session-tab"}
-                onClick={() => setSessionTypesSubtab("groups")}
-              >
-                <ServiceConfigTabIcon name="group" />
-                <span>{locale === "sl" ? "Skupine storitev" : "Service groups"}</span>
-                <span className="service-config-tab-count">{filteredGroups.length}</span>
-              </button>
+              {serviceGroupsModuleEnabled ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showServiceGroups}
+                  className={showServiceGroups ? "clients-session-tab active" : "clients-session-tab"}
+                  onClick={() => setSessionTypesSubtab("groups")}
+                >
+                  <ServiceConfigTabIcon name="group" />
+                  <span>{locale === "sl" ? "Skupine storitev" : "Service groups"}</span>
+                  <span className="service-config-tab-count">{filteredGroups.length}</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="tab"
@@ -2986,14 +3014,16 @@ export function SessionTypesPage() {
                       <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
                     </select>
                   </label>
-                  <label>
-                    <span>{locale === "sl" ? "Skupina" : "Group"}</span>
-                    <select value={serviceConfigFilterDraft.typeGroup} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeGroup: e.target.value }))}>
-                      <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
-                      <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
-                      {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
-                    </select>
-                  </label>
+                  {serviceGroupsModuleEnabled ? (
+                    <label>
+                      <span>{locale === "sl" ? "Skupina" : "Group"}</span>
+                      <select value={serviceConfigFilterDraft.typeGroup} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeGroup: e.target.value }))}>
+                        <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
+                        <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
+                        {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
                   <label>
                     <span>{locale === "sl" ? "Kategorija" : "Category"}</span>
                     <select value={serviceConfigFilterDraft.typeCategory} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeCategory: e.target.value }))}>
@@ -3192,6 +3222,7 @@ export function SessionTypesPage() {
                   </Field>
                 </div>
 
+                {serviceGroupsModuleEnabled ? (
                 <div className="session-type-config-grid session-type-config-grid--two">
                   <Field label={locale === "sl" ? "Skupina storitve" : "Service group"}>
                     <select
@@ -3210,6 +3241,7 @@ export function SessionTypesPage() {
                       : "Group related durations or variants, for example Massage 30, 45 and 60 min."}
                   </div>
                 </div>
+                ) : null}
 
                 <div className="session-type-config-grid session-type-config-grid--two session-type-config-duration-grid">
                   <Field

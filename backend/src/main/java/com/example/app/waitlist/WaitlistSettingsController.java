@@ -3,6 +3,7 @@ package com.example.app.waitlist;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,14 +14,17 @@ import org.springframework.web.bind.annotation.*;
 public class WaitlistSettingsController {
     private final WaitlistSettingsService service;
     private final AppSettingRepository settings;
+    private final TenantFeatureAccessService featureAccess;
 
-    public WaitlistSettingsController(WaitlistSettingsService service, AppSettingRepository settings) {
+    public WaitlistSettingsController(WaitlistSettingsService service, AppSettingRepository settings, TenantFeatureAccessService featureAccess) {
         this.service = service;
         this.settings = settings;
+        this.featureAccess = featureAccess;
     }
 
     @GetMapping
     public WaitlistSettingsService.WaitlistSettings get(@AuthenticationPrincipal User me) {
+        featureAccess.assertWaitlistEnabled(me.getCompany().getId());
         return service.get(me.getCompany().getId());
     }
 
@@ -29,6 +33,7 @@ public class WaitlistSettingsController {
     @PutMapping
     public WaitlistSettingsService.WaitlistSettings save(@AuthenticationPrincipal User me, @RequestBody SettingsRequest request) {
         Long companyId = me.getCompany().getId();
+        featureAccess.assertWaitlistEnabled(companyId);
         String normalized = service.normalizeJson(request == null ? null : request.value());
         AppSetting row = settings.findByCompanyIdAndKey(companyId, SettingKey.WAITLIST_SETTINGS_JSON).orElseGet(() -> {
             AppSetting created = new AppSetting();

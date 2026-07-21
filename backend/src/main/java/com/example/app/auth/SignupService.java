@@ -1802,9 +1802,11 @@ public class SignupService {
     private void seedTenantDefaults(Company company, String companyName) {
         seedSetting(company, SettingKey.SPACES_ENABLED, "true");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
+        seedSetting(company, SettingKey.SERVICE_GROUPS_ENABLED, "true");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
         seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, "true");
         seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");
+        seedSetting(company, SettingKey.WAITLIST_ENABLED, "true");
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
         seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
