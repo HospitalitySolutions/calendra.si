@@ -6972,6 +6972,195 @@ button.course-edit-save-button.gapp-primary-button {
 }
 
 /* Service groups */
+.service-config-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.clients-session-tab.active .service-config-tab-count {
+  background: #dbe9ff;
+  color: #1769e8;
+}
+
+.service-config-toolbar-trailing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.service-config-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.service-config-filter-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.service-config-filter-btn__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #1769e8;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.service-config-filter-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.service-config-filter-modal {
+  width: min(660px, calc(100vw - 32px));
+  overflow: hidden;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.22);
+}
+
+.service-config-filter-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e7edf4;
+}
+
+.service-config-filter-modal__header h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.service-config-filter-modal__close {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #667085;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.service-config-filter-modal__close:hover {
+  background: #f3f6fb;
+}
+
+.service-config-filter-modal__body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+  padding: 20px;
+}
+
+.service-config-filter-modal__body label {
+  display: grid;
+  gap: 7px;
+}
+
+.service-config-filter-modal__body label span {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.service-config-filter-modal__body select,
+.service-config-filter-modal__body input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #d7e0ea;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.service-config-filter-modal__body select:focus,
+.service-config-filter-modal__body input:focus {
+  outline: none;
+  border-color: #5e9af2;
+  box-shadow: 0 0 0 3px rgba(23, 105, 232, 0.12);
+}
+
+.service-config-filter-modal__field--wide {
+  grid-column: 1 / -1;
+}
+
+.service-config-filter-modal__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #e7edf4;
+}
+
+.service-config-filter-modal__footer .secondary,
+.service-config-filter-modal__footer .primary {
+  min-width: 120px;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.service-config-filter-modal__footer .secondary {
+  border: 1px solid #d7e0ea;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.service-config-filter-modal__footer .primary {
+  border: 1px solid #1769e8;
+  background: #1769e8;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(23, 105, 232, 0.2);
+}
+
 .service-group-filter-select {
   min-width: 170px;
   height: 38px;
@@ -7081,5 +7270,37 @@ button.course-edit-save-button.gapp-primary-button {
 
   .service-group-field-hint {
     min-height: 0;
+  }
+
+  .service-config-toolbar-trailing {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .service-config-filter-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .service-config-filter-modal-backdrop {
+    padding: 12px;
+  }
+
+  .service-config-filter-modal__body {
+    grid-template-columns: 1fr;
+  }
+
+  .service-config-filter-modal__field--wide {
+    grid-column: auto;
+  }
+
+  .service-config-filter-modal__footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .service-config-filter-modal__footer .secondary,
+  .service-config-filter-modal__footer .primary {
+    width: 100%;
   }
 }

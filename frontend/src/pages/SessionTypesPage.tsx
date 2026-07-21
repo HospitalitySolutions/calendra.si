@@ -492,6 +492,7 @@ type ServiceConfigTabIconName =
   | "cards"
   | "group"
   | "search"
+  | "filter"
   | "plus";
 
 function ServiceConfigTabIcon({ name }: { name: ServiceConfigTabIconName }) {
@@ -552,6 +553,15 @@ function ServiceConfigTabIcon({ name }: { name: ServiceConfigTabIconName }) {
       <svg {...common}>
         <circle cx="10.8" cy="10.8" r="6" />
         <path d="m16 16 4 4" />
+      </svg>
+    );
+  }
+  if (name === "filter") {
+    return (
+      <svg {...common}>
+        <path d="M4 6h16" />
+        <path d="M7 12h10" />
+        <path d="M10 18h4" />
       </svg>
     );
   }
@@ -705,6 +715,13 @@ function typeGrossPrice(type: SessionTypeT): number | null {
   return Math.round(sum * 100) / 100;
 }
 
+function sessionTypeVisibilityMode(type: SessionTypeT): GuestBookingMode {
+  return guestBookingModeFromFlags(
+    type.widgetGroupBookingEnabled === true,
+    type.guestBookingEnabled !== false,
+  );
+}
+
 function transactionServiceGross(service: BillingService): number {
   return service.netPrice * (1 + taxRateMultiplier(service.taxRate));
 }
@@ -855,6 +872,21 @@ export function SessionTypesPage() {
   const [coursesActiveFilter, setCoursesActiveFilter] = useState<
     "active" | "inactive"
   >("active");
+  const [typeCategoryFilter, setTypeCategoryFilter] = useState<string>("all");
+  const [typeDurationFilter, setTypeDurationFilter] = useState<string>("all");
+  const [typeVisibilityFilter, setTypeVisibilityFilter] = useState<"all" | GuestBookingMode>("all");
+  const [showServiceConfigFilters, setShowServiceConfigFilters] = useState(false);
+  const [serviceConfigFilterDraft, setServiceConfigFilterDraft] = useState({
+    typeStatus: "active" as "active" | "inactive",
+    groupStatus: "active" as "active" | "inactive",
+    typeGroup: "all",
+    serviceStatus: "active" as "active" | "inactive",
+    cardsStatus: "active" as "active" | "inactive",
+    coursesStatus: "active" as "active" | "inactive",
+    typeCategory: "all",
+    typeDuration: "all",
+    typeVisibility: "all" as "all" | GuestBookingMode,
+  });
   const [typeSearch, setTypeSearch] = useState("");
   const [groupSearch, setGroupSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
@@ -1077,8 +1109,21 @@ export function SessionTypesPage() {
       if (typeGroupFilter === "ungrouped") return type.serviceGroupId == null;
       return String(type.serviceGroupId ?? "") === typeGroupFilter;
     });
+    const byCategory = byGroup.filter((type) =>
+      typeCategoryFilter === "all" ? true : typeLinkedCategory(type) === typeCategoryFilter,
+    );
+    const byDuration = byCategory.filter((type) =>
+      typeDurationFilter === "all"
+        ? true
+        : String(type.durationMinutes ?? "") === typeDurationFilter,
+    );
+    const byVisibility = byDuration.filter((type) =>
+      typeVisibilityFilter === "all"
+        ? true
+        : sessionTypeVisibilityMode(type) === typeVisibilityFilter,
+    );
     const q = typeSearch.trim().toLowerCase();
-    const matched = !q ? byGroup : byGroup.filter((type) => {
+    const matched = !q ? byVisibility : byVisibility.filter((type) => {
       const linked = (type.linkedServices || [])
         .map((ls) => `${ls.code} ${ls.price != null ? String(ls.price) : ""}`)
         .join(" ");
@@ -1094,7 +1139,15 @@ export function SessionTypesPage() {
       const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
       return so || a.name.localeCompare(b.name);
     });
-  }, [types, typeSearch, typeActiveFilter, typeGroupFilter]);
+  }, [
+    types,
+    typeSearch,
+    typeActiveFilter,
+    typeGroupFilter,
+    typeCategoryFilter,
+    typeDurationFilter,
+    typeVisibilityFilter,
+  ]);
 
   const activeTypes = useMemo(
     () => types.filter((type) => type.active !== false),
@@ -2476,6 +2529,78 @@ export function SessionTypesPage() {
     if (e.target === e.currentTarget) dismissServiceModal();
   };
 
+  const typeCategoryOptions = useMemo(
+    () => Array.from(new Set(types.map((type) => typeLinkedCategory(type)).filter((value) => value && value !== "—"))).sort((a, b) => a.localeCompare(b)),
+    [types],
+  );
+  const typeDurationOptions = useMemo(
+    () => Array.from(new Set(types.map((type) => String(type.durationMinutes ?? "")).filter(Boolean))).sort((a, b) => Number(a) - Number(b)),
+    [types],
+  );
+  const serviceConfigFilterCount = useMemo(() => {
+    if (showCourses) return 1;
+    if (showCardsMemberships) return 1;
+    if (showServiceGroups) return 1;
+    if (showTransactionServices) return 1;
+    let count = 1;
+    if (typeGroupFilter !== "all") count += 1;
+    if (typeCategoryFilter !== "all") count += 1;
+    if (typeDurationFilter !== "all") count += 1;
+    if (typeVisibilityFilter !== "all") count += 1;
+    return count;
+  }, [
+    showCourses,
+    showCardsMemberships,
+    showServiceGroups,
+    showTransactionServices,
+    typeGroupFilter,
+    typeCategoryFilter,
+    typeDurationFilter,
+    typeVisibilityFilter,
+  ]);
+
+  const openServiceConfigFilters = () => {
+    setServiceConfigFilterDraft({
+      typeStatus: typeActiveFilter,
+      groupStatus: groupActiveFilter,
+      typeGroup: typeGroupFilter,
+      serviceStatus: serviceActiveFilter,
+      cardsStatus: cardsActiveFilter,
+      coursesStatus: coursesActiveFilter,
+      typeCategory: typeCategoryFilter,
+      typeDuration: typeDurationFilter,
+      typeVisibility: typeVisibilityFilter,
+    });
+    setShowServiceConfigFilters(true);
+  };
+
+  const resetServiceConfigFilterDraft = () => {
+    setServiceConfigFilterDraft({
+      typeStatus: "active",
+      groupStatus: "active",
+      typeGroup: "all",
+      serviceStatus: "active",
+      cardsStatus: "active",
+      coursesStatus: "active",
+      typeCategory: "all",
+      typeDuration: "all",
+      typeVisibility: "all",
+    });
+  };
+
+  const applyServiceConfigFilters = () => {
+    setTypeActiveFilter(serviceConfigFilterDraft.typeStatus);
+    setGroupActiveFilter(serviceConfigFilterDraft.groupStatus);
+    setTypeGroupFilter(serviceConfigFilterDraft.typeGroup);
+    setServiceActiveFilter(serviceConfigFilterDraft.serviceStatus);
+    setCardsActiveFilter(serviceConfigFilterDraft.cardsStatus);
+    setCoursesActiveFilter(serviceConfigFilterDraft.coursesStatus);
+    setTypeCategoryFilter(serviceConfigFilterDraft.typeCategory);
+    setTypeDurationFilter(serviceConfigFilterDraft.typeDuration);
+    setTypeVisibilityFilter(serviceConfigFilterDraft.typeVisibility);
+    setShowServiceConfigFilters(false);
+  };
+
   const sessionTypesPageClass = `stack gap-lg${isSessionTypesNarrow ? " clients-modern-page--mobile" : ""}`;
   const sessionTypesCardClass = `service-config-card clients-modern-card${isSessionTypesNarrow ? " clients-mobile-shell" : ""}`;
   const sessionTypesHeaderClass = `clients-page-header${isSessionTypesNarrow ? " clients-page-header--sticky-mobile" : ""}`;
@@ -2506,6 +2631,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="types" />
                 <span>{t("sessionTypesSubtabTypes")}</span>
+                <span className="service-config-tab-count">{filteredTypes.length}</span>
               </button>
               <button
                 type="button"
@@ -2516,6 +2642,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="group" />
                 <span>{locale === "sl" ? "Skupine storitev" : "Service groups"}</span>
+                <span className="service-config-tab-count">{filteredGroups.length}</span>
               </button>
               <button
                 type="button"
@@ -2530,6 +2657,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="services" />
                 <span>{t("configBillingServicesTab")}</span>
+                <span className="service-config-tab-count">{filteredServices.length}</span>
               </button>
               <button
                 type="button"
@@ -2544,6 +2672,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="cards" />
                 <span>{t("sessionTypesSubtabCards")}</span>
+                <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
               </button>
               {coursesModuleEnabled && (
                 <button
@@ -2555,6 +2684,7 @@ export function SessionTypesPage() {
                 >
                   <ServiceConfigTabIcon name="types" />
                   <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
+                  <span className="service-config-tab-count">{coursesFilteredCount}</span>
                 </button>
               )}
             </div>
@@ -2602,96 +2732,15 @@ export function SessionTypesPage() {
               </span>
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
-              {!showServiceGroups && !showTransactionServices && !showCardsMemberships && !showCourses ? (
-                <select
-                  className="service-group-filter-select"
-                  value={typeGroupFilter}
-                  onChange={(e) => setTypeGroupFilter(e.target.value)}
-                  aria-label={locale === "sl" ? "Filtriraj po skupini" : "Filter by group"}
-                >
-                  <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
-                  <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
-                  {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
-                </select>
-              ) : null}
-              <div
-                className="clients-session-tabs clients-filter-tabs service-config-filter-tabs"
-                style={{ marginBottom: 0 }}
+              <button
+                type="button"
+                className="service-config-filter-btn"
+                onClick={openServiceConfigFilters}
               >
-                <button
-                  type="button"
-                  className="clients-session-tab active"
-                  onClick={() => {
-                    if (showCourses) {
-                      setCoursesActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    } else if (showServiceGroups) {
-                      setGroupActiveFilter((prev) => prev === "active" ? "inactive" : "active");
-                    } else if (showCardsMemberships) {
-                      setCardsActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    } else if (showTransactionServices) {
-                      setServiceActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    } else {
-                      setTypeActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    }
-                  }}
-                >
-                  <span
-                    className={
-                      (showCourses
-                        ? coursesActiveFilter
-                        : showServiceGroups
-                          ? groupActiveFilter
-                        : showCardsMemberships
-                          ? cardsActiveFilter
-                          : showTransactionServices
-                            ? serviceActiveFilter
-                            : typeActiveFilter) === "active"
-                        ? "clients-filter-dot clients-filter-dot--active"
-                        : "clients-filter-dot clients-filter-dot--inactive"
-                    }
-                    aria-hidden
-                  />
-                  {(showCourses
-                    ? coursesActiveFilter
-                    : showServiceGroups
-                      ? groupActiveFilter
-                    : showCardsMemberships
-                      ? cardsActiveFilter
-                      : showTransactionServices
-                        ? serviceActiveFilter
-                        : typeActiveFilter) === "active"
-                    ? locale === "sl"
-                      ? "Aktivna"
-                      : "Active"
-                    : locale === "sl"
-                      ? "Neaktivna"
-                      : "Inactive"}
-                </button>
-              </div>
-              <div
-                className={`clients-count-chip${isSessionTypesNarrow ? " clients-count-chip--mobile-open" : ""}`}
-              >
-                {showCourses
-                  ? (locale === "sl" ? `${coursesFilteredCount} tečajev` : `${coursesFilteredCount} courses`)
-                  : showServiceGroups
-                    ? (locale === "sl" ? `${filteredGroups.length} skupin` : `${filteredGroups.length} groups`)
-                  : showCardsMemberships
-                    ? guestCardListCountLabel(guestCardsFilteredCount, locale)
-                    : showTransactionServices
-                      ? transactionServiceListCountLabel(
-                          filteredServices.length,
-                          locale,
-                        )
-                      : sessionTypeListCountLabel(filteredTypes.length, locale)}
-              </div>
+                <ServiceConfigTabIcon name="filter" />
+                <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
+                <span className="service-config-filter-btn__count">{serviceConfigFilterCount}</span>
+              </button>
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
@@ -2764,6 +2813,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="services" />
                 <span>{t("configBillingServicesTab")}</span>
+                <span className="service-config-tab-count">{filteredServices.length}</span>
               </button>
               <button
                 type="button"
@@ -2778,6 +2828,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="cards" />
                 <span>{t("sessionTypesSubtabCards")}</span>
+                <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
               </button>
               {coursesModuleEnabled && (
                 <button
@@ -2789,6 +2840,7 @@ export function SessionTypesPage() {
                 >
                   <ServiceConfigTabIcon name="types" />
                   <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
+                  <span className="service-config-tab-count">{coursesFilteredCount}</span>
                 </button>
               )}
             </div>
@@ -2818,66 +2870,15 @@ export function SessionTypesPage() {
               </span>
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
-              <div
-                className="clients-session-tabs clients-filter-tabs service-config-filter-tabs"
-                style={{ marginBottom: 0 }}
+              <button
+                type="button"
+                className="service-config-filter-btn"
+                onClick={openServiceConfigFilters}
               >
-                <button
-                  type="button"
-                  className="clients-session-tab active"
-                  onClick={() => {
-                    if (showCourses) {
-                      setCoursesActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    } else if (showCardsMemberships) {
-                      setCardsActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    } else {
-                      setServiceActiveFilter((prev) =>
-                        prev === "active" ? "inactive" : "active",
-                      );
-                    }
-                  }}
-                >
-                  <span
-                    className={
-                      (showCourses
-                        ? coursesActiveFilter
-                        : showCardsMemberships
-                          ? cardsActiveFilter
-                          : serviceActiveFilter) === "active"
-                        ? "clients-filter-dot clients-filter-dot--active"
-                        : "clients-filter-dot clients-filter-dot--inactive"
-                    }
-                    aria-hidden
-                  />
-                  {(showCourses
-                    ? coursesActiveFilter
-                    : showCardsMemberships
-                      ? cardsActiveFilter
-                      : serviceActiveFilter) === "active"
-                    ? locale === "sl"
-                      ? "Aktivna"
-                      : "Active"
-                    : locale === "sl"
-                      ? "Neaktivna"
-                      : "Inactive"}
-                </button>
-              </div>
-              <div
-                className={`clients-count-chip${isSessionTypesNarrow ? " clients-count-chip--mobile-open" : ""}`}
-              >
-                {showCourses
-                  ? (locale === "sl" ? `${coursesFilteredCount} tečajev` : `${coursesFilteredCount} courses`)
-                  : showCardsMemberships
-                    ? guestCardListCountLabel(guestCardsFilteredCount, locale)
-                    : transactionServiceListCountLabel(
-                        filteredServices.length,
-                        locale,
-                      )}
-              </div>
+                <ServiceConfigTabIcon name="filter" />
+                <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
+                <span className="service-config-filter-btn__count">{serviceConfigFilterCount}</span>
+              </button>
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
@@ -2920,6 +2921,109 @@ export function SessionTypesPage() {
             transactionServicesPanelBody
           )}
         </Card>
+      )}
+
+      {showServiceConfigFilters && (
+        <div
+          className="service-config-filter-modal-backdrop"
+          onMouseDown={() => setShowServiceConfigFilters(false)}
+          role="presentation"
+        >
+          <div
+            className="service-config-filter-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="service-config-filter-modal__header">
+              <h3>{locale === "sl" ? "Filtri" : "Filters"}</h3>
+              <button
+                type="button"
+                className="service-config-filter-modal__close"
+                onClick={() => setShowServiceConfigFilters(false)}
+                aria-label={locale === "sl" ? "Zapri" : "Close"}
+              >
+                ×
+              </button>
+            </div>
+            <div className="service-config-filter-modal__body">
+              {showCourses ? (
+                <label>
+                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                  <select value={serviceConfigFilterDraft.coursesStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, coursesStatus: e.target.value as "active" | "inactive" }))}>
+                    <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
+                    <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
+                  </select>
+                </label>
+              ) : showCardsMemberships ? (
+                <label>
+                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                  <select value={serviceConfigFilterDraft.cardsStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, cardsStatus: e.target.value as "active" | "inactive" }))}>
+                    <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
+                    <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
+                  </select>
+                </label>
+              ) : showServiceGroups ? (
+                <label>
+                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                  <select value={serviceConfigFilterDraft.groupStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, groupStatus: e.target.value as "active" | "inactive" }))}>
+                    <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
+                    <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
+                  </select>
+                </label>
+              ) : showTransactionServices ? (
+                <label>
+                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                  <select value={serviceConfigFilterDraft.serviceStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, serviceStatus: e.target.value as "active" | "inactive" }))}>
+                    <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
+                    <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label>
+                    <span>{locale === "sl" ? "Status" : "Status"}</span>
+                    <select value={serviceConfigFilterDraft.typeStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeStatus: e.target.value as "active" | "inactive" }))}>
+                      <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
+                      <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{locale === "sl" ? "Skupina" : "Group"}</span>
+                    <select value={serviceConfigFilterDraft.typeGroup} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeGroup: e.target.value }))}>
+                      <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
+                      <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
+                      {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{locale === "sl" ? "Kategorija" : "Category"}</span>
+                    <select value={serviceConfigFilterDraft.typeCategory} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeCategory: e.target.value }))}>
+                      <option value="all">{locale === "sl" ? "Vse kategorije" : "All categories"}</option>
+                      {typeCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{locale === "sl" ? "Trajanje" : "Duration"}</span>
+                    <select value={serviceConfigFilterDraft.typeDuration} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeDuration: e.target.value }))}>
+                      <option value="all">{locale === "sl" ? "Vse" : "All"}</option>
+                      {typeDurationOptions.map((option) => <option key={option} value={option}>{option} min</option>)}
+                    </select>
+                  </label>
+                  <label className="service-config-filter-modal__field--wide">
+                    <span>{locale === "sl" ? "Vidnost" : "Visibility"}</span>
+                    <select value={serviceConfigFilterDraft.typeVisibility} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeVisibility: e.target.value as "all" | GuestBookingMode }))}>
+                      <option value="all">{locale === "sl" ? "Vse" : "All"}</option>
+                      {guestBookingOptions.map((option) => <option key={option.value} value={option.value}>{option.line}</option>)}
+                    </select>
+                  </label>
+                </>
+              )}
+            </div>
+            <div className="service-config-filter-modal__footer">
+              <button type="button" className="secondary" onClick={resetServiceConfigFilterDraft}>{locale === "sl" ? "Ponastavi" : "Reset"}</button>
+              <button type="button" className="primary" onClick={applyServiceConfigFilters}>{locale === "sl" ? "Uporabi filtre" : "Apply filters"}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showGroupModal ? (
