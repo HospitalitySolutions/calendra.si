@@ -1136,6 +1136,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     fiscalStatus: 'all',
     billType: 'all',
   })
+  const [showGiftCardFilters, setShowGiftCardFilters] = useState(false)
+  const [giftCardFilterDraft, setGiftCardFilterDraft] = useState<{
+    dateFrom: string
+    dateTo: string
+    status: BillingGiftCardStatus
+  }>({
+    dateFrom: '',
+    dateTo: '',
+    status: 'all',
+  })
   const [billingTab, setBillingTab] = useState<BillingTab>('open')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
   const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
@@ -7518,6 +7528,36 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     })
   }
 
+  const activeGiftCardFilterCount = [
+    giftCardDateFrom,
+    giftCardDateTo,
+    giftCardStatusFilter !== 'all' ? giftCardStatusFilter : '',
+  ].filter(Boolean).length
+
+  const openGiftCardFiltersModal = () => {
+    setGiftCardFilterDraft({
+      dateFrom: giftCardDateFrom,
+      dateTo: giftCardDateTo,
+      status: giftCardStatusFilter,
+    })
+    setShowGiftCardFilters(true)
+  }
+
+  const applyGiftCardFilters = () => {
+    setGiftCardDateFrom(giftCardFilterDraft.dateFrom)
+    setGiftCardDateTo(giftCardFilterDraft.dateTo)
+    setGiftCardStatusFilter(giftCardFilterDraft.status)
+    setShowGiftCardFilters(false)
+  }
+
+  const resetGiftCardFilterDraft = () => {
+    setGiftCardFilterDraft({
+      dateFrom: '',
+      dateTo: '',
+      status: 'all',
+    })
+  }
+
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
@@ -7873,16 +7913,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {renderBankStatementImportButton()}
                 </div>
 
-                <div className="billing-modern-stats billing-modern-stats--single">
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>▧</span>
-                    <div>
-                      <span className="billing-modern-stat-label">{locale === 'sl' ? 'Čaka na plačilo' : 'Pending Allocation'}</span>
-                      <strong>{currency(openPaymentsTotal)}</strong>
-                      <small>{openPayments.length} {locale === 'sl' ? 'plačil' : 'payments'}</small>
+                {!isOpenBillsMobile && (
+                  <div className="billing-modern-stats billing-modern-stats--single">
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>▧</span>
+                      <div>
+                        <span className="billing-modern-stat-label">{locale === 'sl' ? 'Čaka na plačilo' : 'Pending Allocation'}</span>
+                        <strong>{currency(openPaymentsTotal)}</strong>
+                        <small>{openPayments.length} {locale === 'sl' ? 'plačil' : 'payments'}</small>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {openPayments.length === 0 ? <EmptyState title={t('billingTabOpenPayments')} text={locale === 'sl' ? 'Ni odprtih plačil.' : 'No open payments.'} /> : (
                   <div className="billing-modern-table-wrap">
@@ -7993,16 +8035,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </button>
                 </div>
 
-                <div className="billing-modern-stats billing-modern-stats--single billing-modern-stats--center">
-                  <div className="billing-modern-stat-card billing-modern-stat-card--compact">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>▤</span>
-                    <div>
-                      <span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupno stanje predplačil' : 'Total Advance Balance'}</span>
-                      <strong>{currency(unusedAdvancesTotal)}</strong>
-                      <small>{locale === 'sl' ? 'Skupaj neizkoriščena predplačila' : 'Total unused advances'}</small>
+                {!isOpenBillsMobile && (
+                  <div className="billing-modern-stats billing-modern-stats--single billing-modern-stats--center">
+                    <div className="billing-modern-stat-card billing-modern-stat-card--compact">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>▤</span>
+                      <div>
+                        <span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupno stanje predplačil' : 'Total Advance Balance'}</span>
+                        <strong>{currency(unusedAdvancesTotal)}</strong>
+                        <small>{locale === 'sl' ? 'Skupaj neizkoriščena predplačila' : 'Total unused advances'}</small>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {filteredUnusedAdvances.length === 0 ? <EmptyState title={t('billingTabUnusedAdvances')} text={billingCopy.unusedAdvancesEmpty} /> : (
                   <div className="billing-modern-table-wrap">
@@ -8082,7 +8126,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
             {giftCardsEnabled && billingTab === 'giftCards' && (
               <div className="billing-modern-content">
-                <div className="billing-modern-filter-row billing-modern-filter-row--history">
+                <div className="billing-modern-filter-row billing-modern-filter-row--toolbar">
                   <div className="billing-modern-search-wrap">
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
@@ -8092,69 +8136,43 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       onChange={(e) => setGiftCardSearch(e.target.value)}
                     />
                   </div>
-                  <div className="billing-date-range-picker" aria-label={locale === 'sl' ? 'Filtriraj po datumu izdaje' : 'Filter by issued date'}>
-                    <div className="billing-date-range-input-wrap">
-                      <input ref={giftCardDateFromInputRef} type="date" value={giftCardDateFrom} onChange={(e) => setGiftCardDateFrom(e.target.value)} />
-                      <button
-                        type="button"
-                        className="billing-date-range-input-icon"
-                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma od' : 'Open start date picker'}
-                        onClick={() => openHistoryDatePicker(giftCardDateFromInputRef.current)}
-                      >
-                        <span aria-hidden>📅</span>
-                      </button>
-                    </div>
-                    <span className="billing-date-range-separator">–</span>
-                    <div className="billing-date-range-input-wrap">
-                      <input ref={giftCardDateToInputRef} type="date" value={giftCardDateTo} onChange={(e) => setGiftCardDateTo(e.target.value)} />
-                      <button
-                        type="button"
-                        className="billing-date-range-input-icon"
-                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma do' : 'Open end date picker'}
-                        onClick={() => openHistoryDatePicker(giftCardDateToInputRef.current)}
-                      >
-                        <span aria-hidden>📅</span>
-                      </button>
-                    </div>
+                  <div className="billing-modern-toolbar-actions">
+                    <button type="button" className="billing-filter-btn" onClick={openGiftCardFiltersModal}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M4 6h16" />
+                        <path d="M7 12h10" />
+                        <path d="M10 18h4" />
+                      </svg>
+                      <span>{historyFilterText.title}</span>
+                      {activeGiftCardFilterCount > 0 ? <strong className="billing-filter-btn__count">{activeGiftCardFilterCount}</strong> : null}
+                    </button>
                   </div>
-                  <select
-                    className="billing-history-filter-select"
-                    aria-label={locale === 'sl' ? 'Filtriraj po statusu bona' : 'Filter by gift card status'}
-                    value={giftCardStatusFilter}
-                    onChange={(e) => setGiftCardStatusFilter(e.target.value as BillingGiftCardStatus)}
-                  >
-                    <option value="all">{locale === 'sl' ? 'Vsi statusi' : 'All statuses'}</option>
-                    <option value="active">{locale === 'sl' ? 'Aktivni' : 'Active'}</option>
-                    <option value="partially_used">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</option>
-                    <option value="used">{locale === 'sl' ? 'Porabljeni' : 'Used'}</option>
-                    <option value="expired">{locale === 'sl' ? 'Potekli' : 'Expired'}</option>
-                    <option value="pending_payment">{locale === 'sl' ? 'Čaka plačilo' : 'Pending payment'}</option>
-                    <option value="cancelled">{locale === 'sl' ? 'Preklicani' : 'Cancelled'}</option>
-                  </select>
                 </div>
 
-                <div className="billing-modern-stats billing-modern-stats--five">
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>🎁</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Aktivni' : 'Active'}</span><strong>{giftCardStats.active}</strong><small>{locale === 'sl' ? 'Veljavni in neporabljeni boni' : 'Valid unused gift cards'}</small></div>
+                {!isOpenBillsMobile && (
+                  <div className="billing-modern-stats billing-modern-stats--five">
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>🎁</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Aktivni' : 'Active'}</span><strong>{giftCardStats.active}</strong><small>{locale === 'sl' ? 'Veljavni in neporabljeni boni' : 'Valid unused gift cards'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>◔</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</span><strong>{giftCardStats.partial}</strong><small>{locale === 'sl' ? 'Boni z delno porabljeno vrednostjo' : 'Gift cards with remaining value'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>✓</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Porabljeni' : 'Used'}</span><strong>{giftCardStats.used}</strong><small>{locale === 'sl' ? 'Popolnoma izkoriščeni boni' : 'Fully redeemed gift cards'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>⏱</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Potekli' : 'Expired'}</span><strong>{giftCardStats.expired}</strong><small>{locale === 'sl' ? 'Boni, ki jim je potekel rok' : 'Expired gift cards'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupna neporabljena vrednost' : 'Unused value'}</span><strong>{currency(giftCardStats.outstanding)}</strong><small>{locale === 'sl' ? 'Vrednost vseh neporabljenih bonov' : 'Remaining gift-card value'}</small></div>
+                    </div>
                   </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>◔</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</span><strong>{giftCardStats.partial}</strong><small>{locale === 'sl' ? 'Boni z delno porabljeno vrednostjo' : 'Gift cards with remaining value'}</small></div>
-                  </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>✓</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Porabljeni' : 'Used'}</span><strong>{giftCardStats.used}</strong><small>{locale === 'sl' ? 'Popolnoma izkoriščeni boni' : 'Fully redeemed gift cards'}</small></div>
-                  </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>⏱</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Potekli' : 'Expired'}</span><strong>{giftCardStats.expired}</strong><small>{locale === 'sl' ? 'Boni, ki jim je potekel rok' : 'Expired gift cards'}</small></div>
-                  </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupna neporabljena vrednost' : 'Unused value'}</span><strong>{currency(giftCardStats.outstanding)}</strong><small>{locale === 'sl' ? 'Vrednost vseh neporabljenih bonov' : 'Remaining gift-card value'}</small></div>
-                  </div>
-                </div>
+                )}
 
                 {sortedGiftCards.length === 0 ? <EmptyState title={t('billingTabGiftCards')} text={locale === 'sl' ? 'Ni darilnih bonov.' : 'No gift cards yet.'} /> : (
                   <div className="billing-modern-table-wrap">
@@ -8279,28 +8297,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </div>
 
-                <div className="billing-modern-stats billing-modern-stats--five">
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>▤</span>
-                    <div><span className="billing-modern-stat-label">{billingCopy.historyStatInvoicesThisMonth}</span><strong>{folioStats.thisMonthCount}</strong><small>{billingCopy.historyStatInvoicesThisMonthSub}</small></div>
+                {!isOpenBillsMobile && (
+                  <div className="billing-modern-stats billing-modern-stats--five">
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>▤</span>
+                      <div><span className="billing-modern-stat-label">{billingCopy.historyStatInvoicesThisMonth}</span><strong>{folioStats.thisMonthCount}</strong><small>{billingCopy.historyStatInvoicesThisMonthSub}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>✓</span>
+                      <div><span className="billing-modern-stat-label">{billingCopy.historyStatPaidInvoices}</span><strong>{folioStats.paidCount}</strong><small>{billingCopy.historyStatPaidInvoicesSub}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>↺</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vračila' : 'Refunds'}</span><strong>{folioStats.refundsCount}</strong><small>{locale === 'sl' ? 'Skupaj vrnjenih računov' : 'Total refunded folios'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>▣</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span><strong>{folioStats.advancesCount}</strong><small>{locale === 'sl' ? 'Skupaj uporabljenih predplačil' : 'Total advances applied'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupni znesek' : 'Total Amount'}</span><strong>{currency(folioStats.totalAmount)}</strong><small>{locale === 'sl' ? 'Skupaj za vse račune' : 'Across all folios'}</small></div>
+                    </div>
                   </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>✓</span>
-                    <div><span className="billing-modern-stat-label">{billingCopy.historyStatPaidInvoices}</span><strong>{folioStats.paidCount}</strong><small>{billingCopy.historyStatPaidInvoicesSub}</small></div>
-                  </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>↺</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vračila' : 'Refunds'}</span><strong>{folioStats.refundsCount}</strong><small>{locale === 'sl' ? 'Skupaj vrnjenih računov' : 'Total refunded folios'}</small></div>
-                  </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>▣</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span><strong>{folioStats.advancesCount}</strong><small>{locale === 'sl' ? 'Skupaj uporabljenih predplačil' : 'Total advances applied'}</small></div>
-                  </div>
-                  <div className="billing-modern-stat-card">
-                    <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
-                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupni znesek' : 'Total Amount'}</span><strong>{currency(folioStats.totalAmount)}</strong><small>{locale === 'sl' ? 'Skupaj za vse račune' : 'Across all folios'}</small></div>
-                  </div>
-                </div>
+                )}
 
                 {sortedHistoryBills.length === 0 ? <EmptyState title={billingCopy.historyEmptyTitle} text={billingCopy.historyEmptyText} /> : (
                   <div className="billing-modern-table-wrap">
@@ -8390,6 +8410,44 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 )}
               </div>
             )}
+
+            {showGiftCardFilters && billingTab === 'giftCards' && (
+              <div className="billing-filter-modal-backdrop" onMouseDown={() => setShowGiftCardFilters(false)} role="presentation">
+                <div className="billing-filter-modal" onMouseDown={(e) => e.stopPropagation()}>
+                  <div className="billing-filter-modal__header">
+                    <h3>{historyFilterText.title}</h3>
+                    <button type="button" className="billing-filter-modal__close" onClick={() => setShowGiftCardFilters(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+                  </div>
+                  <div className="billing-filter-modal__body">
+                    <label>
+                      <span>{historyFilterText.from}</span>
+                      <input ref={giftCardDateFromInputRef} type="date" value={giftCardFilterDraft.dateFrom} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, dateFrom: e.target.value }))} />
+                    </label>
+                    <label>
+                      <span>{historyFilterText.to}</span>
+                      <input ref={giftCardDateToInputRef} type="date" value={giftCardFilterDraft.dateTo} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, dateTo: e.target.value }))} />
+                    </label>
+                    <label>
+                      <span>{locale === 'sl' ? 'Status bona' : 'Gift card status'}</span>
+                      <select value={giftCardFilterDraft.status} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, status: e.target.value as BillingGiftCardStatus }))}>
+                        <option value="all">{locale === 'sl' ? 'Vsi statusi' : 'All statuses'}</option>
+                        <option value="active">{locale === 'sl' ? 'Aktivni' : 'Active'}</option>
+                        <option value="partially_used">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</option>
+                        <option value="used">{locale === 'sl' ? 'Porabljeni' : 'Used'}</option>
+                        <option value="expired">{locale === 'sl' ? 'Potekli' : 'Expired'}</option>
+                        <option value="pending_payment">{locale === 'sl' ? 'Čaka plačilo' : 'Pending payment'}</option>
+                        <option value="cancelled">{locale === 'sl' ? 'Preklicani' : 'Cancelled'}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="billing-filter-modal__footer">
+                    <button type="button" className="secondary" onClick={resetGiftCardFilterDraft}>{historyFilterText.reset}</button>
+                    <button type="button" className="primary" onClick={applyGiftCardFilters}>{historyFilterText.apply}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
 
             {showHistoryFilters && billingTab === 'history' && (
               <div className="billing-filter-modal-backdrop" onMouseDown={() => setShowHistoryFilters(false)} role="presentation">
