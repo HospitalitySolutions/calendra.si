@@ -3911,3 +3911,86 @@
         display: -webkit-box !important;
     }
 }
+
+/* Mobile session blocks: compact Google Calendar-like spacing, natural wrapping,
+   and no time label inside the block. The calendar grid already communicates time. */
+@media (max-width: 939px) {
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
+        padding: 2px 4px !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
+        padding-left: 4px !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-time,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-time,
+    .calendar-fc-shell .fc-timegrid-event .calendar-event-partial-label-time,
+    .calendar-fc-shell .fc-daygrid-event .calendar-event-daygrid-time {
+        display: none !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-row,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-row {
+        width: 100%;
+        gap: 0 !important;
+    }
+
+    /* Once the time is hidden, short blocks no longer need the special horizontal
+       title/time layout. This lets longer labels wrap naturally whenever height exists,
+       while a 15-minute block still shows a clean single clipped row. */
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content--compact,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content--compact {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        white-space: normal !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content--compact .calendar-event-main-row,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content--compact .calendar-event-main-row {
+        align-items: flex-start !important;
+        height: auto;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content--compact .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content--compact .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content--compact .calendar-event-mobile-title__name {
+        display: -webkit-box !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: anywhere !important;
+        text-overflow: clip !important;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 8;
+    }
+}
+
+@media (max-width: 780px) {
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
+        padding-top: 1px !important;
+        padding-bottom: 1px !important;
+        padding-right: 3px !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual {
+        padding-left: 3px !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
+        padding-left: 3px !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title__name {
+        font-size: 0.68rem !important;
+        line-height: 1.08 !important;
+    }
+}

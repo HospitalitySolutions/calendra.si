@@ -11821,7 +11821,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                       <span className="calendar-event-booked-label--narrow">{label}</span>
                       <span className="calendar-event-booked-label--wide">{label}</span>
                     </span>
-                    <span style={{ flexShrink: 0, fontSize: '0.82em', opacity: 0.95 }}>{startTime}</span>
+                    <span className="calendar-event-daygrid-time" style={{ flexShrink: 0, fontSize: '0.82em', opacity: 0.95 }}>{startTime}</span>
                   </div>
                 )
               }
@@ -11834,7 +11834,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     <span className="calendar-event-booked-label--narrow">{narrow}</span>
                     <span className="calendar-event-booked-label--wide">{wide}</span>
                   </span>
-                  <span style={{ flexShrink: 0, fontSize: '0.82em', opacity: 0.95 }}>{startTime}</span>
+                  <span className="calendar-event-daygrid-time" style={{ flexShrink: 0, fontSize: '0.82em', opacity: 0.95 }}>{startTime}</span>
                 </div>
               )
             }
@@ -11846,7 +11846,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               return (
                 <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{arg.event.title}</span>
-                  <span style={{ flexShrink: 0, fontSize: '0.82em', opacity: 0.95 }}>{startTime}</span>
+                  <span className="calendar-event-daygrid-time" style={{ flexShrink: 0, fontSize: '0.82em', opacity: 0.95 }}>{startTime}</span>
                 </div>
               )
             }

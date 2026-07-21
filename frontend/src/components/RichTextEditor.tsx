@@ -147,4 +147,3 @@ export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel
   )
 }
 
-export default RichTextEditor

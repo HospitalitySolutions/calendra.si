@@ -56,7 +56,9 @@ function lazyWithReload<T extends ComponentType<any>>(
       if (isChunkLoadError && sessionStorage.getItem(reloadKey) !== 'true') {
         sessionStorage.setItem(reloadKey, 'true')
         window.location.reload()
-        return new Promise<never>(() => undefined)
+        return new Promise<never>(() => {
+          // The browser is reloading; keep the lazy import pending until navigation completes.
+        })
       }
 
       throw error

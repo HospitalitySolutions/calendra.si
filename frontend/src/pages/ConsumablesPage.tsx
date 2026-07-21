@@ -456,4 +456,3 @@ function groupMovements(movements: Movement[]) { const m: Record<string, number>
 function groupByLocation(items: Item[]) { const result: Record<string, number> = {}; items.forEach((i) => { const k = i.location || 'Brez lokacije'; result[k] = (result[k] || 0) + 1 }); return result }
 function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> { return items.reduce((acc, item) => { const k = key(item); (acc[k] ||= []).push(item); return acc }, {} as Record<string, T[]>) }
 
-export default ConsumablesPage
