@@ -34,6 +34,11 @@ class FlywayUpgradeMigrationTest {
         assertThat(numericScale(jdbc, "open_bill_items", "unit_gross_price")).isEqualTo(2);
         assertThat(numericScale(jdbc, "open_bill_items", "net_price")).isEqualTo(4);
         assertThat(numericScale(jdbc, "bill_item", "gross_price")).isEqualTo(2);
+        assertThat(numericScale(jdbc, "advance_allocations", "amount_net")).isEqualTo(2);
+        assertThat(numericScale(jdbc, "bills", "total_net")).isEqualTo(2);
+        assertThat(numericScale(jdbc, "bills", "total_gross")).isEqualTo(2);
+        assertThat(numericScale(jdbc, "bill_payments", "amount_gross")).isEqualTo(2);
+        assertThat(numericScale(jdbc, "open_bill_payments", "amount_gross")).isEqualTo(2);
     }
 
     private Flyway flyway(String target) {

@@ -51,7 +51,7 @@ class PostgresApplicationContextTest {
     void applicationStartsAgainstFullyMigratedPostgresSchema() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history where success", Long.class))
-                .isGreaterThanOrEqualTo(9L);
+                .isGreaterThanOrEqualTo(10L);
         assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_requests') is not null", Boolean.class))
                 .isTrue();
         assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_request') is null", Boolean.class))
