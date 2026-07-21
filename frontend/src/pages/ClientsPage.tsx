@@ -3247,11 +3247,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     : entityTab === 'companies'
       ? clientsCopy.searchCompaniesPlaceholder
       : clientsCopy.searchGroupsPlaceholder
-  const currentCountLabel = entityTab === 'clients'
-    ? clientsCopy.listClientsCount(filteredClients.length)
-    : entityTab === 'companies'
-      ? clientsCopy.listCompaniesCount(filteredCompanies.length)
-      : clientsCopy.listGroupsCount(filteredGroups.length)
+  const clientTabCount = filteredClients.length
+  const companyTabCount = filteredCompanies.length
+  const groupTabCount = filteredGroups.length
   const currentCreateLabel = locale === 'sl'
     ? entityTab === 'clients'
       ? 'Nova stranka'
@@ -3292,15 +3290,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               <button type="button" role="tab" aria-selected={entityTab === 'clients'} className={entityTab === 'clients' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('clients')}>
                 <ClientsModernIcon name="clients" />
                 <span>{t('clientsTabClients')}</span>
+                <strong className="clients-tab-count">{clientTabCount}</strong>
               </button>
               <button type="button" role="tab" aria-selected={entityTab === 'companies'} className={entityTab === 'companies' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('companies')}>
                 <ClientsModernIcon name="companies" />
                 <span>{t('clientsTabCompanies')}</span>
+                <strong className="clients-tab-count">{companyTabCount}</strong>
               </button>
               {groupBookingEnabled && (
                 <button type="button" role="tab" aria-selected={entityTab === 'groups'} className={entityTab === 'groups' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('groups')}>
                   <ClientsModernIcon name="groups" />
                   <span>{clientsCopy.groupsTab}</span>
+                  <strong className="clients-tab-count">{groupTabCount}</strong>
                 </button>
               )}
             </div>
@@ -3367,7 +3368,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </button>
                 )}
               </div>
-              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{currentCountLabel}</div>
               <button type="button" className="clients-modern-new-btn" onClick={createCurrentEntity}>
                 <ClientsModernIcon name="plus" />
                 <span>{isClientsMobile ? clientsCopy.newButtonMobile : currentCreateLabel}</span>

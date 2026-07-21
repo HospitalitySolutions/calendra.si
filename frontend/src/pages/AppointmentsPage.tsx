@@ -662,10 +662,6 @@ export function AppointmentsPage() {
   }
 
   return <div className="appointments-page">
-    <header className="appointments-page-header">
-      <h1>{copy.title}</h1>
-    </header>
-
       <div className="waitlist-view-tabs" role="tablist" aria-label={locale === 'sl' ? 'Pogledi čakalne vrste' : 'Waitlist views'}>
         {(['ACTIVE', 'OFFERED', 'HISTORY'] as const).map(item => <button key={item} type="button" role="tab" aria-selected={view === item} className={view === item ? 'active' : ''} onClick={() => { setView(item); void closeSelected({ refreshRows: false, suppressNextReload: false }) }}>
           {item === 'ACTIVE' ? icon('queue') : item === 'OFFERED' ? icon('offer') : icon('history')}
