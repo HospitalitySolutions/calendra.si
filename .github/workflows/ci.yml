@@ -2,18 +2,30 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
+
+# Cancel an older run for the same branch when a newer commit is pushed.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Default to read-only permissions. The Docker job grants package write
+# permission only where it is needed.
+permissions:
+  contents: read
 
 jobs:
   backend:
     name: Backend tests and package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -22,24 +34,24 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: maven
 
       - name: Ensure Maven wrapper is executable
         run: chmod +x ./mvnw
 
-      - name: Run backend tests
-        run: ./mvnw --batch-mode test
-
-      - name: Package backend artifact
-        run: ./mvnw --batch-mode -DskipTests package
+      # verify runs tests and produces the application package in one Maven run.
+      - name: Test and package backend
+        run: ./mvnw --batch-mode --no-transfer-progress verify
 
   frontend:
     name: Frontend production build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -47,12 +59,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Build frontend production bundle
         run: npm run build:production
@@ -60,9 +72,11 @@ jobs:
   android:
     name: Android debug and release bundle
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: guest-mobile
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -71,7 +85,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -100,29 +114,103 @@ jobs:
         run: ./gradlew :shared:compileKotlinMetadata :androidApp:assembleDebug :androidApp:bundleRelease
 
   docker:
-    name: Docker production image smoke build
+    name: Build and publish production images
     runs-on: ubuntu-latest
-    needs: [ backend, frontend ]
+    timeout-minutes: 45
+    needs: [backend, frontend]
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build backend production image
-        run: docker build -t calendra-backend-ci ./backend
+      # GHCR/Docker image names must be lowercase. This keeps the workflow
+      # working even when the GitHub organization contains uppercase letters.
+      - name: Resolve GHCR image names
+        id: images
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "backend=ghcr.io/${owner}/calendra-backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=ghcr.io/${owner}/calendra-frontend" >> "$GITHUB_OUTPUT"
 
-      - name: Build frontend production image
-        run: docker build --build-arg BUILD_SCRIPT=build:production -t calendra-frontend-ci -f ./frontend/Dockerfile.prod ./frontend
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-      - name: Validate staging compose file
+      # Pull requests are built but are never allowed to publish images.
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate backend image metadata
+        id: backend-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.images.outputs.backend }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Generate frontend image metadata
+        id: frontend-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.images.outputs.frontend }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and publish backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
+          cache-from: type=gha,scope=calendra-backend
+          cache-to: type=gha,mode=max,scope=calendra-backend
+
+      - name: Build and publish frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          build-args: |
+            BUILD_SCRIPT=build:production
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          cache-from: type=gha,scope=calendra-frontend
+          cache-to: type=gha,mode=max,scope=calendra-frontend
+
+      - name: Validate staging Compose file
         env:
           # CI only validates that docker-compose.staging.yml renders correctly.
-          # Real staging still loads POSTGRES_PASSWORD from AWS Secrets Manager via
-          # scripts/docker-compose-with-aws-secrets.sh. Do not commit real secrets here.
+          # Real staging loads POSTGRES_PASSWORD from AWS Secrets Manager through
+          # scripts/docker-compose-with-aws-secrets.sh.
           POSTGRES_PASSWORD: ci-compose-config-placeholder
           APP_JWT_SECRET: ci-compose-config-placeholder-at-least-32-characters
-        run: docker compose -f docker-compose.staging.yml --env-file .env.staging.example config >/tmp/calendra-staging-compose.yml
+        run: |
+          docker compose \
+            -f docker-compose.staging.yml \
+            --env-file .env.staging.example \
+            config >/tmp/calendra-staging-compose.yml
 
-      - name: Validate production compose files
+      - name: Validate production Compose files
         env:
           POSTGRES_PASSWORD: ci-compose-config-placeholder
           SPRING_DATASOURCE_URL: jdbc:postgresql://managed-postgres.example:5432/calendra
@@ -130,15 +218,38 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: ci-compose-config-placeholder
           SPRING_DATA_REDIS_HOST: managed-redis.example
           SPRING_DATA_REDIS_PASSWORD: ci-compose-config-placeholder
+          CALENDRA_IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker compose -f docker-compose.prod.yml config >/tmp/calendra-production-compose.yml
-          docker compose -f docker-compose.prod-ha.yml config >/tmp/calendra-production-ha-compose.yml
+          docker compose \
+            -f docker-compose.prod.yml \
+            config >/tmp/calendra-production-compose.yml
+
+          docker compose \
+            -f docker-compose.prod-ha.yml \
+            config >/tmp/calendra-production-ha-compose.yml
+
+      - name: Write published image summary
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          {
+            echo "## Published production images"
+            echo
+            echo "- \`${{ steps.images.outputs.backend }}:${GITHUB_SHA}\`"
+            echo "- \`${{ steps.images.outputs.frontend }}:${GITHUB_SHA}\`"
+            echo
+            if [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" == "refs/heads/master" ]]; then
+              echo "The \`latest\` tag was also updated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   k6-quick-smoke:
     name: Optional staging k6 quick smoke
     runs-on: ubuntu-latest
-    needs: [ backend, frontend, android, docker ]
+    timeout-minutes: 30
+    needs: [backend, frontend, android, docker]
     if: ${{ github.event_name != 'pull_request' && vars.STAGING_BASE_URL != '' && vars.STAGING_ORIGIN != '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -152,7 +263,7 @@ jobs:
           SEED_GUESTS: ${{ vars.LOADTEST_SEED_GUESTS || '10000' }}
           P95_MS: ${{ vars.LOADTEST_P95_MS || '800' }}
           ERROR_RATE: ${{ vars.LOADTEST_ERROR_RATE || '0.01' }}
-          QUICK: 'true'
+          QUICK: "true"
         run: |
           docker run --rm \
             -v "$PWD:/work" \

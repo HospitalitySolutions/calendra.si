@@ -5,16 +5,26 @@ usage() {
   cat <<'USAGE' >&2
 Usage:
   scripts/docker-compose-with-aws-secrets.sh <staging|production> [docker compose args...]
+  scripts/docker-compose-with-aws-secrets.sh production deploy
 
-Examples:
+Production examples:
+  # Pull the already-built backend/frontend images and deploy them without compiling on EC2.
+  CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh production deploy
+
+  # Equivalent manual steps:
+  scripts/docker-compose-with-aws-secrets.sh production pull backend frontend
+  scripts/docker-compose-with-aws-secrets.sh production up -d --no-build --wait
+
+Staging example:
   scripts/docker-compose-with-aws-secrets.sh staging up -d --build
-  scripts/docker-compose-with-aws-secrets.sh production up -d --build
-  scripts/docker-compose-with-aws-secrets.sh production pull
+
+Calling the script with only "production" defaults to the safe production deploy action.
+It pulls backend/frontend from GHCR and starts Compose with --no-build.
 
 The script reads POSTGRES_PASSWORD from the AWS Secrets Manager JSON used by the selected
-environment and exports it only for the docker compose process. Docker Compose itself cannot
-read AWS Secrets Manager directly, but the Postgres container needs POSTGRES_PASSWORD during
-startup, before the Spring backend can load the same secret.
+environment and exports it only for the Docker Compose process. Docker Compose itself cannot
+read AWS Secrets Manager directly, but the local Postgres container needs POSTGRES_PASSWORD
+during startup, before the Spring backend can load the same secret.
 
 Required secret key:
   POSTGRES_PASSWORD
@@ -85,7 +95,7 @@ load_env_for_aws_bootstrap() {
     value="${line#*=}"
     key="${key//[[:space:]]/}"
     case "$key" in
-      AWS_REGION|AWS_DEFAULT_REGION|AWS_PROFILE|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|AWS_STAGING_SECRET_ID|AWS_PRODUCTION_SECRET_ID|POSTGRES_USER|POSTGRES_DB)
+      AWS_REGION|AWS_DEFAULT_REGION|AWS_PROFILE|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|AWS_STAGING_SECRET_ID|AWS_PRODUCTION_SECRET_ID|POSTGRES_USER|POSTGRES_DB|CALENDRA_IMAGE_REGISTRY|CALENDRA_IMAGE_TAG)
         if [[ -z "${!key:-}" ]]; then
           value="${value%$'\r'}"
           value="${value#\"}"
@@ -145,13 +155,41 @@ export POSTGRES_PASSWORD="$POSTGRES_PASSWORD_FROM_SECRET"
 export POSTGRES_USER="${POSTGRES_USER_FROM_SECRET:-${POSTGRES_USER:-$DEFAULT_POSTGRES_USER}}"
 export POSTGRES_DB="${POSTGRES_DB_FROM_SECRET:-${POSTGRES_DB:-$DEFAULT_POSTGRES_DB}}"
 
-if [[ $# -eq 0 ]]; then
-  set -- up -d --build
-fi
-
 COMPOSE_ENV_ARGS=()
 if [[ -f "$ENV_FILE" ]]; then
   COMPOSE_ENV_ARGS+=(--env-file "$ENV_FILE")
+fi
+
+compose() {
+  docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"
+}
+
+# Production defaults to pulling immutable CI-built images. Staging keeps its existing
+# source-build behavior unless the caller provides explicit Compose arguments.
+if [[ $# -eq 0 ]]; then
+  if [[ "$ENVIRONMENT" == "production" || "$ENVIRONMENT" == "prod" ]]; then
+    set -- deploy
+  else
+    set -- up -d --build
+  fi
+fi
+
+if [[ "${1:-}" == "deploy" ]]; then
+  if [[ "$ENVIRONMENT" != "production" && "$ENVIRONMENT" != "prod" ]]; then
+    echo "The deploy shortcut is currently supported only for production." >&2
+    exit 2
+  fi
+  shift
+  if [[ $# -ne 0 ]]; then
+    echo "The production deploy shortcut does not accept additional arguments." >&2
+    exit 2
+  fi
+
+  echo "Pulling Calendra images tagged '${CALENDRA_IMAGE_TAG:-latest}' from '${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}'..."
+  compose pull backend frontend
+
+  echo "Starting production without a local image build..."
+  exec docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" up -d --no-build --wait
 fi
 
 exec docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"

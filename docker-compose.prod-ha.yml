@@ -1,7 +1,6 @@
 x-backend-common: &backend-common
-  build:
-    context: ./backend
-    dockerfile: Dockerfile
+  # Both replicas run the exact same immutable image produced by GitHub Actions.
+  image: ${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}/calendra-backend:${CALENDRA_IMAGE_TAG:-latest}
   restart: unless-stopped
   environment: &backend-environment
     SPRING_PROFILES_ACTIVE: production
@@ -62,11 +61,7 @@ services:
     hostname: calendra-backend-b
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-      args:
-        BUILD_SCRIPT: build:production
+    image: ${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}/calendra-frontend:${CALENDRA_IMAGE_TAG:-latest}
     restart: unless-stopped
     mem_limit: ${FRONTEND_MEMORY_LIMIT:-512m}
     cpus: ${FRONTEND_CPU_LIMIT:-0.5}
