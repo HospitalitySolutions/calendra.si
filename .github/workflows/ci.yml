@@ -7,13 +7,10 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
-# Cancel an older run for the same branch when a newer commit is pushed.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Default to read-only permissions. The Docker job grants package write
-# permission only where it is needed.
 permissions:
   contents: read
 
@@ -40,7 +37,6 @@ jobs:
       - name: Ensure Maven wrapper is executable
         run: chmod +x ./mvnw
 
-      # verify runs tests and produces the application package in one Maven run.
       - name: Test and package backend
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
@@ -72,7 +68,7 @@ jobs:
   android:
     name: Android debug and release bundle
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: guest-mobile
@@ -89,9 +85,33 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-cleanup: on-success
 
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
+
+      # Write the CI JVM settings explicitly so they cannot be missed because
+      # of a misplaced or overridden project gradle.properties file.
+      - name: Configure Gradle memory for CI
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.gradle"
+          cat > "$HOME/.gradle/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx5120m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          org.gradle.workers.max=1
+          org.gradle.vfs.watch=false
+          org.gradle.caching=true
+          kotlin.compiler.execution.strategy=in-process
+          kotlin.incremental=false
+          EOF
+
+      - name: Show effective Gradle JVM configuration
+        run: |
+          cat "$HOME/.gradle/gradle.properties"
+          ./gradlew --version
 
       - name: Generate CI-only Android release keystore
         run: |
@@ -105,13 +125,40 @@ jobs:
             -validity 10000 \
             -dname "CN=Calendra CI, OU=CI, O=Calendra, L=CI, S=CI, C=SI"
 
-      - name: Build Android shared metadata, debug APK and release AAB
+      # Run the expensive phases separately. This releases the single-use
+      # Gradle JVM between debug and release builds instead of keeping D8,
+      # Kotlin and both variants in one memory-heavy invocation.
+      - name: Compile Android shared metadata
+        run: |
+          ./gradlew \
+            --no-daemon \
+            --max-workers=1 \
+            -Dorg.gradle.vfs.watch=false \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            :shared:compileKotlinMetadata
+
+      - name: Build Android debug APK
+        run: |
+          ./gradlew \
+            --no-daemon \
+            --max-workers=1 \
+            -Dorg.gradle.vfs.watch=false \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            :androidApp:assembleDebug
+
+      - name: Build Android release AAB
         env:
           ANDROID_RELEASE_STORE_FILE: ${{ runner.temp }}/calendra-ci-release.jks
           ANDROID_RELEASE_STORE_PASSWORD: ci-release-password
           ANDROID_RELEASE_KEY_ALIAS: calendra-ci
           ANDROID_RELEASE_KEY_PASSWORD: ci-release-password
-        run: ./gradlew --no-daemon --stacktrace :shared:compileKotlinMetadata :androidApp:assembleDebug :androidApp:bundleRelease
+        run: |
+          ./gradlew \
+            --no-daemon \
+            --max-workers=1 \
+            -Dorg.gradle.vfs.watch=false \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            :androidApp:bundleRelease
 
   docker:
     name: Build and publish production images
@@ -127,8 +174,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # GHCR/Docker image names must be lowercase. This keeps the workflow
-      # working even when the GitHub organization contains uppercase letters.
       - name: Resolve GHCR image names
         id: images
         shell: bash
@@ -140,7 +185,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # Pull requests are built but are never allowed to publish images.
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v4
@@ -199,9 +243,6 @@ jobs:
 
       - name: Validate staging Compose file
         env:
-          # CI only validates that docker-compose.staging.yml renders correctly.
-          # Real staging loads POSTGRES_PASSWORD from AWS Secrets Manager through
-          # scripts/docker-compose-with-aws-secrets.sh.
           POSTGRES_PASSWORD: ci-compose-config-placeholder
           APP_JWT_SECRET: ci-compose-config-placeholder-at-least-32-characters
         run: |
