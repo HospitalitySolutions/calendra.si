@@ -1122,6 +1122,20 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryPaymentStatusFilter>('all')
   const [historyFiscalStatusFilter, setHistoryFiscalStatusFilter] = useState<HistoryFiscalStatusFilter>('all')
   const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<HistoryInvoiceTypeFilter>('all')
+  const [showHistoryFilters, setShowHistoryFilters] = useState(false)
+  const [historyFilterDraft, setHistoryFilterDraft] = useState<{
+    dateFrom: string
+    dateTo: string
+    status: HistoryPaymentStatusFilter
+    fiscalStatus: HistoryFiscalStatusFilter
+    billType: HistoryInvoiceTypeFilter
+  }>({
+    dateFrom: '',
+    dateTo: '',
+    status: 'all',
+    fiscalStatus: 'all',
+    billType: 'all',
+  })
   const [billingTab, setBillingTab] = useState<BillingTab>('open')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
   const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
@@ -7438,6 +7452,61 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     </button>
   )
 
+  const billingTabCounts = {
+    open: sortedOpenBills.length,
+    openPayments: openPayments.length,
+    unusedAdvances: filteredUnusedAdvances.length,
+    giftCards: sortedGiftCards.length,
+    history: sortedHistoryBills.length,
+  }
+
+  const activeHistoryFilterCount = [
+    historyDateFrom,
+    historyDateTo,
+    historyStatusFilter !== 'all' ? historyStatusFilter : '',
+    fiscalCashRegisterEnabled && historyFiscalStatusFilter !== 'all' ? historyFiscalStatusFilter : '',
+    historyBillTypeFilter !== 'all' ? historyBillTypeFilter : '',
+  ].filter(Boolean).length
+
+  const historyFilterText = {
+    title: locale === 'sl' ? 'Filtri' : 'Filters',
+    reset: locale === 'sl' ? 'Ponastavi' : 'Reset',
+    apply: locale === 'sl' ? 'Uporabi filtre' : 'Apply filters',
+    newInvoice: locale === 'sl' ? 'Nov račun' : 'New Invoice',
+    from: locale === 'sl' ? 'Datum od' : 'Date from',
+    to: locale === 'sl' ? 'Datum do' : 'Date to',
+  }
+
+  const openHistoryFiltersModal = () => {
+    setHistoryFilterDraft({
+      dateFrom: historyDateFrom,
+      dateTo: historyDateTo,
+      status: historyStatusFilter,
+      fiscalStatus: historyFiscalStatusFilter,
+      billType: historyBillTypeFilter,
+    })
+    setShowHistoryFilters(true)
+  }
+
+  const applyHistoryFilters = () => {
+    setHistoryDateFrom(historyFilterDraft.dateFrom)
+    setHistoryDateTo(historyFilterDraft.dateTo)
+    setHistoryStatusFilter(historyFilterDraft.status)
+    setHistoryFiscalStatusFilter(historyFilterDraft.fiscalStatus)
+    setHistoryBillTypeFilter(historyFilterDraft.billType)
+    setShowHistoryFilters(false)
+  }
+
+  const resetHistoryFilterDraft = () => {
+    setHistoryFilterDraft({
+      dateFrom: '',
+      dateTo: '',
+      status: 'all',
+      fiscalStatus: 'all',
+      billType: 'all',
+    })
+  }
+
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
@@ -7447,26 +7516,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
                   {billingTabIcon('open')}
                   <span>{t('billingTabOpenBills')}</span>
+                  <strong className="billing-tab-count">{billingTabCounts.open}</strong>
                 </button>
                 <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('openPayments')}>
                   {billingTabIcon('openPayments')}
                   <span>{t('billingTabOpenPayments')}</span>
+                  <strong className="billing-tab-count">{billingTabCounts.openPayments}</strong>
                 </button>
                 {advanceBillingEnabled && (
                   <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('unusedAdvances')}>
                     {billingTabIcon('unusedAdvances')}
                     <span>{t('billingTabUnusedAdvances')}</span>
+                    <strong className="billing-tab-count">{billingTabCounts.unusedAdvances}</strong>
                   </button>
                 )}
                 {giftCardsEnabled && (
                   <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('giftCards')}>
                     {billingTabIcon('giftCards')}
                     <span>{t('billingTabGiftCards')}</span>
+                    <strong className="billing-tab-count">{billingTabCounts.giftCards}</strong>
                   </button>
                 )}
                 <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>
                   {billingTabIcon('history')}
                   <span>{t('billingTabFolioHistory')}</span>
+                  <strong className="billing-tab-count">{billingTabCounts.history}</strong>
                 </button>
               </div>
             </div>
@@ -8153,7 +8227,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
             {billingTab === 'history' && (
               <div className="billing-modern-content">
-                <div className="billing-modern-filter-row billing-modern-filter-row--history">
+                <div className="billing-modern-filter-row billing-modern-filter-row--toolbar">
                   <div className="billing-modern-search-wrap">
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
@@ -8163,68 +8237,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       onChange={(e) => setHistorySearch(e.target.value)}
                     />
                   </div>
-                  <div className="billing-date-range-picker" aria-label={billingCopy.historyFilterDateAria}>
-                    <div className="billing-date-range-input-wrap">
-                      <input ref={historyDateFromInputRef} type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
-                      <button
-                        type="button"
-                        className="billing-date-range-input-icon"
-                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma od' : 'Open start date picker'}
-                        onClick={() => openHistoryDatePicker(historyDateFromInputRef.current)}
-                      >
-                        <span aria-hidden>📅</span>
-                      </button>
-                    </div>
-                    <span className="billing-date-range-separator">–</span>
-                    <div className="billing-date-range-input-wrap">
-                      <input ref={historyDateToInputRef} type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
-                      <button
-                        type="button"
-                        className="billing-date-range-input-icon"
-                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma do' : 'Open end date picker'}
-                        onClick={() => openHistoryDatePicker(historyDateToInputRef.current)}
-                      >
-                        <span aria-hidden>📅</span>
-                      </button>
-                    </div>
-                  </div>
-                  <select
-                    className="billing-history-filter-select"
-                    aria-label={billingCopy.historyFilterStatusAria}
-                    value={historyStatusFilter}
-                    onChange={(e) => setHistoryStatusFilter(e.target.value as HistoryPaymentStatusFilter)}
-                  >
-                    <option value="all">{billingCopy.historyStatusAll}</option>
-                    <option value="paid">{billingCopy.historyStatusPaid}</option>
-                    <option value="payment_pending">{billingCopy.historyStatusPending}</option>
-                    <option value="open">{billingCopy.historyStatusOpen}</option>
-                    <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
-                  </select>
-                  {fiscalCashRegisterEnabled ? (
-                    <select
-                      className="billing-history-filter-select"
-                      aria-label={billingCopy.historyFilterFiscalStatusAria}
-                      value={historyFiscalStatusFilter}
-                      onChange={(e) => setHistoryFiscalStatusFilter(e.target.value as HistoryFiscalStatusFilter)}
+                  <div className="billing-modern-toolbar-actions">
+                    <button type="button" className="billing-filter-btn" onClick={openHistoryFiltersModal}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M4 6h16" />
+                        <path d="M7 12h10" />
+                        <path d="M10 18h4" />
+                      </svg>
+                      <span>{historyFilterText.title}</span>
+                      {activeHistoryFilterCount > 0 ? <strong className="billing-filter-btn__count">{activeHistoryFilterCount}</strong> : null}
+                    </button>
+                    <button
+                      type="button"
+                      className="clients-modern-new-btn"
+                      onClick={openCreateBillModal}
+                      disabled={!canIssueOpenInvoice}
+                      title={!canIssueOpenInvoice ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.') : undefined}
                     >
-                      <option value="all">{billingCopy.historyFiscalStatusAll}</option>
-                      <option value="SENT">{billingCopy.historyFiscalStatusSent}</option>
-                      <option value="FAILED">{billingCopy.historyFiscalStatusFailed}</option>
-                      <option value="NOT_SENT">{billingCopy.historyFiscalStatusNotSent}</option>
-                    </select>
-                  ) : null}
-                  <select
-                    className="billing-history-filter-select"
-                    aria-label={billingCopy.historyFilterBillTypeAria}
-                    value={historyBillTypeFilter}
-                    onChange={(e) => setHistoryBillTypeFilter(e.target.value as HistoryInvoiceTypeFilter)}
-                  >
-                    <option value="all">{billingCopy.historyBillTypeAll}</option>
-                    <option value="INVOICE">{billingCopy.historyBillTypeInvoice}</option>
-                    <option value="ADVANCE">{billingCopy.historyBillTypeAdvance}</option>
-                    <option value="REFUND">{billingCopy.historyBillTypeRefund}</option>
-                  </select>
-                  {renderBankStatementImportButton()}
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 5v14" />
+                        <path d="M5 12h14" />
+                      </svg>
+                      <span>{historyFilterText.newInvoice}</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="billing-modern-stats billing-modern-stats--five">
@@ -8336,6 +8372,61 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {showHistoryFilters && billingTab === 'history' && (
+              <div className="billing-filter-modal-backdrop" onMouseDown={() => setShowHistoryFilters(false)} role="presentation">
+                <div className="billing-filter-modal" onMouseDown={(e) => e.stopPropagation()}>
+                  <div className="billing-filter-modal__header">
+                    <h3>{historyFilterText.title}</h3>
+                    <button type="button" className="billing-filter-modal__close" onClick={() => setShowHistoryFilters(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+                  </div>
+                  <div className="billing-filter-modal__body">
+                    <label>
+                      <span>{historyFilterText.from}</span>
+                      <input ref={historyDateFromInputRef} type="date" value={historyFilterDraft.dateFrom} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, dateFrom: e.target.value }))} />
+                    </label>
+                    <label>
+                      <span>{historyFilterText.to}</span>
+                      <input ref={historyDateToInputRef} type="date" value={historyFilterDraft.dateTo} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, dateTo: e.target.value }))} />
+                    </label>
+                    <label>
+                      <span>{billingCopy.historyFilterStatusAria}</span>
+                      <select value={historyFilterDraft.status} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, status: e.target.value as HistoryPaymentStatusFilter }))}>
+                        <option value="all">{billingCopy.historyStatusAll}</option>
+                        <option value="paid">{billingCopy.historyStatusPaid}</option>
+                        <option value="payment_pending">{billingCopy.historyStatusPending}</option>
+                        <option value="open">{billingCopy.historyStatusOpen}</option>
+                        <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
+                      </select>
+                    </label>
+                    {fiscalCashRegisterEnabled ? (
+                      <label>
+                        <span>{billingCopy.historyFilterFiscalStatusAria}</span>
+                        <select value={historyFilterDraft.fiscalStatus} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, fiscalStatus: e.target.value as HistoryFiscalStatusFilter }))}>
+                          <option value="all">{billingCopy.historyFiscalStatusAll}</option>
+                          <option value="SENT">{billingCopy.historyFiscalStatusSent}</option>
+                          <option value="FAILED">{billingCopy.historyFiscalStatusFailed}</option>
+                          <option value="NOT_SENT">{billingCopy.historyFiscalStatusNotSent}</option>
+                        </select>
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>{billingCopy.historyFilterBillTypeAria}</span>
+                      <select value={historyFilterDraft.billType} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, billType: e.target.value as HistoryInvoiceTypeFilter }))}>
+                        <option value="all">{billingCopy.historyBillTypeAll}</option>
+                        <option value="INVOICE">{billingCopy.historyBillTypeInvoice}</option>
+                        <option value="ADVANCE">{billingCopy.historyBillTypeAdvance}</option>
+                        <option value="REFUND">{billingCopy.historyBillTypeRefund}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="billing-filter-modal__footer">
+                    <button type="button" className="secondary" onClick={resetHistoryFilterDraft}>{historyFilterText.reset}</button>
+                    <button type="button" className="primary" onClick={applyHistoryFilters}>{historyFilterText.apply}</button>
+                  </div>
+                </div>
               </div>
             )}
           </Card>

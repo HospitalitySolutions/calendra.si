@@ -808,6 +808,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     assignedConsultantsSearch: 'Išči zaposlene ...',
     assignedConsultantsSelected: (count: number) => `${count} izbrani zaposleni`,
     createClient: 'Ustvari stranko',
+    tabHint: 'Uporabite TAB za premikanje med polji',
+    tabSequence: 'Zaporedje TAB: 1 Ime → 2 Priimek → 3 E-pošta → 4 Telefon → Ustvari stranko',
     newCompanyTitle: 'Novo podjetje',
     newCompanyName: 'Novo podjetje',
     newCompanySubtitle: 'Obvezno je samo ime podjetja. Ostalo lahko dodaš pozneje.',
@@ -973,6 +975,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     assignedConsultantsSearch: 'Search employees ...',
     assignedConsultantsSelected: (count: number) => `${count} selected employees`,
     createClient: 'Create client',
+    tabHint: 'Use TAB to move between fields',
+    tabSequence: 'TAB order: 1 First name → 2 Last name → 3 Email → 4 Phone → Create client',
     newCompanyTitle: 'New company',
     newCompanyName: 'New company',
     newCompanySubtitle: 'Only company name is required. Everything else can be filled in later.',
@@ -2555,51 +2559,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const renderNewClientEditableField = (
     key: 'firstName' | 'lastName' | 'email' | 'phone',
     label: string,
+    order: number,
     wide = false,
-    inputType: 'text' | 'email' = 'text',
+    inputType: 'text' | 'email' | 'tel' = 'text',
   ) => {
     const isEditing = newClientEditField === key
+    const placeholder = locale === 'sl'
+      ? key === 'firstName' ? 'Vnesite ime' : key === 'lastName' ? 'Vnesite priimek' : key === 'email' ? 'Vnesite e-pošto' : 'Vnesite telefon'
+      : key === 'firstName' ? 'Enter first name' : key === 'lastName' ? 'Enter last name' : key === 'email' ? 'Enter email' : 'Enter phone'
     return (
-      <div
-        className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
-        onClick={() => {
-          if (newClientEditField !== key) setNewClientEditField(key)
-        }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return
-          if (newClientEditField === key) return
-          e.preventDefault()
-          setNewClientEditField(key)
-        }}
-      >
-        <span>{label}</span>
-        {!isEditing ? (
-          <strong>{(form[key] ?? '').trim() || '—'}</strong>
-        ) : (
-          <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
-            <input
-              autoFocus
-              type={inputType}
-              value={form[key]}
-              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  if (key === 'firstName') setNewClientEditField('lastName')
-                  else if (key === 'lastName') setNewClientEditField('email')
-                  else if (key === 'email') setNewClientEditField('phone')
-                  else setNewClientEditField(null)
-                } else if (e.key === 'Escape') {
-                  e.preventDefault()
-                  setNewClientEditField(null)
-                }
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <label className={`clients-detail-field-card clients-create-tab-field${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}>
+        <span className="clients-create-tab-order" aria-hidden>{order}</span>
+        <span>{label}{key === 'firstName' || key === 'lastName' ? ' *' : ''}</span>
+        <input
+          autoFocus={key === 'firstName'}
+          type={inputType}
+          value={form[key]}
+          placeholder={placeholder}
+          onFocus={() => setNewClientEditField(key)}
+          onBlur={() => setNewClientEditField((current) => current === key ? null : current)}
+          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        />
+      </label>
     )
   }
 
@@ -4612,18 +4593,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 </button>
               </div>
               <div className="clients-action-workspace-body">
+                <div className="clients-create-tab-hint" role="note">
+                  <span className="clients-create-tab-hint__icon" aria-hidden>⌨</span>
+                  <span>{clientsCopy.tabHint}</span>
+                </div>
                 <div className="clients-detail-shell clients-action-workspace-shell">
                   <div className="clients-detail-fields clients-create-fields clients-action-workspace-settings-grid">
-                    {renderNewClientEditableField('firstName', clientsCopy.firstName)}
-                    {renderNewClientEditableField('lastName', clientsCopy.lastName)}
-                    {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
-                    {renderNewClientEditableField('phone', clientsCopy.phone, true)}
+                    {renderNewClientEditableField('firstName', clientsCopy.firstName, 1)}
+                    {renderNewClientEditableField('lastName', clientsCopy.lastName, 2)}
+                    {renderNewClientEditableField('email', clientsCopy.email, 3, true, 'email')}
+                    {renderNewClientEditableField('phone', clientsCopy.phone, 4, true, 'tel')}
                   </div>
                 {errorMessage && <div className="error">{errorMessage}</div>}
                 </div>
               </div>
               <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
                 <button type="submit" className="clients-gapp-save-button" disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
+                <div className="clients-create-tab-sequence" aria-hidden>{clientsCopy.tabSequence}</div>
               </div>
             </form>
           </div>
