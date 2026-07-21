@@ -24,20 +24,20 @@ class FlywayLegacyWaitlistSafetyTest {
         flyway("8").migrate();
         JdbcTemplate jdbc = jdbc();
 
-        // The safety gate only needs to prove that a legacy row exists. Disable FK
-        // enforcement for this deliberately synthetic migration fixture.
-        jdbc.execute("set session_replication_role = replica");
-        try {
-            jdbc.update("""
-                    insert into waitlist_request (
-                        company_id, target_type, date_from, date_to,
-                        employee_preference_type, requested_participants, status, source
-                    ) values (999999, 'FLEXIBLE', current_date, current_date,
-                              'ANY', 1, 'ACTIVE', 'STAFF')
-                    """);
-        } finally {
-            jdbc.execute("set session_replication_role = origin");
-        }
+        Long companyId = jdbc.queryForObject("""
+                insert into company (created_at, updated_at, name, tenant_code)
+                values (current_timestamp, current_timestamp,
+                        'Legacy waitlist migration test', 'legacy-waitlist-migration-test')
+                returning id
+                """, Long.class);
+
+        jdbc.update("""
+                insert into waitlist_request (
+                    company_id, target_type, date_from, date_to,
+                    employee_preference_type, requested_participants, status, source
+                ) values (?, 'FLEXIBLE', current_date, current_date,
+                          'ANY', 1, 'ACTIVE', 'STAFF')
+                """, companyId);
 
         assertThatThrownBy(() -> flyway(null).migrate())
                 .hasMessageContaining("Legacy table waitlist_request")

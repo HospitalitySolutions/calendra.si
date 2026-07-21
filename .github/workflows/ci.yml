@@ -111,7 +111,7 @@ jobs:
           ANDROID_RELEASE_STORE_PASSWORD: ci-release-password
           ANDROID_RELEASE_KEY_ALIAS: calendra-ci
           ANDROID_RELEASE_KEY_PASSWORD: ci-release-password
-        run: ./gradlew :shared:compileKotlinMetadata :androidApp:assembleDebug :androidApp:bundleRelease
+        run: ./gradlew --no-daemon --stacktrace :shared:compileKotlinMetadata :androidApp:assembleDebug :androidApp:bundleRelease
 
   docker:
     name: Build and publish production images
