@@ -1,5 +1,7 @@
 package com.example.app.inbox;
 
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.user.User;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.settings.GlobalMessagingProviderService;
@@ -153,6 +155,7 @@ public class ClientMessageController {
     }
 
     @PostMapping(value = "/messages/with-attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.INBOX_MULTIPART_SEND)
     public ClientMessageService.MessageView sendWithAttachments(
             @AuthenticationPrincipal User me,
             @RequestParam Long clientId,

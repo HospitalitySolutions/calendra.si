@@ -4088,6 +4088,29 @@ type MonitoringStatus = {
   metrics: MonitoringMetric[];
   note: string;
 };
+type LegacyEndpointSnapshot = {
+  id: string;
+  category: string;
+  method: string;
+  path: string;
+  replacement: string;
+  reason: string;
+  calls: number;
+  successfulCalls: number;
+  clientErrorCalls: number;
+  serverErrorCalls: number;
+  otherCalls: number;
+  lastSeenAt?: string | null;
+  lastStatus?: number | null;
+  lastOutcome?: string | null;
+  lastClient?: string | null;
+};
+
+type LegacyEndpointReport = {
+  generatedAt: string;
+  scope: string;
+  endpoints: LegacyEndpointSnapshot[];
+};
 type ScheduledJobRun = {
   id: number;
   jobName: string;
@@ -4615,6 +4638,7 @@ function formatMonitoringTime(iso: string | null | undefined): string {
 
 function MonitoringAdminPanel() {
   const [data, setData] = useState<MonitoringStatus | null>(null);
+  const [legacyEndpoints, setLegacyEndpoints] = useState<LegacyEndpointReport | null>(null);
   const [scheduledJobs, setScheduledJobs] = useState<ScheduledJobStatus[]>([]);
   const [scheduledJobAlerts, setScheduledJobAlerts] = useState<ScheduledJobAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -4624,16 +4648,19 @@ function MonitoringAdminPanel() {
     setLoading(true);
     setError(null);
     try {
-      const [statusResponse, jobsResponse, alertsResponse] = await Promise.all([
+      const [statusResponse, legacyResponse, jobsResponse, alertsResponse] = await Promise.all([
         api.get<MonitoringStatus>("/platform-admin/monitoring/status"),
+        api.get<LegacyEndpointReport>("/platform-admin/monitoring/legacy-endpoints"),
         api.get<ScheduledJobStatus[]>("/platform-admin/monitoring/scheduled-jobs"),
         api.get<ScheduledJobAlert[]>("/platform-admin/monitoring/scheduled-job-alerts"),
       ]);
       setData(statusResponse.data);
+      setLegacyEndpoints(legacyResponse.data);
       setScheduledJobs(jobsResponse.data || []);
       setScheduledJobAlerts(alertsResponse.data || []);
     } catch {
       setData(null);
+      setLegacyEndpoints(null);
       setScheduledJobs([]);
       setScheduledJobAlerts([]);
       setError("Could not load monitoring status.");
@@ -4734,6 +4761,78 @@ function MonitoringAdminPanel() {
             </div>
           </div>
 
+
+          <div className="platform-admin-section-card">
+            <div className="platform-admin-section-title">
+              <strong>Legacy endpoint observation</strong>
+              <span>
+                Routes retained temporarily while production callers are measured. Zero calls here cover only the current backend process.
+              </span>
+            </div>
+            {legacyEndpoints?.scope ? (
+              <div className="platform-admin-monitoring-note">{legacyEndpoints.scope}</div>
+            ) : null}
+            <div className="platform-admin-monitoring-jobs-wrap">
+              <table className="platform-admin-monitoring-jobs-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Endpoint</th>
+                    <th scope="col">Route</th>
+                    <th scope="col">Replacement</th>
+                    <th scope="col">Calls</th>
+                    <th scope="col">Last seen</th>
+                    <th scope="col">Last caller</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(legacyEndpoints?.endpoints || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="platform-admin-monitoring-job-small">
+                        No legacy endpoint catalog was returned.
+                      </td>
+                    </tr>
+                  ) : (
+                    [...(legacyEndpoints?.endpoints || [])]
+                      .sort((left, right) => (right.calls || 0) - (left.calls || 0) || left.id.localeCompare(right.id))
+                      .map((endpoint) => (
+                        <tr key={endpoint.id}>
+                          <td>
+                            <div className="platform-admin-monitoring-job-name">
+                              <strong>{endpoint.id}</strong>
+                              <span>{endpoint.category} · {endpoint.reason}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="platform-admin-monitoring-job-name">
+                              <strong>{endpoint.method}</strong>
+                              <span>{endpoint.path}</span>
+                            </div>
+                          </td>
+                          <td>{endpoint.replacement || "—"}</td>
+                          <td>
+                            <span className={monitoringPillClass(endpoint.calls > 0 ? "WARN" : "UP")}>
+                              {endpoint.calls || 0}
+                            </span>
+                            {endpoint.calls > 0 ? (
+                              <div className="platform-admin-monitoring-job-small">
+                                {endpoint.successfulCalls || 0} ok · {endpoint.clientErrorCalls || 0} 4xx · {endpoint.serverErrorCalls || 0} 5xx
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>
+                            <div className="platform-admin-monitoring-job-name">
+                              <strong>{formatMonitoringTime(endpoint.lastSeenAt)}</strong>
+                              <span>{endpoint.lastStatus ?? "—"} · {endpoint.lastOutcome || "not observed"}</span>
+                            </div>
+                          </td>
+                          <td className="platform-admin-monitoring-job-small">{endpoint.lastClient || "—"}</td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <div className="platform-admin-section-card">
             <div className="platform-admin-section-title">

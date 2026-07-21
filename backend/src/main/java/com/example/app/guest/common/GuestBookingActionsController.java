@@ -1,5 +1,7 @@
 package com.example.app.guest.common;
 
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.billing.Bill;
 import com.example.app.billing.BillFolioPdfService;
 import com.example.app.billing.BillRepository;
@@ -122,6 +124,7 @@ public class GuestBookingActionsController {
     }
 
     @GetMapping("/orders/{orderId}/receipt")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.GUEST_RECEIPT_METADATA)
     public GuestDtos.ReceiptResponse receipt(@PathVariable Long orderId, HttpServletRequest request) {
         GuestUser guestUser = authContextService.requireGuest(request);
         GuestOrder order = requireOwnedOrder(guestUser, orderId);

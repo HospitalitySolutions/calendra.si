@@ -1,5 +1,7 @@
 package com.example.app.guest.preview;
 
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/guest/preview")
+@TrackLegacyEndpoint(LegacyEndpointDefinition.GUEST_PREVIEW_API)
 public class GuestPreviewController {
     @GetMapping("/session")
     public GuestPreviewDtos.GuestSessionResponse session() {

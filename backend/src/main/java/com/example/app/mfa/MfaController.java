@@ -1,5 +1,7 @@
 package com.example.app.mfa;
 
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.security.AuthCookieService;
 import com.example.app.security.JwtService;
 import com.example.app.securitycenter.SecurityCenterService;
@@ -42,6 +44,7 @@ public class MfaController {
     }
 
     @GetMapping("/status")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.MFA_MANAGEMENT_STATUS)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> status(Authentication authentication) {
         User user = requireUser(authentication);
@@ -54,6 +57,7 @@ public class MfaController {
     }
 
     @PostMapping("/webauthn/register/start")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.MFA_MANAGEMENT_REGISTER_START)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> startRegistration(Authentication authentication) {
         User user = requireUser(authentication);
@@ -65,6 +69,7 @@ public class MfaController {
     }
 
     @PostMapping("/webauthn/register/finish")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.MFA_MANAGEMENT_REGISTER_FINISH)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> finishRegistration(Authentication authentication, @RequestBody FinishRegistrationRequest request) {
         try {
@@ -115,6 +120,7 @@ public class MfaController {
     }
 
     @PostMapping("/recovery/regenerate")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.MFA_MANAGEMENT_RECOVERY_REGENERATE)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> regenerateRecoveryCodes(Authentication authentication) {
         try {
@@ -127,6 +133,7 @@ public class MfaController {
     }
 
     @DeleteMapping("/webauthn/credentials/{credentialId}")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.MFA_MANAGEMENT_CREDENTIAL_DELETE)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> deleteCredential(Authentication authentication, @PathVariable String credentialId) {
         User user = requireUser(authentication);

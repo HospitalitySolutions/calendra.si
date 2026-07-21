@@ -1,6 +1,8 @@
 package com.example.app.settings;
 
 import com.example.app.company.PlatformTenantAccountLinkService;
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.email.TenantEmailSenderResolver;
@@ -141,6 +143,7 @@ public class SettingsController {
     public record SmsQuotaResponse(int quota, int used, int remaining, boolean warning, boolean exhausted) {}
 
     @GetMapping("/reservation-rules")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.SETTINGS_RESERVATION_RULES_READ)
     public TenantReservationRulesService.TenantReservationRules reservationRules(@AuthenticationPrincipal User me) {
         if (me == null || me.getCompany() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required.");
@@ -150,6 +153,7 @@ public class SettingsController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/reservation-rules")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.SETTINGS_RESERVATION_RULES_WRITE)
     @Transactional
     public TenantReservationRulesService.TenantReservationRules saveReservationRules(
             @RequestBody Map<String, String> payload,

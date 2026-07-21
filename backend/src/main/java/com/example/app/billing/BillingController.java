@@ -1,5 +1,7 @@
 package com.example.app.billing;
 
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
@@ -4861,6 +4863,7 @@ public class BillingController {
     /* ── Folio PDF generation (standalone, not tied to a persisted bill) ── */
 
     @PostMapping(value = "/folio/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.BILLING_STANDALONE_FOLIO_PDF)
     public ResponseEntity<byte[]> folioPdf(@RequestBody FolioPdfRequest req,
                                            @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();

@@ -1,5 +1,7 @@
 package com.example.app.notification;
 
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.user.User;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +30,7 @@ public class TenantNotificationController {
     }
 
     @GetMapping("/unread-count")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.NOTIFICATIONS_UNREAD_COUNT)
     public java.util.Map<String, Long> unreadCount(@AuthenticationPrincipal User me) {
         return java.util.Map.of("count", service.unreadCount(me));
     }

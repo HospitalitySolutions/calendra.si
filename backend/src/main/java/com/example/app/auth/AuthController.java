@@ -3,6 +3,8 @@ package com.example.app.auth;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.mfa.WebAuthnService;
+import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.security.JwtService;
@@ -379,6 +381,7 @@ public class AuthController {
     }
 
     @GetMapping("/signup/validate-email-intent")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.AUTH_SIGNUP_EMAIL_INTENT_VALIDATE)
     public ResponseEntity<?> validateSignupEmailIntent(@RequestParam("token") String token) {
         if (token == null || token.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Token is required."));
@@ -387,6 +390,7 @@ public class AuthController {
     }
 
     @PostMapping("/signup/complete-email")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.AUTH_SIGNUP_EMAIL_INTENT_COMPLETE)
     public ResponseEntity<?> completeSignupEmail(@Valid @RequestBody SignupCompleteEmailRequest body, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         String passwordValidationMessage = validatePasswordStrength(body.password());
         if (passwordValidationMessage != null) {
@@ -397,6 +401,7 @@ public class AuthController {
     }
 
     @PostMapping("/signup/resend-email-intent")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.AUTH_SIGNUP_EMAIL_INTENT_RESEND)
     public ResponseEntity<?> resendSignupEmailIntent(@Valid @RequestBody SignupResendIntentRequest body) {
         return signupService.resendEmailSignupIntent(body.email().trim().toLowerCase());
     }
@@ -670,6 +675,7 @@ public class AuthController {
     }
 
     @GetMapping("/oauth-status")
+    @TrackLegacyEndpoint(LegacyEndpointDefinition.AUTH_OAUTH_STATUS)
     public Map<String, Object> oauthStatus() {
         boolean clientConfigured = clientRegistrationRepository.isPresent();
         boolean oauthEnabled = clientConfigured;

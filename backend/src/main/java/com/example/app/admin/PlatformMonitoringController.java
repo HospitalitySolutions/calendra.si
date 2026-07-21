@@ -5,6 +5,7 @@ import com.example.app.billing.BillPaymentStatus;
 import com.example.app.billing.BillRepository;
 import com.example.app.monitoring.ScheduledJobAlertService;
 import com.example.app.monitoring.ScheduledJobMonitoringService;
+import com.example.app.observability.legacy.LegacyEndpointUsageService;
 import com.example.app.stripe.StripeWebhookEventRepository;
 import io.micrometer.core.instrument.Measurement;
 import io.micrometer.core.instrument.Meter;
@@ -44,6 +45,7 @@ public class PlatformMonitoringController {
     private final BillRepository bills;
     private final ScheduledJobMonitoringService scheduledJobs;
     private final ScheduledJobAlertService scheduledJobAlerts;
+    private final LegacyEndpointUsageService legacyEndpointUsage;
     private final String publicBaseUrl;
 
     public PlatformMonitoringController(
@@ -54,6 +56,7 @@ public class PlatformMonitoringController {
             BillRepository bills,
             ScheduledJobMonitoringService scheduledJobs,
             ScheduledJobAlertService scheduledJobAlerts,
+            LegacyEndpointUsageService legacyEndpointUsage,
             @Value("${app.public-base-url:}") String publicBaseUrl
     ) {
         this.dataSource = dataSource;
@@ -63,6 +66,7 @@ public class PlatformMonitoringController {
         this.bills = bills;
         this.scheduledJobs = scheduledJobs;
         this.scheduledJobAlerts = scheduledJobAlerts;
+        this.legacyEndpointUsage = legacyEndpointUsage;
         this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
     }
 
@@ -119,6 +123,12 @@ public class PlatformMonitoringController {
                 statusForCount(countByNameAndTag("auth_rate_limit_blocked", null, null), 5, 30),
                 "Login/signup/password-reset attempts blocked by auth rate limiting since the process started."
         ));
+        metrics.add(metric(
+                "Legacy endpoint calls",
+                formatNumber(countByNameAndTag(LegacyEndpointUsageService.CALLS_METER, null, null)),
+                statusForCount(countByNameAndTag(LegacyEndpointUsageService.CALLS_METER, null, null), 1, 25),
+                "Calls to routes being evaluated for removal. Review /legacy-endpoints and retained audit logs before deleting anything."
+        ));
 
         String overallStatus = checks.stream().anyMatch(c -> "DOWN".equals(c.status()) || "CRITICAL".equals(c.status()))
                 ? "CRITICAL"
@@ -132,6 +142,11 @@ public class PlatformMonitoringController {
                 metrics,
                 "Use this admin page for quick status checks. Use external uptime/log tools for real alerts, full logs, and backup monitoring."
         );
+    }
+
+    @GetMapping("/legacy-endpoints")
+    public LegacyEndpointUsageService.LegacyEndpointReport legacyEndpoints() {
+        return legacyEndpointUsage.report();
     }
 
     @GetMapping("/scheduled-jobs")
