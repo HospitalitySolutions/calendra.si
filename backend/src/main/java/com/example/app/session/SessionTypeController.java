@@ -7,6 +7,7 @@ import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,6 +36,7 @@ public class SessionTypeController {
     private final ServiceGroupRepository groupRepo;
     private final TenantFeatureAccessService featureAccess;
 
+    @Autowired
     public SessionTypeController(
             SessionTypeRepository repo,
             TransactionServiceRepository txRepo,
