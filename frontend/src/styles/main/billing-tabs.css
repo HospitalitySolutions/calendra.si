@@ -2763,3 +2763,385 @@
         height: 17px;
     }
 }
+
+/* Mobile invoice history — full-detail card design */
+@media (max-width: 760px) {
+    .billing-modern-card--history .billing-modern-content {
+        gap: 14px;
+    }
+
+    .billing-history-mobile {
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .billing-history-mobile__result-count {
+        padding: 0 2px;
+        color: #718198;
+        font-size: .82rem;
+        font-weight: 550;
+        line-height: 1.35;
+    }
+
+    .billing-history-mobile__list {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .billing-history-mobile-card {
+        position: relative;
+        display: grid;
+        gap: 15px;
+        min-width: 0;
+        padding: 16px;
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 19px;
+        background: rgba(255, 255, 255, .96);
+        box-shadow: 0 7px 22px rgba(15, 23, 42, .055);
+        cursor: pointer;
+        outline: none;
+        transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .billing-history-mobile-card:hover,
+    .billing-history-mobile-card:focus-visible {
+        border-color: rgba(37, 99, 235, .36);
+        box-shadow: 0 12px 28px rgba(37, 99, 235, .11);
+        transform: translateY(-1px);
+    }
+
+    .billing-history-mobile-card__header {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+        min-width: 0;
+    }
+
+    .billing-history-mobile-card__document {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: #eaf2ff;
+        color: #1672f3;
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .06);
+    }
+
+    .billing-history-mobile-card__document svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .billing-history-mobile-card__document--advance,
+    .billing-history-mobile-card__document--pending {
+        background: #fff2d9;
+        color: #ed9400;
+    }
+
+    .billing-history-mobile-card__document--credit,
+    .billing-history-mobile-card__document--cancelled {
+        background: #ffe8eb;
+        color: #ef5262;
+    }
+
+    .billing-history-mobile-card__identity {
+        min-width: 0;
+        padding-top: 2px;
+    }
+
+    .billing-history-mobile-card__identity h3 {
+        margin: 0;
+        overflow: hidden;
+        color: #1b2940;
+        font-size: 1rem;
+        font-weight: 850;
+        line-height: 1.25;
+        letter-spacing: -.015em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .billing-history-mobile-card__type {
+        display: inline-flex;
+        align-items: center;
+        min-height: 25px;
+        margin-top: 7px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #eaf2ff;
+        color: #1463df;
+        font-size: .7rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .billing-history-mobile-card__summary {
+        display: grid;
+        justify-items: end;
+        gap: 7px;
+        min-width: 100px;
+    }
+
+    .billing-history-mobile-card__summary > strong {
+        color: #1b2940;
+        font-size: 1.04rem;
+        font-weight: 850;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .billing-history-mobile-card__summary .billing-status-pill {
+        gap: 6px;
+        min-height: 25px;
+        padding: 5px 10px;
+        font-size: .7rem;
+        white-space: nowrap;
+    }
+
+    .billing-history-mobile-card__status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: currentColor;
+        flex: 0 0 auto;
+    }
+
+    .billing-history-mobile-card__open {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        min-width: 78px;
+        min-height: 34px;
+        padding: 0 11px;
+        border: 1px solid rgba(37, 99, 235, .18);
+        border-radius: 999px;
+        background: #fff;
+        color: #1463df;
+        font-size: .72rem;
+        font-weight: 800;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, .035);
+    }
+
+    .billing-history-mobile-card__open svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .billing-history-mobile-card__open:hover {
+        border-color: rgba(37, 99, 235, .34);
+        background: #f7faff;
+        box-shadow: 0 5px 14px rgba(37, 99, 235, .09);
+    }
+
+    .billing-history-mobile-card__details {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 15px 18px;
+        min-width: 0;
+        padding-top: 14px;
+        border-top: 1px solid rgba(226, 232, 240, .82);
+    }
+
+    .billing-history-mobile-card__detail {
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
+        gap: 9px;
+        align-items: start;
+        min-width: 0;
+    }
+
+    .billing-history-mobile-card__detail-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        margin-top: 1px;
+        color: #718198;
+    }
+
+    .billing-history-mobile-card__detail-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .billing-history-mobile-card__detail > div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+    }
+
+    .billing-history-mobile-card__detail span:not(.billing-payicon) {
+        color: #7a899f;
+        font-size: .68rem;
+        font-weight: 650;
+        line-height: 1.25;
+    }
+
+    .billing-history-mobile-card__detail strong {
+        overflow: hidden;
+        color: #344258;
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .billing-history-mobile-card__payment-method {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .billing-history-mobile-card__payment-method .billing-payicon {
+        width: 17px;
+        height: 17px;
+        flex: 0 0 auto;
+    }
+
+    .billing-history-mobile-card__payment-method .billing-payicon svg {
+        width: 13px;
+        height: 13px;
+    }
+
+    .billing-history-mobile__pagination {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 2px 0 0;
+    }
+
+    .billing-history-mobile__pagination button,
+    .billing-history-mobile__pagination > span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 42px;
+        height: 42px;
+        padding: 0 12px;
+        border-radius: 13px;
+        border: 1px solid rgba(148, 163, 184, .25);
+        background: #fff;
+        color: #53627a;
+        font-size: .84rem;
+        font-weight: 800;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, .035);
+    }
+
+    .billing-history-mobile__pagination > span {
+        border-color: #cfe1ff;
+        background: #eaf2ff;
+        color: #1463df;
+    }
+
+    .billing-history-mobile__pagination button:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+}
+
+@media (max-width: 430px) {
+    .billing-history-mobile-card {
+        padding: 14px;
+        border-radius: 17px;
+    }
+
+    .billing-history-mobile-card__header {
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+
+    .billing-history-mobile-card__document {
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+    }
+
+    .billing-history-mobile-card__identity h3 {
+        font-size: .91rem;
+    }
+
+    .billing-history-mobile-card__summary {
+        min-width: 86px;
+    }
+
+    .billing-history-mobile-card__summary > strong {
+        font-size: .95rem;
+    }
+
+    .billing-history-mobile-card__open {
+        min-width: 70px;
+        min-height: 32px;
+        padding: 0 9px;
+    }
+
+    .billing-history-mobile-card__details {
+        gap: 13px 12px;
+    }
+
+    .billing-history-mobile-card__detail {
+        gap: 7px;
+    }
+
+    .billing-history-mobile-card__detail strong {
+        font-size: .73rem;
+    }
+}
+
+@media (max-width: 350px) {
+    .billing-history-mobile-card__header {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .billing-history-mobile-card__summary {
+        grid-column: 1 / -1;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        justify-items: start;
+        min-width: 0;
+    }
+
+    .billing-history-mobile-card__summary .billing-status-pill {
+        justify-self: end;
+    }
+
+    .billing-history-mobile-card__open {
+        justify-self: end;
+    }
+
+    .billing-history-mobile-card__details {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    [data-theme="dark"] .billing-history-mobile-card {
+        border-color: rgba(148, 163, 184, .20);
+        background: rgba(15, 23, 42, .90);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+    }
+
+    [data-theme="dark"] .billing-history-mobile-card__identity h3,
+    [data-theme="dark"] .billing-history-mobile-card__summary > strong,
+    [data-theme="dark"] .billing-history-mobile-card__detail strong {
+        color: #f3f7fc;
+    }
+
+    [data-theme="dark"] .billing-history-mobile-card__details {
+        border-top-color: rgba(148, 163, 184, .18);
+    }
+
+    [data-theme="dark"] .billing-history-mobile-card__open,
+    [data-theme="dark"] .billing-history-mobile__pagination button {
+        border-color: rgba(96, 165, 250, .24);
+        background: rgba(15, 23, 42, .92);
+        color: #7db4ff;
+    }
+}

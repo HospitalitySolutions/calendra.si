@@ -8322,7 +8322,177 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 )}
 
-                {sortedHistoryBills.length === 0 ? <EmptyState title={billingCopy.historyEmptyTitle} text={billingCopy.historyEmptyText} /> : (
+                {sortedHistoryBills.length === 0 ? <EmptyState title={billingCopy.historyEmptyTitle} text={billingCopy.historyEmptyText} /> : isOpenBillsMobile ? (
+                  <div className="billing-history-mobile">
+                    <div className="billing-history-mobile__result-count">
+                      {locale === 'sl'
+                        ? `Prikazujem ${historyPagination.showFrom} do ${historyPagination.showTo} od ${historyPagination.total} rezultatov`
+                        : `Showing ${historyPagination.showFrom} to ${historyPagination.showTo} of ${historyPagination.total} results`}
+                    </div>
+
+                    <div className="billing-history-mobile__list">
+                      {historyPagination.slice.map((bill) => {
+                        const billType = historyBillTypeLabel(bill)
+                        const customer = bill.billingTarget === 'COMPANY'
+                          ? (bill.recipientCompany?.name || '—')
+                          : (bill.client ? fullName(bill.client) : '—')
+                        const paymentMethod = paymentMethodChipLabel(bill.paymentMethod, locale)
+                        const iconTone = isRefundBill(bill)
+                          ? 'credit'
+                          : normalizeBillType(bill) === 'ADVANCE'
+                            ? 'advance'
+                            : bill.paymentStatus === 'cancelled'
+                              ? 'cancelled'
+                              : bill.paymentStatus === 'payment_pending'
+                                ? 'pending'
+                                : 'invoice'
+                        const invoiceNumber = bill.billNumber.startsWith('#') ? bill.billNumber : `#${bill.billNumber}`
+
+                        return (
+                          <article
+                            key={bill.id}
+                            className="billing-history-mobile-card"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { void openFolioPanel(bill) }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                void openFolioPanel(bill)
+                              }
+                            }}
+                          >
+                            <div className="billing-history-mobile-card__header">
+                              <span className={`billing-history-mobile-card__document billing-history-mobile-card__document--${iconTone}`} aria-hidden>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+                                  <path d="M14 2v5h5" />
+                                  <path d="M9 13h6M9 17h6" />
+                                </svg>
+                              </span>
+
+                              <div className="billing-history-mobile-card__identity">
+                                <h3>{billType} {invoiceNumber}</h3>
+                                <span className="billing-history-mobile-card__type">{billType}</span>
+                              </div>
+
+                              <div className="billing-history-mobile-card__summary">
+                                <strong>{currency(bill.totalGross)}</strong>
+                                <span className={`billing-status-pill billing-status-pill--${paymentStatusClass(bill.paymentStatus)}`}>
+                                  <span className="billing-history-mobile-card__status-dot" aria-hidden />
+                                  {paymentStatusLabel(bill.paymentStatus)}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="billing-history-mobile-card__open"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    void openFolioPanel(bill)
+                                  }}
+                                >
+                                  <span>{locale === 'sl' ? 'Odpri' : 'Open'}</span>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                    <path d="m9 18 6-6-6-6" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="billing-history-mobile-card__details">
+                              <div className="billing-history-mobile-card__detail">
+                                <span className="billing-history-mobile-card__detail-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 7h16v10H4z" />
+                                    <path d="M8 7V5h8v2M8 12h8" />
+                                  </svg>
+                                </span>
+                                <div><span>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</span><strong>{displayInvoiceOrderId(bill)}</strong></div>
+                              </div>
+
+                              <div className="billing-history-mobile-card__detail">
+                                <span className="billing-history-mobile-card__detail-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M6 3h12v18H6z" />
+                                    <path d="M9 7h6M9 11h6" />
+                                  </svg>
+                                </span>
+                                <div><span>{locale === 'sl' ? 'Vrsta računa' : 'Invoice type'}</span><strong>{billType}</strong></div>
+                              </div>
+
+                              <div className="billing-history-mobile-card__detail">
+                                <span className="billing-history-mobile-card__detail-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="8" />
+                                    <path d="M9.5 9.5h5v5h-5z" />
+                                  </svg>
+                                </span>
+                                <div><span>{locale === 'sl' ? 'ID seje' : 'Session ID'}</span><strong>{formatBillingSessionIdDisplay(bill.sessionId)}</strong></div>
+                              </div>
+
+                              <div className="billing-history-mobile-card__detail">
+                                <span className="billing-history-mobile-card__detail-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="5" width="18" height="14" rx="3" />
+                                    <path d="M3 10h18" />
+                                  </svg>
+                                </span>
+                                <div>
+                                  <span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span>
+                                  <strong className="billing-history-mobile-card__payment-method">{paymentTypeIcon(bill.paymentMethod?.paymentType, bill.paymentMethod?.name)} {paymentMethod}</strong>
+                                </div>
+                              </div>
+
+                              <div className="billing-history-mobile-card__detail">
+                                <span className="billing-history-mobile-card__detail-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M16 3v4M8 3v4M3 10h18" />
+                                  </svg>
+                                </span>
+                                <div>
+                                  <span>{locale === 'sl' ? 'Datum in čas' : 'Date and time'}</span>
+                                  <strong>{formatDateShort(bill.issueDate)}{formatTimeShort(bill.issueDate) ? `, ${formatTimeShort(bill.issueDate)}` : ''}</strong>
+                                </div>
+                              </div>
+
+                              <div className="billing-history-mobile-card__detail">
+                                <span className="billing-history-mobile-card__detail-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="8" r="4" />
+                                    <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+                                  </svg>
+                                </span>
+                                <div><span>{locale === 'sl' ? 'Kupec' : 'Customer'}</span><strong>{customer}</strong></div>
+                              </div>
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
+
+                    <div className="billing-history-mobile__pagination">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={historyPagination.totalPages > 1 ? () => setHistoryPage((page) => Math.max(1, page - 1)) : undefined}
+                        disabled={historyPagination.totalPages > 1 && historyPagination.page <= 1}
+                        aria-label={locale === 'sl' ? 'Prejšnja stran' : 'Previous page'}
+                      >
+                        ‹
+                      </button>
+                      <span>{historyPagination.page}</span>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={historyPagination.totalPages > 1 ? () => setHistoryPage((page) => Math.min(historyPagination.totalPages, page + 1)) : undefined}
+                        disabled={historyPagination.totalPages > 1 && historyPagination.page >= historyPagination.totalPages}
+                        aria-label={locale === 'sl' ? 'Naslednja stran' : 'Next page'}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <div className="billing-modern-table-wrap">
                     <table className="billing-modern-table billing-modern-history-table">
                       <thead>
