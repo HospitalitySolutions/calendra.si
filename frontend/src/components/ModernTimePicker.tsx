@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { ChangeEvent, CSSProperties, FocusEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocale } from '../locale'
 
@@ -54,6 +54,17 @@ function parseTimeValue(value: string | null | undefined) {
     hour: Math.max(0, Math.min(23, Number(match[1]) || 0)),
     minute: Math.max(0, Math.min(59, Number(match[2]) || 0)),
   }
+}
+
+function normalizeTypedPart(value: string, maximum: number, fallback: number) {
+  if (!value.trim()) return fallback
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(0, Math.min(maximum, Math.floor(parsed)))
+}
+
+function onlyTimeDigits(value: string) {
+  return value.replace(/\D/g, '').slice(0, 2)
 }
 
 function nearestFiveMinutes(minute: number) {
@@ -119,12 +130,16 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   const { locale } = useLocale()
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const dialogRef = useRef<HTMLDivElement | null>(null)
+  const hourInputRef = useRef<HTMLInputElement | null>(null)
+  const minuteInputRef = useRef<HTMLInputElement | null>(null)
   const parsed = useMemo(() => parseTimeValue(value), [value])
   const mergedLabels = useMemo(() => ({ ...localizedDefaults(locale), ...(labels || {}) }), [labels, locale])
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<PickerMode>('hour')
   const [draftHour, setDraftHour] = useState(parsed.hour)
-  const [draftMinute, setDraftMinute] = useState(nearestFiveMinutes(parsed.minute))
+  const [draftMinute, setDraftMinute] = useState(parsed.minute)
+  const [hourText, setHourText] = useState(pad(parsed.hour))
+  const [minuteText, setMinuteText] = useState(pad(parsed.minute))
 
   const hourOptions = useMemo<ClockOption[]>(() => {
     const outer = Array.from({ length: 12 }, (_, value) => ({
@@ -151,7 +166,7 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
     }))
   ), [])
 
-  const activeValue = mode === 'hour' ? draftHour : draftMinute
+  const activeValue = mode === 'hour' ? draftHour : nearestFiveMinutes(draftMinute)
   const activeOption = (mode === 'hour' ? hourOptions : minuteOptions).find((option) => option.value === activeValue)
     || (mode === 'hour' ? hourOptions[0] : minuteOptions[0])
   const handEnd = pointForClock(activeOption.angle, activeOption.radius)
@@ -160,7 +175,9 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
     if (disabled) return
     const current = parseTimeValue(value)
     setDraftHour(current.hour)
-    setDraftMinute(nearestFiveMinutes(current.minute))
+    setDraftMinute(current.minute)
+    setHourText(pad(current.hour))
+    setMinuteText(pad(current.minute))
     setMode('hour')
     setOpen(true)
     if (triggerRef.current) onOpen?.(triggerRef.current)
@@ -172,18 +189,106 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   }, [])
 
   const confirmPicker = useCallback(() => {
-    onChange(formatTime(draftHour, draftMinute))
+    const hour = normalizeTypedPart(hourText, 23, draftHour)
+    const minute = normalizeTypedPart(minuteText, 59, draftMinute)
+    setDraftHour(hour)
+    setDraftMinute(minute)
+    setHourText(pad(hour))
+    setMinuteText(pad(minute))
+    onChange(formatTime(hour, minute))
     closePicker()
-  }, [closePicker, draftHour, draftMinute, onChange])
+  }, [closePicker, draftHour, draftMinute, hourText, minuteText, onChange])
 
   const selectHour = useCallback((hour: number) => {
     setDraftHour(hour)
+    setHourText(pad(hour))
     setMode('minute')
+    window.requestAnimationFrame(() => minuteInputRef.current?.focus())
   }, [])
 
   const selectMinute = useCallback((minute: number) => {
     setDraftMinute(minute)
+    setMinuteText(pad(minute))
   }, [])
+
+  const commitTypedPart = useCallback((part: PickerMode) => {
+    if (part === 'hour') {
+      const next = normalizeTypedPart(hourText, 23, draftHour)
+      setDraftHour(next)
+      setHourText(pad(next))
+      return
+    }
+    const next = normalizeTypedPart(minuteText, 59, draftMinute)
+    setDraftMinute(next)
+    setMinuteText(pad(next))
+  }, [draftHour, draftMinute, hourText, minuteText])
+
+  const handleHourChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const next = onlyTimeDigits(event.target.value)
+    setHourText(next)
+    if (next) {
+      const numeric = Number(next)
+      if (numeric <= 23) {
+        setDraftHour(numeric)
+        if (next.length === 2) {
+          window.requestAnimationFrame(() => {
+            minuteInputRef.current?.focus()
+            minuteInputRef.current?.select()
+          })
+        }
+      }
+    }
+  }, [])
+
+  const handleMinuteChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const next = onlyTimeDigits(event.target.value)
+    setMinuteText(next)
+    if (next) {
+      const numeric = Number(next)
+      if (numeric <= 59) setDraftMinute(numeric)
+    }
+  }, [])
+
+  const handlePartFocus = useCallback((part: PickerMode, event: FocusEvent<HTMLInputElement>) => {
+    setMode(part)
+    event.currentTarget.select()
+  }, [])
+
+  const handlePartKeyDown = useCallback((part: PickerMode, event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      confirmPicker()
+      return
+    }
+    if (event.key === 'Escape') return
+    if (event.key === ':' || (part === 'hour' && event.key === 'ArrowRight')) {
+      event.preventDefault()
+      commitTypedPart('hour')
+      minuteInputRef.current?.focus()
+      minuteInputRef.current?.select()
+      return
+    }
+    if (part === 'minute' && (event.key === 'ArrowLeft' || (event.key === 'Backspace' && !minuteText))) {
+      event.preventDefault()
+      commitTypedPart('minute')
+      hourInputRef.current?.focus()
+      hourInputRef.current?.select()
+      return
+    }
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      const delta = event.key === 'ArrowUp' ? 1 : -1
+      if (part === 'hour') {
+        const next = (draftHour + delta + 24) % 24
+        setDraftHour(next)
+        setHourText(pad(next))
+      } else {
+        const next = (draftMinute + delta + 60) % 60
+        setDraftMinute(next)
+        setMinuteText(pad(next))
+      }
+    }
+  }, [commitTypedPart, confirmPicker, draftHour, draftMinute, minuteText])
 
   // Treat the entire clock face as an interactive target, not only the small
   // number buttons. This makes a single click/tap select the nearest value even
@@ -224,13 +329,19 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
 
   const adjustActiveValue = useCallback((delta: number) => {
     if (mode === 'hour') {
-      setDraftHour((current) => (current + delta + 24) % 24)
+      setDraftHour((current) => {
+        const next = (current + delta + 24) % 24
+        setHourText(pad(next))
+        return next
+      })
       return
     }
     setDraftMinute((current) => {
       const currentIndex = Math.max(0, Math.round(current / 5))
       const nextIndex = (currentIndex + delta + 12) % 12
-      return nextIndex * 5
+      const next = nextIndex * 5
+      setMinuteText(pad(next))
+      return next
     })
   }, [mode])
 
@@ -241,6 +352,7 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
       closePicker()
       return
     }
+    if (event.target instanceof HTMLInputElement) return
     if (event.key === 'Enter') {
       event.preventDefault()
       event.stopPropagation()
@@ -290,7 +402,10 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
       })
     }
 
-    window.requestAnimationFrame(() => dialogRef.current?.focus())
+    window.requestAnimationFrame(() => {
+      hourInputRef.current?.focus()
+      hourInputRef.current?.select()
+    })
 
     return () => {
       body.style.overflow = previousOverflow
@@ -338,23 +453,39 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
           >
             <div className="modern-time-picker-dialog__eyebrow">{mergedLabels.selectTime}</div>
             <div className="modern-time-picker-dialog__display" aria-live="polite">
-              <button
-                type="button"
+              <input
+                ref={hourInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={2}
+                autoComplete="off"
                 className={mode === 'hour' ? 'is-active' : ''}
                 aria-label={mergedLabels.hour}
-                onClick={() => setMode('hour')}
-              >
-                {pad(draftHour)}
-              </button>
+                aria-invalid={Boolean(hourText) && Number(hourText) > 23}
+                value={hourText}
+                onFocus={(event) => handlePartFocus('hour', event)}
+                onChange={handleHourChange}
+                onBlur={() => commitTypedPart('hour')}
+                onKeyDown={(event) => handlePartKeyDown('hour', event)}
+              />
               <span aria-hidden="true">:</span>
-              <button
-                type="button"
+              <input
+                ref={minuteInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={2}
+                autoComplete="off"
                 className={mode === 'minute' ? 'is-active' : ''}
                 aria-label={mergedLabels.minute}
-                onClick={() => setMode('minute')}
-              >
-                {pad(draftMinute)}
-              </button>
+                aria-invalid={Boolean(minuteText) && Number(minuteText) > 59}
+                value={minuteText}
+                onFocus={(event) => handlePartFocus('minute', event)}
+                onChange={handleMinuteChange}
+                onBlur={() => commitTypedPart('minute')}
+                onKeyDown={(event) => handlePartKeyDown('minute', event)}
+              />
             </div>
 
             <div
@@ -385,7 +516,7 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
             </div>
 
             <div className="modern-time-picker-dialog__footer">
-              <span className="modern-time-picker-dialog__keyboard" aria-hidden="true"><KeyboardIcon /></span>
+              <button type="button" className="modern-time-picker-dialog__keyboard" aria-label={mergedLabels.hour} onClick={() => { setMode('hour'); hourInputRef.current?.focus(); hourInputRef.current?.select() }}><KeyboardIcon /></button>
               <div className="modern-time-picker-dialog__actions">
                 <button type="button" onClick={closePicker}>{mergedLabels.cancel}</button>
                 <button type="button" onClick={confirmPicker}>{mergedLabels.confirm}</button>

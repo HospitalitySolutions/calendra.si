@@ -598,21 +598,36 @@ html[data-modern-time-picker-open="true"] body > .modern-time-picker-popover {
     transform: translateY(-2px);
 }
 
-.modern-time-picker-dialog__display button {
+.modern-time-picker-dialog__display input {
+    width: 82px;
     min-width: 82px;
     padding: 8px 10px;
-    border: 0;
+    border: 1px solid transparent;
     border-radius: 10px;
     background: #eef2f7;
     color: #334155;
     font: inherit;
     line-height: 1;
+    text-align: center;
+    letter-spacing: -0.055em;
+    caret-color: #145fc8;
+    outline: none;
     box-shadow: none;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
-.modern-time-picker-dialog__display button.is-active {
+.modern-time-picker-dialog__display input.is-active {
+    border-color: rgba(37, 99, 235, 0.18);
     background: #dbeafe;
     color: #145fc8;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
+.modern-time-picker-dialog__display input[aria-invalid="true"] {
+    border-color: #dc2626;
+    background: #fef2f2;
+    color: #b91c1c;
 }
 
 .modern-time-picker-dialog__clock {
@@ -689,7 +704,17 @@ html[data-modern-time-picker-open="true"] body > .modern-time-picker-popover {
     justify-content: center;
     width: 38px;
     height: 38px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
     color: #64748b;
+    cursor: pointer;
+}
+
+.modern-time-picker-dialog__keyboard:hover {
+    background: rgba(37, 99, 235, 0.09);
+    color: #2563eb;
 }
 
 .modern-time-picker-dialog__actions {
@@ -741,12 +766,12 @@ html[data-modern-time-picker-open="true"] body > .modern-time-picker-popover {
     color: #f8fafc;
 }
 
-[data-theme="dark"] .modern-time-picker-dialog__display button {
+[data-theme="dark"] .modern-time-picker-dialog__display input {
     background: #1e293b;
     color: #cbd5e1;
 }
 
-[data-theme="dark"] .modern-time-picker-dialog__display button.is-active {
+[data-theme="dark"] .modern-time-picker-dialog__display input.is-active {
     background: rgba(37, 99, 235, 0.26);
     color: #bfdbfe;
 }
