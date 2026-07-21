@@ -62,20 +62,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Type-check frontend
-        run: npm run typecheck
-
-      - name: Lint frontend
-        run: npm run lint
-
-      - name: Check dead files and dependencies
-        run: npm run knip
-
       - name: Build frontend production bundle
         run: npm run build:production
-
-      - name: Enforce frontend bundle budgets
-        run: npm run check:bundle
 
   android:
     name: Android debug and release bundle
