@@ -1780,6 +1780,36 @@ export function SessionTypesPage() {
     }
   };
 
+  const typeCategoryOptions = useMemo(
+    () => Array.from(new Set(types.map((type) => typeLinkedCategory(type)).filter((value) => value && value !== "—"))).sort((a, b) => a.localeCompare(b)),
+    [types],
+  );
+  const typeDurationOptions = useMemo(
+    () => Array.from(new Set(types.map((type) => String(type.durationMinutes ?? "")).filter(Boolean))).sort((a, b) => Number(a) - Number(b)),
+    [types],
+  );
+  const serviceConfigFilterCount = useMemo(() => {
+    if (showCourses) return 1;
+    if (showCardsMemberships) return 1;
+    if (showServiceGroups) return 1;
+    if (showTransactionServices) return 1;
+    let count = 1;
+    if (typeGroupFilter !== "all") count += 1;
+    if (typeCategoryFilter !== "all") count += 1;
+    if (typeDurationFilter !== "all") count += 1;
+    if (typeVisibilityFilter !== "all") count += 1;
+    return count;
+  }, [
+    showCourses,
+    showCardsMemberships,
+    showServiceGroups,
+    showTransactionServices,
+    typeGroupFilter,
+    typeCategoryFilter,
+    typeDurationFilter,
+    typeVisibilityFilter,
+  ]);
+
   if (!isAdmin) {
     return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />;
   }
@@ -2528,36 +2558,6 @@ export function SessionTypesPage() {
   ) => {
     if (e.target === e.currentTarget) dismissServiceModal();
   };
-
-  const typeCategoryOptions = useMemo(
-    () => Array.from(new Set(types.map((type) => typeLinkedCategory(type)).filter((value) => value && value !== "—"))).sort((a, b) => a.localeCompare(b)),
-    [types],
-  );
-  const typeDurationOptions = useMemo(
-    () => Array.from(new Set(types.map((type) => String(type.durationMinutes ?? "")).filter(Boolean))).sort((a, b) => Number(a) - Number(b)),
-    [types],
-  );
-  const serviceConfigFilterCount = useMemo(() => {
-    if (showCourses) return 1;
-    if (showCardsMemberships) return 1;
-    if (showServiceGroups) return 1;
-    if (showTransactionServices) return 1;
-    let count = 1;
-    if (typeGroupFilter !== "all") count += 1;
-    if (typeCategoryFilter !== "all") count += 1;
-    if (typeDurationFilter !== "all") count += 1;
-    if (typeVisibilityFilter !== "all") count += 1;
-    return count;
-  }, [
-    showCourses,
-    showCardsMemberships,
-    showServiceGroups,
-    showTransactionServices,
-    typeGroupFilter,
-    typeCategoryFilter,
-    typeDurationFilter,
-    typeVisibilityFilter,
-  ]);
 
   const openServiceConfigFilters = () => {
     setServiceConfigFilterDraft({
