@@ -58,9 +58,25 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+          registry-url: https://registry.npmjs.org
+
+      - name: Validate npm lockfile registry
+        shell: bash
+        run: |
+          if grep -q "packages.applied-caas-gateway1.internal.api.openai.org" package-lock.json; then
+            echo "package-lock.json contains an internal npm registry URL that GitHub runners cannot access."
+            exit 1
+          fi
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        timeout-minutes: 10
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+          NPM_CONFIG_FETCH_RETRIES: "2"
+          NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "5000"
+          NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
+          NPM_CONFIG_FETCH_TIMEOUT: "60000"
+        run: npm ci --no-audit --no-fund --prefer-online --loglevel=info
 
       - name: Build frontend production bundle
         run: npm run build:production
