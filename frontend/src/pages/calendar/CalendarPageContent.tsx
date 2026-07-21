@@ -58,7 +58,7 @@ import { useLocale } from '../../locale'
 import { calendarBookingPanelHelpId, helpAria, helpTitle, helpTooltip } from '../../helpContent'
 import { LanguageModal } from '../../components/LanguageModal'
 import { GuestConfigSaveIcon } from '../../components/GuestConfigSaveIcon'
-import type { BookingPayeeDraft } from './types/bookingPayee'
+import { type BookingPayeeDraft } from '../../components/BookingPayeePanel'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices } from '../../lib/employeePermissions'
 import { useToast } from '../../components/Toast'
 import { subscribeBookingUpdates } from '../../lib/bookingRealtime'
@@ -11853,6 +11853,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             if (props.kind === 'booked') {
               if (groupBookingEnabled && props.groupId != null && Number(props.groupId) > 0) {
                 const label = String(arg.event.title || '').trim() || '—'
+                const serviceLabel = bookedServiceDisplayLabel(props?.type)
+                const showMobileService = eventDurationMinutes >= 45 && Boolean(serviceLabel)
                 const showCompactOneLine = Boolean(mainTimeRange)
                   && eventDurationMinutes > 0
                   && eventDurationMinutes <= 30
@@ -11869,8 +11871,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   <div className={`calendar-event-mobile-content calendar-event-mobile-content--single${showCompactOneLine ? ' calendar-event-mobile-content--compact' : ''}`}>
                     <div className="calendar-event-main-row">
                       <div className="calendar-event-main-title-wrap">
-                        <div className="calendar-event-mobile-title calendar-event-booked-label--narrow">
+                        <div className={`calendar-event-mobile-title calendar-event-booked-label--narrow${showMobileService ? ' calendar-event-mobile-title--with-service' : ''}`}>
                           <span className="calendar-event-mobile-title__name">{label}</span>
+                          {showMobileService ? <span className="calendar-event-mobile-title__type">{serviceLabel}</span> : null}
                         </div>
                         <div className="calendar-event-mobile-title calendar-event-booked-label--wide">{label}</div>
                       </div>
@@ -11895,11 +11898,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const wide = formatBookedBlockDesktopLabel(props, fallbackTitle || mobileLabel)
               const fullClientLabel = wide.split(' · ')[0] || mobileLabel || resolvedLastName || '—'
               const narrowTypeName = bookedServiceDisplayLabel(props?.type)
-              const bookingClients = Array.isArray(props?.clients) ? props.clients : []
-              const isMultiClient = bookingClients.length > 1
-              const narrowPrimaryLabel = isMultiClient
-                ? (narrowTypeName || fullClientLabel)
-                : fullClientLabel
+              const narrowPrimaryLabel = fullClientLabel
+              const showMobileService = eventDurationMinutes >= 45 && Boolean(narrowTypeName)
               const showCompactOneLine = Boolean(mainTimeRange)
                 && eventDurationMinutes > 0
                 && eventDurationMinutes <= 30
@@ -11916,8 +11916,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 <div className={`calendar-event-mobile-content calendar-event-mobile-content--single${showCompactOneLine ? ' calendar-event-mobile-content--compact' : ''}`}>
                   <div className="calendar-event-main-row">
                     <div className="calendar-event-main-title-wrap">
-                      <div className="calendar-event-mobile-title calendar-event-booked-label--narrow">
+                      <div className={`calendar-event-mobile-title calendar-event-booked-label--narrow${showMobileService ? ' calendar-event-mobile-title--with-service' : ''}`}>
                         <span className="calendar-event-mobile-title__name">{narrowPrimaryLabel}</span>
+                        {showMobileService ? <span className="calendar-event-mobile-title__type">{narrowTypeName}</span> : null}
                       </div>
                       <div className="calendar-event-mobile-title calendar-event-booked-label--wide">{wide}</div>
                     </div>

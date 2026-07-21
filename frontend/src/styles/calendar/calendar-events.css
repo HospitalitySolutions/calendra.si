@@ -3994,3 +3994,60 @@
         line-height: 1.08 !important;
     }
 }
+
+/* Mobile booked-session text: guest name only below 45 minutes; add the service
+   from 45 minutes upward. The content stays close to the card edges and wraps
+   naturally, while overflow clipping keeps the service visible only when the
+   block has enough vertical room. */
+@media (max-width: 939px) {
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual
+    .calendar-event-mobile-title.calendar-event-booked-label--wide {
+        display: none !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual
+    .calendar-event-mobile-title.calendar-event-booked-label--narrow {
+        display: -webkit-box !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual
+    .calendar-event-mobile-title--with-service {
+        display: flex !important;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual
+    .calendar-event-mobile-title--with-service .calendar-event-mobile-title__name {
+        flex: 0 1 auto;
+        display: -webkit-box !important;
+        min-height: 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual
+    .calendar-event-mobile-title__type {
+        flex: 0 1 auto;
+        display: -webkit-box;
+        width: 100%;
+        min-height: 0;
+        overflow: hidden;
+        color: rgba(255, 255, 255, 0.88) !important;
+        font-size: 0.82em;
+        font-weight: 650;
+        line-height: 1.12;
+        letter-spacing: -0.005em;
+        text-align: left;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+}
