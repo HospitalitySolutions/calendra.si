@@ -14,10 +14,16 @@ import com.example.app.demobooking.DemoBookingApiModels.HoldResponse;
 import com.example.app.demobooking.DemoBookingApiModels.HostView;
 import com.example.app.demobooking.DemoBookingApiModels.PublicProfile;
 import com.example.app.demobooking.DemoBookingApiModels.RescheduleRequest;
+import com.example.app.client.Client;
+import com.example.app.client.ClientRepository;
 import com.example.app.google.GoogleMeetService;
+import com.example.app.session.BookingChangePublisher;
+import com.example.app.session.SessionBookingRealtimeService;
 import com.example.app.session.PersonalCalendarBlock;
 import com.example.app.session.PersonalCalendarBlockRepository;
+import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingStatus;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -56,7 +62,9 @@ public class DemoBookingService {
     private final DemoBookingRepository bookings;
     private final DemoBookingHoldRepository holds;
     private final UserRepository users;
+    private final ClientRepository clients;
     private final SessionBookingRepository sessionBookings;
+    private final SessionBookingRealtimeService bookingRealtime;
     private final PersonalCalendarBlockRepository personalBlocks;
     private final GoogleMeetService googleMeet;
     private final ZoomService zoom;
@@ -68,7 +76,9 @@ public class DemoBookingService {
             DemoBookingRepository bookings,
             DemoBookingHoldRepository holds,
             UserRepository users,
+            ClientRepository clients,
             SessionBookingRepository sessionBookings,
+            SessionBookingRealtimeService bookingRealtime,
             PersonalCalendarBlockRepository personalBlocks,
             GoogleMeetService googleMeet,
             ZoomService zoom,
@@ -78,7 +88,9 @@ public class DemoBookingService {
         this.bookings = bookings;
         this.holds = holds;
         this.users = users;
+        this.clients = clients;
         this.sessionBookings = sessionBookings;
+        this.bookingRealtime = bookingRealtime;
         this.personalBlocks = personalBlocks;
         this.googleMeet = googleMeet;
         this.zoom = zoom;
@@ -208,16 +220,10 @@ public class DemoBookingService {
         booking.setUtmCampaign(clean(request.utmCampaign(), 200));
         bookings.saveAndFlush(booking);
 
-        PersonalCalendarBlock block = new PersonalCalendarBlock();
-        block.setCompany(host.getCompany());
-        block.setOwner(host);
-        block.setStartTime(localStart);
-        block.setEndTime(localEnd);
-        block.setTask(topic);
-        block.setNotes(description + "\n" + meeting.joinUrl());
-        block.setVisibleToAdmins(true);
-        personalBlocks.saveAndFlush(block);
-        booking.setCalendarBlockId(block.getId());
+        Client client = findOrCreateDemoClient(host, guestName, guestEmail, request.guestPhone());
+        SessionBooking calendarBooking = createBookedCalendarSession(
+                booking, host, client, localStart, localEnd, description, meeting.joinUrl(), profile.getMeetingProvider());
+        booking.setSessionBookingId(calendarBooking.getId());
         bookings.save(booking);
         holds.delete(hold);
         emails.sendCreated(booking, normalizeLocale(request.locale()));
@@ -234,7 +240,10 @@ public class DemoBookingService {
         DemoBooking booking = requireBooking(token);
         if (!"CONFIRMED".equals(booking.getStatus())) return toView(booking);
         cancelExternalMeeting(booking);
-        if (booking.getCalendarBlockId() != null) personalBlocks.findById(booking.getCalendarBlockId()).ifPresent(personalBlocks::delete);
+        cancelCalendarSession(booking);
+        if (booking.getSessionBookingId() == null && booking.getCalendarBlockId() != null) {
+            personalBlocks.findById(booking.getCalendarBlockId()).ifPresent(personalBlocks::delete);
+        }
         booking.setStatus("CANCELLED");
         booking.setCancelledAt(Instant.now());
         bookings.save(booking);
@@ -258,7 +267,8 @@ public class DemoBookingService {
         String topic = profile.getTitle() + " – " + booking.getCompanyName();
         String description = meetingDescription(booking.getGuestName(), booking.getGuestEmail(), booking.getGuestPhone(), booking.getCompanyName(), booking.getGuestNote());
         updateExternalMeeting(booking, localStart, localEnd, hostZone, topic, description);
-        if (booking.getCalendarBlockId() != null) {
+        rescheduleCalendarSession(booking, localStart, localEnd, description);
+        if (booking.getSessionBookingId() == null && booking.getCalendarBlockId() != null) {
             personalBlocks.findById(booking.getCalendarBlockId()).ifPresent(block -> {
                 block.setStartTime(localStart);
                 block.setEndTime(localEnd);
@@ -331,11 +341,13 @@ public class DemoBookingService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<AdminBookingView> adminBookings(Instant from, Instant to) {
         Instant effectiveFrom = from == null ? Instant.now().minus(Duration.ofDays(30)) : from;
         Instant effectiveTo = to == null ? Instant.now().plus(Duration.ofDays(90)) : to;
-        return bookings.findAdminRange(effectiveFrom, effectiveTo).stream().map(this::toAdminView).toList();
+        List<DemoBooking> rows = bookings.findAdminRange(effectiveFrom, effectiveTo);
+        rows.forEach(this::ensureBookedCalendarSession);
+        return rows.stream().map(this::toAdminView).toList();
     }
 
     @Transactional
@@ -376,8 +388,12 @@ public class DemoBookingService {
         ZoneId hostZone = safeZone(profile.getTimeZone(), ZoneId.of("Europe/Ljubljana"));
         LocalDateTime localBusyStart = LocalDateTime.ofInstant(busyStart, hostZone);
         LocalDateTime localBusyEnd = LocalDateTime.ofInstant(busyEnd, hostZone);
+        Long excludedSessionBookingId = excludedBookingId == null
+                ? null
+                : bookings.findById(excludedBookingId).map(DemoBooking::getSessionBookingId).orElse(null);
         if (sessionBookings.existsOverlappingForConsultantExcluding(
-                host.getCompany().getId(), host.getId(), localBusyStart, localBusyEnd, List.of(-1L))) return false;
+                host.getCompany().getId(), host.getId(), localBusyStart, localBusyEnd,
+                List.of(excludedSessionBookingId == null ? -1L : excludedSessionBookingId))) return false;
         if (personalBlocks.existsOverlappingPersonalSessionForOwner(host.getId(), host.getCompany().getId(), localBusyStart, localBusyEnd)) return false;
         if (profile.getMaximumBookingsPerDay() > 0) {
             LocalDate day = startAt.atZone(hostZone).toLocalDate();
@@ -387,6 +403,158 @@ public class DemoBookingService {
             if (count >= profile.getMaximumBookingsPerDay()) return false;
         }
         return true;
+    }
+
+    private void ensureBookedCalendarSession(DemoBooking booking) {
+        if (booking == null || booking.getSessionBookingId() != null || !"CONFIRMED".equals(booking.getStatus())) return;
+        User host = booking.getHostUser();
+        if (host == null || host.getCompany() == null || !host.isActive()) return;
+        if (!host.isConsultant()) {
+            host.setConsultant(true);
+            host = users.save(host);
+        }
+        ZoneId hostZone = safeZone(booking.getProfile().getTimeZone(), ZoneId.of("Europe/Ljubljana"));
+        LocalDateTime start = LocalDateTime.ofInstant(booking.getStartAt(), hostZone);
+        LocalDateTime end = LocalDateTime.ofInstant(booking.getEndAt(), hostZone);
+        String description = meetingDescription(
+                booking.getGuestName(), booking.getGuestEmail(), booking.getGuestPhone(),
+                booking.getCompanyName(), booking.getGuestNote());
+        Client client = findOrCreateDemoClient(host, booking.getGuestName(), booking.getGuestEmail(), booking.getGuestPhone());
+        SessionBooking session = createBookedCalendarSession(
+                booking, host, client, start, end, description,
+                booking.getMeetingJoinUrl(), booking.getMeetingProvider());
+        booking.setSessionBookingId(session.getId());
+        if (booking.getCalendarBlockId() != null) {
+            personalBlocks.findById(booking.getCalendarBlockId()).ifPresent(personalBlocks::delete);
+            booking.setCalendarBlockId(null);
+        }
+        bookings.save(booking);
+    }
+
+    private Client findOrCreateDemoClient(User host, String guestName, String guestEmail, String guestPhone) {
+        Long companyId = host.getCompany().getId();
+        String normalizedEmail = cleanEmail(guestEmail);
+        String normalizedPhone = clean(guestPhone, 80);
+        Client client = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(companyId, normalizedEmail).stream()
+                .findFirst()
+                .orElse(null);
+        if (client == null && !normalizedPhone.isBlank()) {
+            client = clients.findFirstCandidatesByCompanyIdAndNormalizedPhone(companyId, normalizedPhone).stream()
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (client != null) {
+            if (client.getAssignedTo() == null) client.setAssignedTo(host);
+            if (client.getEmail() == null || client.getEmail().isBlank()) client.setEmail(normalizedEmail);
+            if (!normalizedPhone.isBlank() && (client.getPhone() == null || client.getPhone().isBlank())) {
+                client.setPhone(normalizedPhone);
+                client.setWhatsappPhone(normalizedPhone);
+            }
+            return clients.save(client);
+        }
+
+        NameParts names = splitGuestName(guestName);
+        Client created = new Client();
+        created.setCompany(host.getCompany());
+        created.setAssignedTo(host);
+        created.setFirstName(names.firstName());
+        created.setLastName(names.lastName());
+        created.setEmail(normalizedEmail);
+        created.setPhone(normalizedPhone.isBlank() ? null : normalizedPhone);
+        created.setWhatsappPhone(normalizedPhone.isBlank() ? null : normalizedPhone);
+        created.setWhatsappOptIn(false);
+        created.setActive(true);
+        created.setBatchPaymentEnabled(false);
+        return clients.save(created);
+    }
+
+    private SessionBooking createBookedCalendarSession(
+            DemoBooking demoBooking,
+            User host,
+            Client client,
+            LocalDateTime start,
+            LocalDateTime end,
+            String description,
+            String meetingLink,
+            String provider) {
+        SessionBooking session = new SessionBooking();
+        session.setCompany(host.getCompany());
+        session.setClient(client);
+        session.setConsultant(host);
+        session.setBookingGroupKey(UUID.randomUUID().toString());
+        session.setStartTime(start);
+        session.setEndTime(end);
+        session.setNotes(clean(description, 1000));
+        session.setMeetingLink(clean(meetingLink, 500));
+        session.setMeetingProvider(sessionMeetingProvider(provider));
+        session.setMeetingProvisioningStatus("READY");
+        session.setMeetingProvisioningError(null);
+        session.setMeetingProvisioningAttempts(0);
+        session.setMeetingProvisioningStartedAt(null);
+        session.setMeetingProvisioningNextAttemptAt(null);
+        session.setMeetingConfirmationPending(false);
+        session.setBookingStatus(SessionBookingStatus.RESERVED);
+        session.setSourceChannel("DEMO_BOOKING");
+        session.setSourceOrderId(String.valueOf(demoBooking.getId()));
+        session = sessionBookings.saveAndFlush(session);
+        bookingRealtime.publishBookingUpdated(
+                host.getCompany().getId(), session.getId(), session.getStartTime(), session.getEndTime(),
+                BookingChangePublisher.BOOKING_CREATED);
+        return session;
+    }
+
+    private void cancelCalendarSession(DemoBooking booking) {
+        if (booking.getSessionBookingId() == null) return;
+        Long companyId = booking.getHostUser().getCompany().getId();
+        sessionBookings.findByIdAndCompanyId(booking.getSessionBookingId(), companyId).ifPresent(session -> {
+            session.setBookingStatus(SessionBookingStatus.CANCELLED);
+            session.setMeetingLink(null);
+            session.setMeetingProvider(null);
+            session.setMeetingProvisioningStatus("NONE");
+            session.setMeetingProvisioningError(null);
+            session.setMeetingProvisioningStartedAt(null);
+            session.setMeetingProvisioningNextAttemptAt(null);
+            sessionBookings.save(session);
+            bookingRealtime.publishBookingUpdated(
+                    companyId, session.getId(), session.getStartTime(), session.getEndTime(),
+                    BookingChangePublisher.BOOKING_CANCELLED);
+        });
+    }
+
+    private void rescheduleCalendarSession(
+            DemoBooking booking,
+            LocalDateTime start,
+            LocalDateTime end,
+            String description) {
+        if (booking.getSessionBookingId() == null) return;
+        Long companyId = booking.getHostUser().getCompany().getId();
+        sessionBookings.findByIdAndCompanyId(booking.getSessionBookingId(), companyId).ifPresent(session -> {
+            session.setStartTime(start);
+            session.setEndTime(end);
+            session.setNotes(clean(description, 1000));
+            session.setMeetingLink(clean(booking.getMeetingJoinUrl(), 500));
+            session.setMeetingProvider(sessionMeetingProvider(booking.getMeetingProvider()));
+            session.setMeetingProvisioningStatus("READY");
+            session.setBookingStatus(SessionBookingStatus.RESERVED);
+            sessionBookings.save(session);
+            bookingRealtime.publishBookingUpdated(
+                    companyId, session.getId(), session.getStartTime(), session.getEndTime(),
+                    BookingChangePublisher.BOOKING_RESCHEDULED);
+        });
+    }
+
+    private static NameParts splitGuestName(String raw) {
+        String value = clean(raw, 200);
+        if (value.isBlank()) return new NameParts("Guest", "");
+        String[] parts = value.split("\\s+");
+        if (parts.length == 1) return new NameParts(parts[0], "");
+        String firstName = parts[0];
+        String lastName = String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length));
+        return new NameParts(firstName, lastName);
+    }
+
+    private static String sessionMeetingProvider(String raw) {
+        return "ZOOM".equalsIgnoreCase(raw) ? "zoom" : "google";
     }
 
     private MeetingProvision createMeeting(DemoBookingProfile profile, User host, LocalDateTime start, LocalDateTime end, ZoneId zone, String topic, String guestEmail, String description) {
@@ -431,6 +599,10 @@ public class DemoBookingService {
     private User requireHost(DemoBookingProfile profile) {
         User host = profile.getHostUser();
         if (host == null || !host.isActive()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Demo host is unavailable.");
+        if (!host.isConsultant()) {
+            host.setConsultant(true);
+            host = users.save(host);
+        }
         return host;
     }
 
@@ -589,5 +761,6 @@ public class DemoBookingService {
     private static String fullName(User user) { return ((user.getFirstName() == null ? "" : user.getFirstName()) + " " + (user.getLastName() == null ? "" : user.getLastName())).trim(); }
     private static ResponseStatusException badRequest(String message) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, message); }
     private static ResponseStatusException conflict(String message) { return new ResponseStatusException(HttpStatus.CONFLICT, message); }
+    private record NameParts(String firstName, String lastName) {}
     private record MeetingProvision(String externalId, String joinUrl) {}
 }

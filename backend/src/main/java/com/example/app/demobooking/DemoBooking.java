@@ -68,6 +68,9 @@ public class DemoBooking extends BaseEntity {
     @Column(name = "calendar_block_id")
     private Long calendarBlockId;
 
+    @Column(name = "session_booking_id")
+    private Long sessionBookingId;
+
     @Column(name = "manage_token", nullable = false, length = 100)
     private String manageToken;
 
