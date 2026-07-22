@@ -25,6 +25,7 @@ import { hasAnyEmployeePermission, hasEmployeePermission } from './lib/employeeP
 import { storeAuthenticatedSession } from './lib/session'
 import { startClockSync, stopClockSync } from './lib/clock'
 import { clearAuthStoragePreservingTheme } from './theme'
+import { AuthenticatedUserProvider } from './authUserContext'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
@@ -437,11 +438,12 @@ export default function App() {
   const fallbackRoute = preferredCandidate?.path ?? routeCandidates.find((candidate) => candidate.allowed)?.path ?? (user.role === 'CONSULTANT' ? '/my-profile' : '/help')
 
   return (
-    <Shell>
-      <Suspense fallback={<div className="content content-android-native" style={{ padding: 24 }}>{copy.loading}</div>}>
-        <Routes>
+    <AuthenticatedUserProvider user={user}>
+      <Shell user={user}>
+        <Suspense fallback={<div className="content content-android-native" style={{ padding: 24 }}>{copy.loading}</div>}>
+          <Routes>
           <Route path="/" element={<Navigate to={fallbackRoute} replace />} />
-          <Route path="/calendar/*" element={canViewCalendar ? <CalendarPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/calendar/*" element={canViewCalendar ? <CalendarPage user={user} /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/sessions" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/booked" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/bookable" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
@@ -488,8 +490,9 @@ export default function App() {
           <Route path="/sessions/spaces" element={<Navigate to={canViewConfiguration ? '/configuration?tab=booking' : fallbackRoute} replace />} />
           <Route path="/sessions/types" element={<Navigate to={canViewServices ? '/session-types' : fallbackRoute} replace />} />
           <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
-        </Routes>
-      </Suspense>
-    </Shell>
+          </Routes>
+        </Suspense>
+      </Shell>
+    </AuthenticatedUserProvider>
   )
 }

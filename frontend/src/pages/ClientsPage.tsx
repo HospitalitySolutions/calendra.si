@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { isNativeAndroid } from '../lib/platform'
 import { api, getApiErrorMessage } from '../api'
-import { getStoredUser } from '../auth'
+import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
 import { useCalendarFiltersBottomBar, useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
 import type { Client, ClientGroup, Company, CompanySummary, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Role, StoredFile, User } from '../lib/types'
@@ -1068,7 +1068,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     companyActionsAria: 'Company actions',
     guestAppBadge: 'Guest app',
   }
-  const me = getStoredUser()!
+  const me = useAuthenticatedUser()
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const [entityTab, setEntityTab] = useState<EntityTab>('clients')
   const [clients, setClients] = useState<Client[]>([])

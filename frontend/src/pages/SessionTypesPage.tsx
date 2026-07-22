@@ -13,7 +13,7 @@ import {
 import { Navigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { api } from "../api";
-import { getStoredUser } from "../auth";
+import { useAuthenticatedUser } from "../authUserContext";
 import type {
   BillingService,
   Client,
@@ -727,7 +727,7 @@ function transactionServiceGross(service: BillingService): number {
 }
 
 export function SessionTypesPage() {
-  const me = getStoredUser()!;
+  const me = useAuthenticatedUser();
   const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();

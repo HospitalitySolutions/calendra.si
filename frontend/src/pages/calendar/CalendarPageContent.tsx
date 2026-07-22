@@ -50,7 +50,6 @@ import {
 import { api } from '../../api'
 import { nowMs } from '../../lib/clock'
 import { setPostZoomReturnPath } from '../../lib/session'
-import { getStoredUser } from '../../auth'
 import { Card, Field, PageHeader } from '../../components/ui'
 import { currency, formatDateTime, fullName, parseClientNameInput, personInitials } from '../../lib/format'
 import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../../theme'
@@ -63,7 +62,7 @@ import { canIssueAdvanceInvoices, canIssueOpenInvoices } from '../../lib/employe
 import { useToast } from '../../components/Toast'
 import { subscribeBookingUpdates } from '../../lib/bookingRealtime'
 import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs } from '../../lib/consultantWorkingHours'
-import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, type BookingPaymentStatusValue } from '../../lib/types'
+import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, type BookingPaymentStatusValue, type User } from '../../lib/types'
 
 import {
   ANDROID_PINCH_ZOOM_MAX,
@@ -227,7 +226,11 @@ function CalendarPaymentCompanyIcon({ className }: { className?: string }) {
   )
 }
 
-export default function CalendarPage() {
+type CalendarPageProps = {
+  user: User
+}
+
+export default function CalendarPage({ user }: CalendarPageProps) {
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -237,11 +240,11 @@ export default function CalendarPage() {
   const calendarLocaleTag = locale === 'sl' ? 'sl-SI' : 'en-GB'
   const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
-  const user = getStoredUser()!
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
   const canIssueOpenInvoice = canIssueOpenInvoices(user)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [], waitlistOffers: [] })
+  const [calendarLoadState, setCalendarLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [settings, setSettings] = useState<Record<string, string>>({})
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const todosModuleEnabled = settings.TODOS_ENABLED !== 'false'
@@ -647,6 +650,7 @@ export default function CalendarPage() {
   const lastHolidayRangeKeyRef = useRef<string | null>(null)
   /** Avoids a second /bookings/calendar fetch when datesSet fires with the same range right after load(). */
   const lastSuccessfulCalendarRangeKeyRef = useRef<string | null>(null)
+  const hasLoadedCalendarRef = useRef(false)
 
   const computeCalendarFetchRange = () => {
     const apiCal = calendarRef.current?.getApi()
@@ -1445,8 +1449,8 @@ export default function CalendarPage() {
 
   const load = async () => {
     const { fromStr, toStr, key } = computeCalendarFetchRange()
-    const [c, s, clients, users, spaces, types, groups] = await Promise.all([
-      api.get('/bookings/calendar', { params: { from: fromStr, to: toStr } }),
+    const calendarRequest = api.get('/bookings/calendar', { params: { from: fromStr, to: toStr } })
+    const metaRequest = Promise.all([
       api.get('/settings'),
       api.get('/clients'),
       isTenantAdmin
@@ -1456,9 +1460,23 @@ export default function CalendarPage() {
       api.get('/types'),
       api.get('/groups').catch(() => ({ data: [] })),
     ])
-    setCalendarData(filterHiddenStatusesFromCalendarPayload(c.data))
-    applySettingsAndMeta(s, clients, users, spaces, types, groups)
+    const [calendarResult, metaResult] = await Promise.allSettled([calendarRequest, metaRequest])
+
+    if (metaResult.status === 'fulfilled') {
+      const [s, clients, users, spaces, types, groups] = metaResult.value
+      applySettingsAndMeta(s, clients, users, spaces, types, groups)
+    }
+
+    if (calendarResult.status === 'rejected') throw calendarResult.reason
+
+    setCalendarData(filterHiddenStatusesFromCalendarPayload(calendarResult.value.data))
     lastSuccessfulCalendarRangeKeyRef.current = key
+    hasLoadedCalendarRef.current = true
+    setCalendarLoadState('ready')
+
+    // Calendar data is useful on its own, but retry the initial request bundle
+    // when metadata failed so forms and filters recover without a page refresh.
+    if (metaResult.status === 'rejected') throw metaResult.reason
   }
 
   loadRef.current = load
@@ -1470,7 +1488,51 @@ export default function CalendarPage() {
     const nextCalendarData = filterHiddenStatusesFromCalendarPayload(c.data)
     setCalendarData(nextCalendarData)
     lastSuccessfulCalendarRangeKeyRef.current = key
+    hasLoadedCalendarRef.current = true
+    setCalendarLoadState('ready')
     return nextCalendarData
+  }
+
+  const waitForCalendarRetry = (delayMs: number) => new Promise<void>((resolve) => {
+    window.setTimeout(resolve, delayMs)
+  })
+
+  const loadCalendarWithRetry = async (maxAttempts = 3) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await load()
+        return true
+      } catch (error: any) {
+        const status = Number(error?.response?.status ?? 0)
+        const shouldStop = status === 401 || status === 403 || attempt >= maxAttempts
+        if (shouldStop) break
+        await waitForCalendarRetry(attempt === 1 ? 350 : 900)
+      }
+    }
+
+    if (!hasLoadedCalendarRef.current) setCalendarLoadState('error')
+    return false
+  }
+
+  const retryCalendarLoad = async () => {
+    setCalendarLoadState('loading')
+    await loadCalendarWithRetry()
+  }
+
+  const refreshCalendarSafely = async () => {
+    try {
+      await loadCalendarRangeOnly(true)
+    } catch {
+      if (!hasLoadedCalendarRef.current) setCalendarLoadState('error')
+    }
+  }
+
+  const refreshMetaSafely = async () => {
+    try {
+      await loadMetaOnly()
+    } catch {
+      // Keep the last successfully loaded metadata and retry on the next poll/focus event.
+    }
   }
 
   // Remove a temporary waitlist block as soon as its offer expires instead of
@@ -1703,14 +1765,12 @@ export default function CalendarPage() {
   }, [visibleRange])
 
   useEffect(() => {
-    void Promise.all([
-      load(),
-      api.get('/zoom/status').then((r) => setZoomConnected(r.data.connected)).catch(() => setZoomConnected(false)),
-      api.get('/google/status').then((r) => setGoogleConnected(r.data.connected)).catch(() => setGoogleConnected(false)),
-      api.get('/ai/voice-booking/status').then((r) => setVoiceBookingConfigured(!!r.data?.configured)).catch(() => setVoiceBookingConfigured(false)),
-    ])
-    const calendarInterval = window.setInterval(() => void loadCalendarRangeOnly(true), CALENDAR_POLL_MS)
-    const metaInterval = window.setInterval(() => void loadMetaOnly(), CALENDAR_META_POLL_MS)
+    void loadCalendarWithRetry()
+    void api.get('/zoom/status').then((r) => setZoomConnected(r.data.connected)).catch(() => setZoomConnected(false))
+    void api.get('/google/status').then((r) => setGoogleConnected(r.data.connected)).catch(() => setGoogleConnected(false))
+    void api.get('/ai/voice-booking/status').then((r) => setVoiceBookingConfigured(!!r.data?.configured)).catch(() => setVoiceBookingConfigured(false))
+    const calendarInterval = window.setInterval(() => void refreshCalendarSafely(), CALENDAR_POLL_MS)
+    const metaInterval = window.setInterval(() => void refreshMetaSafely(), CALENDAR_META_POLL_MS)
     const refreshClients = () => api.get('/clients').then((r) => {
       const updated: any[] = r.data ?? []
       setMeta((prev: any) => ({ ...prev, clients: updated }))
@@ -1721,26 +1781,32 @@ export default function CalendarPage() {
         return { ...f, clientId: undefined }
       })
     }).catch(() => {})
-    const onTodosUpdated = () => void loadCalendarRangeOnly(true)
-    const onSettingsUpdated = () => void loadMetaOnly()
+    const onTodosUpdated = () => void refreshCalendarSafely()
+    const onSettingsUpdated = () => void refreshMetaSafely()
     const onBookingUpdated = () => {
       if (realtimeCalendarReloadTimerRef.current != null) {
         window.clearTimeout(realtimeCalendarReloadTimerRef.current)
       }
       realtimeCalendarReloadTimerRef.current = window.setTimeout(() => {
         realtimeCalendarReloadTimerRef.current = null
-        void loadCalendarRangeOnly(true)
+        void refreshCalendarSafely()
       }, 250)
+    }
+    const refreshAfterResume = () => {
+      void refreshMetaSafely()
+      if (hasLoadedCalendarRef.current) void refreshCalendarSafely()
+      else void loadCalendarWithRetry()
     }
     const onVisibility = () => {
       if (document.visibilityState !== 'visible') return
-      void loadMetaOnly()
-      void loadCalendarRangeOnly(true)
+      refreshAfterResume()
     }
+    const onOnline = () => refreshAfterResume()
     window.addEventListener('todos-updated', onTodosUpdated)
     window.addEventListener('clients-updated', refreshClients)
     window.addEventListener('settings-updated', onSettingsUpdated)
     window.addEventListener('users-updated', onSettingsUpdated)
+    window.addEventListener('online', onOnline)
     const unsubscribeBookingRealtime = subscribeBookingUpdates(onBookingUpdated)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
@@ -1750,6 +1816,7 @@ export default function CalendarPage() {
       window.removeEventListener('clients-updated', refreshClients)
       window.removeEventListener('settings-updated', onSettingsUpdated)
       window.removeEventListener('users-updated', onSettingsUpdated)
+      window.removeEventListener('online', onOnline)
       unsubscribeBookingRealtime()
       if (realtimeCalendarReloadTimerRef.current != null) {
         window.clearTimeout(realtimeCalendarReloadTimerRef.current)
@@ -10214,6 +10281,38 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
   return (
     <div className={isNativeAndroid ? 'calendar-page-android-root' : 'calendar-page-web-root'}>
+      {calendarLoadState === 'error' && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            margin: isNativeAndroid ? '10px 12px 0' : '12px 16px 0',
+            padding: '12px 14px',
+            border: '1px solid #fecaca',
+            borderRadius: 12,
+            background: '#fff7f7',
+            color: '#991b1b',
+          }}
+        >
+          <span style={{ lineHeight: 1.4 }}>
+            {locale === 'sl'
+              ? 'Koledarja ni bilo mogoče naložiti. Preverite povezavo in poskusite znova.'
+              : 'The calendar could not be loaded. Check your connection and try again.'}
+          </span>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void retryCalendarLoad()}
+            style={{ flex: '0 0 auto' }}
+          >
+            {locale === 'sl' ? 'Poskusi znova' : 'Try again'}
+          </button>
+        </div>
+      )}
       <Card data-onboarding-panel="calendar" className={isNativeAndroid ? 'calendar-card-android' : 'calendar-web-flush'}>
         {voiceReviewOpen && (
           <div

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { getStoredUser } from "../auth";
+import { useAuthenticatedUser } from "../authUserContext";
 import type { PaymentMethod, PaymentType } from "../lib/types";
 import { normalizePaymentMethod } from "../lib/types";
 import {
@@ -829,7 +829,7 @@ const parseRegisteredPremises = (raw: string | undefined): string[] => {
 };
 
 export function ConfigurationPage() {
-  const me = getStoredUser()!;
+  const me = useAuthenticatedUser();
   const canViewConfiguration = hasAnyEmployeePermission(me, [
     'SETTINGS_VIEW',
     'SPACES_VIEW',

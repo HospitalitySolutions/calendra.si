@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
-import { getStoredUser } from '../auth'
+import { useAuthenticatedUser } from '../authUserContext'
 import type { Bill, BillingService, Booking, Client, Company, OpenBill, PaymentMethod, PaymentSplit, User } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field } from '../components/ui'
@@ -804,7 +804,7 @@ export type BillingPageProps = {
 }
 
 export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = null, onEmbeddedClose, onEmbeddedSaved }: BillingPageProps = {}) {
-  const me = getStoredUser()!
+  const me = useAuthenticatedUser()
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const canIssueOpenInvoice = canIssueOpenInvoices(me)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(me)

@@ -13,6 +13,7 @@ import { OnboardingTour } from './OnboardingTour'
 import { NotificationCenter } from './NotificationCenter'
 import { ReferAFriendModal } from './ReferAFriendModal'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
+import type { User } from '../lib/types'
 import loginLogo from '../assets/login-logo.png'
 
 function AndroidNavIconCalendar() {
@@ -294,24 +295,22 @@ function SupportEmailModal({ locale, onClose }: { locale: string; onClose: () =>
   )
 }
 
-export function Shell({ children }: PropsWithChildren) {
+type ShellProps = PropsWithChildren<{ user: User }>
+
+export function Shell({ children, user }: ShellProps) {
   return (
     <CalendarShellHeaderProvider>
-      <ShellInner>{children}</ShellInner>
+      <ShellInner user={user}>{children}</ShellInner>
     </CalendarShellHeaderProvider>
   )
 }
 
-function ShellInner({ children }: PropsWithChildren) {
+function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { t, locale } = useLocale()
-  const [currentUser, setCurrentUser] = useState(() => getStoredUser())
-  const user = currentUser
-
-  if (!user) {
-    return null
-  }
+  const [currentUser, setCurrentUser] = useState(authenticatedUser)
+  const user = currentUser ?? authenticatedUser
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
@@ -367,13 +366,16 @@ function ShellInner({ children }: PropsWithChildren) {
   const headerRef = useRef<HTMLElement>(null)
   const { slots: calendarShellSlots } = useCalendarShellHeader()
   useEffect(() => {
+    setCurrentUser(authenticatedUser)
+  }, [authenticatedUser])
+  useEffect(() => {
     const bump = () => {
       setSessionUserBump((n) => n + 1)
-      setCurrentUser(getStoredUser())
+      setCurrentUser(getStoredUser() ?? authenticatedUser)
     }
     window.addEventListener('users-updated', bump)
     return () => window.removeEventListener('users-updated', bump)
-  }, [])
+  }, [authenticatedUser])
   const isCalendarRoute = location.pathname === '/calendar' || location.pathname.startsWith('/calendar/')
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */

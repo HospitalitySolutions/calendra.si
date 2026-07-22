@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts'
 import { api } from '../api'
-import { getStoredUser } from '../auth'
+import { useAuthenticatedUser } from '../authUserContext'
 import { useToast } from '../components/Toast'
 import { Card, EmptyState, PageHeader } from '../components/ui'
 import { fullName } from '../lib/format'
@@ -1157,7 +1157,7 @@ function serviceGroupMetricKey(group: ServiceGroupMetric) {
 }
 
 export function AnalyticsPage() {
-  const me = getStoredUser()!
+  const me = useAuthenticatedUser()
   const { locale } = useLocale()
   const { showToast } = useToast()
   const [periodPreset, setPeriodPreset] = useState<Preset>('month')
