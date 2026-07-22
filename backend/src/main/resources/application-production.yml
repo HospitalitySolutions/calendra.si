@@ -56,6 +56,7 @@ spring:
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  demo-booking-public-base-url: ${APP_DEMO_BOOKING_PUBLIC_BASE_URL:https://calendra.si}
   bootstrap:
     superadmin:
       enabled: ${APP_BOOTSTRAP_SUPERADMIN_ENABLED:false}

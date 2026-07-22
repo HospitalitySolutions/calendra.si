@@ -3,6 +3,7 @@ package com.example.app.zoom;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,8 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 public class ZoomService {
+    public record MeetingDetails(String externalId, String joinUrl) {}
+
     private static final String TOKEN_URL = "https://zoom.us/oauth/token";
     private static final String API_BASE = "https://api.zoom.us/v2";
 
@@ -44,17 +47,75 @@ public class ZoomService {
      * The consultant must have authorized Zoom first via /api/zoom/authorize.
      */
     public String createMeetingUrl(Long consultantId, LocalDateTime startTime, LocalDateTime endTime, String topic) {
+        return createMeetingDetails(consultantId, startTime, endTime, ZoneId.systemDefault(), topic).joinUrl();
+    }
+
+    public MeetingDetails createMeetingDetails(
+            Long consultantId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic) {
         if (!config.isConfigured()) {
             var meetingId = String.format("%010d", Math.abs(UUID.randomUUID().getMostSignificantBits()) % 1_000_000_000L);
-            return "https://zoom.us/j/" + meetingId;
+            return new MeetingDetails(meetingId, "https://zoom.us/j/" + meetingId);
         }
         try {
             String accessToken = getOrRefreshAccessToken(consultantId);
-            return createMeeting(accessToken, startTime, endTime, topic);
+            return createMeeting(accessToken, startTime, endTime, zoneId, topic);
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to create Zoom meeting: " + e.getMessage());
+        }
+    }
+
+    public void updateMeeting(
+            Long consultantId,
+            String externalId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic) {
+        if (externalId == null || externalId.isBlank() || !config.isConfigured()) return;
+        try {
+            String accessToken = getOrRefreshAccessToken(consultantId);
+            long durationMinutes = Math.max(1, java.time.Duration.between(startTime, endTime).toMinutes());
+            ZoneId effectiveZone = zoneId == null ? ZoneId.systemDefault() : zoneId;
+            String startTimeIso = startTime.atZone(effectiveZone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            ObjectNode payload = objectMapper.createObjectNode();
+            payload.put("topic", topic);
+            payload.put("start_time", startTimeIso);
+            payload.put("duration", durationMinutes);
+            payload.put("timezone", effectiveZone.getId());
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+            restTemplate.exchange(
+                    URI.create(API_BASE + "/meetings/" + externalId),
+                    HttpMethod.PATCH,
+                    new HttpEntity<>(payload.toString(), headers),
+                    Void.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to update Zoom meeting: " + e.getMessage());
+        }
+    }
+
+    public void deleteMeeting(Long consultantId, String externalId) {
+        if (externalId == null || externalId.isBlank() || !config.isConfigured()) return;
+        try {
+            String accessToken = getOrRefreshAccessToken(consultantId);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            restTemplate.exchange(
+                    URI.create(API_BASE + "/meetings/" + externalId),
+                    HttpMethod.DELETE,
+                    new HttpEntity<>(headers),
+                    Void.class);
+        } catch (HttpClientErrorException.NotFound ignored) {
+            // Meeting was already removed in Zoom.
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to delete Zoom meeting: " + e.getMessage());
         }
     }
 
@@ -147,30 +208,35 @@ public class ZoomService {
         tokenRepo.save(token);
     }
 
-    private String createMeeting(String accessToken, LocalDateTime startTime, LocalDateTime endTime, String topic) throws Exception {
+    private MeetingDetails createMeeting(
+            String accessToken,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic) throws Exception {
         long durationMinutes = java.time.Duration.between(startTime, endTime).toMinutes();
         if (durationMinutes <= 0) durationMinutes = 60;
+        ZoneId effectiveZone = zoneId == null ? ZoneId.systemDefault() : zoneId;
+        String startTimeIso = startTime.atZone(effectiveZone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 
-        String startTimeIso = startTime.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-
-        var payload = String.format(
-            "{\"topic\":\"%s\",\"type\":2,\"start_time\":\"%s\",\"duration\":%d,\"timezone\":\"%s\"}",
-            topic.replace("\"", "\\\""),
-            startTimeIso,
-            (int) durationMinutes,
-            ZoneId.systemDefault().getId()
-        );
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("topic", topic);
+        payload.put("type", 2);
+        payload.put("start_time", startTimeIso);
+        payload.put("duration", durationMinutes);
+        payload.put("timezone", effectiveZone.getId());
+        payload.putObject("settings").put("waiting_room", true).put("join_before_host", false);
 
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(accessToken);
 
-        // "me" = the user whose token we have (the consultant who authorized Zoom)
         var url = API_BASE + "/users/me/meetings";
-        var request = new HttpEntity<>(payload, headers);
+        var request = new HttpEntity<>(payload.toString(), headers);
         var response = restTemplate.exchange(URI.create(url), HttpMethod.POST, request, String.class);
 
         var node = objectMapper.readTree(response.getBody());
-        return node.path("join_url").asText();
+        return new MeetingDetails(node.path("id").asText(), node.path("join_url").asText());
     }
+
 }

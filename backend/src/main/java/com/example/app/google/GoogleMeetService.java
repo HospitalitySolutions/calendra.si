@@ -24,6 +24,8 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 public class GoogleMeetService {
+    public record MeetingDetails(String externalId, String joinUrl) {}
+
     private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
     private static final String CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
     private static final String SCOPES = "https://www.googleapis.com/auth/calendar.events";
@@ -41,16 +43,64 @@ public class GoogleMeetService {
     }
 
     public String createMeetingUrl(Long consultantId, LocalDateTime startTime, LocalDateTime endTime, String topic) {
+        return createMeeting(consultantId, startTime, endTime, ZoneId.systemDefault(), topic, null, null).joinUrl();
+    }
+
+    public MeetingDetails createMeeting(
+            Long consultantId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic,
+            String attendeeEmail,
+            String description) {
         if (!config.isConfigured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Google Meet is not configured.");
         }
         try {
             String accessToken = getOrRefreshAccessToken(consultantId);
-            return createCalendarEventWithMeet(accessToken, startTime, endTime, topic);
+            return createCalendarEventWithMeet(accessToken, startTime, endTime, zoneId, topic, attendeeEmail, description);
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to create Google Meet: " + e.getMessage());
+        }
+    }
+
+    public void updateMeeting(
+            Long consultantId,
+            String externalId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic,
+            String attendeeEmail,
+            String description) {
+        if (externalId == null || externalId.isBlank()) return;
+        try {
+            String accessToken = getOrRefreshAccessToken(consultantId);
+            ObjectNode event = buildCalendarEvent(startTime, endTime, zoneId, topic, attendeeEmail, description, false);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+            String url = CALENDAR_API + "/" + externalId + "?conferenceDataVersion=1&sendUpdates=all";
+            restTemplate.exchange(URI.create(url), HttpMethod.PATCH, new HttpEntity<>(event.toString(), headers), String.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to update Google Meet: " + e.getMessage());
+        }
+    }
+
+    public void deleteMeeting(Long consultantId, String externalId) {
+        if (externalId == null || externalId.isBlank()) return;
+        try {
+            String accessToken = getOrRefreshAccessToken(consultantId);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            restTemplate.exchange(URI.create(CALENDAR_API + "/" + externalId + "?sendUpdates=all"), HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+        } catch (HttpClientErrorException.NotFound ignored) {
+            // Event was already removed in Google Calendar.
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to delete Google Meet: " + e.getMessage());
         }
     }
 
@@ -141,39 +191,68 @@ public class GoogleMeetService {
         tokenRepo.save(token);
     }
 
-    private String createCalendarEventWithMeet(String accessToken, LocalDateTime startTime, LocalDateTime endTime, String topic) throws Exception {
-        String zoneId = ZoneId.systemDefault().getId();
-        String startIso = startTime.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        String endIso = endTime.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    private MeetingDetails createCalendarEventWithMeet(
+            String accessToken,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic,
+            String attendeeEmail,
+            String description) throws Exception {
+        ObjectNode event = buildCalendarEvent(startTime, endTime, zoneId, topic, attendeeEmail, description, true);
 
-        ObjectNode event = objectMapper.createObjectNode();
-        event.put("summary", topic);
-        ObjectNode start = event.putObject("start");
-        start.put("dateTime", startIso);
-        start.put("timeZone", zoneId);
-        ObjectNode end = event.putObject("end");
-        end.put("dateTime", endIso);
-        end.put("timeZone", zoneId);
-        ObjectNode conferenceData = event.putObject("conferenceData");
-        ObjectNode createRequest = conferenceData.putObject("createRequest");
-        createRequest.put("requestId", UUID.randomUUID().toString());
-        createRequest.putObject("conferenceSolutionKey").put("type", "hangoutsMeet");
-
-        var headers = new HttpHeaders();
+        HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(accessToken);
 
-        String url = CALENDAR_API + "?conferenceDataVersion=1";
+        String url = CALENDAR_API + "?conferenceDataVersion=1&sendUpdates=all";
         var request = new HttpEntity<>(event.toString(), headers);
         var response = restTemplate.exchange(URI.create(url), HttpMethod.POST, request, String.class);
 
         var node = objectMapper.readTree(response.getBody());
+        String eventId = node.path("id").asText();
         var entryPoints = node.path("conferenceData").path("entryPoints");
         for (var ep : entryPoints) {
             if ("video".equals(ep.path("entryPointType").asText(null))) {
-                return ep.path("uri").asText();
+                return new MeetingDetails(eventId, ep.path("uri").asText());
             }
         }
+        String fallback = node.path("hangoutLink").asText();
+        if (!fallback.isBlank()) return new MeetingDetails(eventId, fallback);
         throw new RuntimeException("No Google Meet link in response");
     }
+
+    private ObjectNode buildCalendarEvent(
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ZoneId zoneId,
+            String topic,
+            String attendeeEmail,
+            String description,
+            boolean includeConferenceRequest) {
+        ZoneId effectiveZone = zoneId == null ? ZoneId.systemDefault() : zoneId;
+        String startIso = startTime.atZone(effectiveZone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        String endIso = endTime.atZone(effectiveZone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+
+        ObjectNode event = objectMapper.createObjectNode();
+        event.put("summary", topic);
+        if (description != null && !description.isBlank()) event.put("description", description);
+        ObjectNode start = event.putObject("start");
+        start.put("dateTime", startIso);
+        start.put("timeZone", effectiveZone.getId());
+        ObjectNode end = event.putObject("end");
+        end.put("dateTime", endIso);
+        end.put("timeZone", effectiveZone.getId());
+        if (attendeeEmail != null && !attendeeEmail.isBlank()) {
+            event.putArray("attendees").addObject().put("email", attendeeEmail.trim());
+        }
+        if (includeConferenceRequest) {
+            ObjectNode conferenceData = event.putObject("conferenceData");
+            ObjectNode createRequest = conferenceData.putObject("createRequest");
+            createRequest.put("requestId", UUID.randomUUID().toString());
+            createRequest.putObject("conferenceSolutionKey").put("type", "hangoutsMeet");
+        }
+        return event;
+    }
+
 }

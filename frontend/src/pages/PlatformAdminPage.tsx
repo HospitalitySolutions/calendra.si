@@ -5150,12 +5150,271 @@ function PlatformAnnouncementsPanel() {
   );
 }
 
+
+type DemoAvailabilityWindow = {
+  dayOfWeek: string;
+  enabled: boolean;
+  start: string;
+  end: string;
+};
+
+type DemoBookingHost = {
+  id: number;
+  name: string;
+  email: string;
+  googleMeetConnected: boolean;
+  zoomConnected: boolean;
+};
+
+type DemoBookingProfileAdmin = {
+  id: number | null;
+  enabled: boolean;
+  slug: string;
+  title: string;
+  durationMinutes: number;
+  slotStepMinutes: number;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  minimumNoticeMinutes: number;
+  bookingHorizonDays: number;
+  maximumBookingsPerDay: number;
+  timeZone: string;
+  meetingProvider: string;
+  hostUserId: number | null;
+  hostName: string;
+  hostEmail: string;
+  availability: DemoAvailabilityWindow[];
+  googleMeetConnected: boolean;
+  zoomConnected: boolean;
+};
+
+type DemoBookingAdminRow = {
+  id: number;
+  status: string;
+  startAt: string;
+  endAt: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  companyName: string;
+  guestNote?: string;
+  meetingProvider: string;
+  meetingJoinUrl?: string;
+  hostName: string;
+  guestTimeZone: string;
+  createdAt: string;
+};
+
+const DEMO_DAY_LABELS: Record<string, string> = {
+  MONDAY: "Monday",
+  TUESDAY: "Tuesday",
+  WEDNESDAY: "Wednesday",
+  THURSDAY: "Thursday",
+  FRIDAY: "Friday",
+  SATURDAY: "Saturday",
+  SUNDAY: "Sunday",
+};
+
+const DEFAULT_DEMO_AVAILABILITY: DemoAvailabilityWindow[] = Object.keys(DEMO_DAY_LABELS).map((day, index) => ({
+  dayOfWeek: day,
+  enabled: index < 5,
+  start: "09:00",
+  end: index < 5 ? "17:00" : "13:00",
+}));
+
+function DemoCallsAdminPanel() {
+  const [profile, setProfile] = useState<DemoBookingProfileAdmin | null>(null);
+  const [hosts, setHosts] = useState<DemoBookingHost[]>([]);
+  const [rows, setRows] = useState<DemoBookingAdminRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const from = new Date(Date.now() - 30 * 86400000).toISOString();
+      const to = new Date(Date.now() + 120 * 86400000).toISOString();
+      const [profileResponse, hostsResponse, rowsResponse] = await Promise.all([
+        api.get<DemoBookingProfileAdmin>("/platform-admin/demo-bookings/profile"),
+        api.get<DemoBookingHost[]>("/platform-admin/demo-bookings/hosts"),
+        api.get<DemoBookingAdminRow[]>("/platform-admin/demo-bookings", { params: { from, to } }),
+      ]);
+      setProfile({
+        ...profileResponse.data,
+        availability: profileResponse.data.availability?.length
+          ? profileResponse.data.availability
+          : DEFAULT_DEMO_AVAILABILITY,
+      });
+      setHosts(hostsResponse.data || []);
+      setRows(rowsResponse.data || []);
+    } catch (err) {
+      setError(axios.isAxiosError(err)
+        ? String(err.response?.data?.message || err.response?.data?.error || err.message)
+        : "Could not load demo-call settings.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const patchProfile = <K extends keyof DemoBookingProfileAdmin>(key: K, value: DemoBookingProfileAdmin[K]) => {
+    setProfile((current) => current ? { ...current, [key]: value } : current);
+  };
+
+  const patchAvailability = (day: string, patch: Partial<DemoAvailabilityWindow>) => {
+    setProfile((current) => {
+      if (!current) return current;
+      const existing = current.availability?.length ? current.availability : DEFAULT_DEMO_AVAILABILITY;
+      return {
+        ...current,
+        availability: existing.map((row) => row.dayOfWeek === day ? { ...row, ...patch } : row),
+      };
+    });
+  };
+
+  const save = async () => {
+    if (!profile) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const { data } = await api.put<DemoBookingProfileAdmin>("/platform-admin/demo-bookings/profile", {
+        enabled: profile.enabled,
+        slug: "predstavitev",
+        title: profile.title,
+        durationMinutes: profile.durationMinutes,
+        slotStepMinutes: profile.slotStepMinutes,
+        bufferBeforeMinutes: profile.bufferBeforeMinutes,
+        bufferAfterMinutes: profile.bufferAfterMinutes,
+        minimumNoticeMinutes: profile.minimumNoticeMinutes,
+        bookingHorizonDays: profile.bookingHorizonDays,
+        maximumBookingsPerDay: profile.maximumBookingsPerDay,
+        timeZone: profile.timeZone,
+        meetingProvider: profile.meetingProvider,
+        hostUserId: profile.hostUserId,
+        availability: profile.availability,
+      });
+      setProfile(data);
+      setSuccess("Demo-call booking settings saved.");
+    } catch (err) {
+      setError(axios.isAxiosError(err)
+        ? String(err.response?.data?.message || err.response?.data?.error || err.message)
+        : "Could not save demo-call settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancel = async (bookingId: number) => {
+    if (!window.confirm("Cancel this demo call and notify the potential client?")) return;
+    try {
+      await api.post(`/platform-admin/demo-bookings/${bookingId}/cancel`, null, { params: { locale: "sl" } });
+      await load();
+    } catch (err) {
+      setError(axios.isAxiosError(err)
+        ? String(err.response?.data?.message || err.response?.data?.error || err.message)
+        : "Could not cancel the demo call.");
+    }
+  };
+
+  if (loading || !profile) {
+    return <div className="platform-admin-panel platform-admin-panel-pad"><p className="platform-admin-muted">Loading demo-call settings…</p></div>;
+  }
+
+  const selectedHost = hosts.find((host) => host.id === profile.hostUserId);
+  const providerConnected = profile.meetingProvider === "ZOOM"
+    ? selectedHost?.zoomConnected
+    : selectedHost?.googleMeetConnected;
+  const upcoming = rows.filter((row) => row.status === "CONFIRMED" && new Date(row.startAt).getTime() >= Date.now());
+  const history = rows.filter((row) => row.status !== "CONFIRMED" || new Date(row.startAt).getTime() < Date.now());
+
+  return (
+    <div className="platform-admin-demo-calls">
+      <div className="platform-admin-page-head platform-admin-head">
+        <div className="platform-admin-page-title">
+          <div className="platform-admin-eyebrow">Sales booking</div>
+          <h1>Demo calls</h1>
+          <p>Publish a 30-minute booking calendar on calendra.si and use the selected Platform Admin calendar as the source of busy time.</p>
+        </div>
+        <div className="platform-admin-top-actions">
+          <a className="platform-admin-button platform-admin-secondary" href="https://calendra.si/predstavitev" target="_blank" rel="noreferrer">Open public page</a>
+          <button className="platform-admin-button platform-admin-primary" type="button" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>
+        </div>
+      </div>
+
+      {error ? <p className="platform-admin-search-err">{error}</p> : null}
+      {success ? <p className="platform-admin-demo-success">{success}</p> : null}
+
+      <div className="platform-admin-grid platform-admin-grid-2">
+        <section className="platform-admin-section-card">
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title"><h2>Public booking profile</h2><p>Availability is combined with the host's Calendra calendar and connected Google Calendar busy blocks.</p></div>
+            <label className="platform-admin-demo-toggle"><input type="checkbox" checked={profile.enabled} onChange={(event) => patchProfile("enabled", event.target.checked)} /><span>{profile.enabled ? "Enabled" : "Disabled"}</span></label>
+          </div>
+          <div className="platform-admin-form-grid">
+            <label className="platform-admin-field platform-admin-span-2"><span>Meeting title</span><input value={profile.title} onChange={(event) => patchProfile("title", event.target.value)} /></label>
+            <label className="platform-admin-field"><span>Host</span><select value={profile.hostUserId ?? ""} onChange={(event) => patchProfile("hostUserId", event.target.value ? Number(event.target.value) : null)}><option value="">Select host</option>{hosts.map((host) => <option key={host.id} value={host.id}>{host.name || host.email}</option>)}</select></label>
+            <label className="platform-admin-field"><span>Meeting provider</span><select value={profile.meetingProvider} onChange={(event) => patchProfile("meetingProvider", event.target.value)}><option value="GOOGLE_MEET">Google Meet</option><option value="ZOOM">Zoom</option></select></label>
+            <label className="platform-admin-field"><span>Duration (minutes)</span><input type="number" min={15} max={180} value={profile.durationMinutes} onChange={(event) => patchProfile("durationMinutes", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Slot interval (minutes)</span><input type="number" min={5} max={180} value={profile.slotStepMinutes} onChange={(event) => patchProfile("slotStepMinutes", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Buffer before</span><input type="number" min={0} max={180} value={profile.bufferBeforeMinutes} onChange={(event) => patchProfile("bufferBeforeMinutes", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Buffer after</span><input type="number" min={0} max={180} value={profile.bufferAfterMinutes} onChange={(event) => patchProfile("bufferAfterMinutes", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Minimum notice (minutes)</span><input type="number" min={0} value={profile.minimumNoticeMinutes} onChange={(event) => patchProfile("minimumNoticeMinutes", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Booking horizon (days)</span><input type="number" min={1} max={365} value={profile.bookingHorizonDays} onChange={(event) => patchProfile("bookingHorizonDays", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Maximum calls per day</span><input type="number" min={0} max={50} value={profile.maximumBookingsPerDay} onChange={(event) => patchProfile("maximumBookingsPerDay", Number(event.target.value))} /></label>
+            <label className="platform-admin-field"><span>Time zone</span><input value={profile.timeZone} onChange={(event) => patchProfile("timeZone", event.target.value)} /></label>
+          </div>
+          <div className={`platform-admin-demo-provider ${providerConnected ? "is-ready" : "is-missing"}`}>
+            <strong>{profile.meetingProvider === "ZOOM" ? "Zoom" : "Google Meet"}</strong>
+            <span>{providerConnected ? "Connected for the selected host." : "The selected host must connect this provider before bookings can be enabled."}</span>
+          </div>
+        </section>
+
+        <section className="platform-admin-section-card">
+          <h2>Weekly availability</h2>
+          <p className="platform-admin-muted">These windows create bookable slots. Existing sessions and personal/calendar blocks remain unavailable automatically.</p>
+          <div className="platform-admin-demo-availability">
+            {DEFAULT_DEMO_AVAILABILITY.map((fallback) => {
+              const row = profile.availability.find((item) => item.dayOfWeek === fallback.dayOfWeek) || fallback;
+              return <div key={fallback.dayOfWeek} className={`platform-admin-demo-day${row.enabled ? " is-enabled" : ""}`}>
+                <label><input type="checkbox" checked={row.enabled} onChange={(event) => patchAvailability(row.dayOfWeek, { enabled: event.target.checked })} /><strong>{DEMO_DAY_LABELS[row.dayOfWeek]}</strong></label>
+                <input type="time" value={row.start} disabled={!row.enabled} onChange={(event) => patchAvailability(row.dayOfWeek, { start: event.target.value })} />
+                <span>to</span>
+                <input type="time" value={row.end} disabled={!row.enabled} onChange={(event) => patchAvailability(row.dayOfWeek, { end: event.target.value })} />
+              </div>;
+            })}
+          </div>
+        </section>
+      </div>
+
+      <section className="platform-admin-section-card" style={{ marginTop: 16 }}>
+        <div className="platform-admin-section-head"><div className="platform-admin-section-title"><h2>Upcoming demo calls</h2><p>{upcoming.length} confirmed booking{upcoming.length === 1 ? "" : "s"}</p></div><button className="platform-admin-button platform-admin-secondary platform-admin-small" type="button" onClick={() => void load()}>Refresh</button></div>
+        {upcoming.length === 0 ? <p className="platform-admin-muted">No upcoming demo calls.</p> : <div className="platform-admin-demo-booking-list">{upcoming.map((row) => <article key={row.id} className="platform-admin-demo-booking-card">
+          <div><strong>{row.guestName} · {row.companyName}</strong><p>{new Date(row.startAt).toLocaleString("sl-SI", { dateStyle: "medium", timeStyle: "short" })} · {row.hostName}</p><small>{row.guestEmail}{row.guestPhone ? ` · ${row.guestPhone}` : ""}</small></div>
+          <div className="platform-admin-top-actions">{row.meetingJoinUrl ? <a className="platform-admin-button platform-admin-secondary platform-admin-small" href={row.meetingJoinUrl} target="_blank" rel="noreferrer">Join call</a> : null}<button className="platform-admin-button platform-admin-secondary platform-admin-small" type="button" onClick={() => void cancel(row.id)}>Cancel</button></div>
+        </article>)}</div>}
+      </section>
+
+      {history.length ? <section className="platform-admin-section-card" style={{ marginTop: 16 }}><h2>Recent history</h2><div className="platform-admin-demo-booking-list">{history.slice(0, 20).map((row) => <article key={row.id} className="platform-admin-demo-booking-card is-history"><div><strong>{row.guestName} · {row.companyName}</strong><p>{new Date(row.startAt).toLocaleString("sl-SI", { dateStyle: "medium", timeStyle: "short" })}</p></div><span className="platform-admin-pill">{row.status}</span></article>)}</div></section> : null}
+
+      <style>{`
+        .platform-admin-demo-success{padding:12px 14px;border:1px solid #b8ebcf;border-radius:12px;background:#effcf5;color:#087a3e;font-weight:700}.platform-admin-demo-toggle{display:inline-flex;align-items:center;gap:8px;font-weight:800;color:#344054}.platform-admin-demo-provider{display:grid;gap:4px;margin-top:16px;padding:13px 14px;border-radius:12px;border:1px solid #f2c5c5;background:#fff6f6;color:#a12626}.platform-admin-demo-provider.is-ready{border-color:#b8ebcf;background:#effcf5;color:#087a3e}.platform-admin-demo-provider span{font-size:12px;font-weight:600}.platform-admin-demo-availability{display:grid;gap:9px;margin-top:16px}.platform-admin-demo-day{display:grid;grid-template-columns:minmax(130px,1fr) 112px auto 112px;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.platform-admin-demo-day.is-enabled{background:#fff}.platform-admin-demo-day label{display:flex;align-items:center;gap:9px}.platform-admin-demo-day input[type=time]{min-width:0;padding:8px;border:1px solid #d9e1ec;border-radius:9px;background:#fff}.platform-admin-demo-booking-list{display:grid;gap:10px;margin-top:14px}.platform-admin-demo-booking-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 16px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.platform-admin-demo-booking-card p{margin:5px 0;color:#64748b}.platform-admin-demo-booking-card small{color:#8492a6}.platform-admin-demo-booking-card.is-history{opacity:.82}@media(max-width:720px){.platform-admin-demo-day{grid-template-columns:1fr 1fr}.platform-admin-demo-day span{display:none}.platform-admin-demo-booking-card{align-items:flex-start;flex-direction:column}}
+      `}</style>
+    </div>
+  );
+}
+
 type AdminWorkspaceTab =
   | "overview"
   | "tenants"
   | "referrals"
   | "announcements"
   | "monitoring"
+  | "demo-calls"
   | "plans"
   | "fiscalization"
   | "ajpes"
@@ -5173,6 +5432,7 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: "referrals", label: "Referrals" },
   { id: "announcements", label: "Announcements" },
   { id: "monitoring", label: "Monitoring" },
+  { id: "demo-calls", label: "Demo calls" },
   { id: "plans", label: "Plan & add-ons" },
   { id: "fiscalization", label: "Fiscalization" },
   { id: "ajpes", label: "Ajpes" },
@@ -6903,6 +7163,8 @@ export function PlatformAdminPage() {
                   </>
                 ) : workspace === "monitoring" ? (
                   <MonitoringAdminPanel />
+                ) : workspace === "demo-calls" ? (
+                  <DemoCallsAdminPanel />
                 ) : workspace === "plans" ? (
                   <div className="platform-admin-panel platform-admin-panel-pad">
                     <PlanPricesAdminPanel />
