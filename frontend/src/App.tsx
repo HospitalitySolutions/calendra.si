@@ -15,6 +15,7 @@ import { RegisterBillingDetailsPage } from './pages/RegisterBillingDetailsPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { CourseAccessPage } from './pages/CourseAccessPage'
 import { PublicBookingManagePage } from './pages/PublicBookingManagePage'
+import { PublicDemoBookingManagePage } from './pages/PublicDemoBookingManagePage'
 import { PublicWaitlistOfferPage } from './pages/PublicWaitlistOfferPage'
 import { ReceivedInvoiceDownloadPage, ReceivedInvoicesRedirectPage } from './pages/ReceivedInvoiceDownloadPage'
 import { Shell } from './components/Shell'
@@ -324,6 +325,17 @@ export default function App() {
     return (
       <Routes>
         <Route path="/public-booking/manage/:token" element={<PublicBookingManagePage />} />
+      </Routes>
+    )
+  }
+  if (location.pathname.startsWith('/public-demo-booking/manage/')
+      || location.pathname.startsWith('/predstavitev/upravljanje/')
+      || location.pathname.startsWith('/en/demo/manage/')) {
+    return (
+      <Routes>
+        <Route path="/public-demo-booking/manage/:token" element={<PublicDemoBookingManagePage />} />
+        <Route path="/predstavitev/upravljanje/:token" element={<PublicDemoBookingManagePage />} />
+        <Route path="/en/demo/manage/:token" element={<PublicDemoBookingManagePage />} />
       </Routes>
     )
   }
