@@ -11,6 +11,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.session.BookableSlot;
+import com.example.app.session.BookingSource;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -506,13 +507,14 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, httpRequest, true, "bookings");
+        BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);
         widgetTurnstileService.verifyForPublicAction(company, request.turnstileToken(), widgetPublicAuditLogger.clientIp(httpRequest));
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         SessionType type = resolveType(company.getId(), request.typeId());
         try {
             if (request.groupSessionId() != null) {
-                PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "group-booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> joinGroupSession(company, type, request));
+                PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "group-booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> joinGroupSession(company, type, request, bookingSource));
                 widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "success", "typeId=" + type.getId() + ",groupSessionId=" + request.groupSessionId());
                 return response;
             }
@@ -544,7 +546,7 @@ public class PublicBookingWidgetService {
                         end,
                         null,
                         type.getId(),
-                        "Booked via website widget",
+                        bookingNotes(bookingSource),
                         null,
                         false,
                         null,
@@ -553,7 +555,8 @@ public class PublicBookingWidgetService {
                         null,
                         null,
                         "CONFIRMED",
-                        true
+                        true,
+                        bookingSource
                 ));
                 String consultantName = booking.getConsultant() == null
                         ? null
@@ -585,6 +588,7 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, httpRequest, true, "waitlist");
+        BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);
         featureAccess.assertWaitlistEnabled(company.getId());
 
         WaitlistSettingsService.WaitlistSettings waitlistCfg = waitlistSettingsService.get(company.getId());
@@ -672,7 +676,9 @@ public class PublicBookingWidgetService {
                                         finalPreferredEmployee == null ? null : finalPreferredEmployee.getId(),
                                         List.of(),
                                         1,
-                                        WaitlistSource.WIDGET,
+                                        bookingSource == BookingSource.PUBLIC_BOOKING_PAGE
+                                                ? WaitlistSource.PUBLIC_BOOKING_PAGE
+                                                : WaitlistSource.WIDGET,
                                         request.notes(),
                                         requestWindows
                                 )
@@ -738,7 +744,8 @@ public class PublicBookingWidgetService {
     protected PublicBookingWidgetController.BookingResponse joinGroupSession(
             Company company,
             SessionType type,
-            PublicBookingWidgetController.BookingRequest request
+            PublicBookingWidgetController.BookingRequest request,
+            BookingSource bookingSource
     ) {
         if (!isWebsiteBookingEnabled(type)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not enabled for website booking.");
@@ -769,7 +776,8 @@ public class PublicBookingWidgetService {
                 null,
                 null,
                 "CONFIRMED",
-                true
+                true,
+                bookingSource
         ));
 
         String consultantName = joined.getConsultant() == null
@@ -785,6 +793,12 @@ public class PublicBookingWidgetService {
         );
     }
 
+
+    private String bookingNotes(BookingSource bookingSource) {
+        return bookingSource == BookingSource.PUBLIC_BOOKING_PAGE
+                ? "Booked via Calendra public booking page"
+                : "Booked via website widget";
+    }
 
     private void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
         try {

@@ -9,6 +9,7 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.session.BookableSlotRepository;
+import com.example.app.session.BookingSource;
 import com.example.app.session.ServiceGroup;
 import com.example.app.session.ServiceGroupRepository;
 import com.example.app.session.SessionBooking;
@@ -381,6 +382,9 @@ public class WaitlistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The maximum number of active waitlist requests has been reached.");
         }
 
+        WaitlistSource widgetSource = input != null && input.source() == WaitlistSource.PUBLIC_BOOKING_PAGE
+                ? WaitlistSource.PUBLIC_BOOKING_PAGE
+                : WaitlistSource.WIDGET;
         input = new RequestInput(
                 client.getId(),
                 input == null ? null : input.serviceId(),
@@ -395,7 +399,7 @@ public class WaitlistService {
                 input == null ? null : input.specificEmployeeId(),
                 input == null ? List.of() : input.employeeIds(),
                 input == null ? 1 : input.requestedParticipants(),
-                WaitlistSource.WIDGET,
+                widgetSource,
                 input == null ? null : input.notes(),
                 input == null ? List.of() : input.windows()
         );
@@ -428,7 +432,7 @@ public class WaitlistService {
         row.setSpecificEmployee(specificEmployee);
         row.setRequestedParticipants(Math.max(1, Optional.ofNullable(input.requestedParticipants()).orElse(1)));
         row.setStatus(WaitlistRequestStatus.ACTIVE);
-        row.setSource(WaitlistSource.WIDGET);
+        row.setSource(widgetSource);
         row.setNotes(trimToNull(input.notes()));
         row.setJoinedAt(Instant.now());
         row.setExpiresAt(input.dateTo().plusDays(1).atStartOfDay(ZONE).toInstant());
@@ -623,7 +627,8 @@ public class WaitlistService {
                     String.valueOf(request.getId()),
                     request.getGuestUserId() == null ? null : String.valueOf(request.getGuestUserId()),
                     SessionBookingStatus.RESERVED,
-                    true
+                    true,
+                    bookingSourceForWaitlist(request.getSource())
             ));
         } else {
             User bookingActor = users.findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(companyId, Role.ADMIN)
@@ -652,6 +657,7 @@ public class WaitlistService {
             booking = bookings.findByIdAndCompanyId(created.id(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Created booking could not be loaded."));
             booking.setSourceChannel("WAITLIST");
+            booking.setBookingSource(bookingSourceForWaitlist(request.getSource()));
             booking.setSourceOrderId(String.valueOf(request.getId()));
             booking.setGuestUserId(request.getGuestUserId() == null ? null : String.valueOf(request.getGuestUserId()));
             booking = bookings.save(booking);
@@ -669,6 +675,13 @@ public class WaitlistService {
                 "/calendar?bookingId=" + booking.getId());
         guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.BOOKED);
         return booking;
+    }
+
+    private BookingSource bookingSourceForWaitlist(WaitlistSource source) {
+        if (source == WaitlistSource.PUBLIC_BOOKING_PAGE) return BookingSource.PUBLIC_BOOKING_PAGE;
+        if (source == WaitlistSource.WIDGET) return BookingSource.WEBSITE_WIDGET;
+        if (source == WaitlistSource.GUEST_APP) return BookingSource.MOBILE_APP;
+        return BookingSource.MANUAL;
     }
 
     @Transactional

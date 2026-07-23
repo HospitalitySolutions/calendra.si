@@ -136,6 +136,11 @@ public class SessionBooking extends BaseEntity {
     @Column(name = "source_channel", length = 32)
     private String sourceChannel = "STAFF";
 
+    /** User-facing origin shown in the session editor. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_source", nullable = false, length = 32)
+    private BookingSource bookingSource = BookingSource.MANUAL;
+
     @Column(name = "source_order_id", length = 64)
     private String sourceOrderId;
 

@@ -380,6 +380,7 @@ public class SessionBookingCreationService {
                 row.setGuestUserId(null);
                 row.setSourceOrderId(null);
                 row.setSourceChannel("STAFF");
+                row.setBookingSource(BookingSource.MANUAL);
             }
             mergeSessionGroupOverrides(row, req, companyId, representative.getClientGroup());
             mergeSessionPayeeOverride(row, req, companyId, clientId);
@@ -465,8 +466,33 @@ public class SessionBookingCreationService {
             String sourceOrderId,
             String guestUserId,
             String bookingStatus,
-            boolean sendConfirmation
-    ) {}
+            boolean sendConfirmation,
+            BookingSource bookingSource
+    ) {
+        public ChannelBookingRequest(
+                Long companyId,
+                Long clientId,
+                Long consultantId,
+                LocalDateTime start,
+                LocalDateTime end,
+                Long spaceId,
+                Long typeId,
+                String notes,
+                String meetingLink,
+                Boolean online,
+                String meetingProvider,
+                boolean allowPersonalBlockOverlap,
+                String sourceChannel,
+                String sourceOrderId,
+                String guestUserId,
+                String bookingStatus,
+                boolean sendConfirmation
+        ) {
+            this(companyId, clientId, consultantId, start, end, spaceId, typeId, notes, meetingLink,
+                    online, meetingProvider, allowPersonalBlockOverlap, sourceChannel, sourceOrderId,
+                    guestUserId, bookingStatus, sendConfirmation, null);
+        }
+    }
 
     public record GroupJoinRequest(
             Long companyId,
@@ -476,8 +502,23 @@ public class SessionBookingCreationService {
             String sourceOrderId,
             String guestUserId,
             String bookingStatus,
-            boolean sendConfirmation
-    ) {}
+            boolean sendConfirmation,
+            BookingSource bookingSource
+    ) {
+        public GroupJoinRequest(
+                Long companyId,
+                Long representativeBookingId,
+                Long clientId,
+                String sourceChannel,
+                String sourceOrderId,
+                String guestUserId,
+                String bookingStatus,
+                boolean sendConfirmation
+        ) {
+            this(companyId, representativeBookingId, clientId, sourceChannel, sourceOrderId,
+                    guestUserId, bookingStatus, sendConfirmation, null);
+        }
+    }
 
     @Transactional
     public SessionBooking createChannelBooking(ChannelBookingRequest request) {
@@ -558,7 +599,7 @@ public class SessionBookingCreationService {
                 SessionBookingStatus.RESERVED
         );
         booking.setClient(client);
-        applyChannelMetadata(booking, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+        applyChannelMetadata(booking, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus(), request.bookingSource());
         booking = repo.save(booking);
         repo.flush();
         if (request.sendConfirmation()) {
@@ -666,7 +707,7 @@ public class SessionBookingCreationService {
             joined.setPayeeType("COMPANY");
             joined.setPayeeCompany(representative.getPayeeCompany());
         }
-        applyChannelMetadata(joined, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+        applyChannelMetadata(joined, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus(), request.bookingSource());
         joined = repo.save(joined);
         if (request.sendConfirmation()) {
             joined = sendBookingConfirmationWhenReady(joined);
@@ -965,8 +1006,18 @@ public class SessionBookingCreationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
     }
 
-    private void applyChannelMetadata(SessionBooking booking, Long companyId, String sourceChannel, String sourceOrderId, String guestUserId, String bookingStatus) {
-        booking.setSourceChannel(sourceChannel == null || sourceChannel.isBlank() ? "STAFF" : sourceChannel.trim());
+    private void applyChannelMetadata(
+            SessionBooking booking,
+            Long companyId,
+            String sourceChannel,
+            String sourceOrderId,
+            String guestUserId,
+            String bookingStatus,
+            BookingSource bookingSource
+    ) {
+        String normalizedChannel = sourceChannel == null || sourceChannel.isBlank() ? "STAFF" : sourceChannel.trim();
+        booking.setSourceChannel(normalizedChannel);
+        booking.setBookingSource(BookingSource.resolve(bookingSource, normalizedChannel));
         booking.setSourceOrderId(sourceOrderId == null || sourceOrderId.isBlank() ? null : sourceOrderId.trim());
         booking.setGuestUserId(guestUserId == null || guestUserId.isBlank() ? null : guestUserId.trim());
         booking.setBookingStatus(resolveRequestedStoredStatusForCreate(companyId, bookingStatus));
@@ -1363,6 +1414,13 @@ public class SessionBookingCreationService {
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst()
                 .orElse(null);
+        SessionBooking sourceRepresentative = existingRows.get(0);
+        BookingSource existingBookingSource = sourceRepresentative.getBookingSource() == null
+                ? BookingSource.fromSourceChannel(sourceRepresentative.getSourceChannel())
+                : sourceRepresentative.getBookingSource();
+        String existingSourceChannel = sourceRepresentative.getSourceChannel();
+        String existingSourceOrderId = sourceRepresentative.getSourceOrderId();
+        String existingGuestUserId = sourceRepresentative.getGuestUserId();
         SessionBooking keep =
                 existingRows.stream().filter(row -> row.getClient() == null).findFirst().orElse(null);
         SessionBooking retainedRow = keep;
@@ -1398,6 +1456,10 @@ public class SessionBookingCreationService {
             keep = new SessionBooking();
             keep.setBookingGroupKey(groupKey);
             keep.setRecurrenceSeriesKey(existingRecurrenceSeriesKey);
+            keep.setSourceChannel(existingSourceChannel == null || existingSourceChannel.isBlank() ? "STAFF" : existingSourceChannel);
+            keep.setBookingSource(existingBookingSource);
+            keep.setSourceOrderId(existingSourceOrderId);
+            keep.setGuestUserId(existingGuestUserId);
         }
         applySharedFields(keep, req, me, start, end, companyId, meetingLink, bookingStatus);
         keep.setBookingGroupKey(groupKey);

@@ -15,6 +15,7 @@ import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.order.GuestOrderService;
+import com.example.app.session.BookingSource;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -157,13 +158,19 @@ public class PublicWidgetOrderService {
                 request.language()
         );
         String idempotencyKey = idempotencyKey(httpRequest);
+        BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);
         return widgetBookingIdempotencyService.execute(
                 company,
                 "orders",
                 idempotencyKey,
                 normalized,
                 GuestDtos.CreateOrderResponse.class,
-                () -> guestOrderService.createOrder(guestUser, normalized, GuestOrderService.PaymentChannel.WEBSITE)
+                () -> guestOrderService.createOrder(
+                        guestUser,
+                        normalized,
+                        GuestOrderService.PaymentChannel.WEBSITE,
+                        bookingSource
+                )
         );
     }
 

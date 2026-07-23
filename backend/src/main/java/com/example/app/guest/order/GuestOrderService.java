@@ -18,6 +18,7 @@ import com.example.app.stripe.StripeGuestCheckoutService;
 import com.example.app.widget.WebsiteWidgetSettingsService;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.BookingChangePublisher;
+import com.example.app.session.BookingSource;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingCreationService;
@@ -178,6 +179,22 @@ public class GuestOrderService {
 
     @Transactional
     public GuestDtos.CreateOrderResponse createOrder(GuestUser guestUser, GuestDtos.CreateOrderRequest request, PaymentChannel channel) {
+        BookingSource source = channel == PaymentChannel.WEBSITE
+                ? BookingSource.WEBSITE_WIDGET
+                : BookingSource.MOBILE_APP;
+        return createOrder(guestUser, request, channel, source);
+    }
+
+    @Transactional
+    public GuestDtos.CreateOrderResponse createOrder(
+            GuestUser guestUser,
+            GuestDtos.CreateOrderRequest request,
+            PaymentChannel channel,
+            BookingSource bookingSource
+    ) {
+        BookingSource normalizedBookingSource = bookingSource == null
+                ? (channel == PaymentChannel.WEBSITE ? BookingSource.WEBSITE_WIDGET : BookingSource.MOBILE_APP)
+                : bookingSource;
         Long companyId = parseId(request.companyId());
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         var product = catalogService.resolveProduct(companyId, request.productId(), guestUser);
@@ -189,7 +206,14 @@ public class GuestOrderService {
         assertPaymentMethodAllowed(companyId, paymentMethodType, product.productType(), channel);
         assertExternalCheckoutReadyBeforeOrderCreated(link, paymentMethodType);
 
-        GuestOrder reusableOrder = findReusableOrderForSameSlot(guestUser, companyId, request.slotId(), product, paymentMethodType);
+        GuestOrder reusableOrder = findReusableOrderForSameSlot(
+                guestUser,
+                companyId,
+                request.slotId(),
+                product,
+                paymentMethodType,
+                normalizedBookingSource
+        );
         if (reusableOrder != null) {
             GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null
                     ? null
@@ -212,14 +236,27 @@ public class GuestOrderService {
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(orderSubtotal);
         order.setReferenceCode(nextGuestOrderReferenceCode(link));
-        order.setMetadataJson(buildMetadataJson(request.slotId(), product, request.entitlementId(), channel));
+        order.setMetadataJson(buildMetadataJson(
+                request.slotId(),
+                product,
+                request.entitlementId(),
+                channel,
+                normalizedBookingSource
+        ));
         order = orders.save(order);
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
         return new GuestDtos.CreateOrderResponse(toOrder(order), bookingSummary, "CHECKOUT");
     }
 
-    private GuestOrder findReusableOrderForSameSlot(GuestUser guestUser, Long companyId, String slotId, GuestCatalogService.ResolvedProduct product, GuestPaymentMethodType paymentMethodType) {
+    private GuestOrder findReusableOrderForSameSlot(
+            GuestUser guestUser,
+            Long companyId,
+            String slotId,
+            GuestCatalogService.ResolvedProduct product,
+            GuestPaymentMethodType paymentMethodType,
+            BookingSource bookingSource
+    ) {
         if (guestUser == null || companyId == null || slotId == null || slotId.isBlank() || product == null || paymentMethodType == null) {
             return null;
         }
@@ -227,6 +264,7 @@ public class GuestOrderService {
                 .stream()
                 .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
                 .filter(order -> order.getPaymentMethodType() == paymentMethodType)
+                .filter(order -> bookingSourceForOrder(order) == bookingSource)
                 .filter(order -> sameOrderSlotAndProduct(order, slotId, product))
                 .findFirst()
                 .orElse(null);
@@ -788,7 +826,13 @@ public class GuestOrderService {
         return "ORD-" + UUID.randomUUID().toString().toUpperCase(Locale.ROOT);
     }
 
-    private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product, String entitlementId, PaymentChannel channel) {
+    private String buildMetadataJson(
+            String slotId,
+            GuestCatalogService.ResolvedProduct product,
+            String entitlementId,
+            PaymentChannel channel,
+            BookingSource bookingSource
+    ) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", slotId);
@@ -801,6 +845,7 @@ public class GuestOrderService {
             map.put("priceGross", product.priceGross() == null ? null : product.priceGross().doubleValue());
             map.put("channel", channel == null ? PaymentChannel.GUEST.name() : channel.name());
             map.put("sourceChannel", sourceChannelForChannel(channel));
+            map.put("bookingSource", bookingSource == null ? null : bookingSource.name());
             return JSON.writeValueAsString(map);
         } catch (Exception ex) {
             return "{}";
@@ -1328,10 +1373,29 @@ public class GuestOrderService {
         return "GUEST_APP";
     }
 
+    private BookingSource bookingSourceForOrder(GuestOrder order) {
+        if (order != null && order.getMetadataJson() != null && !order.getMetadataJson().isBlank()) {
+            try {
+                Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+                Object explicitSource = map.get("bookingSource");
+                BookingSource parsed = BookingSource.parse(
+                        explicitSource == null ? null : String.valueOf(explicitSource),
+                        null
+                );
+                if (parsed != null) return parsed;
+            } catch (Exception ignored) {
+            }
+        }
+        return BookingSource.fromSourceChannel(sourceChannelForOrder(order));
+    }
+
     private String bookingNotesForOrder(GuestOrder order) {
-        return "WEBSITE_WIDGET".equalsIgnoreCase(sourceChannelForOrder(order))
-                ? "Booked via website widget"
-                : "Booked via guest mobile app";
+        return switch (bookingSourceForOrder(order)) {
+            case PUBLIC_BOOKING_PAGE -> "Booked via Calendra public booking page";
+            case WEBSITE_WIDGET -> "Booked via website widget";
+            case MOBILE_APP -> "Booked via guest mobile app";
+            case MANUAL -> "Created manually";
+        };
     }
 
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {
@@ -1345,7 +1409,8 @@ public class GuestOrderService {
                         String.valueOf(order.getId()),
                         String.valueOf(order.getGuestUser().getId()),
                         status,
-                        "CONFIRMED".equalsIgnoreCase(status)
+                        "CONFIRMED".equalsIgnoreCase(status),
+                        bookingSourceForOrder(order)
                 ));
             }
             User consultant = resolveBookingConsultant(order, slotContext);
@@ -1366,7 +1431,8 @@ public class GuestOrderService {
                     String.valueOf(order.getId()),
                     String.valueOf(order.getGuestUser().getId()),
                     status,
-                    "CONFIRMED".equalsIgnoreCase(status)
+                    "CONFIRMED".equalsIgnoreCase(status),
+                    bookingSourceForOrder(order)
             ));
         } catch (ResponseStatusException ex) {
             if (HttpStatus.CONFLICT.equals(ex.getStatusCode())) {

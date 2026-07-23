@@ -226,6 +226,8 @@ export type BookingPaymentStatus = {
   allocations?: BookingPaymentAllocation[]
 }
 
+export type BookingSource = 'MANUAL' | 'MOBILE_APP' | 'WEBSITE_WIDGET' | 'PUBLIC_BOOKING_PAGE'
+
 export type Booking = {
   id: number
   bookingGroupKey?: string
@@ -240,6 +242,7 @@ export type Booking = {
   meetingLink?: string
   meetingProvider?: string
   bookingStatus?: 'RESERVED' | 'CANCELLED' | 'NO_SHOW' | 'CONFIRMED'
+  bookingSource?: BookingSource
   billedAt?: string | null
   groupId?: number | null
   sessionGroupEmailOverride?: string | null

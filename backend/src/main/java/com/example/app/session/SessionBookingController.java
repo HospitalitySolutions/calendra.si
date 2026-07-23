@@ -245,6 +245,7 @@ public class SessionBookingController {
             String sessionGroupEmailOverride,
             GroupBillingCompanySummary sessionGroupBillingCompany,
             String bookingStatus,
+            BookingSource bookingSource,
             List<BookingPayeeResponse> payees,
             List<BookingPaymentStatusResponse> paymentStatuses
     ) {}
@@ -823,6 +824,7 @@ public class SessionBookingController {
                 base.sessionGroupEmailOverride(),
                 base.sessionGroupBillingCompany(),
                 base.bookingStatus(),
+                base.bookingSource(),
                 base.payees(),
                 statuses
         );
@@ -1220,6 +1222,7 @@ public class SessionBookingController {
                 representative.getSessionGroupEmailOverride(),
                 bcSumm,
                 SessionBookingStatus.normalizeStored(representative.getBookingStatus()),
+                representative.getBookingSource() == null ? BookingSource.MANUAL : representative.getBookingSource(),
                 payeeSummaries,
                 List.of()
         );

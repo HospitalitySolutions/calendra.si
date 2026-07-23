@@ -805,6 +805,13 @@
       this.setState({ activeStep: previous.id, error: '' });
     }
 
+    bookingSourceValue() {
+      const presentation = String(this.getAttribute('presentation') || '').trim().toLowerCase();
+      return presentation === 'standalone' || presentation === 'directory'
+        ? 'PUBLIC_BOOKING_PAGE'
+        : 'WEBSITE_WIDGET';
+    }
+
     async fetchJson(path, options) {
       const response = await fetch(`${this.options.baseUrl}${path}`, {
         method: options?.method || 'GET',
@@ -1667,6 +1674,7 @@
           headers: {
             ...authHeaders,
             'Idempotency-Key': `${submitKey}:order`,
+            'X-Calendra-Booking-Source': this.bookingSourceValue(),
           },
           body: {
             companyId: session.companyId || '',
@@ -1888,7 +1896,10 @@
           `/api/public/widget/${encodeURIComponent(this.options.tenant)}/waitlist`,
           {
             method: 'POST',
-            headers: { 'Idempotency-Key': this.newIdempotencyKey('waitlist') },
+            headers: {
+              'Idempotency-Key': this.newIdempotencyKey('waitlist'),
+              'X-Calendra-Booking-Source': this.bookingSourceValue(),
+            },
             body: {
               typeId: this.state.selectedServiceId,
               consultantId: form.consultantId ? Number(form.consultantId) : null,

@@ -84,6 +84,30 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           no: 'No',
           cancel: 'Cancel',
         }
+  const bookingSourceCode = String(selectedBookedSession?.bookingSource || 'MANUAL').toUpperCase()
+  const bookingSourceLabels = locale === 'sl'
+    ? {
+        MANUAL: { label: 'Ročno', description: 'Termin je ustvaril uporabnik v spletni aplikaciji.' },
+        MOBILE_APP: { label: 'Mobilna aplikacija', description: 'Rezervacija prek aplikacije za goste.' },
+        WEBSITE_WIDGET: { label: 'Spletni vtičnik', description: 'Rezervacija prek spletne strani stranke.' },
+        PUBLIC_BOOKING_PAGE: { label: 'Javna rezervacijska stran', description: 'Rezervacija prek javne strani Calendra.' },
+      }
+    : locale === 'sr'
+      ? {
+          MANUAL: { label: 'Ručno', description: 'Termin je kreirao korisnik u veb aplikaciji.' },
+          MOBILE_APP: { label: 'Mobilna aplikacija', description: 'Rezervacija preko aplikacije za goste.' },
+          WEBSITE_WIDGET: { label: 'Veb dodatak', description: 'Rezervacija preko veb stranice klijenta.' },
+          PUBLIC_BOOKING_PAGE: { label: 'Javna stranica za rezervacije', description: 'Rezervacija preko javne Calendra stranice.' },
+        }
+      : {
+          MANUAL: { label: 'Manual', description: 'Created by a user in the web application.' },
+          MOBILE_APP: { label: 'Mobile app', description: 'Booked through the guest mobile app.' },
+          WEBSITE_WIDGET: { label: 'Website widget', description: "Booked through the business's own website." },
+          PUBLIC_BOOKING_PAGE: { label: 'Public booking page', description: 'Booked through the Calendra public website.' },
+        }
+  const bookingSourceMeta = bookingSourceLabels[bookingSourceCode] || bookingSourceLabels.MANUAL
+  const bookingSourceFieldLabel = locale === 'sl' ? 'Vir rezervacije' : locale === 'sr' ? 'Izvor rezervacije' : 'Booking source'
+
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
   const bookedSessionSelectableMetaTypes = bookedSessionIsGroup
@@ -2325,6 +2349,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 </div>
               )}
+              <div className="form-row form-row-infield calendar-booking-field--source">
+                <span className="form-field-inline-label">{bookingSourceFieldLabel}</span>
+                <div className="form-field-inline-control">
+                  <div className="calendar-booking-source-card" role="status" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
+                    <span className="calendar-booking-source-card__icon" aria-hidden>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M3 12h18M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18" />
+                      </svg>
+                    </span>
+                    <span className="calendar-booking-source-card__copy">
+                      <strong>{bookingSourceMeta.label}</strong>
+                      <small>{bookingSourceMeta.description}</small>
+                    </span>
+                    <span className="calendar-booking-source-card__code">{bookingSourceCode}</span>
+                  </div>
+                </div>
+              </div>
               <div className="calendar-booking-row-divider calendar-booking-row-divider--timespan" aria-hidden />
               <div className="form-row form-row-timespan calendar-booking-timespan-row">
                 <CalendarLocalTimespanRow
