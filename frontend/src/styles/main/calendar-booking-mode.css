@@ -2976,58 +2976,53 @@
     }
 }
 
-/* Mobile session more menu: billing, scanner, source and delete actions */
-.calendar-mobile-session-more-menu__item--action {
-    width: 100%;
-    border: 0;
-    border-bottom: 1px solid #e9eef5;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
+/* Ensure the waitlist picker is always above the active booking editor. */
+.calendar-waitlist-picker-backdrop.modal-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 18000 !important;
 }
 
-.calendar-mobile-session-more-menu__item--action:last-child {
-    border-bottom: 0;
+.calendar-waitlist-picker-modal.modal {
+    position: relative !important;
+    z-index: 18001 !important;
 }
 
-.calendar-mobile-session-more-menu__item--action:hover:not(:disabled),
-.calendar-mobile-session-more-menu__item--action:focus-visible {
-    background: #f8fbff;
-    outline: none;
+/* Keep the waitlist trigger visible beside the add-client button on narrow screens. */
+.calendar-edit-session-panel .calendar-client-picker__search-row {
+    min-width: 0;
 }
 
-.calendar-mobile-session-more-menu__item--action:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
+.calendar-edit-session-panel .calendar-client-picker__search-wrap {
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
-.calendar-mobile-session-more-menu__item--danger {
-    color: #b4232b;
-}
-
-.calendar-mobile-session-more-menu__item--danger:hover:not(:disabled),
-.calendar-mobile-session-more-menu__item--danger:focus-visible {
-    background: #fff6f6;
-}
-
-.calendar-mobile-session-more-menu__item--danger .calendar-mobile-session-more-menu__icon {
-    color: #c32f36;
-}
-
-.calendar-mobile-session-more-menu__icon svg {
-    width: 22px;
-    height: 22px;
+.calendar-edit-session-panel .calendar-client-picker__actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    overflow: visible;
 }
 
 @media (max-width: 939px) {
-    .calendar-edit-session-panel--design-match .calendar-form-footer-btn--desktop-delete,
-    .calendar-edit-session-panel--design-match .calendar-session-billing-actions--desktop-only {
-        display: none !important;
+    .calendar-edit-session-panel .calendar-client-picker__search-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        width: 100%;
     }
 
-    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu {
-        min-width: min(330px, calc(100vw - 28px));
-        max-height: min(70dvh, 520px);
-        overflow-y: auto;
+    .calendar-edit-session-panel .calendar-client-picker__actions {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-client-picker__actions .calendar-client-picker__waitlist-btn {
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 }
