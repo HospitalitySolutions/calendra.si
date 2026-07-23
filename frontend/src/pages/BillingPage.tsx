@@ -3171,6 +3171,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return d.toLocaleDateString(locale === 'sl' ? 'sl-SI' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
+  const formatBillingMobileDate = (value: string | Date | null | undefined) => {
+    if (!value) return '—'
+    const d = value instanceof Date ? value : new Date(value)
+    if (!Number.isFinite(d.getTime())) return '—'
+    return d.toLocaleDateString('en-GB')
+  }
+
   const formatTimeShort = (value: string | null | undefined) => {
     const d = new Date(value || '')
     if (!Number.isFinite(d.getTime())) return ''
@@ -7469,7 +7476,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         <path d="m7 8 5-5 5 5" />
         <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
       </svg>
-      <span>{importingBankStatement ? billingCopy.importBankCsvImporting : billingCopy.importBankCsv}</span>
+      <span className="billing-fab-label billing-fab-label--desktop">{importingBankStatement ? billingCopy.importBankCsvImporting : billingCopy.importBankCsv}</span>
+      <span className="billing-fab-label billing-fab-label--mobile">{importingBankStatement ? (locale === 'sl' ? 'Uvažam…' : 'Importing…') : (locale === 'sl' ? 'Uvozi CSV' : 'Import CSV')}</span>
     </button>
   )
 
@@ -7561,7 +7569,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
-          <Card className={`${billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell ' : ''}billing-modern-card billing-modern-card--${billingTab}`}>
+          <Card className={`${isOpenBillsMobile ? 'billing-mobile-shell ' : ''}${billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell ' : ''}billing-modern-card billing-modern-card--${billingTab}`}>
             <div className="billing-modern-header">
               <div ref={billingTabsRef} className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
@@ -7615,10 +7623,50 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
                       className="clients-search-input billing-modern-search"
-                      placeholder={t('billingOpenBillsSearchPlaceholder')}
+                      placeholder={isOpenBillsMobile ? (locale === 'sl' ? 'Išči odprte račune...' : 'Search open bills...') : t('billingOpenBillsSearchPlaceholder')}
                       value={openBillsSearch}
                       onChange={(e) => setOpenBillsSearch(e.target.value)}
                     />
+                  </div>
+                  <div className="billing-mobile-toolbar-sort billing-open-mobile-sort-wrap">
+                    <button
+                      type="button"
+                      className="billing-mobile-inline-sort"
+                      aria-haspopup="menu"
+                      aria-expanded={openBillsSortMenuOpen}
+                      aria-label={billingCopy.sortOpenBillsAria}
+                      onClick={() => setOpenBillsSortMenuOpen((prev) => !prev)}
+                    >
+                      <span>{locale === 'sl' ? 'Bruto' : 'Gross'}</span>
+                      <span className="billing-mobile-inline-sort__caret" aria-hidden>▾</span>
+                    </button>
+                    {openBillsSortMenuOpen ? (
+                      <div className="billing-open-mobile-sort-popup billing-open-mobile-sort-popup--toolbar" role="menu" aria-label={billingCopy.sortOpenBillsAria}>
+                        {openBillsSortOptions.map((option) => {
+                          const active = openBillsSortField === option.field
+                          return (
+                            <button
+                              key={option.field}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={active}
+                              className={active ? 'billing-open-mobile-sort-option active' : 'billing-open-mobile-sort-option'}
+                              onClick={() => {
+                                if (active) {
+                                  setOpenBillsSortDir((prev) => prev === 'asc' ? 'desc' : 'asc')
+                                } else {
+                                  setOpenBillsSortField(option.field)
+                                  setOpenBillsSortDir(option.field === 'client' ? 'asc' : 'desc')
+                                }
+                                setOpenBillsSortMenuOpen(false)
+                              }}
+                            >
+                              {option.label}{active ? (openBillsSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -7631,7 +7679,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <path d="M12 5v14" />
                       <path d="M5 12h14" />
                     </svg>
-                    <span>{locale === 'sl' ? 'Nov račun' : 'New Invoice'}</span>
+                    <span className="billing-fab-label billing-fab-label--desktop">{locale === 'sl' ? 'Nov račun' : 'New Invoice'}</span>
+                    <span className="billing-fab-label billing-fab-label--mobile">{locale === 'sl' ? 'Novo' : 'New'}</span>
                   </button>
                 </div>
 
@@ -7656,49 +7705,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
                 {sortedOpenBills.length === 0 ? <EmptyState title={t('billingEmptyOpenTitle')} text={t('billingEmptyOpenText')} /> : isOpenBillsMobile ? (
                   <div className="billing-open-modern-mobile-layout">
-                    <div className="billing-open-modern-mobile-list-head">
-                      <h3>{t('billingTabOpenBills')}</h3>
-                      <div className="billing-open-mobile-sort-wrap">
-                        <button
-                          type="button"
-                          className="billing-open-modern-mobile-sort-btn"
-                          aria-haspopup="menu"
-                          aria-expanded={openBillsSortMenuOpen}
-                          aria-label={billingCopy.sortOpenBillsAria}
-                          onClick={() => setOpenBillsSortMenuOpen((prev) => !prev)}
-                        >
-                          <span>{openBillsSortLabel}</span>
-                          <span className="billing-open-modern-mobile-sort-caret" aria-hidden>▾</span>
-                        </button>
-                        {openBillsSortMenuOpen ? (
-                          <div className="billing-open-mobile-sort-popup" role="menu" aria-label={billingCopy.sortOpenBillsAria}>
-                            {openBillsSortOptions.map((option) => {
-                              const active = openBillsSortField === option.field
-                              return (
-                                <button
-                                  key={option.field}
-                                  type="button"
-                                  role="menuitemradio"
-                                  aria-checked={active}
-                                  className={active ? 'billing-open-mobile-sort-option active' : 'billing-open-mobile-sort-option'}
-                                  onClick={() => {
-                                    if (active) {
-                                      setOpenBillsSortDir((prev) => prev === 'asc' ? 'desc' : 'asc')
-                                    } else {
-                                      setOpenBillsSortField(option.field)
-                                      setOpenBillsSortDir(option.field === 'client' ? 'asc' : 'desc')
-                                    }
-                                    setOpenBillsSortMenuOpen(false)
-                                  }}
-                                >
-                                  {option.label}{active ? (openBillsSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
                     <div className="billing-open-modern-mobile-cards">
                       {sortedOpenBills.map((ob) => {
                         const rowMembers = getOpenBillListGroupMembers(ob)
@@ -7715,96 +7721,53 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         const rawId = String(ob.sessionDisplayId || formatBillingSessionIdDisplay(ob.sessionId) || '—')
                         const displayId = rawId.startsWith('#') ? rawId : `#${rawId}`
                         return (
-                          <article key={`${openBillListGroupKey(ob)}:${ob.id}`} className="billing-open-modern-mobile-card" onClick={() => openEditInvoicePopup(ob)}>
-                            <div className="billing-open-modern-mobile-card-head">
-                              <div className="billing-open-modern-mobile-title-row">
-                                <span className="billing-open-modern-mobile-id-chip">{displayId}</span>
-                                <div className="billing-open-modern-mobile-client-wrap">
-                                  <strong>{clientLabel}</strong>
-                                  {(groupBillCount > 1 || sessionCount > 1) ? (
-                                    <div className="billing-open-modern-mobile-subchips">
-                                      {groupBillCount > 1 ? <span className="billing-open-modern-mobile-subchip">{groupBillCount} {locale === 'sl' ? 'računi' : 'bills'}</span> : null}
-                                      {sessionCount > 1 ? <span className="billing-open-modern-mobile-subchip">{sessionCount} {locale === 'sl' ? 'seje' : 'sessions'}</span> : null}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
+                          <article
+                            key={`${openBillListGroupKey(ob)}:${ob.id}`}
+                            className="billing-mobile-bill-card"
+                            onClick={() => openEditInvoicePopup(ob)}
+                          >
+                            <div className="billing-mobile-bill-card__head">
+                              <span className="billing-mobile-bill-card__id">{displayId}</span>
+                              <strong className="billing-mobile-bill-card__client">{clientLabel}</strong>
+                              <button
+                                type="button"
+                                className="billing-mobile-card-menu"
+                                aria-label={locale === 'sl' ? 'Odpri račun' : 'Open invoice'}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  openEditInvoicePopup(ob)
+                                }}
+                              >
+                                <span aria-hidden>•••</span>
+                              </button>
                             </div>
-                            <div className="billing-open-modern-mobile-grid">
-                              <div className="billing-open-modern-mobile-cell">
-                                <span className="billing-open-modern-mobile-cell-icon" aria-hidden>
+                            <div className="billing-mobile-bill-card__details">
+                              <div className="billing-mobile-bill-detail">
+                                <span className="billing-mobile-bill-detail__icon" aria-hidden>
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="3" /><path d="M8 2v4M16 2v4M3 10h18" /></svg>
                                 </span>
-                                <div>
-                                  <span>{billingCopy.openBillsColSession}</span>
-                                  <strong>{formatOpenBillSession(ob.sessionInfo)}</strong>
-                                </div>
+                                <span>{locale === 'sl' ? 'Seja' : 'Session'}</span>
+                                <strong>{formatOpenBillSession(ob.sessionInfo)}</strong>
                               </div>
-                              <div className="billing-open-modern-mobile-cell">
-                                <span className="billing-open-modern-mobile-cell-icon" aria-hidden>
+                              <div className="billing-mobile-bill-detail">
+                                <span className="billing-mobile-bill-detail__icon" aria-hidden>
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82Z" /><path d="M7 7h.01" /></svg>
                                 </span>
-                                <div>
-                                  <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
-                                  <strong>{rowDescription}</strong>
-                                </div>
+                                <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
+                                <strong>{rowDescription}</strong>
                               </div>
-                              <div className="billing-open-modern-mobile-cell">
-                                <span className="billing-open-modern-mobile-cell-icon" aria-hidden>
+                              <div className="billing-mobile-bill-detail">
+                                <span className="billing-mobile-bill-detail__icon" aria-hidden>
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
                                 </span>
-                                <div>
-                                  <span>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</span>
-                                  <strong>{employeeLabel}</strong>
-                                </div>
+                                <span>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</span>
+                                <strong>{employeeLabel}</strong>
                               </div>
-                            </div>
-                            <div className="billing-open-modern-mobile-footer">
-                              <div>
+                              <div className="billing-mobile-bill-detail billing-mobile-bill-detail--amount">
+                                <span className="billing-mobile-bill-detail__icon" aria-hidden>€</span>
                                 <span>{locale === 'sl' ? 'Odprt znesek' : 'Open amount'}</span>
                                 <strong>{currency(gross)}</strong>
                               </div>
-                            </div>
-                            <div className="billing-open-modern-mobile-paymethod" onClick={(e) => e.stopPropagation()}>
-                              <label className="billing-open-modern-mobile-paymethod-label" htmlFor={`open-bill-payment-${ob.id}`}>
-                                {locale === 'sl' ? 'Izberite način plačila' : 'Select payment method'}
-                              </label>
-                              <div className="billing-open-modern-mobile-select-wrap">
-                                <select
-                                  id={`open-bill-payment-${ob.id}`}
-                                  className="billing-open-modern-mobile-select"
-                                  value={ob.paymentMethod?.id ?? ''}
-                                  onChange={(e) => updateOpenBillPaymentMethod(ob.id, Number(e.target.value))}
-                                >
-                                  <option value="" disabled>{locale === 'sl' ? 'Izberite način plačila' : 'Select payment method'}</option>
-                                  {nonDepositPaymentMethods.map((method) => (
-                                    <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                            <div className="billing-open-modern-mobile-actions" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                className="billing-open-modern-mobile-action billing-open-modern-mobile-action--primary"
-                                onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
-                                disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || !rowPaymentSelected || !canCloseRowBill)}
-                                title={rowCloseTooltip}
-                              >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></svg>
-                                <span>{creatingFromOpenId === ob.id
-                                  ? billingCopy.creating
-                                  : (groupBillCount > 1 ? (locale === 'sl' ? 'Uredi račune' : 'Edit bills') : (locale === 'sl' ? 'Zapri račun' : 'Close Invoice'))}</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="billing-open-modern-mobile-action billing-open-modern-mobile-action--danger"
-                                onClick={() => deleteOpenBill(ob)}
-                                disabled={deletingOpenId === ob.id || groupBillCount > 1}
-                              >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
-                                <span>{deletingOpenId === ob.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}</span>
-                              </button>
                             </div>
                           </article>
                         )
@@ -7905,11 +7868,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
                       className="clients-search-input billing-modern-search"
-                      placeholder={locale === 'sl' ? 'Iskanje po ID naročila, št. računa, plačniku ali znesku ...' : 'Search by order ID, bill number, payer, or amount...'}
+                      placeholder={isOpenBillsMobile ? (locale === 'sl' ? 'Išči odprta plačila...' : 'Search open payments...') : (locale === 'sl' ? 'Iskanje po ID naročila, št. računa, plačniku ali znesku ...' : 'Search by order ID, bill number, payer, or amount...')}
                       value={openPaymentsSearch}
                       onChange={(e) => setOpenPaymentsSearch(e.target.value)}
                     />
                   </div>
+                  <button type="button" className="billing-mobile-inline-sort" aria-label={locale === 'sl' ? 'Razvrsti po znesku' : 'Sort by amount'}>
+                    <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
+                    <span className="billing-mobile-inline-sort__caret" aria-hidden>▾</span>
+                  </button>
                   {renderBankStatementImportButton()}
                 </div>
 
@@ -7926,7 +7893,83 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 )}
 
-                {openPayments.length === 0 ? <EmptyState title={t('billingTabOpenPayments')} text={locale === 'sl' ? 'Ni odprtih plačil.' : 'No open payments.'} /> : (
+                {openPayments.length === 0 ? <EmptyState title={t('billingTabOpenPayments')} text={locale === 'sl' ? 'Ni odprtih plačil.' : 'No open payments.'} /> : isOpenBillsMobile ? (
+                  <div className="billing-mobile-payment-cards">
+                    {openPaymentsPagination.slice.map((bill) => {
+                      const dueDate = addDays(bill.issueDate, paymentDeadlineDays)
+                      const payer = bill.billingTarget === 'COMPANY'
+                        ? (bill.recipientCompany?.name || '—')
+                        : (bill.client ? fullName(bill.client) : '—')
+                      const orderReference = displayInvoiceOrderId(bill)
+                      const orderDisplay = orderReference.startsWith('#') ? orderReference : `#${orderReference}`
+                      return (
+                        <article
+                          key={bill.id}
+                          className="billing-mobile-payment-card"
+                          onClick={() => { void openFolioPanel(bill) }}
+                        >
+                          <div className="billing-mobile-payment-card__head">
+                            <span className="billing-mobile-payment-card__id">{orderDisplay}</span>
+                            <strong>{payer}</strong>
+                            <button
+                              type="button"
+                              className="billing-mobile-card-menu"
+                              aria-label={locale === 'sl' ? 'Odpri plačilo' : 'Open payment'}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void openFolioPanel(bill)
+                              }}
+                            >
+                              <span aria-hidden>•••</span>
+                            </button>
+                          </div>
+                          <div className="billing-mobile-payment-card__grid">
+                            <div className="billing-mobile-payment-card__column">
+                              <div className="billing-mobile-payment-detail">
+                                <span className="billing-mobile-payment-detail__icon" aria-hidden>▣</span>
+                                <span>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</span>
+                                <strong>{orderReference}</strong>
+                              </div>
+                              <div className="billing-mobile-payment-detail">
+                                <span className="billing-mobile-payment-detail__icon" aria-hidden>◇</span>
+                                <span>{locale === 'sl' ? 'Št. računa' : 'Bill No.'}</span>
+                                <strong>{bill.billNumber || `BILL-${bill.id}`}</strong>
+                              </div>
+                              <div className="billing-mobile-payment-detail">
+                                <span className="billing-mobile-payment-detail__icon" aria-hidden>♙</span>
+                                <span>{locale === 'sl' ? 'Plačnik' : 'Payer'}</span>
+                                <strong>{payer}</strong>
+                              </div>
+                            </div>
+                            <div className="billing-mobile-payment-card__column">
+                              <div className="billing-mobile-payment-detail">
+                                <span className="billing-mobile-payment-detail__icon" aria-hidden>□</span>
+                                <span>{locale === 'sl' ? 'Datum' : 'Date'}</span>
+                                <strong>{formatBillingMobileDate(bill.issueDate)}</strong>
+                              </div>
+                              <div className="billing-mobile-payment-detail">
+                                <span className="billing-mobile-payment-detail__icon" aria-hidden>□</span>
+                                <span>{locale === 'sl' ? 'Rok plačila' : 'Due date'}</span>
+                                <strong>{formatBillingMobileDate(dueDate)}</strong>
+                              </div>
+                              <div className="billing-mobile-payment-detail billing-mobile-payment-detail--amount">
+                                <span className="billing-mobile-payment-detail__icon" aria-hidden>€</span>
+                                <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
+                                <strong>{currency(billBankTransferDueAmount(bill))}</strong>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="billing-mobile-payment-card__action" onClick={(event) => event.stopPropagation()}>
+                            <button type="button" onClick={() => markBillPaid(bill)} disabled={markingPaidBillId === bill.id}>
+                              <span className="billing-mobile-payment-card__action-icon" aria-hidden>✓</span>
+                              <span>{markingPaidBillId === bill.id ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : (locale === 'sl' ? 'Označi kot plačano' : 'Mark as paid')}</span>
+                            </button>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                ) : (
                   <div className="billing-modern-table-wrap">
                     <table className="billing-modern-table billing-modern-payments-table">
                       <thead>
@@ -8015,11 +8058,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
                       className="clients-search-input billing-modern-search"
-                      placeholder={locale === 'sl' ? 'Iskanje po št. predplačila, stranki, ID seje ali opombah ...' : 'Search by advance no., client, session id, or notes...'}
+                      placeholder={isOpenBillsMobile ? (locale === 'sl' ? 'Išči predplačila...' : 'Search advances...') : (locale === 'sl' ? 'Iskanje po št. predplačila, stranki, ID seje ali opombah ...' : 'Search by advance no., client, session id, or notes...')}
                       value={unusedAdvancesSearch}
                       onChange={(e) => setUnusedAdvancesSearch(e.target.value)}
                     />
                   </div>
+                  <button type="button" className="billing-mobile-inline-sort" aria-label={locale === 'sl' ? 'Razvrsti po stanju' : 'Sort by balance'}>
+                    <span>{locale === 'sl' ? 'Stanje' : 'Balance'}</span>
+                    <span className="billing-mobile-inline-sort__caret" aria-hidden>▾</span>
+                  </button>
                   <button
                     type="button"
                     className="clients-modern-new-btn"
@@ -8031,7 +8078,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <path d="M12 5v14" />
                       <path d="M5 12h14" />
                     </svg>
-                    <span>{locale === 'sl' ? 'Novo predplačilo' : 'New Advance'}</span>
+                    <span className="billing-fab-label billing-fab-label--desktop">{locale === 'sl' ? 'Novo predplačilo' : 'New Advance'}</span>
+                    <span className="billing-fab-label billing-fab-label--mobile">{locale === 'sl' ? 'Novo' : 'New'}</span>
                   </button>
                 </div>
 
@@ -8048,7 +8096,63 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 )}
 
-                {filteredUnusedAdvances.length === 0 ? <EmptyState title={t('billingTabUnusedAdvances')} text={billingCopy.unusedAdvancesEmpty} /> : (
+                {filteredUnusedAdvances.length === 0 ? (
+                  isOpenBillsMobile ? (
+                    <div className="billing-mobile-advances-empty">
+                      <span className="billing-mobile-advances-empty__icon" aria-hidden>
+                        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M13 23h31a6 6 0 0 1 6 6v20a6 6 0 0 1-6 6H16a7 7 0 0 1-7-7V23a8 8 0 0 1 8-8h23a5 5 0 0 1 5 5v3" />
+                          <path d="M42 34h13v12H42a6 6 0 0 1 0-12Z" />
+                          <circle cx="47" cy="40" r="1.5" fill="currentColor" stroke="none" />
+                        </svg>
+                      </span>
+                      <h3>{locale === 'sl' ? 'Ni predplačil' : 'No advances'}</h3>
+                      <p>{locale === 'sl' ? 'Predplačila se bodo prikazala tukaj.' : 'Advances will appear here.'}</p>
+                      <button type="button" onClick={openCreateAdvanceBillModal}>
+                        {locale === 'sl' ? 'Dodajte novo predplačilo.' : 'Add a new advance.'}
+                      </button>
+                    </div>
+                  ) : <EmptyState title={t('billingTabUnusedAdvances')} text={billingCopy.unusedAdvancesEmpty} />
+                ) : isOpenBillsMobile ? (
+                  <div className="billing-mobile-advance-cards">
+                    {unusedAdvancesPagination.slice.map((advance) => {
+                      const clientLabel = `${advance.client?.firstName || ''} ${advance.client?.lastName || ''}`.trim()
+                        || advance.recipientCompany?.name
+                        || '—'
+                      const advanceNo = String(advance.billNumber || `ADV-${advance.advanceBillId}`)
+                      const displayAdvanceNo = advanceNo.startsWith('#') ? advanceNo : `#${advanceNo}`
+                      return (
+                        <article
+                          key={advance.advanceBillId}
+                          className={selectedUnusedAdvanceId === advance.advanceBillId ? 'billing-mobile-advance-card is-selected' : 'billing-mobile-advance-card'}
+                          onClick={() => setSelectedUnusedAdvanceId(advance.advanceBillId)}
+                        >
+                          <div className="billing-mobile-advance-card__head">
+                            <span>{displayAdvanceNo}</span>
+                            <strong>{clientLabel}</strong>
+                            <button
+                              type="button"
+                              className="billing-mobile-card-menu"
+                              aria-label={locale === 'sl' ? 'Možnosti predplačila' : 'Advance options'}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setSelectedUnusedAdvanceId(advance.advanceBillId)
+                              }}
+                            >
+                              <span aria-hidden>•••</span>
+                            </button>
+                          </div>
+                          <div className="billing-mobile-advance-card__details">
+                            <div><span>{locale === 'sl' ? 'ID seje' : 'Session ID'}</span><strong>{formatBillingSessionIdDisplay(advance.sessionId)}</strong></div>
+                            <div><span>{locale === 'sl' ? 'Datum izdaje' : 'Issued date'}</span><strong>{formatBillingMobileDate(advance.issueDate)}</strong></div>
+                            <div><span>{locale === 'sl' ? 'Prvotni znesek' : 'Original amount'}</span><strong>{currency(advance.totalGross)}</strong></div>
+                            <div className="billing-mobile-advance-card__balance"><span>{locale === 'sl' ? 'Preostalo stanje' : 'Remaining balance'}</span><strong>{currency(advance.remainingGross)}</strong></div>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                ) : (
                   <div className="billing-modern-table-wrap">
                     <table className="billing-modern-table">
                       <thead>

@@ -2760,32 +2760,32 @@ a.credentials-popover-action-btn {
     }
 }
 
-/* Waitlist mobile header: blue title row matching the mobile waitlist tabs. */
-.app-header-waitlist-title {
+/* Billing mobile header: matches the blue two-row Zaračunavanje layout. */
+.app-header-billing-title {
     display: none;
 }
 
-@media (max-width: 780px) {
-    .app-header.app-header--waitlist {
-        min-height: 58px;
+@media (max-width: 720px) {
+    .app-header.app-header--billing {
+        min-height: 62px;
         box-sizing: border-box;
         padding: max(10px, env(safe-area-inset-top)) 18px 10px;
-        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%);
         border-bottom: 0;
         box-shadow: none;
         color: #ffffff;
     }
 
-    [data-theme="dark"] .app-header.app-header--waitlist {
-        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+    [data-theme="dark"] .app-header.app-header--billing {
+        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%);
         border-bottom: 0;
     }
 
-    .app-header--waitlist .app-header-mobile-leading {
+    .app-header--billing .app-header-mobile-leading {
         min-width: 0;
     }
 
-    .app-header--waitlist .app-header-mobile-nav-trigger {
+    .app-header--billing .app-header-mobile-nav-trigger {
         width: 38px;
         height: 38px;
         border-radius: 10px;
@@ -2794,13 +2794,13 @@ a.credentials-popover-action-btn {
         box-shadow: none;
     }
 
-    .app-header--waitlist .app-header-mobile-nav-trigger:hover,
-    .app-header--waitlist .app-header-mobile-nav-trigger:active {
+    .app-header--billing .app-header-mobile-nav-trigger:hover,
+    .app-header--billing .app-header-mobile-nav-trigger:active {
         background: rgba(255, 255, 255, 0.10);
         filter: none;
     }
 
-    .app-header--waitlist .app-header-waitlist-title {
+    .app-header--billing .app-header-billing-title {
         position: absolute;
         left: 50%;
         top: calc(50% + (env(safe-area-inset-top) / 4));
@@ -2814,41 +2814,41 @@ a.credentials-popover-action-btn {
         pointer-events: none;
     }
 
-    .app-header--waitlist .app-header-waitlist-title strong {
+    .app-header--billing .app-header-billing-title strong {
         overflow: hidden;
         text-overflow: ellipsis;
-        font-size: 1.22rem;
+        font-size: 1.05rem;
         line-height: 1;
         font-weight: 800;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.015em;
     }
 
-    .app-header--waitlist .header-actions {
+    .app-header--billing .header-actions {
         margin-left: auto;
     }
 
-    .app-header--waitlist .calendar-voice-fab--header-toolbar {
+    .app-header--billing .calendar-voice-fab--header-toolbar {
         display: none !important;
     }
 
-    .app-header--waitlist .staff-notification-trigger {
+    .app-header--billing .staff-notification-trigger {
         width: 38px;
         height: 38px;
         border-radius: 10px;
         color: #ffffff;
     }
 
-    .app-header--waitlist .staff-notification-trigger:hover,
-    .app-header--waitlist .staff-notification-trigger.active {
+    .app-header--billing .staff-notification-trigger:hover,
+    .app-header--billing .staff-notification-trigger.active {
         background: rgba(255, 255, 255, 0.10);
         color: #ffffff;
     }
 
-    .main-area--waitlist {
+    .main-area--billing {
         background: #f8fafc;
     }
 
-    .main-area--waitlist > .content.content--waitlist {
+    .main-area--billing > .content.content--billing {
         padding: 0 0 calc(88px + env(safe-area-inset-bottom));
         background: #f8fafc;
     }

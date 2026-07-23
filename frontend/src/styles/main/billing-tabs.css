@@ -3145,3 +3145,823 @@
         color: #7db4ff;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Zaračunavanje mobile — pixel-matched blue header/tabs and compact cards.
+   -------------------------------------------------------------------------- */
+.billing-fab-label--mobile,
+.billing-mobile-inline-sort {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .billing-page-main-stack,
+    .billing-page-main-stack > .billing-modern-card.card,
+    .billing-mobile-shell.billing-modern-card.card {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .billing-page-main-stack {
+        margin: 0;
+        gap: 0 !important;
+        background: #f8fafc;
+    }
+
+    .billing-mobile-shell.billing-modern-card.card {
+        position: relative;
+        overflow: visible;
+        min-height: calc(100dvh - 62px);
+        margin: 0;
+        padding: 0 0 calc(84px + env(safe-area-inset-bottom)) !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #f8fafc !important;
+        box-shadow: none !important;
+    }
+
+    .billing-mobile-shell .billing-modern-header {
+        position: relative;
+        z-index: 20;
+        margin: 0;
+        padding: 0 16px;
+        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%);
+    }
+
+    .billing-mobile-shell .billing-modern-tabs.clients-session-tabs {
+        display: flex;
+        width: 100%;
+        min-height: 64px;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+    }
+
+    .billing-mobile-shell .billing-modern-tabs.clients-session-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab {
+        position: relative;
+        flex: 1 0 31%;
+        min-width: 132px;
+        min-height: 64px;
+        scroll-snap-align: center;
+        gap: 7px;
+        padding: 0 8px 3px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.78) !important;
+        box-shadow: none !important;
+        font-size: 0.82rem;
+        font-weight: 600;
+        line-height: 1;
+        transform: none !important;
+    }
+
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab:hover,
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab:active,
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab:focus {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab.active {
+        color: #ffffff !important;
+        font-weight: 800;
+    }
+
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab.active::after {
+        content: '';
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: #ffffff;
+    }
+
+    .billing-mobile-shell .billing-tab-icon,
+    .billing-mobile-shell .billing-tab-icon svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+    }
+
+    .billing-mobile-shell .billing-tab-label--desktop {
+        display: none !important;
+    }
+
+    .billing-mobile-shell .billing-tab-label--mobile {
+        display: inline !important;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-shell .billing-tab-count {
+        min-width: 24px;
+        height: 24px;
+        padding: 0 7px;
+        border: 0;
+        background: rgba(255, 255, 255, 0.22);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 0.72rem;
+        font-weight: 800;
+        box-shadow: none;
+    }
+
+    .billing-mobile-shell .clients-session-tab.active .billing-tab-count {
+        background: #ffffff;
+        color: #1268e4;
+    }
+
+    .billing-mobile-shell .billing-modern-content {
+        position: relative;
+        display: grid;
+        gap: 16px;
+        padding: 16px;
+        background: #f8fafc;
+    }
+
+    .billing-mobile-shell.billing-modern-card--open .billing-modern-content,
+    .billing-mobile-shell.billing-modern-card--openPayments .billing-modern-content,
+    .billing-mobile-shell.billing-modern-card--unusedAdvances .billing-modern-content {
+        min-height: calc(100dvh - 126px);
+        align-content: start;
+    }
+
+    .billing-mobile-shell.billing-modern-card--open .billing-modern-filter-row,
+    .billing-mobile-shell.billing-modern-card--openPayments .billing-modern-filter-row,
+    .billing-mobile-shell.billing-modern-card--unusedAdvances .billing-modern-filter-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 102px;
+        gap: 12px;
+        align-items: center;
+        margin: 0;
+    }
+
+    .billing-mobile-shell .billing-modern-search-wrap {
+        position: relative;
+        min-width: 0;
+    }
+
+    .billing-mobile-shell .billing-modern-search-icon {
+        position: absolute;
+        left: 17px;
+        top: 50%;
+        z-index: 2;
+        width: 18px;
+        height: 18px;
+        transform: translateY(-50%);
+        color: #718097;
+        font-size: 0;
+        pointer-events: none;
+    }
+
+    .billing-mobile-shell .billing-modern-search-icon::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 11px;
+        height: 11px;
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        box-sizing: border-box;
+    }
+
+    .billing-mobile-shell .billing-modern-search-icon::after {
+        content: '';
+        position: absolute;
+        right: 1px;
+        bottom: 1px;
+        width: 7px;
+        height: 2px;
+        border-radius: 2px;
+        background: currentColor;
+        transform: rotate(45deg);
+        transform-origin: right center;
+    }
+
+    .billing-mobile-shell .billing-modern-search.clients-search-input {
+        width: 100%;
+        height: 50px;
+        min-height: 50px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0 16px 0 48px;
+        border: 1px solid #d9e1ec !important;
+        border-radius: 13px !important;
+        background: #ffffff !important;
+        color: #15223a;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02) !important;
+        font-size: 0.88rem;
+        font-weight: 500;
+        outline: none;
+    }
+
+    .billing-mobile-shell .billing-modern-search.clients-search-input::placeholder {
+        color: #77859a;
+        opacity: 1;
+    }
+
+    .billing-mobile-shell .billing-modern-search.clients-search-input:focus {
+        border-color: #9dc1f7 !important;
+        box-shadow: 0 0 0 3px rgba(18, 104, 228, 0.08) !important;
+    }
+
+    .billing-mobile-inline-sort {
+        display: inline-flex;
+        width: 102px;
+        height: 50px;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        padding: 0 12px;
+        border: 1px solid #d9e1ec;
+        border-radius: 13px;
+        background: #ffffff;
+        color: #111c32;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+        font-size: 0.82rem;
+        font-weight: 800;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .billing-mobile-inline-sort:hover,
+    .billing-mobile-inline-sort:active,
+    .billing-mobile-inline-sort:focus {
+        border-color: #cbd6e5;
+        background: #ffffff;
+        color: #111c32;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .billing-mobile-inline-sort__caret {
+        color: #58677c;
+        font-size: 0.7rem;
+        transform: translateY(-1px);
+    }
+
+    .billing-mobile-toolbar-sort {
+        position: relative;
+        display: block;
+    }
+
+    .billing-open-mobile-sort-popup--toolbar {
+        right: 0;
+        top: calc(100% + 7px);
+        z-index: 80;
+        min-width: 148px;
+        border-color: #d9e1ec;
+        background: #ffffff;
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+    }
+
+    .billing-mobile-shell.billing-modern-card--open .billing-modern-stats,
+    .billing-mobile-shell.billing-modern-card--openPayments .billing-modern-stats,
+    .billing-mobile-shell.billing-modern-card--unusedAdvances .billing-modern-stats {
+        display: none !important;
+    }
+
+    .billing-mobile-shell .billing-modern-filter-row > .clients-modern-new-btn,
+    .billing-mobile-shell .billing-bank-import-btn {
+        position: fixed !important;
+        right: max(20px, env(safe-area-inset-right));
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        z-index: 160;
+        display: inline-flex;
+        width: auto;
+        min-width: 112px;
+        height: 54px;
+        min-height: 54px;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin: 0;
+        padding: 0 19px;
+        border: 0 !important;
+        border-radius: 16px !important;
+        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 12px 26px rgba(8, 100, 220, 0.30) !important;
+        font-size: 0.88rem;
+        font-weight: 800;
+        white-space: nowrap;
+        transform: none !important;
+    }
+
+    .billing-mobile-shell .billing-modern-filter-row > .clients-modern-new-btn:hover:not(:disabled),
+    .billing-mobile-shell .billing-bank-import-btn:hover:not(:disabled),
+    .billing-mobile-shell .billing-modern-filter-row > .clients-modern-new-btn:active:not(:disabled),
+    .billing-mobile-shell .billing-bank-import-btn:active:not(:disabled) {
+        filter: none;
+        transform: none !important;
+        box-shadow: 0 12px 26px rgba(8, 100, 220, 0.30) !important;
+    }
+
+    .billing-mobile-shell .billing-modern-filter-row > .clients-modern-new-btn svg,
+    .billing-mobile-shell .billing-bank-import-btn svg {
+        width: 21px;
+        height: 21px;
+        stroke-width: 1.8;
+    }
+
+    .billing-fab-label--desktop {
+        display: none !important;
+    }
+
+    .billing-fab-label--mobile {
+        display: inline !important;
+    }
+
+    .billing-open-modern-mobile-layout,
+    .billing-open-modern-mobile-cards,
+    .billing-mobile-payment-cards,
+    .billing-mobile-advance-cards {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .billing-mobile-bill-card,
+    .billing-mobile-payment-card,
+    .billing-mobile-advance-card {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid #dbe3ee;
+        border-radius: 15px;
+        background: #ffffff;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.025);
+        color: #111c32;
+    }
+
+    .billing-mobile-bill-card {
+        padding: 15px 16px 16px;
+        cursor: pointer;
+    }
+
+    .billing-mobile-bill-card__head,
+    .billing-mobile-payment-card__head,
+    .billing-mobile-advance-card__head {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) 32px;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .billing-mobile-bill-card__id,
+    .billing-mobile-payment-card__id,
+    .billing-mobile-advance-card__head > span:first-child {
+        display: inline-flex;
+        min-width: 54px;
+        height: 38px;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        padding: 0 10px;
+        border-radius: 10px;
+        background: #eaf2ff;
+        color: #0a63de;
+        font-size: 0.9rem;
+        line-height: 1;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-bill-card__client,
+    .billing-mobile-payment-card__head > strong,
+    .billing-mobile-advance-card__head > strong {
+        min-width: 0;
+        overflow: hidden;
+        color: #111c32;
+        font-size: 0.97rem;
+        line-height: 1.25;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-card-menu {
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #65748a;
+        box-shadow: none;
+        font-size: 0.82rem;
+        font-weight: 900;
+        letter-spacing: 1px;
+        cursor: pointer;
+    }
+
+    .billing-mobile-card-menu:hover,
+    .billing-mobile-card-menu:active,
+    .billing-mobile-card-menu:focus {
+        background: #f3f6fa;
+        color: #3e4d63;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .billing-mobile-bill-card__details {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+    }
+
+    .billing-mobile-bill-detail {
+        display: grid;
+        grid-template-columns: 25px 102px minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        color: #55657b;
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }
+
+    .billing-mobile-bill-detail__icon {
+        display: inline-flex;
+        width: 22px;
+        height: 22px;
+        align-items: center;
+        justify-content: center;
+        color: #5e7190;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .billing-mobile-bill-detail__icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .billing-mobile-bill-detail > span:nth-child(2) {
+        color: #536580;
+        font-weight: 650;
+    }
+
+    .billing-mobile-bill-detail > strong {
+        min-width: 0;
+        overflow: hidden;
+        color: #18243a;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-bill-detail--amount > strong {
+        color: #08a33d;
+        font-size: 0.86rem;
+        font-weight: 800;
+    }
+
+    .billing-mobile-payment-card {
+        cursor: pointer;
+    }
+
+    .billing-mobile-payment-card__head {
+        padding: 14px 15px 9px;
+    }
+
+    .billing-mobile-payment-card__id {
+        min-width: 64px;
+        color: #0a63de;
+    }
+
+    .billing-mobile-payment-card__grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 0;
+        padding: 0 15px 11px;
+    }
+
+    .billing-mobile-payment-card__column {
+        display: grid;
+        align-content: start;
+        gap: 9px;
+        min-width: 0;
+        padding: 7px 12px 4px 0;
+    }
+
+    .billing-mobile-payment-card__column + .billing-mobile-payment-card__column {
+        padding-right: 0;
+        padding-left: 14px;
+        border-left: 1px solid #e3e9f1;
+    }
+
+    .billing-mobile-payment-detail {
+        display: grid;
+        grid-template-columns: 18px 70px minmax(0, 1fr);
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        color: #5a6b83;
+        font-size: 0.7rem;
+        line-height: 1.2;
+    }
+
+    .billing-mobile-payment-detail__icon {
+        display: inline-flex;
+        width: 18px;
+        height: 18px;
+        align-items: center;
+        justify-content: center;
+        color: #5b7091;
+        font-size: 0.84rem;
+    }
+
+    .billing-mobile-payment-detail > span:nth-child(2) {
+        color: #526580;
+        font-weight: 650;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-payment-detail > strong {
+        min-width: 0;
+        overflow: hidden;
+        color: #18243a;
+        font-size: 0.71rem;
+        font-weight: 500;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-payment-detail--amount > strong {
+        color: #09a43e;
+        font-weight: 800;
+    }
+
+    .billing-mobile-payment-card__action {
+        display: flex;
+        justify-content: flex-end;
+        padding: 9px 15px 12px;
+        border-top: 1px solid #e5ebf2;
+    }
+
+    .billing-mobile-payment-card__action button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 4px 0;
+        border: 0;
+        background: transparent;
+        color: #0868e7;
+        box-shadow: none;
+        font-size: 0.72rem;
+        font-weight: 750;
+        cursor: pointer;
+    }
+
+    .billing-mobile-payment-card__action button:hover,
+    .billing-mobile-payment-card__action button:active,
+    .billing-mobile-payment-card__action button:focus {
+        background: transparent;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .billing-mobile-payment-card__action-icon {
+        display: inline-flex;
+        width: 21px;
+        height: 21px;
+        align-items: center;
+        justify-content: center;
+        border: 1.8px solid #0870ed;
+        border-radius: 50%;
+        font-size: 0.68rem;
+        line-height: 1;
+    }
+
+    .billing-mobile-advances-empty {
+        display: flex;
+        min-height: calc(100dvh - 286px);
+        box-sizing: border-box;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 44px 24px 92px;
+        border: 1px solid #dce4ee;
+        border-radius: 15px;
+        background: #ffffff;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.02);
+        text-align: center;
+    }
+
+    .billing-mobile-advances-empty__icon {
+        display: inline-flex;
+        width: 78px;
+        height: 78px;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 18px;
+        color: #75a8ff;
+    }
+
+    .billing-mobile-advances-empty__icon svg {
+        width: 68px;
+        height: 68px;
+    }
+
+    .billing-mobile-advances-empty h3 {
+        margin: 0;
+        color: #111c32;
+        font-size: 1.15rem;
+        line-height: 1.2;
+        font-weight: 850;
+        letter-spacing: -0.02em;
+    }
+
+    .billing-mobile-advances-empty p {
+        margin: 14px 0 0;
+        color: #64758e;
+        font-size: 0.85rem;
+        line-height: 1.45;
+    }
+
+    .billing-mobile-advances-empty button {
+        margin-top: 11px;
+        padding: 4px 0;
+        border: 0;
+        background: transparent;
+        color: #3f83f8;
+        box-shadow: none;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .billing-mobile-advances-empty button:hover,
+    .billing-mobile-advances-empty button:active,
+    .billing-mobile-advances-empty button:focus {
+        background: transparent;
+        color: #176ee8;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .billing-mobile-advance-card {
+        padding: 14px 15px 15px;
+        cursor: pointer;
+    }
+
+    .billing-mobile-advance-card.is-selected {
+        border-color: #b9d2f8;
+        box-shadow: 0 0 0 2px rgba(18, 104, 228, 0.07);
+    }
+
+    .billing-mobile-advance-card__details {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 18px;
+        margin-top: 15px;
+        padding-top: 13px;
+        border-top: 1px solid #e6ebf2;
+    }
+
+    .billing-mobile-advance-card__details > div {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .billing-mobile-advance-card__details span {
+        color: #617089;
+        font-size: 0.68rem;
+        font-weight: 650;
+    }
+
+    .billing-mobile-advance-card__details strong {
+        overflow: hidden;
+        color: #18243a;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .billing-mobile-advance-card__balance strong {
+        color: #09a43e;
+    }
+
+    .billing-mobile-shell .billing-modern-footer,
+    .billing-mobile-shell .clients-modern-pagination {
+        display: none !important;
+    }
+
+    [data-theme="dark"] .billing-mobile-shell.billing-modern-card.card,
+    [data-theme="dark"] .billing-mobile-shell .billing-modern-content {
+        background: #f8fafc !important;
+    }
+
+    [data-theme="dark"] .billing-mobile-shell .billing-modern-search.clients-search-input,
+    [data-theme="dark"] .billing-mobile-inline-sort,
+    [data-theme="dark"] .billing-mobile-bill-card,
+    [data-theme="dark"] .billing-mobile-payment-card,
+    [data-theme="dark"] .billing-mobile-advance-card,
+    [data-theme="dark"] .billing-mobile-advances-empty {
+        border-color: #dbe3ee;
+        background: #ffffff !important;
+        color: #111c32;
+    }
+}
+
+@media (max-width: 430px) {
+    .billing-mobile-shell .billing-modern-header {
+        padding: 0 10px;
+    }
+
+    .billing-mobile-shell .billing-modern-tabs .clients-session-tab {
+        min-width: 122px;
+        gap: 5px;
+        padding-right: 5px;
+        padding-left: 5px;
+        font-size: 0.75rem;
+    }
+
+    .billing-mobile-shell .billing-modern-content {
+        padding: 14px;
+    }
+
+    .billing-mobile-shell.billing-modern-card--open .billing-modern-filter-row,
+    .billing-mobile-shell.billing-modern-card--openPayments .billing-modern-filter-row,
+    .billing-mobile-shell.billing-modern-card--unusedAdvances .billing-modern-filter-row {
+        grid-template-columns: minmax(0, 1fr) 94px;
+        gap: 9px;
+    }
+
+    .billing-mobile-inline-sort {
+        width: 94px;
+        padding: 0 9px;
+        font-size: 0.77rem;
+    }
+
+    .billing-mobile-bill-detail {
+        grid-template-columns: 23px 88px minmax(0, 1fr);
+        gap: 7px;
+        font-size: 0.73rem;
+    }
+
+    .billing-mobile-bill-detail > strong {
+        font-size: 0.75rem;
+    }
+
+    .billing-mobile-payment-card__grid {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    .billing-mobile-payment-card__column {
+        padding-right: 8px;
+    }
+
+    .billing-mobile-payment-card__column + .billing-mobile-payment-card__column {
+        padding-left: 9px;
+    }
+
+    .billing-mobile-payment-detail {
+        grid-template-columns: 16px 56px minmax(0, 1fr);
+        gap: 5px;
+        font-size: 0.63rem;
+    }
+
+    .billing-mobile-payment-detail > strong {
+        font-size: 0.64rem;
+    }
+
+    .billing-mobile-shell .billing-modern-filter-row > .clients-modern-new-btn,
+    .billing-mobile-shell .billing-bank-import-btn {
+        right: max(16px, env(safe-area-inset-right));
+        min-width: 106px;
+        height: 52px;
+        min-height: 52px;
+        padding: 0 17px;
+        border-radius: 15px !important;
+    }
+}
