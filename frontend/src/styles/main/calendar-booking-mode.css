@@ -2777,3 +2777,16 @@
         white-space: nowrap;
     }
 }
+
+/* Keep the waitlist picker above the active Dodaj termin editor and its backdrop. */
+.modal-backdrop.calendar-waitlist-picker-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 12050 !important;
+    isolation: isolate;
+}
+
+.modal-backdrop.calendar-waitlist-picker-backdrop > .calendar-waitlist-picker-modal.modal {
+    position: relative;
+    z-index: 1;
+}
