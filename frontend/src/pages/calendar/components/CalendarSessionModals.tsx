@@ -25,6 +25,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistActionLoading, setNewSlotWaitlistActionLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
+  const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
   const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
   const [releasedSlotWaitlistLoading, setReleasedSlotWaitlistLoading] = useState(false)
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -153,6 +154,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       setNewSlotWaitlistOpen(false)
     }
   }, [selection])
+
+  useEffect(() => {
+    setMobileBookingDetailsOpen(false)
+  }, [selectedBookedSession?.id, compactSessionEditHeader])
 
   const closeNewSlotWaitlist = (event?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
     event?.stopPropagation?.()
@@ -1892,17 +1897,43 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         <CalendarFormFooterDeleteIcon />
                         <span className="calendar-form-footer-btn__label">{t('formDeleteSession')}</span>
                       </button>
-                      <button
-                        type="button"
-                        className="calendar-form-footer-btn calendar-form-footer-btn--save calendar-form-footer-btn--header-save"
-                        onClick={() => void updateBookedSession()}
-                        disabled={bookedSessionSaveDisabled}
-                        aria-label={t('formSave')}
-                        title={t('formSave')}
-                      >
-                        <CalendarFormFooterSaveIcon />
-                        <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
-                      </button>
+                      <div className="calendar-mobile-session-more-wrap">
+                        <button
+                          type="button"
+                          className="calendar-mobile-session-more-btn"
+                          aria-label={locale === 'sl' ? 'Več informacij' : 'More information'}
+                          aria-haspopup="menu"
+                          aria-expanded={mobileBookingDetailsOpen}
+                          onClick={() => setMobileBookingDetailsOpen((open) => !open)}
+                        >
+                          <span aria-hidden>⋮</span>
+                        </button>
+                        {mobileBookingDetailsOpen && (
+                          <div className="calendar-mobile-session-more-menu" role="menu">
+                            <div className="calendar-mobile-session-more-menu__item">
+                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>◷</span>
+                              <span className="calendar-mobile-session-more-menu__copy">
+                                <strong>{t('formRepeats')}</strong>
+                                <small>{selectedBookedSession?.repeatEnabled ? (locale === 'sl' ? 'Ponavljanje je vključeno' : 'Repeating') : (locale === 'sl' ? 'Ne ponavljaj' : 'Does not repeat')}</small>
+                              </span>
+                            </div>
+                            <div className="calendar-mobile-session-more-menu__item">
+                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>▤</span>
+                              <span className="calendar-mobile-session-more-menu__copy">
+                                <strong>{t('formNotes')}</strong>
+                                <small>{String(selectedBookedSession?.notes || '').trim() || (locale === 'sl' ? 'Brez opomb' : 'No notes')}</small>
+                              </span>
+                            </div>
+                            <div className="calendar-mobile-session-more-menu__item">
+                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
+                              <span className="calendar-mobile-session-more-menu__copy">
+                                <strong>{bookingSourceFieldLabel}</strong>
+                                <small><span>{bookingSourceMeta.label}</span> <span className="calendar-mobile-session-more-menu__code">{bookingSourceCode}</span></small>
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -2350,28 +2381,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 </div>
               )}
-              <div className="form-row form-row-infield calendar-booking-field--source">
-                <span className="form-field-inline-label">{bookingSourceFieldLabel}</span>
-                <div className="form-field-inline-control">
-                  <div
-                    className="calendar-booking-source-selectlike"
-                    role="status"
-                    aria-readonly="true"
-                    aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}
-                    title={`${bookingSourceMeta.label} · ${bookingSourceCode}`}
->
-                    <span className="calendar-booking-source-selectlike__content">
-                      <span className="calendar-booking-source-selectlike__label">{bookingSourceMeta.label}</span>
-                      <span className="calendar-booking-source-selectlike__code">{bookingSourceCode}</span>
-                    </span>
-                    <span className="calendar-booking-source-selectlike__chevron" aria-hidden>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </span>
-                  </div>
-                </div>
-              </div>
               <div className="calendar-booking-row-divider calendar-booking-row-divider--timespan" aria-hidden />
               <div className="form-row form-row-timespan calendar-booking-timespan-row">
                 <CalendarLocalTimespanRow
@@ -2572,7 +2581,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             </div>
             </div>
             <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader && !confirmDelete ? ' booking-side-panel-footer--hidden' : ''}${showRecurringDeleteDialog ? ' booking-side-panel-footer--hidden' : ''}`}
+              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--mobile-save' : ''}${showRecurringDeleteDialog ? ' booking-side-panel-footer--hidden' : ''}`}
               style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
             >
               {confirmDelete ? (
@@ -2694,11 +2703,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </div>
                       )}
                     </div>
+                    {!compactSessionEditHeader && (
+                      <div className="calendar-session-source-tag" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
+                        <span className="calendar-session-source-tag__label">{locale === 'sl' ? 'Vir:' : 'Source:'} {bookingSourceMeta.label}</span>
+                        <span className="calendar-session-source-tag__code">{bookingSourceCode}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="calendar-session-footer-actions" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    className="calendar-form-footer-btn calendar-form-footer-btn--delete"
+                    className="calendar-form-footer-btn calendar-form-footer-btn--delete calendar-form-footer-btn--footer-delete"
                     onClick={() => setConfirmDelete(true)}
                   >
                     <CalendarFormFooterDeleteIcon />
@@ -2706,7 +2721,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </button>
                   <button
                     type="button"
-                    className="calendar-form-footer-btn calendar-form-footer-btn--save calendar-form-footer-btn--save-icon-only"
+                    className="calendar-form-footer-btn calendar-form-footer-btn--save calendar-form-footer-btn--save-mobile-bottom"
                     onClick={() => void updateBookedSession()}
                     disabled={bookedSessionSaveDisabled}
                   >

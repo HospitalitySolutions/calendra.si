@@ -2778,15 +2778,200 @@
     }
 }
 
-/* Keep the waitlist picker above the active Dodaj termin editor and its backdrop. */
-.modal-backdrop.calendar-waitlist-picker-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 12050 !important;
-    isolation: isolate;
+/* Booking source placement refresh: desktop footer tag + mobile overflow menu. */
+.calendar-edit-session-panel--design-match .calendar-session-source-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 16px;
+    border: 1px solid #d5dfec;
+    border-radius: 14px;
+    background: #f8fbff;
+    color: #334155;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
 }
 
-.modal-backdrop.calendar-waitlist-picker-backdrop > .calendar-waitlist-picker-modal.modal {
+.calendar-edit-session-panel--design-match .calendar-session-source-tag__label {
+    font-size: .94rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.calendar-edit-session-panel--design-match .calendar-session-source-tag__code {
+    display: inline-flex;
+    align-items: center;
+    min-height: 25px;
+    padding: 3px 9px;
+    border: 1px solid #d5dfec;
+    border-radius: 8px;
+    background: #eef3f9;
+    color: #607086;
+    font-size: .7rem;
+    font-weight: 850;
+    letter-spacing: .035em;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-wrap {
     position: relative;
-    z-index: 1;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    padding: 0;
+    border: 1px solid #d9e2ec;
+    border-radius: 18px;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-btn > span {
+    transform: translateY(-2px);
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 12px);
+    right: 0;
+    width: min(330px, calc(100vw - 32px));
+    overflow: hidden;
+    border: 1px solid #e1e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 22px 55px rgba(15, 23, 42, .2);
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__item {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 82px;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e7edf4;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__item:last-child {
+    border-bottom: 0;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    color: #0f172a;
+    font-size: 1.55rem;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__copy strong {
+    color: #172033;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__copy small {
+    overflow: hidden;
+    color: #64748b;
+    font-size: .9rem;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__code {
+    display: inline-flex;
+    margin-left: 7px;
+    padding: 3px 8px;
+    border: 1px solid #d8e1ec;
+    border-radius: 8px;
+    background: #eef3f8;
+    color: #52647b;
+    font-size: .7rem;
+    font-weight: 850;
+    letter-spacing: .03em;
+}
+
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--design-match .booking-side-panel-header-toolbar--session-edit-booked {
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-header-ico-group {
+        gap: 10px;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer.booking-side-panel-footer--mobile-save,
+    .calendar-edit-session-panel .booking-side-panel-footer.booking-side-panel-footer--mobile-save:has(.calendar-form-footer-btn--save) {
+        display: flex !important;
+        position: sticky;
+        bottom: 0;
+        z-index: 12;
+        width: 100%;
+        padding: 14px 16px max(18px, env(safe-area-inset-bottom)) !important;
+        border-top: 1px solid #e2e8f0;
+        background: #fff;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer--mobile-save .calendar-session-footer-tags,
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--footer-delete {
+        display: none !important;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer--mobile-save .calendar-session-footer-actions {
+        width: 100%;
+        margin: 0;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom {
+        display: inline-flex;
+        width: 100%;
+        min-width: 0;
+        min-height: 58px;
+        padding: 0 24px;
+        gap: 12px;
+        border-radius: 16px;
+        justify-content: center;
+        background: #2f6fed;
+        border-color: #2b61d1;
+        color: #fff;
+        box-shadow: 0 10px 22px rgba(47, 111, 237, .24);
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom .calendar-form-footer-btn__label {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        color: #fff;
+        font-size: 1.05rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom .calendar-form-footer-btn__save-mark {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+    }
 }
