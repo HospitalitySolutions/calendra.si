@@ -118,3 +118,92 @@
 .calendar-edit-session-panel .form-row-layout > .form-row--bare { grid-column: 1 / -1; }
 .calendar-edit-session-panel--availability .form-row-layout > .form-row { grid-column: 1 / -1; }
 
+
+/* Final popup shell overrides for design-match edit session popup */
+.calendar-edit-session-panel--design-match.calendar-session-popup.modal.large-modal,
+.calendar-edit-session-panel--design-match.booking-side-panel.modal.large-modal {
+    width: min(1020px, calc(100vw - 36px));
+    max-width: min(1020px, calc(100vw - 36px));
+    border-radius: 28px;
+    border: 1px solid rgba(220, 228, 239, 0.96);
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+}
+
+.calendar-edit-session-panel--design-match .booking-side-panel-header {
+    padding: 28px 38px 20px !important;
+    border-bottom-color: #e2e8f0;
+}
+
+.calendar-edit-session-panel--design-match .booking-side-panel-header .page-header h1,
+.calendar-edit-session-panel--design-match .booking-side-panel-header .page-header .booking-title-with-help > span:first-child {
+    font-size: clamp(2rem, 2.5vw, 2.35rem);
+    font-weight: 860;
+    letter-spacing: -0.05em;
+}
+
+.calendar-edit-session-panel--design-match .booking-side-panel-close,
+.calendar-edit-session-panel--design-match .booking-side-panel-header .header-actions .booking-side-panel-close {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #0f172a;
+}
+
+.calendar-edit-session-panel--design-match .booking-side-panel-body,
+.calendar-edit-session-panel--design-match.booking-side-panel .booking-side-panel-body {
+    padding: 20px 38px 24px !important;
+}
+
+.calendar-edit-session-panel--design-match .booking-side-panel-footer {
+    padding: 18px 38px 24px !important;
+}
+
+.calendar-edit-session-panel--design-match .booking-side-panel-footer.row.gap {
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--design-match.booking-side-panel.modal.large-modal {
+        max-height: 97dvh;
+        border-radius: 28px 28px 0 0;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-header {
+        padding: 16px 18px 12px !important;
+        border-bottom-color: #eef2f7;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-header::before {
+        top: 10px;
+        width: 54px;
+        height: 6px;
+        background: #d1d5db;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-body,
+    .calendar-edit-session-panel--design-match.booking-side-panel .booking-side-panel-body {
+        padding: 10px 16px 14px !important;
+    }
+}
+
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--design-match .booking-side-panel-header {
+        padding: 38px 18px 12px !important;
+    }
+
+    .calendar-edit-session-panel--design-match .booking-side-panel-close,
+    .calendar-edit-session-panel--design-match .booking-side-panel-header .header-actions .booking-side-panel-close {
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        font-size: 1.8rem;
+    }
+}

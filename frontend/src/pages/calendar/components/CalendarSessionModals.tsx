@@ -1853,17 +1853,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle(true)}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
               {compactSessionEditHeader ? (
                 !confirmDelete ? (
-                  <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit">
+                  <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-booked">
                     <button type="button" className="secondary booking-side-panel-close" onClick={closeBookedModal} aria-label={t('mobileNavClose')}>
                       ×
                     </button>
+                    <div className="calendar-edit-session-panel__compact-title-wrap">
+                      <span className="calendar-edit-session-panel__compact-title">{t('formBookedSession')}</span>
+                    </div>
                     <div className="booking-side-panel-header-ico-group">
                       <button
                         type="button"
@@ -1877,25 +1880,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </button>
                       <button
                         type="button"
-                        className="booking-side-panel-submit-check"
+                        className="calendar-form-footer-btn calendar-form-footer-btn--save calendar-form-footer-btn--header-save"
                         onClick={() => void updateBookedSession()}
                         disabled={bookedSessionSaveDisabled}
                         aria-label={t('formSave')}
                         title={t('formSave')}
                       >
-                        <svg
-                          width="22"
-                          height="22"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
+                        <CalendarFormFooterSaveIcon />
+                        <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
                       </button>
                     </div>
                   </div>
@@ -1946,7 +1938,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       <div className="calendar-client-picker__search-row">
                         <div className="client-search-wrap calendar-client-picker__search-wrap client-search-wrap--compact-client">
                           <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                           </span>
                           <button
                             type="button"
@@ -1984,7 +1976,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <div className="calendar-client-picker__search-row">
                     <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}`}>
                       <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        {bookedSessionClientFieldCompact ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        )}
                       </span>
                       {bookedSessionClientFieldCompact ? (
                         <button
@@ -2254,21 +2250,25 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     ) : null}
                   </div>
                   <div className="form-field-inline-control calendar-booking-service-select-only" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <select
-                      style={{ flex: 1, minWidth: 0 }}
-                      value={selectedBookedSession.type?.id ?? ''}
-                      onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: bookedSessionSelectableMetaTypes.find((ty: any) => Number(ty.id) === Number(e.target.value)) ?? null })}
-                    >
-                      <option value="">{t('formNoType')}</option>
-                      {bookedSessionIsGroup && !bookedSessionSelectedTypeAllowed && selectedBookedSession.type?.id ? (
-                        <option value={selectedBookedSession.type.id} disabled>
-                          {selectedBookedSession.type.name} ({locale === 'sl' ? 'Skupina ni omogočena' : 'Group is off'})
-                        </option>
-                      ) : null}
-                      {bookedSessionSelectableMetaTypes.map((ty: any) => (
-                        <option key={ty.id} value={ty.id}>{formatSessionTypeOptionLabel(ty)}</option>
-                      ))}
-                    </select>
+                    <div className="calendar-booking-service-select-shell">
+                      <span className="calendar-booking-service-select-shell__icon" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                      </span>
+                      <select
+                        value={selectedBookedSession.type?.id ?? ''}
+                        onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: bookedSessionSelectableMetaTypes.find((ty: any) => Number(ty.id) === Number(e.target.value)) ?? null })}
+                      >
+                        <option value="">{t('formNoType')}</option>
+                        {bookedSessionIsGroup && !bookedSessionSelectedTypeAllowed && selectedBookedSession.type?.id ? (
+                          <option value={selectedBookedSession.type.id} disabled>
+                            {selectedBookedSession.type.name} ({locale === 'sl' ? 'Skupina ni omogočena' : 'Group is off'})
+                          </option>
+                        ) : null}
+                        {bookedSessionSelectableMetaTypes.map((ty: any) => (
+                          <option key={ty.id} value={ty.id}>{formatSessionTypeOptionLabel(ty)}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="calendar-session-billing-actions">
                       {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
                       <div className="calendar-session-billing-action-wrap">
@@ -2352,18 +2352,28 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               <div className="form-row form-row-infield calendar-booking-field--source">
                 <span className="form-field-inline-label">{bookingSourceFieldLabel}</span>
                 <div className="form-field-inline-control">
-                  <div className="calendar-booking-source-card" role="status" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
-                    <span className="calendar-booking-source-card__icon" aria-hidden>
+                  <div
+                    className="calendar-booking-source-selectlike"
+                    role="status"
+                    aria-readonly="true"
+                    aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}
+                    title={`${bookingSourceMeta.label} · ${bookingSourceCode}`}
+                  >
+                    <span className="calendar-booking-source-selectlike__icon" aria-hidden>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="9" />
                         <path d="M3 12h18M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18" />
                       </svg>
                     </span>
-                    <span className="calendar-booking-source-card__copy">
-                      <strong>{bookingSourceMeta.label}</strong>
-                      <small>{bookingSourceMeta.description}</small>
+                    <span className="calendar-booking-source-selectlike__content">
+                      <span className="calendar-booking-source-selectlike__label">{bookingSourceMeta.label}</span>
+                      <span className="calendar-booking-source-selectlike__code">{bookingSourceCode}</span>
                     </span>
-                    <span className="calendar-booking-source-card__code">{bookingSourceCode}</span>
+                    <span className="calendar-booking-source-selectlike__chevron" aria-hidden>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2545,11 +2555,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 )
               })()}
               {(selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').includes('Zoom meeting:')) && (
-                <div className="form-row form-row-infield">
+                <div className="form-row form-row-infield calendar-booking-field--meeting-link">
                   <span className="form-field-inline-label">{t('formMeetingLink')}</span>
                   <div className="form-field-inline-control">
-                  <a href={selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').match(/Zoom meeting:\s*(https?:\/\/[^\s\n]+)/)?.[1]} target="_blank" rel="noopener noreferrer" className="linkish">
-                    {(selectedBookedSession.meetingProvider === 'google' || (selectedBookedSession.meetingLink || '').includes('meet.google.com')) ? t('formOpenGoogleMeet') : t('formOpenZoom')}
+                  <a href={selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').match(/Zoom meeting:\s*(https?:\/\/[^\s\n]+)/)?.[1]} target="_blank" rel="noopener noreferrer" className="linkish calendar-booking-meeting-link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.8 13.12a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>
+                    <span>{(selectedBookedSession.meetingProvider === 'google' || (selectedBookedSession.meetingLink || '').includes('meet.google.com')) ? t('formOpenGoogleMeet') : t('formOpenZoom')}</span>
                   </a>
                   </div>
                 </div>
@@ -2689,7 +2700,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       )}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div className="calendar-session-footer-actions" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     className="calendar-form-footer-btn calendar-form-footer-btn--delete"
@@ -3399,7 +3410,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         <div className={useBookingSidePanel ? 'modal-backdrop booking-side-panel-backdrop' : 'calendar-session-popup-layer'} onClick={useBookingSidePanel ? closePersonalModal : undefined}>
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3565,7 +3576,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3677,7 +3688,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle(true)}
             onClick={(e) => {
               e.stopPropagation()
