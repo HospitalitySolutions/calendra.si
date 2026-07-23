@@ -1889,7 +1889,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <div className="booking-side-panel-header-ico-group">
                       <button
                         type="button"
-                        className="calendar-form-footer-btn calendar-form-footer-btn--delete"
+                        className="calendar-form-footer-btn calendar-form-footer-btn--delete calendar-form-footer-btn--desktop-delete"
                         onClick={() => setConfirmDelete(true)}
                         aria-label={t('formDeleteSession')}
                         title={t('formDeleteSession')}
@@ -1910,20 +1910,71 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </button>
                         {mobileBookingDetailsOpen && (
                           <div className="calendar-mobile-session-more-menu" role="menu">
-                            <div className="calendar-mobile-session-more-menu__item">
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>◷</span>
+                            {advanceBillingEnabled && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__item--action"
+                                disabled={bookedPaymentActionButtonsDisabled}
+                                onClick={() => {
+                                  setMobileBookingDetailsOpen(false)
+                                  openBookedAdvanceForm()
+                                }}
+                              >
+                                <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
+                                  <CalendarAdvancePaymentIcon />
+                                </span>
+                                <span className="calendar-mobile-session-more-menu__copy">
+                                  <strong>{locale === 'sl' ? 'Predračun' : locale === 'sr' ? 'Predračun' : 'Proforma invoice'}</strong>
+                                  <small>{locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice'}</small>
+                                </span>
+                              </button>
+                            )}
+                            {canShowOpenBillForBookedStatus && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__item--action"
+                                disabled={bookedPaymentActionButtonsDisabled}
+                                onClick={() => {
+                                  setMobileBookingDetailsOpen(false)
+                                  if (!bookedBillingHasExistingOpenBill && !bookedBillingHasInvoiceViewRows) {
+                                    void openBookedInvoiceEditor()
+                                    return
+                                  }
+                                  openBookedBillingView('invoices')
+                                }}
+                              >
+                                <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
+                                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                    <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                    <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                    <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
+                                  </svg>
+                                </span>
+                                <span className="calendar-mobile-session-more-menu__copy">
+                                  <strong>{locale === 'sl' ? 'Račun' : locale === 'sr' ? 'Račun' : 'Invoice'}</strong>
+                                  <small>{locale === 'sl' ? 'Ustvari ali odpri račun' : 'Create or open an invoice'}</small>
+                                </span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__item--action"
+                              disabled={bookingServiceScanDisabled}
+                              onClick={() => {
+                                if (bookingServiceScanDisabled) return
+                                setMobileBookingDetailsOpen(false)
+                                openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
+                              }}
+                            >
+                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden><BookedEntitlementScanIcon /></span>
                               <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{t('formRepeats')}</strong>
-                                <small>{selectedBookedSession?.repeatEnabled ? (locale === 'sl' ? 'Ponavljanje je vključeno' : 'Repeating') : (locale === 'sl' ? 'Ne ponavljaj' : 'Does not repeat')}</small>
+                                <strong>{locale === 'sl' ? 'Skener' : locale === 'sr' ? 'Skener' : 'Scanner'}</strong>
+                                <small>{bookingServiceScanTitle}</small>
                               </span>
-                            </div>
-                            <div className="calendar-mobile-session-more-menu__item">
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>▤</span>
-                              <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{t('formNotes')}</strong>
-                                <small>{String(selectedBookedSession?.notes || '').trim() || (locale === 'sl' ? 'Brez opomb' : 'No notes')}</small>
-                              </span>
-                            </div>
+                            </button>
                             <div className="calendar-mobile-session-more-menu__item">
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
                               <span className="calendar-mobile-session-more-menu__copy">
@@ -1931,6 +1982,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                 <small><span>{bookingSourceMeta.label}</span> <span className="calendar-mobile-session-more-menu__code">{bookingSourceCode}</span></small>
                               </span>
                             </div>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__item--action calendar-mobile-session-more-menu__item--danger"
+                              onClick={() => {
+                                setMobileBookingDetailsOpen(false)
+                                setConfirmDelete(true)
+                              }}
+                            >
+                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarFormFooterDeleteIcon /></span>
+                              <span className="calendar-mobile-session-more-menu__copy">
+                                <strong>{t('formDeleteSession')}</strong>
+                                <small>{locale === 'sl' ? 'Izbriši ta termin' : 'Delete this session'}</small>
+                              </span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -2301,7 +2367,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         ))}
                       </select>
                     </div>
-                    <div className="calendar-session-billing-actions">
+                    <div className="calendar-session-billing-actions calendar-session-billing-actions--desktop-only">
                       {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
                       <div className="calendar-session-billing-action-wrap">
                         <button
