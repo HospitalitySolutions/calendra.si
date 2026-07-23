@@ -378,6 +378,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   }, [authenticatedUser])
   const isCalendarRoute = location.pathname === '/calendar' || location.pathname.startsWith('/calendar/')
   const isClientsRoute = location.pathname === '/clients' || location.pathname.startsWith('/clients/')
+  const isWaitlistRoute = location.pathname === '/appointments'
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1404,7 +1405,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1413,7 +1414,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
               ? 'app-header app-header--calendar'
               : isClientsRoute
                 ? 'app-header app-header--clients'
-                : 'app-header'
+                : isWaitlistRoute
+                  ? 'app-header app-header--waitlist'
+                  : 'app-header'
           }
         >
           {isCalendarRoute && calendarShellSlots ? (
@@ -1454,12 +1457,17 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                     <span>{clientsMobileHeader.count}</span>
                   </div>
                 )}
+                {isWaitlistRoute && (
+                  <div className="app-header-waitlist-title">
+                    <strong>{appointmentsNavLabel}</strong>
+                  </div>
+                )}
               </div>
               {headerActions}
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}

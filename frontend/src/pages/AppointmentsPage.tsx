@@ -140,6 +140,41 @@ function statusLabel(status: string, locale: string) {
   return (locale === 'sl' ? sl : en)[status] ?? status
 }
 
+type WaitlistViewKey = 'ACTIVE' | 'OFFERED' | 'HISTORY'
+
+function waitlistPreferredDateTime(request: WaitlistRequest) {
+  if (request.currentOffer?.slotStart) return request.currentOffer.slotStart
+  if (!request.dateFrom) return null
+  const firstWindow = request.windows.find(window => window.date === request.dateFrom) || request.windows[0]
+  if (firstWindow?.allDay || !firstWindow?.timeFrom) return request.dateFrom
+  return `${request.dateFrom}T${firstWindow.timeFrom.slice(0, 5)}:00`
+}
+
+function waitlistHistoryMoment(request: WaitlistRequest) {
+  if (request.status === 'BOOKED' || request.status === 'OFFER_ACCEPTED') {
+    if (request.currentOffer?.acceptedAt) return request.currentOffer.acceptedAt
+  }
+  if (request.status === 'DECLINED' && request.currentOffer?.declinedAt) return request.currentOffer.declinedAt
+  if (request.status === 'EXPIRED' && request.currentOffer?.expiresAt) return request.currentOffer.expiresAt
+  const latest = [...(request.history || [])].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0]
+  return latest?.occurredAt || request.currentOffer?.offeredAt || request.joinedAt || null
+}
+
+function mobileWaitlistStatus(request: WaitlistRequest, view: WaitlistViewKey, locale: string) {
+  const isSl = locale === 'sl'
+  if (view === 'ACTIVE') {
+    if (request.targetType === 'ANY_AVAILABLE') return { label: isSl ? 'Aktivna' : 'Active', tone: 'active' }
+    return { label: isSl ? 'Čaka' : 'Waiting', tone: 'waiting' }
+  }
+  if (view === 'OFFERED') return { label: isSl ? 'Ponudba poslana' : 'Offer sent', tone: 'offered' }
+  if (request.status === 'BOOKED' || request.status === 'OFFER_ACCEPTED') return { label: isSl ? 'Potrjeno' : 'Confirmed', tone: 'confirmed' }
+  if (request.status === 'DECLINED') return { label: isSl ? 'Zavrnjeno' : 'Declined', tone: 'declined' }
+  if (request.status === 'EXPIRED') return { label: isSl ? 'Poteklo' : 'Expired', tone: 'expired' }
+  if (request.status === 'CANCELLED') return { label: isSl ? 'Preklicano' : 'Cancelled', tone: 'expired' }
+  if (request.status === 'REMOVED') return { label: isSl ? 'Odstranjeno' : 'Removed', tone: 'expired' }
+  return { label: statusLabel(request.status, locale), tone: 'expired' }
+}
+
 function targetTypeLabel(type: string, locale: string) {
   const sl: Record<string, string> = {
     EXACT_TIME: 'Točen termin', FLEXIBLE_WINDOW: 'Izbrano časovno okno', ANY_AVAILABLE: 'Katerikoli termin',
@@ -174,7 +209,7 @@ function waitlistWindowTimeLabel(window: WindowView, locale: string) {
   return from || to || '—'
 }
 
-function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'filter' | 'phone' | 'message' | 'trash' | 'offer' | 'booking' | 'skip' | 'close' | 'history' | 'mail' | 'pin' | 'user' | 'info' | 'refresh' | 'external' | 'save') {
+function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'filter' | 'phone' | 'message' | 'trash' | 'offer' | 'booking' | 'skip' | 'close' | 'history' | 'mail' | 'pin' | 'user' | 'info' | 'refresh' | 'external' | 'save' | 'more') {
   const paths: Record<string, ReactNode> = {
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></>,
     queue: <><path d="M4 6h16M4 12h12M4 18h8"/><circle cx="20" cy="18" r="2"/></>,
@@ -196,6 +231,7 @@ function icon(kind: 'calendar' | 'queue' | 'plus' | 'search' | 'filter' | 'phone
     refresh: <><path d="M20 7h-5V2"/><path d="M20 7a9 9 0 1 0 2 6"/></>,
     external: <><path d="M15 3h6v6M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></>,
     save: <><path d="M5 3h12l4 4v14H3V3h2Z"/><path d="M7 3v6h10V3M8 21v-7h8v7"/></>,
+    more: <><circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/></>,
   }
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[kind]}</svg>
 }
@@ -252,7 +288,7 @@ export function AppointmentsPage() {
   const skipNextRowsReload = useRef(false)
   const closingSelectedRef = useRef(false)
   const [isMobileWaitlist, setIsMobileWaitlist] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false,
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 780px)').matches : false,
   )
   const [mobilePage, setMobilePage] = useState(1)
 
@@ -643,7 +679,7 @@ export function AppointmentsPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
-    const mq = window.matchMedia('(max-width: 760px)')
+    const mq = window.matchMedia('(max-width: 780px)')
     const handleChange = () => setIsMobileWaitlist(mq.matches)
     handleChange()
     if (typeof mq.addEventListener === 'function') {
@@ -741,7 +777,7 @@ export function AppointmentsPage() {
             {activeFilterCount > 0 && <strong className="waitlist-filter-trigger__count">{activeFilterCount}</strong>}
           </button>
         </div>
-        <button type="button" className="appointments-primary waitlist-add-button" onClick={() => setShowCreate(true)}>{icon('plus')}{copy.add}</button>
+        <button type="button" className="appointments-primary waitlist-add-button" onClick={() => setShowCreate(true)}>{icon('plus')}<span>{isMobileWaitlist ? (locale === 'sl' ? 'Dodaj' : 'Add') : copy.add}</span></button>
       </section>
 
       {error && <div className="waitlist-error">{error}</div>}
@@ -749,95 +785,62 @@ export function AppointmentsPage() {
         <section className="waitlist-table-card">
           {isMobileWaitlist ? (
             <div className="waitlist-mobile">
-              {!loading && rows.length > 0 ? (
-                <div className="waitlist-mobile__result-count">
-                  {locale === 'sl'
-                    ? `Prikazujem ${mobilePagination.showFrom} do ${mobilePagination.showTo} od ${mobilePagination.total} rezultatov`
-                    : `Showing ${mobilePagination.showFrom} to ${mobilePagination.showTo} of ${mobilePagination.total} results`}
-                </div>
-              ) : null}
-
               <div className="waitlist-mobile__list">
                 {loading ? <div className="waitlist-empty waitlist-mobile__empty">…</div> : rows.length === 0 ? <div className="waitlist-empty waitlist-mobile__empty">{copy.noRows}</div> : mobilePagination.slice.map(row => {
                   const contactValue = row.clientPhone || row.clientEmail || '—'
                   const employeeValue = row.specificEmployee?.name || (row.selectedEmployees.length ? row.selectedEmployees.map(item => item.name).join(', ') : copy.any)
-                  const wantedDate = row.targetType === 'ANY_AVAILABLE'
-                    ? copy.anyAvailable
-                    : `${formatDate(row.dateFrom)} – ${formatDate(row.dateTo)}`
-                  const wantedTime = row.targetType === 'ANY_AVAILABLE'
-                    ? `${copy.anyAvailableUntil} ${formatDate(row.dateTo)}`
-                    : `${targetTypeLabel(row.targetType, locale)}${row.windows[0] && !row.windows[0].allDay ? ` · ${row.windows[0].timeFrom?.slice(0, 5) || ''}–${row.windows[0].timeTo?.slice(0, 5) || ''}` : ''}`
-                  return <article key={row.id} className={`waitlist-mobile-card${selected?.id === row.id ? ' is-selected' : ''}`} role="button" tabIndex={0} onClick={() => void selectRequest(row)} onKeyDown={(event) => {
+                  const serviceValue = requestServiceLabel(row, serviceGroupsModuleEnabled)
+                  const preferredDateTime = waitlistPreferredDateTime(row)
+                  const historyMoment = waitlistHistoryMoment(row)
+                  const mobileStatus = mobileWaitlistStatus(row, view, locale)
+                  const exactDateLabel = preferredDateTime
+                    ? (preferredDateTime.length === 10 ? formatDate(preferredDateTime) : formatDateTime(preferredDateTime))
+                    : formatDate(row.dateFrom)
+                  const offeredSlotLabel = row.currentOffer?.slotStart ? formatDateTime(row.currentOffer.slotStart) : exactDateLabel
+                  const offerExpiryLabel = row.currentOffer?.expiresAt ? formatDateTime(row.currentOffer.expiresAt) : formatDate(row.expiresAt)
+                  const historyStatusMoment = historyMoment ? formatDateTime(historyMoment) : '—'
+
+                  return <article key={row.id} className={`waitlist-mobile-row waitlist-mobile-row--${view.toLowerCase()}${selected?.id === row.id ? ' is-selected' : ''}`} role="button" tabIndex={0} onClick={() => void selectRequest(row)} onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
                       void selectRequest(row)
                     }
                   }}>
-                    <div className="waitlist-mobile-card__header">
-                      <span className="waitlist-avatar waitlist-avatar--mobile">{waitlistClientInitials(row.clientName)}</span>
-                      <div className="waitlist-mobile-card__identity">
-                        <h3>{row.clientName}</h3>
-                        <span>{contactValue}</span>
+                    <span className="waitlist-avatar waitlist-avatar--mobile">{waitlistClientInitials(row.clientName)}</span>
+                    <div className="waitlist-mobile-row__main">
+                      <div className="waitlist-mobile-row__heading">
+                        <div className="waitlist-mobile-row__identity">
+                          <h3>{row.clientName}</h3>
+                          <span>{contactValue}</span>
+                        </div>
+                        <div className="waitlist-mobile-row__actions">
+                          <span className={`waitlist-mobile-status waitlist-mobile-status--${mobileStatus.tone}`}>{mobileStatus.label}</span>
+                          <button type="button" className="waitlist-mobile-row__more" aria-label={locale === 'sl' ? 'Odpri podrobnosti' : 'Open details'} onClick={(event) => {
+                            event.stopPropagation()
+                            void selectRequest(row)
+                          }}>{icon('more')}</button>
+                        </div>
                       </div>
 
-                      <div className="waitlist-mobile-card__summary">
-                        <span className={`waitlist-status status-${row.status.toLowerCase()}`}>{statusLabel(row.status, locale)}</span>
-                        {row.currentOffer ? <small className="waitlist-countdown">{remainingLabel(Math.max(0, Math.floor((new Date(row.currentOffer.expiresAt).getTime() - Date.now()) / 1000)))}</small> : null}
-                        <button type="button" className="waitlist-mobile-card__open" onClick={(event) => {
-                          event.stopPropagation()
-                          void selectRequest(row)
-                        }}>
-                          <span>{locale === 'sl' ? 'Odpri' : 'Open'}</span>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <path d="m9 18 6-6-6-6" />
-                          </svg>
-                        </button>
-                      </div>
+                      {view === 'OFFERED' ? (
+                        <div className="waitlist-mobile-row__meta">
+                          <div>{icon('calendar')}<span><strong>{locale === 'sl' ? 'Ponudba:' : 'Offer:'}</strong> {offeredSlotLabel}</span></div>
+                          <div>{icon('history')}<span><strong>{locale === 'sl' ? 'Velja do:' : 'Valid until:'}</strong> {offerExpiryLabel} <b aria-hidden>•</b> <em>{serviceValue}</em></span></div>
+                        </div>
+                      ) : (
+                        <div className={`waitlist-mobile-row__meta${view === 'HISTORY' ? ' waitlist-mobile-row__meta--history' : ''}`}>
+                          <div>{icon('calendar')}<span><em>{serviceValue}</em> <b aria-hidden>•</b> {row.targetType === 'ANY_AVAILABLE' ? copy.anyAvailable : exactDateLabel}</span></div>
+                          <div>{icon('user')}<span>{employeeValue}</span></div>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="waitlist-mobile-card__details">
-                      <div className="waitlist-mobile-card__detail">
-                        <span className="waitlist-mobile-card__detail-icon" aria-hidden>{icon('calendar')}</span>
-                        <div>
-                          <span>{copy.service}</span>
-                          <strong>{requestServiceLabel(row, serviceGroupsModuleEnabled)}</strong>
-                          <small>{requestServiceDetails(row, serviceGroupsModuleEnabled)}</small>
-                        </div>
+                    {view === 'HISTORY' && (
+                      <div className="waitlist-mobile-row__history-outcome">
+                        <span>{mobileStatus.label}</span>
+                        <time>{historyStatusMoment}</time>
                       </div>
-
-                      <div className="waitlist-mobile-card__detail">
-                        <span className="waitlist-mobile-card__detail-icon" aria-hidden>{icon('history')}</span>
-                        <div>
-                          <span>{copy.wanted}</span>
-                          <strong>{wantedDate}</strong>
-                          <small>{wantedTime}</small>
-                        </div>
-                      </div>
-
-                      <div className="waitlist-mobile-card__detail">
-                        <span className="waitlist-mobile-card__detail-icon" aria-hidden>{icon('user')}</span>
-                        <div>
-                          <span>{copy.employee}</span>
-                          <strong>{employeeValue}</strong>
-                        </div>
-                      </div>
-
-                      <div className="waitlist-mobile-card__detail">
-                        <span className="waitlist-mobile-card__detail-icon" aria-hidden>{icon('info')}</span>
-                        <div>
-                          <span>{copy.source}</span>
-                          <strong>{sourceLabel(row.source, locale)}</strong>
-                        </div>
-                      </div>
-
-                      <div className="waitlist-mobile-card__detail waitlist-mobile-card__detail--wide">
-                        <span className="waitlist-mobile-card__detail-icon" aria-hidden>{icon('offer')}</span>
-                        <div>
-                          <span>{copy.joined}</span>
-                          <strong>{formatDateTime(row.joinedAt)}</strong>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </article>
                 })}
               </div>
@@ -1096,6 +1099,87 @@ export function AppointmentsPage() {
       .waitlist-detail-modal__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:16px 28px;border-top:1px solid #e4e9f0;background:#fff}.waitlist-detail-modal__footer button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 17px;border:1px solid #d7e0ec;border-radius:9px;background:#fff;color:#34445c;font-weight:700;cursor:pointer}.waitlist-detail-modal__footer button.primary{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 7px 17px rgba(20,99,223,.18)}.waitlist-detail-modal__footer button.danger{border-color:#f5b8b8;color:#dc2626}.waitlist-detail-modal__footer button:hover{background:#f6f9fd}.waitlist-detail-modal__footer button.primary:hover{background:#0f5ed9}
       @media(max-width:900px){.appointments-page{margin:12px;border-radius:16px}.waitlist-detail-modal__body--offered{grid-template-columns:1fr}.waitlist-popup-section--offer{padding-left:0;padding-top:20px;border-left:0;border-top:1px solid #e2e7ef}.waitlist-history-grid{grid-template-columns:1fr}.waitlist-detail-modal__footer{justify-content:stretch}.waitlist-detail-modal__footer button{flex:1 1 180px}}
       @media(max-width:620px){.waitlist-detail-backdrop{padding:0}.waitlist-detail-modal,.waitlist-detail-modal--offered,.waitlist-detail-modal--history{width:100%;height:100%;max-height:none;border:0;border-radius:0}.waitlist-detail-modal__header,.waitlist-detail-modal__body,.waitlist-detail-modal__footer{padding-left:18px;padding-right:18px}.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:105px minmax(0,1fr)}.waitlist-weekday-chips{gap:6px}.waitlist-weekday-chip{min-width:38px;height:29px;padding:0 8px}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}.waitlist-detail-modal__footer button{flex-basis:100%}}
+      @media(max-width:780px){
+        .appointments-page{margin:0!important;padding:0 0 calc(92px + env(safe-area-inset-bottom))!important;min-height:100vh;border-radius:0!important;background:#f8fafc;box-shadow:none!important;color:#13213a}
+        .waitlist-view-tabs{position:sticky;top:calc(58px + env(safe-area-inset-top));z-index:190;display:flex;align-items:stretch;width:100%;min-height:58px;margin:0;padding:0 14px;gap:0;border:0;border-radius:0;background:linear-gradient(135deg,#0b71ee 0%,#0865db 100%);box-shadow:0 1px 0 rgba(255,255,255,.16);box-sizing:border-box;overflow:visible}
+        .waitlist-view-tabs button,.waitlist-view-tabs button:hover,.waitlist-view-tabs button.active{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:1 1 0;min-width:0;min-height:58px;margin:0;padding:0 4px;gap:7px;border:0;border-radius:0;background:transparent;box-shadow:none;color:rgba(255,255,255,.72);font-size:clamp(.76rem,3.5vw,.96rem);line-height:1;font-weight:750;white-space:nowrap}
+        .waitlist-view-tabs button:hover,.waitlist-view-tabs button.active{color:#fff}
+        .waitlist-view-tabs button::after{content:"";position:absolute;left:7px;right:7px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}
+        .waitlist-view-tabs button.active::after{background:#fff}
+        .waitlist-view-tabs button svg{width:20px;height:20px;flex:0 0 auto}
+        .waitlist-tab-count,.waitlist-view-tabs button.active .waitlist-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border:0;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;line-height:1;font-weight:850;box-shadow:none}
+        .waitlist-view-tabs button.active .waitlist-tab-count{background:#fff;color:#1672f3}
+        .waitlist-toolbar{display:block;margin:0;padding:22px 17px 22px;background:#f8fafc}
+        .waitlist-toolbar__left{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center;flex-direction:row!important;gap:12px;width:100%;min-width:0}
+        .waitlist-search{display:flex;align-items:center;gap:10px;min-width:0;min-height:48px;padding:0 14px;border:1px solid #d7e0eb;border-radius:13px;background:#fff;color:#718096;box-sizing:border-box}
+        .waitlist-search svg{width:20px;height:20px;flex:0 0 auto}
+        .waitlist-search input{width:100%;min-width:0;padding:0;border:0;background:transparent;color:#1d2a42;font-size:.91rem;line-height:1;outline:0}
+        .waitlist-search input::placeholder{color:#758198;opacity:1}
+        .waitlist-filter-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:88px;min-height:48px;padding:0 15px;border:1px solid #d7e0eb;border-radius:13px;background:#fff;color:#16243b;font-size:.94rem;font-weight:750;box-sizing:border-box}
+        .waitlist-filter-trigger svg{width:20px;height:20px}
+        .waitlist-filter-trigger__count{position:absolute;transform:translate(35px,-18px);min-width:19px;height:19px;padding:0 5px;border:2px solid #f8fafc;font-size:.62rem}
+        .waitlist-add-button{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:4200;min-width:94px;min-height:48px;padding:0 18px;border-radius:18px;background:linear-gradient(135deg,#0d78f5 0%,#0865df 100%);font-size:.98rem;font-weight:800;box-shadow:0 10px 28px rgba(6,91,215,.34)}
+        .waitlist-add-button svg{width:22px;height:22px}
+        .waitlist-error{margin:0 17px 16px}
+        .waitlist-layout{display:block;padding:0 17px;background:#f8fafc}
+        .waitlist-table-card{overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
+        .waitlist-mobile{padding:0}
+        .waitlist-mobile__list{display:block;overflow:hidden;border:1px solid #dce3ed;border-radius:17px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.035)}
+        .waitlist-mobile__empty{margin:0;padding:40px 18px!important;border:0;border-radius:0;background:#fff}
+        .waitlist-mobile-row{position:relative;display:grid;grid-template-columns:50px minmax(0,1fr);gap:14px;min-height:108px;padding:14px 14px 15px 16px;border:0;border-bottom:1px solid #e1e6ed;background:#fff;box-sizing:border-box;cursor:pointer;outline:0;transition:background .15s ease}
+        .waitlist-mobile-row:last-child{border-bottom:0}
+        .waitlist-mobile-row:hover,.waitlist-mobile-row.is-selected,.waitlist-mobile-row:focus-visible{background:#f8fbff}
+        .waitlist-avatar--mobile{width:50px;height:50px;margin-top:0;border-radius:50%;background:linear-gradient(145deg,#eee8ff 0%,#f3efff 100%);color:#6941c6;font-size:1.05rem;font-weight:800}
+        .waitlist-mobile-row:nth-child(3n) .waitlist-avatar--mobile,.waitlist-mobile-row:nth-child(3n+1) .waitlist-avatar--mobile{background:linear-gradient(145deg,#e6edff 0%,#eef3ff 100%);color:#1660cf}
+        .waitlist-mobile-row__main{min-width:0}
+        .waitlist-mobile-row__heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-width:0}
+        .waitlist-mobile-row__identity{min-width:0;padding-top:1px}
+        .waitlist-mobile-row__identity h3{margin:0;overflow:hidden;color:#101c30;font-size:1rem;line-height:1.18;font-weight:820;letter-spacing:-.012em;text-overflow:ellipsis;white-space:nowrap}
+        .waitlist-mobile-row__identity>span{display:block;margin-top:4px;overflow:hidden;color:#51617b;font-size:.86rem;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
+        .waitlist-mobile-row__actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto;margin-top:0}
+        .waitlist-mobile-status{display:inline-flex;align-items:center;justify-content:center;min-height:25px;padding:0 10px;border-radius:999px;font-size:.74rem;line-height:1;font-weight:750;white-space:nowrap}
+        .waitlist-mobile-status--waiting{background:#fff2cf;color:#a26100}
+        .waitlist-mobile-status--active,.waitlist-mobile-status--confirmed{background:#dcf6e5;color:#07833f}
+        .waitlist-mobile-status--offered{background:#e3edff;color:#0864dc}
+        .waitlist-mobile-status--declined{background:#ffebeb;color:#ef1c1c;box-shadow:inset 0 0 0 1px #ffc7c7}
+        .waitlist-mobile-status--expired{background:#f1f3f6;color:#34435a;box-shadow:inset 0 0 0 1px #dfe4ea}
+        .waitlist-mobile-row__more{display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;padding:0;border:0;border-radius:8px;background:transparent;color:#65738a;cursor:pointer}
+        .waitlist-mobile-row__more:hover,.waitlist-mobile-row__more:focus-visible{background:#eef3f9;color:#1d2c45}
+        .waitlist-mobile-row__more svg{width:20px;height:20px}
+        .waitlist-mobile-row__meta{display:grid;gap:6px;margin-top:10px;color:#53637d;font-size:.82rem;line-height:1.25}
+        .waitlist-mobile-row__meta>div{display:flex;align-items:center;gap:8px;min-width:0}
+        .waitlist-mobile-row__meta svg{width:17px;height:17px;flex:0 0 17px;color:#718098}
+        .waitlist-mobile-row__meta span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .waitlist-mobile-row__meta strong{font-weight:650}
+        .waitlist-mobile-row__meta em{font-style:normal;text-transform:uppercase}
+        .waitlist-mobile-row__meta b{padding:0 2px;font-weight:700}
+        .waitlist-mobile-row--history{min-height:108px;padding-right:14px}
+        .waitlist-mobile-row--history .waitlist-mobile-row__meta{padding-right:116px}
+        .waitlist-mobile-row__history-outcome{position:absolute;right:18px;bottom:17px;display:grid;width:102px;gap:3px;color:#5b6b84;font-size:.78rem;line-height:1.24;text-align:left}
+        .waitlist-mobile-row__history-outcome span{font-weight:500}
+        .waitlist-mobile-row__history-outcome time{font:inherit;color:#5b6b84;white-space:normal}
+        .waitlist-mobile__pagination{margin:16px 0 0;padding-bottom:4px}
+        .waitlist-mobile__pagination button{width:42px;height:42px;border-radius:13px}
+        .waitlist-mobile__pagination span{min-width:44px;height:44px;border-radius:13px;font-size:1rem}
+      }
+      @media(max-width:390px){
+        .waitlist-view-tabs{padding-inline:7px}
+        .waitlist-view-tabs button,.waitlist-view-tabs button.active{gap:4px;padding-inline:2px;font-size:.7rem}
+        .waitlist-view-tabs button svg{width:18px;height:18px}
+        .waitlist-tab-count,.waitlist-view-tabs button.active .waitlist-tab-count{min-width:21px;height:21px;padding-inline:5px;font-size:.64rem}
+        .waitlist-toolbar{padding-inline:12px}
+        .waitlist-toolbar__left{gap:8px}
+        .waitlist-filter-trigger{min-width:80px;padding-inline:12px}
+        .waitlist-layout{padding-inline:12px}
+        .waitlist-mobile-row{grid-template-columns:46px minmax(0,1fr);gap:11px;padding-left:13px;padding-right:11px}
+        .waitlist-avatar--mobile{width:46px;height:46px;font-size:.98rem}
+        .waitlist-mobile-row__identity h3{font-size:.94rem}
+        .waitlist-mobile-row__identity>span{font-size:.8rem}
+        .waitlist-mobile-status{padding-inline:8px;font-size:.68rem}
+        .waitlist-mobile-row__actions{gap:4px}
+        .waitlist-mobile-row--history .waitlist-mobile-row__meta{padding-right:98px}
+        .waitlist-mobile-row__history-outcome{right:12px;width:88px;font-size:.7rem}
+      }
     `}</style>
   </div>
 }

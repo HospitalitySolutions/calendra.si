@@ -2759,3 +2759,97 @@ a.credentials-popover-action-btn {
         background: #f8fafc;
     }
 }
+
+/* Waitlist mobile header: blue title row matching the mobile waitlist tabs. */
+.app-header-waitlist-title {
+    display: none;
+}
+
+@media (max-width: 780px) {
+    .app-header.app-header--waitlist {
+        min-height: 58px;
+        box-sizing: border-box;
+        padding: max(10px, env(safe-area-inset-top)) 18px 10px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border-bottom: 0;
+        box-shadow: none;
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .app-header.app-header--waitlist {
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border-bottom: 0;
+    }
+
+    .app-header--waitlist .app-header-mobile-leading {
+        min-width: 0;
+    }
+
+    .app-header--waitlist .app-header-mobile-nav-trigger {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .app-header--waitlist .app-header-mobile-nav-trigger:hover,
+    .app-header--waitlist .app-header-mobile-nav-trigger:active {
+        background: rgba(255, 255, 255, 0.10);
+        filter: none;
+    }
+
+    .app-header--waitlist .app-header-waitlist-title {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + (env(safe-area-inset-top) / 4));
+        transform: translate(-50%, -50%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        max-width: calc(100% - 150px);
+        color: #ffffff;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .app-header--waitlist .app-header-waitlist-title strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 1.22rem;
+        line-height: 1;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+    }
+
+    .app-header--waitlist .header-actions {
+        margin-left: auto;
+    }
+
+    .app-header--waitlist .calendar-voice-fab--header-toolbar {
+        display: none !important;
+    }
+
+    .app-header--waitlist .staff-notification-trigger {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: #ffffff;
+    }
+
+    .app-header--waitlist .staff-notification-trigger:hover,
+    .app-header--waitlist .staff-notification-trigger.active {
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+    }
+
+    .main-area--waitlist {
+        background: #f8fafc;
+    }
+
+    .main-area--waitlist > .content.content--waitlist {
+        padding: 0 0 calc(88px + env(safe-area-inset-bottom));
+        background: #f8fafc;
+    }
+}
