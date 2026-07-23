@@ -148,6 +148,18 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   const showRecurringDeleteDialog = Boolean(confirmDelete && selectedBookedSession?.recurrenceSeriesKey)
 
+  useEffect(() => {
+    if (!selection) {
+      setNewSlotWaitlistOpen(false)
+    }
+  }, [selection])
+
+  const closeNewSlotWaitlist = (event?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+    event?.stopPropagation?.()
+    event?.preventDefault?.()
+    setNewSlotWaitlistOpen(false)
+  }
+
   const newWaitlistSlotKey = [form?.typeId ?? '', form?.startTime ?? '', form?.endTime ?? '', form?.consultantId ?? '', form?.spaceId ?? ''].join('|')
   const visibleNewSlotWaitlistMatches = newSlotWaitlistMatches?.slotKey === newWaitlistSlotKey
     ? newSlotWaitlistMatches
@@ -2710,14 +2722,25 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       )}
 
       {newSlotWaitlistOpen && visibleNewSlotWaitlistMatches?.count > 0 && (
-        <div className="modal-backdrop calendar-waitlist-picker-backdrop" onClick={() => setNewSlotWaitlistOpen(false)}>
+        <div
+          className="modal-backdrop calendar-waitlist-picker-backdrop"
+          onClick={(event) => {
+            event.stopPropagation()
+            if (event.target === event.currentTarget) closeNewSlotWaitlist(event)
+          }}
+        >
           <div className="modal calendar-waitlist-picker-modal" onClick={(event) => event.stopPropagation()}>
             <div className="calendar-waitlist-picker-header">
               <div>
                 <h2>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</h2>
                 <p>{waitlistMatchCountLabel(visibleNewSlotWaitlistMatches.count)}</p>
               </div>
-              <button type="button" className="secondary calendar-waitlist-picker-close" onClick={() => setNewSlotWaitlistOpen(false)} aria-label={t('mobileNavClose')}>×</button>
+              <button
+                type="button"
+                className="secondary calendar-waitlist-picker-close"
+                onClick={(event) => closeNewSlotWaitlist(event)}
+                aria-label={t('mobileNavClose')}
+              >×</button>
             </div>
             <div className="calendar-waitlist-picker-list">
               {(visibleNewSlotWaitlistMatches.matches || [visibleNewSlotWaitlistMatches.first]).filter(Boolean).map((candidate: any, index: number) => (
