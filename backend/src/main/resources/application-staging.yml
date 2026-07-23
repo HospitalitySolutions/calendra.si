@@ -34,6 +34,7 @@ spring:
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
   demo-booking-public-base-url: ${APP_DEMO_BOOKING_PUBLIC_BASE_URL:https://calendra.si}
+  demo-booking-management-base-url: ${APP_DEMO_BOOKING_MANAGEMENT_BASE_URL:${APP_AUTH_FRONTEND_URL:https://app.calendra.si}}
   bootstrap:
     superadmin:
       enabled: ${APP_BOOTSTRAP_SUPERADMIN_ENABLED:false}

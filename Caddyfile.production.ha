@@ -58,11 +58,11 @@ calendra.si {
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 
-	# Existing demo confirmation emails point to the public-site URL.
-	# Redirect management links to the app frontend, which owns the
-	# reschedule/cancel page and calls the public demo-booking API.
-	redir /predstavitev/upravljanje/* https://app.calendra.si{uri} temporary
-	redir /en/demo/manage/* https://app.calendra.si{uri} temporary
+	# Older confirmation emails may still contain calendra.si management links.
+	# Match both the base path and token paths, then forward them to the app
+	# frontend that owns the reschedule/cancel page.
+	@demo_management path /predstavitev/upravljanje /predstavitev/upravljanje/* /en/demo/manage /en/demo/manage/*
+	redir @demo_management https://app.calendra.si{uri} 308
 
 	handle /narocanje/* {
 		uri replace /narocanje/ /widget/

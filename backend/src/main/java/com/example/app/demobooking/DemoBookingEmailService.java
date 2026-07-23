@@ -36,6 +36,7 @@ public class DemoBookingEmailService {
     private final boolean configured;
     private final String fromAddress;
     private final String publicSiteBaseUrl;
+    private final String managementBaseUrl;
     private final List<String> platformAdminRecipients;
 
     public DemoBookingEmailService(
@@ -44,11 +45,14 @@ public class DemoBookingEmailService {
             @Value("${spring.mail.username:}") String mailUsername,
             @Value("${app.mail.from:}") String appMailFrom,
             @Value("${app.demo-booking-public-base-url:https://calendra.si}") String publicSiteBaseUrl,
+            @Value("${app.demo-booking-management-base-url:${app.auth.frontend-url:https://app.calendra.si}}")
+            String managementBaseUrl,
             @Value("${app.platform-admin-emails:info@calendra.si}") String configuredAdminRecipients) {
         this.mailSender = mailSender;
         this.configured = mailSender != null && mailHost != null && !mailHost.isBlank();
         this.fromAddress = firstNonBlank(appMailFrom, mailUsername, "info@calendra.si");
         this.publicSiteBaseUrl = trimTrailingSlash(firstNonBlank(publicSiteBaseUrl, "https://calendra.si"));
+        this.managementBaseUrl = trimTrailingSlash(firstNonBlank(managementBaseUrl, "https://app.calendra.si"));
         this.platformAdminRecipients = parseRecipients(configuredAdminRecipients);
     }
 
@@ -89,8 +93,7 @@ public class DemoBookingEmailService {
         String when = formatForGuest(booking, sl ? "sl" : "en");
         String duration = Duration.between(booking.getStartAt(), booking.getEndAt()).toMinutes()
                 + (sl ? " minut" : " minutes");
-        String manageUrl = publicSiteBaseUrl + (sl ? "/predstavitev/upravljanje/" : "/en/demo/manage/")
-                + booking.getManageToken();
+        String manageUrl = manageUrl(booking, sl);
         String calendarUrl = calendarUrl(booking, sl);
 
         StringBuilder content = new StringBuilder(12_000);
@@ -223,7 +226,7 @@ public class DemoBookingEmailService {
             default -> sl ? "Vaša predstavitev Calendre je rezervirana" : "Your Calendra demo is booked";
         };
         String when = formatForGuest(booking, sl ? "sl" : "en");
-        String manageUrl = publicSiteBaseUrl + (sl ? "/predstavitev/upravljanje/" : "/en/demo/manage/") + booking.getManageToken();
+        String manageUrl = manageUrl(booking, sl);
         String intro = switch (kind) {
             case "RESCHEDULED" -> sl ? "Termin predstavitve je bil uspešno prestavljen." : "Your demo has been successfully rescheduled.";
             case "CANCELLED" -> sl ? "Termin predstavitve je bil preklican." : "Your demo has been cancelled.";
@@ -342,6 +345,12 @@ public class DemoBookingEmailService {
         Locale locale = Locale.forLanguageTag("sl-SI");
         return start.format(DateTimeFormatter.ofPattern("EEEE, d. MMMM yyyy 'ob' HH:mm", locale))
                 + " (" + zone.getId() + ")";
+    }
+
+    private String manageUrl(DemoBooking booking, boolean sl) {
+        return managementBaseUrl
+                + (sl ? "/predstavitev/upravljanje/" : "/en/demo/manage/")
+                + booking.getManageToken();
     }
 
     private static String calendarUrl(DemoBooking booking, boolean sl) {
