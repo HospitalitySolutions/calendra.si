@@ -4039,3 +4039,432 @@
         padding: 14px 18px max(16px, env(safe-area-inset-bottom));
     }
 }
+
+/* Exact mobile Clients / Companies / Groups list treatment from the approved preview. */
+@media (max-width: 720px) {
+    .clients-modern-page--mobile {
+        width: 100%;
+        margin: 0;
+        gap: 0;
+        background: #f8fafc;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card.card {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .clients-modern-page--mobile .clients-page-header.clients-page-header--sticky-mobile {
+        position: static;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .clients-page-header {
+        gap: 0;
+        margin: 0;
+    }
+
+    .clients-modern-page--mobile .clients-page-header__entity,
+    .clients-modern-page--mobile .clients-entity-tabs-shell {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .clients-modern-page--mobile .clients-session-tabs.clients-entity-tabs,
+    .clients-modern-page--mobile .clients-entity-tabs {
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 150;
+        display: flex;
+        width: 100%;
+        min-height: 58px;
+        margin: 0;
+        padding: 0 14px;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+        box-sizing: border-box;
+        overflow: visible;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 58px;
+        margin: 0;
+        padding: 0 4px;
+        gap: 6px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        box-shadow: none;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab:hover {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        right: 7px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab.active {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab.active::after {
+        background: #ffffff;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab svg {
+        width: 19px;
+        height: 19px;
+        flex: 0 0 auto;
+    }
+
+    .clients-modern-page--mobile .clients-tab-count,
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab.active .clients-tab-count {
+        min-width: 23px;
+        height: 23px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.20);
+        color: #ffffff;
+        font-size: 0.69rem;
+        font-weight: 800;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab.active .clients-tab-count {
+        background: #ffffff;
+        color: #1672f3;
+    }
+
+    .clients-modern-page--mobile .clients-modern-toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        padding: 22px 16px 18px;
+        background: #f8fafc;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-search-wrap {
+        grid-column: 1;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        flex: none;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-search-wrap > svg {
+        left: 13px;
+        width: 18px;
+        height: 18px;
+        color: #7b8798;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-search-input {
+        width: 100%;
+        height: 42px;
+        padding: 0 13px 0 41px;
+        border: 1px solid #d8dee8;
+        border-radius: 11px;
+        background: #ffffff;
+        color: #111827;
+        font-size: 0.86rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+        box-sizing: border-box;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-search-input::placeholder {
+        color: #8b95a5;
+    }
+
+    .clients-modern-page--mobile .clients-toolbar-actions {
+        grid-column: 2;
+        display: block;
+        width: auto;
+        min-width: 0;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs {
+        display: flex;
+        width: auto;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs .clients-session-tab,
+    .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs .clients-session-tab.active {
+        min-height: 42px;
+        padding: 0 13px;
+        gap: 8px;
+        border: 1px solid #d8dee8;
+        border-radius: 11px;
+        background: #ffffff;
+        color: #303746;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+        font-size: 0.85rem;
+        line-height: 1;
+        font-weight: 650;
+        white-space: nowrap;
+    }
+
+    .clients-modern-page--mobile .clients-filter-dot {
+        width: 9px;
+        height: 9px;
+        box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.09);
+    }
+
+    .clients-modern-page--mobile .clients-filter-dot--inactive {
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.09);
+    }
+
+    .clients-modern-page--mobile .clients-modern-new-btn {
+        position: fixed;
+        right: 18px;
+        bottom: max(18px, calc(14px + env(safe-area-inset-bottom)));
+        z-index: 240;
+        display: inline-flex;
+        width: auto;
+        min-width: 112px;
+        min-height: 46px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 24px;
+        background: linear-gradient(135deg, #1681f6 0%, #0864db 100%);
+        color: #ffffff;
+        box-shadow: 0 10px 24px rgba(13, 104, 224, 0.33);
+        font-size: 0.9rem;
+        font-weight: 800;
+    }
+
+    .clients-modern-page--mobile .clients-modern-new-btn svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .clients-modern-page--mobile .clients-list-shell {
+        margin: 0;
+        padding: 0 16px 28px;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-list {
+        display: block;
+        margin: 0;
+        padding: 0;
+        border: 1px solid #dce2ea;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 2px 7px rgba(15, 23, 42, 0.025);
+        overflow: hidden;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card {
+        display: block;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-bottom: 1px solid #dfe4eb;
+        border-radius: 0;
+        background: #ffffff;
+        box-shadow: none;
+        transition: background .15s ease;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card:last-child {
+        border-bottom: 0;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card:active {
+        transform: none;
+        background: #f8fbff;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card-head {
+        display: flex;
+        min-height: 58px;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        box-sizing: border-box;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card .clients-name-cell {
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: 11px;
+        align-items: center;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card .clients-name-avatar,
+    .clients-modern-page--mobile .clients-mobile-card .clients-name-avatar--company,
+    .clients-modern-page--mobile .clients-mobile-card .clients-name-avatar--group {
+        width: 39px;
+        height: 39px;
+        flex: 0 0 39px;
+        border-radius: 999px;
+        background: linear-gradient(145deg, #2387f4 0%, #0964d8 100%);
+        color: #ffffff;
+        box-shadow: none;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card .clients-name-stack {
+        min-width: 0;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card .clients-name {
+        display: block;
+        overflow: hidden;
+        color: #111111;
+        font-size: 0.86rem;
+        line-height: 1.18;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card .clients-id {
+        display: block;
+        margin-top: 3px;
+        overflow: hidden;
+        color: #727b88;
+        font-size: 0.76rem;
+        line-height: 1.15;
+        font-weight: 450;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card-action-icon {
+        width: 30px;
+        height: 30px;
+        flex: 0 0 30px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #7e8896;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card-action-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-meta,
+    .clients-modern-page--mobile .clients-mobile-member-strip {
+        display: none !important;
+    }
+
+    .clients-modern-page--mobile .clients-modern-table-footer {
+        display: none;
+    }
+
+    .clients-modern-page--mobile .clients-inactive-badge,
+    .clients-modern-page--mobile .clients-guest-app-badge {
+        margin-left: 5px;
+        vertical-align: middle;
+    }
+}
+
+@media (max-width: 380px) {
+    .clients-modern-page--mobile .clients-session-tabs.clients-entity-tabs,
+    .clients-modern-page--mobile .clients-entity-tabs {
+        padding-inline: 7px;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab {
+        gap: 3px;
+        padding-inline: 2px;
+        font-size: 0.67rem;
+    }
+
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .clients-modern-page--mobile .clients-tab-count,
+    .clients-modern-page--mobile .clients-entity-tabs .clients-session-tab.active .clients-tab-count {
+        min-width: 20px;
+        height: 20px;
+        padding-inline: 5px;
+        font-size: 0.63rem;
+    }
+
+    .clients-modern-page--mobile .clients-modern-toolbar {
+        gap: 7px;
+        padding-inline: 12px;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs .clients-session-tab,
+    .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs .clients-session-tab.active {
+        padding-inline: 10px;
+        font-size: 0.78rem;
+    }
+
+    .clients-modern-page--mobile .clients-list-shell {
+        padding-inline: 12px;
+    }
+}
+
+@media (max-width: 720px) {
+    .clients-modern-page--mobile .clients-modern-toolbar {
+        grid-template-areas: none;
+        grid-template-rows: auto;
+    }
+
+    .clients-modern-page--mobile .clients-modern-card .clients-search-wrap,
+    .clients-modern-page--mobile .clients-toolbar-actions,
+    .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs,
+    .clients-modern-page--mobile .clients-modern-new-btn {
+        grid-area: auto;
+    }
+
+    .clients-modern-page--mobile .clients-mobile-card .clients-name-avatar svg {
+        width: 19px;
+        height: 19px;
+        stroke-width: 1.9;
+    }
+}

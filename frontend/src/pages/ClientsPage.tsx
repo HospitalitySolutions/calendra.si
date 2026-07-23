@@ -591,51 +591,12 @@ function ClientsModernIcon({ name }: { name: ClientsModernIconName }) {
 
 
 function ClientsMobileCardActionIcon({ kind }: { kind: 'client' | 'company' | 'group' }) {
-  const common = {
-    width: 24,
-    height: 24,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 2,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true,
-  }
-  if (kind === 'company') {
-    return (
-      <span className="clients-mobile-card-action-icon clients-mobile-card-action-icon--company" aria-hidden="true">
-        <svg {...common}>
-          <path d="M4 20h16" />
-          <path d="M6 20V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13" />
-          <path d="M9 9h1" />
-          <path d="M14 9h1" />
-          <path d="M9 13h1" />
-          <path d="M14 13h1" />
-          <path d="M10 20v-4h4v4" />
-        </svg>
-      </span>
-    )
-  }
-  if (kind === 'group') {
-    return (
-      <span className="clients-mobile-card-action-icon clients-mobile-card-action-icon--group" aria-hidden="true">
-        <svg {...common}>
-          <path d="M8 19v-1.2A3.8 3.8 0 0 1 11.8 14h.4a3.8 3.8 0 0 1 3.8 3.8V19" />
-          <circle cx="12" cy="8" r="3" />
-          <path d="M4.5 18v-.8a3.2 3.2 0 0 1 2.7-3.1" />
-          <path d="M6.8 6.2a2.5 2.5 0 0 0 .2 4.8" />
-          <path d="M19.5 18v-.8a3.2 3.2 0 0 0-2.7-3.1" />
-          <path d="M17.2 6.2a2.5 2.5 0 0 1-.2 4.8" />
-        </svg>
-      </span>
-    )
-  }
   return (
-    <span className="clients-mobile-card-action-icon clients-mobile-card-action-icon--client" aria-hidden="true">
-      <svg {...common}>
-        <circle cx="12" cy="8" r="3.2" />
-        <path d="M5 19.2c0-3.7 3.1-6.7 7-6.7s7 3 7 6.7" />
+    <span className={`clients-mobile-card-action-icon clients-mobile-card-action-icon--${kind}`} aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <circle cx="5" cy="12" r="1.7" />
+        <circle cx="12" cy="12" r="1.7" />
+        <circle cx="19" cy="12" r="1.7" />
       </svg>
     </span>
   )
@@ -3234,6 +3195,29 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const clientTabCount = filteredClients.length
   const companyTabCount = filteredCompanies.length
   const groupTabCount = filteredGroups.length
+  const currentEntityHeaderTitle = entityTab === 'clients'
+    ? t('clientsTabClients')
+    : entityTab === 'companies'
+      ? t('clientsTabCompanies')
+      : clientsCopy.groupsTab
+  const currentEntityHeaderCount = entityTab === 'clients'
+    ? clientTabCount
+    : entityTab === 'companies'
+      ? companyTabCount
+      : groupTabCount
+
+  useEffect(() => {
+    if (!isClientsMobile) return
+    const publishHeader = () => {
+      window.dispatchEvent(new CustomEvent('clients-mobile-header-change', {
+        detail: { title: currentEntityHeaderTitle, count: currentEntityHeaderCount },
+      }))
+    }
+    publishHeader()
+    const frame = window.requestAnimationFrame(publishHeader)
+    return () => window.cancelAnimationFrame(frame)
+  }, [currentEntityHeaderCount, currentEntityHeaderTitle, isClientsMobile])
+
   const currentCreateLabel = locale === 'sl'
     ? entityTab === 'clients'
       ? 'Nova stranka'
@@ -3385,7 +3369,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               ) : null}
                               {c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}
                             </span>
-                            <span className="clients-id">ID #{c.id}{isAdmin ? clientsCopy.assignedToLine(assignedEmployeesDisplayText(c)) : ''}</span>
+                            <span className="clients-id">{c.phone?.trim() || c.email?.trim() || `ID #${c.id}`}</span>
                           </div>
                         </div>
                         <ClientsMobileCardActionIcon kind="client" />
@@ -3482,10 +3466,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <article key={c.id} className="clients-mobile-card" onClick={() => openCompanyDetailModal(c)}>
                       <div className="clients-mobile-card-head">
                         <div className="clients-name-cell">
-                          <span className="clients-name-avatar clients-name-avatar--company" aria-hidden>{(c.name?.[0] || 'C').toUpperCase()}</span>
+                          <span className="clients-name-avatar clients-name-avatar--company" aria-hidden><ClientsModernIcon name="companies" /></span>
                           <div className="clients-name-stack">
                             <span className="clients-name">{c.name}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
-                            <span className="clients-id">ID #{c.id} · {clientsCopy.vatId} {c.vatId || '—'}</span>
+                            <span className="clients-id">{c.vatId || `ID #${c.id}`}</span>
                           </div>
                         </div>
                         <ClientsMobileCardActionIcon kind="company" />
@@ -3573,10 +3557,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <article key={g.id} className="clients-mobile-card" onClick={() => openGroupDetailModal(g)}>
                       <div className="clients-mobile-card-head">
                         <div className="clients-name-cell">
-                          <span className="clients-name-avatar clients-name-avatar--group" aria-hidden>{(g.name?.[0] || 'G').toUpperCase()}</span>
+                          <span className="clients-name-avatar clients-name-avatar--group" aria-hidden><ClientsModernIcon name="groups" /></span>
                           <div className="clients-name-stack">
                             <span className="clients-name">{g.name}{g.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
-                            <span className="clients-id">ID #{g.id} · {(g.members ?? []).length} {clientsCopy.groupMembers.toLowerCase()}</span>
+                            <span className="clients-id">{(g.members ?? []).length} {clientsCopy.groupMembers.toLowerCase()}</span>
                           </div>
                         </div>
                         <ClientsMobileCardActionIcon kind="group" />

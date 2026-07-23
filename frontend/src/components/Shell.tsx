@@ -377,6 +377,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     return () => window.removeEventListener('users-updated', bump)
   }, [authenticatedUser])
   const isCalendarRoute = location.pathname === '/calendar' || location.pathname.startsWith('/calendar/')
+  const isClientsRoute = location.pathname === '/clients' || location.pathname.startsWith('/clients/')
+  const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
   const appHeaderMobileRow = useCalendarMobileHeaderNav()
@@ -478,6 +480,23 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   useLayoutEffect(() => {
     setMobileNavOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (!isClientsRoute) {
+      setClientsMobileHeader({ title: '', count: 0 })
+      return
+    }
+    const onClientsHeaderChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ title?: string; count?: number }>).detail
+      if (!detail) return
+      setClientsMobileHeader({
+        title: String(detail.title || ''),
+        count: Number.isFinite(detail.count) ? Number(detail.count) : 0,
+      })
+    }
+    window.addEventListener('clients-mobile-header-change', onClientsHeaderChange)
+    return () => window.removeEventListener('clients-mobile-header-change', onClientsHeaderChange)
+  }, [isClientsRoute])
 
   /** Calendar overlays and mobile sticky rows use the measured shell header bottom as their viewport offset. */
   useLayoutEffect(() => {
@@ -1383,13 +1402,18 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
           )}
         </aside>
       </div>
-      <div ref={mainAreaRef} className={isCalendarRoute ? 'main-area main-area--calendar' : 'main-area'}>
+      <div
+        ref={mainAreaRef}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : 'main-area'}
+      >
         <header
           ref={headerRef}
           className={
             isCalendarRoute && calendarShellSlots
               ? 'app-header app-header--calendar'
-              : 'app-header'
+              : isClientsRoute
+                ? 'app-header app-header--clients'
+                : 'app-header'
           }
         >
           {isCalendarRoute && calendarShellSlots ? (
@@ -1424,12 +1448,18 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 <div className="app-header-brand" title={headerBrandLabel}>
                   {headerBrandLabel}
                 </div>
+                {isClientsRoute && (
+                  <div className="app-header-clients-title" aria-live="polite">
+                    <strong>{clientsMobileHeader.title || (locale === 'sl' ? 'Stranke' : locale === 'sr' ? 'Klijenti' : 'Clients')}</strong>
+                    <span>{clientsMobileHeader.count}</span>
+                  </div>
+                )}
               </div>
               {headerActions}
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}
