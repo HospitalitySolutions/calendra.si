@@ -11684,7 +11684,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 consultantResourceId: bookingsUseResourceColumns ? resourceId : undefined,
               })
             }
-            const quickAddButton = !isViewOnly && overlapHiddenCount === 0 && (props.kind === 'booked' || props.kind === 'personal' || props.kind === 'todo') ? (
+            const quickAddButton = !isViewOnly && overlapHiddenCount === 0 && (props.kind === 'booked' || props.kind === 'personal') ? (
               <span
                 role="button"
                 tabIndex={0}
@@ -12078,8 +12078,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             }
             return (
               <div className="calendar-event-todo-row">
+                <span className="calendar-event-todo-check" aria-hidden>
+                  <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2.5" y="2.5" width="15" height="15" rx="3" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="m6.3 10.2 2.35 2.35 5.1-5.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
                 <span className="calendar-event-todo-title">{arg.event.title}</span>
-                {quickAddButton}
                 {overlapMobileCountButton}
               </div>
             )
