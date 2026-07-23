@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../../../api'
 import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
 export function CalendarSessionModals({ ctx }: { ctx: any }) {
-  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
+  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
 
   const [bookedBillingActionMenu, setBookedBillingActionMenu] = useState<null | 'advance' | 'invoice'>(null)
   const [bookedBillingView, setBookedBillingView] = useState<null | 'advances' | 'invoices'>(null)
@@ -24,7 +24,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [calendarNewClientEditField, setCalendarNewClientEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | null>('firstName')
   const [newSlotWaitlistMatches, setNewSlotWaitlistMatches] = useState<any>(null)
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
-  const [newSlotWaitlistActionLoading, setNewSlotWaitlistActionLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
   const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
@@ -160,10 +159,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     setMobileBookingDetailsOpen(false)
   }, [selectedBookedSession?.id, compactSessionEditHeader])
 
-  const closeNewSlotWaitlist = (event?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
-    event?.stopPropagation?.()
+  const closeNewSlotWaitlist = (event?: {
+    stopPropagation?: () => void
+    preventDefault?: () => void
+    nativeEvent?: { stopImmediatePropagation?: () => void }
+  }) => {
     event?.preventDefault?.()
+    event?.stopPropagation?.()
+    event?.nativeEvent?.stopImmediatePropagation?.()
     setNewSlotWaitlistOpen(false)
+    setClientDropdownOpen(false)
+    setEditingClientSearch(false)
   }
 
   const newWaitlistSlotKey = [form?.typeId ?? '', form?.startTime ?? '', form?.endTime ?? '', form?.consultantId ?? '', form?.spaceId ?? ''].join('|')
@@ -197,9 +203,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       && Number(form?.typeId) > 0
       && !!form?.startTime
       && !!form?.endTime
+      && selectedFormClientIds.length === 0
       && !form?.waitlistRequestId
     if (!canCheck) {
-      setNewSlotWaitlistMatches(null)
+      setNewSlotWaitlistMatches((current: any) => {
+        const keepForSelectedClient = selectedFormClientIds.length > 0
+          && current?.slotKey === newWaitlistSlotKey
+          && Number(current?.count) > 0
+        return keepForSelectedClient ? current : null
+      })
       setNewSlotWaitlistLoading(false)
       return
     }
@@ -228,25 +240,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [waitlistModuleEnabled, selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, form?.waitlistRequestId])
-
-  const offerNewSlotToFirstWaitlistedGuest = async () => {
-    if (!waitlistModuleEnabled || !visibleNewSlotWaitlistMatches?.first || newSlotWaitlistActionLoading) return
-    setNewSlotWaitlistActionLoading(true)
-    try {
-      await api.post('/waitlists/offer-first', newWaitlistMatchPayload())
-      await loadCalendarRangeOnly(true).catch(() => undefined)
-      const remaining = Array.isArray(visibleNewSlotWaitlistMatches.matches) ? visibleNewSlotWaitlistMatches.matches.slice(1) : []
-      setNewSlotWaitlistMatches(remaining.length > 0
-        ? { ...visibleNewSlotWaitlistMatches, count: Math.max(0, Number(visibleNewSlotWaitlistMatches.count) - 1), first: remaining[0], matches: remaining }
-        : null)
-      showToast?.('success', locale === 'sl' ? 'Termin je bil ponujen prvi ustrezni stranki.' : 'The slot was offered to the first eligible client.')
-    } catch (error: any) {
-      showToast?.('error', error?.response?.data?.message || (locale === 'sl' ? 'Termina ni bilo mogoče ponuditi.' : 'Could not offer the slot.'))
-    } finally {
-      setNewSlotWaitlistActionLoading(false)
-    }
-  }
+  }, [waitlistModuleEnabled, selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, selectedFormClientIds.length, form?.waitlistRequestId])
 
   const pullFirstWaitlistedGuestIntoBooking = (candidate?: any) => {
     if (!waitlistModuleEnabled) return
@@ -1906,97 +1900,74 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         <button
                           type="button"
                           className="calendar-mobile-session-more-btn"
-                          aria-label={locale === 'sl' ? 'Več dejanj' : locale === 'sr' ? 'Više radnji' : 'More actions'}
+                          aria-label={locale === 'sl' ? 'Več dejanj in informacij' : 'More actions and information'}
                           aria-haspopup="menu"
                           aria-expanded={mobileBookingDetailsOpen}
-                          onClick={() => setMobileBookingDetailsOpen((open) => !open)}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setMobileBookingDetailsOpen((open) => !open)
+                          }}
                         >
                           <span aria-hidden>⋮</span>
                         </button>
                         {mobileBookingDetailsOpen && (
-                          <div className="calendar-mobile-session-more-menu" role="menu">
-                            {advanceBillingEnabled && !canShowOpenBillForBookedStatus && (
+                          <div
+                            className="calendar-mobile-session-more-menu"
+                            role="menu"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
                               <button
                                 type="button"
                                 role="menuitem"
                                 className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
                                 disabled={bookedPaymentActionButtonsDisabled}
-                                onClick={(event) => {
-                                  event.stopPropagation()
+                                onClick={() => {
                                   setMobileBookingDetailsOpen(false)
-                                  openBookedAdvanceForm()
-                                }}
-                              >
-                                <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
-                                <span className="calendar-mobile-session-more-menu__copy">
-                                  <strong>{locale === 'sl' ? 'Predračun' : locale === 'sr' ? 'Predračun' : 'Proforma invoice'}</strong>
-                                  <small>{locale === 'sl' ? 'Ustvari ali uredi predračun za termin' : locale === 'sr' ? 'Kreiraj ili uredi predračun za termin' : 'Create or edit the session proforma invoice'}</small>
-                                </span>
-                              </button>
-                            )}
-                            {canShowOpenBillForBookedStatus && (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
-                                disabled={bookedPaymentActionButtonsDisabled}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  setMobileBookingDetailsOpen(false)
+                                  if (bookingServiceBillingButtonIsAdvance) {
+                                    if (bookedBillingHasExistingAdvance) openBookedBillingView('advances')
+                                    else openBookedAdvanceForm()
+                                    return
+                                  }
                                   void openBookedInvoiceEditor()
                                 }}
                               >
                                 <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                                    <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                                    <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
-                                  </svg>
+                                  {bookingServiceBillingButtonIsAdvance ? (
+                                    <CalendarAdvancePaymentIcon />
+                                  ) : (
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                      <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                      <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                      <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
+                                    </svg>
+                                  )}
                                 </span>
                                 <span className="calendar-mobile-session-more-menu__copy">
-                                  <strong>{locale === 'sl' ? 'Račun' : locale === 'sr' ? 'Račun' : 'Invoice'}</strong>
-                                  <small>{locale === 'sl' ? 'Ustvari ali odpri račun za termin' : locale === 'sr' ? 'Kreiraj ili otvori račun za termin' : 'Create or open the session invoice'}</small>
+                                  <strong>{bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Predračun' : 'Proforma invoice') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
+                                  <small>{bookingServiceBillingButtonIsAdvance
+                                    ? (locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice')
+                                    : (locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice')}</small>
                                 </span>
                               </button>
                             )}
-                            {advanceBillingEnabled && bookedBillingHasExistingAdvance && (
+                            {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
                               <button
                                 type="button"
                                 role="menuitem"
                                 className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
-                                onClick={(event) => {
-                                  event.stopPropagation()
+                                disabled={bookedPaymentActionButtonsDisabled}
+                                onClick={() => {
                                   setMobileBookingDetailsOpen(false)
                                   openBookedBillingView('advances')
                                 }}
                               >
                                 <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
                                 <span className="calendar-mobile-session-more-menu__copy">
-                                  <strong>{locale === 'sl' ? 'Pregled predračunov' : locale === 'sr' ? 'Pregled predračuna' : 'View proforma invoices'}</strong>
-                                  <small>{locale === 'sl' ? 'Prikaži obstoječe predračune za termin' : locale === 'sr' ? 'Prikaži postojeće predračune za termin' : 'Show existing session proforma invoices'}</small>
-                                </span>
-                              </button>
-                            )}
-                            {canShowOpenBillForBookedStatus && (bookedBillingHasExistingOpenBill || bookedBillingHasInvoiceViewRows) && (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  setMobileBookingDetailsOpen(false)
-                                  openBookedBillingView('invoices')
-                                }}
-                              >
-                                <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                                    <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                                    <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                </span>
-                                <span className="calendar-mobile-session-more-menu__copy">
-                                  <strong>{locale === 'sl' ? 'Pregled računov' : locale === 'sr' ? 'Pregled računa' : 'View invoices'}</strong>
-                                  <small>{locale === 'sl' ? 'Prikaži obstoječe račune za termin' : locale === 'sr' ? 'Prikaži postojeće račune za termin' : 'Show existing session invoices'}</small>
+                                  <strong>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</strong>
+                                  <small>{locale === 'sl' ? 'Odpri pregled predračunov' : 'Open proforma invoice overview'}</small>
                                 </span>
                               </button>
                             )}
@@ -2005,9 +1976,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               role="menuitem"
                               className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
                               disabled={bookingServiceScanDisabled}
-                              title={bookingServiceScanTitle}
-                              onClick={(event) => {
-                                event.stopPropagation()
+                              onClick={() => {
                                 if (bookingServiceScanDisabled) return
                                 setMobileBookingDetailsOpen(false)
                                 openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
@@ -2015,7 +1984,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             >
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden><BookedEntitlementScanIcon /></span>
                               <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{locale === 'sl' ? 'Skener' : locale === 'sr' ? 'Skener' : 'Scanner'}</strong>
+                                <strong>{locale === 'sl' ? 'Skener' : 'Scanner'}</strong>
                                 <small>{bookingServiceScanTitle}</small>
                               </span>
                             </button>
@@ -2023,8 +1992,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               type="button"
                               role="menuitem"
                               className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__action--danger"
-                              onClick={(event) => {
-                                event.stopPropagation()
+                              onClick={() => {
                                 setMobileBookingDetailsOpen(false)
                                 void requestBookedSessionDelete()
                               }}
@@ -2032,28 +2000,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarFormFooterDeleteIcon /></span>
                               <span className="calendar-mobile-session-more-menu__copy">
                                 <strong>{t('formDeleteSession')}</strong>
-                                <small>{locale === 'sl' ? 'Izbriši ta termin' : locale === 'sr' ? 'Obriši ovaj termin' : 'Delete this session'}</small>
+                                <small>{locale === 'sl' ? 'Izbriši ta termin' : 'Delete this session'}</small>
                               </span>
                             </button>
                             <div className="calendar-mobile-session-more-menu__item">
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>◷</span>
+                              <span className={`calendar-mobile-session-more-menu__icon calendar-mobile-session-more-menu__status-icon calendar-mobile-session-more-menu__status-icon--${currentBookingStatusTone}`} aria-hidden>●</span>
                               <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{t('formRepeats')}</strong>
-                                <small>{selectedBookedSession?.repeatEnabled ? (locale === 'sl' ? 'Ponavljanje je vključeno' : 'Repeating') : (locale === 'sl' ? 'Ne ponavljaj' : 'Does not repeat')}</small>
-                              </span>
-                            </div>
-                            <div className="calendar-mobile-session-more-menu__item">
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>▤</span>
-                              <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{t('formNotes')}</strong>
-                                <small>{String(selectedBookedSession?.notes || '').trim() || (locale === 'sl' ? 'Brez opomb' : 'No notes')}</small>
+                                <strong>{locale === 'sl' ? 'Status' : 'Status'}</strong>
+                                <small>{currentBookingStatusLabel}</small>
                               </span>
                             </div>
                             <div className="calendar-mobile-session-more-menu__item">
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
                               <span className="calendar-mobile-session-more-menu__copy">
                                 <strong>{bookingSourceFieldLabel}</strong>
-                                <small><span>{bookingSourceMeta.label}</span> <span className="calendar-mobile-session-more-menu__code">{bookingSourceCode}</span></small>
+                                <small>{bookingSourceMeta.label}</small>
                               </span>
                             </div>
                           </div>
@@ -2814,7 +2775,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     {!compactSessionEditHeader && (
                       <div className="calendar-session-source-tag" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
                         <span className="calendar-session-source-tag__label">{locale === 'sl' ? 'Vir:' : 'Source:'} {bookingSourceMeta.label}</span>
-                        <span className="calendar-session-source-tag__code">{bookingSourceCode}</span>
                       </div>
                     )}
                   </div>
@@ -2852,7 +2812,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             if (event.target === event.currentTarget) closeNewSlotWaitlist(event)
           }}
         >
-          <div className="modal calendar-waitlist-picker-modal" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="modal calendar-waitlist-picker-modal"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="calendar-waitlist-picker-header">
               <div>
                 <h2>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</h2>
@@ -2861,6 +2825,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               <button
                 type="button"
                 className="secondary calendar-waitlist-picker-close"
+                onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => closeNewSlotWaitlist(event)}
                 aria-label={t('mobileNavClose')}
               >×</button>
@@ -2878,14 +2843,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </button>
                 </div>
               ))}
-            </div>
-            <div className="calendar-waitlist-picker-footer">
-              <button type="button" className="secondary" onClick={() => void offerNewSlotToFirstWaitlistedGuest()} disabled={newSlotWaitlistActionLoading}>
-                {newSlotWaitlistActionLoading ? (locale === 'sl' ? 'Pošiljam …' : 'Sending …') : (locale === 'sl' ? 'Ponudi termin prvi stranki' : locale === 'sr' ? 'Ponudi termin prvom klijentu' : 'Offer slot to first client')}
-              </button>
-              <button type="button" className="linkish" onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}>
-                {locale === 'sl' ? 'Odpri celotno čakalno vrsto' : locale === 'sr' ? 'Otvori celu listu čekanja' : 'Open full waitlist'}
-              </button>
             </div>
           </div>
         </div>,
@@ -3767,11 +3724,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       type="button"
                       className="calendar-form-footer-btn calendar-form-footer-btn--complete"
                       onClick={deleteTodo}
-                      aria-label={locale === 'sl' ? 'Označi kot opravljeno' : locale === 'sr' ? 'Označi kao završeno' : 'Mark as complete'}
-                      title={locale === 'sl' ? 'Označi kot opravljeno' : locale === 'sr' ? 'Označi kao završeno' : 'Mark as complete'}
+                      aria-label={locale === 'sl' ? 'Opravljeno' : 'Done'}
+                      title={locale === 'sl' ? 'Opravljeno' : 'Done'}
                     >
                       <CalendarFormFooterSaveIcon />
-                      <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : locale === 'sr' ? 'Završeno' : 'Complete'}</span>
+                      <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : 'Done'}</span>
                     </button>
                     <button
                       type="button"
@@ -3848,15 +3805,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <CalendarFormFooterDeleteIcon />
                 <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
               </button>
-              <button
-                type="button"
-                className="calendar-form-footer-btn calendar-form-footer-btn--complete"
-                onClick={deleteTodo}
-                aria-label={locale === 'sl' ? 'Označi kot opravljeno' : locale === 'sr' ? 'Označi kao završeno' : 'Mark as complete'}
-                title={locale === 'sl' ? 'Označi kot opravljeno' : locale === 'sr' ? 'Označi kao završeno' : 'Mark as complete'}
-              >
+              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--complete" onClick={deleteTodo}>
                 <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : locale === 'sr' ? 'Završeno' : 'Complete'}</span>
+                <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : 'Done'}</span>
               </button>
               <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--save" onClick={updateTodo}>
                 <CalendarFormFooterSaveIcon />
