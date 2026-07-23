@@ -1082,7 +1082,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [search, setSearch] = useState('')
   const [companySearch, setCompanySearch] = useState('')
   const [form, setForm] = useState<ClientForm>(emptyClientForm)
-  const [newClientEditField, setNewClientEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | null>('firstName')
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm)
   const [loading, setLoading] = useState(false)
   const [loadingCompanies, setLoadingCompanies] = useState(false)
@@ -1929,7 +1928,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const openNewModal = () => {
     setForm(emptyClientForm)
     setClientCustomValues({})
-    setNewClientEditField('firstName')
     setErrorMessage('')
     setShowModal(true)
   }
@@ -2559,20 +2557,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const renderNewClientEditableField = (
     key: 'firstName' | 'lastName' | 'email' | 'phone',
     label: string,
-    order: number,
     wide = false,
     inputType: 'text' | 'email' | 'tel' = 'text',
   ) => {
-    const isEditing = newClientEditField === key
     const placeholder = locale === 'sl'
       ? key === 'firstName' ? 'Vnesite ime' : key === 'lastName' ? 'Vnesite priimek' : key === 'email' ? 'Vnesite e-pošto' : 'Vnesite telefon'
       : key === 'firstName' ? 'Enter first name' : key === 'lastName' ? 'Enter last name' : key === 'email' ? 'Enter email' : 'Enter phone'
     return (
-      <label className={`clients-detail-field-card clients-create-tab-field${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}>
-        <span className="clients-create-tab-order" aria-hidden>{order}</span>
+      <label className={`clients-detail-field-card clients-create-field${wide ? ' clients-detail-field-card--wide' : ''}`}>
         <span>{label}{key === 'firstName' || key === 'lastName' ? ' *' : ''}</span>
         <input
           autoFocus={key === 'firstName'}
+          required={key === 'firstName' || key === 'lastName'}
           type={inputType}
           name={`calendra-new-client-${key}`}
           autoComplete="off"
@@ -2586,8 +2582,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           data-bwignore="true"
           value={form[key]}
           placeholder={placeholder}
-          onFocus={() => setNewClientEditField(key)}
-          onBlur={() => setNewClientEditField((current) => current === key ? null : current)}
           onChange={(e) => setForm({ ...form, [key]: e.target.value })}
         />
       </label>
@@ -2741,7 +2735,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setShowModal(false)
     setForm(emptyClientForm)
     setClientCustomValues({})
-    setNewClientEditField('firstName')
     setErrorMessage('')
   }
 
@@ -4603,23 +4596,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 </button>
               </div>
               <div className="clients-action-workspace-body">
-                <div className="clients-create-tab-hint" role="note">
-                  <span className="clients-create-tab-hint__icon" aria-hidden>⌨</span>
-                  <span>{clientsCopy.tabHint}</span>
-                </div>
-                <div className="clients-detail-shell clients-action-workspace-shell">
+                <div className="clients-detail-shell clients-create-shell clients-action-workspace-shell">
                   <div className="clients-detail-fields clients-create-fields clients-action-workspace-settings-grid">
-                    {renderNewClientEditableField('firstName', clientsCopy.firstName, 1)}
-                    {renderNewClientEditableField('lastName', clientsCopy.lastName, 2)}
-                    {renderNewClientEditableField('email', clientsCopy.email, 3, true, 'email')}
-                    {renderNewClientEditableField('phone', clientsCopy.phone, 4, true, 'tel')}
+                    {renderNewClientEditableField('firstName', clientsCopy.firstName)}
+                    {renderNewClientEditableField('lastName', clientsCopy.lastName)}
+                    {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
+                    {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
                   </div>
-                {errorMessage && <div className="error">{errorMessage}</div>}
+                  {errorMessage && <div className="error">{errorMessage}</div>}
                 </div>
               </div>
               <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
                 <button type="submit" className="clients-gapp-save-button" disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
-                <div className="clients-create-tab-sequence" aria-hidden>{clientsCopy.tabSequence}</div>
               </div>
             </form>
           </div>
@@ -4652,31 +4640,31 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               <div className="clients-action-workspace-body">
                 <div className="clients-detail-shell clients-create-shell clients-action-workspace-shell">
                   <div className="clients-detail-fields clients-create-fields clients-action-workspace-profile-fields">
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.companyName}</span>
                       <input required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.vatId}</span>
                       <input value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.email}</span>
                       <input type="email" value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.telephone}</span>
                       <input value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.address}</span>
                       <input value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card">
+                    <label className="clients-detail-field-card clients-create-field">
                       <span>{clientsCopy.postalCode}</span>
                       <input value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card">
+                    <label className="clients-detail-field-card clients-create-field">
                       <span>{clientsCopy.city}</span>
                       <input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
                     </label>
@@ -5080,11 +5068,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               <div className="clients-action-workspace-body">
                 <div className="clients-detail-shell clients-create-shell clients-action-workspace-shell">
                   <div className="clients-detail-fields clients-create-fields clients-action-workspace-profile-fields">
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.groupName}</span>
                       <input required value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
                     </label>
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                       <span>{clientsCopy.groupEmail}</span>
                       <input type="email" value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
                     </label>

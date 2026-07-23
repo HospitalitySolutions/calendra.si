@@ -21,7 +21,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [bookedEntitlementWalletOptions, setBookedEntitlementWalletOptions] = useState<any[]>([])
   const [bookedEntitlementWalletLoading, setBookedEntitlementWalletLoading] = useState(false)
   const [bookedEntitlementCameraActive, setBookedEntitlementCameraActive] = useState(false)
-  const [calendarNewClientEditField, setCalendarNewClientEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | null>('firstName')
   const [newSlotWaitlistMatches, setNewSlotWaitlistMatches] = useState<any>(null)
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
@@ -518,15 +517,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   useEffect(() => stopBookedEntitlementCamera, [])
 
-  useEffect(() => {
-    if (showAddClientModal) {
-      setCalendarNewClientEditField('firstName')
-    }
-  }, [showAddClientModal])
-
   const closeCalendarAddClientModal = () => {
     setShowAddClientModal(false)
-    setCalendarNewClientEditField('firstName')
   }
 
   const calendarNewClientDisplayName = [newClientForm.firstName, newClientForm.lastName]
@@ -543,58 +535,31 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     wide = false,
     inputType: 'text' | 'email' | 'tel' = 'text',
   ) => {
-    const isEditing = calendarNewClientEditField === key
+    const placeholder = locale === 'sl'
+      ? key === 'firstName' ? 'Vnesite ime' : key === 'lastName' ? 'Vnesite priimek' : key === 'email' ? 'Vnesite e-pošto' : 'Vnesite telefon'
+      : key === 'firstName' ? 'Enter first name' : key === 'lastName' ? 'Enter last name' : key === 'email' ? 'Enter email' : 'Enter phone'
     return (
-      <div
-        className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
-        onClick={() => {
-          if (calendarNewClientEditField !== key) setCalendarNewClientEditField(key)
-        }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return
-          if (calendarNewClientEditField === key) return
-          e.preventDefault()
-          setCalendarNewClientEditField(key)
-        }}
-      >
-        <span>{label}</span>
-        {!isEditing ? (
-          <strong>{(newClientForm[key] ?? '').trim() || '—'}</strong>
-        ) : (
-          <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
-            <input
-              autoFocus
-              type={inputType}
-              name={`calendra-calendar-new-client-${key}`}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize={key === 'firstName' || key === 'lastName' ? 'words' : 'none'}
-              spellCheck={false}
-              inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
-              enterKeyHint={key === 'phone' ? 'done' : 'next'}
-              data-lpignore="true"
-              data-1p-ignore="true"
-              data-bwignore="true"
-              value={String(newClientForm[key] ?? '')}
-              onChange={(e) => setNewClientForm({ ...newClientForm, [key]: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  if (key === 'firstName') setCalendarNewClientEditField('lastName')
-                  else if (key === 'lastName') setCalendarNewClientEditField('email')
-                  else if (key === 'email') setCalendarNewClientEditField('phone')
-                  else setCalendarNewClientEditField(null)
-                } else if (e.key === 'Escape') {
-                  e.preventDefault()
-                  setCalendarNewClientEditField(null)
-                }
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <label className={`clients-detail-field-card clients-create-field${wide ? ' clients-detail-field-card--wide' : ''}`}>
+        <span>{label}{key === 'firstName' || key === 'lastName' ? ' *' : ''}</span>
+        <input
+          autoFocus={key === 'firstName'}
+          required={key === 'firstName' || key === 'lastName'}
+          type={inputType}
+          name={`calendra-calendar-new-client-${key}`}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize={key === 'firstName' || key === 'lastName' ? 'words' : 'none'}
+          spellCheck={false}
+          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+          enterKeyHint={key === 'phone' ? 'done' : 'next'}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-bwignore="true"
+          value={String(newClientForm[key] ?? '')}
+          placeholder={placeholder}
+          onChange={(e) => setNewClientForm({ ...newClientForm, [key]: e.target.value })}
+        />
+      </label>
     )
   }
 

@@ -3715,3 +3715,327 @@
         display: none;
     }
 }
+
+/* Clean create modals: new client, company and group */
+.clients-client-create-modal.modal.large-modal,
+.clients-company-create-modal.modal.large-modal,
+.clients-group-create-modal.modal.large-modal {
+    width: min(860px, calc(100vw - 48px));
+    max-width: min(860px, calc(100vw - 48px));
+    max-height: calc(100dvh - 56px);
+    border-radius: 24px;
+    border-color: rgba(218, 227, 239, 0.96);
+    background: #ffffff;
+    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.28);
+}
+
+.clients-group-create-modal.modal.large-modal {
+    width: min(760px, calc(100vw - 48px));
+    max-width: min(760px, calc(100vw - 48px));
+}
+
+.clients-client-create-modal .clients-action-workspace-header,
+.clients-company-create-modal .clients-action-workspace-header,
+.clients-group-create-modal .clients-action-workspace-header {
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 24px 30px 20px;
+    border-bottom: 1px solid #e7edf5;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.clients-client-create-modal .clients-action-workspace-avatar.clients-detail-avatar,
+.clients-company-create-modal .clients-action-workspace-avatar.clients-detail-avatar,
+.clients-group-create-modal .clients-action-workspace-avatar.clients-detail-avatar {
+    width: 54px;
+    height: 54px;
+    border-radius: 17px;
+    background: #e2eeff;
+    color: #1672f3;
+    box-shadow: 0 10px 24px rgba(22, 114, 243, 0.12);
+    font-size: 1rem;
+}
+
+.clients-client-create-modal .clients-action-workspace-title-stack .clients-name,
+.clients-company-create-modal .clients-action-workspace-title-stack .clients-name,
+.clients-group-create-modal .clients-action-workspace-title-stack .clients-name {
+    font-size: 1.48rem;
+    letter-spacing: -0.04em;
+}
+
+.clients-client-create-modal .clients-action-workspace-title-stack .clients-id,
+.clients-company-create-modal .clients-action-workspace-title-stack .clients-id,
+.clients-group-create-modal .clients-action-workspace-title-stack .clients-id {
+    margin-top: 5px;
+    font-size: 0.88rem;
+}
+
+.clients-client-create-modal .clients-action-workspace-close.secondary,
+.clients-company-create-modal .clients-action-workspace-close.secondary,
+.clients-group-create-modal .clients-action-workspace-close.secondary {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 12px;
+    font-size: 1.8rem;
+}
+
+.clients-client-create-modal .clients-action-workspace-body,
+.clients-company-create-modal .clients-action-workspace-body,
+.clients-group-create-modal .clients-action-workspace-body {
+    flex: 1 1 auto;
+    display: block;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 26px 32px 28px;
+    background: #ffffff;
+}
+
+.clients-client-create-modal .clients-action-workspace-shell,
+.clients-company-create-modal .clients-action-workspace-shell,
+.clients-group-create-modal .clients-action-workspace-shell {
+    gap: 18px;
+}
+
+.clients-client-create-modal .clients-create-fields,
+.clients-company-create-modal .clients-create-fields,
+.clients-group-create-modal .clients-create-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 24px;
+    margin: 0;
+    align-items: start;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card {
+    min-height: 0;
+    padding: 0;
+    gap: 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    cursor: default;
+    overflow: visible;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card:hover,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card:hover,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card:hover,
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card:focus-within,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card:focus-within,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card:focus-within {
+    border: 0;
+    box-shadow: none;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card::after,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card::after,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card::after {
+    content: none;
+    display: none;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card > span,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card > span,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card > span {
+    color: #8292aa;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card input,
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card select,
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card textarea,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card input,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card select,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card textarea,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card input,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card select,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card textarea {
+    width: 100%;
+    min-height: 54px;
+    margin: 0;
+    padding: 0 16px;
+    border: 1px solid #d7e0ec;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #172033;
+    font: inherit;
+    font-size: 0.98rem;
+    font-weight: 550;
+    outline: none;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card textarea,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card textarea,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card textarea {
+    min-height: 110px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    resize: vertical;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card select[multiple],
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card select[multiple],
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card select[multiple] {
+    min-height: 112px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card input::placeholder,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card input::placeholder,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card input::placeholder {
+    color: #a4b1c3;
+    font-weight: 500;
+}
+
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card input:focus,
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card select:focus,
+.clients-client-create-modal .clients-create-fields > label.clients-detail-field-card textarea:focus,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card input:focus,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card select:focus,
+.clients-company-create-modal .clients-create-fields > label.clients-detail-field-card textarea:focus,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card input:focus,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card select:focus,
+.clients-group-create-modal .clients-create-fields > label.clients-detail-field-card textarea:focus {
+    border-color: #78a9fa;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.11);
+}
+
+.clients-client-create-modal .clients-create-fields > .clients-detail-field-card--wide,
+.clients-company-create-modal .clients-create-fields > .clients-detail-field-card--wide,
+.clients-group-create-modal .clients-create-fields > .clients-detail-field-card--wide {
+    grid-column: 1 / -1;
+}
+
+.clients-client-create-modal .clients-create-fields > .clients-custom-field-card.clients-detail-batch-switch-row,
+.clients-company-create-modal .clients-create-fields > .clients-custom-field-card.clients-detail-batch-switch-row,
+.clients-group-create-modal .clients-create-fields > .clients-custom-field-card.clients-detail-batch-switch-row {
+    min-height: 54px;
+    padding: 10px 12px 10px 16px;
+    border: 1px solid #d7e0ec;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.clients-client-create-modal .clients-action-workspace-footer,
+.clients-company-create-modal .clients-action-workspace-footer,
+.clients-group-create-modal .clients-action-workspace-footer {
+    flex: 0 0 auto;
+    padding: 16px 32px 22px;
+    border-top: 1px solid #e7edf5;
+    background: #f8fafc;
+}
+
+.clients-client-create-modal .clients-gapp-save-button,
+.clients-company-create-modal .clients-gapp-save-button,
+.clients-group-create-modal .clients-gapp-save-button {
+    min-height: 52px;
+    border-radius: 13px;
+    font-size: 0.98rem;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.2);
+}
+
+[data-theme="dark"] .clients-client-create-modal.modal.large-modal,
+[data-theme="dark"] .clients-company-create-modal.modal.large-modal,
+[data-theme="dark"] .clients-group-create-modal.modal.large-modal {
+    background: #101827;
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .clients-client-create-modal .clients-action-workspace-header,
+[data-theme="dark"] .clients-company-create-modal .clients-action-workspace-header,
+[data-theme="dark"] .clients-group-create-modal .clients-action-workspace-header,
+[data-theme="dark"] .clients-client-create-modal .clients-action-workspace-body,
+[data-theme="dark"] .clients-company-create-modal .clients-action-workspace-body,
+[data-theme="dark"] .clients-group-create-modal .clients-action-workspace-body {
+    background: #101827;
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="dark"] .clients-client-create-modal .clients-create-fields > label.clients-detail-field-card input,
+[data-theme="dark"] .clients-client-create-modal .clients-create-fields > label.clients-detail-field-card select,
+[data-theme="dark"] .clients-client-create-modal .clients-create-fields > label.clients-detail-field-card textarea,
+[data-theme="dark"] .clients-company-create-modal .clients-create-fields > label.clients-detail-field-card input,
+[data-theme="dark"] .clients-company-create-modal .clients-create-fields > label.clients-detail-field-card select,
+[data-theme="dark"] .clients-company-create-modal .clients-create-fields > label.clients-detail-field-card textarea,
+[data-theme="dark"] .clients-group-create-modal .clients-create-fields > label.clients-detail-field-card input,
+[data-theme="dark"] .clients-group-create-modal .clients-create-fields > label.clients-detail-field-card select,
+[data-theme="dark"] .clients-group-create-modal .clients-create-fields > label.clients-detail-field-card textarea {
+    border-color: rgba(148, 163, 184, 0.32);
+    background: #172033;
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .clients-client-create-modal .clients-action-workspace-footer,
+[data-theme="dark"] .clients-company-create-modal .clients-action-workspace-footer,
+[data-theme="dark"] .clients-group-create-modal .clients-action-workspace-footer {
+    border-color: rgba(148, 163, 184, 0.2);
+    background: #0f172a;
+}
+
+@media (max-width: 760px) {
+    .clients-client-create-modal.modal.large-modal,
+    .clients-company-create-modal.modal.large-modal,
+    .clients-group-create-modal.modal.large-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100dvh;
+        border-radius: 0;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-header,
+    .clients-company-create-modal .clients-action-workspace-header,
+    .clients-group-create-modal .clients-action-workspace-header {
+        padding: max(18px, env(safe-area-inset-top)) 18px 16px;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-avatar.clients-detail-avatar,
+    .clients-company-create-modal .clients-action-workspace-avatar.clients-detail-avatar,
+    .clients-group-create-modal .clients-action-workspace-avatar.clients-detail-avatar {
+        width: 46px;
+        height: 46px;
+        border-radius: 15px;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-title-stack .clients-name,
+    .clients-company-create-modal .clients-action-workspace-title-stack .clients-name,
+    .clients-group-create-modal .clients-action-workspace-title-stack .clients-name {
+        font-size: 1.2rem;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-body,
+    .clients-company-create-modal .clients-action-workspace-body,
+    .clients-group-create-modal .clients-action-workspace-body {
+        padding: 20px 18px 24px;
+    }
+
+    .clients-client-create-modal .clients-create-fields,
+    .clients-company-create-modal .clients-create-fields,
+    .clients-group-create-modal .clients-create-fields {
+        grid-template-columns: 1fr;
+        gap: 17px;
+    }
+
+    .clients-client-create-modal .clients-create-fields > .clients-detail-field-card--wide,
+    .clients-company-create-modal .clients-create-fields > .clients-detail-field-card--wide,
+    .clients-group-create-modal .clients-create-fields > .clients-detail-field-card--wide {
+        grid-column: auto;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-footer,
+    .clients-company-create-modal .clients-action-workspace-footer,
+    .clients-group-create-modal .clients-action-workspace-footer {
+        padding: 14px 18px max(16px, env(safe-area-inset-bottom));
+    }
+}
