@@ -315,6 +315,29 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     }
   }
 
+  const requestBookedSessionDelete = async () => {
+    if (!selectedBookedSession?.id || releasedSlotWaitlistLoading) return
+    if (selectedBookedSession?.recurrenceSeriesKey || !waitlistModuleEnabled) {
+      setConfirmDelete(true)
+      return
+    }
+    const payload = releasedSlotPayload()
+    setReleasedSlotWaitlistLoading(true)
+    try {
+      const { data } = await api.post('/waitlists/matches', payload)
+      if (Number(data?.count) > 0 && data?.first) {
+        setConfirmDelete(false)
+        setReleasedSlotWaitlistPrompt({ action: 'DELETE', scope: 'SINGLE', payload, matches: data })
+        return
+      }
+      setConfirmDelete(true)
+    } catch {
+      setConfirmDelete(true)
+    } finally {
+      setReleasedSlotWaitlistLoading(false)
+    }
+  }
+
   const prepareReleasedSlotAction = async (action: 'DELETE' | 'CANCEL', scope: 'SINGLE' | 'THIS_AND_FOLLOWING' = 'SINGLE') => {
     if (!selectedBookedSession?.id) return
     if (scope !== 'SINGLE') {
@@ -1800,14 +1823,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   ? (locale === 'sl' ? 'Izbriši brez ponudbe' : 'Delete without offer')
                   : (locale === 'sl' ? 'Odpovej brez ponudbe' : 'Cancel without offer')}
               </button>
-              <button
-                type="button"
-                className="calendar-waitlist-release-modal__cancel"
-                onClick={() => setReleasedSlotWaitlistPrompt(null)}
-                disabled={releasedSlotWaitlistLoading}
-              >
-                {locale === 'sl' ? 'Nazaj' : 'Back'}
-              </button>
             </div>
           </div>
         </div>
@@ -1891,7 +1906,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       <button
                         type="button"
                         className="calendar-form-footer-btn calendar-form-footer-btn--delete"
-                        onClick={() => setConfirmDelete(true)}
+                        onClick={() => void requestBookedSessionDelete()}
                         aria-label={t('formDeleteSession')}
                         title={t('formDeleteSession')}
                       >
@@ -2715,7 +2730,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <button
                     type="button"
                     className="calendar-form-footer-btn calendar-form-footer-btn--delete calendar-form-footer-btn--footer-delete"
-                    onClick={() => setConfirmDelete(true)}
+                    onClick={() => void requestBookedSessionDelete()}
                   >
                     <CalendarFormFooterDeleteIcon />
                     <span className="calendar-form-footer-btn__label">{t('formDeleteSession')}</span>

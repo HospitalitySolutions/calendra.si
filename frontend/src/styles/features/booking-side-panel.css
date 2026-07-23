@@ -2604,3 +2604,9 @@
         font-size: 0.9rem;
     }
 }
+
+/* Released-slot waitlist dialog: destructive fallback spans the full row. */
+.calendar-waitlist-release-modal__actions .calendar-waitlist-release-modal__ghost {
+  grid-column: 1 / -1;
+  width: 100%;
+}
