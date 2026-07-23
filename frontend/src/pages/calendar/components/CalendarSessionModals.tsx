@@ -24,6 +24,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistMatches, setNewSlotWaitlistMatches] = useState<any>(null)
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistActionLoading, setNewSlotWaitlistActionLoading] = useState(false)
+  const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
   const [releasedSlotWaitlistLoading, setReleasedSlotWaitlistLoading] = useState(false)
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -230,9 +231,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     }
   }
 
-  const pullFirstWaitlistedGuestIntoBooking = () => {
+  const pullFirstWaitlistedGuestIntoBooking = (candidate?: any) => {
     if (!waitlistModuleEnabled) return
-    const first = visibleNewSlotWaitlistMatches?.first
+    const first = candidate || visibleNewSlotWaitlistMatches?.first
     const clientId = Number(first?.clientId)
     const requestId = Number(first?.requestId)
     if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(requestId) || requestId <= 0) return
@@ -248,6 +249,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       waitlistRequestId: requestId,
       waitlistSlotKey: newWaitlistSlotKey,
     }))
+    setNewSlotWaitlistOpen(false)
     setNewSlotWaitlistMatches(null)
     showToast?.('success', locale === 'sl' ? 'Stranka s čakalne vrste je dodana v termin.' : 'The waitlisted client was added to the booking.')
   }
@@ -2707,6 +2709,42 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         </div>
       )}
 
+      {newSlotWaitlistOpen && visibleNewSlotWaitlistMatches?.count > 0 && (
+        <div className="modal-backdrop calendar-waitlist-picker-backdrop" onClick={() => setNewSlotWaitlistOpen(false)}>
+          <div className="modal calendar-waitlist-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="calendar-waitlist-picker-header">
+              <div>
+                <h2>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</h2>
+                <p>{waitlistMatchCountLabel(visibleNewSlotWaitlistMatches.count)}</p>
+              </div>
+              <button type="button" className="secondary calendar-waitlist-picker-close" onClick={() => setNewSlotWaitlistOpen(false)} aria-label={t('mobileNavClose')}>×</button>
+            </div>
+            <div className="calendar-waitlist-picker-list">
+              {(visibleNewSlotWaitlistMatches.matches || [visibleNewSlotWaitlistMatches.first]).filter(Boolean).map((candidate: any, index: number) => (
+                <div key={candidate.requestId || index} className="calendar-waitlist-picker-row">
+                  <span className="calendar-waitlist-picker-avatar">{String(candidate.clientName || '?').trim().split(/\s+/).slice(0,2).map((part: string) => part[0]).join('').toUpperCase()}</span>
+                  <div className="calendar-waitlist-picker-copy">
+                    <strong>{candidate.clientName}</strong>
+                    <span>{formatWaitlistJoinedAt(candidate.joinedAt) ? `${locale === 'sl' ? 'Prijavljen' : locale === 'sr' ? 'Prijavljen' : 'Joined'} ${formatWaitlistJoinedAt(candidate.joinedAt)}` : ''}</span>
+                  </div>
+                  <button type="button" className="calendar-waitlist-picker-add" onClick={() => pullFirstWaitlistedGuestIntoBooking(candidate)}>
+                    {locale === 'sl' ? 'Dodaj' : locale === 'sr' ? 'Dodaj' : 'Add'}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="calendar-waitlist-picker-footer">
+              <button type="button" className="secondary" onClick={() => void offerNewSlotToFirstWaitlistedGuest()} disabled={newSlotWaitlistActionLoading}>
+                {newSlotWaitlistActionLoading ? (locale === 'sl' ? 'Pošiljam …' : 'Sending …') : (locale === 'sl' ? 'Ponudi termin prvi stranki' : locale === 'sr' ? 'Ponudi termin prvom klijentu' : 'Offer slot to first client')}
+              </button>
+              <button type="button" className="linkish" onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}>
+                {locale === 'sl' ? 'Odpri celotno čakalno vrsto' : locale === 'sr' ? 'Otvori celu listu čekanja' : 'Open full waitlist'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {bookedBillingView === 'advances' && renderSessionBillingViewModal('advances')}
       {bookedBillingView === 'invoices' && renderSessionBillingViewModal('invoices')}
       {renderBookedEntitlementPaymentModal()}
@@ -4305,23 +4343,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       )}
                     </div>
                     <div className="calendar-client-picker__actions">
-                      {!multipleClientsPerSessionEnabled && bookSessionSelectedClient?.id && (
-                        <button
-                          type="button"
-                          className="secondary calendar-client-picker__clear-btn"
-                          title={clearSingleClientTitle}
-                          aria-label={clearSingleClientTitle}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            applyFormClientIds([])
-                            setClientSearch('')
-                            setEditingClientSearch(false)
-                            setClientDropdownOpen(false)
-                          }}
-                        >
-                          <span aria-hidden>×</span>
-                        </button>
-                      )}
                       <button
                         type="button"
                         className="secondary client-add-btn calendar-client-picker__add-btn"
@@ -4336,6 +4357,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       >
                         <span aria-hidden>+</span>
                       </button>
+                      {waitlistModuleEnabled && Number(visibleNewSlotWaitlistMatches?.count) > 0 && (
+                        <button
+                          type="button"
+                          className="secondary calendar-client-picker__waitlist-btn"
+                          title={locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}
+                          aria-label={locale === 'sl' ? 'Odpri čakalno vrsto' : locale === 'sr' ? 'Otvori listu čekanja' : 'Open waitlist'}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setClientDropdownOpen(false)
+                            setNewSlotWaitlistOpen(true)
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                            <path d="M8.25 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM15.75 10a2.6 2.6 0 1 0 0-5.2M2.75 19.25c.55-3.35 2.38-5.05 5.5-5.05s4.95 1.7 5.5 5.05M14.4 13.8c3.9-.25 6.15 1.55 6.85 5.45" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <span className="calendar-client-picker__waitlist-count">{visibleNewSlotWaitlistMatches.count}</span>
+                        </button>
+                      )}
                     </div>
                     {clientDropdownOpen && (
                       <div className="client-dropdown-panel calendar-client-picker__dropdown" onMouseDown={(e) => e.preventDefault()}>
@@ -4514,76 +4553,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <div className="form-field-inline-control">
                   <select value={form.spaceId || ''} onChange={(e) => setForm({ ...form, spaceId: Number(e.target.value) || null })}><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
                   </div>
-                </div>
-              )}
-              {waitlistModuleEnabled && !form.todo && !form.personal && !availabilitySelection && !bookingGroupMode && selectedFormClientIds.length === 0 && (
-                <div className={`calendar-waitlist-match-card${visibleNewSlotWaitlistMatches?.count > 0 ? ' is-visible' : ''}`}>
-                  {visibleNewSlotWaitlistMatches?.first ? (
-                    <>
-                      <div className="calendar-waitlist-match-main">
-                        <span className="calendar-waitlist-match-icon" aria-hidden>
-                          <svg viewBox="0 0 24 24" fill="none">
-                            <path d="M8.25 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM15.75 10a2.6 2.6 0 1 0 0-5.2M2.75 19.25c.55-3.35 2.38-5.05 5.5-5.05s4.95 1.7 5.5 5.05M14.4 13.8c3.9-.25 6.15 1.55 6.85 5.45" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </span>
-                        <div className="calendar-waitlist-match-copy">
-                          <div className="calendar-waitlist-match-heading">
-                            <strong>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</strong>
-                            <span className="calendar-waitlist-match-count">{waitlistMatchCountLabel(visibleNewSlotWaitlistMatches.count)}</span>
-                          </div>
-                          <span className="calendar-waitlist-match-subtitle">
-                            {locale === 'sl' ? 'Najstarejša zahteva:' : locale === 'sr' ? 'Najstariji zahtev:' : 'Oldest request:'}{' '}
-                            <b>{visibleNewSlotWaitlistMatches.first.clientName}</b>
-                            {formatWaitlistJoinedAt(visibleNewSlotWaitlistMatches.first.joinedAt) ? (
-                              <>
-                                <span className="calendar-waitlist-match-dot" aria-hidden>•</span>
-                                {locale === 'sl' ? 'prijavljen' : locale === 'sr' ? 'prijavljen' : 'joined'}{' '}
-                                {formatWaitlistJoinedAt(visibleNewSlotWaitlistMatches.first.joinedAt)}
-                              </>
-                            ) : null}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="calendar-waitlist-match-actions">
-                        <button
-                          type="button"
-                          className="calendar-waitlist-action calendar-waitlist-action--primary"
-                          onClick={pullFirstWaitlistedGuestIntoBooking}
-                          disabled={newSlotWaitlistActionLoading}
-                        >
-                          <span className="calendar-waitlist-action-icon" aria-hidden>
-                            <svg viewBox="0 0 24 24" fill="none"><path d="M7 3.75v2.5M17 3.75v2.5M4.5 9h15M5.75 5.5h12.5c.7 0 1.25.56 1.25 1.25v12c0 .7-.56 1.25-1.25 1.25H5.75c-.7 0-1.25-.56-1.25-1.25v-12c0-.7.56-1.25 1.25-1.25ZM12 12v5M9.5 14.5h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </span>
-                          {locale === 'sl' ? 'Dodaj v termin' : locale === 'sr' ? 'Dodaj u termin' : 'Add to booking'}
-                        </button>
-                        <button
-                          type="button"
-                          className="calendar-waitlist-action calendar-waitlist-action--secondary"
-                          onClick={() => void offerNewSlotToFirstWaitlistedGuest()}
-                          disabled={newSlotWaitlistActionLoading}
-                        >
-                          <span className="calendar-waitlist-action-icon" aria-hidden>
-                            {newSlotWaitlistActionLoading ? (
-                              <span className="calendar-waitlist-match-spinner calendar-waitlist-match-spinner--button" />
-                            ) : (
-                              <svg viewBox="0 0 24 24" fill="none"><path d="m20.25 3.75-7.4 16.5-2.15-7-6.95-2.35 16.5-7.15ZM10.7 13.25l4.4-4.35" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                            )}
-                          </span>
-                          {newSlotWaitlistActionLoading
-                            ? (locale === 'sl' ? 'Pošiljam …' : locale === 'sr' ? 'Šaljem …' : 'Sending …')
-                            : (locale === 'sl' ? 'Ponudi termin' : locale === 'sr' ? 'Ponudi termin' : 'Offer slot')}
-                        </button>
-                        <button
-                          type="button"
-                          className="calendar-waitlist-link"
-                          onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}
-                        >
-                          <span>{locale === 'sl' ? 'Prikaži čakalno vrsto' : locale === 'sr' ? 'Prikaži listu čekanja' : 'View waitlist'}</span>
-                          <svg viewBox="0 0 24 24" fill="none" aria-hidden><path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </button>
-                      </div>
-                    </>
-                  ) : null}
                 </div>
               )}
               {!form.todo && !form.personal && !availabilitySelection && (
