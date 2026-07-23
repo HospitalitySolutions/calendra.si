@@ -47,6 +47,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +56,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DemoBookingService {
+    private static final Logger log = LoggerFactory.getLogger(DemoBookingService.class);
+
     public static final String DEFAULT_SLUG = "predstavitev";
     private static final List<String> BLOCKING_STATUSES = List.of("CONFIRMED");
     private static final Duration HOLD_DURATION = Duration.ofMinutes(5);
@@ -266,7 +270,19 @@ public class DemoBookingService {
         LocalDateTime localEnd = LocalDateTime.ofInstant(hold.getEndAt(), hostZone);
         String topic = profile.getTitle() + " – " + booking.getCompanyName();
         String description = meetingDescription(booking.getGuestName(), booking.getGuestEmail(), booking.getGuestPhone(), booking.getCompanyName(), booking.getGuestNote());
-        updateExternalMeeting(booking, localStart, localEnd, hostZone, topic, description);
+
+        // Updating Google Calendar/Zoom is an integration side effect and must not
+        // roll back a valid Calendra reschedule. The existing meeting URL remains
+        // usable even when the provider temporarily rejects the event update.
+        try {
+            updateExternalMeeting(booking, localStart, localEnd, hostZone, topic, description);
+        } catch (RuntimeException externalMeetingError) {
+            log.warn(
+                    "Demo booking was rescheduled internally, but the external meeting could not be updated. bookingId={}, provider={}, externalMeetingId={}, error={}",
+                    booking.getId(), booking.getMeetingProvider(), booking.getExternalMeetingId(),
+                    externalMeetingError.getMessage(), externalMeetingError);
+        }
+
         rescheduleCalendarSession(booking, localStart, localEnd, description);
         if (booking.getSessionBookingId() == null && booking.getCalendarBlockId() != null) {
             personalBlocks.findById(booking.getCalendarBlockId()).ifPresent(block -> {

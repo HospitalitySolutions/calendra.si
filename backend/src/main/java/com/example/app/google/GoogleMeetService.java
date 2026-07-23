@@ -173,7 +173,14 @@ public class GoogleMeetService {
             token.setUser(user);
         }
         token.setAccessToken(accessToken);
-        token.setRefreshToken(refreshToken.isBlank() ? null : refreshToken);
+        // Google may omit refresh_token on a later authorization response. Do not
+        // erase a valid stored refresh token, otherwise the connection works only
+        // until the new access token expires (normally about one hour).
+        if (!refreshToken.isBlank()) {
+            token.setRefreshToken(refreshToken);
+        } else if (existing.isEmpty()) {
+            token.setRefreshToken(null);
+        }
         token.setExpiresAt(Instant.now().plusSeconds(expiresIn - 60));
         tokenRepo.save(token);
     }
