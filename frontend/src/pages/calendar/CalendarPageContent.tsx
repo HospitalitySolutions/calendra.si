@@ -8293,6 +8293,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       // Treat clicks inside it as part of the active booked-session workflow so the
       // global outside-click handler does not close both popups before button handlers run.
       if (target && target.closest('.calendar-payment-manager-backdrop')) return
+      // The waitlist ("Čakalna vrsta") picker is portaled to document.body outside the
+      // session popup. Closing it should return to the booking form, not dismiss it.
+      if (target && target.closest('.calendar-waitlist-picker-backdrop')) return
       // Embedded client detail from calendar (ClientsPage overlay) must not dismiss edit session.
       if (target && target.closest('.clients-action-workspace-backdrop--embedded')) return
       if (target && target.closest('.clients-modern-page--embedded-detail')) return
@@ -8338,6 +8341,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       // Let the time picker consume Escape without also closing the underlying
       // booking/session popup.
       if (document.body?.getAttribute('data-modern-time-picker-open') === 'true') return
+      // Let the waitlist ("Čakalna vrsta") picker consume Escape and return to the
+      // booking form instead of dismissing it.
+      if (document.body?.getAttribute('data-waitlist-picker-open') === 'true') return
       if (showAddGroupModal) {
         setShowAddGroupModal(false)
         return

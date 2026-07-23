@@ -176,6 +176,26 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const visibleNewSlotWaitlistMatches = newSlotWaitlistMatches?.slotKey === newWaitlistSlotKey
     ? newSlotWaitlistMatches
     : null
+
+  // While the waitlist ("Čakalna vrsta") picker is open, mark the body so the calendar's
+  // global outside-click / Escape handlers keep the underlying "Dodaj termin" popup open,
+  // and let Escape close only the waitlist picker (returning to the booking form).
+  const waitlistPickerVisible = newSlotWaitlistOpen && (visibleNewSlotWaitlistMatches?.count ?? 0) > 0
+  useEffect(() => {
+    if (typeof document === 'undefined' || !waitlistPickerVisible) return
+    document.body.setAttribute('data-waitlist-picker-open', 'true')
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      closeNewSlotWaitlist()
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.body.removeAttribute('data-waitlist-picker-open')
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [waitlistPickerVisible])
+
   const newWaitlistMatchPayload = () => ({
     serviceId: Number(form?.typeId),
     slotStart: form?.startTime,
