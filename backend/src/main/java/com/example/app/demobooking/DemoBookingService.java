@@ -570,7 +570,18 @@ public class DemoBookingService {
         if ("ZOOM".equals(normalizeProvider(booking.getMeetingProvider()))) {
             zoom.updateMeeting(booking.getHostUser().getId(), booking.getExternalMeetingId(), start, end, zone, topic);
         } else {
-            googleMeet.updateMeeting(booking.getHostUser().getId(), booking.getExternalMeetingId(), start, end, zone, topic, booking.getGuestEmail(), description);
+            GoogleMeetService.MeetingDetails meeting = googleMeet.updateMeeting(
+                    booking.getHostUser().getId(),
+                    booking.getExternalMeetingId(),
+                    booking.getMeetingJoinUrl(),
+                    start,
+                    end,
+                    zone,
+                    topic,
+                    booking.getGuestEmail(),
+                    description);
+            booking.setExternalMeetingId(meeting.externalId());
+            booking.setMeetingJoinUrl(meeting.joinUrl());
         }
     }
 

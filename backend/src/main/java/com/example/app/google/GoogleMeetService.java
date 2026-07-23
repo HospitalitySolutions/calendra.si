@@ -12,6 +12,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +27,8 @@ import org.springframework.web.client.RestTemplate;
 @Service
 public class GoogleMeetService {
     public record MeetingDetails(String externalId, String joinUrl) {}
+
+    private static final Logger log = LoggerFactory.getLogger(GoogleMeetService.class);
 
     private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
     private static final String CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
@@ -67,24 +71,54 @@ public class GoogleMeetService {
         }
     }
 
-    public void updateMeeting(
+    public MeetingDetails updateMeeting(
             Long consultantId,
             String externalId,
+            String currentJoinUrl,
             LocalDateTime startTime,
             LocalDateTime endTime,
             ZoneId zoneId,
             String topic,
             String attendeeEmail,
             String description) {
-        if (externalId == null || externalId.isBlank()) return;
+        if (externalId == null || externalId.isBlank()) {
+            return createMeeting(consultantId, startTime, endTime, zoneId, topic, attendeeEmail, description);
+        }
         try {
             String accessToken = getOrRefreshAccessToken(consultantId);
-            ObjectNode event = buildCalendarEvent(startTime, endTime, zoneId, topic, attendeeEmail, description, false);
+            // PATCH only the mutable fields. Omitting attendees preserves the existing
+            // attendee list and avoids replacing it during a simple time change.
+            ObjectNode event = buildCalendarEvent(startTime, endTime, zoneId, topic, null, description, false);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(accessToken);
             String url = CALENDAR_API + "/" + externalId + "?conferenceDataVersion=1&sendUpdates=all";
             restTemplate.exchange(URI.create(url), HttpMethod.PATCH, new HttpEntity<>(event.toString(), headers), String.class);
+            return new MeetingDetails(externalId, currentJoinUrl);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (HttpClientErrorException updateError) {
+            // Older or manually changed Google Calendar events can occasionally no
+            // longer be patchable. Recreate the event so the public reschedule flow
+            // still succeeds and the guest receives a valid Meet link.
+            MeetingDetails replacement;
+            try {
+                replacement = createMeeting(
+                        consultantId, startTime, endTime, zoneId, topic, attendeeEmail, description);
+            } catch (ResponseStatusException recreateError) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Failed to update Google Meet: " + updateError.getResponseBodyAsString(),
+                        recreateError);
+            }
+            try {
+                deleteMeeting(consultantId, externalId);
+            } catch (ResponseStatusException cleanupError) {
+                log.warn(
+                        "Created replacement Google Calendar event but could not remove the old event. consultantId={}, externalId={}, error={}",
+                        consultantId, externalId, cleanupError.getReason());
+            }
+            return replacement;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to update Google Meet: " + e.getMessage());
         }

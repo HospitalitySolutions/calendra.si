@@ -106,6 +106,17 @@ function formatDateTime(value: string, locale: PageLocale, timeZone: string) {
   }).format(date)
 }
 
+function formatTime(value: string, locale: PageLocale, timeZone: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(locale === 'sl' ? 'sl-SI' : 'en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
 function meetingLabel(provider: string) {
   return provider === 'ZOOM' ? 'Zoom' : 'Google Meet'
 }
@@ -451,7 +462,7 @@ export function PublicDemoBookingManagePage() {
                             disabled={busy}
                             onClick={() => selectSlot(slot)}
                           >
-                            {slot.displayTime}
+                            {formatTime(slot.startAt, locale, timeZone)}
                           </button>
                         ))}
                       </div>
