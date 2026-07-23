@@ -3810,7 +3810,22 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[
+              useBookingSidePanel
+                ? 'modal large-modal booking-side-panel calendar-edit-session-panel'
+                : 'modal large-modal calendar-session-popup calendar-edit-session-panel',
+              'calendar-edit-session-panel--design-match',
+              'calendar-edit-session-panel--new-create',
+              availabilitySelection
+                ? 'calendar-edit-session-panel--availability calendar-edit-session-panel--new-availability'
+                : form.todo
+                  ? 'calendar-edit-session-panel--new-todo'
+                  : form.personal
+                    ? 'calendar-edit-session-panel--new-personal'
+                    : 'calendar-edit-session-panel--new-booking',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             style={getSessionPopupInlineStyle(true)}
             onClick={(e) => {
               e.stopPropagation()
@@ -3825,7 +3840,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               {...getSessionPopupDragHandleProps()}
             >
               {compactSelectionHeader ? (
-                <div className="booking-side-panel-header-toolbar">
+                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--new-create">
                   <button
                     type="button"
                     className="secondary booking-side-panel-close"
@@ -3834,11 +3849,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   >
                     ×
                   </button>
+                  <h1 className="booking-side-panel-new-create-title">{t('formBookSession')}</h1>
                   <button
                     type="button"
-                    className={`booking-side-panel-submit-check${
-                      availabilitySelection != null && availabilityIntent === 'block' ? ' booking-side-panel-submit-check--block' : ''
-                    }`}
+                    className="booking-side-panel-submit-check booking-side-panel-submit-check--new-create"
                     onClick={() =>
                       void (availabilitySelection != null ? confirmAvailabilityFromHeader() : saveBooking(false))
                     }
@@ -3850,16 +3864,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       availabilitySaving ? (
                         <span className="booking-side-panel-submit-check-spinner" aria-hidden />
                       ) : (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
+                        <span className="booking-side-panel-submit-check__label">{t('formSave')}</span>
                       )
                     ) : saveBookingLoading ? (
                       <span className="booking-side-panel-submit-check-spinner" aria-hidden />
                     ) : (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
+                      <span className="booking-side-panel-submit-check__label">{t('formSave')}</span>
                     )}
                   </button>
                 </div>
@@ -4097,10 +4107,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </>
               ) : form.todo ? (
                 <>
-                  <div className="form-row form-row-infield">
-                    <span className="form-field-inline-label">{t('formTodo')}</span>
+                  <div className="form-row form-row-infield calendar-new-create-primary-field calendar-new-create-todo-field">
+                    <span className="calendar-new-create-section-title">{t('formTodo')}</span>
+                    <span className="form-field-inline-label">{t('formTaskNamePlaceholder')}</span>
                     <div className="form-field-inline-control">
-                    <input placeholder={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
+                    <input aria-label={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
                     </div>
                   </div>
                   <div className="form-row form-row-timespan">
@@ -4141,9 +4152,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </>
               ) : form.personal ? (
                 <>
-                  <div className="form-row form-row-infield calendar-personal-field-with-visibility">
+                  <div className="form-row form-row-infield calendar-personal-field-with-visibility calendar-new-create-primary-field calendar-new-create-personal-field">
                     <div className="calendar-booking-service-infield-head calendar-personal-visibility-head">
-                      <span className="form-field-inline-label">{t('formTask')}</span>
+                      <span className="calendar-new-create-section-title">{t('formTask')}</span>
                       <div className="calendar-booking-service-online-line calendar-personal-visibility-line" role="group" aria-label={t('formVisibleToAdmins')}>
                         <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formVisibleToAdmins')}>
                           <input
@@ -4156,11 +4167,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         <span className="calendar-booking-service-online-caption">{t('formVisibleToAdmins')}</span>
                       </div>
                     </div>
+                    <span className="form-field-inline-label calendar-new-create-personal-name-label">{t('formTaskCalendarNamePlaceholder')}</span>
                     <div className="form-field-inline-control">
                     <PersonalTaskCombo
                       value={form.task || ''}
                       onChange={(task) => setForm({ ...form, task })}
-                      placeholder={t('formTaskCalendarNamePlaceholder')}
+                      placeholder=""
                       presets={personalTaskPresets}
                       dropdownOpen={personalTaskPresetDropdownOpen}
                       onDropdownOpenChange={setPersonalTaskPresetDropdownOpen}
