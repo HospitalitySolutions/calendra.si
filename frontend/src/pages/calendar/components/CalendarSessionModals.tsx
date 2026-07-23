@@ -1937,9 +1937,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                       <div className="calendar-client-picker__search-row">
                         <div className="client-search-wrap calendar-client-picker__search-wrap client-search-wrap--compact-client">
-                          <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                          </span>
                           <button
                             type="button"
                             className="client-selected-display"
@@ -1975,13 +1972,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className="calendar-client-picker__search-row">
                     <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}`}>
-                      <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
-                        {bookedSessionClientFieldCompact ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                        )}
-                      </span>
                       {bookedSessionClientFieldCompact ? (
                         <button
                           type="button"
@@ -2251,9 +2241,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                   <div className="form-field-inline-control calendar-booking-service-select-only" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div className="calendar-booking-service-select-shell">
-                      <span className="calendar-booking-service-select-shell__icon" aria-hidden>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                      </span>
                       <select
                         value={selectedBookedSession.type?.id ?? ''}
                         onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: bookedSessionSelectableMetaTypes.find((ty: any) => Number(ty.id) === Number(e.target.value)) ?? null })}
@@ -2358,13 +2345,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     aria-readonly="true"
                     aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}
                     title={`${bookingSourceMeta.label} · ${bookingSourceCode}`}
-                  >
-                    <span className="calendar-booking-source-selectlike__icon" aria-hidden>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M3 12h18M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18" />
-                      </svg>
-                    </span>
+>
                     <span className="calendar-booking-source-selectlike__content">
                       <span className="calendar-booking-source-selectlike__label">{bookingSourceMeta.label}</span>
                       <span className="calendar-booking-source-selectlike__code">{bookingSourceCode}</span>
@@ -2711,7 +2692,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </button>
                   <button
                     type="button"
-                    className="calendar-form-footer-btn calendar-form-footer-btn--save"
+                    className="calendar-form-footer-btn calendar-form-footer-btn--save calendar-form-footer-btn--save-icon-only"
                     onClick={() => void updateBookedSession()}
                     disabled={bookedSessionSaveDisabled}
                   >
