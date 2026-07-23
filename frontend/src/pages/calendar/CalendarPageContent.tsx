@@ -54,7 +54,7 @@ import { Card, Field, PageHeader } from '../../components/ui'
 import { currency, formatDateTime, fullName, parseClientNameInput, personInitials } from '../../lib/format'
 import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../../theme'
 import { useLocale } from '../../locale'
-import { calendarBookingPanelHelpId, helpAria, helpTitle, helpTooltip } from '../../helpContent'
+import { calendarBookingPanelHelpId, helpTitle } from '../../helpContent'
 import { LanguageModal } from '../../components/LanguageModal'
 import { GuestConfigSaveIcon } from '../../components/GuestConfigSaveIcon'
 import { type BookingPayeeDraft } from './types/bookingPayee'
@@ -9809,15 +9809,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       todo: Boolean(form.todo),
       personal: Boolean(form.personal),
     })
-    const title = helpTitle(t, helpId)
-    const tooltip = helpTooltip(t, helpId)
-    const aria = helpAria(t, helpId)
-    return (
-      <span className="booking-title-with-help">
-        <span>{title}</span>
-        <span className="config-help-hint booking-mode-help" data-tooltip={tooltip} role="img" aria-label={aria} tabIndex={0}>?</span>
-      </span>
-    )
+    return helpTitle(t, helpId)
   }
 
   const formatTooltipTime = (date: Date | null) => {

@@ -2843,11 +2843,47 @@
     top: calc(100% + 12px);
     right: 0;
     width: min(330px, calc(100vw - 32px));
-    overflow: hidden;
+    max-height: min(72vh, 620px);
+    overflow-x: hidden;
+    overflow-y: auto;
     border: 1px solid #e1e8f0;
     border-radius: 20px;
     background: #fff;
     box-shadow: 0 22px 55px rgba(15, 23, 42, .2);
+}
+
+.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__item {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid #e7edf4;
+    border-radius: 0;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__item:hover:not(:disabled),
+.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__item:focus-visible {
+    background: #f8fbff;
+}
+
+.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__item:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__action .calendar-mobile-session-more-menu__icon svg {
+    width: 23px;
+    height: 23px;
+}
+
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__action--danger .calendar-mobile-session-more-menu__icon,
+.calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__action--danger .calendar-mobile-session-more-menu__copy strong {
+    color: #b4232d;
 }
 
 .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__item {
@@ -2917,6 +2953,10 @@
 
     .calendar-edit-session-panel--design-match .booking-side-panel-header-ico-group {
         gap: 10px;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-session-billing-actions {
+        display: none;
     }
 
     .calendar-edit-session-panel--design-match .booking-side-panel-footer.booking-side-panel-footer--mobile-save,
