@@ -768,6 +768,36 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
   return null;
 }
 
+function AccountSubtabIcon({ kind }: { kind: AccountSubtab }) {
+  const common = {
+    width: 19,
+    height: 19,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (kind === "company") {
+    return <svg {...common}><path d="M3 21h18"/><path d="M6 21V7l6-3 6 3v14"/><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></svg>;
+  }
+  if (kind === "receivedInvoices") {
+    return <svg {...common}><path d="M6 2h9l3 3v17H6z"/><path d="M14 2v5h5"/><path d="M9 12h6M9 16h4"/></svg>;
+  }
+  if (kind === "subscription") {
+    return <svg {...common}><path d="m3 7 4 4 5-7 5 7 4-4-2 11H5z"/><path d="M5 21h14"/></svg>;
+  }
+  if (kind === "referrals") {
+    return <svg {...common}><path d="M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>;
+  }
+  if (kind === "security") {
+    return <svg {...common}><path d="M12 2 5 5v6c0 5 3.5 8.5 7 11 3.5-2.5 7-6 7-11V5z"/><path d="m9 12 2 2 4-4"/></svg>;
+  }
+  return <svg {...common}><path d="M12 3v18M5 7h14"/><path d="m5 7-3 6h6zM19 7l-3 6h6z"/><path d="M7 21h10"/></svg>;
+}
+
 function useQuery() {
   const { search } = useLocation();
   return useMemo(() => new URLSearchParams(search), [search]);
@@ -5538,7 +5568,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : isCompactConfigViewport
-      ? "config-shell config-shell--detail"
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5584,7 +5614,7 @@ export function ConfigurationPage() {
         ) : (
           <>
             {isCompactConfigViewport ? (
-              tab === "integrations" ? null : (
+              tab === "integrations" || tab === "company" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -5680,6 +5710,9 @@ export function ConfigurationPage() {
               box-shadow: none;
               outline: none;
               transition: color .18s ease, background .18s ease, box-shadow .18s ease, border-color .18s ease;
+            }
+            .account-subtab > svg {
+              display: none;
             }
             .account-subtab:hover {
               color: #0f172a;
@@ -6848,6 +6881,245 @@ export function ConfigurationPage() {
               .account-plan-preview-selected { flex-direction: column; align-items: flex-start; }
               .account-plan-preview-price { text-align: left; }
             }
+            @media (max-width: 720px) {
+              .account-management-shell {
+                width: 100%;
+                max-width: none;
+                background: #ffffff;
+              }
+              .account-subtabs {
+                width: 100%;
+                min-height: 76px;
+                display: flex;
+                align-items: stretch;
+                gap: 0;
+                flex-wrap: nowrap;
+                margin: 0 0 14px;
+                padding: 0 8px;
+                border: 0;
+                border-radius: 0;
+                background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+                overflow-x: hidden;
+                box-shadow: none;
+              }
+              .account-subtab {
+                position: relative;
+                flex: 1 1 0;
+                min-width: 0;
+                min-height: 76px;
+                padding: 8px 2px 10px;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                color: rgba(255, 255, 255, 0.78);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+                font-size: clamp(9px, 2.35vw, 11px);
+                font-weight: 700;
+                line-height: 1.08;
+                letter-spacing: -0.02em;
+                text-align: center;
+                box-shadow: none;
+              }
+              .account-subtab:hover,
+              .account-subtab:focus-visible,
+              .account-subtab.active {
+                color: #ffffff;
+                background: transparent;
+                border-color: transparent;
+                box-shadow: none;
+                transform: none;
+                outline: none;
+              }
+              .account-subtab.active {
+                font-weight: 800;
+              }
+              .account-subtab.active::after {
+                content: "";
+                position: absolute;
+                left: 7px;
+                right: 7px;
+                bottom: 0;
+                height: 4px;
+                border-radius: 4px 4px 0 0;
+                background: #ffffff;
+              }
+              .account-subtab svg {
+                display: block;
+                width: 19px;
+                height: 19px;
+                flex: 0 0 19px;
+              }
+              .account-subtab-label {
+                display: block;
+                max-width: 100%;
+                white-space: normal;
+                text-wrap: balance;
+              }
+              .account-company-grid,
+              .account-company-overview,
+              .account-company-sections-stack,
+              .account-company-footer {
+                margin-left: 12px;
+                margin-right: 12px;
+              }
+              .account-company-grid {
+                margin-bottom: 12px;
+              }
+              .account-company-overview {
+                margin-bottom: 12px;
+              }
+              .account-company-sections-stack {
+                gap: 12px;
+                margin-bottom: 14px;
+              }
+              .account-card {
+                border-radius: 14px;
+                border-color: #dfe7f2;
+                box-shadow: 0 5px 16px rgba(15, 23, 42, 0.07);
+              }
+              .account-company-section,
+              .account-company-overview,
+              .account-form-card {
+                padding: 14px;
+              }
+              .account-section-title,
+              .account-company-overview-header h3,
+              .account-form-card-header h3 {
+                font-size: 16px;
+              }
+              .account-profile-list--single {
+                margin-top: 12px;
+              }
+              .account-profile-card {
+                grid-template-columns: 42px minmax(0, 1fr) auto auto;
+                gap: 10px;
+                padding: 10px 10px;
+                border-radius: 12px;
+              }
+              .account-profile-icon,
+              .account-overview-icon {
+                width: 42px;
+                height: 42px;
+                border-radius: 12px;
+              }
+              .account-profile-name,
+              .account-overview-name strong {
+                font-size: 14px;
+              }
+              .account-pill {
+                min-height: 24px;
+                padding: 0 10px;
+                font-size: 11px;
+              }
+              .account-menu-button {
+                width: 34px;
+                height: 34px;
+                padding: 0;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: #eef4ff;
+              }
+              .company-profile-visibility-menu {
+                min-width: min(280px, calc(100vw - 36px));
+                right: -4px;
+              }
+              .account-company-overview-body {
+                grid-template-columns: minmax(0, 1.35fr) minmax(0, .8fr) minmax(0, .8fr);
+                gap: 10px;
+                margin-top: 12px;
+              }
+              .account-company-overview-main {
+                gap: 10px;
+              }
+              .account-overview-name {
+                gap: 7px;
+                margin-bottom: 10px;
+              }
+              .account-overview-block {
+                padding-left: 10px;
+                border-left: 1px solid #e6edf8;
+                gap: 10px;
+              }
+              .account-overview-kv {
+                gap: 2px;
+              }
+              .account-overview-kv small {
+                font-size: 10px;
+              }
+              .account-overview-kv strong {
+                font-size: 11px;
+                overflow-wrap: anywhere;
+              }
+              .account-form-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0;
+                margin-top: 12px;
+                border-top: 1px solid #e6edf8;
+              }
+              .account-field {
+                gap: 4px;
+                min-width: 0;
+                padding: 10px 12px;
+                border-bottom: 1px solid #e6edf8;
+              }
+              .account-field:nth-child(odd) {
+                border-right: 1px solid #e6edf8;
+              }
+              .account-field-label {
+                font-size: 10px;
+              }
+              .account-field-control,
+              .account-field-control[readonly] {
+                min-height: 30px;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                font-size: 13px;
+              }
+              .account-field-control:focus {
+                box-shadow: inset 0 -2px 0 #2167ff;
+              }
+              .account-field-textarea {
+                min-height: 54px;
+                padding-top: 4px;
+                resize: none;
+              }
+              .account-public-fields {
+                display: grid;
+                gap: 0;
+                margin-top: 10px;
+                border-top: 1px solid #e6edf8;
+              }
+              .account-public-fields .account-field {
+                border-right: 0;
+              }
+              .account-public-logo-section,
+              .account-public-visibility-list {
+                margin-top: 10px;
+              }
+              .account-form-card-header.inline-switch {
+                gap: 8px;
+              }
+              .account-physical-toggle {
+                gap: 6px;
+                font-size: 10px;
+                white-space: normal;
+                text-align: right;
+              }
+              .account-form-card-subtitle {
+                font-size: 11px;
+                margin-top: 4px;
+              }
+              .account-company-footer {
+                margin-top: 12px;
+              }
+            }
           `}</style>
                   <div
                     className="account-subtabs"
@@ -6863,7 +7135,8 @@ export function ConfigurationPage() {
                       }
                       onClick={() => setAccountSubtabAndUrl("company")}
                     >
-                      Podjetje
+                      <AccountSubtabIcon kind="company" />
+                      <span className="account-subtab-label">Podjetje</span>
                     </button>
                     <button
                       type="button"
@@ -6874,7 +7147,8 @@ export function ConfigurationPage() {
                       }
                       onClick={() => setAccountSubtabAndUrl("receivedInvoices")}
                     >
-                      Prejeti računi
+                      <AccountSubtabIcon kind="receivedInvoices" />
+                      <span className="account-subtab-label">Prejeti računi</span>
                     </button>
                     <button
                       type="button"
@@ -6885,7 +7159,8 @@ export function ConfigurationPage() {
                       }
                       onClick={() => setAccountSubtabAndUrl("subscription")}
                     >
-                      Naročnina
+                      <AccountSubtabIcon kind="subscription" />
+                      <span className="account-subtab-label">Naročnina</span>
                     </button>
                     <button
                       type="button"
@@ -6896,7 +7171,8 @@ export function ConfigurationPage() {
                       }
                       onClick={() => setAccountSubtabAndUrl("referrals")}
                     >
-                      {t("referMenuItem")}
+                      <AccountSubtabIcon kind="referrals" />
+                      <span className="account-subtab-label">{t("referMenuItem")}</span>
                     </button>
                     <button
                       type="button"
@@ -6907,7 +7183,8 @@ export function ConfigurationPage() {
                       }
                       onClick={() => setAccountSubtabAndUrl("security")}
                     >
-                      Varnost
+                      <AccountSubtabIcon kind="security" />
+                      <span className="account-subtab-label">Varnost</span>
                     </button>
                     <button
                       type="button"
@@ -6918,7 +7195,8 @@ export function ConfigurationPage() {
                       }
                       onClick={() => setAccountSubtabAndUrl("legal")}
                     >
-                      {legalTexts.subtab}
+                      <AccountSubtabIcon kind="legal" />
+                      <span className="account-subtab-label">{legalTexts.subtab}</span>
                     </button>
                   </div>
 

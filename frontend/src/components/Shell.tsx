@@ -381,6 +381,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isWaitlistRoute = location.pathname === '/appointments' || location.pathname.startsWith('/appointments/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
   const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
+  const configurationTab = isConfigurationRoute ? new URLSearchParams(location.search).get('tab') : null
+  const isAccountManagementRoute = isConfigurationRoute && configurationTab === 'company'
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1407,7 +1409,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isBillingRoute ? 'main-area main-area--billing' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1473,7 +1475,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 )}
                 {isConfigurationRoute && (
                   <div className="app-header-section-title app-header-billing-title">
-                    <strong>{locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings'}</strong>
+                    <strong>
+                      {isAccountManagementRoute
+                        ? (locale === 'sl' ? 'Upravljanje računa' : locale === 'sr' ? 'Upravljanje nalogom' : 'Account management')
+                        : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}
+                    </strong>
                   </div>
                 )}
               </div>
@@ -1481,7 +1487,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isBillingRoute ? 'content content--billing' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}

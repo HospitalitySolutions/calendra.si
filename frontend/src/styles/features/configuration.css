@@ -1786,3 +1786,20 @@ a.config-nav-item {
     .reservation-rules-card--wide { grid-column: 1 / -1; }
     .reservation-rules-toggle-row { grid-template-columns: 1fr; }
 }
+
+/* Upravljanje računa uses a full-width mobile layout; the tab band sits directly under the shell header. */
+@media (max-width: 720px) {
+    .config-shell--detail.config-shell--account-mobile {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+    }
+
+    .config-shell--account-mobile .config-content {
+        width: 100%;
+        min-width: 0;
+        background: #ffffff;
+    }
+}
