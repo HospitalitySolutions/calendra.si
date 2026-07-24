@@ -1099,29 +1099,29 @@ export function AppointmentsPage() {
       .waitlist-detail-modal__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:16px 28px;border-top:1px solid #e4e9f0;background:#fff}.waitlist-detail-modal__footer button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 17px;border:1px solid #d7e0ec;border-radius:9px;background:#fff;color:#34445c;font-weight:700;cursor:pointer}.waitlist-detail-modal__footer button.primary{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 7px 17px rgba(20,99,223,.18)}.waitlist-detail-modal__footer button.danger{border-color:#f5b8b8;color:#dc2626}.waitlist-detail-modal__footer button:hover{background:#f6f9fd}.waitlist-detail-modal__footer button.primary:hover{background:#0f5ed9}
       @media(max-width:900px){.appointments-page{margin:12px;border-radius:16px}.waitlist-detail-modal__body--offered{grid-template-columns:1fr}.waitlist-popup-section--offer{padding-left:0;padding-top:20px;border-left:0;border-top:1px solid #e2e7ef}.waitlist-history-grid{grid-template-columns:1fr}.waitlist-detail-modal__footer{justify-content:stretch}.waitlist-detail-modal__footer button{flex:1 1 180px}}
       @media(max-width:620px){.waitlist-detail-backdrop{padding:0}.waitlist-detail-modal,.waitlist-detail-modal--offered,.waitlist-detail-modal--history{width:100%;height:100%;max-height:none;border:0;border-radius:0}.waitlist-detail-modal__header,.waitlist-detail-modal__body,.waitlist-detail-modal__footer{padding-left:18px;padding-right:18px}.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:105px minmax(0,1fr)}.waitlist-weekday-chips{gap:6px}.waitlist-weekday-chip{min-width:38px;height:29px;padding:0 8px}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}.waitlist-detail-modal__footer button{flex-basis:100%}}
-      @media(max-width:780px){
+      @media(max-width:720px){
         .appointments-page{margin:0!important;padding:0 0 calc(92px + env(safe-area-inset-bottom))!important;min-height:100vh;border-radius:0!important;background:#f8fafc;box-shadow:none!important;color:#13213a}
-        .waitlist-view-tabs{position:sticky;top:calc(58px + env(safe-area-inset-top));z-index:190;display:flex;align-items:stretch;width:100%;min-height:58px;margin:0;padding:0 14px;gap:0;border:0;border-radius:0;background:linear-gradient(135deg,#0b71ee 0%,#0865db 100%);box-shadow:0 1px 0 rgba(255,255,255,.16);box-sizing:border-box;overflow:visible}
-        .waitlist-view-tabs button,.waitlist-view-tabs button:hover,.waitlist-view-tabs button.active{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:1 1 0;min-width:0;min-height:58px;margin:0;padding:0 4px;gap:7px;border:0;border-radius:0;background:transparent;box-shadow:none;color:rgba(255,255,255,.72);font-size:clamp(.76rem,3.5vw,.96rem);line-height:1;font-weight:750;white-space:nowrap}
+        .waitlist-view-tabs{position:sticky;top:calc(62px + env(safe-area-inset-top));z-index:190;display:flex;align-items:stretch;width:100%;min-height:58px;margin:0;padding:0 14px;gap:0;border:0;border-radius:0;background:linear-gradient(135deg,#0b71ee 0%,#0865db 100%);box-shadow:0 1px 0 rgba(255,255,255,.16);box-sizing:border-box;overflow:visible}
+        .waitlist-view-tabs button,.waitlist-view-tabs button:hover,.waitlist-view-tabs button.active{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:1 1 0;min-width:0;min-height:58px;margin:0;padding:0 4px;gap:7px;border:0;border-radius:0;background:transparent;box-shadow:none;color:rgba(255,255,255,.72);font-size:clamp(.72rem,3.45vw,.91rem);line-height:1;font-weight:700;white-space:nowrap}
         .waitlist-view-tabs button:hover,.waitlist-view-tabs button.active{color:#fff}
         .waitlist-view-tabs button::after{content:"";position:absolute;left:7px;right:7px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}
         .waitlist-view-tabs button.active::after{background:#fff}
-        .waitlist-view-tabs button svg{width:20px;height:20px;flex:0 0 auto}
-        .waitlist-tab-count,.waitlist-view-tabs button.active .waitlist-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border:0;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;line-height:1;font-weight:850;box-shadow:none}
+        .waitlist-view-tabs button svg{width:19px;height:19px;flex:0 0 auto}
+        .waitlist-tab-count,.waitlist-view-tabs button.active .waitlist-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:23px;padding:0 6px;border:0;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-size:.69rem;line-height:1;font-weight:850;box-shadow:none}
         .waitlist-view-tabs button.active .waitlist-tab-count{background:#fff;color:#1672f3}
-        .waitlist-toolbar{display:block;margin:0;padding:22px 17px 22px;background:#f8fafc}
-        .waitlist-toolbar__left{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center;flex-direction:row!important;gap:12px;width:100%;min-width:0}
-        .waitlist-search{display:flex;align-items:center;gap:10px;min-width:0;min-height:48px;padding:0 14px;border:1px solid #d7e0eb;border-radius:13px;background:#fff;color:#718096;box-sizing:border-box}
-        .waitlist-search svg{width:20px;height:20px;flex:0 0 auto}
-        .waitlist-search input{width:100%;min-width:0;padding:0;border:0;background:transparent;color:#1d2a42;font-size:.91rem;line-height:1;outline:0}
-        .waitlist-search input::placeholder{color:#758198;opacity:1}
-        .waitlist-filter-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:88px;min-height:48px;padding:0 15px;border:1px solid #d7e0eb;border-radius:13px;background:#fff;color:#16243b;font-size:.94rem;font-weight:750;box-sizing:border-box}
-        .waitlist-filter-trigger svg{width:20px;height:20px}
+        .waitlist-toolbar{display:block;margin:0;padding:22px 16px 18px;background:#f8fafc}
+        .waitlist-toolbar__left{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center;flex-direction:row!important;gap:10px;width:100%;min-width:0}
+        .waitlist-search{display:flex;align-items:center;gap:10px;min-width:0;min-height:42px;height:42px;padding:0 13px;border:1px solid #d8dee8;border-radius:11px;background:#fff;color:#7b8798;box-shadow:0 1px 2px rgba(15,23,42,.02);box-sizing:border-box}
+        .waitlist-search svg{width:18px;height:18px;flex:0 0 auto}
+        .waitlist-search input{width:100%;min-width:0;padding:0;border:0;background:transparent;color:#1d2a42;font-size:.86rem;line-height:1;outline:0}
+        .waitlist-search input::placeholder{color:#8b95a5;opacity:1}
+        .waitlist-filter-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:88px;min-height:42px;height:42px;padding:0 13px;border:1px solid #d8dee8;border-radius:11px;background:#fff;color:#303746;font-size:.85rem;font-weight:650;box-sizing:border-box}
+        .waitlist-filter-trigger svg{width:18px;height:18px}
         .waitlist-filter-trigger__count{position:absolute;transform:translate(35px,-18px);min-width:19px;height:19px;padding:0 5px;border:2px solid #f8fafc;font-size:.62rem}
         .waitlist-add-button{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:4200;min-width:94px;min-height:48px;padding:0 18px;border-radius:18px;background:linear-gradient(135deg,#0d78f5 0%,#0865df 100%);font-size:.98rem;font-weight:800;box-shadow:0 10px 28px rgba(6,91,215,.34)}
         .waitlist-add-button svg{width:22px;height:22px}
-        .waitlist-error{margin:0 17px 16px}
-        .waitlist-layout{display:block;padding:0 17px;background:#f8fafc}
+        .waitlist-error{margin:0 16px 16px}
+        .waitlist-layout{display:block;padding:0 16px;background:#f8fafc}
         .waitlist-table-card{overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
         .waitlist-mobile{padding:0}
         .waitlist-mobile__list{display:block;overflow:hidden;border:1px solid #dce3ed;border-radius:17px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.035)}
@@ -1162,7 +1162,7 @@ export function AppointmentsPage() {
         .waitlist-mobile__pagination button{width:42px;height:42px;border-radius:13px}
         .waitlist-mobile__pagination span{min-width:44px;height:44px;border-radius:13px;font-size:1rem}
       }
-      @media(max-width:390px){
+      @media(max-width:380px){
         .waitlist-view-tabs{padding-inline:7px}
         .waitlist-view-tabs button,.waitlist-view-tabs button.active{gap:4px;padding-inline:2px;font-size:.7rem}
         .waitlist-view-tabs button svg{width:18px;height:18px}

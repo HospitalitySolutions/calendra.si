@@ -521,7 +521,7 @@
     flex: 0 0 auto;
     background: #f1e8ff;
     color: #7c3aed;
-    font-size: 0.72rem;
+    font-size: 0.69rem;
     font-weight: 800;
 }
 
@@ -815,7 +815,7 @@
     border: 0;
     background: transparent;
     color: inherit;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     line-height: 1;
     cursor: pointer;
 }
@@ -3182,17 +3182,19 @@
     }
 
     .billing-mobile-shell .billing-modern-header {
-        position: relative;
-        z-index: 20;
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 150;
         margin: 0;
-        padding: 0 16px;
-        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%);
+        padding: 0 14px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
     }
 
     .billing-mobile-shell .billing-modern-tabs.clients-session-tabs {
         display: flex;
         width: 100%;
-        min-height: 64px;
+        min-height: 58px;
         align-items: stretch;
         gap: 0;
         margin: 0;
@@ -3215,17 +3217,17 @@
         position: relative;
         flex: 1 0 31%;
         min-width: 132px;
-        min-height: 64px;
+        min-height: 58px;
         scroll-snap-align: center;
-        gap: 7px;
-        padding: 0 8px 3px;
+        gap: 6px;
+        padding: 0 4px;
         border: 0 !important;
         border-radius: 0 !important;
         background: transparent !important;
         color: rgba(255, 255, 255, 0.78) !important;
         box-shadow: none !important;
-        font-size: 0.82rem;
-        font-weight: 600;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        font-weight: 700;
         line-height: 1;
         transform: none !important;
     }
@@ -3247,8 +3249,8 @@
     .billing-mobile-shell .billing-modern-tabs .clients-session-tab.active::after {
         content: '';
         position: absolute;
-        left: 10px;
-        right: 10px;
+        left: 7px;
+        right: 7px;
         bottom: 0;
         height: 4px;
         border-radius: 4px 4px 0 0;
@@ -3257,9 +3259,9 @@
 
     .billing-mobile-shell .billing-tab-icon,
     .billing-mobile-shell .billing-tab-icon svg {
-        width: 18px;
-        height: 18px;
-        flex: 0 0 18px;
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
     }
 
     .billing-mobile-shell .billing-tab-label--desktop {
@@ -3272,13 +3274,13 @@
     }
 
     .billing-mobile-shell .billing-tab-count {
-        min-width: 24px;
-        height: 24px;
-        padding: 0 7px;
+        min-width: 23px;
+        height: 23px;
+        padding: 0 6px;
         border: 0;
         background: rgba(255, 255, 255, 0.22);
         color: rgba(255, 255, 255, 0.92);
-        font-size: 0.72rem;
+        font-size: 0.69rem;
         font-weight: 800;
         box-shadow: none;
     }
@@ -3292,7 +3294,7 @@
         position: relative;
         display: grid;
         gap: 16px;
-        padding: 16px;
+        padding: 22px 16px 18px;
         background: #f8fafc;
     }
 
@@ -3308,7 +3310,7 @@
     .billing-mobile-shell.billing-modern-card--unusedAdvances .billing-modern-filter-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 102px;
-        gap: 12px;
+        gap: 10px;
         align-items: center;
         margin: 0;
     }
@@ -3320,7 +3322,7 @@
 
     .billing-mobile-shell .billing-modern-search-icon {
         position: absolute;
-        left: 17px;
+        left: 13px;
         top: 50%;
         z-index: 2;
         width: 18px;
@@ -3358,23 +3360,23 @@
 
     .billing-mobile-shell .billing-modern-search.clients-search-input {
         width: 100%;
-        height: 50px;
-        min-height: 50px;
+        height: 42px;
+        min-height: 42px;
         box-sizing: border-box;
         margin: 0;
-        padding: 0 16px 0 48px;
-        border: 1px solid #d9e1ec !important;
-        border-radius: 13px !important;
+        padding: 0 13px 0 41px;
+        border: 1px solid #d8dee8 !important;
+        border-radius: 11px !important;
         background: #ffffff !important;
         color: #15223a;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02) !important;
-        font-size: 0.88rem;
+        font-size: 0.86rem;
         font-weight: 500;
         outline: none;
     }
 
     .billing-mobile-shell .billing-modern-search.clients-search-input::placeholder {
-        color: #77859a;
+        color: #8b95a5;
         opacity: 1;
     }
 
@@ -3386,18 +3388,18 @@
     .billing-mobile-inline-sort {
         display: inline-flex;
         width: 102px;
-        height: 50px;
+        height: 42px;
         align-items: center;
         justify-content: center;
         gap: 9px;
         padding: 0 12px;
-        border: 1px solid #d9e1ec;
-        border-radius: 13px;
+        border: 1px solid #d8dee8;
+        border-radius: 11px;
         background: #ffffff;
         color: #111c32;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
-        font-size: 0.82rem;
-        font-weight: 800;
+        font-size: 0.85rem;
+        font-weight: 650;
         line-height: 1;
         cursor: pointer;
     }

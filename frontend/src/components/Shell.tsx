@@ -378,8 +378,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   }, [authenticatedUser])
   const isCalendarRoute = location.pathname === '/calendar' || location.pathname.startsWith('/calendar/')
   const isClientsRoute = location.pathname === '/clients' || location.pathname.startsWith('/clients/')
+  const isWaitlistRoute = location.pathname === '/appointments' || location.pathname.startsWith('/appointments/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
-  const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1406,7 +1406,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isBillingRoute ? 'main-area main-area--billing' : isConfigurationRoute ? 'main-area main-area--configuration' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isBillingRoute ? 'main-area main-area--billing' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1415,10 +1415,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
               ? 'app-header app-header--calendar'
               : isClientsRoute
                 ? 'app-header app-header--clients'
-                : isBillingRoute
-                  ? 'app-header app-header--billing'
-                  : isConfigurationRoute
-                    ? 'app-header app-header--configuration'
+                : isWaitlistRoute
+                  ? 'app-header app-header--waitlist'
+                  : isBillingRoute
+                    ? 'app-header app-header--billing'
                     : 'app-header'
           }
         >
@@ -1460,14 +1460,14 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                     <span>{clientsMobileHeader.count}</span>
                   </div>
                 )}
-                {isBillingRoute && (
-                  <div className="app-header-billing-title">
-                    <strong>{locale === 'sl' ? 'Zaračunavanje' : locale === 'sr' ? 'Naplata' : 'Billing'}</strong>
+                {isWaitlistRoute && (
+                  <div className="app-header-section-title app-header-waitlist-title">
+                    <strong>{appointmentsNavLabel}</strong>
                   </div>
                 )}
-                {isConfigurationRoute && (
-                  <div className="app-header-configuration-title">
-                    <strong>{locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Configuration'}</strong>
+                {isBillingRoute && (
+                  <div className="app-header-section-title app-header-billing-title">
+                    <strong>{locale === 'sl' ? 'Zaračunavanje' : locale === 'sr' ? 'Naplata' : 'Billing'}</strong>
                   </div>
                 )}
               </div>
@@ -1475,7 +1475,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isBillingRoute ? 'content content--billing' : isConfigurationRoute ? 'content content--configuration' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isBillingRoute ? 'content content--billing' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}
