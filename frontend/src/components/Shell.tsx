@@ -379,6 +379,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isCalendarRoute = location.pathname === '/calendar' || location.pathname.startsWith('/calendar/')
   const isClientsRoute = location.pathname === '/clients' || location.pathname.startsWith('/clients/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
+  const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1405,7 +1406,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isBillingRoute ? 'main-area main-area--billing' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isBillingRoute ? 'main-area main-area--billing' : isConfigurationRoute ? 'main-area main-area--configuration' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1416,7 +1417,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 ? 'app-header app-header--clients'
                 : isBillingRoute
                   ? 'app-header app-header--billing'
-                  : 'app-header'
+                  : isConfigurationRoute
+                    ? 'app-header app-header--configuration'
+                    : 'app-header'
           }
         >
           {isCalendarRoute && calendarShellSlots ? (
@@ -1462,12 +1465,17 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                     <strong>{locale === 'sl' ? 'Zaračunavanje' : locale === 'sr' ? 'Naplata' : 'Billing'}</strong>
                   </div>
                 )}
+                {isConfigurationRoute && (
+                  <div className="app-header-configuration-title">
+                    <strong>{locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Configuration'}</strong>
+                  </div>
+                )}
               </div>
               {headerActions}
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isBillingRoute ? 'content content--billing' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isBillingRoute ? 'content content--billing' : isConfigurationRoute ? 'content content--configuration' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}

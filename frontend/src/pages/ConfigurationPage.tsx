@@ -329,23 +329,93 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
 const isConfigTab = (value: string | null): value is Tab =>
   Boolean(value && (CONFIG_TAB_IDS as readonly string[]).includes(value));
 
-function ConfigSettingsIcon() {
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.5a2 2 0 0 1-1 1.72l-.15.1a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.5a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
+function ConfigOverviewIcon({ kind }: { kind: ConfigNavIcon }) {
+  const common = {
+    width: 38,
+    height: 38,
+    viewBox: "0 0 24 24",
+    fill: "currentColor",
+    "aria-hidden": true,
+  } as const;
+
+  if (kind === "company") {
+    return (
+      <svg {...common}>
+        <path d="M2.7 10.7 12 3l9.3 7.7a1 1 0 0 1-1.3 1.54L19 11.4V21h-5.2v-6.2h-3.6V21H5v-9.6l-1 .84a1 1 0 1 1-1.3-1.54Z" />
+      </svg>
+    );
+  }
+  if (kind === "booking") {
+    return (
+      <svg {...common}>
+        <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9ZM7 12h3v3H7v-3Zm0 5h3v2H7v-2Zm5-5h3v3h-3v-3Zm5 0h2v3h-2v-3Zm-5 5h3v2h-3v-2Zm5 0h2v2h-2v-2Z" />
+      </svg>
+    );
+  }
+  if (kind === "billing") {
+    return (
+      <svg {...common}>
+        <path d="M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm-1 4h20V7H2v2Zm4 6v2h4v-2H6Zm6 0v2h6v-2h-6Z" />
+      </svg>
+    );
+  }
+  if (kind === "guestApp") {
+    return (
+      <svg {...common}>
+        <path d="M8 1h8a2.5 2.5 0 0 1 2.5 2.5v17A2.5 2.5 0 0 1 16 23H8a2.5 2.5 0 0 1-2.5-2.5v-17A2.5 2.5 0 0 1 8 1Zm0 3v15h8V4H8Zm4 16a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" />
+      </svg>
+    );
+  }
+  if (kind === "website") {
+    return (
+      <svg {...common}>
+        <path d="M12 1a11 11 0 1 1 0 22 11 11 0 0 1 0-22Zm-1 2.2A9 9 0 0 0 5.2 7H11V3.2Zm2 0V7h5.8A9 9 0 0 0 13 3.2ZM4.3 9A9.1 9.1 0 0 0 3 12c0 1.05.18 2.06.5 3H11V9H4.3ZM13 9v6h7.5a9 9 0 0 0 0-6H13ZM5 17a9 9 0 0 0 6 3.8V17H5Zm8 0v3.8A9 9 0 0 0 19 17h-6Z" />
+      </svg>
+    );
+  }
+  if (kind === "notifications") {
+    return (
+      <svg {...common}>
+        <path d="M12 2a6 6 0 0 1 6 6v3.2c0 2.1.75 4.12 2.12 5.72A1.25 1.25 0 0 1 19.17 19H4.83a1.25 1.25 0 0 1-.95-2.08A8.76 8.76 0 0 0 6 11.2V8a6 6 0 0 1 6-6Zm-2.6 19h5.2a2.8 2.8 0 0 1-5.2 0Z" />
+      </svg>
+    );
+  }
+  if (kind === "reservationRules") {
+    return (
+      <svg {...common}>
+        <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9Zm-3.25 2.1 1.5 1.3-5 5.7-3.2-3.05 1.38-1.45 1.7 1.62 3.62-4.12Z" />
+      </svg>
+    );
+  }
+  if (kind === "deliveryLogs") {
+    return (
+      <svg {...common}>
+        <path d="M5 2h9l5 5v15H5V2Zm8 1.8V8h4.2L13 3.8ZM8 11v2h8v-2H8Zm0 4v2h8v-2H8Zm0 4v1h6v-1H8Z" />
+      </svg>
+    );
+  }
+  if (kind === "customFields" || kind === "general") {
+    return (
+      <svg {...common}>
+        <path d="M4 5h8a2.5 2.5 0 0 1 4.58-1.4A2.5 2.5 0 0 1 17 5h3a1 1 0 1 1 0 2h-3a2.5 2.5 0 0 1-4.58 1.4A2.5 2.5 0 0 1 12 7H4a1 1 0 1 1 0-2Zm0 6h3a2.5 2.5 0 0 1 4.58-1.4A2.5 2.5 0 0 1 12 11h8a1 1 0 1 1 0 2h-8a2.5 2.5 0 0 1-4.58 1.4A2.5 2.5 0 0 1 7 13H4a1 1 0 1 1 0-2Zm0 6h8a2.5 2.5 0 0 1 4.58-1.4A2.5 2.5 0 0 1 17 17h3a1 1 0 1 1 0 2h-3a2.5 2.5 0 0 1-4.58 1.4A2.5 2.5 0 0 1 12 19H4a1 1 0 1 1 0-2Z" />
+      </svg>
+    );
+  }
+  if (kind === "integrations") {
+    return (
+      <svg {...common}>
+        <path d="M7 2a3 3 0 1 1-1 5.83V16a3 3 0 1 1-2 0V7.83A3 3 0 0 1 7 2Zm10 0a3 3 0 1 1-1 5.83V9a4 4 0 0 1-4 4H8v3a3 3 0 1 1-2 0v-5h6a2 2 0 0 0 2-2V7.83A3 3 0 0 1 17 2Z" />
+      </svg>
+    );
+  }
+  if (kind === "modules") {
+    return (
+      <svg {...common}>
+        <path d="M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8Z" />
+      </svg>
+    );
+  }
+  return <ConfigTabIcon kind={kind} />;
 }
 
 function IntegrationStatusCardIcon() {
@@ -5475,12 +5545,6 @@ export function ConfigurationPage() {
             className="config-overview-panel"
             aria-label={t("settingsGroup")}
           >
-            <div className="config-overview-heading">
-              <span className="config-overview-heading-icon">
-                <ConfigSettingsIcon />
-              </span>
-              <span>{t("settingsGroup")}</span>
-            </div>
             <div className="config-overview-grid">
               {configNavItems.map((entry) => (
                 <button
@@ -5490,7 +5554,7 @@ export function ConfigurationPage() {
                   onClick={() => setTabAndUrl(entry.id)}
                 >
                   <span className="config-overview-tile-icon">
-                    <ConfigTabIcon kind={entry.icon} />
+                    <ConfigOverviewIcon kind={entry.icon} />
                   </span>
                   <span className="config-overview-tile-label">
                     {getConfigTabLabel(entry.id)}
