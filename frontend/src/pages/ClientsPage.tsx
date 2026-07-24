@@ -696,6 +696,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const clientDetailCompactHeader = useMediaMaxWidth(768)
   const clientsCopy = locale === 'sl' ? {
     details: 'Podrobnosti',
+    editClientTitle: 'Uredi stranko',
+    editClientSubtitle: 'Posodobi podatke o stranki in upravljaj z njenimi termini.',
     client: 'STRANKA',
     company: 'PODJETJE',
     newButtonMobile: 'Novo',
@@ -729,7 +731,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     sessions: 'Termini',
     future: 'Prihodnji',
     past: 'Pretekli',
-    cancelled: 'Odpovedani',
+    cancelled: 'Odpovedan',
     sessionsCount: (count: number) => `${count} ${slovenianTerminCountForm(count)}`,
     loadingSessions: 'Nalagam termine…',
     noUpcomingSessionsTitle: 'Ni prihodnjih terminov',
@@ -863,6 +865,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     guestAppBadge: 'Aplikacija za goste',
   } : {
     details: 'Details',
+    editClientTitle: 'Edit client',
+    editClientSubtitle: 'Update client details and manage their appointments.',
     client: 'CLIENT',
     company: 'COMPANY',
     newButtonMobile: 'New',
@@ -2399,6 +2403,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     return (
       <div
         className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
+        data-field-key={key}
         onClick={() => {
           if (detailEditField !== key) setDetailEditField(key)
         }}
@@ -3719,6 +3724,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             onTouchStart={(e) => e.stopPropagation()}
           >
             <div className="clients-action-workspace-header">
+              <div className="clients-action-workspace-mobile-heading">
+                <h2>{clientsCopy.editClientTitle}</h2>
+                <p>{clientsCopy.editClientSubtitle}</p>
+              </div>
               <div className="clients-action-workspace-client">
                 <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
                   {(detailClient.firstName?.[0] || '').toUpperCase()}{(detailClient.lastName?.[0] || '').toUpperCase()}
@@ -3732,7 +3741,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       </span>
                     ) : null}
                   </span>
-                  <span className="clients-id">ID #{detailClient.id} <span className="clients-action-workspace-status-dot" /> {detailClient.active === false ? inactiveStatusLabel : activeStatusLabel}</span>
+                  <span className="clients-id">
+                    <span className="clients-action-workspace-id-label">ID #{detailClient.id}</span>
+                    <span className={`clients-action-workspace-status${detailClient.active === false ? ' clients-action-workspace-status--inactive' : ''}`}>
+                      <span className="clients-action-workspace-status-dot" />
+                      {detailClient.active === false ? inactiveStatusLabel : activeStatusLabel}
+                    </span>
+                  </span>
                 </div>
               </div>
               <button type="button" className="secondary clients-action-workspace-close" onClick={closeDetailModal} aria-label={t('mobileNavClose')}>
