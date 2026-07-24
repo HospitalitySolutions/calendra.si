@@ -2781,6 +2781,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setCompanyErrorMessage('')
   }
 
+  const closeGroupModal = () => {
+    setShowGroupModal(false)
+    setGroupForm({ name: '', email: '' })
+    setGroupCustomValues({})
+    setGroupErrorMessage('')
+  }
+
   /**
    * Close only when the press starts on the dimmed overlay, not when a click is synthesized after
    * text selection (mousedown in the form, mouseup on the backdrop). Matches SessionTypes transaction services modals.
@@ -4554,117 +4561,218 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
       {!embeddedDetailMode && showModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop clients-simple-create-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${isClientsMobile ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeModal)}
           role="presentation"
         >
           <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal clients-simple-create-modal"
+            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal${isClientsMobile ? ' clients-simple-create-modal' : ''}`}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={handleSubmit}>
-              <div className="clients-simple-create-header">
-                <h2>{clientsCopy.newClientTitle}</h2>
-                <button
-                  type="button"
-                  className="clients-simple-create-close"
-                  onClick={closeModal}
-                  aria-label={t('mobileNavClose')}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="clients-simple-create-body">
-                <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                  <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                    {renderNewClientEditableField('firstName', clientsCopy.firstName)}
-                    {renderNewClientEditableField('lastName', clientsCopy.lastName)}
-                    {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
-                    {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
+            {isClientsMobile ? (
+              <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={handleSubmit}>
+                <div className="clients-simple-create-header">
+                  <h2>{clientsCopy.newClientTitle}</h2>
+                  <button
+                    type="button"
+                    className="clients-simple-create-close"
+                    onClick={closeModal}
+                    aria-label={t('mobileNavClose')}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="clients-simple-create-body">
+                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                      {renderNewClientEditableField('firstName', clientsCopy.firstName)}
+                      {renderNewClientEditableField('lastName', clientsCopy.lastName)}
+                      {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
+                      {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
+                    </div>
+                    {errorMessage && <div className="error">{errorMessage}</div>}
+                    <button
+                      type="submit"
+                      className="clients-gapp-save-button clients-simple-create-submit"
+                      disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
+                    >
+                      {saving ? clientsCopy.saving : clientsCopy.createClient}
+                    </button>
                   </div>
-                  {errorMessage && <div className="error">{errorMessage}</div>}
+                </div>
+              </form>
+            ) : (
+              <form className="clients-create-modal-form" autoComplete="off" onSubmit={handleSubmit}>
+                <div className="clients-action-workspace-header">
+                  <div className="clients-action-workspace-client">
+                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
+                    <div className="clients-name-stack clients-action-workspace-title-stack">
+                      <span className="clients-name">{clientsCopy.newClientTitle}</span>
+                      <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
+                    </div>
+                  </div>
+                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeModal} aria-label={t('mobileNavClose')}>
+                    ×
+                  </button>
+                </div>
+                <div className="clients-action-workspace-body">
+                  <div className="clients-detail-shell clients-action-workspace-shell">
+                    <div className="clients-detail-fields clients-create-fields">
+                      {renderNewClientEditableField('firstName', clientsCopy.firstName)}
+                      {renderNewClientEditableField('lastName', clientsCopy.lastName)}
+                      {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
+                      {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
+                    </div>
+                    {errorMessage && <div className="error">{errorMessage}</div>}
+                  </div>
+                </div>
+                <div className="clients-action-workspace-footer">
                   <button
                     type="submit"
-                    className="clients-gapp-save-button clients-simple-create-submit"
+                    className="clients-gapp-save-button"
                     disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
                   >
                     {saving ? clientsCopy.saving : clientsCopy.createClient}
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
 
       {!embeddedDetailMode && showCompanyModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop clients-simple-create-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${isClientsMobile ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeCompanyModal)}
           role="presentation"
         >
           <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-company-create-modal clients-simple-create-modal"
+            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-company-create-modal${isClientsMobile ? ' clients-simple-create-modal' : ''}`}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <form className="clients-create-modal-form clients-simple-create-form" onSubmit={submitCompanyForm}>
-              <div className="clients-simple-create-header">
-                <h2>{clientsCopy.newCompanyTitle}</h2>
-                <button
-                  type="button"
-                  className="clients-simple-create-close"
-                  onClick={closeCompanyModal}
-                  aria-label={t('mobileNavClose')}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="clients-simple-create-body">
-                <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                  <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.companyName}</span>
-                      <input required placeholder={clientsCopy.companyName} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.vatId}</span>
-                      <input placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.email}</span>
-                      <input type="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.telephone}</span>
-                      <input placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.address}</span>
-                      <input placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field">
-                      <span>{clientsCopy.postalCode}</span>
-                      <input placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field">
-                      <span>{clientsCopy.city}</span>
-                      <input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
-                    </label>
-                    {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
-                      setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                    )}
+            {isClientsMobile ? (
+              <form className="clients-create-modal-form clients-simple-create-form" onSubmit={submitCompanyForm}>
+                <div className="clients-simple-create-header">
+                  <h2>{clientsCopy.newCompanyTitle}</h2>
+                  <button
+                    type="button"
+                    className="clients-simple-create-close"
+                    onClick={closeCompanyModal}
+                    aria-label={t('mobileNavClose')}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="clients-simple-create-body">
+                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.companyName}</span>
+                        <input required placeholder={clientsCopy.companyName} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.vatId}</span>
+                        <input placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.email}</span>
+                        <input type="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.telephone}</span>
+                        <input placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.address}</span>
+                        <input placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field">
+                        <span>{clientsCopy.postalCode}</span>
+                        <input placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field">
+                        <span>{clientsCopy.city}</span>
+                        <input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
+                      </label>
+                      {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
+                        setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                    {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
+                    <button
+                      type="submit"
+                      className="clients-gapp-save-button clients-simple-create-submit"
+                      disabled={savingCompany || !companyForm.name.trim()}
+                    >
+                      {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
+                    </button>
                   </div>
-                  {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
+                </div>
+              </form>
+            ) : (
+              <form className="clients-create-modal-form" onSubmit={submitCompanyForm}>
+                <div className="clients-action-workspace-header">
+                  <div className="clients-action-workspace-client">
+                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
+                    <div className="clients-name-stack clients-action-workspace-title-stack">
+                      <span className="clients-name">{clientsCopy.newCompanyTitle}</span>
+                      <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {locale === 'sl' ? 'Aktivno' : 'Active'}</span>
+                    </div>
+                  </div>
+                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeCompanyModal} aria-label={t('mobileNavClose')}>
+                    ×
+                  </button>
+                </div>
+                <div className="clients-action-workspace-body">
+                  <div className="clients-detail-shell clients-action-workspace-shell">
+                    <div className="clients-detail-fields clients-create-fields">
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.companyName}</span>
+                        <input required placeholder={clientsCopy.companyName} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.vatId}</span>
+                        <input placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.email}</span>
+                        <input type="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.telephone}</span>
+                        <input placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.address}</span>
+                        <input placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field">
+                        <span>{clientsCopy.postalCode}</span>
+                        <input placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field">
+                        <span>{clientsCopy.city}</span>
+                        <input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
+                      </label>
+                      {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
+                        setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                    {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
+                  </div>
+                </div>
+                <div className="clients-action-workspace-footer">
                   <button
                     type="submit"
-                    className="clients-gapp-save-button clients-simple-create-submit"
+                    className="clients-gapp-save-button"
                     disabled={savingCompany || !companyForm.name.trim()}
                   >
                     {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -5027,52 +5135,96 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
       {!embeddedDetailMode && showGroupModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop clients-simple-create-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={onSidePanelBackdropMouseDown(() => setShowGroupModal(false))}
+          className={`modal-backdrop clients-action-workspace-backdrop${isClientsMobile ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          onMouseDown={onSidePanelBackdropMouseDown(closeGroupModal)}
           role="presentation"
         >
           <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-group-create-modal clients-simple-create-modal"
+            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-group-create-modal${isClientsMobile ? ' clients-simple-create-modal' : ''}`}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <form className="clients-create-modal-form clients-simple-create-form" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
-              <div className="clients-simple-create-header">
-                <h2>{clientsCopy.newGroupTitle}</h2>
-                <button
-                  type="button"
-                  className="clients-simple-create-close"
-                  onClick={() => setShowGroupModal(false)}
-                  aria-label={t('mobileNavClose')}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="clients-simple-create-body">
-                <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                  <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.groupName}</span>
-                      <input required placeholder={clientsCopy.groupName} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                      <span>{clientsCopy.groupEmail}</span>
-                      <input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
-                    </label>
-                    {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
-                      setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                    )}
+            {isClientsMobile ? (
+              <form className="clients-create-modal-form clients-simple-create-form" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
+                <div className="clients-simple-create-header">
+                  <h2>{clientsCopy.newGroupTitle}</h2>
+                  <button
+                    type="button"
+                    className="clients-simple-create-close"
+                    onClick={closeGroupModal}
+                    aria-label={t('mobileNavClose')}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="clients-simple-create-body">
+                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.groupName}</span>
+                        <input required placeholder={clientsCopy.groupName} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.groupEmail}</span>
+                        <input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
+                      </label>
+                      {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
+                        setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                    {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
+                    <button
+                      type="submit"
+                      className="clients-gapp-save-button clients-simple-create-submit"
+                      disabled={savingGroup || !groupForm.name.trim()}
+                    >
+                      {savingGroup ? clientsCopy.saving : clientsCopy.createGroup}
+                    </button>
                   </div>
-                  {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
+                </div>
+              </form>
+            ) : (
+              <form className="clients-create-modal-form" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
+                <div className="clients-action-workspace-header">
+                  <div className="clients-action-workspace-client">
+                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
+                    <div className="clients-name-stack clients-action-workspace-title-stack">
+                      <span className="clients-name">{clientsCopy.newGroupTitle}</span>
+                      <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
+                    </div>
+                  </div>
+                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeGroupModal} aria-label={t('mobileNavClose')}>
+                    ×
+                  </button>
+                </div>
+                <div className="clients-action-workspace-body">
+                  <div className="clients-detail-shell clients-action-workspace-shell">
+                    <div className="clients-detail-fields clients-create-fields">
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.groupName}</span>
+                        <input required placeholder={clientsCopy.groupName} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{clientsCopy.groupEmail}</span>
+                        <input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
+                      </label>
+                      {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
+                        setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                    {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
+                  </div>
+                </div>
+                <div className="clients-action-workspace-footer">
                   <button
                     type="submit"
-                    className="clients-gapp-save-button clients-simple-create-submit"
+                    className="clients-gapp-save-button"
                     disabled={savingGroup || !groupForm.name.trim()}
                   >
                     {savingGroup ? clientsCopy.saving : clientsCopy.createGroup}
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
