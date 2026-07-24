@@ -954,7 +954,7 @@
 
     .employees-page-root .employees-page-tabs-shell.clients-entity-tabs-shell {
         position: sticky;
-        top: calc(61px + env(safe-area-inset-top));
+        top: calc(62px + env(safe-area-inset-top));
         z-index: 150;
         display: block;
         width: 100%;

@@ -2764,13 +2764,15 @@ a.credentials-popover-action-btn {
 .app-header-section-title,
 .app-header-waitlist-title,
 .app-header-services-title,
-.app-header-billing-title {
+.app-header-billing-title,
+.app-header-employees-title {
     display: none;
 }
 
 @media (max-width: 720px) {
     .app-header.app-header--waitlist,
     .app-header.app-header--services,
+    .app-header.app-header--employees,
     .app-header.app-header--billing {
         min-height: 62px;
         box-sizing: border-box;
@@ -2783,6 +2785,7 @@ a.credentials-popover-action-btn {
 
     [data-theme="dark"] .app-header.app-header--waitlist,
     [data-theme="dark"] .app-header.app-header--services,
+    [data-theme="dark"] .app-header.app-header--employees,
     [data-theme="dark"] .app-header.app-header--billing {
         background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
         border-bottom: 0;
@@ -2790,12 +2793,14 @@ a.credentials-popover-action-btn {
 
     .app-header--waitlist .app-header-mobile-leading,
     .app-header--services .app-header-mobile-leading,
+    .app-header--employees .app-header-mobile-leading,
     .app-header--billing .app-header-mobile-leading {
         min-width: 0;
     }
 
     .app-header--waitlist .app-header-mobile-nav-trigger,
     .app-header--services .app-header-mobile-nav-trigger,
+    .app-header--employees .app-header-mobile-nav-trigger,
     .app-header--billing .app-header-mobile-nav-trigger {
         width: 38px;
         height: 38px;
@@ -2809,6 +2814,8 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .app-header-mobile-nav-trigger:active,
     .app-header--services .app-header-mobile-nav-trigger:hover,
     .app-header--services .app-header-mobile-nav-trigger:active,
+    .app-header--employees .app-header-mobile-nav-trigger:hover,
+    .app-header--employees .app-header-mobile-nav-trigger:active,
     .app-header--billing .app-header-mobile-nav-trigger:hover,
     .app-header--billing .app-header-mobile-nav-trigger:active {
         background: rgba(255, 255, 255, 0.10);
@@ -2817,6 +2824,7 @@ a.credentials-popover-action-btn {
 
     .app-header--waitlist .app-header-section-title,
     .app-header--services .app-header-section-title,
+    .app-header--employees .app-header-section-title,
     .app-header--billing .app-header-section-title {
         position: absolute;
         left: 50%;
@@ -2833,6 +2841,7 @@ a.credentials-popover-action-btn {
 
     .app-header--waitlist .app-header-section-title strong,
     .app-header--services .app-header-section-title strong,
+    .app-header--employees .app-header-section-title strong,
     .app-header--billing .app-header-section-title strong {
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2844,18 +2853,21 @@ a.credentials-popover-action-btn {
 
     .app-header--waitlist .header-actions,
     .app-header--services .header-actions,
+    .app-header--employees .header-actions,
     .app-header--billing .header-actions {
         margin-left: auto;
     }
 
     .app-header--waitlist .calendar-voice-fab--header-toolbar,
     .app-header--services .calendar-voice-fab--header-toolbar,
+    .app-header--employees .calendar-voice-fab--header-toolbar,
     .app-header--billing .calendar-voice-fab--header-toolbar {
         display: none !important;
     }
 
     .app-header--waitlist .staff-notification-trigger,
     .app-header--services .staff-notification-trigger,
+    .app-header--employees .staff-notification-trigger,
     .app-header--billing .staff-notification-trigger {
         width: 38px;
         height: 38px;
@@ -2867,20 +2879,131 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .staff-notification-trigger.active,
     .app-header--services .staff-notification-trigger:hover,
     .app-header--services .staff-notification-trigger.active,
+    .app-header--employees .staff-notification-trigger:hover,
+    .app-header--employees .staff-notification-trigger.active,
     .app-header--billing .staff-notification-trigger:hover,
     .app-header--billing .staff-notification-trigger.active {
         background: rgba(255, 255, 255, 0.10);
         color: #ffffff;
     }
 
+    .app-header.app-header--calendar {
+        min-height: 62px;
+        padding: max(10px, env(safe-area-inset-top)) 18px 10px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border-bottom: 0;
+        box-shadow: none;
+        color: #ffffff;
+        gap: 10px;
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    [data-theme="dark"] .app-header.app-header--calendar {
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border-bottom: 0;
+    }
+
+    .app-header--calendar .app-header-calendar-left,
+    .app-header--calendar .app-header-calendar-right {
+        min-width: 0;
+        align-items: center;
+    }
+
+    .app-header--calendar .app-header-mobile-nav-trigger {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .app-header--calendar .app-header-mobile-nav-trigger:hover,
+    .app-header--calendar .app-header-mobile-nav-trigger:active {
+        background: rgba(255, 255, 255, 0.10);
+        filter: none;
+    }
+
+    .app-header--calendar .app-header-calendar-left .calendar-toolbar-month-chip {
+        color: #ffffff;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+        max-width: 110px;
+    }
+
+    .app-header--calendar .app-header-calendar-right {
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .app-header--calendar .calendar-header-mode-group {
+        padding: 3px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.14);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.20);
+    }
+
+    .app-header--calendar .calendar-header-mode-btn {
+        width: 36px;
+        height: 32px;
+        border-radius: 10px;
+        color: rgba(255, 255, 255, 0.86);
+    }
+
+    .app-header--calendar .calendar-header-mode-btn:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .app-header--calendar .calendar-header-mode-btn.active {
+        color: #0b71ee;
+        background: #ffffff;
+        box-shadow: 0 6px 16px rgba(8, 101, 219, 0.25);
+    }
+
+    .app-header--calendar .calendar-view-dropdown-trigger {
+        min-height: 32px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    .app-header--calendar .calendar-view-dropdown-trigger:hover {
+        background: rgba(255, 255, 255, 0.16);
+    }
+
+    .app-header--calendar .calendar-view-dropdown-caret {
+        opacity: 0.85;
+    }
+
+    .app-header--calendar .staff-notification-trigger {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: #ffffff;
+    }
+
+    .app-header--calendar .staff-notification-trigger:hover,
+    .app-header--calendar .staff-notification-trigger.active {
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+    }
+
     .main-area--waitlist,
     .main-area--services,
+    .main-area--employees,
     .main-area--billing {
         background: #f8fafc;
     }
 
     .main-area--waitlist > .content.content--waitlist,
     .main-area--services > .content.content--services,
+    .main-area--employees > .content.content--employees,
     .main-area--billing > .content.content--billing {
         padding: 0 0 calc(88px + env(safe-area-inset-bottom));
         background: #f8fafc;
