@@ -469,8 +469,9 @@
 }
 
 /*
- * Resource day: FC may render only the resource row. React adds this strip; hide it when FC already has
- * two header rows (patch applied / day row present). :has() avoids duplicate weekday row.
+ * Resource day: FullCalendar can render only the resource row. React adds this date strip as a fallback.
+ * Hide it only when FullCalendar has actually rendered our day-header stack; checking merely for a second
+ * table row is not reliable because Scheduler can leave an empty row in the DOM on narrow screens.
  */
 .calendar-resource-day-header-fallback {
     position: sticky;
@@ -481,7 +482,7 @@
     box-sizing: border-box;
 }
 
-.calendar-fc-shell:has(.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header thead tr:nth-child(2)) .calendar-resource-day-header-fallback {
+.calendar-fc-shell:has(.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header .fc-day-header-stack) .calendar-resource-day-header-fallback {
     display: none !important;
 }
 

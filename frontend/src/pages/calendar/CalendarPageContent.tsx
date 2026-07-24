@@ -2240,7 +2240,12 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (isNativeAndroid || !useResourceColumns || view !== 'resourceTimeGridDay' || !visibleRange?.start) {
       return null
     }
-    const d = new Date(`${visibleRange.start}T12:00:00`)
+    // datesSet.startStr is normally a full ISO timestamp (for example
+    // 2026-07-24T00:00:00+02:00). Appending another `T12:00:00` makes it invalid,
+    // so derive the local calendar date from its ISO date portion instead.
+    const rangeStartDateKey = visibleRange.start.match(/^\d{4}-\d{2}-\d{2}/)?.[0]
+    if (!rangeStartDateKey) return null
+    const d = new Date(`${rangeStartDateKey}T12:00:00`)
     if (!Number.isFinite(d.getTime())) return null
     const dowRaw = d.toLocaleDateString(calendarLocaleTag, { weekday: 'short' })
     const dowBase = dowRaw.replace(/\.$/, '').slice(0, 3)
