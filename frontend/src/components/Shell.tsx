@@ -379,6 +379,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isCalendarRoute = location.pathname === '/calendar' || location.pathname.startsWith('/calendar/')
   const isClientsRoute = location.pathname === '/clients' || location.pathname.startsWith('/clients/')
   const isWaitlistRoute = location.pathname === '/appointments' || location.pathname.startsWith('/appointments/')
+  const isServicesRoute = location.pathname === '/session-types' || location.pathname.startsWith('/session-types/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
   const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
   const configurationTab = isConfigurationRoute ? new URLSearchParams(location.search).get('tab') : null
@@ -1409,7 +1410,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1420,7 +1421,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 ? 'app-header app-header--clients'
                 : isWaitlistRoute
                   ? 'app-header app-header--waitlist'
-                  : isBillingRoute || isConfigurationRoute
+                  : isServicesRoute
+                    ? 'app-header app-header--services'
+                    : isBillingRoute || isConfigurationRoute
                     ? 'app-header app-header--billing'
                     : 'app-header'
           }
@@ -1460,12 +1463,16 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 {isClientsRoute && (
                   <div className="app-header-clients-title" aria-live="polite">
                     <strong>{clientsMobileHeader.title || (locale === 'sl' ? 'Stranke' : locale === 'sr' ? 'Klijenti' : 'Clients')}</strong>
-                    <span>{clientsMobileHeader.count}</span>
                   </div>
                 )}
                 {isWaitlistRoute && (
                   <div className="app-header-section-title app-header-waitlist-title">
                     <strong>{appointmentsNavLabel}</strong>
+                  </div>
+                )}
+                {isServicesRoute && (
+                  <div className="app-header-section-title app-header-services-title">
+                    <strong>{locale === 'sl' ? 'Storitve' : locale === 'sr' ? 'Usluge' : 'Services'}</strong>
                   </div>
                 )}
                 {isBillingRoute && (
@@ -1487,7 +1494,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}
