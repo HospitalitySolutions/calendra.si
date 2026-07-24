@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -24,6 +26,7 @@ const ANALYTICS_CHART_RESIZE_DEBOUNCE_MS = 120
 
 /** Disable bar/line mount and update animations — charts render statically (better with sidebar resize + less motion). */
 const ANALYTICS_CHART_STATIC = { isAnimationActive: false as const }
+const MOBILE_ANALYTICS_PALETTE = ['#1672f3', '#75a9f8', '#72ced0', '#f5c558', '#8a78ee']
 
 type PeriodPoint = {
   label: string
@@ -296,6 +299,49 @@ function SpaceRankingCard({
           ))}
         </div>
       )}
+    </Card>
+  )
+}
+
+type AnalyticsMobileIconName = 'revenue' | 'bookings' | 'clients' | 'average' | 'calendar' | 'filter'
+
+function AnalyticsMobileIcon({ name }: { name: AnalyticsMobileIconName }) {
+  if (name === 'revenue') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M18 7.2A7 7 0 1 0 18 16.8"/><path d="M5.5 10h8M5.5 14h7"/></svg>
+  }
+  if (name === 'bookings' || name === 'calendar') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+  }
+  if (name === 'clients') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>
+  }
+  if (name === 'average') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+  }
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 5h16M7 12h10M10 19h4"/></svg>
+}
+
+function AnalyticsMobileKpiCard({
+  icon,
+  label,
+  value,
+  trend,
+}: {
+  icon: AnalyticsMobileIconName
+  label: string
+  value: string
+  trend: string | null
+}) {
+  return (
+    <Card className="analytics-mobile-kpi-card">
+      <span className={`analytics-mobile-kpi-icon analytics-mobile-kpi-icon--${icon}`}><AnalyticsMobileIcon name={icon} /></span>
+      <div className="analytics-mobile-kpi-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small className={trend?.startsWith('↓') ? 'is-negative' : trend ? 'is-positive' : ''}>
+          {trend || '—'}
+        </small>
+      </div>
     </Card>
   )
 }
@@ -1174,6 +1220,7 @@ export function AnalyticsPage() {
   const [savingReport, setSavingReport] = useState(false)
   const [sendingReport, setSendingReport] = useState(false)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [reportLanguage, setReportLanguage] = useState<ReportLanguage>(() => toReportLanguage(locale))
   const [reportComparePrevious, setReportComparePrevious] = useState(false)
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false)
@@ -1492,6 +1539,48 @@ export function AnalyticsPage() {
     spaceHours: Number((point.spaceMinutes / 60).toFixed(1)),
     sessionsTotal: point.sessionsTotal,
   })), [data?.weeks, trendLabelFormatter])
+
+  const mobileTrend = (values: number[]) => {
+    const finite = values.filter((value) => Number.isFinite(value))
+    if (finite.length < 2) return null
+    const previous = finite[finite.length - 2]
+    const current = finite[finite.length - 1]
+    if (previous === 0) return current === 0 ? null : `↑ ${new Intl.NumberFormat(appLocaleTag, { maximumFractionDigits: 1 }).format(100)} %`
+    const percentage = ((current - previous) / Math.abs(previous)) * 100
+    const arrow = percentage < 0 ? '↓' : '↑'
+    return `${arrow} ${new Intl.NumberFormat(appLocaleTag, { maximumFractionDigits: 1 }).format(Math.abs(percentage))} %`
+  }
+
+  const mobileRevenueTrend = mobileTrend(revenueSeries.map((point) => safeNumber(point.revenueGross)))
+  const mobileBookingsTrend = mobileTrend(activitySeries.map((point) => safeNumber(point.sessionsTotal)))
+  const mobileNewClientsTrend = mobileTrend(activitySeries.map((point) => safeNumber(point.newClients)))
+  const mobileAverageTrend = mobileTrend(revenueSeries.map((point, index) => {
+    const sessions = safeNumber(activitySeries[index]?.sessionsTotal)
+    return sessions > 0 ? safeNumber(point.revenueGross) / sessions : 0
+  }))
+
+  const mobileTopServices = useMemo(() => (data?.topServices ?? []).slice(0, 5), [data?.topServices])
+  const mobileTopServicesTotal = useMemo(
+    () => mobileTopServices.reduce((sum, item) => sum + Math.max(0, safeNumber(item.count)), 0),
+    [mobileTopServices],
+  )
+  const mobileServiceDonut = useMemo(() => {
+    if (mobileTopServicesTotal <= 0) return 'conic-gradient(#e5edf8 0 100%)'
+    let offset = 0
+    const stops = mobileTopServices.map((item, index) => {
+      const start = offset
+      offset += (Math.max(0, safeNumber(item.count)) / mobileTopServicesTotal) * 100
+      return `${MOBILE_ANALYTICS_PALETTE[index % MOBILE_ANALYTICS_PALETTE.length]} ${start.toFixed(2)}% ${offset.toFixed(2)}%`
+    })
+    if (offset < 100) stops.push(`#e5edf8 ${offset.toFixed(2)}% 100%`)
+    return `conic-gradient(${stops.join(', ')})`
+  }, [mobileTopServices, mobileTopServicesTotal])
+
+  const mobileBusiestDays = useMemo(
+    () => [...weekdaySeries].sort((a, b) => b.sessionsTotal - a.sessionsTotal).slice(0, 5),
+    [weekdaySeries],
+  )
+  const mobileBusiestDayMax = Math.max(1, ...mobileBusiestDays.map((item) => item.sessionsTotal))
 
   const previousSummary = previousData?.summary ?? null
   const previousOnlineShare = previousSummary && previousSummary.sessionsTotal > 0 ? previousSummary.sessionsOnline / previousSummary.sessionsTotal : 0
@@ -2455,7 +2544,32 @@ export function AnalyticsPage() {
     <div className="stack gap-lg analytics-page">
       <PageHeader title={text.title} subtitle={text.subtitle} />
 
-      <div className="analytics-section-switch analytics-page-tabs" role="tablist" aria-label={text.title}>
+      <div className="analytics-mobile-tabs" role="tablist" aria-label={text.title}>
+        <button
+          type="button"
+          className={activeTab === 'overview' ? 'active' : ''}
+          onClick={() => { setActiveTab('overview'); setReportPreviewOpen(false) }}
+        >
+          {text.tabOverview}
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'reports' && activeReportTemplate === 'revenueInvoices' ? 'active' : ''}
+          disabled={!billingReportsEnabled}
+          onClick={() => { setActiveTab('reports'); setActiveReportTemplate('revenueInvoices'); setReportPreviewOpen(false) }}
+        >
+          {locale === 'sl' ? 'Prihodki' : locale === 'sr' ? 'Prihodi' : 'Revenue'}
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'reports' && activeReportTemplate === 'bookingsAttendance' ? 'active' : ''}
+          onClick={() => { setActiveTab('reports'); setActiveReportTemplate('bookingsAttendance'); setReportPreviewOpen(false) }}
+        >
+          {locale === 'sl' ? 'Rezervacije' : locale === 'sr' ? 'Rezervacije' : 'Bookings'}
+        </button>
+      </div>
+
+      <div className="analytics-section-switch analytics-page-tabs analytics-page-tabs--desktop" role="tablist" aria-label={text.title}>
         <button type="button" className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>
           {text.tabOverview}
         </button>
@@ -2492,8 +2606,20 @@ export function AnalyticsPage() {
         </div>
       </Card>
 
-      <Card className="analytics-filter-card">
-        <div className="analytics-filters-row">
+      <Card className={`analytics-filter-card${mobileFiltersOpen ? ' analytics-filter-card--mobile-open' : ''}`}>
+        <div className="analytics-mobile-filter-summary">
+          <button type="button" className="analytics-mobile-date-chip" onClick={() => setMobileFiltersOpen((open) => !open)}>
+            <AnalyticsMobileIcon name="calendar" />
+            <span>{rangeLabel || text.range}</span>
+            <span aria-hidden>⌄</span>
+          </button>
+          <button type="button" className="analytics-mobile-filter-toggle" onClick={() => setMobileFiltersOpen((open) => !open)} aria-expanded={mobileFiltersOpen}>
+            <AnalyticsMobileIcon name="filter" />
+            <span>{text.filtersTitle}</span>
+          </button>
+        </div>
+        <div className="analytics-filter-card__content">
+          <div className="analytics-filters-row">
           <div className="analytics-filter-group">
             <button type="button" className={periodPreset === 'day' ? 'active' : ''} onClick={() => setPeriodPreset('day')}>1D</button>
             <button type="button" className={periodPreset === '7d' ? 'active' : ''} onClick={() => setPeriodPreset('7d')}>7D</button>
@@ -2529,12 +2655,30 @@ export function AnalyticsPage() {
             </select>
           </div>
         </div>
-        {periodPreset === 'custom' && (
-          <div className="analytics-custom-range">
-            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label={`${text.range} from`} />
-            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label={`${text.range} to`} />
+          {periodPreset === 'custom' && (
+            <div className="analytics-custom-range">
+              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label={`${text.range} from`} />
+              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label={`${text.range} to`} />
+            </div>
+          )}
+          <div className="analytics-mobile-action-row">
+            {activeTab === 'overview' ? (
+              <>
+                <button type="button" className="secondary" onClick={exportCsv} disabled={!summary}>{text.export}</button>
+                <button type="button" onClick={sendManualReport} disabled={!summary || !canFetch || sendingReport}>
+                  {sendingReport ? `${text.sendNow}…` : text.sendNow}
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="secondary" onClick={() => setReportPreviewOpen((open) => !open)} disabled={!summary}>
+                  {reportPreviewOpen ? reportText.hidePreview : reportText.openPreview}
+                </button>
+                <button type="button" onClick={downloadActiveReportCsv} disabled={!summary || reportIsLoading}>{reportText.downloadReportCsv}</button>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </Card>
 
       {!canFetch ? (
@@ -2547,7 +2691,92 @@ export function AnalyticsPage() {
         <Card><EmptyState title={text.emptyTitle} text={text.emptyText} /></Card>
       ) : activeTab === 'overview' ? (
         <>
-          <div className="analytics-kpis analytics-kpis--modern">
+          <div className="analytics-mobile-overview" data-onboarding-panel="analytics">
+            <div className="analytics-mobile-kpi-grid">
+              <AnalyticsMobileKpiCard icon="revenue" label={text.kpiRevenue} value={revenueFormatter(summary.revenueGross)} trend={mobileRevenueTrend} />
+              <AnalyticsMobileKpiCard icon="bookings" label={text.kpiSessions} value={String(summary.sessionsTotal)} trend={mobileBookingsTrend} />
+              <AnalyticsMobileKpiCard icon="clients" label={text.kpiNewClients} value={String(summary.newClients)} trend={mobileNewClientsTrend} />
+              <AnalyticsMobileKpiCard icon="average" label={text.kpiAvgRevenue} value={revenueFormatter(avgRevenuePerSession)} trend={mobileAverageTrend} />
+            </div>
+
+            <Card className="analytics-mobile-chart-card analytics-mobile-revenue-card">
+              <div className="analytics-mobile-card-header">
+                <h3>{locale === 'sl' ? 'Rast prihodkov' : locale === 'sr' ? 'Rast prihoda' : 'Revenue growth'}</h3>
+                <span>{locale === 'sl' ? 'Po obdobjih' : locale === 'sr' ? 'Po periodima' : 'By period'}⌄</span>
+              </div>
+              <div className="analytics-mobile-revenue-chart">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={210} debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}>
+                  <AreaChart data={revenueSeries} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="analyticsMobileRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#1672f3" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#1672f3" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e7edf5" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#66758c' }} axisLine={false} tickLine={false} minTickGap={8} />
+                    <YAxis tick={{ fontSize: 10, fill: '#66758c' }} axisLine={false} tickLine={false} width={46} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k €`} />
+                    <Tooltip formatter={(value) => revenueFormatter(value as number)} />
+                    <Area {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="revenueGross" stroke="#1672f3" strokeWidth={3} dot={{ r: 3.5, fill: '#ffffff', strokeWidth: 2.5 }} activeDot={{ r: 5 }} fill="url(#analyticsMobileRevenueFill)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <div className="analytics-mobile-insight-grid">
+              <Card className="analytics-mobile-insight-card analytics-mobile-donut-card">
+                <h3>{locale === 'sl' ? 'Rezervacije po storitvah' : locale === 'sr' ? 'Rezervacije po uslugama' : 'Bookings by service'}</h3>
+                <div className="analytics-mobile-donut-wrap">
+                  <div className="analytics-mobile-donut" style={{ background: mobileServiceDonut }}>
+                    <span><strong>{mobileTopServicesTotal}</strong>{locale === 'sl' ? 'rezervacij' : locale === 'sr' ? 'rezervacija' : 'bookings'}</span>
+                  </div>
+                  <div className="analytics-mobile-donut-legend">
+                    {mobileTopServices.length === 0 ? <span className="muted">—</span> : mobileTopServices.map((item, index) => (
+                      <div key={`mobile-service-${item.label}-${index}`}>
+                        <i style={{ background: MOBILE_ANALYTICS_PALETTE[index % MOBILE_ANALYTICS_PALETTE.length] }} />
+                        <span>{item.label}</span>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="analytics-mobile-insight-card analytics-mobile-days-card">
+                <div className="analytics-mobile-card-header analytics-mobile-card-header--compact">
+                  <h3>{locale === 'sl' ? 'Najbolj zasedeni dnevi' : locale === 'sr' ? 'Najzauzetiji dani' : 'Busiest days'}</h3>
+                </div>
+                <div className="analytics-mobile-day-list">
+                  {mobileBusiestDays.length === 0 ? <span className="muted">—</span> : mobileBusiestDays.map((item) => (
+                    <div key={`mobile-day-${item.dayKey}`}>
+                      <span>{item.label}</span>
+                      <i><b style={{ width: `${Math.max(8, (item.sessionsTotal / mobileBusiestDayMax) * 100)}%` }} /></i>
+                      <strong>{item.sessionsTotal}</strong>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <Card className="analytics-mobile-top-services-card">
+              <div className="analytics-mobile-card-header">
+                <h3>{locale === 'sl' ? 'Najbolj rezervirane storitve' : locale === 'sr' ? 'Najrezervisanije usluge' : 'Most booked services'}</h3>
+                <span>{locale === 'sl' ? 'Po prihodkih' : locale === 'sr' ? 'Po prihodu' : 'By revenue'}⌄</span>
+              </div>
+              <div className="analytics-mobile-top-services-list">
+                {mobileTopServices.length === 0 ? <span className="muted">—</span> : mobileTopServices.map((item, index) => (
+                  <div key={`mobile-top-service-${item.label}-${index}`}>
+                    <span>{index + 1}</span>
+                    <div><strong>{item.label}</strong><i><b style={{ width: `${Math.max(10, (safeNumber(item.amount) / Math.max(1, safeNumber(mobileTopServices[0]?.amount))) * 100)}%` }} /></i></div>
+                    <strong>{revenueFormatter(item.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          <div className="analytics-desktop-overview">
+            <div className="analytics-kpis analytics-kpis--modern">
             <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiSessions}</span><strong>{summary.sessionsTotal}</strong></Card>
             <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiRevenue}</span><strong>{revenueFormatter(summary.revenueGross)}</strong></Card>
             <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiNewClients}</span><strong>{summary.newClients}</strong></Card>
@@ -2824,6 +3053,7 @@ export function AnalyticsPage() {
                 </button>
               </div>
             </Card>
+          </div>
           </div>
         </>
       ) : (

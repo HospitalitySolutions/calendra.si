@@ -2765,7 +2765,8 @@ a.credentials-popover-action-btn {
 .app-header-waitlist-title,
 .app-header-services-title,
 .app-header-billing-title,
-.app-header-employees-title {
+.app-header-employees-title,
+.app-header-analytics-title {
     display: none;
 }
 
@@ -2773,6 +2774,7 @@ a.credentials-popover-action-btn {
     .app-header.app-header--waitlist,
     .app-header.app-header--services,
     .app-header.app-header--employees,
+    .app-header.app-header--analytics,
     .app-header.app-header--billing {
         min-height: 62px;
         box-sizing: border-box;
@@ -2786,6 +2788,7 @@ a.credentials-popover-action-btn {
     [data-theme="dark"] .app-header.app-header--waitlist,
     [data-theme="dark"] .app-header.app-header--services,
     [data-theme="dark"] .app-header.app-header--employees,
+    [data-theme="dark"] .app-header.app-header--analytics,
     [data-theme="dark"] .app-header.app-header--billing {
         background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
         border-bottom: 0;
@@ -2794,6 +2797,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .app-header-mobile-leading,
     .app-header--services .app-header-mobile-leading,
     .app-header--employees .app-header-mobile-leading,
+    .app-header--analytics .app-header-mobile-leading,
     .app-header--billing .app-header-mobile-leading {
         min-width: 0;
     }
@@ -2801,6 +2805,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .app-header-mobile-nav-trigger,
     .app-header--services .app-header-mobile-nav-trigger,
     .app-header--employees .app-header-mobile-nav-trigger,
+    .app-header--analytics .app-header-mobile-nav-trigger,
     .app-header--billing .app-header-mobile-nav-trigger {
         width: 38px;
         height: 38px;
@@ -2816,6 +2821,8 @@ a.credentials-popover-action-btn {
     .app-header--services .app-header-mobile-nav-trigger:active,
     .app-header--employees .app-header-mobile-nav-trigger:hover,
     .app-header--employees .app-header-mobile-nav-trigger:active,
+    .app-header--analytics .app-header-mobile-nav-trigger:hover,
+    .app-header--analytics .app-header-mobile-nav-trigger:active,
     .app-header--billing .app-header-mobile-nav-trigger:hover,
     .app-header--billing .app-header-mobile-nav-trigger:active {
         background: rgba(255, 255, 255, 0.10);
@@ -2825,6 +2832,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .app-header-section-title,
     .app-header--services .app-header-section-title,
     .app-header--employees .app-header-section-title,
+    .app-header--analytics .app-header-section-title,
     .app-header--billing .app-header-section-title {
         position: absolute;
         left: 50%;
@@ -2842,6 +2850,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .app-header-section-title strong,
     .app-header--services .app-header-section-title strong,
     .app-header--employees .app-header-section-title strong,
+    .app-header--analytics .app-header-section-title strong,
     .app-header--billing .app-header-section-title strong {
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2854,6 +2863,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .header-actions,
     .app-header--services .header-actions,
     .app-header--employees .header-actions,
+    .app-header--analytics .header-actions,
     .app-header--billing .header-actions {
         margin-left: auto;
     }
@@ -2861,6 +2871,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .calendar-voice-fab--header-toolbar,
     .app-header--services .calendar-voice-fab--header-toolbar,
     .app-header--employees .calendar-voice-fab--header-toolbar,
+    .app-header--analytics .calendar-voice-fab--header-toolbar,
     .app-header--billing .calendar-voice-fab--header-toolbar {
         display: none !important;
     }
@@ -2868,6 +2879,7 @@ a.credentials-popover-action-btn {
     .app-header--waitlist .staff-notification-trigger,
     .app-header--services .staff-notification-trigger,
     .app-header--employees .staff-notification-trigger,
+    .app-header--analytics .staff-notification-trigger,
     .app-header--billing .staff-notification-trigger {
         width: 38px;
         height: 38px;
@@ -2881,6 +2893,8 @@ a.credentials-popover-action-btn {
     .app-header--services .staff-notification-trigger.active,
     .app-header--employees .staff-notification-trigger:hover,
     .app-header--employees .staff-notification-trigger.active,
+    .app-header--analytics .staff-notification-trigger:hover,
+    .app-header--analytics .staff-notification-trigger.active,
     .app-header--billing .staff-notification-trigger:hover,
     .app-header--billing .staff-notification-trigger.active {
         background: rgba(255, 255, 255, 0.10);
@@ -2997,6 +3011,7 @@ a.credentials-popover-action-btn {
     .main-area--waitlist,
     .main-area--services,
     .main-area--employees,
+    .main-area--analytics,
     .main-area--billing {
         background: #f8fafc;
     }
@@ -3004,6 +3019,7 @@ a.credentials-popover-action-btn {
     .main-area--waitlist > .content.content--waitlist,
     .main-area--services > .content.content--services,
     .main-area--employees > .content.content--employees,
+    .main-area--analytics > .content.content--analytics,
     .main-area--billing > .content.content--billing {
         padding: 0 0 calc(88px + env(safe-area-inset-bottom));
         background: #f8fafc;

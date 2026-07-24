@@ -1203,3 +1203,582 @@
         background: #f8fafc !important;
     }
 }
+
+/* Mobile analytics dashboard preview implementation. */
+.analytics-mobile-tabs,
+.analytics-mobile-filter-summary,
+.analytics-mobile-action-row,
+.analytics-mobile-overview {
+    display: none;
+}
+
+.analytics-desktop-overview {
+    display: block;
+}
+
+@media (max-width: 720px) {
+    .analytics-page.stack.gap-lg {
+        width: 100%;
+        gap: 0;
+        padding: 0 0 calc(88px + env(safe-area-inset-bottom));
+        margin: 0;
+        background: #f8fafc;
+    }
+
+    .analytics-page > .page-header {
+        display: none;
+    }
+
+    .analytics-page-tabs--desktop,
+    .analytics-hero,
+    .analytics-desktop-overview {
+        display: none !important;
+    }
+
+    .analytics-mobile-tabs {
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 151;
+        display: flex;
+        width: 100%;
+        min-height: 58px;
+        padding: 0 14px;
+        margin: 0;
+        align-items: stretch;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+        box-sizing: border-box;
+    }
+
+    .analytics-mobile-tabs button {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 58px;
+        padding: 0 4px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        font: inherit;
+        font-size: clamp(0.76rem, 3.6vw, 0.92rem);
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+        box-shadow: none;
+    }
+
+    .analytics-mobile-tabs button::after {
+        content: '';
+        position: absolute;
+        left: 11px;
+        right: 11px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .analytics-mobile-tabs button.active {
+        color: #ffffff;
+    }
+
+    .analytics-mobile-tabs button.active::after {
+        background: #ffffff;
+    }
+
+    .analytics-mobile-tabs button:disabled {
+        opacity: 0.42;
+    }
+
+    .analytics-filter-card.card {
+        display: block;
+        margin: 22px 16px 14px;
+        padding: 14px;
+        border: 1px solid #edf1f6;
+        border-radius: 15px;
+        background: #ffffff;
+        box-shadow: 0 7px 20px rgba(15, 23, 42, 0.055);
+    }
+
+    .analytics-mobile-filter-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .analytics-mobile-date-chip,
+    .analytics-mobile-filter-toggle {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        padding: 0 13px;
+        border: 1px solid #d8e0eb;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #192235;
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 700;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+    }
+
+    .analytics-mobile-date-chip {
+        flex: 1 1 auto;
+        min-width: 0;
+        justify-content: flex-start;
+    }
+
+    .analytics-mobile-date-chip span:nth-child(2) {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-date-chip span:last-child {
+        margin-left: auto;
+        color: #6d7b91;
+    }
+
+    .analytics-mobile-filter-toggle {
+        flex: 0 0 auto;
+        padding: 0 15px;
+    }
+
+    .analytics-mobile-date-chip svg,
+    .analytics-mobile-filter-toggle svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        color: #263348;
+    }
+
+    .analytics-filter-card__content {
+        display: none;
+        gap: 13px;
+        padding-top: 14px;
+    }
+
+    .analytics-filter-card--mobile-open .analytics-filter-card__content {
+        display: grid;
+    }
+
+    .analytics-filter-card .analytics-filters-row {
+        display: grid;
+        gap: 12px;
+    }
+
+    .analytics-filter-card .analytics-filter-group {
+        width: 100%;
+        padding: 3px;
+        border-radius: 12px;
+        background: #f2f5f9;
+        overflow-x: auto;
+        box-sizing: border-box;
+    }
+
+    .analytics-filter-card .analytics-filter-group button {
+        flex: 1 0 auto;
+        min-height: 38px;
+        padding: 0 12px;
+        white-space: nowrap;
+    }
+
+    .analytics-filter-card .analytics-select-filters {
+        display: grid;
+        width: 100%;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .analytics-filter-card .analytics-select-filters select,
+    .analytics-filter-card .analytics-custom-range input {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 12px;
+        border-color: #d8e0eb;
+        background: #ffffff;
+        font-size: 0.86rem;
+    }
+
+    .analytics-mobile-action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .analytics-mobile-action-row button {
+        min-height: 42px;
+        border-radius: 12px;
+        font-size: 0.82rem;
+    }
+
+    .analytics-mobile-overview {
+        display: grid;
+        gap: 14px;
+        padding: 0 16px 28px;
+    }
+
+    .analytics-mobile-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .analytics-mobile-kpi-card.card {
+        position: relative;
+        display: flex;
+        min-width: 0;
+        min-height: 112px;
+        align-items: center;
+        gap: 11px;
+        padding: 15px 13px;
+        border: 1px solid #edf1f6;
+        border-radius: 15px;
+        background: #ffffff;
+        box-shadow: 0 7px 20px rgba(15, 23, 42, 0.055);
+        box-sizing: border-box;
+    }
+
+    .analytics-mobile-kpi-icon {
+        display: grid;
+        width: 46px;
+        height: 46px;
+        flex: 0 0 46px;
+        place-items: center;
+        border-radius: 50%;
+        background: #e8f1ff;
+        color: #1672f3;
+    }
+
+    .analytics-mobile-kpi-icon--clients {
+        background: #eaf8ec;
+        color: #36a853;
+    }
+
+    .analytics-mobile-kpi-icon--average {
+        background: #fff3d9;
+        color: #d99519;
+    }
+
+    .analytics-mobile-kpi-icon svg {
+        width: 23px;
+        height: 23px;
+    }
+
+    .analytics-mobile-kpi-copy {
+        display: grid;
+        min-width: 0;
+        gap: 4px;
+    }
+
+    .analytics-mobile-kpi-copy > span {
+        overflow: hidden;
+        color: #536178;
+        font-size: 0.78rem;
+        font-weight: 650;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-kpi-copy strong {
+        overflow: hidden;
+        color: #101828;
+        font-size: clamp(1.12rem, 5.2vw, 1.42rem);
+        line-height: 1.05;
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-kpi-copy small {
+        color: #7b8799;
+        font-size: 0.68rem;
+        font-weight: 650;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-kpi-copy small.is-positive {
+        color: #16a764;
+    }
+
+    .analytics-mobile-kpi-copy small.is-negative {
+        color: #dc5151;
+    }
+
+    .analytics-mobile-chart-card.card,
+    .analytics-mobile-insight-card.card,
+    .analytics-mobile-top-services-card.card {
+        min-width: 0;
+        padding: 15px;
+        border: 1px solid #edf1f6;
+        border-radius: 15px;
+        background: #ffffff;
+        box-shadow: 0 7px 20px rgba(15, 23, 42, 0.055);
+    }
+
+    .analytics-mobile-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .analytics-mobile-card-header h3,
+    .analytics-mobile-insight-card > h3 {
+        margin: 0;
+        color: #111827;
+        font-size: 0.91rem;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+    }
+
+    .analytics-mobile-card-header > span {
+        display: inline-flex;
+        min-height: 34px;
+        align-items: center;
+        padding: 0 11px;
+        border: 1px solid #dce3ed;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #354259;
+        font-size: 0.7rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-revenue-chart {
+        width: 100%;
+        height: 230px;
+    }
+
+    .analytics-mobile-insight-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .analytics-mobile-insight-card.card {
+        padding: 13px;
+    }
+
+    .analytics-mobile-insight-card > h3 {
+        margin-bottom: 12px;
+        font-size: 0.78rem;
+    }
+
+    .analytics-mobile-donut-wrap {
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+    }
+
+    .analytics-mobile-donut {
+        position: relative;
+        display: grid;
+        width: 112px;
+        height: 112px;
+        place-items: center;
+        border-radius: 50%;
+    }
+
+    .analytics-mobile-donut::after {
+        content: '';
+        position: absolute;
+        inset: 24px;
+        border-radius: 50%;
+        background: #ffffff;
+    }
+
+    .analytics-mobile-donut > span {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        justify-items: center;
+        color: #7a8799;
+        font-size: 0.62rem;
+        line-height: 1.15;
+    }
+
+    .analytics-mobile-donut > span strong {
+        color: #172033;
+        font-size: 1.1rem;
+    }
+
+    .analytics-mobile-donut-legend {
+        display: grid;
+        width: 100%;
+        gap: 7px;
+    }
+
+    .analytics-mobile-donut-legend > div {
+        display: grid;
+        grid-template-columns: 8px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.61rem;
+    }
+
+    .analytics-mobile-donut-legend i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+
+    .analytics-mobile-donut-legend span {
+        overflow: hidden;
+        color: #526078;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-donut-legend strong {
+        color: #1b2435;
+        font-size: 0.61rem;
+    }
+
+    .analytics-mobile-card-header--compact {
+        margin-bottom: 14px;
+    }
+
+    .analytics-mobile-card-header--compact h3 {
+        font-size: 0.78rem;
+    }
+
+    .analytics-mobile-day-list {
+        display: grid;
+        gap: 13px;
+    }
+
+    .analytics-mobile-day-list > div {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) 18px;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.62rem;
+    }
+
+    .analytics-mobile-day-list span {
+        color: #4d5a70;
+    }
+
+    .analytics-mobile-day-list i,
+    .analytics-mobile-top-services-list i {
+        display: block;
+        height: 6px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e9eff8;
+    }
+
+    .analytics-mobile-day-list i b,
+    .analytics-mobile-top-services-list i b {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #84b3fb 0%, #1672f3 100%);
+    }
+
+    .analytics-mobile-day-list strong {
+        color: #152033;
+        text-align: right;
+        font-size: 0.64rem;
+    }
+
+    .analytics-mobile-top-services-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .analytics-mobile-top-services-list > div {
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 9px;
+    }
+
+    .analytics-mobile-top-services-list > div > span {
+        color: #738095;
+        font-size: 0.7rem;
+        font-weight: 750;
+        text-align: center;
+    }
+
+    .analytics-mobile-top-services-list > div > div {
+        display: grid;
+        min-width: 0;
+        gap: 6px;
+    }
+
+    .analytics-mobile-top-services-list > div > div strong {
+        overflow: hidden;
+        color: #172033;
+        font-size: 0.76rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .analytics-mobile-top-services-list > div > strong {
+        color: #172033;
+        font-size: 0.72rem;
+        white-space: nowrap;
+    }
+
+    .analytics-reports-tab {
+        display: grid;
+        gap: 14px;
+        padding: 0 16px 28px;
+    }
+
+    .analytics-reports-tab > .card,
+    .analytics-report-preview-placeholder.card,
+    .analytics-business-report.card {
+        border-radius: 15px;
+        box-shadow: 0 7px 20px rgba(15, 23, 42, 0.055);
+    }
+}
+
+@media (max-width: 390px) {
+    .analytics-mobile-kpi-card.card {
+        gap: 8px;
+        padding: 13px 10px;
+    }
+
+    .analytics-mobile-kpi-icon {
+        width: 40px;
+        height: 40px;
+        flex-basis: 40px;
+    }
+
+    .analytics-mobile-kpi-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .analytics-mobile-kpi-copy > span {
+        font-size: 0.7rem;
+    }
+
+    .analytics-mobile-kpi-copy strong {
+        font-size: 1.03rem;
+    }
+
+    .analytics-mobile-donut {
+        width: 96px;
+        height: 96px;
+    }
+
+    .analytics-mobile-donut::after {
+        inset: 21px;
+    }
+}
