@@ -336,6 +336,26 @@
     }
 }
 
+
+/*
+ * Space mode (mobile web): the calendar content already begins below the blue top row,
+ * so offsetting sticky date/resource headers by the measured shell header bottom adds an
+ * artificial blank band. Keep these headers flush under the blue row only in space mode.
+ */
+@media (max-width: 780px) {
+    .calendar-mode-spaces .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th,
+    .calendar-mode-spaces .calendar-resource-day-header-fallback {
+        top: 0;
+        background: var(--color-surface);
+    }
+
+    /* Day view in spaces mode can miss the weekday/date strip on some mobile browsers.
+       Always show the React fallback header there. */
+    .calendar-mode-spaces .calendar-fc-shell:has(.fc-resourceTimeGridDay-view) .calendar-resource-day-header-fallback {
+        display: block !important;
+    }
+}
+
 .calendar-fc-shell .fc-timegrid .fc-col-header th {
     position: relative;
     z-index: 8;
