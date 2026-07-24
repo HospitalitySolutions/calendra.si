@@ -943,3 +943,121 @@
     background: #eaf3ff;
     border-color: #93c5fd;
 }
+
+/* Mobile employees header/tabs: same two-row blue treatment as Clients. */
+@media (max-width: 720px) {
+    .employees-page-root.stack.gap-lg {
+        gap: 0;
+        padding: 0 !important;
+        background: #f8fafc;
+    }
+
+    .employees-page-root .employees-page-tabs-shell.clients-entity-tabs-shell {
+        position: sticky;
+        top: calc(61px + env(safe-area-inset-top));
+        z-index: 150;
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: none;
+        overflow: hidden;
+    }
+
+    .employees-page-root .employee-page-tabs.clients-session-tabs.clients-entity-tabs {
+        display: flex;
+        width: 100%;
+        min-height: 58px;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        box-sizing: border-box;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    .employees-page-root .employee-page-tabs.clients-session-tabs.clients-entity-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab {
+        position: relative;
+        flex: 1 1 0;
+        min-width: max-content;
+        min-height: 58px;
+        margin: 0;
+        padding: 0 10px;
+        gap: 7px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        box-shadow: none !important;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+        transform: none;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab:hover,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab:active,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab:focus {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none !important;
+        transform: none;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        right: 7px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.active,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.employee-page-tab--active {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none !important;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.active::after,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.employee-page-tab--active::after {
+        background: #ffffff;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab svg {
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
+    }
+
+    .employees-page-root .employees-tab-panel {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 20px 16px calc(92px + env(safe-area-inset-bottom));
+        background: #f8fafc;
+    }
+
+    .employees-page-root .employees-list-tab-panel > div,
+    .employees-page-root .employees-modern-card.clients-mobile-shell {
+        width: 100%;
+        margin: 0;
+        box-sizing: border-box;
+    }
+}

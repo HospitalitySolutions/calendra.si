@@ -380,6 +380,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isClientsRoute = location.pathname === '/clients' || location.pathname.startsWith('/clients/')
   const isWaitlistRoute = location.pathname === '/appointments' || location.pathname.startsWith('/appointments/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
+  const isEmployeesRoute = location.pathname === '/consultants' || location.pathname.startsWith('/consultants/')
+  const isServicesRoute = location.pathname === '/session-types' || location.pathname.startsWith('/session-types/')
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1406,7 +1408,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isBillingRoute ? 'main-area main-area--billing' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isBillingRoute ? 'main-area main-area--billing' : isEmployeesRoute ? 'main-area main-area--employees' : isServicesRoute ? 'main-area main-area--services' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1419,7 +1421,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                   ? 'app-header app-header--waitlist'
                   : isBillingRoute
                     ? 'app-header app-header--billing'
-                    : 'app-header'
+                    : isEmployeesRoute
+                      ? 'app-header app-header--employees'
+                      : isServicesRoute
+                        ? 'app-header app-header--services'
+                        : 'app-header'
           }
         >
           {isCalendarRoute && calendarShellSlots ? (
@@ -1470,12 +1476,22 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                     <strong>{locale === 'sl' ? 'Zaračunavanje' : locale === 'sr' ? 'Naplata' : 'Billing'}</strong>
                   </div>
                 )}
+                {isEmployeesRoute && (
+                  <div className="app-header-section-title app-header-employees-title">
+                    <strong>{locale === 'sl' ? 'Zaposleni' : locale === 'sr' ? 'Zaposleni' : 'Employees'}</strong>
+                  </div>
+                )}
+                {isServicesRoute && (
+                  <div className="app-header-section-title app-header-services-title">
+                    <strong>{locale === 'sl' ? 'Storitve' : locale === 'sr' ? 'Usluge' : 'Services'}</strong>
+                  </div>
+                )}
               </div>
               {headerActions}
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isBillingRoute ? 'content content--billing' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isBillingRoute ? 'content content--billing' : isEmployeesRoute ? 'content content--employees' : isServicesRoute ? 'content content--services' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}

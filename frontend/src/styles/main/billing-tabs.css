@@ -3183,12 +3183,12 @@
 
     .billing-mobile-shell .billing-modern-header {
         position: sticky;
-        top: calc(62px + env(safe-area-inset-top));
+        top: calc(61px + env(safe-area-inset-top));
         z-index: 150;
         margin: 0;
         padding: 0 14px;
         background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+        box-shadow: none;
     }
 
     .billing-mobile-shell .billing-modern-tabs.clients-session-tabs {

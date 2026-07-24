@@ -648,39 +648,21 @@
 
     .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile {
         position: sticky;
-        top: 0;
-        z-index: 35;
+        top: calc(61px + env(safe-area-inset-top));
+        z-index: 150;
         display: block;
         width: calc(100% + 32px);
         margin: 0 -16px 20px;
-        padding: 56px 0 0;
+        padding: 0;
         border-radius: 0;
-        background: linear-gradient(135deg, #0877f9 0%, #075fe5 100%);
-        box-shadow: 0 1px 0 rgba(255,255,255,.16), 0 5px 14px rgba(15, 93, 220, .18);
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: none;
     }
 
-    .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile::before {
-        content: "Storitve";
-        position: absolute;
-        top: 18px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #fff;
-        font-size: 17px;
-        font-weight: 800;
-        line-height: 24px;
-        white-space: nowrap;
-    }
-
+    .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile::before,
     .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile::after {
-        content: "☰";
-        position: absolute;
-        top: 18px;
-        left: 20px;
-        color: #fff;
-        font-size: 20px;
-        line-height: 24px;
-        opacity: .96;
+        content: none;
+        display: none;
     }
 
     .clients-modern-page--mobile .service-config-card .clients-entity-tabs-shell {
@@ -697,8 +679,8 @@
         display: flex;
         width: max-content;
         min-width: 100%;
-        height: 52px;
-        padding: 0 10px;
+        min-height: 58px;
+        padding: 0 14px;
         gap: 0;
         background: transparent;
         border-radius: 0;
@@ -709,15 +691,15 @@
         position: relative;
         flex: 0 0 auto;
         min-width: max-content;
-        height: 52px;
-        min-height: 52px;
-        padding: 0 18px;
+        height: 58px;
+        min-height: 58px;
+        padding: 0 12px;
         gap: 6px;
         border: 0;
         border-radius: 0;
         background: transparent;
         color: rgba(255,255,255,.82);
-        font-size: 12px;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
         font-weight: 700;
         box-shadow: none;
     }
@@ -734,13 +716,18 @@
         left: 10px;
         right: 10px;
         bottom: 0;
-        height: 3px;
-        border-radius: 3px 3px 0 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
         background: transparent;
     }
     .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab.active::after { background: #fff; }
 
-    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab svg { display: none; }
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab svg {
+        display: block;
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
+    }
     .service-config-tab-label--desktop { display: none; }
     .service-config-tab-label--mobile { display: inline; }
 

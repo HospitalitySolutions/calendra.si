@@ -776,7 +776,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }
 
   return (
-    <div className="stack gap-lg">
+    <div className={`stack gap-lg${!selfService ? ' employees-page-root' : ''}`}>
       {selfService && !showFormPanel && <PageHeader title={t('myProfileTitle')} />}
       {selfService && loadingSelfProfile && <div className="muted">{t('employeesSelfProfileLoading')}</div>}
       {selfService && !loadingSelfProfile && !showFormPanel && errorMessage && <div className="error">{errorMessage}</div>}
@@ -813,9 +813,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         </div>
         </div>
       )}
-      {!selfService && canViewRolesTab && employeesTab === 'roles' && <EmployeeRolesPermissionsTab />}
+      {!selfService && canViewRolesTab && employeesTab === 'roles' && (
+        <div className="employees-tab-panel employees-roles-tab-panel">
+          <EmployeeRolesPermissionsTab />
+        </div>
+      )}
       {!selfService && canViewEmployeesTab && employeesTab === 'employees' && (
-        <div>
+        <div className="employees-tab-panel employees-list-tab-panel">
           <Card data-onboarding-panel="employees" className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
             <div className="clients-toolbar clients-modern-toolbar employees-modern-toolbar">
               <div className="clients-search-wrap">
