@@ -4703,60 +4703,88 @@
 }
 
 @media (max-width: 760px) {
+    .clients-simple-create-form {
+        position: relative;
+        padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    }
+
     .clients-simple-create-header {
-        flex-basis: 76px;
-        min-height: 76px;
-        padding: max(12px, env(safe-area-inset-top)) 20px 12px;
+        flex-basis: 62px;
+        min-height: 62px;
+        padding: max(10px, env(safe-area-inset-top)) 18px 10px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
     }
 
     .clients-simple-create-header h2 {
-        font-size: 1.55rem;
+        font-size: 1rem;
+        line-height: 1;
+        font-weight: 800;
+        letter-spacing: -0.015em;
     }
 
     .clients-simple-create-close {
-        width: 46px;
-        height: 46px;
-        font-size: 2.65rem;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        font-size: 2rem;
     }
 
     .clients-simple-create-body {
-        padding: 34px 20px max(28px, env(safe-area-inset-bottom));
+        padding: 22px 16px calc(110px + env(safe-area-inset-bottom));
     }
 
     .clients-simple-create-shell.clients-detail-shell {
         width: 100%;
-        gap: 20px;
+        gap: 16px;
     }
 
     .clients-simple-create-fields.clients-create-fields {
-        gap: 20px !important;
+        gap: 16px !important;
     }
 
     .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card input,
     .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card select,
     .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card textarea {
-        min-height: 64px;
-        padding: 0 20px;
-        border-width: 2px;
-        border-radius: 9px;
-        font-size: 1.08rem;
+        min-height: 42px;
+        padding: 0 13px;
+        border-width: 1px;
+        border-color: #d8dee8;
+        border-radius: 11px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
     }
 
     .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card textarea,
     .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card select[multiple] {
-        min-height: 120px;
-        padding-top: 18px;
-        padding-bottom: 18px;
+        min-height: 96px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+
+    .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card input::placeholder,
+    .clients-simple-create-fields.clients-create-fields > label.clients-detail-field-card textarea::placeholder {
+        color: #8b95a5;
     }
 
     .clients-simple-create-fields .clients-custom-field-card.clients-detail-batch-switch-row {
-        min-height: 64px;
-        border-width: 2px !important;
+        min-height: 42px;
+        padding: 8px 13px !important;
+        border-width: 1px !important;
+        border-color: #d8dee8 !important;
+        border-radius: 11px !important;
     }
 
     .clients-simple-create-submit.clients-gapp-save-button {
-        min-height: 64px;
-        border-radius: 9px;
-        font-size: 1.08rem;
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: max(16px, calc(12px + env(safe-area-inset-bottom)));
+        z-index: 260;
+        min-height: 48px;
+        width: auto;
+        border-radius: 14px;
+        font-size: 0.98rem;
+        box-shadow: 0 10px 24px rgba(13, 104, 224, 0.24);
     }
 }
