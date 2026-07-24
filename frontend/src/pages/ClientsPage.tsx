@@ -1130,6 +1130,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [isClientsMobile, setIsClientsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 720px)').matches : false,
   )
+  const mobileCreateHistoryEntityRef = useRef<EntityTab | null>(null)
   const [openClientMenuId, setOpenClientMenuId] = useState<number | null>(null)
   const [openCompanyMenuId, setOpenCompanyMenuId] = useState<number | null>(null)
   const [openGroupMenuId, setOpenGroupMenuId] = useState<number | null>(null)
@@ -1313,6 +1314,34 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    const onPopState = () => {
+      const entity = mobileCreateHistoryEntityRef.current
+      if (!entity) return
+
+      mobileCreateHistoryEntityRef.current = null
+      if (entity === 'clients') {
+        setShowModal(false)
+        setForm(emptyClientForm)
+        setClientCustomValues({})
+        setErrorMessage('')
+      } else if (entity === 'companies') {
+        setShowCompanyModal(false)
+        setCompanyForm(emptyCompanyForm)
+        setCompanyCustomValues({})
+        setCompanyErrorMessage('')
+      } else {
+        setShowGroupModal(false)
+        setGroupForm({ name: '', email: '' })
+        setGroupCustomValues({})
+        setGroupErrorMessage('')
+      }
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   useEffect(() => {
@@ -1886,10 +1915,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || !customFieldMapsEqual(detailCompanyCustomValues, detailCompany.customFieldValues)
   }, [detailCompany, companyDetailEditDraft, detailCompanyCustomValues])
 
+  const pushMobileCreateHistoryEntry = (entity: EntityTab) => {
+    if (!isClientsMobile || embeddedDetailMode || mobileCreateHistoryEntityRef.current) return
+    const currentState = typeof location.state === 'object' && location.state !== null
+      ? location.state
+      : {}
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      state: { ...currentState, calendraClientsCreateModal: entity },
+    })
+    mobileCreateHistoryEntityRef.current = entity
+  }
+
+  const releaseMobileCreateHistoryEntry = () => {
+    if (!mobileCreateHistoryEntityRef.current) return
+    mobileCreateHistoryEntityRef.current = null
+    navigate(-1)
+  }
+
   const openNewModal = () => {
     setForm(emptyClientForm)
     setClientCustomValues({})
     setErrorMessage('')
+    pushMobileCreateHistoryEntry('clients')
     setShowModal(true)
   }
 
@@ -2100,9 +2147,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGroupErrorMessage('')
     try {
       await api.post('/groups', { name: groupForm.name.trim(), email: groupForm.email.trim() || null, customFieldValues: groupCustomValues })
-      setShowGroupModal(false)
-      setGroupForm({ name: '', email: '' })
-      setGroupCustomValues({})
+      closeGroupModal()
       loadGroups()
     } catch {
       setGroupErrorMessage('Failed to create group.')
@@ -2695,6 +2740,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setForm(emptyClientForm)
     setClientCustomValues({})
     setErrorMessage('')
+    releaseMobileCreateHistoryEntry()
   }
 
   const anonymizeClientById = async (clientId: number) => {
@@ -2771,6 +2817,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setCompanyForm(emptyCompanyForm)
     setCompanyCustomValues({})
     setCompanyErrorMessage('')
+    pushMobileCreateHistoryEntry('companies')
     setShowCompanyModal(true)
   }
 
@@ -2779,6 +2826,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setCompanyForm(emptyCompanyForm)
     setCompanyCustomValues({})
     setCompanyErrorMessage('')
+    releaseMobileCreateHistoryEntry()
   }
 
   const closeGroupModal = () => {
@@ -2786,6 +2834,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGroupForm({ name: '', email: '' })
     setGroupCustomValues({})
     setGroupErrorMessage('')
+    releaseMobileCreateHistoryEntry()
   }
 
   /**
@@ -3250,6 +3299,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGroupForm({ name: '', email: '' })
     setGroupCustomValues({})
     setGroupErrorMessage('')
+    pushMobileCreateHistoryEntry('groups')
     setShowGroupModal(true)
   }
 
