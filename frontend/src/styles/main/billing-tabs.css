@@ -3967,3 +3967,80 @@
         border-radius: 15px !important;
     }
 }
+
+/* Mobile History and Gift Cards toolbar alignment. Keep the History action as
+   the same blue bottom-right FAB used on Open bills; Gift cards has no FAB. */
+@media (max-width: 720px) {
+    .billing-mobile-shell.billing-modern-card--history .billing-modern-filter-row--toolbar,
+    .billing-mobile-shell.billing-modern-card--giftCards .billing-modern-filter-row--toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 102px;
+        gap: 10px;
+        align-items: center;
+        margin: 0;
+    }
+
+    .billing-mobile-shell.billing-modern-card--history .billing-modern-filter-row--toolbar .billing-modern-toolbar-actions,
+    .billing-mobile-shell.billing-modern-card--giftCards .billing-modern-filter-row--toolbar .billing-modern-toolbar-actions {
+        display: contents;
+        width: auto;
+    }
+
+    .billing-mobile-shell.billing-modern-card--history .billing-filter-btn,
+    .billing-mobile-shell.billing-modern-card--giftCards .billing-filter-btn {
+        width: 102px;
+        height: 42px;
+        min-height: 42px;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 10px;
+        border: 1px solid #d8dee8;
+        border-radius: 11px;
+        background: #ffffff;
+        color: #111c32;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .billing-mobile-shell.billing-modern-card--history .billing-history-new-btn {
+        position: fixed !important;
+        right: max(20px, env(safe-area-inset-right));
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        z-index: 160;
+        display: inline-flex !important;
+        width: auto !important;
+        min-width: 112px;
+        height: 54px;
+        min-height: 54px;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin: 0;
+        padding: 0 19px;
+        border: 0 !important;
+        border-radius: 16px !important;
+        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 12px 26px rgba(8, 100, 220, 0.30) !important;
+        font-size: 0.88rem;
+        font-weight: 800;
+        white-space: nowrap;
+        transform: none !important;
+    }
+
+    .billing-mobile-shell.billing-modern-card--history .billing-history-new-btn:hover:not(:disabled),
+    .billing-mobile-shell.billing-modern-card--history .billing-history-new-btn:active:not(:disabled),
+    .billing-mobile-shell.billing-modern-card--history .billing-history-new-btn:focus:not(:disabled) {
+        background: linear-gradient(135deg, #0874ef 0%, #0863dd 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 12px 26px rgba(8, 100, 220, 0.30) !important;
+        transform: none !important;
+    }
+
+    .billing-mobile-shell.billing-modern-card--history .billing-history-new-btn svg {
+        width: 21px;
+        height: 21px;
+        stroke-width: 1.8;
+    }
+}

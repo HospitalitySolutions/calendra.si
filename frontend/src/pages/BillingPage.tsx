@@ -8387,7 +8387,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </button>
                     <button
                       type="button"
-                      className="clients-modern-new-btn"
+                      className="clients-modern-new-btn billing-history-new-btn"
                       onClick={openCreateBillModal}
                       disabled={!canIssueOpenInvoice}
                       title={!canIssueOpenInvoice ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.') : undefined}
@@ -8396,7 +8396,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <path d="M12 5v14" />
                         <path d="M5 12h14" />
                       </svg>
-                      <span>{historyFilterText.newInvoice}</span>
+                      <span className="billing-fab-label billing-fab-label--desktop">{historyFilterText.newInvoice}</span>
+                      <span className="billing-fab-label billing-fab-label--mobile">{locale === 'sl' ? 'Novo' : 'New'}</span>
                     </button>
                   </div>
                 </div>
