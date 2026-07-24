@@ -623,3 +623,284 @@
 .service-config-actions.account-table-actions .account-table-action-danger:not(:disabled):hover {
   background: rgba(239, 68, 68, 0.12);
 }
+
+/* Mobile visual implementation matching the approved Storitve preview. */
+.service-config-tab-label--mobile { display: none; }
+
+@media (max-width: 720px) {
+    .clients-modern-page--mobile.stack.gap-lg {
+        gap: 0;
+        padding: 0 !important;
+        background: #f8fafc;
+    }
+
+    .clients-modern-page--mobile .service-config-card.clients-modern-card.card {
+        width: 100%;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 0 16px 92px;
+        border: 0;
+        border-radius: 0;
+        background: #f8fafc;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile {
+        position: sticky;
+        top: 0;
+        z-index: 35;
+        display: block;
+        width: calc(100% + 32px);
+        margin: 0 -16px 20px;
+        padding: 56px 0 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0877f9 0%, #075fe5 100%);
+        box-shadow: 0 1px 0 rgba(255,255,255,.16), 0 5px 14px rgba(15, 93, 220, .18);
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile::before {
+        content: "Storitve";
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 24px;
+        white-space: nowrap;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile::after {
+        content: "☰";
+        position: absolute;
+        top: 18px;
+        left: 20px;
+        color: #fff;
+        font-size: 20px;
+        line-height: 24px;
+        opacity: .96;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs-shell {
+        width: 100%;
+        padding: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs-shell::-webkit-scrollbar { display: none; }
+
+    .clients-modern-page--mobile .service-config-card .clients-session-tabs.clients-entity-tabs {
+        display: flex;
+        width: max-content;
+        min-width: 100%;
+        height: 52px;
+        padding: 0 10px;
+        gap: 0;
+        background: transparent;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab {
+        position: relative;
+        flex: 0 0 auto;
+        min-width: max-content;
+        height: 52px;
+        min-height: 52px;
+        padding: 0 18px;
+        gap: 6px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: rgba(255,255,255,.82);
+        font-size: 12px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab.active {
+        color: #fff;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab::after {
+        content: "";
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 0;
+        height: 3px;
+        border-radius: 3px 3px 0 0;
+        background: transparent;
+    }
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab.active::after { background: #fff; }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab svg { display: none; }
+    .service-config-tab-label--desktop { display: none; }
+    .service-config-tab-label--mobile { display: inline; }
+
+    .clients-modern-page--mobile .service-config-card .service-config-tab-count {
+        min-width: 22px;
+        height: 22px;
+        padding: 0 6px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255,255,255,.22);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 22px;
+    }
+    .clients-modern-page--mobile .service-config-card .clients-session-tab.active .service-config-tab-count {
+        background: #fff;
+        color: #1267e8;
+    }
+
+    .clients-modern-page--mobile .service-config-toolbar.clients-modern-toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin: 0 0 18px;
+    }
+
+    .clients-modern-page--mobile .service-config-card .service-config-toolbar .service-config-search-wrap.clients-search-wrap {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .clients-modern-page--mobile .service-config-card.clients-mobile-shell .service-config-search-wrap .clients-search-input {
+        height: 44px;
+        padding: 0 12px 0 42px;
+        border: 1px solid #d7dfeb;
+        border-radius: 10px;
+        background: #fff;
+        color: #172033;
+        font-size: 13px;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .service-config-toolbar-trailing.clients-toolbar-actions,
+    .service-config-card.clients-mobile-shell .service-config-toolbar-trailing.clients-toolbar-actions {
+        display: contents;
+    }
+
+    .clients-modern-page--mobile .service-config-filter-btn {
+        grid-column: 2;
+        grid-row: 1;
+        min-width: 90px;
+        height: 44px;
+        padding: 0 14px;
+        border: 1px solid #d7dfeb;
+        border-radius: 10px;
+        background: #fff;
+        color: #172033;
+        font-size: 13px;
+        font-weight: 750;
+        box-shadow: none;
+    }
+    .clients-modern-page--mobile .service-config-filter-btn__count { display: none; }
+
+    .clients-modern-page--mobile .service-config-new-btn.clients-modern-new-btn,
+    .clients-modern-page--mobile .service-config-new-btn {
+        position: fixed;
+        right: max(20px, env(safe-area-inset-right));
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        z-index: 50;
+        width: auto !important;
+        min-width: 105px;
+        height: 48px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 15px;
+        justify-content: center;
+        background: linear-gradient(135deg, #0877f9 0%, #075fe5 100%);
+        font-size: 14px;
+        box-shadow: 0 10px 24px rgba(6, 94, 229, .28);
+    }
+
+    .clients-modern-page--mobile .service-config-list-shell {
+        margin: 0;
+        border: 1px solid #dbe3ee;
+        border-radius: 10px;
+        background: #fff;
+        overflow: hidden;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-list {
+        display: block;
+        padding: 0;
+        margin: 0;
+        gap: 0;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-card.clients-mobile-card {
+        min-height: 62px;
+        margin: 0;
+        padding: 11px 14px;
+        border: 0;
+        border-bottom: 1px solid #e1e7ef;
+        border-radius: 0;
+        background: #fff;
+        box-shadow: none;
+    }
+    .clients-modern-page--mobile .service-config-mobile-card.clients-mobile-card:last-child { border-bottom: 0; }
+
+    .clients-modern-page--mobile .service-config-mobile-card .clients-mobile-card-head {
+        min-height: 40px;
+        align-items: center;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-card .service-config-name-cell {
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: 0;
+    }
+    .clients-modern-page--mobile .service-config-mobile-card .service-config-icon { display: none; }
+
+    .clients-modern-page--mobile .service-config-mobile-card .service-config-name-stack strong {
+        color: #172033;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 18px;
+        text-transform: none;
+    }
+    .clients-modern-page--mobile .service-config-mobile-card .service-config-name-stack span {
+        margin-top: 2px;
+        color: #667085;
+        font-size: 12px;
+        line-height: 16px;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-card .service-config-menu-trigger.clients-card-menu-trigger {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #64748b;
+        font-size: 20px;
+        box-shadow: none;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-card .clients-mobile-meta { display: none; }
+
+    .clients-modern-page--mobile .service-config-card > .empty-state,
+    .clients-modern-page--mobile .service-config-card .empty-state {
+        min-height: calc(100dvh - 250px);
+        margin: 0;
+        border: 1px solid #dbe3ee;
+        border-radius: 10px;
+        background: #fff;
+        justify-content: center;
+        box-shadow: none;
+    }
+}

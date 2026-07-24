@@ -1955,9 +1955,17 @@ export function SessionTypesPage() {
               <div className="clients-mobile-card-head">
                 <ServiceConfigNameCell
                   title={group.name}
-                  subtitle={group.description?.trim() || (locale === "sl" ? "Brez opisa" : "No description")}
+                  subtitle={`${group.serviceCount ?? 0} ${locale === "sl" ? ((group.serviceCount ?? 0) === 1 ? "storitev" : "storitvi") : ((group.serviceCount ?? 0) === 1 ? "service" : "services")}`}
                   visual={serviceConfigVisual(index)}
                 />
+                <button
+                  type="button"
+                  className="secondary clients-card-menu-trigger service-config-menu-trigger"
+                  onClick={(e) => { e.stopPropagation(); openGroupEdit(group); }}
+                  aria-label={locale === "sl" ? "Dejanja skupine" : "Group actions"}
+                >
+                  ⋮
+                </button>
               </div>
               <div className="clients-mobile-meta">
                 <div><span>{locale === "sl" ? "Storitve" : "Services"}</span><strong>{group.serviceCount ?? 0}</strong></div>
@@ -2668,7 +2676,7 @@ export function SessionTypesPage() {
                   onClick={() => setSessionTypesSubtab("groups")}
                 >
                   <ServiceConfigTabIcon name="group" />
-                  <span>{locale === "sl" ? "Skupine storitev" : "Service groups"}</span>
+                  <span className="service-config-tab-label service-config-tab-label--desktop">{locale === "sl" ? "Skupine storitev" : "Service groups"}</span><span className="service-config-tab-label service-config-tab-label--mobile">{locale === "sl" ? "Skupine" : "Groups"}</span>
                   <span className="service-config-tab-count">{filteredGroups.length}</span>
                 </button>
               ) : null}
@@ -2684,7 +2692,7 @@ export function SessionTypesPage() {
                 onClick={() => setSessionTypesSubtab("transactionServices")}
               >
                 <ServiceConfigTabIcon name="services" />
-                <span>{t("configBillingServicesTab")}</span>
+                <span className="service-config-tab-label service-config-tab-label--desktop">{t("configBillingServicesTab")}</span><span className="service-config-tab-label service-config-tab-label--mobile">{locale === "sl" ? "Obračunske" : "Billing"}</span>
                 <span className="service-config-tab-count">{filteredServices.length}</span>
               </button>
               <button
@@ -2840,7 +2848,7 @@ export function SessionTypesPage() {
                 onClick={() => setSessionTypesSubtab("transactionServices")}
               >
                 <ServiceConfigTabIcon name="services" />
-                <span>{t("configBillingServicesTab")}</span>
+                <span className="service-config-tab-label service-config-tab-label--desktop">{t("configBillingServicesTab")}</span><span className="service-config-tab-label service-config-tab-label--mobile">{locale === "sl" ? "Obračunske" : "Billing"}</span>
                 <span className="service-config-tab-count">{filteredServices.length}</span>
               </button>
               <button
