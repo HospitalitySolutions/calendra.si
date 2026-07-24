@@ -304,9 +304,9 @@
 /*
  * Pin the timegrid header while the calendar scrollport moves (usually <main> on desktop, window on ≤780px).
  * FullCalendar uses .fc-scrollgrid-section-sticky > th (the section’s single cell), not <tr>, for sticky.
- * Desktop: sticky `top` is 0 — scrollport starts below the app header, so no Y offset.
- * Mobile web (≤780px, app-shell): scrollport is the window; offset top so the day row clears the sticky shell bar.
- * Uses --calendar-shell-header-sticky-below from .main-area--calendar (app-shell.css).
+ * Desktop and mobile use `top: 0` relative to the calendar scrollport. On mobile the calendar content
+ * box already begins below the sticky blue app header, so adding the app-header height here would apply
+ * the same offset twice and create a large blank gap above the weekday/date row.
  */
 .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header {
     background: var(--color-surface);
@@ -321,18 +321,25 @@
 }
 
 @media (max-width: 780px) {
+    /*
+     * The mobile calendar lives in .main-area--calendar, whose content box already starts below
+     * the sticky blue app header. Using the measured app-header height again here double-offsets
+     * FullCalendar's date row (roughly one extra header height), leaving a large white gap and, in
+     * resource day view, pushing the weekday/date cells behind the resource row. Keep the sticky
+     * inset relative to the calendar scrollport itself so the date row begins directly below blue.
+     */
     .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
-        top: var(
-            --calendar-shell-header-sticky-below,
-            calc(env(safe-area-inset-top, 0px) + 61px)
-        );
+        top: 0;
     }
 
     .calendar-resource-day-header-fallback {
-        top: var(
-            --calendar-shell-header-sticky-below,
-            calc(env(safe-area-inset-top, 0px) + 61px)
-        );
+        top: 0;
+    }
+
+    /* Empty holiday placeholders must not reserve a blank line above weekday/date on mobile. */
+    .calendar-fc-shell .fc-timegrid .calendar-header-holiday-pill--empty,
+    .calendar-resource-day-header-fallback .calendar-header-holiday-pill--empty {
+        display: none;
     }
 }
 
