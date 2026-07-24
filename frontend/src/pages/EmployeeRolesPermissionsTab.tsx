@@ -376,6 +376,7 @@ export function EmployeeRolesPermissionsTab() {
   const [duplicating, setDuplicating] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [membersDialog, setMembersDialog] = useState<RoleMembersDialog | null>(null)
+  const [expandedPermissionGroup, setExpandedPermissionGroup] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -505,6 +506,10 @@ export function EmployeeRolesPermissionsTab() {
 
       return enforceViewDependenciesForDraft(Array.from(next))
     })
+  }
+
+  function toggleExpandedPermissionGroup(groupKey: string) {
+    setExpandedPermissionGroup((current) => current === groupKey ? null : groupKey)
   }
 
   function selectRoleByKeyboard(event: KeyboardEvent<HTMLDivElement>, roleId: string) {
@@ -793,6 +798,81 @@ export function EmployeeRolesPermissionsTab() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="employee-roles-mobile-permissions" aria-label={copy.permissionGroup}>
+              {permissionGroups.map((group) => {
+                const groupPermissionKeys = EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action))
+                const allChecked = groupPermissionKeys.every((key) => permissionSet.has(key))
+                const someChecked = groupPermissionKeys.some((key) => permissionSet.has(key))
+                const isExpanded = expandedPermissionGroup === group.key
+
+                return (
+                  <article key={group.key} className={`employee-roles-mobile-group${isExpanded ? ' employee-roles-mobile-group--expanded' : ''}`}>
+                    <div className="employee-roles-mobile-group-summary">
+                      <div className="employee-roles-group-cell employee-roles-mobile-group-cell">
+                        <span className={`employee-roles-group-icon employee-roles-group-icon--${group.key.toLowerCase().replace(/_/g, '-')}`}><RolePermissionIcon name={groupIconName(group.key)} /></span>
+                        <div><strong>{group.label}</strong><span>{group.description}</span></div>
+                      </div>
+
+                      <div className="employee-roles-mobile-group-actions">
+                        <label className={`employee-roles-mobile-all-toggle employee-roles-check employee-roles-check--all${allChecked ? ' employee-roles-check--checked' : ''}${someChecked && !allChecked ? ' employee-roles-check--partial' : ''}${selectedRole.system ? ' employee-roles-check--disabled' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={allChecked}
+                            disabled={selectedRole.system}
+                            onChange={() => togglePermissionGroup(group.key)}
+                            aria-label={`${group.label} ${copy.all}`}
+                          />
+                          <span aria-hidden>{allChecked ? '✓' : someChecked ? '•' : '—'}</span>
+                        </label>
+                        <span className="employee-roles-mobile-all-label">{copy.all}</span>
+                        <button
+                          type="button"
+                          className={`employee-roles-mobile-expand-btn${isExpanded ? ' employee-roles-mobile-expand-btn--expanded' : ''}`}
+                          onClick={() => toggleExpandedPermissionGroup(group.key)}
+                          aria-expanded={isExpanded}
+                          aria-controls={`employee-roles-mobile-panel-${group.key}`}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="employee-roles-mobile-group-panel" id={`employee-roles-mobile-panel-${group.key}`}>
+                        {EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => {
+                          const key = permissionKey(group.key, action)
+                          const checked = permissionSet.has(key)
+                          const viewChecked = permissionSet.has(permissionKey(group.key, 'VIEW'))
+                          const disabled = !!selectedRole.system || (action !== 'VIEW' && !viewChecked)
+                          return (
+                            <label
+                              key={key}
+                              className={`employee-roles-mobile-action${disabled ? ' employee-roles-mobile-action--disabled' : ''}`}
+                              title={action !== 'VIEW' && !viewChecked ? copy.viewRequiredTitle : undefined}
+                            >
+                              <span className={`employee-roles-check${checked ? ' employee-roles-check--checked' : ''}${disabled ? ' employee-roles-check--disabled' : ''}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={() => togglePermission(group.key, action)}
+                                  aria-label={`${group.label} ${copy.actionLabel(action)}`}
+                                />
+                                <span aria-hidden>{checked ? '✓' : '—'}</span>
+                              </span>
+                              <em>{copy.actionLabel(action)}</em>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
             </div>
             <div className="employee-roles-detail-foot"><RolePermissionIcon name="info" /> {copy.detailFoot}</div>
           </section>

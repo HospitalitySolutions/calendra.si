@@ -643,6 +643,102 @@
     font-weight: 650;
 }
 
+.employee-roles-mobile-permissions {
+    display: none;
+}
+
+.employee-roles-mobile-group {
+    border-top: 1px solid rgba(226, 232, 240, 0.92);
+    background: #fff;
+}
+
+.employee-roles-mobile-group:first-child {
+    border-top: 0;
+}
+
+.employee-roles-mobile-group-summary {
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+}
+
+.employee-roles-mobile-group-cell {
+    min-width: 0;
+}
+
+.employee-roles-mobile-group-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.employee-roles-mobile-all-toggle {
+    flex-shrink: 0;
+}
+
+.employee-roles-mobile-all-label {
+    color: #0f172a;
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.employee-roles-mobile-expand-btn {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    background: transparent;
+    box-shadow: none;
+}
+
+.employee-roles-mobile-expand-btn--expanded {
+    color: #1672f3;
+}
+
+.employee-roles-mobile-expand-btn--expanded svg {
+    transform: rotate(180deg);
+}
+
+.employee-roles-mobile-expand-btn svg {
+    transition: transform .18s ease;
+}
+
+.employee-roles-mobile-group-panel {
+    padding: 0 16px 16px 76px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+
+.employee-roles-mobile-action {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: #0f172a;
+}
+
+.employee-roles-mobile-action em {
+    color: #0f172a;
+    font-style: normal;
+    font-size: 0.88rem;
+    line-height: 1.2;
+    font-weight: 750;
+}
+
+.employee-roles-mobile-action--disabled em {
+    color: #94a3b8;
+}
+
 @media (max-width: 1180px) {
     .employee-roles-layout {
         grid-template-columns: 1fr;
@@ -694,6 +790,15 @@
 
     .employee-roles-actions button {
         width: 100%;
+    }
+
+    .employee-roles-matrix-wrap {
+        display: none;
+    }
+
+    .employee-roles-mobile-permissions {
+        display: flex;
+        flex-direction: column;
     }
 }
 
@@ -905,6 +1010,27 @@
     text-align: center;
     font-size: 0.92rem;
     font-weight: 750;
+}
+
+
+@media (max-width: 640px) {
+    .employee-roles-mobile-group-summary {
+        padding: 13px 14px;
+        gap: 10px;
+    }
+
+    .employee-roles-mobile-group-panel {
+        padding: 0 14px 14px 14px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .employee-roles-mobile-group-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .employee-roles-mobile-group-actions {
+        justify-content: flex-start;
+    }
 }
 
 @media (max-width: 640px) {
