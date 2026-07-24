@@ -1061,3 +1061,214 @@
         box-sizing: border-box;
     }
 }
+
+/* Mobile employees list aligned with the Clients tab visual language. */
+.employees-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    margin-left: 2px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    color: inherit;
+    font-size: 0.72rem;
+    line-height: 1;
+    font-weight: 800;
+}
+
+@media (max-width: 760px) {
+    .employees-page-root .employee-page-tab .employees-tab-count {
+        min-width: 23px;
+        height: 23px;
+        padding: 0 6px;
+        background: #ffffff;
+        color: #1672f3;
+        font-size: 0.72rem;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-modern-toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "search actions";
+        gap: 8px;
+        align-items: stretch;
+        margin-bottom: 14px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-modern-toolbar .clients-search-wrap {
+        grid-area: search;
+        min-width: 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions {
+        grid-area: actions;
+        width: auto;
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .clients-count-chip {
+        display: none;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .clients-filter-tabs {
+        width: auto;
+        min-width: 100px;
+        margin: 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .clients-filter-tabs .clients-session-tab {
+        min-width: 100px;
+        height: 100%;
+        min-height: 50px;
+        padding: 0 13px;
+        border: 1px solid #d7e1ef;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #111827;
+        font-size: 0.78rem;
+        font-weight: 700;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .clients-filter-tabs .clients-session-tab::after {
+        display: none;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .employees-modern-new-btn {
+        position: fixed;
+        right: 20px;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        z-index: 80;
+        width: auto;
+        min-width: 134px;
+        min-height: 54px;
+        padding: 0 22px;
+        border-radius: 999px;
+        box-shadow: 0 12px 28px rgba(22, 114, 243, 0.32);
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-list-shell {
+        border: 1px solid #dce5f0;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 5px 16px rgba(15, 23, 42, 0.035);
+    }
+
+    .employees-modern-card.clients-mobile-shell .clients-mobile-list {
+        display: block;
+    }
+
+    .employees-modern-card.clients-mobile-shell .clients-mobile-card {
+        margin: 0;
+        padding: 11px 13px;
+        min-height: 68px;
+        border: 0;
+        border-bottom: 1px solid #e7edf5;
+        border-radius: 0;
+        background: #ffffff;
+        box-shadow: none;
+        gap: 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .clients-mobile-card:last-child {
+        border-bottom: 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-card-head {
+        width: 100%;
+        align-items: center;
+    }
+
+    .employees-modern-card.clients-mobile-shell .clients-mobile-card .clients-name-cell {
+        min-width: 0;
+        flex: 1;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .clients-mobile-card .clients-name-avatar {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #edf5ff, #dfeeff);
+        color: #1672f3;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border: 1px solid #d7e8ff;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-name-stack {
+        min-width: 0;
+        gap: 4px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .clients-mobile-card .clients-name {
+        color: #101828;
+        font-size: 0.94rem;
+        font-weight: 750;
+        line-height: 1.18;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-email {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        color: #1672f3;
+        font-size: 0.72rem;
+        font-weight: 500;
+        line-height: 1.25;
+        text-decoration: none;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-email svg {
+        flex: 0 0 16px;
+        width: 16px;
+        height: 16px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-email span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-email--empty {
+        color: #98a2b3;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-menu-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: #7d8ca2;
+        box-shadow: none;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-menu-btn span {
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-mobile-menu-btn:active {
+        background: #eef4fb;
+    }
+}

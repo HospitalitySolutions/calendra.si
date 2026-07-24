@@ -796,6 +796,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             >
               <EmployeePageTabIcon name="employees" />
               <span>{t('employeesSubtabEmployees')}</span>
+              <strong className="employees-tab-count">{filteredConsultants.length}</strong>
             </button>
           )}
           {canViewRolesTab && (
@@ -872,7 +873,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       role="button"
                       tabIndex={0}
                     >
-                      <div className="clients-mobile-card-head">
+                      <div className="clients-mobile-card-head employees-mobile-card-head">
                         <div className="clients-name-cell">
                           <span className="clients-name-avatar" aria-hidden>
                             {c.avatarPath ? (
@@ -884,59 +885,38 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                               </>
                             )}
                           </span>
-                          <div className="clients-name-stack">
+                          <div className="clients-name-stack employees-mobile-name-stack">
                             <span className="clients-name">{fullName(c)}</span>
-                            <span className="clients-id">ID #{c.id}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="clients-mobile-meta">
-                        <div>
-                          <span>{t('loginEmailLabel')}</span>
-                          {c.email?.trim() ? (
-                            <strong>
+                            {c.email?.trim() ? (
                               <a
                                 href={contactMailtoHref(c.email)}
-                                className="clients-contact-link"
+                                className="clients-contact-link employees-mobile-email"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                {c.email.trim()}
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                  <path d="M4 6.5h16v11H4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                  <path d="m5 8 7 5 7-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <span>{c.email.trim()}</span>
                               </a>
-                            </strong>
-                          ) : (
-                            <strong>—</strong>
-                          )}
+                            ) : (
+                              <span className="employees-mobile-email employees-mobile-email--empty">—</span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <span>{t('employeesMetaRole')}</span>
-                          <strong>{c.accessRoleName || formatRoleLabel(c.role, t)}</strong>
-                        </div>
-                        <div>
-                          <span>{statusHeader}</span>
-                          <strong>
-                            <button
-                              type="button"
-                              className={`clients-status-pill clients-status-pill-btn${c.active === false ? ' clients-status-pill--inactive' : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void toggleConsultantActiveById(c.id, c.active !== false)
-                              }}
-                              disabled={
-                                activatingEmployeeId === c.id ||
-                                !!c.tenantOwner ||
-                                (myUserId != null && c.id === myUserId && c.active !== false)
-                              }
-                              title={c.tenantOwner ? ownerRoleLockHint : undefined}
-                            >
-                              <span />
-                              {c.active === false ? inactiveStatusLabel : activeStatusLabel}
-                            </button>
-                          </strong>
-                        </div>
-                        <div>
-                          <span>{t('employeesMetaCreated')}</span>
-                          <strong>{formatDate(c.createdAt)}</strong>
-                        </div>
+                        <button
+                          type="button"
+                          className="employees-mobile-menu-btn"
+                          aria-label={t('commonActions') || 'Actions'}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            startEdit(c)
+                          }}
+                        >
+                          <span />
+                          <span />
+                          <span />
+                        </button>
                       </div>
                     </article>
                   ))}
