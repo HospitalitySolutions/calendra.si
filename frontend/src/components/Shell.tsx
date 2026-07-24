@@ -514,10 +514,12 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     if (!main || !header) return
 
     const sync = () => {
-      main.style.setProperty(
-        '--calendar-shell-header-sticky-below',
-        `${Math.ceil(header.getBoundingClientRect().bottom)}px`,
-      )
+      // Use the header's own height rather than its viewport bottom coordinate.
+      // On mobile Chrome the visible viewport can be offset by the browser toolbar;
+      // using getBoundingClientRect().bottom then adds that offset to CSS `top`,
+      // leaving a large shaded gap above the calendar weekday row.
+      const headerHeight = Math.ceil(header.getBoundingClientRect().height)
+      main.style.setProperty('--calendar-shell-header-sticky-below', `${headerHeight}px`)
     }
 
     sync()
