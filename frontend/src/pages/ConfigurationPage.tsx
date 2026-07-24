@@ -1075,6 +1075,9 @@ export function ConfigurationPage() {
     Array<{ tempId: string; name: string; description: string }>
   >([]);
   const [openSpaceMenuId, setOpenSpaceMenuId] = useState<number | null>(null);
+  const [spaceSearch, setSpaceSearch] = useState("");
+  const [spaceSort, setSpaceSort] = useState<"default" | "az" | "za">("default");
+  const [spaceFilterOpen, setSpaceFilterOpen] = useState(false);
   const [personalTaskPresets, setPersonalTaskPresets] = useState<
     PersonalTaskPreset[]
   >([]);
@@ -2485,7 +2488,7 @@ export function ConfigurationPage() {
     if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "customFields" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
-    if (tabId === "booking") return spacesEnabledCommitted || waitlistEnabledCommitted;
+    if (tabId === "booking") return spacesEnabledCommitted;
     if (tabId === "billing") return billingEnabledCommitted;
     if (tabId === "notifications") return notificationsEnabledCommitted;
     if (tabId === "whatsapp")
@@ -3138,7 +3141,6 @@ export function ConfigurationPage() {
     billingEnabledCommitted,
     notificationsEnabledCommitted,
     spacesEnabledCommitted,
-    waitlistEnabledCommitted,
   ]);
 
   useEffect(() => {
@@ -3146,15 +3148,9 @@ export function ConfigurationPage() {
   }, [bookingSubtab]);
 
   useEffect(() => {
-    if (!settingsLoaded) return;
-    if (!spacesEnabledCommitted && waitlistEnabledCommitted && bookingSubtab === "spaces") {
-      setBookingSubtab("waitlist");
-      return;
-    }
-    if (!waitlistEnabledCommitted && spacesEnabledCommitted && bookingSubtab === "waitlist") {
-      setBookingSubtab("spaces");
-    }
-  }, [bookingSubtab, settingsLoaded, spacesEnabledCommitted, waitlistEnabledCommitted]);
+    if (!settingsLoaded || bookingSubtab === "spaces") return;
+    setBookingSubtab("spaces");
+  }, [bookingSubtab, settingsLoaded]);
 
   useEffect(() => {
     if (openSpaceMenuId == null) return;
@@ -5582,6 +5578,20 @@ export function ConfigurationPage() {
       : []),
   ];
 
+  const queryValue = spaceSearch.trim().toLocaleLowerCase(locale);
+  const filteredSpaces = spaces.filter((space) => {
+    if (!queryValue) return true;
+    return `${space.name} ${space.description || ""}`
+      .toLocaleLowerCase(locale)
+      .includes(queryValue);
+  });
+  const visibleSpaces =
+    spaceSort === "az"
+      ? [...filteredSpaces].sort((a, b) => a.name.localeCompare(b.name, locale))
+      : spaceSort === "za"
+        ? [...filteredSpaces].sort((a, b) => b.name.localeCompare(a.name, locale))
+        : filteredSpaces;
+
   return (
     <div className="stack gap-lg">
       <div
@@ -5614,7 +5624,7 @@ export function ConfigurationPage() {
         ) : (
           <>
             {isCompactConfigViewport ? (
-              tab === "integrations" || tab === "company" ? null : (
+              tab === "integrations" || tab === "company" || tab === "booking" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -9479,6 +9489,12 @@ export function ConfigurationPage() {
               gap: 18px;
               margin-bottom: 28px;
             }
+            .booking-spaces-mobile-toolbar {
+              display: none;
+            }
+            .booking-new-space-label-mobile {
+              display: none;
+            }
             .booking-spaces-grid {
               display: grid;
               grid-template-columns: repeat(3, minmax(240px, 1fr));
@@ -9649,7 +9665,7 @@ export function ConfigurationPage() {
                 border-radius: 0;
                 background: transparent;
                 box-shadow: none;
-                padding: 0 clamp(18px, 4.8vw, 30px) 38px;
+                padding: 20px clamp(16px, 4.8vw, 26px) calc(96px + env(safe-area-inset-bottom));
                 overflow: visible;
               }
               .booking-tabs-card {
@@ -9703,6 +9719,87 @@ export function ConfigurationPage() {
                 box-shadow: none;
                 padding: 0;
               }
+              .booking-tabs-card {
+                display: none;
+              }
+              .booking-spaces-mobile-toolbar {
+                position: relative;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 10px;
+                align-items: stretch;
+                margin: 0 0 18px;
+              }
+              .booking-spaces-search {
+                width: 100%;
+                min-width: 0;
+                min-height: 52px;
+                border: 1px solid #d7e1ef;
+                border-radius: 15px;
+                padding: 0 16px;
+                color: #111827;
+                background: #fff;
+                font: inherit;
+                font-size: 16px;
+                font-weight: 600;
+                outline: none;
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+              }
+              .booking-spaces-search::placeholder {
+                color: #8a98ad;
+                font-weight: 500;
+              }
+              .booking-spaces-search:focus {
+                border-color: rgba(22, 114, 243, .7);
+                box-shadow: 0 0 0 4px rgba(22, 114, 243, .1);
+              }
+              .booking-spaces-filter-wrap {
+                position: relative;
+              }
+              .booking-spaces-filter-button {
+                min-width: 88px;
+                height: 100%;
+                min-height: 52px;
+                padding: 0 16px;
+                border: 1px solid #d7e1ef;
+                border-radius: 15px;
+                color: #172033;
+                background: #fff;
+                font: inherit;
+                font-size: 14px;
+                font-weight: 800;
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+              }
+              .booking-spaces-filter-menu {
+                position: absolute;
+                top: calc(100% + 8px);
+                right: 0;
+                z-index: 40;
+                width: 150px;
+                padding: 6px;
+                border: 1px solid #dbe4ef;
+                border-radius: 14px;
+                background: #fff;
+                box-shadow: 0 18px 40px rgba(15, 23, 42, .14);
+              }
+              .booking-spaces-filter-menu button {
+                width: 100%;
+                min-height: 38px;
+                padding: 0 10px;
+                border: 0;
+                border-radius: 9px;
+                color: #334155;
+                background: transparent;
+                text-align: left;
+                font: inherit;
+                font-size: 13px;
+                font-weight: 700;
+              }
+              .booking-spaces-filter-menu button.is-active,
+              .booking-spaces-filter-menu button:hover {
+                color: #1268e8;
+                background: #edf5ff;
+              }
               .booking-panel-heading {
                 margin-bottom: clamp(30px, 6.8vw, 42px);
               }
@@ -9737,88 +9834,117 @@ export function ConfigurationPage() {
                 margin-top: 30px;
               }
               .booking-spaces-header {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 30px;
-                margin-bottom: 38px;
+                margin: 0;
+              }
+              .booking-spaces-header .booking-panel-heading {
+                display: none;
               }
               .booking-primary-button {
-                width: 100%;
-                min-height: 64px;
-                border-radius: 12px;
-                font-size: clamp(18px, 4.6vw, 24px);
-                box-shadow: 0 16px 30px rgba(15, 98, 254, 0.26);
+                min-height: 54px;
+                border-radius: 999px;
+                font-size: 16px;
+                box-shadow: 0 14px 30px rgba(15, 98, 254, 0.3);
               }
               .booking-primary-button--compact {
-                width: 100%;
-                min-height: 64px;
-                padding: 0 18px;
-                font-size: clamp(18px, 4.5vw, 24px);
+                position: fixed;
+                right: 20px;
+                bottom: calc(18px + env(safe-area-inset-bottom));
+                z-index: 90;
+                width: auto;
+                min-width: 132px;
+                min-height: 54px;
+                padding: 0 22px;
+                border-radius: 999px;
+                font-size: 16px;
+                font-weight: 800;
+              }
+              .booking-new-space-label-desktop {
+                display: none;
+              }
+              .booking-new-space-label-mobile {
+                display: inline;
               }
               .booking-spaces-grid {
-                gap: 28px;
+                gap: 12px;
               }
               .booking-space-card {
                 width: 100%;
-                min-height: 154px;
+                min-height: 104px;
                 display: grid;
-                grid-template-columns: auto minmax(0, 1fr);
+                grid-template-columns: minmax(0, 1fr) auto;
                 grid-template-rows: auto auto;
                 align-items: center;
-                column-gap: 26px;
-                row-gap: 8px;
-                padding: 24px 66px 24px 24px;
+                column-gap: 12px;
+                row-gap: 5px;
+                padding: 18px 54px 18px 18px;
                 border-radius: 18px;
-                box-shadow: 0 12px 28px rgba(8, 23, 58, 0.045);
+                box-shadow: 0 7px 20px rgba(15, 23, 42, 0.045);
+              }
+              .booking-space-card:hover {
+                transform: none;
               }
               .booking-space-icon {
-                grid-column: 1;
-                grid-row: 1 / 3;
-                width: 82px;
-                height: 82px;
-                margin: 0;
+                display: none;
               }
               .booking-space-card h4 {
-                grid-column: 2;
+                grid-column: 1;
                 grid-row: 1;
-                margin: 0 0 -2px;
+                margin: 0;
                 min-width: 0;
-                font-size: clamp(30px, 7.2vw, 44px);
+                color: #101828;
+                font-size: 19px;
+                line-height: 1.2;
+                font-weight: 850;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
               }
               .booking-space-card p {
-                grid-column: 2;
+                grid-column: 1;
                 grid-row: 2;
                 margin: 0;
                 min-width: 0;
-                font-size: clamp(20px, 4.8vw, 29px);
+                color: #66758f;
+                font-size: 14px;
+                line-height: 1.35;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
               }
               .booking-status-pill {
-                display: none;
+                grid-column: 2;
+                grid-row: 1 / 3;
+                display: inline-flex;
+                min-height: 30px;
+                padding: 0 12px;
+                align-self: center;
+                font-size: 12px;
               }
               .booking-space-menu-wrap {
-                top: 22px;
-                right: 18px;
+                top: 50%;
+                right: 10px;
+                transform: translateY(-50%);
               }
               .booking-space-menu-trigger {
-                width: 40px;
-                height: 40px;
-                border-radius: 12px;
+                width: 34px;
+                height: 34px;
+                border-radius: 50%;
               }
               .booking-space-card .booking-space-input,
               .booking-space-card .booking-space-textarea,
               .booking-space-card .booking-space-inline-actions {
-                grid-column: 2 / -1;
+                grid-column: 1 / -1;
+              }
+              .booking-space-card .booking-space-input {
+                margin-top: 2px;
+              }
+              .booking-empty-spaces--search {
+                grid-column: 1 / -1;
               }
             }
             @media (max-width: 460px) {
               .booking-panel-card {
-                padding: 0 14px 34px;
+                padding: 18px 14px calc(92px + env(safe-area-inset-bottom));
               }
               .booking-tabs-card {
                 margin-bottom: 38px;
@@ -9840,66 +9966,94 @@ export function ConfigurationPage() {
               .booking-panel-heading p {
                 font-size: 23px;
               }
-              .booking-spaces-header {
-                gap: 28px;
-                margin-bottom: 34px;
+              .booking-spaces-mobile-toolbar {
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 8px;
               }
-              .booking-primary-button,
+              .booking-spaces-filter-button {
+                min-width: 76px;
+                padding: 0 12px;
+              }
               .booking-primary-button--compact {
-                min-height: 58px;
-                font-size: 18px;
+                min-height: 52px;
+                min-width: 126px;
+                font-size: 16px;
               }
               .booking-space-card {
-                min-height: 132px;
-                column-gap: 18px;
-                padding: 20px 52px 20px 18px;
-              }
-              .booking-space-icon {
-                width: 72px;
-                height: 72px;
+                min-height: 98px;
+                column-gap: 8px;
+                padding: 16px 48px 16px 16px;
               }
               .booking-space-card h4 {
-                font-size: 28px;
+                font-size: 18px;
               }
               .booking-space-card p {
-                font-size: 21px;
+                font-size: 13px;
               }
               .booking-space-menu-wrap {
-                top: 16px;
-                right: 12px;
+                top: 50%;
+                right: 8px;
               }
             }
           `}</style>
                   <section className="booking-panel-card">
                     <div className="booking-tabs-card">
-                      <div className="booking-tabs" role="tablist" aria-label="Nastavitve rezervacij">
-                        {spacesEnabledCommitted ? (
-                          <button
-                            type="button"
-                            className={`booking-tab${bookingSubtab === "spaces" ? " is-active" : ""}`}
-                            onClick={() => setBookingSubtab("spaces")}
-                            role="tab"
-                            aria-selected={bookingSubtab === "spaces"}
-                          >
-                            Prostori
-                          </button>
-                        ) : null}
-                        {waitlistEnabledCommitted ? (
-                          <button
-                            type="button"
-                            className={`booking-tab${bookingSubtab === "waitlist" ? " is-active" : ""}`}
-                            onClick={() => setBookingSubtab("waitlist")}
-                            role="tab"
-                            aria-selected={bookingSubtab === "waitlist"}
-                          >
-                            Čakalna vrsta
-                          </button>
-                        ) : null}
+                      <div className="booking-tabs" role="tablist" aria-label="Nastavitve prostorov">
+                        <button
+                          type="button"
+                          className="booking-tab is-active"
+                          role="tab"
+                          aria-selected="true"
+                        >
+                          Prostori
+                        </button>
                       </div>
                     </div>
                     <div className="booking-content-panel">
-                      {bookingSubtab === "spaces" && spacesEnabledCommitted ? (
+                      {spacesEnabledCommitted ? (
                         <div>
+                          <div className="booking-spaces-mobile-toolbar">
+                            <input
+                              type="search"
+                              className="booking-spaces-search"
+                              value={spaceSearch}
+                              onChange={(event) => setSpaceSearch(event.target.value)}
+                              placeholder="Išči po imenu ali opisu prostora..."
+                              aria-label="Išči prostore"
+                            />
+                            <div className="booking-spaces-filter-wrap">
+                              <button
+                                type="button"
+                                className="booking-spaces-filter-button"
+                                onClick={() => setSpaceFilterOpen((open) => !open)}
+                                aria-expanded={spaceFilterOpen}
+                              >
+                                Filtri
+                              </button>
+                              {spaceFilterOpen ? (
+                                <div className="booking-spaces-filter-menu" role="menu">
+                                  {[
+                                    ["default", "Privzeto"],
+                                    ["az", "Ime A–Ž"],
+                                    ["za", "Ime Ž–A"],
+                                  ].map(([value, label]) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      className={spaceSort === value ? "is-active" : ""}
+                                      onClick={() => {
+                                        setSpaceSort(value as "default" | "az" | "za");
+                                        setSpaceFilterOpen(false);
+                                      }}
+                                      role="menuitem"
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
                           <div className="booking-spaces-header">
                             <div
                               className="booking-panel-heading"
@@ -9934,17 +10088,22 @@ export function ConfigurationPage() {
                               >
                                 <path d="M12 5v14M5 12h14" />
                               </svg>
-                              Novi prostor
+                              <span className="booking-new-space-label-desktop">Novi prostor</span>
+                              <span className="booking-new-space-label-mobile">Novo</span>
                             </button>
                           </div>
                           {spaces.length === 0 &&
                           newSpaceDrafts.length === 0 ? (
                             <div className="booking-empty-spaces">
-                              Ni prostorov. Kliknite »Novi prostor«, da
-                              ustvarite prvi prostor.
+                              Ni prostorov. Kliknite »Novo«, da ustvarite prvi prostor.
                             </div>
                           ) : (
                             <div className="booking-spaces-grid">
+                              {spaces.length > 0 && visibleSpaces.length === 0 && newSpaceDrafts.length === 0 ? (
+                                <div className="booking-empty-spaces booking-empty-spaces--search">
+                                  Za izbrano iskanje ni rezultatov.
+                                </div>
+                              ) : null}
                               {newSpaceDrafts.map((draft, index) => (
                                 <article
                                   key={draft.tempId}
@@ -10030,7 +10189,7 @@ export function ConfigurationPage() {
                                   </span>
                                 </article>
                               ))}
-                              {spaces.map((space) => (
+                              {visibleSpaces.map((space) => (
                                 <article
                                   key={space.id}
                                   className="booking-space-card"
@@ -10179,8 +10338,6 @@ export function ConfigurationPage() {
                             </div>
                           )}
                         </div>
-                      ) : waitlistEnabledCommitted ? (
-                        <ConfigurationWaitlistSettingsSection />
                       ) : null}
                     </div>
                   </section>
@@ -14041,14 +14198,21 @@ export function ConfigurationPage() {
                   globallyEnabled={inboxGlobalCapabilities.viberEnabled}
                 />
               ) : tab === "reservationRules" ? (
-                <Card className="settings-card modules-design-card reservation-rules-page-card">
-                  <ReservationRulesSettingsSection
-                    settings={settings}
-                    setSettings={setSettings}
-                    saving={savingSettings}
-                    onSave={() => saveSettings()}
-                  />
-                </Card>
+                <div className="reservation-rules-page-stack">
+                  <Card className="settings-card modules-design-card reservation-rules-page-card">
+                    <ReservationRulesSettingsSection
+                      settings={settings}
+                      setSettings={setSettings}
+                      saving={savingSettings}
+                      onSave={() => saveSettings()}
+                    />
+                  </Card>
+                  {waitlistEnabledCommitted ? (
+                    <Card className="settings-card modules-design-card reservation-rules-page-card reservation-rules-waitlist-card">
+                      <ConfigurationWaitlistSettingsSection />
+                    </Card>
+                  ) : null}
+                </div>
               ) : tab === "customFields" ? (
                 <ConfigurationCustomFieldsSection />
               ) : tab === "modules" && modulesDraftDisplay ? (

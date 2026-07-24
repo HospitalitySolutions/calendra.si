@@ -1501,7 +1501,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                     <strong>
                       {isAccountManagementRoute
                         ? (locale === 'sl' ? 'Upravljanje računa' : locale === 'sr' ? 'Upravljanje nalogom' : 'Account management')
-                        : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}
+                        : configurationTab === 'booking'
+                          ? (locale === 'sl' ? 'Prostori' : locale === 'sr' ? 'Prostori' : 'Spaces')
+                          : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}
                     </strong>
                   </div>
                 )}

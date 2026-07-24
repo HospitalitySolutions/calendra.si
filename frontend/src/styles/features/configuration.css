@@ -1803,3 +1803,15 @@ a.config-nav-item {
         background: #ffffff;
     }
 }
+
+/* Reservation rules now also contain waitlist settings. */
+.reservation-rules-page-stack {
+  display: grid;
+  gap: 20px;
+}
+
+@media (max-width: 920px) {
+  .reservation-rules-page-stack {
+    gap: 16px;
+  }
+}
