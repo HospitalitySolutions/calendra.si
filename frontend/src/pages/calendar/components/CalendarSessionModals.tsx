@@ -2162,6 +2162,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         }}
                       >
                         <span aria-hidden>+</span>
+                        <span className="calendar-client-picker__add-label">{clientSearchPlaceholder}</span>
                       </button>
                       {bookedSessionSelectedClients.length === 1 && bookedSessionSelectedClient?.id && (
                         <button
@@ -2779,7 +2780,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     disabled={bookedSessionSaveDisabled}
                   >
                     <CalendarFormFooterSaveIcon />
-                    <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
+                    <span className="calendar-form-footer-btn__label">
+                      {compactSessionEditHeader
+                        ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
+                        : t('formSave')}
+                    </span>
                   </button>
                   </div>
                 </>
