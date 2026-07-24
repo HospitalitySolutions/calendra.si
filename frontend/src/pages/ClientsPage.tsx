@@ -3195,11 +3195,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const clientTabCount = filteredClients.length
   const companyTabCount = filteredCompanies.length
   const groupTabCount = filteredGroups.length
-  const currentEntityHeaderTitle = entityTab === 'clients'
-    ? t('clientsTabClients')
-    : entityTab === 'companies'
-      ? t('clientsTabCompanies')
-      : clientsCopy.groupsTab
+  const currentEntityHeaderTitle = locale === 'sl'
+    ? 'Pregled strank'
+    : locale === 'sr'
+      ? 'Pregled klijenata'
+      : 'Clients overview'
   const currentEntityHeaderCount = entityTab === 'clients'
     ? clientTabCount
     : entityTab === 'companies'
