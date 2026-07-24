@@ -1017,6 +1017,13 @@ export function ConfigurationPage() {
   const [companyProfileMenuOpenId, setCompanyProfileMenuOpenId] = useState<
     string | null
   >(null);
+  const [companySectionVisibility, setCompanySectionVisibility] = useState({
+    overview: true,
+    basic: true,
+    public: true,
+    physical: true,
+    payments: false,
+  });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingGuestAsset, setUploadingGuestAsset] =
     useState<GuestAppAssetField | null>(null);
@@ -1111,6 +1118,17 @@ export function ConfigurationPage() {
     companyProfiles.find(
       (profile) => profile.id === selectedCompanyProfileId,
     ) || companyProfiles[0];
+
+  const companySectionMenuItems = useMemo(
+    () => [
+      { key: "overview", label: "Pregled podjetja" },
+      { key: "basic", label: "Osnovni podatki" },
+      { key: "public", label: "Javna predstavitev" },
+      { key: "physical", label: "Fizični naslov" },
+      { key: "payments", label: "Podatki za plačila" },
+    ] as const,
+    [],
+  );
   const companyTenantType = normalizeTenantConfigType(
     settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType,
   );
@@ -5735,9 +5753,14 @@ export function ConfigurationPage() {
             }
             .account-company-grid {
               display: grid;
-              grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+              grid-template-columns: minmax(0, 1fr);
               gap: 24px;
               margin-bottom: 24px;
+            }
+            .account-company-sections-stack {
+              display: grid;
+              gap: 24px;
+              margin-bottom: 26px;
             }
             .account-company-section {
               padding: 28px;
@@ -5767,6 +5790,9 @@ export function ConfigurationPage() {
               display: grid;
               gap: 16px;
               margin-top: 22px;
+            }
+            .account-profile-list--single {
+              margin-top: 18px;
             }
             .account-legal-grid {
               display: grid;
@@ -5839,6 +5865,9 @@ export function ConfigurationPage() {
               text-align: left;
               cursor: pointer;
             }
+            .account-profile-card-static {
+              cursor: default;
+            }
             .account-profile-card.active {
               border-color: rgba(33, 103, 255, 0.55);
               box-shadow: 0 8px 18px rgba(33, 103, 255, 0.12);
@@ -5894,6 +5923,33 @@ export function ConfigurationPage() {
               background: #fff;
               box-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
               z-index: 12;
+            }
+            .company-profile-visibility-menu {
+              min-width: 280px;
+              padding: 10px;
+              display: grid;
+              gap: 4px;
+            }
+            .company-profile-visibility-option {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              min-height: 44px;
+              padding: 8px 10px;
+              border-radius: 12px;
+              color: var(--account-ink);
+              font-size: 15px;
+              font-weight: 600;
+              cursor: pointer;
+            }
+            .company-profile-visibility-option:hover {
+              background: #f8fbff;
+            }
+            .company-profile-visibility-option input {
+              width: 18px;
+              height: 18px;
+              accent-color: #1f67ff;
+              margin: 0;
             }
             .company-profile-menu-item {
               width: 100%;
@@ -6874,98 +6930,99 @@ export function ConfigurationPage() {
                             <h3 className="account-section-title">
                               Profil podjetja
                             </h3>
-                            <button
-                              type="button"
-                              className="account-button"
-                              onClick={addCompanyProfile}
-                            >
-                              <span aria-hidden>＋</span>
-                              <span>Novo podjetje</span>
-                            </button>
                           </div>
-                          <div className="account-profile-list">
-                            {(companyProfiles.length > 0
-                              ? companyProfiles
-                              : [companyProfileFromSettings(settings)]
-                            ).map((profile) => (
-                              <button
-                                key={profile.id}
-                                type="button"
-                                className={
-                                  profile.id === selectedCompanyProfile?.id
-                                    ? "account-profile-card active"
-                                    : "account-profile-card"
-                                }
-                                onClick={() => selectCompanyProfile(profile.id)}
+                          <div className="account-profile-list account-profile-list--single">
+                            <div className="account-profile-card active account-profile-card-static">
+                              <span
+                                className="account-profile-icon"
+                                aria-hidden
                               >
-                                <span
-                                  className="account-profile-icon"
-                                  aria-hidden
+                                <svg
+                                  width="22"
+                                  height="22"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
                                 >
-                                  <svg
-                                    width="22"
-                                    height="22"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <path d="M3 21h18" />
-                                    <path d="M6 21V7l6-3 6 3v14" />
-                                    <path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01" />
-                                  </svg>
-                                </span>
-                                <span className="account-profile-name">
-                                  {companyProfileDisplayName(profile.name)}
-                                </span>
-                                {profile.isDefault ? (
-                                  <span className="account-pill success">
-                                    Glavni
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="account-pill-placeholder"
-                                    aria-hidden
-                                  />
+                                  <path d="M3 21h18" />
+                                  <path d="M6 21V7l6-3 6 3v14" />
+                                  <path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01" />
+                                </svg>
+                              </span>
+                              <span className="account-profile-name">
+                                {companyProfileDisplayName(
+                                  selectedCompanyProfile?.name,
                                 )}
-                                <span style={{ position: "relative" }}>
-                                  <button
-                                    type="button"
-                                    className="account-menu-button"
-                                    aria-label={`Dejanja za profil ${profile.name || "Profil podjetja"}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCompanyProfileMenuOpenId((prev) =>
-                                        prev === profile.id ? null : profile.id,
-                                      );
-                                    }}
-                                  >
-                                    ⋮
-                                  </button>
-                                  {companyProfileMenuOpenId === profile.id ? (
-                                    <div
-                                      className="company-profile-menu-popover"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <button
-                                        type="button"
-                                        className="company-profile-menu-item"
-                                        onClick={() =>
-                                          deleteCompanyProfile(profile.id)
-                                        }
-                                      >
-                                        Izbriši profil
-                                      </button>
-                                    </div>
-                                  ) : null}
+                              </span>
+                              {selectedCompanyProfile?.isDefault ? (
+                                <span className="account-pill success">
+                                  Glavni
                                 </span>
-                              </button>
-                            ))}
+                              ) : (
+                                <span
+                                  className="account-pill-placeholder"
+                                  aria-hidden
+                                />
+                              )}
+                              <span style={{ position: "relative" }}>
+                                <button
+                                  type="button"
+                                  className="account-menu-button"
+                                  aria-label="Izberi vidne dele podjetja"
+                                  onClick={() =>
+                                    setCompanyProfileMenuOpenId((prev) =>
+                                      prev ===
+                                      (selectedCompanyProfile?.id ||
+                                        "company-profile")
+                                        ? null
+                                        : selectedCompanyProfile?.id ||
+                                          "company-profile",
+                                    )
+                                  }
+                                >
+                                  ⋮
+                                </button>
+                                {companyProfileMenuOpenId ===
+                                (selectedCompanyProfile?.id ||
+                                  "company-profile") ? (
+                                  <div
+                                    className="company-profile-menu-popover company-profile-visibility-menu"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {companySectionMenuItems.map((item) => (
+                                      <label
+                                        key={item.key}
+                                        className="company-profile-visibility-option"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={
+                                            companySectionVisibility[item.key]
+                                          }
+                                          onChange={() =>
+                                            setCompanySectionVisibility(
+                                              (prev) => ({
+                                                ...prev,
+                                                [item.key]: !prev[item.key],
+                                              }),
+                                            )
+                                          }
+                                        />
+                                        <span>{item.label}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </span>
+                            </div>
                           </div>
                         </section>
+                      </div>
 
+                      {companySectionVisibility.overview ? (
                         <section className="account-card account-company-overview">
                           <div className="account-company-overview-header">
                             <h3>Pregled podjetja</h3>
@@ -7058,150 +7115,270 @@ export function ConfigurationPage() {
                             </div>
                           </div>
                         </section>
-                      </div>
+                      ) : null}
 
-                      <div className="account-company-form-grid">
-                        <div className="account-company-form-stack">
+                      <div className="account-company-sections-stack">
+                        {companySectionVisibility.basic ? (
                           <section className="account-card account-form-card">
                             <div className="account-form-card-header">
                               <h3>Osnovni podatki</h3>
                             </div>
                             <div className="account-form-grid">
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Naziv podjetja
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.name || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    name: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Naslov
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.address || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    address: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Poštna številka
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.postalCode || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    postalCode: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">Mesto</span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.city || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    city: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Davčna številka
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.vatId || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    vatId: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                E-pošta
-                              </span>
-                              <input
-                                className="account-field-control"
-                                type="email"
-                                value={selectedCompanyProfile?.email || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    email: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Telefon
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.telephone || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    telephone: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Tip podjetja
-                              </span>
-                              <select
-                                className="account-field-control"
-                                value={companyTenantType}
-                                onChange={(e) =>
-                                  setCompanyTenantType(e.target.value)
-                                }
-                              >
-                                {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
-                                  <option key={option.id} value={option.id}>
-                                    {locale === "sl"
-                                      ? option.labelSl
-                                      : option.labelEn}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Naziv podjetja
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.name || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      name: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Naslov
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.address || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      address: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Poštna številka
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.postalCode || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      postalCode: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">Mesto</span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.city || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      city: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Davčna številka
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.vatId || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      vatId: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  E-pošta
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  type="email"
+                                  value={selectedCompanyProfile?.email || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      email: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Telefon
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.telephone || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      telephone: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Tip podjetja
+                                </span>
+                                <select
+                                  className="account-field-control"
+                                  value={companyTenantType}
+                                  onChange={(e) =>
+                                    setCompanyTenantType(e.target.value)
+                                  }
+                                >
+                                  {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
+                                    <option key={option.id} value={option.id}>
+                                      {locale === "sl"
+                                        ? option.labelSl
+                                        : option.labelEn}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
                             </div>
                           </section>
+                        ) : null}
 
+                        {companySectionVisibility.public ? (
+                          <section className="account-card account-form-card account-branding-card">
+                            <div className="account-form-card-header">
+                              <div>
+                                <h3>Javna predstavitev</h3>
+                                <p className="account-form-card-subtitle">
+                                  Ti podatki so vidni gostom na javni strani in v aplikaciji.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="account-public-fields">
+                              <label className="account-field">
+                                <span className="account-field-label">Javno ime</span>
+                                <input
+                                  className="account-field-control"
+                                  maxLength={GUEST_PUBLIC_NAME_MAX_LENGTH}
+                                  value={guestAppSettings.publicName}
+                                  onChange={(e) =>
+                                    setGuestAppSettings((prev) => ({
+                                      ...prev,
+                                      publicName: normalizePublicName(e.target.value),
+                                    }))
+                                  }
+                                  placeholder={selectedCompanyProfile?.name || "Naziv podjetja"}
+                                />
+                              </label>
+
+                              <label className="account-field">
+                                <span className="account-field-label">Javni naslov</span>
+                                <input
+                                  className="account-field-control"
+                                  maxLength={GUEST_PUBLIC_ADDRESS_MAX_LENGTH}
+                                  value={guestAppSettings.publicAddress}
+                                  onChange={(e) =>
+                                    setGuestAppSettings((prev) => ({
+                                      ...prev,
+                                      publicAddress: normalizePublicAddressInput(
+                                        e.target.value,
+                                      ),
+                                    }))
+                                  }
+                                  placeholder="Če pustite prazno, se uporabi fizični naslov podjetja"
+                                />
+                              </label>
+
+                              <label className="account-field">
+                                <span className="account-field-label">Javni opis</span>
+                                <textarea
+                                  className="account-field-control account-field-textarea"
+                                  maxLength={GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
+                                  value={guestAppSettings.publicDescription}
+                                  onChange={(e) =>
+                                    setGuestAppSettings((prev) => ({
+                                      ...prev,
+                                      publicDescription:
+                                        normalizePublicDescriptionInput(
+                                          e.target.value,
+                                        ),
+                                    }))
+                                  }
+                                  placeholder="Na kratko predstavite svoje podjetje in storitve."
+                                />
+                                <span className="account-field-counter">
+                                  {guestAppSettings.publicDescription.length} / {GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
+                                </span>
+                              </label>
+                            </div>
+
+                            <div className="account-public-logo-section">
+                              <div>
+                                <strong className="account-public-section-title">Logotip podjetja</strong>
+                                <p className="account-section-description">
+                                  Logotip se uporablja v mobilni aplikaciji za goste in na javni strani Calendra Stranke.
+                                </p>
+                              </div>
+                              <GuestUploadDropzone
+                                title="Povlecite logotip sem ali kliknite za izbiro"
+                                subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
+                                hint="Uporabljen bo kot glavni logotip podjetja v vseh javnih prikazih Calendre."
+                                currentUrl={settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl}
+                                previewAlt="Logotip podjetja"
+                                previewShape="round"
+                                iconKind="logo"
+                                onFile={(selected) => void uploadGuestAppAsset("logoImageUrl", selected)}
+                                uploading={uploadingGuestAsset === "logoImageUrl"}
+                              />
+                            </div>
+
+                            <div className="account-public-visibility-list">
+                              <div className="account-public-directory-row">
+                                <div>
+                                  <strong>Prikaži podjetje na strani Calendra Stranke</strong>
+                                  <p>Ko je vključeno, se javno ime, fizični naslov, opis, logotip in Google ocena prikažejo na calendra.si/stranke.</p>
+                                </div>
+                                <GuestSwitch
+                                  checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}
+                                  onChange={(checked) => setSettings((prev) => ({ ...prev, PUBLIC_DIRECTORY_ENABLED: String(checked) }))}
+                                />
+                              </div>
+                              <div className="account-public-directory-row">
+                                <div>
+                                  <strong>Prikaži podjetje v aplikaciji za goste</strong>
+                                  <p>Ko je vključeno, se podjetje lahko prikaže v javnih rezultatih iskanja aplikacije za goste.</p>
+                                </div>
+                                <GuestSwitch
+                                  checked={guestAppSettings.publicDiscoverable}
+                                  onChange={(checked) =>
+                                    setGuestAppSettings((prev) => ({
+                                      ...prev,
+                                      publicDiscoverable: checked,
+                                    }))
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </section>
+                        ) : null}
+
+                        {companySectionVisibility.physical ? (
                           <section className="account-card account-form-card">
                             <div className="account-form-card-header inline-switch">
                               <div>
                                 <h3>Fizični naslov</h3>
                                 <p className="account-form-card-subtitle">
-                                  Ta naslov se uporablja v obvestilih, dostavi računa in oznakah predlog.
+                                  Naslov, ki se uporablja na računih in drugih uradnih dokumentih.
                                 </p>
                               </div>
-                              <div className="account-physical-toggle">
+                              <label className="account-physical-toggle">
                                 <span>Enako kot naslov podjetja</span>
                                 <GuestSwitch
                                   checked={Boolean(
                                     selectedCompanyProfile?.physicalAddressSameAsCompany,
                                   )}
-                                  label="ON"
                                   onChange={(checked) =>
                                     updateSelectedCompanyProfile({
                                       physicalAddressSameAsCompany: checked,
@@ -7218,13 +7395,11 @@ export function ConfigurationPage() {
                                     })
                                   }
                                 />
-                              </div>
+                              </label>
                             </div>
                             <div className="account-form-grid">
                               <label className="account-field">
-                                <span className="account-field-label">
-                                  Naslov
-                                </span>
+                                <span className="account-field-label">Naslov</span>
                                 <input
                                   className="account-field-control"
                                   value={
@@ -7286,205 +7461,87 @@ export function ConfigurationPage() {
                                 <span className="account-field-label">Država</span>
                                 <input
                                   className="account-field-control"
-                                  value={
-                                    selectedCompanyProfile?.physicalCountry || ""
-                                  }
+                                  value={selectedCompanyProfile?.physicalCountry || ""}
                                   onChange={(e) =>
                                     updateSelectedCompanyProfile({
                                       physicalCountry: e.target.value,
                                     })
                                   }
-                                  placeholder="Slovenija"
                                 />
                               </label>
                             </div>
                           </section>
-                        </div>
+                        ) : null}
 
-                        <section className="account-card account-form-card account-branding-card">
-                          <div className="account-form-card-header">
-                            <div>
-                              <h3>Javna predstavitev</h3>
-                              <p className="account-section-description">
-                                Ti podatki bodo vidni javnosti na strani Calendra Stranke in v aplikaciji za goste. Mesto se samodejno prevzame iz fizičnega naslova.
-                              </p>
+                        {companySectionVisibility.payments ? (
+                          <section className="account-card account-form-card">
+                            <div className="account-form-card-header">
+                              <h3>Podatki za plačila</h3>
                             </div>
-                          </div>
-
-                          <div className="account-public-fields">
-                            <label className="account-field">
-                              <span className="account-field-label">Javno ime</span>
-                              <input
-                                className="account-field-control"
-                                maxLength={GUEST_PUBLIC_NAME_MAX_LENGTH}
-                                value={guestAppSettings.publicName}
-                                onChange={(e) =>
-                                  setGuestAppSettings((prev) => ({
-                                    ...prev,
-                                    publicName: normalizePublicName(e.target.value),
-                                  }))
-                                }
-                                placeholder={selectedCompanyProfile?.name || "Naziv podjetja"}
-                              />
-                            </label>
-
-                            <label className="account-field">
-                              <span className="account-field-label">Javni naslov</span>
-                              <input
-                                className="account-field-control"
-                                maxLength={GUEST_PUBLIC_ADDRESS_MAX_LENGTH}
-                                value={guestAppSettings.publicAddress}
-                                onChange={(e) =>
-                                  setGuestAppSettings((prev) => ({
-                                    ...prev,
-                                    publicAddress: normalizePublicAddressInput(
-                                      e.target.value,
-                                    ),
-                                  }))
-                                }
-                                placeholder="Če pustite prazno, se uporabi fizični naslov podjetja"
-                              />
-                            </label>
-
-                            <label className="account-field">
-                              <span className="account-field-label">Javni opis</span>
-                              <textarea
-                                className="account-field-control account-field-textarea"
-                                maxLength={GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
-                                value={guestAppSettings.publicDescription}
-                                onChange={(e) =>
-                                  setGuestAppSettings((prev) => ({
-                                    ...prev,
-                                    publicDescription:
-                                      normalizePublicDescriptionInput(
-                                        e.target.value,
-                                      ),
-                                  }))
-                                }
-                                placeholder="Na kratko predstavite svoje podjetje in storitve."
-                              />
-                              <span className="account-field-counter">
-                                {guestAppSettings.publicDescription.length} / {GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
-                              </span>
-                            </label>
-                          </div>
-
-                          <div className="account-public-logo-section">
-                            <div>
-                              <strong className="account-public-section-title">Logotip podjetja</strong>
-                              <p className="account-section-description">
-                                Logotip se uporablja v mobilni aplikaciji za goste in na javni strani Calendra Stranke.
-                              </p>
+                            <div className="account-form-grid">
+                              <label className="account-field">
+                                <span className="account-field-label">IBAN</span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.iban || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      iban: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  BIC / SWIFT (neobvezno)
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={selectedCompanyProfile?.bic || ""}
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      bic: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Bank QR purpose code (neobvezno)
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    selectedCompanyProfile?.bankQrPurposeCode ||
+                                    "OTHR"
+                                  }
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      bankQrPurposeCode: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Bank QR purpose text (neobvezno)
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    selectedCompanyProfile?.bankQrPurposeText ||
+                                    "Plačilo po računu"
+                                  }
+                                  onChange={(e) =>
+                                    updateSelectedCompanyProfile({
+                                      bankQrPurposeText: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
                             </div>
-                            <GuestUploadDropzone
-                              title="Povlecite logotip sem ali kliknite za izbiro"
-                              subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
-                              hint="Uporabljen bo kot glavni logotip podjetja v vseh javnih prikazih Calendre."
-                              currentUrl={settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl}
-                              previewAlt="Logotip podjetja"
-                              previewShape="round"
-                              iconKind="logo"
-                              onFile={(selected) => void uploadGuestAppAsset("logoImageUrl", selected)}
-                              uploading={uploadingGuestAsset === "logoImageUrl"}
-                            />
-                          </div>
-
-                          <div className="account-public-visibility-list">
-                            <div className="account-public-directory-row">
-                              <div>
-                                <strong>Prikaži podjetje na strani Calendra Stranke</strong>
-                                <p>Ko je vključeno, se javno ime, fizični naslov, opis, logotip in Google ocena prikažejo na calendra.si/stranke.</p>
-                              </div>
-                              <GuestSwitch
-                                checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}
-                                onChange={(checked) => setSettings((prev) => ({ ...prev, PUBLIC_DIRECTORY_ENABLED: String(checked) }))}
-                              />
-                            </div>
-                            <div className="account-public-directory-row">
-                              <div>
-                                <strong>Prikaži podjetje v aplikaciji za goste</strong>
-                                <p>Ko je vključeno, se podjetje lahko prikaže v javnih rezultatih iskanja aplikacije za goste.</p>
-                              </div>
-                              <GuestSwitch
-                                checked={guestAppSettings.publicDiscoverable}
-                                onChange={(checked) =>
-                                  setGuestAppSettings((prev) => ({
-                                    ...prev,
-                                    publicDiscoverable: checked,
-                                  }))
-                                }
-                              />
-                            </div>
-                          </div>
-                        </section>
-
-                        <section className="account-card account-form-card">
-                          <div className="account-form-card-header">
-                            <h3>Podatki za plačila</h3>
-                          </div>
-                          <div className="account-form-grid">
-                            <label className="account-field">
-                              <span className="account-field-label">IBAN</span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.iban || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    iban: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                BIC / SWIFT (neobvezno)
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={selectedCompanyProfile?.bic || ""}
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    bic: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Bank QR purpose code (neobvezno)
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={
-                                  selectedCompanyProfile?.bankQrPurposeCode ||
-                                  "OTHR"
-                                }
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    bankQrPurposeCode: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="account-field">
-                              <span className="account-field-label">
-                                Bank QR purpose text (neobvezno)
-                              </span>
-                              <input
-                                className="account-field-control"
-                                value={
-                                  selectedCompanyProfile?.bankQrPurposeText ||
-                                  "Plačilo po računu"
-                                }
-                                onChange={(e) =>
-                                  updateSelectedCompanyProfile({
-                                    bankQrPurposeText: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                          </div>
-                        </section>
+                          </section>
+                        ) : null}
                       </div>
 
                       <div className="account-company-footer">
