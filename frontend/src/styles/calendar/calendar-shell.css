@@ -336,26 +336,6 @@
     }
 }
 
-
-/*
- * Space mode (mobile web): the calendar content already begins below the blue top row,
- * so offsetting sticky date/resource headers by the measured shell header bottom adds an
- * artificial blank band. Keep these headers flush under the blue row only in space mode.
- */
-@media (max-width: 780px) {
-    .calendar-mode-spaces .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th,
-    .calendar-mode-spaces .calendar-resource-day-header-fallback {
-        top: 0;
-        background: var(--color-surface);
-    }
-
-    /* Day view in spaces mode can miss the weekday/date strip on some mobile browsers.
-       Always show the React fallback header there. */
-    .calendar-mode-spaces .calendar-fc-shell:has(.fc-resourceTimeGridDay-view) .calendar-resource-day-header-fallback {
-        display: block !important;
-    }
-}
-
 .calendar-fc-shell .fc-timegrid .fc-col-header th {
     position: relative;
     z-index: 8;
@@ -989,13 +969,11 @@
 }
 
 .calendar-sessions-sheet-handle-wrap {
-    padding: 10px 12px 8px;
+    padding: 10px 12px 6px;
     display: grid;
-    gap: 8px;
     cursor: ns-resize;
     touch-action: none;
     user-select: none;
-    border-bottom: 1px solid var(--border);
 }
 
 .calendar-sessions-sheet-handle {
@@ -1006,18 +984,68 @@
     background: rgba(148, 163, 184, 0.6);
 }
 
+.calendar-sessions-sheet-tabs {
+    margin: 4px 12px 0;
+    padding: 3px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 16px;
+    background: rgba(241, 245, 249, 0.82);
+}
+
+.calendar-sessions-sheet-tab {
+    min-width: 0;
+    min-height: 46px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 13px;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.93rem;
+    font-weight: 750;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.calendar-sessions-sheet-tab svg {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 auto;
+}
+
+.calendar-sessions-sheet-tab.is-active {
+    background: var(--color-surface);
+    color: #1672f3;
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.09), inset 0 0 0 1px rgba(22, 114, 243, 0.08);
+}
+
+.calendar-sessions-sheet-content {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .calendar-sessions-sheet-title {
-    text-align: center;
-    font-weight: 700;
+    padding: 18px 16px 8px;
+    text-align: left;
+    font-size: 1.08rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
     color: var(--color-text);
 }
 
 .calendar-sessions-sheet-list {
-    max-height: calc(60vh - 64px);
+    max-height: calc(60vh - 132px);
     overflow: auto;
-    padding: 10px;
+    padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
     display: grid;
-    gap: 8px;
+    gap: 9px;
 }
 
 .calendar-sessions-sheet-card {
@@ -1047,16 +1075,79 @@
 .calendar-sessions-sheet-card-meta {
     display: flex;
     justify-content: space-between;
+    gap: 10px;
     color: var(--color-text-muted);
     font-size: 0.82rem;
 }
 
+.calendar-sessions-sheet-card-meta span {
+    min-width: 0;
+}
+
+.calendar-sessions-sheet-card-meta span:last-child {
+    text-align: right;
+}
+
+.calendar-sessions-sheet-card-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    font-size: 0.84rem;
+    font-weight: 650;
+}
+
+.calendar-sessions-sheet-card--unassigned {
+    position: relative;
+    overflow: hidden;
+    padding-left: 16px;
+}
+
+.calendar-sessions-sheet-card--unassigned::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: 5px;
+    width: 4px;
+    border-radius: 999px;
+    background: var(--calendar-sheet-accent, #1672f3);
+}
+
+.calendar-sessions-sheet-na-badge {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8 !important;
+    font-size: 0.7rem !important;
+    font-weight: 850;
+    line-height: 1.1;
+}
+
 .calendar-sessions-sheet-empty {
     border: 1px dashed var(--border);
-    border-radius: 12px;
-    padding: 14px;
+    border-radius: 14px;
+    padding: 18px 14px;
     text-align: center;
     color: var(--color-text-muted);
+    background: color-mix(in srgb, var(--color-surface) 94%, #f8fafc);
+}
+
+[data-theme="dark"] .calendar-sessions-sheet-tabs {
+    border-color: rgba(71, 85, 105, 0.72);
+    background: rgba(30, 41, 59, 0.82);
+}
+
+[data-theme="dark"] .calendar-sessions-sheet-tab.is-active {
+    background: rgba(51, 65, 85, 0.92);
+    color: #60a5fa;
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.16);
+}
+
+[data-theme="dark"] .calendar-sessions-sheet-na-badge {
+    background: rgba(30, 64, 175, 0.34);
+    color: #93c5fd !important;
 }
 
 .calendar-bottom-panel .calendar-rail-filter-popup-wrap {

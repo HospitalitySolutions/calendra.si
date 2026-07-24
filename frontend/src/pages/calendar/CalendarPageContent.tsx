@@ -643,6 +643,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const bookedSessionBeforeAdvanceEditorRef = useRef<any>(null)
   const sessionPopupDragRef = useRef<{ pointerId: number; startX: number; startY: number; originLeft: number; originTop: number } | null>(null)
   const [sessionsSheetState, setSessionsSheetState] = useState<'closed' | 'collapsed' | 'expanded'>('closed')
+  const [sessionsSheetTab, setSessionsSheetTab] = useState<'today' | 'unassigned'>('today')
   const [sessionsSheetDragOffset, setSessionsSheetDragOffset] = useState(0)
   const sessionsSheetStartYRef = useRef<number | null>(null)
   const sessionsSheetStartStateRef = useRef<'collapsed' | 'expanded'>('collapsed')
@@ -10088,6 +10089,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }, [calendarFiltersBottomBar, calendarLocaleTag, isNativeAndroid, locale, t, todayRemainingSessions.length])
 
   const openSessionsSheet = useCallback(() => {
+    setSessionsSheetTab('today')
     setSessionsSheetDragOffset(0)
     setSessionsSheetState('expanded')
   }, [])
@@ -10157,6 +10159,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     closeSessionsSheet()
   }, [closeSessionsSheet, isNativeAndroid, placeSessionPopup, useBookingSidePanel, pushCompactFormRoute])
+
+
+  const openUnassignedSessionFromSheet = useCallback((item: any, anchorEl?: HTMLElement | null) => {
+    if (!item || item?.masked) return
+    openOverlapSidebarSession(item, anchorEl)
+    closeSessionsSheet()
+  }, [closeSessionsSheet, openOverlapSidebarSession])
+
+  const unassignedSheetTitle = useMemo(() => {
+    const count = unassignedDrawerSessions.length
+    if (locale === 'sl') return `N/A termini · ${count}`
+    if (locale === 'sr') return `N/A termini · ${count}`
+    return `N/A sessions · ${count}`
+  }, [locale, unassignedDrawerSessions.length])
 
   const onSessionsSheetHandlePointerDown = useCallback((e: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>) => {
     const clientY = 'touches' in e ? e.touches[0]?.clientY : e.clientY
@@ -12211,7 +12227,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           </div>
           </>
         )}
-        {!isNativeAndroid && useUnassignedDrawer && !activeOverlapGroup && (
+        {!isNativeAndroid && useUnassignedDrawer && !showWebMobileBottomPanel && !activeOverlapGroup && (
           <aside className="calendar-overlap-drawer calendar-unassigned-hover-drawer" aria-label={locale === 'sl' ? 'Nedodeljeni termini' : 'Unassigned sessions'} tabIndex={0}>
             <div className="calendar-overlap-drawer__handle" aria-hidden="true">
               <span className="calendar-unassigned-hover-drawer__handle-label">N/A</span>
@@ -12725,30 +12741,96 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               onTouchEnd={onSessionsSheetHandlePointerUp}
             >
               <div className="calendar-sessions-sheet-handle" />
-              <div className="calendar-sessions-sheet-title">{bottomPillLabel}</div>
             </div>
-            <div className="calendar-sessions-sheet-list">
-              {todayRemainingSessions.length === 0 ? (
-                <div className="calendar-sessions-sheet-empty">{t('calendarSessionsRemainingEmpty')}</div>
-              ) : (
-                todayRemainingSessions.map((row) => (
-                  <button
-                    key={`${row.props?.id || row.title}-${row.start?.toISOString() || ''}`}
-                    type="button"
-                    className="calendar-sessions-sheet-card"
-                    onClick={(e) => openBookedSessionFromSheet(row, e.currentTarget)}
-                  >
-                    <div className="calendar-sessions-sheet-card-top">
-                      <strong>{row.title}</strong>
-                      <span>{fullName(row.props?.consultant || { firstName: '', lastName: '' })}</span>
-                    </div>
-                    <div className="calendar-sessions-sheet-card-meta">
-                      <span>{row.start?.toLocaleTimeString(calendarLocaleTag, { hour: '2-digit', minute: '2-digit', hour12: false })} - {row.end?.toLocaleTimeString(calendarLocaleTag, { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
-                      <span>{row.durationMinutes} min</span>
-                    </div>
-                  </button>
-                ))
-              )}
+            <div className="calendar-sessions-sheet-tabs" role="tablist" aria-label={locale === 'sl' ? 'Vrsta terminov' : locale === 'sr' ? 'Vrsta termina' : 'Session category'}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sessionsSheetTab === 'today'}
+                className={`calendar-sessions-sheet-tab${sessionsSheetTab === 'today' ? ' is-active' : ''}`}
+                onClick={() => setSessionsSheetTab('today')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M16 3v4M8 3v4M3 10h18" />
+                </svg>
+                <span>{locale === 'sl' ? 'Danes' : locale === 'sr' ? 'Danas' : 'Today'}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sessionsSheetTab === 'unassigned'}
+                className={`calendar-sessions-sheet-tab${sessionsSheetTab === 'unassigned' ? ' is-active' : ''}`}
+                onClick={() => setSessionsSheetTab('unassigned')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span>{locale === 'sl' ? 'Nedodeljeni' : locale === 'sr' ? 'Nedodeljeni' : 'Unassigned'}</span>
+              </button>
+            </div>
+            <div className="calendar-sessions-sheet-content">
+              <div className="calendar-sessions-sheet-title">
+                {sessionsSheetTab === 'today' ? bottomPillLabel : unassignedSheetTitle}
+              </div>
+              <div className="calendar-sessions-sheet-list">
+                {sessionsSheetTab === 'today' ? (
+                  todayRemainingSessions.length === 0 ? (
+                    <div className="calendar-sessions-sheet-empty">{t('calendarSessionsRemainingEmpty')}</div>
+                  ) : (
+                    todayRemainingSessions.map((row) => (
+                      <button
+                        key={`${row.props?.id || row.title}-${row.start?.toISOString() || ''}`}
+                        type="button"
+                        className="calendar-sessions-sheet-card"
+                        onClick={(e) => openBookedSessionFromSheet(row, e.currentTarget)}
+                      >
+                        <div className="calendar-sessions-sheet-card-top">
+                          <strong>{row.title}</strong>
+                          <span>{fullName(row.props?.consultant || { firstName: '', lastName: '' })}</span>
+                        </div>
+                        <div className="calendar-sessions-sheet-card-meta">
+                          <span>{row.start?.toLocaleTimeString(calendarLocaleTag, { hour: '2-digit', minute: '2-digit', hour12: false })} - {row.end?.toLocaleTimeString(calendarLocaleTag, { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                          <span>{row.durationMinutes} min</span>
+                        </div>
+                      </button>
+                    ))
+                  )
+                ) : unassignedDrawerSessions.length === 0 ? (
+                  <div className="calendar-sessions-sheet-empty">
+                    {locale === 'sl'
+                      ? 'Trenutno ni nedodeljenih terminov v prikazanem obdobju.'
+                      : locale === 'sr'
+                        ? 'Trenutno nema nedodeljenih termina u prikazanom periodu.'
+                        : 'There are no unassigned sessions in the visible range.'}
+                  </div>
+                ) : (
+                  unassignedDrawerSessions.map((item: any) => {
+                    const eventId = String(item.eventId || `${item.kind}-${item.id}`)
+                    return (
+                      <button
+                        key={eventId}
+                        type="button"
+                        className="calendar-sessions-sheet-card calendar-sessions-sheet-card--unassigned"
+                        style={{ '--calendar-sheet-accent': overlapSessionAccentColor(item) } as React.CSSProperties}
+                        onClick={(e) => openUnassignedSessionFromSheet(item, e.currentTarget)}
+                      >
+                        <div className="calendar-sessions-sheet-card-top">
+                          <strong>{overlapSessionDisplayTitle(item)}</strong>
+                          <span className="calendar-sessions-sheet-na-badge">N/A</span>
+                        </div>
+                        <div className="calendar-sessions-sheet-card-subtitle">{overlapSessionDisplaySubtitle(item)}</div>
+                        <div className="calendar-sessions-sheet-card-meta">
+                          <span>{overlapSessionLocationLabel(item)}</span>
+                          <span>{formatCalendarDateLabel(item.start)} · {formatCalendarClock(item.start)} - {formatCalendarClock(item.end)}</span>
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>
