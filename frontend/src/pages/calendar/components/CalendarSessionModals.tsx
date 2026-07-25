@@ -3706,16 +3706,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       <CalendarFormFooterDeleteIcon />
                       <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
                     </button>
-                    <button
-                      type="button"
-                      className="calendar-form-footer-btn calendar-form-footer-btn--save"
-                      onClick={updatePersonalBlock}
-                      aria-label={t('formSave')}
-                      title={t('formSave')}
-                    >
-                      <CalendarFormFooterSaveIcon />
-                      <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
-                    </button>
                   </div>
                 </div>
               ) : (
@@ -3828,16 +3818,26 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             </div>
             </div>
             <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--hidden' : ''}`}
+              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--mobile-save' : ''}`}
               style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
             >
-              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deletePersonalBlock}>
-                <CalendarFormFooterDeleteIcon />
-                <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
-              </button>
-              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--save" onClick={updatePersonalBlock}>
+              {!compactSessionEditHeader && (
+                <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deletePersonalBlock}>
+                  <CalendarFormFooterDeleteIcon />
+                  <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className={`calendar-form-footer-btn calendar-form-footer-btn--save${compactSessionEditHeader ? ' calendar-form-footer-btn--save-mobile-bottom' : ''}`}
+                onClick={updatePersonalBlock}
+              >
                 <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
+                <span className="calendar-form-footer-btn__label">
+                  {compactSessionEditHeader
+                    ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
+                    : t('formSave')}
+                </span>
               </button>
             </div>
           </div>
@@ -3864,38 +3864,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <div className="calendar-edit-session-panel__compact-title-wrap">
                     <span className="calendar-edit-session-panel__compact-title">{t('formTodoEditTitle')}</span>
                   </div>
-                  <div className="booking-side-panel-header-ico-group">
-                    <button
-                      type="button"
-                      className="calendar-form-footer-btn calendar-form-footer-btn--delete"
-                      onClick={deleteTodo}
-                      aria-label={t('formDelete')}
-                      title={t('formDelete')}
-                    >
-                      <CalendarFormFooterDeleteIcon />
-                      <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="calendar-form-footer-btn calendar-form-footer-btn--complete"
-                      onClick={deleteTodo}
-                      aria-label={locale === 'sl' ? 'Opravljeno' : 'Done'}
-                      title={locale === 'sl' ? 'Opravljeno' : 'Done'}
-                    >
-                      <CalendarFormFooterSaveIcon />
-                      <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : 'Done'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="calendar-form-footer-btn calendar-form-footer-btn--save"
-                      onClick={updateTodo}
-                      aria-label={t('formSave')}
-                      title={t('formSave')}
-                    >
-                      <CalendarFormFooterSaveIcon />
-                      <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="calendar-mobile-header-text-action calendar-mobile-header-text-action--todo-complete"
+                    onClick={deleteTodo}
+                    aria-label={locale === 'sl' ? 'Opravljeno' : 'Done'}
+                    title={locale === 'sl' ? 'Opravljeno' : 'Done'}
+                  >
+                    {locale === 'sl' ? 'Opravljeno' : 'Done'}
+                  </button>
                 </div>
               ) : (
                 <PageHeader
@@ -3953,20 +3930,32 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               </div>
             </div>
             <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--hidden' : ''}`}
+              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--mobile-save' : ''}`}
               style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
             >
-              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deleteTodo}>
-                <CalendarFormFooterDeleteIcon />
-                <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
-              </button>
-              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--complete" onClick={deleteTodo}>
+              {!compactSessionEditHeader && (
+                <>
+                  <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deleteTodo}>
+                    <CalendarFormFooterDeleteIcon />
+                    <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
+                  </button>
+                  <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--complete" onClick={deleteTodo}>
+                    <CalendarFormFooterSaveIcon />
+                    <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : 'Done'}</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className={`calendar-form-footer-btn calendar-form-footer-btn--save${compactSessionEditHeader ? ' calendar-form-footer-btn--save-mobile-bottom' : ''}`}
+                onClick={updateTodo}
+              >
                 <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : 'Done'}</span>
-              </button>
-              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--save" onClick={updateTodo}>
-                <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
+                <span className="calendar-form-footer-btn__label">
+                  {compactSessionEditHeader
+                    ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
+                    : t('formSave')}
+                </span>
               </button>
             </div>
           </div>
