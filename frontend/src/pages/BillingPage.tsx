@@ -6194,8 +6194,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       }))
       if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
     }
+    const lineDiscountButtonLabel = normalizeDiscountType(lineDraft.type) === 'AMOUNT'
+      ? currency(discountValueNumber(lineDraft))
+      : `${discountValueNumber(lineDraft)}%`
     return (
-      <div key={index} className="billing-invoice-item-row">
+      <div key={index} className={`billing-invoice-item-row${billForm.billType === 'ADVANCE' ? ' billing-invoice-item-row--advance' : ''}`}>
         <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
         <div className="billing-bill-modal-field billing-bill-modal-field--service">
           <select
@@ -6254,7 +6257,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
             title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
           >
-            {discountIconSvg()}
+            {billForm.billType === 'ADVANCE' ? <span>{lineDiscountButtonLabel}</span> : discountIconSvg()}
           </button>
           {lineDiscountOpen && renderItemDiscountPopover(
             popupDraft,
@@ -6278,7 +6281,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
     return (
-      <section className="billing-invoice-payment-card">
+      <section className={`billing-invoice-payment-card${billForm.billType === 'ADVANCE' ? ' billing-invoice-payment-card--advance' : ''}`}>
         <div className="billing-invoice-section-title-row">
           <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
           <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
@@ -9105,14 +9108,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Postavke predplačila' : 'Advance items') : (locale === 'sl' ? 'Postavke računa' : 'Bill items')}</h3>
                       <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
                     </div>
-                    <div className="billing-invoice-table-head" aria-hidden>
+                    <div className={`billing-invoice-table-head${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
                       <span />
                       <span>Service</span>
                       <span>Qty</span>
                       <span>Price</span>
                       <span>Amount</span>
-                      <span />
-                      <span />
+                      <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Popust' : 'Discount') : ''}</span>
+                      <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Akcije' : 'Actions') : ''}</span>
                     </div>
                     <div className="billing-invoice-item-list">
                       {billForm.items.length === 0 ? (
