@@ -5333,3 +5333,123 @@
         flex-basis: 16px;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile edit headers: blue top row for booked, personal and todo editors
+   to match the approved Dodaj termin header treatment.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--booked,
+    .calendar-edit-session-panel--personal-edit,
+    .calendar-edit-session-panel--todo-edit {
+        --calendar-edit-mobile-blue: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-header,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-header,
+    .layout-android .calendar-edit-session-panel--personal-edit.booking-side-panel .booking-side-panel-header,
+    .layout-android .calendar-edit-session-panel--todo-edit.booking-side-panel .booking-side-panel-header {
+        background: var(--calendar-edit-mobile-blue) !important;
+        border-bottom: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    .layout-android .calendar-edit-session-panel--personal-edit.booking-side-panel .booking-side-panel-header::before,
+    .layout-android .calendar-edit-session-panel--todo-edit.booking-side-panel .booking-side-panel-header::before,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header::before,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header::before {
+        display: none !important;
+        content: none !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-edit-session-panel__compact-title,
+    .calendar-edit-session-panel--personal-edit .calendar-edit-session-panel__compact-title,
+    .calendar-edit-session-panel--todo-edit .calendar-edit-session-panel__compact-title {
+        color: #ffffff !important;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit-generic,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit-generic {
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 38px;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-close,
+    .calendar-edit-session-panel--booked .calendar-mobile-session-more-btn,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-close,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-close,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn {
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-close:hover,
+    .calendar-edit-session-panel--booked .booking-side-panel-close:focus-visible,
+    .calendar-edit-session-panel--booked .calendar-mobile-session-more-btn:hover,
+    .calendar-edit-session-panel--booked .calendar-mobile-session-more-btn:focus-visible,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-close:hover,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-close:focus-visible,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-close:hover,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-close:focus-visible,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn:hover,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn:focus-visible,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn:hover,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn:focus-visible {
+        background: rgba(255, 255, 255, 0.14) !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn {
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        min-height: 38px;
+        border-radius: 12px;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn > svg,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn > svg,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn .calendar-form-footer-btn__icon,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn .calendar-form-footer-btn__icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .booking-side-panel-header-ico-group,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .booking-side-panel-header-ico-group {
+        gap: 6px;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit-generic,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit-generic {
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        gap: 6px;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .booking-side-panel-header-ico-group,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .booking-side-panel-header-ico-group {
+        gap: 4px;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn {
+        width: 36px;
+        min-width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 11px;
+    }
+}

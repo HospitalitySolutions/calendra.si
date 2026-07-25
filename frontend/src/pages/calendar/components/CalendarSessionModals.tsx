@@ -3523,16 +3523,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         <div className={useBookingSidePanel ? 'modal-backdrop booking-side-panel-backdrop' : 'calendar-session-popup-layer'} onClick={useBookingSidePanel ? closePersonalModal : undefined}>
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--personal-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle()}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
               {compactSessionEditHeader ? (
-                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit">
+                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-generic">
                   <button type="button" className="secondary booking-side-panel-close" onClick={closePersonalModal} aria-label={t('mobileNavClose')}>
                     ×
                   </button>
+                  <div className="calendar-edit-session-panel__compact-title-wrap">
+                    <span className="calendar-edit-session-panel__compact-title">{t('formPersonalBlockEditTitle')}</span>
+                  </div>
                   <div className="booking-side-panel-header-ico-group">
                     <button
                       type="button"
@@ -3689,16 +3692,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--todo-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle()}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
               {compactSessionEditHeader ? (
-                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit">
+                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-generic">
                   <button type="button" className="secondary booking-side-panel-close" onClick={closeTodoModal} aria-label={t('mobileNavClose')}>
                     ×
                   </button>
+                  <div className="calendar-edit-session-panel__compact-title-wrap">
+                    <span className="calendar-edit-session-panel__compact-title">{t('formTodoEditTitle')}</span>
+                  </div>
                   <div className="booking-side-panel-header-ico-group">
                     <button
                       type="button"
