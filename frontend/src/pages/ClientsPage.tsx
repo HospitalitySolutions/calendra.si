@@ -590,15 +590,32 @@ function ClientsModernIcon({ name }: { name: ClientsModernIconName }) {
 }
 
 
-function ClientsMobileCardActionIcon({ kind }: { kind: 'client' | 'company' | 'group' }) {
+function ClientsMobileCardActionIcon({
+  kind,
+  label,
+  expanded,
+  onClick,
+}: {
+  kind: 'client' | 'company' | 'group'
+  label: string
+  expanded: boolean
+  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
+}) {
   return (
-    <span className={`clients-mobile-card-action-icon clients-mobile-card-action-icon--${kind}`} aria-hidden="true">
+    <button
+      type="button"
+      className={`clients-mobile-card-action-icon clients-mobile-card-action-icon--${kind}`}
+      aria-label={label}
+      aria-haspopup="menu"
+      aria-expanded={expanded}
+      onClick={onClick}
+    >
       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
         <circle cx="5" cy="12" r="1.7" />
         <circle cx="12" cy="12" r="1.7" />
         <circle cx="19" cy="12" r="1.7" />
       </svg>
-    </span>
+    </button>
   )
 }
 
@@ -3432,7 +3449,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             <span className="clients-id">{c.phone?.trim() || c.email?.trim() || `ID #${c.id}`}</span>
                           </div>
                         </div>
-                        <ClientsMobileCardActionIcon kind="client" />
+                        <ClientsMobileCardActionIcon
+                          kind="client"
+                          label={clientsCopy.clientActionsAria}
+                          expanded={openClientMenuId === c.id}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            if (openClientMenuId === c.id) {
+                              setOpenClientMenuId(null)
+                              return
+                            }
+                            clientMenuTriggerRef.current = event.currentTarget
+                            setClientMenuAnchorRect(event.currentTarget.getBoundingClientRect())
+                            setOpenCompanyMenuId(null)
+                            setOpenGroupMenuId(null)
+                            setOpenClientMenuId(c.id)
+                          }}
+                        />
                       </div>
                       <div className="clients-mobile-meta">
                         <div><span>{clientsCopy.email}</span><strong>{c.email?.trim() ? <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.email.trim()}</a> : '—'}</strong></div>
@@ -3532,7 +3565,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             <span className="clients-id">{c.vatId || `ID #${c.id}`}</span>
                           </div>
                         </div>
-                        <ClientsMobileCardActionIcon kind="company" />
+                        <ClientsMobileCardActionIcon
+                          kind="company"
+                          label={clientsCopy.companyActionsAria}
+                          expanded={openCompanyMenuId === c.id}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            if (openCompanyMenuId === c.id) {
+                              setOpenCompanyMenuId(null)
+                              return
+                            }
+                            companyMenuTriggerRef.current = event.currentTarget
+                            setCompanyMenuAnchorRect(event.currentTarget.getBoundingClientRect())
+                            setOpenClientMenuId(null)
+                            setOpenGroupMenuId(null)
+                            setOpenCompanyMenuId(c.id)
+                          }}
+                        />
                       </div>
                       <div className="clients-mobile-meta clients-mobile-meta--three">
                         <div><span>{clientsCopy.email}</span><strong>{c.email?.trim() ? <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.email.trim()}</a> : '—'}</strong></div>
@@ -3623,7 +3672,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             <span className="clients-id">{(g.members ?? []).length} {clientsCopy.groupMembers.toLowerCase()}</span>
                           </div>
                         </div>
-                        <ClientsMobileCardActionIcon kind="group" />
+                        <ClientsMobileCardActionIcon
+                          kind="group"
+                          label={clientsCopy.groupActionsAria}
+                          expanded={openGroupMenuId === g.id}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            if (openGroupMenuId === g.id) {
+                              setOpenGroupMenuId(null)
+                              return
+                            }
+                            groupMenuTriggerRef.current = event.currentTarget
+                            setGroupMenuAnchorRect(event.currentTarget.getBoundingClientRect())
+                            setOpenClientMenuId(null)
+                            setOpenCompanyMenuId(null)
+                            setOpenGroupMenuId(g.id)
+                          }}
+                        />
                       </div>
                       {(g.members ?? []).length > 0 && (
                         <div className="clients-mobile-member-strip" aria-label={`${(g.members ?? []).length} ${clientsCopy.groupMembers.toLowerCase()}`}>
@@ -5303,18 +5368,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             aria-label={clientsCopy.clientActionsAria}
             style={clientsOverflowMenuFixedStyle(
               clientMenuAnchorRect,
-              portalClientMenuTarget.anonymized ? 56 : 112
+              portalClientMenuTarget.anonymized ? 104 : 152
             )}
           >
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
+                setOpenClientMenuId(null)
                 void toggleClientActiveById(portalClientMenuTarget.id, portalClientMenuTarget.active !== false)
               }}
               disabled={
                 activatingClientId === portalClientMenuTarget.id ||
                 anonymizingClientId === portalClientMenuTarget.id ||
+                deletingClientId === portalClientMenuTarget.id ||
                 (portalClientMenuTarget.active !== false && portalClientMenuTarget.removalBlocked)
               }
               title={
@@ -5329,11 +5396,33 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   ? clientsCopy.deactivate
                   : clientsCopy.activate}
             </button>
+            <button
+              type="button"
+              className="danger"
+              disabled={
+                deletingClientId === portalClientMenuTarget.id ||
+                anonymizingClientId === portalClientMenuTarget.id ||
+                activatingClientId === portalClientMenuTarget.id ||
+                portalClientMenuTarget.removalBlocked
+              }
+              title={portalClientMenuTarget.removalBlocked ? clientsCopy.removalBlockedHint : clientsCopy.delete}
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpenClientMenuId(null)
+                void deleteClientById(portalClientMenuTarget.id)
+              }}
+            >
+              {deletingClientId === portalClientMenuTarget.id ? clientsCopy.deleting : clientsCopy.delete}
+            </button>
             {!portalClientMenuTarget.anonymized ? (
               <button
                 type="button"
                 className="danger"
-                disabled={anonymizingClientId === portalClientMenuTarget.id || activatingClientId === portalClientMenuTarget.id}
+                disabled={
+                  anonymizingClientId === portalClientMenuTarget.id ||
+                  activatingClientId === portalClientMenuTarget.id ||
+                  deletingClientId === portalClientMenuTarget.id
+                }
                 onClick={(e) => {
                   e.stopPropagation()
                   setAnonymizeConfirmClientId(portalClientMenuTarget.id)
@@ -5354,21 +5443,40 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             className="clients-card-menu-popover"
             role="dialog"
             aria-label={clientsCopy.companyActionsAria}
-            style={clientsOverflowMenuFixedStyle(companyMenuAnchorRect, 88)}
+            style={clientsOverflowMenuFixedStyle(companyMenuAnchorRect, 104)}
           >
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
+                setOpenCompanyMenuId(null)
                 void toggleCompanyActiveById(portalCompanyMenuTarget.id, portalCompanyMenuTarget.active !== false)
               }}
-              disabled={activatingCompanyId === portalCompanyMenuTarget.id}
+              disabled={
+                activatingCompanyId === portalCompanyMenuTarget.id ||
+                deletingCompanyId === portalCompanyMenuTarget.id
+              }
             >
               {activatingCompanyId === portalCompanyMenuTarget.id
                 ? clientsCopy.saving
                 : portalCompanyMenuTarget.active !== false
                   ? clientsCopy.deactivate
                   : clientsCopy.activate}
+            </button>
+            <button
+              type="button"
+              className="danger"
+              disabled={
+                deletingCompanyId === portalCompanyMenuTarget.id ||
+                activatingCompanyId === portalCompanyMenuTarget.id
+              }
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpenCompanyMenuId(null)
+                void deleteCompanyById(portalCompanyMenuTarget.id)
+              }}
+            >
+              {deletingCompanyId === portalCompanyMenuTarget.id ? clientsCopy.deleting : clientsCopy.delete}
             </button>
           </div>,
           document.body
@@ -5381,21 +5489,40 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             className="clients-card-menu-popover"
             role="dialog"
             aria-label={clientsCopy.groupActionsAria}
-            style={clientsOverflowMenuFixedStyle(groupMenuAnchorRect, 88)}
+            style={clientsOverflowMenuFixedStyle(groupMenuAnchorRect, 104)}
           >
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
+                setOpenGroupMenuId(null)
                 void toggleGroupActiveById(portalGroupMenuTarget.id, portalGroupMenuTarget.active !== false)
               }}
-              disabled={activatingGroupId === portalGroupMenuTarget.id}
+              disabled={
+                activatingGroupId === portalGroupMenuTarget.id ||
+                deletingGroupId === portalGroupMenuTarget.id
+              }
             >
               {activatingGroupId === portalGroupMenuTarget.id
                 ? clientsCopy.saving
                 : portalGroupMenuTarget.active !== false
                   ? clientsCopy.deactivate
                   : clientsCopy.activate}
+            </button>
+            <button
+              type="button"
+              className="danger"
+              disabled={
+                deletingGroupId === portalGroupMenuTarget.id ||
+                activatingGroupId === portalGroupMenuTarget.id
+              }
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpenGroupMenuId(null)
+                void deleteGroupById(portalGroupMenuTarget.id)
+              }}
+            >
+              {deletingGroupId === portalGroupMenuTarget.id ? clientsCopy.deleting : clientsCopy.delete}
             </button>
           </div>,
           document.body

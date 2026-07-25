@@ -5387,3 +5387,18 @@
         border-radius: 16px;
     }
 }
+
+/* Mobile client row overflow trigger is an actual button, while keeping the approved icon styling. */
+.clients-mobile-card-action-icon {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    appearance: none;
+    font: inherit;
+    cursor: pointer;
+}
+
+.clients-mobile-card-action-icon:focus-visible {
+    outline: 2px solid #1672f3;
+    outline-offset: 2px;
+}
