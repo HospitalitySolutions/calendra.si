@@ -5099,3 +5099,69 @@
         font-size: 0.8rem !important;
     }
 }
+
+/* Mobile follow-up: remove the Uredi termin drag handle and exactly match
+   Dodaj termin client search controls to the compact booked-session sizing. */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--booked .booking-side-panel-header::before,
+    .calendar-edit-session-panel--booked .booking-side-panel-header::after,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-header::before,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-header::after,
+    .calendar-edit-session-panel--booked.calendar-edit-session-panel--design-match .booking-side-panel-header::before,
+    .calendar-edit-session-panel--booked.calendar-edit-session-panel--design-match .booking-side-panel-header::after {
+        display: none !important;
+        content: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        opacity: 0 !important;
+        background: transparent !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-wrap,
+    .calendar-edit-session-panel--new-create .client-search-wrap {
+        height: 46px !important;
+        min-height: 46px !important;
+        max-height: 46px !important;
+        padding: 0 12px !important;
+        border-radius: 14px !important;
+        box-sizing: border-box;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-wrap input,
+    .calendar-edit-session-panel--new-create .client-search-wrap input,
+    .calendar-edit-session-panel--new-create .client-selected-display {
+        height: 44px !important;
+        min-height: 44px !important;
+        max-height: 44px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        font-size: 0.88rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-icon {
+        width: 22px !important;
+        height: 22px !important;
+        margin-right: 5px !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-icon svg {
+        width: 18px !important;
+        height: 18px !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__actions button,
+    .calendar-edit-session-panel--new-create .calendar-client-picker__actions .client-add-btn,
+    .calendar-edit-session-panel--new-create .calendar-client-picker__actions .calendar-client-picker__add-btn,
+    .calendar-edit-session-panel--new-create .calendar-client-picker__actions .calendar-client-picker__waitlist-btn {
+        width: 46px !important;
+        min-width: 46px !important;
+        max-width: 46px !important;
+        height: 46px !important;
+        min-height: 46px !important;
+        max-height: 46px !important;
+        flex: 0 0 46px !important;
+        padding: 0 !important;
+        border-radius: 14px !important;
+    }
+}
