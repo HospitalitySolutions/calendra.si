@@ -1883,12 +1883,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const createBillDiscountDraft = getCreateBillDiscountDraft()
-  const createBillDiscountGross = billForm.billType === 'INVOICE'
-    ? calculateDiscountGross(grossPreview, createBillDiscountDraft, billForm.items)
-    : 0
-  const createBillPayableGross = billForm.billType === 'INVOICE'
-    ? payableGrossAfterDiscount(grossPreview, createBillDiscountDraft, billForm.items)
-    : grossPreview
+  const createBillDiscountGross = calculateDiscountGross(grossPreview, createBillDiscountDraft, billForm.items)
+  const createBillPayableGross = payableGrossAfterDiscount(grossPreview, createBillDiscountDraft, billForm.items)
   useEffect(() => {
     const firstAllowed = availableBillServices[0]
     const allowedIds = new Set(availableBillServices.map((s) => s.id))
@@ -3301,7 +3297,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         consultantId: billForm.consultantId ?? me.id,
         paymentMethodId: billForm.paymentMethodId,
         paymentSplits: buildCreatePaymentSplitsPayload(createBillPayableGross),
-        ...(billForm.billType === 'INVOICE' ? discountPayloadFields(createBillDiscountDraft, grossPreview, billForm.items) : {}),
+        ...discountPayloadFields(createBillDiscountDraft, grossPreview, billForm.items),
         billingTarget: billForm.billingTarget,
         recipientCompanyId: billForm.recipientCompanyId,
         bankTransferReference: billForm.bankTransferReference,
@@ -9028,11 +9024,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
       {showCreateBillModal && (() => {
         const createSubtotalGross = estimateGross(billForm.items)
-        const createDiscountedItems = billForm.billType === 'INVOICE'
-          ? applyDiscountToItemsForVat(billForm.items, createBillDiscountDraft)
-          : billForm.items
+        const createDiscountedItems = applyDiscountToItemsForVat(billForm.items, createBillDiscountDraft)
         const createVatRows = vatBreakdownRowsForItems(createDiscountedItems)
-        const createGross = billForm.billType === 'INVOICE' ? createBillPayableGross : createSubtotalGross
+        const createGross = createBillPayableGross
         const createRecipientLabel = billForm.billingTarget === 'COMPANY'
           ? (selectedRecipientCompany?.name || billingCopy.targetCompany)
           : (selectedClient ? fullName(selectedClient) : billingCopy.targetPerson)
@@ -9184,7 +9178,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         }}
                       >
                         <strong>+ {billingCopy.addLine}</strong>
-                        <small>{isCreateAdvanceBill ? (locale === 'sl' ? 'Dodajte storitve, ki imajo Predplačilo ON' : 'Add services marked as Advance') : (locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services')}</small>
+                        {!isCreateAdvanceBill && (
+                          <small>{locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services'}</small>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -9200,20 +9196,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       },
                       billForm.items,
                     )}
-                    <section className="billing-invoice-totals-card">
-                      <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
-                      {createVatRows.map((row) => (
-                        <div key={row.key} className="billing-bill-modal-summary-line">
-                          <span>{row.label}</span>
-                          <strong>{currency(row.taxTotal)}</strong>
-                        </div>
-                      ))}
-                      {!isCreateAdvanceBill && (
-                        <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(createBillDiscountGross)}</strong></div>
-                      )}
-                      <div className="billing-bill-modal-summary-divider" />
-                      <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
-                    </section>
+                    {!isCreateAdvanceBill && (
+                      <section className="billing-invoice-totals-card">
+                        <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
+                        {createVatRows.map((row) => (
+                          <div key={row.key} className="billing-bill-modal-summary-line">
+                            <span>{row.label}</span>
+                            <strong>{currency(row.taxTotal)}</strong>
+                          </div>
+                        ))}
+                        {createBillDiscountGross > 0.005 && (
+                          <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(createBillDiscountGross)}</strong></div>
+                        )}
+                        <div className="billing-bill-modal-summary-divider" />
+                        <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
+                      </section>
+                    )}
                   </div>
                 </section>
 
@@ -9227,6 +9225,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
 
               <div className="billing-bill-modal-footer">
+                {isCreateAdvanceBill && (
+                  <section className="billing-invoice-totals-card billing-invoice-totals-card--advance-footer" aria-label={locale === 'sl' ? 'Povzetek predplačila' : 'Advance summary'}>
+                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
+                    {createVatRows.map((row) => (
+                      <div key={row.key} className="billing-bill-modal-summary-line">
+                        <span>{row.label}</span>
+                        <strong>{currency(row.taxTotal)}</strong>
+                      </div>
+                    ))}
+                    {createBillDiscountGross > 0.005 && (
+                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
+                    )}
+                    <div className="billing-bill-modal-summary-divider" />
+                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
+                  </section>
+                )}
                 <div className="billing-bill-modal-footer-actions">
                   {!isCreateAdvanceBill && (
                     <button
