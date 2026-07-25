@@ -25,6 +25,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
+  const [mobileInvoiceActionsOpen, setMobileInvoiceActionsOpen] = useState(false)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 720px)').matches : false,
@@ -169,6 +170,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   useEffect(() => {
     setMobileBookingDetailsOpen(false)
+    setMobileInvoiceActionsOpen(false)
   }, [selectedBookedSession?.id, compactSessionEditHeader])
 
   const closeNewSlotWaitlist = (event?: {
@@ -1948,6 +1950,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           onPointerDown={(event) => event.stopPropagation()}
                           onClick={(event) => {
                             event.stopPropagation()
+                            setMobileInvoiceActionsOpen(false)
                             setMobileBookingDetailsOpen((open) => !open)
                           }}
                         >
@@ -1961,39 +1964,100 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             onClick={(event) => event.stopPropagation()}
                           >
                             {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
-                                disabled={bookedPaymentActionButtonsDisabled}
-                                onClick={() => {
-                                  setMobileBookingDetailsOpen(false)
-                                  if (bookingServiceBillingButtonIsAdvance) {
-                                    if (bookedBillingHasExistingAdvance) openBookedBillingView('advances')
-                                    else openBookedAdvanceForm()
-                                    return
-                                  }
-                                  void openBookedInvoiceEditor()
-                                }}
-                              >
-                                <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                                  {bookingServiceBillingButtonIsAdvance ? (
-                                    <CalendarAdvancePaymentIcon />
-                                  ) : (
-                                    <svg viewBox="0 0 24 24" fill="none">
-                                      <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                                      <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                      <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
-                                    </svg>
+                              <>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  aria-haspopup={bookingServiceBillingButtonIsAdvance ? undefined : 'menu'}
+                                  aria-expanded={bookingServiceBillingButtonIsAdvance ? undefined : mobileInvoiceActionsOpen}
+                                  className={[
+                                    'calendar-mobile-session-more-menu__item',
+                                    'calendar-mobile-session-more-menu__action',
+                                    !bookingServiceBillingButtonIsAdvance ? 'calendar-mobile-session-more-menu__invoice-toggle' : '',
+                                    !bookingServiceBillingButtonIsAdvance && mobileInvoiceActionsOpen ? 'calendar-mobile-session-more-menu__invoice-toggle--open' : '',
+                                  ].filter(Boolean).join(' ')}
+                                  disabled={bookedPaymentActionButtonsDisabled}
+                                  onClick={() => {
+                                    if (bookingServiceBillingButtonIsAdvance) {
+                                      setMobileBookingDetailsOpen(false)
+                                      setMobileInvoiceActionsOpen(false)
+                                      if (bookedBillingHasExistingAdvance) openBookedBillingView('advances')
+                                      else openBookedAdvanceForm()
+                                      return
+                                    }
+                                    setMobileInvoiceActionsOpen((open) => !open)
+                                  }}
+                                >
+                                  <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
+                                    {bookingServiceBillingButtonIsAdvance ? (
+                                      <CalendarAdvancePaymentIcon />
+                                    ) : (
+                                      <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                        <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                        <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
+                                      </svg>
+                                    )}
+                                  </span>
+                                  <span className="calendar-mobile-session-more-menu__copy">
+                                    <strong>{bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Predračun' : 'Proforma invoice') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
+                                    <small>{bookingServiceBillingButtonIsAdvance
+                                      ? (locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice')
+                                      : (locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice')}</small>
+                                  </span>
+                                  {!bookingServiceBillingButtonIsAdvance && (
+                                    <span className="calendar-mobile-session-more-menu__chevron calendar-mobile-session-more-menu__invoice-chevron" aria-hidden>⌃</span>
                                   )}
-                                </span>
-                                <span className="calendar-mobile-session-more-menu__copy">
-                                  <strong>{bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Predračun' : 'Proforma invoice') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
-                                  <small>{bookingServiceBillingButtonIsAdvance
-                                    ? (locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice')
-                                    : (locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice')}</small>
-                                </span>
-                              </button>
+                                </button>
+                                {!bookingServiceBillingButtonIsAdvance && mobileInvoiceActionsOpen && (
+                                  <div className="calendar-mobile-session-more-menu__invoice-submenu" role="menu" aria-label={locale === 'sl' ? 'Dejanja računa' : 'Invoice actions'}>
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      className="calendar-mobile-session-more-menu__invoice-subitem"
+                                      onClick={() => {
+                                        setMobileInvoiceActionsOpen(false)
+                                        setMobileBookingDetailsOpen(false)
+                                        void openBookedInvoiceEditor()
+                                      }}
+                                    >
+                                      <span className="calendar-mobile-session-more-menu__invoice-subicon" aria-hidden>
+                                        <svg viewBox="0 0 24 24" fill="none">
+                                          <path d="m4.8 19.2.85-3.9L16.8 4.15a1.9 1.9 0 0 1 2.7 0l.35.35a1.9 1.9 0 0 1 0 2.7L8.7 18.35l-3.9.85Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                          <path d="m15.4 5.55 3.05 3.05" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                        </svg>
+                                      </span>
+                                      <span className="calendar-mobile-session-more-menu__invoice-subcopy">
+                                        <strong>{locale === 'sl' ? 'Uredi' : 'Edit'}</strong>
+                                        <small>{locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice'}</small>
+                                      </span>
+                                    </button>
+                                    {(bookedBillingHasExistingOpenBill || bookedBillingHasInvoiceViewRows) && (
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="calendar-mobile-session-more-menu__invoice-subitem"
+                                        onClick={() => {
+                                          setMobileInvoiceActionsOpen(false)
+                                          setMobileBookingDetailsOpen(false)
+                                          openBookedBillingView('invoices')
+                                        }}
+                                      >
+                                        <span className="calendar-mobile-session-more-menu__invoice-subicon" aria-hidden>
+                                          <svg viewBox="0 0 24 24" fill="none">
+                                            <path d="M2.75 12s3.2-5.25 9.25-5.25S21.25 12 21.25 12 18.05 17.25 12 17.25 2.75 12 2.75 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                            <circle cx="12" cy="12" r="2.45" stroke="currentColor" strokeWidth="1.8" />
+                                          </svg>
+                                        </span>
+                                        <span className="calendar-mobile-session-more-menu__invoice-subcopy">
+                                          <strong>{locale === 'sl' ? 'Pregled' : 'View'}</strong>
+                                          <small>{locale === 'sl' ? 'Odpri pregled računov' : 'Open invoice overview'}</small>
+                                        </span>
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </>
                             )}
                             {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
                               <button
