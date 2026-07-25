@@ -2951,13 +2951,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               >
                 {locale === 'sl' ? 'Shrani status' : locale === 'sr' ? 'Sačuvaj status' : 'Save status'}
               </button>
-              <button
-                type="button"
-                className="calendar-mobile-status-editor__cancel"
-                onClick={() => setBookedStatusMenuOpen(false)}
-              >
-                {locale === 'sl' ? 'Prekliči' : locale === 'sr' ? 'Otkaži' : 'Cancel'}
-              </button>
             </footer>
           </section>
         </div>,
@@ -2978,18 +2971,16 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="calendar-waitlist-picker-header">
-              <div>
-                <h2>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</h2>
-                <p>{waitlistMatchCountLabel(visibleNewSlotWaitlistMatches.count)}</p>
-              </div>
               <button
                 type="button"
-                className="secondary calendar-waitlist-picker-close"
+                className="calendar-waitlist-picker-close"
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => closeNewSlotWaitlist(event)}
                 aria-label={t('mobileNavClose')}
               >×</button>
+              <h2>{locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'}</h2>
             </div>
+            <p className="calendar-waitlist-picker-count">{waitlistMatchCountLabel(visibleNewSlotWaitlistMatches.count)}</p>
             <div className="calendar-waitlist-picker-list">
               {(visibleNewSlotWaitlistMatches.matches || [visibleNewSlotWaitlistMatches.first]).filter(Boolean).map((candidate: any, index: number) => (
                 <div key={candidate.requestId || index} className="calendar-waitlist-picker-row">

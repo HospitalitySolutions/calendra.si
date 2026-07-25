@@ -2570,10 +2570,10 @@
 
 .calendar-waitlist-picker-header {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 18px;
-    padding: 24px 26px 18px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 20px 22px;
     border-bottom: 1px solid #e7edf5;
 }
 
@@ -2585,20 +2585,28 @@
     letter-spacing: -0.035em;
 }
 
-.calendar-waitlist-picker-header p {
-    margin: 5px 0 0;
+.calendar-waitlist-picker-count {
+    margin: 17px 20px 0;
     color: #64748b;
     font-size: 0.9rem;
-    font-weight: 650;
+    font-weight: 700;
 }
 
 .calendar-waitlist-picker-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 42px;
     min-width: 42px;
     height: 42px;
     padding: 0;
+    border: 1px solid #d7e1ee;
     border-radius: 13px;
+    background: #f8fafc;
+    color: #334155;
     font-size: 1.4rem;
+    line-height: 1;
+    box-shadow: none;
 }
 
 .calendar-waitlist-picker-list {
@@ -2698,42 +2706,101 @@
     .calendar-waitlist-picker-modal.modal {
         width: 100vw;
         max-width: 100vw;
+        min-height: 43dvh;
         max-height: 88dvh;
         margin: 0;
         border-width: 1px 0 0;
+        border-color: rgba(255, 255, 255, 0.28);
         border-radius: 26px 26px 0 0;
+        background: #f8fafc;
+        box-shadow: 0 -18px 50px rgba(15, 23, 42, 0.24);
     }
 
     .calendar-waitlist-picker-modal.modal::before {
-        content: '';
-        width: 54px;
-        height: 5px;
-        margin: 10px auto 0;
-        border-radius: 999px;
-        background: #d1d5db;
+        display: none;
     }
 
     .calendar-waitlist-picker-header {
-        padding: 16px 18px 14px;
+        min-height: 76px;
+        gap: 14px;
+        padding: 13px 16px;
+        border-bottom: 0;
+        background: linear-gradient(135deg, #1672f3 0%, #0762e7 100%);
     }
 
     .calendar-waitlist-picker-header h2 {
+        color: #fff;
+        font-size: 1.35rem;
+        font-weight: 820;
+        letter-spacing: -0.025em;
+    }
+
+    .calendar-waitlist-picker-close {
+        width: 48px;
+        min-width: 48px;
+        height: 48px;
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
         font-size: 1.35rem;
     }
 
+    .calendar-waitlist-picker-close:hover,
+    .calendar-waitlist-picker-close:focus-visible {
+        border-color: rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+    }
+
+    .calendar-waitlist-picker-count {
+        margin: 18px 18px 4px;
+        color: #5b6b82;
+        font-size: 0.92rem;
+        font-weight: 720;
+    }
+
     .calendar-waitlist-picker-list {
-        padding: 14px 16px;
+        flex: 1 1 auto;
+        padding: 12px 16px 20px;
     }
 
     .calendar-waitlist-picker-row {
-        grid-template-columns: 44px minmax(0, 1fr) auto;
-        padding: 11px 12px;
-        border-radius: 15px;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        min-height: 82px;
+        gap: 14px;
+        padding: 13px 14px;
+        border-color: #dce6f2;
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 7px 20px rgba(15, 23, 42, 0.045);
     }
 
     .calendar-waitlist-picker-avatar {
-        width: 44px;
-        height: 44px;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: #edf4ff;
+        font-size: 0.86rem;
+    }
+
+    .calendar-waitlist-picker-copy strong {
+        font-size: 1rem;
+    }
+
+    .calendar-waitlist-picker-copy span {
+        font-size: 0.82rem;
+    }
+
+    .calendar-waitlist-picker-add {
+        min-height: 44px;
+        padding: 0 17px;
+        border-color: #9fc0ff;
+        border-radius: 14px;
+        background: #f7faff;
+        color: #1464db;
+        font-size: 0.9rem;
+        font-weight: 780;
     }
 
     .calendar-waitlist-picker-footer {
