@@ -5974,3 +5974,70 @@
         padding-left: 6px;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile personal/todo editor headers: match Uredi termin compact sizing.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit-generic,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-header-toolbar--session-edit-generic {
+        min-height: 38px !important;
+        grid-template-columns: 38px minmax(0, 1fr) auto !important;
+        gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel--personal-edit .calendar-edit-session-panel__compact-title,
+    .calendar-edit-session-panel--todo-edit .calendar-edit-session-panel__compact-title {
+        font-size: 1.22rem !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.035em !important;
+        font-weight: 860 !important;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-close,
+    .calendar-edit-session-panel--todo-edit .booking-side-panel-close {
+        width: 38px !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
+        border-radius: 12px !important;
+        font-size: 0.92rem !important;
+        line-height: 1 !important;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn {
+        width: 38px !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
+        border-radius: 12px !important;
+    }
+
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn > svg,
+    .calendar-edit-session-panel--personal-edit .booking-side-panel-header-toolbar--session-edit .calendar-form-footer-btn .calendar-form-footer-btn__icon {
+        width: 17px !important;
+        height: 17px !important;
+    }
+
+    .calendar-edit-session-panel--todo-edit .calendar-mobile-header-text-action {
+        min-height: 38px !important;
+        padding: 0 2px 0 8px !important;
+        font-size: 0.88rem !important;
+        font-weight: 740 !important;
+        line-height: 1 !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel--personal-edit .calendar-edit-session-panel__compact-title,
+    .calendar-edit-session-panel--todo-edit .calendar-edit-session-panel__compact-title {
+        font-size: 1.18rem !important;
+    }
+
+    .calendar-edit-session-panel--todo-edit .calendar-mobile-header-text-action {
+        font-size: 0.84rem !important;
+        padding-left: 5px !important;
+    }
+}
