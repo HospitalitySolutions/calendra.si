@@ -6083,3 +6083,75 @@
         font-size: 0.84rem !important;
     }
 }
+
+
+/* --------------------------------------------------------------------------
+   Mobile Dodaj termin refinement: match Uredi termin header proportions and
+   provide an inline clear action for a single selected client.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--new-create .booking-side-panel-header-toolbar--new-create {
+        min-height: 38px !important;
+        grid-template-columns: 38px minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-new-create-title {
+        grid-column: 2 !important;
+        justify-self: start !important;
+        align-self: center !important;
+        margin: 0 !important;
+        text-align: left !important;
+        font-size: 1.22rem !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.035em !important;
+        white-space: nowrap !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-wrap.client-search-wrap--compact-client {
+        position: relative !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-wrap.client-search-wrap--compact-client .client-selected-display {
+        padding-right: 46px !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__single-clear {
+        position: absolute !important;
+        top: 50% !important;
+        right: 7px !important;
+        z-index: 3 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 32px !important;
+        min-width: 32px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: transparent !important;
+        color: #1f2937 !important;
+        box-shadow: none !important;
+        font-size: 1.25rem !important;
+        font-weight: 400 !important;
+        line-height: 1 !important;
+        cursor: pointer !important;
+        transform: translateY(-50%) !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__single-clear:hover,
+    .calendar-edit-session-panel--new-create .calendar-client-picker__single-clear:focus-visible {
+        background: rgba(15, 23, 42, 0.07) !important;
+        color: #111827 !important;
+        outline: none !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel--new-create .booking-side-panel-new-create-title {
+        font-size: 1.18rem !important;
+    }
+}
