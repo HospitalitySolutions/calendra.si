@@ -3000,40 +3000,15 @@
 }
 
 .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__invoice-submenu {
-    overflow: hidden;
-    margin: -4px 16px 12px 70px;
-    border: 1px solid #dde6ef;
-    border-radius: 15px;
-    background: #f8fafc;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 .calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__invoice-subitem {
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr);
-    gap: 10px;
-    align-items: center;
     width: 100%;
-    min-height: 66px;
-    margin: 0;
-    padding: 10px 12px;
-    border: 0;
-    border-bottom: 1px solid #dde6ef;
-    border-radius: 0;
-    background: transparent;
-    color: #172033;
-    font: inherit;
-    text-align: left;
-    box-shadow: none;
-    cursor: pointer;
-}
-
-.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__invoice-subitem:last-child {
-    border-bottom: 0;
-}
-
-.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__invoice-subitem:hover,
-.calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__invoice-subitem:focus-visible {
-    background: #f0f6fc;
 }
 
 .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__invoice-subicon {
@@ -5670,15 +5645,12 @@
     }
 
     .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__invoice-submenu {
-        margin: -3px 12px 10px 56px;
-        border-radius: 13px;
+        margin: 0;
+        border-radius: 0;
     }
 
     .calendar-edit-session-panel--design-match button.calendar-mobile-session-more-menu__invoice-subitem {
-        grid-template-columns: 30px minmax(0, 1fr);
-        gap: 8px;
-        min-height: 56px;
-        padding: 8px 10px;
+        min-height: 70px;
     }
 
     .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__invoice-subicon {

@@ -2014,20 +2014,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                     <button
                                       type="button"
                                       role="menuitem"
-                                      className="calendar-mobile-session-more-menu__invoice-subitem"
+                                      className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
                                       onClick={() => {
                                         setMobileInvoiceActionsOpen(false)
                                         setMobileBookingDetailsOpen(false)
                                         void openBookedInvoiceEditor()
                                       }}
                                     >
-                                      <span className="calendar-mobile-session-more-menu__invoice-subicon" aria-hidden>
+                                      <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
                                         <svg viewBox="0 0 24 24" fill="none">
                                           <path d="m4.8 19.2.85-3.9L16.8 4.15a1.9 1.9 0 0 1 2.7 0l.35.35a1.9 1.9 0 0 1 0 2.7L8.7 18.35l-3.9.85Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                           <path d="m15.4 5.55 3.05 3.05" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                                         </svg>
                                       </span>
-                                      <span className="calendar-mobile-session-more-menu__invoice-subcopy">
+                                      <span className="calendar-mobile-session-more-menu__copy">
                                         <strong>{locale === 'sl' ? 'Uredi' : 'Edit'}</strong>
                                         <small>{locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice'}</small>
                                       </span>
@@ -2036,20 +2036,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                       <button
                                         type="button"
                                         role="menuitem"
-                                        className="calendar-mobile-session-more-menu__invoice-subitem"
+                                        className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
                                         onClick={() => {
                                           setMobileInvoiceActionsOpen(false)
                                           setMobileBookingDetailsOpen(false)
                                           openBookedBillingView('invoices')
                                         }}
                                       >
-                                        <span className="calendar-mobile-session-more-menu__invoice-subicon" aria-hidden>
+                                        <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
                                           <svg viewBox="0 0 24 24" fill="none">
                                             <path d="M2.75 12s3.2-5.25 9.25-5.25S21.25 12 21.25 12 18.05 17.25 12 17.25 2.75 12 2.75 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
                                             <circle cx="12" cy="12" r="2.45" stroke="currentColor" strokeWidth="1.8" />
                                           </svg>
                                         </span>
-                                        <span className="calendar-mobile-session-more-menu__invoice-subcopy">
+                                        <span className="calendar-mobile-session-more-menu__copy">
                                           <strong>{locale === 'sl' ? 'Pregled' : 'View'}</strong>
                                           <small>{locale === 'sl' ? 'Odpri pregled računov' : 'Open invoice overview'}</small>
                                         </span>
