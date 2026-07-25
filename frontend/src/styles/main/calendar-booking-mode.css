@@ -6041,3 +6041,45 @@
         padding-left: 5px !important;
     }
 }
+
+/* Mobile Dodaj termin header: use a plain white text save action, matching
+   the Opravljeno action in Uredi opravilo. */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create {
+        width: auto !important;
+        min-width: 0 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 2px 0 10px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        font-size: 0.88rem !important;
+        font-weight: 740 !important;
+        line-height: 1 !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create:hover:not(:disabled),
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create:focus-visible {
+        border: 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.92) !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create:disabled {
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.58) !important;
+        box-shadow: none !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create {
+        padding-left: 5px !important;
+        font-size: 0.84rem !important;
+    }
+}
