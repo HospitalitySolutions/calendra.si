@@ -1405,6 +1405,10 @@
     color: #0f172a;
 }
 
+.calendar-overlap-drawer__mobile-titlebar {
+    display: none;
+}
+
 .calendar-overlap-drawer__hint {
     margin: 0 0 14px;
     padding: 10px 12px;
@@ -2716,6 +2720,75 @@
         animation: calendar-overlap-sheet-in 0.2s ease-out;
     }
 
+    .calendar-overlap-drawer--sessions {
+        max-height: min(72vh, 610px);
+        padding: 0 0 calc(16px + env(safe-area-inset-bottom));
+        overflow: hidden;
+        border-color: rgba(219, 228, 239, 0.98);
+        border-radius: 24px 24px 0 0;
+        background: #f8fafc;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__mobile-titlebar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 82px;
+        padding: 18px 18px 14px;
+        box-sizing: border-box;
+        background: #1672f3;
+        color: #ffffff;
+        flex: 0 0 auto;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__mobile-titlebar h3 {
+        margin: 0;
+        color: #ffffff;
+        font-size: 1.2rem;
+        font-weight: 850;
+        line-height: 1.1;
+        letter-spacing: -0.025em;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__mobile-close {
+        width: 50px;
+        height: 50px;
+        flex: 0 0 50px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #ffffff;
+        font: inherit;
+        font-size: 1.45rem;
+        font-weight: 400;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__mobile-close:focus-visible {
+        outline: 3px solid rgba(255, 255, 255, 0.42);
+        outline-offset: 2px;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__header {
+        display: none;
+    }
+
+    .calendar-overlap-drawer--sessions > .calendar-overlap-session-card--summary {
+        margin: 16px 18px 0;
+        flex: 0 0 auto;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__list {
+        margin-top: 12px;
+        padding: 0 18px 18px;
+    }
+
     @keyframes calendar-overlap-sheet-in {
         from { opacity: 0; transform: translateY(18px); }
         to { opacity: 1; transform: translateY(0); }
@@ -2736,6 +2809,12 @@
 
     .calendar-overlap-drawer__handle svg {
         display: none;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-drawer__handle {
+        top: 9px;
+        z-index: 4;
+        background: rgba(255, 255, 255, 0.58);
     }
 
     .calendar-overlap-drawer__header {
@@ -2780,6 +2859,15 @@
         box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
     }
 
+    .calendar-overlap-drawer--sessions .calendar-overlap-session-card {
+        grid-template-columns: 10px minmax(0, 1fr);
+        min-height: 92px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border-color: rgba(218, 226, 236, 0.98);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.055);
+    }
+
     .calendar-overlap-session-card::before {
         content: '';
         grid-column: 1;
@@ -2811,9 +2899,23 @@
         line-height: 1.15;
     }
 
+    .calendar-overlap-drawer--sessions .calendar-overlap-session-card__title {
+        font-size: 1rem;
+        line-height: 1.15;
+    }
+
     .calendar-overlap-session-card__subtitle,
-    .calendar-overlap-session-card__meta > span {
+    .calendar-overlap-session-card__location {
         display: none !important;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-session-card__subtitle {
+        display: block !important;
+        margin-top: 5px;
+        color: #475569;
+        font-size: 0.84rem;
+        font-weight: 650;
+        line-height: 1.2;
     }
 
     .calendar-overlap-session-card__meta {
@@ -2844,6 +2946,10 @@
         color: #334155;
         box-shadow: none;
         text-decoration: underline;
+    }
+
+    .calendar-overlap-drawer--sessions .calendar-overlap-session-card__count {
+        display: none !important;
     }
 
     .calendar-overlap-session-card__count {

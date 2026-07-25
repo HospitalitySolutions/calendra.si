@@ -4754,17 +4754,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return clientLabel || String(item?.consultant ? fullName(item.consultant) : '').trim() || '—'
   }, [t])
 
+  const overlapSessionClientDisplaySubtitle = useCallback((item: any) => {
+    if (item?.kind === 'personal') return ''
+    const clients = Array.isArray(item?.clients) ? item.clients : []
+    return clients
+      .map((client: any) => `${String(client?.lastName || '').trim()} ${String(client?.firstName || '').trim()}`.trim())
+      .filter(Boolean)
+      .join(', ')
+  }, [])
+
   const overlapSessionLocationLabel = useCallback((item: any) => {
     if (item?.space?.name) return item.space.name
     if (item?.consultant) return fullName(item.consultant)
     return item?.kind === 'personal' ? t('formPersonal') : t('formUnassigned')
   }, [t])
-
-  const overlapSessionItemCountLabel = useCallback((item: any) => {
-    const isTodo = item?.kind === 'todo'
-    if (locale === 'sl') return isTodo ? '1 opravilo' : '1 termin'
-    return isTodo ? '1 task' : '1 session'
-  }, [locale])
 
   const overlapSessionAccentColor = useCallback((item: any) => {
     if (item?.kind === 'personal') return '#f97316'
@@ -12372,11 +12375,22 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           </aside>
         )}
         {!isNativeAndroid && activeOverlapGroup && (
-          <aside className="calendar-overlap-drawer" aria-label={locale === 'sl' ? 'Ostali termini' : 'Other sessions'}>
+          <aside className="calendar-overlap-drawer calendar-overlap-drawer--sessions" aria-label={locale === 'sl' ? 'Ostali termini' : 'Other sessions'}>
             <div className="calendar-overlap-drawer__handle" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 18l-6-6 6-6" />
               </svg>
+            </div>
+            <div className="calendar-overlap-drawer__mobile-titlebar">
+              <button
+                type="button"
+                className="calendar-overlap-drawer__mobile-close"
+                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+                onClick={() => setOverlapDrawerGroupId(null)}
+              >
+                ×
+              </button>
+              <h3>{locale === 'sl' ? 'Ostali termini' : 'Other sessions'}</h3>
             </div>
             <div className="calendar-overlap-drawer__header">
               <div>
@@ -12393,11 +12407,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               >
                 ×
               </button>
-            </div>
-            <div className="calendar-overlap-drawer__hint">
-              {locale === 'sl'
-                ? 'Vsi termini potekajo hkrati. Za urejanje posameznega termina ga odprite.'
-                : 'All sessions happen at the same time. Open an individual session to manage it.'}
             </div>
             <div
               className="calendar-overlap-session-card calendar-overlap-session-card--summary"
@@ -12416,22 +12425,22 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               </div>
               <div className="calendar-overlap-session-card__body">
                 <div className="calendar-overlap-session-card__title">{overlapSessionDisplayTitle(activeOverlapGroup.main)}</div>
-                <div className="calendar-overlap-session-card__subtitle">{overlapSessionDisplaySubtitle(activeOverlapGroup.main)}</div>
+                {activeOverlapGroup.main?.kind !== 'personal' && overlapSessionClientDisplaySubtitle(activeOverlapGroup.main) ? (
+                  <div className="calendar-overlap-session-card__subtitle">{overlapSessionClientDisplaySubtitle(activeOverlapGroup.main)}</div>
+                ) : null}
                 <div className="calendar-overlap-session-card__meta">
-                  <span>{overlapSessionLocationLabel(activeOverlapGroup.main)}</span>
+                  <span className="calendar-overlap-session-card__location">{overlapSessionLocationLabel(activeOverlapGroup.main)}</span>
                   <span className="calendar-overlap-session-card__time calendar-overlap-session-card__time--static">
                     {formatCalendarClock(activeOverlapGroup.main.start)} – {formatCalendarClock(activeOverlapGroup.main.end)}
                   </span>
                 </div>
               </div>
-              <span className="calendar-overlap-session-card__count calendar-overlap-session-card__count--visible">
-                {activeOverlapGroup.hidden.length + 1} {locale === 'sl' ? 'termini' : 'sessions'}
-              </span>
             </div>
             <div className="calendar-overlap-drawer__list">
               {activeOverlapGroup.hidden.map((item: any) => {
                 const eventId = String(item.eventId || `${item.kind}-${item.id}`)
                 const editingTime = overlapInlineTimeEdit?.eventId === eventId
+                const clientSubtitle = overlapSessionClientDisplaySubtitle(item)
                 return (
                   <div
                     key={eventId}
@@ -12460,9 +12469,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     </div>
                     <div className="calendar-overlap-session-card__body">
                       <div className="calendar-overlap-session-card__title">{overlapSessionDisplayTitle(item)}</div>
-                      <div className="calendar-overlap-session-card__subtitle">{overlapSessionDisplaySubtitle(item)}</div>
+                      {item?.kind !== 'personal' && clientSubtitle ? (
+                        <div className="calendar-overlap-session-card__subtitle">{clientSubtitle}</div>
+                      ) : null}
                       <div className="calendar-overlap-session-card__meta">
-                        <span>{overlapSessionLocationLabel(item)}</span>
+                        <span className="calendar-overlap-session-card__location">{overlapSessionLocationLabel(item)}</span>
                         <button
                           type="button"
                           className="calendar-overlap-session-card__time"
@@ -12476,7 +12487,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                         </button>
                       </div>
                     </div>
-                    <span className="calendar-overlap-session-card__count">{overlapSessionItemCountLabel(item)}</span>
                     <button
                       type="button"
                       className="calendar-overlap-session-card__main"
