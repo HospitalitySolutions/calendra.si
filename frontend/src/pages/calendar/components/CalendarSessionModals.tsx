@@ -25,6 +25,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
+  const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
   const [releasedSlotWaitlistLoading, setReleasedSlotWaitlistLoading] = useState(false)
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -872,6 +873,51 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const visibleBookingStatusOptions = bookingStatusOptions.filter(
     (option) => option.key === currentBookingStatusKey || bookingStatusOptionIsActionable(option),
   )
+
+  useEffect(() => {
+    if (!bookedStatusMenuOpen) return
+    setMobileBookingStatusDraft(currentBookingStatusKey)
+  }, [bookedStatusMenuOpen, currentBookingStatusKey, selectedBookedSession?.id])
+
+  const bookingStatusDescription = (statusKey: string) => {
+    const descriptions = locale === 'sl'
+      ? {
+          RESERVED: 'Termin je rezerviran in ostane v koledarju.',
+          CANCELLED: 'Termin bo odpovedan, razpoložljivost pa sproščena.',
+          NO_SHOW: 'Stranka se termina ni udeležila.',
+          ONGOING: 'Termin trenutno poteka.',
+          CHECKED_OUT: 'Termin je zaključen.',
+        }
+      : locale === 'sr'
+        ? {
+            RESERVED: 'Termin je rezervisan i ostaje u kalendaru.',
+            CANCELLED: 'Termin će biti otkazan, a dostupnost oslobođena.',
+            NO_SHOW: 'Klijent nije došao na termin.',
+            ONGOING: 'Termin je trenutno u toku.',
+            CHECKED_OUT: 'Termin je završen.',
+          }
+        : {
+            RESERVED: 'The appointment is reserved and remains in the calendar.',
+            CANCELLED: 'The appointment will be cancelled and the slot released.',
+            NO_SHOW: 'The client did not attend the appointment.',
+            ONGOING: 'The appointment is currently in progress.',
+            CHECKED_OUT: 'The appointment is completed.',
+          }
+    return descriptions[statusKey as keyof typeof descriptions] || ''
+  }
+
+  const mobileBookingStatusDraftOption = bookingStatusOptions.find(
+    (option) => option.key === mobileBookingStatusDraft,
+  ) ?? currentBookingStatusOption
+  const mobileBookingStatusCanSave = !!mobileBookingStatusDraftOption
+    && mobileBookingStatusDraftOption.key !== currentBookingStatusKey
+    && bookingStatusOptionIsActionable(mobileBookingStatusDraftOption)
+
+  const saveMobileBookingStatus = () => {
+    if (!mobileBookingStatusCanSave || !mobileBookingStatusDraftOption) return
+    setBookedStatusMenuOpen(false)
+    selectBookingStatusOption(mobileBookingStatusDraftOption)
+  }
 
   const noShowClientOptions = (Array.isArray(paymentManagerSessionClients) ? paymentManagerSessionClients : [])
     .filter((client: any) => Number.isInteger(Number(client?.id)) && Number(client?.id) > 0)
@@ -1988,13 +2034,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                 <small>{locale === 'sl' ? 'Izbriši ta termin' : 'Delete this session'}</small>
                               </span>
                             </button>
-                            <div className="calendar-mobile-session-more-menu__item">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__status-action"
+                              onClick={() => {
+                                setMobileBookingDetailsOpen(false)
+                                setNoShowClientPickerOpen(false)
+                                setMobileBookingStatusDraft(currentBookingStatusKey)
+                                setBookedStatusMenuOpen(true)
+                              }}
+                            >
                               <span className={`calendar-mobile-session-more-menu__icon calendar-mobile-session-more-menu__status-icon calendar-mobile-session-more-menu__status-icon--${currentBookingStatusTone}`} aria-hidden>●</span>
                               <span className="calendar-mobile-session-more-menu__copy">
                                 <strong>{locale === 'sl' ? 'Status' : 'Status'}</strong>
                                 <small>{currentBookingStatusLabel}</small>
                               </span>
-                            </div>
+                              <span className="calendar-mobile-session-more-menu__chevron" aria-hidden>›</span>
+                            </button>
                             <div className="calendar-mobile-session-more-menu__item">
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
                               <span className="calendar-mobile-session-more-menu__copy">
@@ -2792,6 +2849,108 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             </div>
           </div>
         </div>
+      )}
+
+      {compactSessionEditHeader && selectedBookedSession && bookedStatusMenuOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="calendar-mobile-status-editor-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            event.stopPropagation()
+            if (event.target === event.currentTarget) setBookedStatusMenuOpen(false)
+          }}
+        >
+          <section
+            className="calendar-mobile-status-editor"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-mobile-status-editor-title"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="calendar-mobile-status-editor__header">
+              <button
+                type="button"
+                className="calendar-mobile-status-editor__close"
+                onClick={() => setBookedStatusMenuOpen(false)}
+                aria-label={t('mobileNavClose')}
+              >
+                ×
+              </button>
+              <h2 id="calendar-mobile-status-editor-title">
+                {locale === 'sl' ? 'Spremeni status' : locale === 'sr' ? 'Promeni status' : 'Change status'}
+              </h2>
+              <span className="calendar-mobile-status-editor__header-spacer" aria-hidden />
+            </header>
+
+            <div className="calendar-mobile-status-editor__body">
+              <section className="calendar-mobile-status-editor__section">
+                <h3>{locale === 'sl' ? 'Trenutni status' : locale === 'sr' ? 'Trenutni status' : 'Current status'}</h3>
+                <div className="calendar-mobile-status-editor__current">
+                  <span className={`calendar-mobile-status-editor__dot calendar-mobile-status-editor__dot--${currentBookingStatusTone}`} aria-hidden />
+                  <span>{currentBookingStatusLabel}</span>
+                </div>
+              </section>
+
+              <section className="calendar-mobile-status-editor__section">
+                <h3>{locale === 'sl' ? 'Izberi novi status' : locale === 'sr' ? 'Izaberi novi status' : 'Choose a new status'}</h3>
+                <div className="calendar-mobile-status-editor__options" role="radiogroup">
+                  {visibleBookingStatusOptions.map((option) => {
+                    const selected = mobileBookingStatusDraft === option.key
+                    const canSelect = option.key === currentBookingStatusKey || bookingStatusOptionIsActionable(option)
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-disabled={!canSelect}
+                        disabled={!canSelect}
+                        className={`calendar-mobile-status-editor__option calendar-mobile-status-editor__option--${option.tone}${selected ? ' is-selected' : ''}`}
+                        onClick={() => setMobileBookingStatusDraft(option.key)}
+                      >
+                        <span className={`calendar-mobile-status-editor__dot calendar-mobile-status-editor__dot--${option.tone}`} aria-hidden />
+                        <span className="calendar-mobile-status-editor__option-copy">
+                          <strong>{option.label}</strong>
+                          <small>{bookingStatusDescription(option.key)}</small>
+                        </span>
+                        <span className="calendar-mobile-status-editor__radio" aria-hidden>{selected ? '✓' : ''}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <div className="calendar-mobile-status-editor__info">
+                <span aria-hidden>i</span>
+                <p>{locale === 'sl'
+                  ? 'Sprememba statusa se bo shranila pri tem terminu.'
+                  : locale === 'sr'
+                    ? 'Promena statusa će biti sačuvana uz ovaj termin.'
+                    : 'The status change will be saved on this appointment.'}</p>
+              </div>
+            </div>
+
+            <footer className="calendar-mobile-status-editor__footer">
+              <button
+                type="button"
+                className="calendar-mobile-status-editor__save"
+                onClick={saveMobileBookingStatus}
+                disabled={!mobileBookingStatusCanSave}
+              >
+                {locale === 'sl' ? 'Shrani status' : locale === 'sr' ? 'Sačuvaj status' : 'Save status'}
+              </button>
+              <button
+                type="button"
+                className="calendar-mobile-status-editor__cancel"
+                onClick={() => setBookedStatusMenuOpen(false)}
+              >
+                {locale === 'sl' ? 'Prekliči' : locale === 'sr' ? 'Otkaži' : 'Cancel'}
+              </button>
+            </footer>
+          </section>
+        </div>,
+        document.body,
       )}
 
       {newSlotWaitlistOpen && visibleNewSlotWaitlistMatches?.count > 0 && typeof document !== 'undefined' && createPortal(

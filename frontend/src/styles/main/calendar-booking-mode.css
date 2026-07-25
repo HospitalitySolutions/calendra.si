@@ -5453,3 +5453,417 @@
         border-radius: 11px;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile Uredi termin: compact three-dot menu + full-screen status editor.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu {
+        width: min(310px, calc(100vw - 28px));
+        max-height: min(74vh, 560px);
+        border-radius: 18px;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__item {
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 10px;
+        min-height: 64px;
+        padding: 10px 14px;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__status-action {
+        grid-template-columns: 34px minmax(0, 1fr) 18px;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        font-size: 1.2rem;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__action .calendar-mobile-session-more-menu__icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__copy {
+        gap: 2px;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__copy strong {
+        font-size: 0.9rem;
+        line-height: 1.2;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__copy small {
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-mobile-session-more-menu__chevron {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 1.45rem;
+        font-weight: 400;
+        line-height: 1;
+    }
+}
+
+.calendar-mobile-status-editor-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2147482500;
+    display: none;
+    align-items: stretch;
+    justify-content: flex-end;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
+
+@media (max-width: 939px) {
+    .calendar-mobile-status-editor-backdrop {
+        display: flex;
+    }
+
+    .calendar-mobile-status-editor {
+        width: 100%;
+        max-width: 560px;
+        min-height: 100vh;
+        height: 100vh;
+        max-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: #f8fafc;
+        color: #0f172a;
+        box-shadow: -12px 0 36px rgba(15, 23, 42, 0.18);
+    }
+
+    @supports (height: 100dvh) {
+        .calendar-mobile-status-editor {
+            min-height: 100dvh;
+            height: 100dvh;
+            max-height: 100dvh;
+        }
+    }
+
+    .calendar-mobile-status-editor__header {
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr) 38px;
+        align-items: center;
+        gap: 8px;
+        min-height: 62px;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        color: #fff;
+        flex: 0 0 auto;
+    }
+
+    .calendar-mobile-status-editor__header h2 {
+        margin: 0;
+        overflow: hidden;
+        font-size: 1.22rem;
+        font-weight: 820;
+        line-height: 1.1;
+        letter-spacing: -0.035em;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .calendar-mobile-status-editor__close,
+    .calendar-mobile-status-editor__header-spacer {
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        min-height: 38px;
+    }
+
+    .calendar-mobile-status-editor__close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        font-size: 1.25rem;
+        font-weight: 400;
+        line-height: 1;
+        box-shadow: none;
+    }
+
+    .calendar-mobile-status-editor__close:hover,
+    .calendar-mobile-status-editor__close:focus-visible {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+    }
+
+    .calendar-mobile-status-editor__body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 18px 14px 22px;
+        overscroll-behavior: contain;
+    }
+
+    .calendar-mobile-status-editor__section + .calendar-mobile-status-editor__section {
+        margin-top: 22px;
+    }
+
+    .calendar-mobile-status-editor__section h3 {
+        margin: 0 0 9px;
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .calendar-mobile-status-editor__current {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 52px;
+        padding: 0 14px;
+        border: 1px solid #dbe4ee;
+        border-radius: 14px;
+        background: #fff;
+        color: #172033;
+        font-size: 0.92rem;
+        font-weight: 760;
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.035);
+    }
+
+    .calendar-mobile-status-editor__options {
+        display: grid;
+        gap: 8px;
+    }
+
+    .calendar-mobile-status-editor__option {
+        display: grid;
+        grid-template-columns: 12px minmax(0, 1fr) 24px;
+        align-items: center;
+        gap: 11px;
+        width: 100%;
+        min-height: 66px;
+        padding: 10px 12px;
+        border: 1px solid #dbe4ee;
+        border-radius: 14px;
+        background: #fff;
+        color: #172033;
+        text-align: left;
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03);
+    }
+
+    .calendar-mobile-status-editor__option:hover:not(:disabled),
+    .calendar-mobile-status-editor__option:focus-visible {
+        border-color: #8bb8fa;
+        background: #f8fbff;
+        outline: none;
+    }
+
+    .calendar-mobile-status-editor__option.is-selected {
+        border-color: #2f7bf2;
+        background: linear-gradient(135deg, #f5f9ff 0%, #eef5ff 100%);
+        box-shadow: 0 0 0 2px rgba(47, 123, 242, 0.08);
+    }
+
+    .calendar-mobile-status-editor__option:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+
+    .calendar-mobile-status-editor__option-copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .calendar-mobile-status-editor__option-copy strong {
+        color: #172033;
+        font-size: 0.9rem;
+        font-weight: 790;
+        line-height: 1.2;
+    }
+
+    .calendar-mobile-status-editor__option-copy small {
+        color: #64748b;
+        font-size: 0.76rem;
+        line-height: 1.3;
+    }
+
+    .calendar-mobile-status-editor__dot {
+        display: inline-block;
+        width: 10px;
+        min-width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #94a3b8;
+    }
+
+    .calendar-mobile-status-editor__dot--reserved { background: #16a34a; }
+    .calendar-mobile-status-editor__dot--cancelled { background: #dc2626; }
+    .calendar-mobile-status-editor__dot--no-show { background: #d97706; }
+    .calendar-mobile-status-editor__dot--ongoing { background: #2563eb; }
+    .calendar-mobile-status-editor__dot--checked-out { background: #7c3aed; }
+
+    .calendar-mobile-status-editor__radio {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border: 1.5px solid #b7c3d2;
+        border-radius: 999px;
+        background: #fff;
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 850;
+        line-height: 1;
+    }
+
+    .calendar-mobile-status-editor__option.is-selected .calendar-mobile-status-editor__radio {
+        border-color: #1672f3;
+        background: #1672f3;
+    }
+
+    .calendar-mobile-status-editor__info {
+        display: grid;
+        grid-template-columns: 22px minmax(0, 1fr);
+        align-items: start;
+        gap: 9px;
+        margin-top: 18px;
+        padding: 12px;
+        border-radius: 13px;
+        background: #eaf3ff;
+        color: #315783;
+    }
+
+    .calendar-mobile-status-editor__info > span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border: 1.5px solid #1672f3;
+        border-radius: 999px;
+        color: #1672f3;
+        font-size: 0.72rem;
+        font-weight: 800;
+    }
+
+    .calendar-mobile-status-editor__info p {
+        margin: 1px 0 0;
+        font-size: 0.78rem;
+        line-height: 1.4;
+    }
+
+    .calendar-mobile-status-editor__footer {
+        display: grid;
+        gap: 8px;
+        flex: 0 0 auto;
+        padding: 10px 14px max(12px, env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid #e2e8f0;
+        background: #fff;
+    }
+
+    .calendar-mobile-status-editor__save,
+    .calendar-mobile-status-editor__cancel {
+        width: 100%;
+        min-height: 46px;
+        border-radius: 13px;
+        font-size: 0.9rem;
+        font-weight: 780;
+    }
+
+    .calendar-mobile-status-editor__save {
+        border: 0;
+        background: linear-gradient(135deg, #1672f3 0%, #075fe4 100%);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(22, 114, 243, 0.2);
+    }
+
+    .calendar-mobile-status-editor__save:disabled {
+        opacity: 0.48;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .calendar-mobile-status-editor__cancel {
+        border: 1px solid #d5dfeb;
+        background: #fff;
+        color: #1672f3;
+        box-shadow: none;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-mobile-status-editor__body {
+        padding: 14px 10px 18px;
+    }
+
+    .calendar-mobile-status-editor__footer {
+        padding-inline: 10px;
+    }
+
+    .calendar-mobile-status-editor__option {
+        min-height: 62px;
+        padding: 9px 10px;
+    }
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor {
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__current,
+[data-theme="dark"] .calendar-mobile-status-editor__option,
+[data-theme="dark"] .calendar-mobile-status-editor__footer {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: #111c30;
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__section h3,
+[data-theme="dark"] .calendar-mobile-status-editor__option-copy strong {
+    color: #e5edf8;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__option-copy small {
+    color: #aebcd0;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__option.is-selected {
+    border-color: #4aa3ff;
+    background: #172a45;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__radio {
+    border-color: #64748b;
+    background: #111c30;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__option.is-selected .calendar-mobile-status-editor__radio {
+    border-color: #4aa3ff;
+    background: #2387f3;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__info {
+    background: rgba(30, 64, 175, 0.22);
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .calendar-mobile-status-editor__cancel {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: #111c30;
+    color: #6ab7ff;
+}
