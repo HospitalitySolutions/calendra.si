@@ -6166,7 +6166,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const renderModernBillFormLineEditor = (item: BillForm['items'][number], index: number) => {
     const lineState = calculateDiscountedLineStates(billForm.items, createBillDiscountDraft)[index]
     const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
-    const displayedUnitGross = Number((displayedLineGross / Math.max(1, Number(item.quantity || 1))).toFixed(2))
+    // The editable price is always the original unit gross price. Discounts only
+    // affect the calculated Amount column and must not be folded back into Price.
+    const displayedUnitGross = Number(item.grossPrice || 0)
     const lineDraft = getLineItemDiscount(createBillDiscountDraft, index)
     const lineDiscountActive = discountValueNumber(lineDraft) > 0
     const lineDiscountOpen = openCreateItemDiscountIndex === index
@@ -6219,10 +6221,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <input
             type="number"
             min="1"
-            value={item.quantity}
+            value={item.quantity || ''}
             onChange={(e) => {
               const next = [...billForm.items]
-              next[index] = { ...next[index], quantity: Number(e.target.value) }
+              next[index] = { ...next[index], quantity: e.target.value === '' ? 0 : Number(e.target.value) }
               setBillForm({ ...billForm, items: next })
             }}
           />
@@ -6234,6 +6236,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             autoComplete="off"
             aria-label={billingCopy.grossUnitPrice}
             value={formatCashRegisterAmount(displayedUnitGross, locale)}
+            onFocus={(e) => e.currentTarget.select()}
+            onClick={(e) => e.currentTarget.select()}
             onChange={(e) => {
               const digits = cashRegisterDigitsFromRaw(e.target.value)
               const cents = digits ? Number.parseInt(digits, 10) : 0
@@ -9150,10 +9154,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </div>
                     <div className="billing-invoice-item-list">
                       {billForm.items.length === 0 ? (
-                        <EmptyState
-                          title={billingCopy.noBillLinesTitle}
-                          text={billForm.billType === 'ADVANCE' && availableBillServices.length === 0 ? billingCopy.noAdvanceServicesText : billingCopy.noBillLinesText}
-                        />
+                        !isCreateAdvanceBill ? (
+                          <EmptyState
+                            title={billingCopy.noBillLinesTitle}
+                            text={billingCopy.noBillLinesText}
+                          />
+                        ) : null
                       ) : billForm.items.map((item, index) => renderModernBillFormLineEditor(item, index))}
                       <button
                         type="button"
