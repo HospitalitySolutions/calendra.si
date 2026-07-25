@@ -26,6 +26,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
+  const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 720px)').matches : false,
+  )
   const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
   const [releasedSlotWaitlistLoading, setReleasedSlotWaitlistLoading] = useState(false)
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -33,6 +36,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedEntitlementQrReaderRef = useRef<any>(null)
   const bookedEntitlementScanningLockRef = useRef(false)
   const bookedEntitlementWalletRequestRef = useRef(0)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(max-width: 720px)')
+    const sync = () => setIsCalendarCreateMobile(media.matches)
+    sync()
+    media.addEventListener?.('change', sync)
+    return () => media.removeEventListener?.('change', sync)
+  }, [])
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
   const waitlistModuleEnabled = settings?.WAITLIST_ENABLED !== 'false'
   const allDayDateRangeLabels = {
@@ -536,15 +548,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     wide = false,
     inputType: 'text' | 'email' | 'tel' = 'text',
   ) => {
-    const placeholder = locale === 'sl'
-      ? key === 'firstName' ? 'Vnesite ime' : key === 'lastName' ? 'Vnesite priimek' : key === 'email' ? 'Vnesite e-pošto' : 'Vnesite telefon'
-      : key === 'firstName' ? 'Enter first name' : key === 'lastName' ? 'Enter last name' : key === 'email' ? 'Enter email' : 'Enter phone'
+    const required = key === 'firstName' || key === 'lastName'
+    const placeholder = `${label}${required ? ' *' : ''}`
     return (
       <label className={`clients-detail-field-card clients-create-field${wide ? ' clients-detail-field-card--wide' : ''}`}>
-        <span>{label}{key === 'firstName' || key === 'lastName' ? ' *' : ''}</span>
+        <span>{label}{required ? ' *' : ''}</span>
         <input
           autoFocus={key === 'firstName'}
-          required={key === 'firstName' || key === 'lastName'}
+          required={required}
           type={inputType}
           name={`calendra-calendar-new-client-${key}`}
           autoComplete="off"
@@ -5207,57 +5218,94 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
       {showAddClientModal && (
         <div
-          className={`modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement clients-action-workspace-backdrop${isCalendarCreateMobile ? ' clients-simple-create-backdrop' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closeCalendarAddClientModal()
           }}
           role="presentation"
         >
           <div
-            className="modal large-modal calendar-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal"
+            className={`modal large-modal calendar-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal${isCalendarCreateMobile ? ' clients-simple-create-modal' : ''}`}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <form
-              className="clients-create-modal-form"
-              autoComplete="off"
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (!calendarCreateClientDisabled) void createClientFromBooking()
-              }}
-            >
-              <div className="clients-action-workspace-header">
-                <div className="clients-action-workspace-client">
-                  <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
-                    {newClientInitials(String(newClientForm.firstName ?? ''), String(newClientForm.lastName ?? ''))}
-                  </span>
-                  <div className="clients-name-stack clients-action-workspace-title-stack">
-                    <span className="clients-name">{calendarNewClientDisplayName}</span>
-                    <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {calendarNewClientActiveLabel}</span>
+            {isCalendarCreateMobile ? (
+              <form
+                className="clients-create-modal-form clients-simple-create-form"
+                autoComplete="off"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!calendarCreateClientDisabled) void createClientFromBooking()
+                }}
+              >
+                <div className="clients-simple-create-header">
+                  <button
+                    type="button"
+                    className="clients-simple-create-close"
+                    onClick={closeCalendarAddClientModal}
+                    aria-label={t('mobileNavClose')}
+                  >
+                    ×
+                  </button>
+                  <h2>{locale === 'sl' ? 'Nova stranka' : 'New client'}</h2>
+                </div>
+                <div className="clients-simple-create-body">
+                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                      {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
+                      {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
+                      {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
+                      {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true, 'tel')}
+                    </div>
+                    {clientError && <div className="error">{clientError}</div>}
+                    <button type="submit" className="clients-gapp-save-button clients-simple-create-submit" disabled={calendarCreateClientDisabled}>
+                      {savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateClientLabel}
+                    </button>
                   </div>
                 </div>
-                <button type="button" className="secondary clients-action-workspace-close" onClick={closeCalendarAddClientModal} aria-label={t('mobileNavClose')}>
-                  ×
-                </button>
-              </div>
-
-              <div className="clients-action-workspace-body">
-                <div className="clients-detail-shell clients-action-workspace-shell">
-                  <div className="clients-detail-fields clients-create-fields clients-action-workspace-settings-grid">
-                    {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
-                    {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
-                    {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
-                    {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true, 'tel')}
+              </form>
+            ) : (
+              <form
+                className="clients-create-modal-form"
+                autoComplete="off"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!calendarCreateClientDisabled) void createClientFromBooking()
+                }}
+              >
+                <div className="clients-action-workspace-header">
+                  <div className="clients-action-workspace-client">
+                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
+                      {newClientInitials(String(newClientForm.firstName ?? ''), String(newClientForm.lastName ?? ''))}
+                    </span>
+                    <div className="clients-name-stack clients-action-workspace-title-stack">
+                      <span className="clients-name">{calendarNewClientDisplayName}</span>
+                      <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {calendarNewClientActiveLabel}</span>
+                    </div>
                   </div>
-                  {clientError && <div className="error">{clientError}</div>}
+                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeCalendarAddClientModal} aria-label={t('mobileNavClose')}>
+                    ×
+                  </button>
                 </div>
-              </div>
 
-              <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
-                <button type="submit" className="clients-gapp-save-button" disabled={calendarCreateClientDisabled}>
-                  {savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateClientLabel}
-                </button>
-              </div>
-            </form>
+                <div className="clients-action-workspace-body">
+                  <div className="clients-detail-shell clients-action-workspace-shell">
+                    <div className="clients-detail-fields clients-create-fields clients-action-workspace-settings-grid">
+                      {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
+                      {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
+                      {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
+                      {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true, 'tel')}
+                    </div>
+                    {clientError && <div className="error">{clientError}</div>}
+                  </div>
+                </div>
+
+                <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
+                  <button type="submit" className="clients-gapp-save-button" disabled={calendarCreateClientDisabled}>
+                    {savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateClientLabel}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

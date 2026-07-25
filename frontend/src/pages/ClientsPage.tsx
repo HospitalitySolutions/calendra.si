@@ -2588,13 +2588,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     wide = false,
     inputType: 'text' | 'email' | 'tel' = 'text',
   ) => {
-    const placeholder = label
+    const required = key === 'firstName' || key === 'lastName'
+    const placeholder = `${label}${required ? ' *' : ''}`
     return (
       <label className={`clients-detail-field-card clients-create-field${wide ? ' clients-detail-field-card--wide' : ''}`}>
-        <span>{label}{key === 'firstName' || key === 'lastName' ? ' *' : ''}</span>
+        <span>{label}{required ? ' *' : ''}</span>
         <input
           autoFocus={key === 'firstName'}
-          required={key === 'firstName' || key === 'lastName'}
+          required={required}
           type={inputType}
           name={`calendra-new-client-${key}`}
           autoComplete="off"
@@ -4702,7 +4703,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             {isClientsMobile ? (
               <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={handleSubmit}>
                 <div className="clients-simple-create-header">
-                  <h2>{clientsCopy.newClientTitle}</h2>
                   <button
                     type="button"
                     className="clients-simple-create-close"
@@ -4711,6 +4711,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   >
                     ×
                   </button>
+                  <h2>{clientsCopy.newClientTitle}</h2>
                 </div>
                 <div className="clients-simple-create-body">
                   <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
@@ -4784,7 +4785,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             {isClientsMobile ? (
               <form className="clients-create-modal-form clients-simple-create-form" onSubmit={submitCompanyForm}>
                 <div className="clients-simple-create-header">
-                  <h2>{clientsCopy.newCompanyTitle}</h2>
                   <button
                     type="button"
                     className="clients-simple-create-close"
@@ -4793,13 +4793,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   >
                     ×
                   </button>
+                  <h2>{clientsCopy.newCompanyTitle}</h2>
                 </div>
                 <div className="clients-simple-create-body">
                   <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
                     <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.companyName}</span>
-                        <input required placeholder={clientsCopy.companyName} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
+                        <span>{clientsCopy.companyName} *</span>
+                        <input required placeholder={`${clientsCopy.companyName} *`} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.vatId}</span>
@@ -5276,7 +5277,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             {isClientsMobile ? (
               <form className="clients-create-modal-form clients-simple-create-form" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
                 <div className="clients-simple-create-header">
-                  <h2>{clientsCopy.newGroupTitle}</h2>
                   <button
                     type="button"
                     className="clients-simple-create-close"
@@ -5285,13 +5285,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   >
                     ×
                   </button>
+                  <h2>{clientsCopy.newGroupTitle}</h2>
                 </div>
                 <div className="clients-simple-create-body">
                   <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
                     <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.groupName}</span>
-                        <input required placeholder={clientsCopy.groupName} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
+                        <span>{clientsCopy.groupName} *</span>
+                        <input required placeholder={`${clientsCopy.groupName} *`} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.groupEmail}</span>
