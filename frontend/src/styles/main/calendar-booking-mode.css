@@ -4317,3 +4317,256 @@
         flex-basis: 56px;
     }
 }
+
+/* Mobile booked-session editor: compact, edge-to-edge full-screen layout. */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--booked.booking-side-panel.modal.large-modal,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel.modal.large-modal {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        align-self: stretch;
+    }
+
+    @supports (height: 100dvh) {
+        .calendar-edit-session-panel--booked.booking-side-panel.modal.large-modal,
+        .layout-android .calendar-edit-session-panel--booked.booking-side-panel.modal.large-modal {
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+        }
+    }
+
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-header::before {
+        display: none !important;
+        content: none !important;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-header,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-header {
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
+        min-height: 0;
+        border-radius: 0 !important;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-header-toolbar--session-edit-booked {
+        min-height: 38px;
+        grid-template-columns: 38px minmax(0, 1fr) 38px;
+        gap: 8px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-edit-session-panel__compact-title {
+        font-size: 1.22rem;
+        line-height: 1.1;
+        letter-spacing: -0.035em;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-close,
+    .calendar-edit-session-panel--booked .calendar-mobile-session-more-btn {
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        min-height: 38px;
+        border-radius: 12px;
+        font-size: 0.92rem;
+        box-shadow: none;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-body,
+    .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-body,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-body {
+        padding: 10px 12px 12px !important;
+    }
+
+    .calendar-edit-session-panel--booked .form-row-layout.form-row-layout--booking,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .form-row-layout {
+        gap: 12px !important;
+    }
+
+    .calendar-edit-session-panel--booked .form-row.form-row-infield,
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .form-row {
+        gap: 6px !important;
+    }
+
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .form-row {
+        padding: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    .calendar-edit-session-panel--booked .form-field-inline-label,
+    .calendar-edit-session-panel--booked .calendar-timespan-label,
+    .calendar-edit-session-panel--booked .calendar-timespan-all-day-caption,
+    .calendar-edit-session-panel--booked .form-repeats-label,
+    .calendar-edit-session-panel--booked .calendar-booking-service-online-caption {
+        font-size: 0.8rem !important;
+        line-height: 1.15;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-row {
+        gap: 7px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap {
+        min-height: 46px;
+        padding-inline: 12px;
+        border-radius: 14px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap input,
+    .calendar-edit-session-panel--booked .client-selected-display {
+        min-height: 44px;
+        font-size: 0.88rem;
+        line-height: 1.2;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions {
+        gap: 7px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__waitlist-btn {
+        width: 46px !important;
+        min-width: 46px !important;
+        height: 46px !important;
+        min-height: 46px !important;
+        flex-basis: 46px;
+        border-radius: 14px;
+        font-size: 0.86rem;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn > span:first-child,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn > span:first-child {
+        font-size: 1.3rem;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-multi-client-chips {
+        gap: 6px;
+        margin-top: 7px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-multi-client-chip,
+    .calendar-edit-session-panel--booked .calendar-multi-client-more {
+        min-height: 30px;
+        font-size: 0.78rem;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-booking-field--consultant select,
+    .calendar-edit-session-panel--booked .calendar-booking-field--space select {
+        min-height: 44px;
+        padding: 0 38px 0 12px;
+        border-radius: 14px;
+        font-size: 0.88rem;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-booking-service-select-shell {
+        min-height: 42px !important;
+    }
+
+    .calendar-edit-session-panel--booked .form-row.form-row-infield .calendar-booking-service-select-shell > select {
+        min-height: 42px;
+        padding: 0 32px 0 8px;
+        font-size: 0.88rem;
+        line-height: 1.15;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-booking-service-infield-head {
+        gap: 6px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-booking-timespan-row {
+        padding: 0 !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+        gap: 7px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-input-inner {
+        gap: 5px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-input-inner .modern-time-picker__trigger,
+    .calendar-edit-session-panel--booked .calendar-timespan-input-inner input[type="date"] {
+        min-height: 44px !important;
+        padding: 0 9px !important;
+        border-radius: 12px !important;
+        font-size: 0.84rem !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-date-head,
+    .calendar-edit-session-panel--booked .calendar-timespan-date-head--with-all-day {
+        min-height: 19px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-all-day-line {
+        gap: 4px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-all-day-switch.repeats-toggle-switch {
+        width: 36px !important;
+        height: 20px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-all-day-switch .repeats-toggle-slider::before {
+        width: 14px !important;
+        height: 14px !important;
+        left: 3px !important;
+        top: 3px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-all-day-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before {
+        transform: translateX(16px) !important;
+    }
+
+    .calendar-edit-session-panel--booked input,
+    .calendar-edit-session-panel--booked select,
+    .calendar-edit-session-panel--booked textarea,
+    .calendar-edit-session-panel--booked button {
+        font-size: 0.88rem;
+    }
+
+    .calendar-edit-session-panel--booked textarea.calendar-session-notes-autogrow,
+    .calendar-edit-session-panel--booked .form-row textarea {
+        min-height: 82px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        font-size: 0.86rem;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-footer.booking-side-panel-footer--mobile-save,
+    .calendar-edit-session-panel--booked .booking-side-panel-footer.booking-side-panel-footer--mobile-save:has(.calendar-form-footer-btn--save),
+    .layout-android .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-footer {
+        padding: 9px 12px max(10px, env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom {
+        min-height: 48px;
+        border-radius: 14px;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom .calendar-form-footer-btn__label {
+        font-size: 0.94rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel--booked .booking-side-panel-body,
+    .calendar-edit-session-panel--booked.booking-side-panel .booking-side-panel-body {
+        padding-inline: 10px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+        gap: 6px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-timespan-input-inner .modern-time-picker__trigger,
+    .calendar-edit-session-panel--booked .calendar-timespan-input-inner input[type="date"] {
+        padding-inline: 7px !important;
+        font-size: 0.8rem !important;
+    }
+}

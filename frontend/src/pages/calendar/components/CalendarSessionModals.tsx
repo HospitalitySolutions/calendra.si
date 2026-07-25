@@ -1866,7 +1866,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--booked', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle(true)}
             onClick={(e) => e.stopPropagation()}
           >
