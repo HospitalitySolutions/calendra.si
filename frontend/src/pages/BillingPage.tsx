@@ -6048,6 +6048,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const lineDiscountActive = discountValueNumber(lineDraft) > 0
     const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === rowBill.id && openOpenBillItemDiscount.index === idx
     const popupDraft = lineDraft
+    const lineDiscountButtonLabel = normalizeDiscountType(lineDraft.type) === 'AMOUNT'
+      ? currency(discountValueNumber(lineDraft))
+      : `${discountValueNumber(lineDraft)}%`
     const removeLine = () => {
       const currentItems = getOpenBillItems(rowBill)
       const nextItems = currentItems.filter((_, i) => i !== idx)
@@ -6143,7 +6146,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
             title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
           >
-            {discountIconSvg()}
+            <span>{lineDiscountButtonLabel}</span>
           </button>
           {lineDiscountOpen && renderItemDiscountPopover(
             popupDraft,
@@ -6977,7 +6980,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   onDrop={() => moveOpenBillLineToBill(entry)}
                 >
                   <span className="billing-invoice-tab-icon" aria-hidden>
-                    {temporary ? '▯' : (meta.target === 'COMPANY' ? '▦' : '♙')}
+                    {temporary
+                      ? '▯'
+                      : (meta.target === 'COMPANY'
+                        ? '▦'
+                        : meta.label.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join(''))}
                   </span>
                   <span className="billing-invoice-tab-copy">
                     <strong>{temporary ? (entry.reference || meta.label || `#${entry.id}`) : meta.label}</strong>
@@ -7178,8 +7185,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <span>{locale === 'sl' ? 'Količina' : 'Qty'}</span>
               <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
               <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
-              <span />
-              <span />
+              <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
+              <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
             </div>
             <div className="billing-invoice-item-list">
               {displayedRows.length === 0 ? (
@@ -8927,7 +8934,47 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                   <p>{openBillEditorSubtitle(detailOpenBill)}</p>
                 </div>
-                <button type="button" className="billing-bill-modal-close" onClick={closeDetailOpenBill} aria-label="Close">×</button>
+                <button type="button" className="billing-bill-modal-close" onClick={closeDetailOpenBill} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+                <details className="billing-open-detail-actions-menu">
+                  <summary aria-label={locale === 'sl' ? 'Več dejanj' : 'More actions'}>⋮</summary>
+                  <div className="billing-open-detail-actions-popover" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open')
+                        openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)
+                      }}
+                      disabled={previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                    >
+                      {locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open')
+                        void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)
+                      }}
+                      disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}
+                    >
+                      {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="billing-open-detail-actions-delete"
+                      onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open')
+                        void deleteOpenBill(detailOpenBill)
+                      }}
+                      disabled={deletingOpenId === detailOpenBill.id}
+                    >
+                      {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
+                    </button>
+                  </div>
+                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                </details>
               </div>
 
               {renderModernOpenBillEditor(detailOpenBill)}
@@ -8949,16 +8996,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {renderOpenBillPreviewChoicePopover(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
                 </div>
                 <div className="billing-bill-modal-footer-actions">
-                  <button type="button" className="billing-bill-modal-save-btn" onClick={() => saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)} disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}>
-                    <span className="billing-bill-modal-save-btn__icon" aria-hidden>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-                        <path d="M17 21v-8H7v8" />
-                        <path d="M7 3v5h8" />
-                      </svg>
-                    </span>
-                    <span>Save changes</span>
-                  </button>
                   <button
                     type="button"
                     className="billing-bill-modal-save-btn"
