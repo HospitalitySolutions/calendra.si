@@ -5165,3 +5165,171 @@
         border-radius: 14px !important;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile add appointment: blue top header + blue full-width tab row
+   matching the approved preview and Clients-tab mobile header styling.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--new-create {
+        --calendar-new-create-mobile-blue: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-header,
+    .calendar-edit-session-panel--new-create .booking-side-panel-header--compact-booking,
+    .layout-android .calendar-edit-session-panel--new-create.booking-side-panel .booking-side-panel-header {
+        background: var(--calendar-new-create-mobile-blue) !important;
+        border-bottom: 0 !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-header-toolbar--new-create {
+        min-height: 54px;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-new-create-title {
+        color: #ffffff !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-close {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-close:hover,
+    .calendar-edit-session-panel--new-create .booking-side-panel-close:focus-visible {
+        background: rgba(255, 255, 255, 0.14) !important;
+        color: #ffffff !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create {
+        background: #ffffff !important;
+        color: #0b71ee !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        font-weight: 760;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create:hover:not(:disabled),
+    .calendar-edit-session-panel--new-create .booking-side-panel-submit-check--new-create:focus-visible {
+        background: rgba(255, 255, 255, 0.96) !important;
+        color: #0865db !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-side-panel-body,
+    .calendar-edit-session-panel--new-create.booking-side-panel .booking-side-panel-body {
+        padding-top: 0 !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-switcher {
+        width: calc(100% + 24px);
+        min-width: calc(100% + 24px);
+        margin: 0 -12px 18px !important;
+        padding: 0 12px 12px !important;
+        min-height: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: var(--calendar-new-create-mobile-blue) !important;
+        box-shadow: none !important;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        overflow: visible;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn,
+    .calendar-edit-session-panel--new-create .booking-type-btn--booking,
+    .calendar-edit-session-panel--new-create .booking-type-btn--todo,
+    .calendar-edit-session-panel--new-create .booking-type-btn--personal,
+    .calendar-edit-session-panel--new-create .booking-type-btn--availability,
+    .calendar-edit-session-panel--new-create .booking-type-btn:not(.active).booking-type-btn--booking,
+    .calendar-edit-session-panel--new-create .booking-type-btn:not(.active).booking-type-btn--todo,
+    .calendar-edit-session-panel--new-create .booking-type-btn:not(.active).booking-type-btn--personal,
+    .calendar-edit-session-panel--new-create .booking-type-btn:not(.active).booking-type-btn--availability {
+        min-height: 54px;
+        padding: 0 4px;
+        border: 0 !important;
+        border-radius: 16px !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.96) !important;
+        box-shadow: none !important;
+        font-size: clamp(0.72rem, 2.95vw, 0.84rem);
+        font-weight: 720;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn + .booking-type-btn {
+        border-inline-start: 0 !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn:hover,
+    .calendar-edit-session-panel--new-create .booking-type-btn:active,
+    .calendar-edit-session-panel--new-create .booking-type-btn:focus-visible {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn.active,
+    .calendar-edit-session-panel--new-create .booking-type-btn--booking.active,
+    .calendar-edit-session-panel--new-create .booking-type-btn--todo.active,
+    .calendar-edit-session-panel--new-create .booking-type-btn--personal.active,
+    .calendar-edit-session-panel--new-create .booking-type-btn--availability.active,
+    .calendar-edit-session-panel--new-create .booking-type-btn.active:hover,
+    .calendar-edit-session-panel--new-create .booking-type-btn.active:active,
+    .calendar-edit-session-panel--new-create .booking-type-btn.active:focus-visible {
+        background: #ffffff !important;
+        color: #0b71ee !important;
+        box-shadow: 0 2px 8px rgba(7, 53, 120, 0.14) !important;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn-label {
+        gap: 6px;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn-icon,
+    .calendar-edit-session-panel--new-create .booking-type-btn-label > svg {
+        width: 18px;
+        min-width: 18px;
+        height: 18px;
+        flex-basis: 18px;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn.active .booking-type-btn-icon,
+    .calendar-edit-session-panel--new-create .booking-type-btn.active .booking-type-btn-label > svg {
+        color: currentColor;
+        stroke: currentColor;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel--new-create .booking-type-switcher {
+        width: calc(100% + 20px);
+        min-width: calc(100% + 20px);
+        margin: 0 -10px 16px !important;
+        padding: 0 10px 10px !important;
+        gap: 6px;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn,
+    .calendar-edit-session-panel--new-create .booking-type-btn--booking,
+    .calendar-edit-session-panel--new-create .booking-type-btn--todo,
+    .calendar-edit-session-panel--new-create .booking-type-btn--personal,
+    .calendar-edit-session-panel--new-create .booking-type-btn--availability {
+        min-height: 50px;
+        border-radius: 14px !important;
+        font-size: clamp(0.66rem, 2.85vw, 0.77rem);
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn-label {
+        gap: 4px;
+    }
+
+    .calendar-edit-session-panel--new-create .booking-type-btn-icon,
+    .calendar-edit-session-panel--new-create .booking-type-btn-label > svg {
+        width: 16px;
+        min-width: 16px;
+        height: 16px;
+        flex-basis: 16px;
+    }
+}
