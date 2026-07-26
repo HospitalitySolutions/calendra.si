@@ -1029,8 +1029,8 @@
 
 .calendar-session-billing-view-mobile-card {
     display: grid;
-    gap: 14px;
-    padding: 14px 16px;
+    gap: 12px;
+    padding: 12px 14px;
     border-top: 1px solid #e2e8f0;
     background: #fff;
 }
@@ -1039,20 +1039,20 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
-    gap: 14px;
+    gap: 12px;
 }
 
 .calendar-session-billing-view-mobile-number {
-    min-width: 52px;
-    min-height: 52px;
-    padding: 8px 10px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 6px 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 16px;
+    border-radius: 14px;
     background: #eff6ff;
     color: #2563eb;
-    font-size: 1rem;
+    font-size: 0.92rem;
     font-weight: 900;
     text-align: center;
     line-height: 1.1;
@@ -1071,23 +1071,23 @@
 .calendar-session-billing-view-mobile-grid small,
 .calendar-session-billing-view-mobile-status-row small {
     color: #64748b;
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     font-weight: 850;
 }
 
 .calendar-session-billing-view-mobile-payer strong,
 .calendar-session-billing-view-mobile-grid strong {
     color: #0f172a;
-    font-size: 0.98rem;
+    font-size: 0.9rem;
     font-weight: 900;
-    line-height: 1.25;
+    line-height: 1.22;
 }
 
 .calendar-session-billing-view-mobile-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-    padding-top: 14px;
+    gap: 12px;
+    padding-top: 12px;
     border-top: 1px solid #e2e8f0;
 }
 
@@ -1095,8 +1095,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding-top: 14px;
+    gap: 10px;
+    padding-top: 12px;
     border-top: 1px solid #e2e8f0;
 }
 
@@ -6510,70 +6510,81 @@
     .calendar-session-billing-view-modal--advances-mobile {
         display: grid;
 
-        background: linear-gradient(180deg, #0f67f6 0 130px, #f5f7fb 130px 100%);
+        background: linear-gradient(180deg, #0f67f6 0 96px, #f5f7fb 96px 100%);
     }
 
     .calendar-session-billing-view-header--blue {
-        padding: 18px 16px 16px;
+        gap: 8px;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px;
     }
 
     .calendar-session-billing-view-header--blue h2 {
-        font-size: 1.5rem;
+        font-size: 1.22rem;
+        line-height: 1.1;
+        letter-spacing: -0.035em;
+        font-weight: 860;
     }
 
     .calendar-session-billing-view-close-btn {
-        width: 50px;
-        height: 50px;
-        border-radius: 16px;
-        font-size: 1.9rem;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        font-size: 1.5rem;
     }
 
     .calendar-session-billing-view-advance-content {
-        padding: 16px;
-        gap: 16px;
+        padding: 14px 12px 12px;
+        gap: 12px;
     }
 
     .calendar-session-billing-view-summary-card,
     .calendar-session-billing-view-advances-panel {
-        border-radius: 22px;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+        border-radius: 20px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
     }
 
     .calendar-session-billing-view-summary-card {
-        padding: 18px 16px;
+        padding: 14px 14px;
     }
 
     .calendar-session-billing-view-summary-card__left,
     .calendar-session-billing-view-advances-panel__title-wrap {
-        gap: 12px;
+        gap: 10px;
     }
 
     .calendar-session-billing-view-summary-icon,
     .calendar-session-billing-view-advances-panel__icon {
-        width: 42px;
-        height: 42px;
-        border-radius: 14px;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+    }
+
+    .calendar-session-billing-view-summary-icon svg,
+    .calendar-session-billing-view-advances-panel__icon svg {
+        width: 20px;
+        height: 20px;
     }
 
     .calendar-session-billing-view-summary-card__left strong,
     .calendar-session-billing-view-advances-panel__title-wrap strong {
-        font-size: 1rem;
+        font-size: 0.92rem;
+        line-height: 1.15;
     }
 
     .calendar-session-billing-view-summary-card__right small {
-        font-size: 0.88rem;
+        font-size: 0.8rem;
     }
 
     .calendar-session-billing-view-summary-card__right b {
-        font-size: 1.7rem;
+        font-size: 1.4rem;
     }
 
     .calendar-session-billing-view-advances-panel__head {
-        padding: 18px 16px 12px;
+        padding: 14px 14px 10px;
     }
 
     .calendar-session-billing-view-table--advances-panel {
-        margin: 0 16px 16px;
+        margin: 0 14px 14px;
     }
 
     .calendar-session-billing-view-empty-state {
@@ -6592,6 +6603,12 @@
 
     .calendar-session-billing-view-empty-state p {
         font-size: 0.92rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-session-billing-view-header--blue h2 {
+        font-size: 1.18rem;
     }
 }
 

@@ -9143,15 +9143,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Postavke predplačila' : 'Advance items') : (locale === 'sl' ? 'Postavke računa' : 'Bill items')}</h3>
                       <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
                     </div>
-                    <div className={`billing-invoice-table-head${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
-                      <span />
-                      <span>Service</span>
-                      <span>Qty</span>
-                      <span>Price</span>
-                      <span>Amount</span>
-                      <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Popust' : 'Discount') : ''}</span>
-                      <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Akcije' : 'Actions') : ''}</span>
-                    </div>
+                    {(!isCreateAdvanceBill || billForm.items.length > 0) && (
+                      <div className={`billing-invoice-table-head${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
+                        <span />
+                        <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
+                        <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
+                        <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
+                        <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
+                        <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Popust' : 'Discount') : ''}</span>
+                        <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Akcije' : 'Actions') : ''}</span>
+                      </div>
+                    )}
                     <div className="billing-invoice-item-list">
                       {billForm.items.length === 0 ? (
                         !isCreateAdvanceBill ? (
