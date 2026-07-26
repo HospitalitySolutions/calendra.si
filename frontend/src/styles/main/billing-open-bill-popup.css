@@ -8388,3 +8388,44 @@
     max-width: 46px !important;
   }
 }
+
+/* Mobile Novo predplačilo: uniform item typography and full-width payment rows. */
+@media (max-width: 820px) {
+  /* Keep every visible Postavke header label the same size as Cena. */
+  .billing-create-panel--advance .billing-invoice-table-head--advance > span:not(:first-child) {
+    font-size: .52rem !important;
+    letter-spacing: -.01em !important;
+  }
+
+  /* Use the service-name size consistently for every textual value in an item row. */
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field select,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-row-amount,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-row-amount strong,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-discount-mini {
+    font-size: .66rem !important;
+    letter-spacing: normal !important;
+  }
+
+  /* Let the payment method and amount consume the complete available row width. */
+  .billing-create-panel--advance .billing-invoice-payment-row {
+    width: 100% !important;
+    grid-template-columns: 24px minmax(0, 1.65fr) minmax(72px, .75fr) 22px 22px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row select,
+  .billing-create-panel--advance .billing-invoice-payment-amount-input {
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .billing-create-panel--advance .billing-invoice-payment-row {
+    grid-template-columns: 22px minmax(0, 1.6fr) minmax(68px, .8fr) 20px 20px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row select,
+  .billing-create-panel--advance .billing-invoice-payment-amount-input {
+    max-width: none !important;
+  }
+}
