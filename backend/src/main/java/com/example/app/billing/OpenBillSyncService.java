@@ -5,6 +5,7 @@ import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionBillingSupport;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionPriceCalculationMode;
@@ -384,7 +385,7 @@ public class OpenBillSyncService {
             return;
         }
         var type = sb.getType();
-        if (!isNoShowSession(sb) && (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty())) {
+        if (!isNoShowSession(sb) && !SessionBillingSupport.hasTransactionServices(sb)) {
             return;
         }
         if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) {
@@ -452,7 +453,7 @@ public class OpenBillSyncService {
             if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus()))) {
                 continue;
             }
-            if (!isNoShowSession(row) && (row.getType() == null || row.getType().getLinkedServices() == null || row.getType().getLinkedServices().isEmpty())) {
+            if (!isNoShowSession(row) && !SessionBillingSupport.hasTransactionServices(row)) {
                 continue;
             }
             SessionBooking billable = billingSourceSessionForPriceMode(row, companyId);
@@ -462,7 +463,7 @@ public class OpenBillSyncService {
             if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(billable.getBookingStatus()))) {
                 continue;
             }
-            if (!isNoShowSession(billable) && (billable.getType() == null || billable.getType().getLinkedServices() == null || billable.getType().getLinkedServices().isEmpty())) {
+            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable)) {
                 continue;
             }
             billableById.putIfAbsent(billable.getId(), billable);
@@ -890,14 +891,14 @@ public class OpenBillSyncService {
                 changed |= removeGeneratedSessionServiceLines(open, session.getId(), advanceServiceIds);
             }
         }
-        var expectedLinks = distinctLinkedServicesForBilling(billingSession, companyId);
-        var expectedServiceIds = linkedServiceIds(expectedLinks);
+        var expectedCharges = sessionChargesForBilling(billingSession, companyId);
+        var expectedServiceIds = chargeServiceIds(expectedCharges);
 
         // TOTAL-priced group sessions must be charged once only: on the first billable
         // session row. If this sync is invoked for another participant row, remove any
         // old generated service lines for that row instead of adding another copy.
         if (isTotalPriceCalculation(session) && !Objects.equals(sourceSessionId, session.getId())) {
-            return changed | removeGeneratedSessionServiceLines(open, session.getId(), linkedServiceIds(distinctLinkedServicesForBilling(session, companyId)));
+            return changed | removeGeneratedSessionServiceLines(open, session.getId(), chargeServiceIds(sessionChargesForBilling(session, companyId)));
         }
         if (isTotalPriceCalculation(session)) {
             changed |= removeTotalPriceNonPrimaryLines(open, billingSession, companyId, expectedServiceIds);
@@ -957,34 +958,58 @@ public class OpenBillSyncService {
             changed |= open.getItems().size() != before;
         }
 
-        changed |= ensureExpectedLinkedServiceLines(open, sourceSessionId, expectedLinks);
+        changed |= ensureExpectedChargeLines(open, sourceSessionId, expectedCharges);
         return changed;
     }
 
-    private boolean ensureExpectedLinkedServiceLines(OpenBill open, Long sourceSessionId, List<TypeTransactionService> expectedLinks) {
+    private boolean ensureExpectedChargeLines(
+            OpenBill open,
+            Long sourceSessionId,
+            List<SessionBillingSupport.Charge> expectedCharges
+    ) {
         boolean changed = false;
-        for (TypeTransactionService link : expectedLinks) {
-            var tx = link.getTransactionService();
-            if (tx == null || tx.getId() == null) continue;
-            var price = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
-            if (price == null) {
-                price = BigDecimal.ZERO;
+        Set<String> expectedKeys = expectedCharges.stream()
+                .filter(charge -> charge.transactionService() != null && charge.transactionService().getId() != null)
+                .map(charge -> chargeKey(charge.transactionService().getId(), charge.netPrice()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        var staleIterator = open.getItems().iterator();
+        while (staleIterator.hasNext()) {
+            OpenBillItem item = staleIterator.next();
+            if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
+                    || item.getSourceAdvanceBillId() != null
+                    || item.getTransactionService() == null
+                    || item.getTransactionService().getId() == null) {
+                continue;
             }
+            String key = chargeKey(item.getTransactionService().getId(), item.getNetPrice());
+            if (!expectedKeys.contains(key)) {
+                staleIterator.remove();
+                changed = true;
+            }
+        }
+
+        for (SessionBillingSupport.Charge charge : expectedCharges) {
+            var tx = charge.transactionService();
+            if (tx == null || tx.getId() == null) continue;
+            BigDecimal price = charge.netPrice() == null ? BigDecimal.ZERO : charge.netPrice();
+            String key = chargeKey(tx.getId(), price);
 
             OpenBillItem keptLine = null;
             var iterator = open.getItems().iterator();
             while (iterator.hasNext()) {
-                var item = iterator.next();
+                OpenBillItem item = iterator.next();
                 if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                         || item.getSourceAdvanceBillId() != null
                         || item.getTransactionService() == null
-                        || !Objects.equals(item.getTransactionService().getId(), tx.getId())) {
+                        || item.getTransactionService().getId() == null
+                        || !key.equals(chargeKey(item.getTransactionService().getId(), item.getNetPrice()))) {
                     continue;
                 }
                 if (keptLine == null) {
                     keptLine = item;
-                    if (!Objects.equals(item.getQuantity(), 1)) {
-                        item.setQuantity(1);
+                    if (!Objects.equals(item.getQuantity(), charge.quantity())) {
+                        item.setQuantity(charge.quantity());
                         changed = true;
                     }
                     BigDecimal unitGross = unitGrossFromNet(tx, price);
@@ -993,57 +1018,45 @@ public class OpenBillSyncService {
                         item.setUnitGrossPrice(unitGross);
                         changed = true;
                     }
-                    continue;
+                } else {
+                    iterator.remove();
+                    changed = true;
                 }
-                iterator.remove();
-                changed = true;
             }
 
             if (keptLine == null) {
-                var obi = new OpenBillItem();
-                obi.setOpenBill(open);
-                obi.setTransactionService(entityManager.getReference(TransactionService.class, tx.getId()));
-                obi.setQuantity(1);
-                obi.setNetPrice(safeUnitNet(price));
-                obi.setUnitGrossPrice(unitGrossFromNet(tx, price));
-                obi.setSourceSessionBookingId(sourceSessionId);
-                obi.setSourceAdvanceBillId(null);
-                open.getItems().add(obi);
+                OpenBillItem item = new OpenBillItem();
+                item.setOpenBill(open);
+                item.setTransactionService(entityManager.getReference(TransactionService.class, tx.getId()));
+                item.setQuantity(charge.quantity());
+                item.setNetPrice(safeUnitNet(price));
+                item.setUnitGrossPrice(unitGrossFromNet(tx, price));
+                item.setSourceSessionBookingId(sourceSessionId);
+                item.setSourceAdvanceBillId(null);
+                open.getItems().add(item);
                 changed = true;
             }
         }
         return changed;
     }
 
-    private List<TypeTransactionService> distinctLinkedServicesForBilling(SessionBooking session, Long companyId) {
-        if (session == null || session.getType() == null || session.getType().getLinkedServices() == null) {
-            return List.of();
-        }
-        Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
-        var byServiceId = new LinkedHashMap<Long, TypeTransactionService>();
-        for (TypeTransactionService link : session.getType().getLinkedServices()) {
-            if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) {
-                continue;
-            }
-            Long serviceId = link.getTransactionService().getId();
-            if (advanceServiceIds.contains(serviceId)) {
-                continue;
-            }
-            byServiceId.putIfAbsent(serviceId, link);
-        }
-        return new ArrayList<>(byServiceId.values());
+    private List<SessionBillingSupport.Charge> sessionChargesForBilling(SessionBooking session, Long companyId) {
+        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId));
     }
 
-    private Set<Long> linkedServiceIds(List<TypeTransactionService> links) {
-        if (links == null || links.isEmpty()) {
-            return Set.of();
-        }
-        return links.stream()
-                .map(TypeTransactionService::getTransactionService)
+    private Set<Long> chargeServiceIds(List<SessionBillingSupport.Charge> charges) {
+        if (charges == null || charges.isEmpty()) return Set.of();
+        return charges.stream()
+                .map(SessionBillingSupport.Charge::transactionService)
                 .filter(Objects::nonNull)
                 .map(TransactionService::getId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+    }
+
+    private static String chargeKey(Long transactionServiceId, BigDecimal netPrice) {
+        BigDecimal normalized = netPrice == null ? BigDecimal.ZERO : netPrice.stripTrailingZeros();
+        return transactionServiceId + ":" + normalized.toPlainString();
     }
 
     private boolean removeGeneratedSessionServiceLines(OpenBill open, Long sourceSessionId, Set<Long> transactionServiceIds) {
@@ -1149,8 +1162,7 @@ public class OpenBillSyncService {
 
     private boolean isTotalPriceCalculation(SessionBooking session) {
         return session != null
-                && session.getType() != null
-                && session.getType().getPriceCalculationMode() == SessionPriceCalculationMode.TOTAL;
+                && SessionBillingSupport.priceCalculationMode(session) == SessionPriceCalculationMode.TOTAL;
     }
 
     private static String bookingGroupKey(SessionBooking session) {

@@ -142,15 +142,12 @@ public class PublicBookingManageService {
         }
         List<Long> excludeIds = grouped.stream().map(SessionBooking::getId).filter(Objects::nonNull).toList();
         Long consultantId = booking.getConsultant() == null ? null : booking.getConsultant().getId();
-        Long spaceId = booking.getSpace() == null ? null : booking.getSpace().getId();
-        bookingCreationService.validateBookingWindow(
-                company.getId(),
+        bookingCreationService.validateExistingBookingWindow(
+                booking,
                 clientIdsOf(List.of(booking)),
                 consultantId,
-                spaceId,
                 newStart,
                 newEnd,
-                type.getId(),
                 excludeIds,
                 bookingCreationService.isSpacesEnabled(company.getId()),
                 bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
@@ -161,8 +158,7 @@ public class PublicBookingManageService {
 
         LocalDateTime oldStart = booking.getStartTime();
         LocalDateTime oldEnd = booking.getEndTime();
-        booking.setStartTime(newStart);
-        booking.setEndTime(newEnd);
+        bookingCreationService.applyExistingBookingTime(booking, newStart, newEnd);
         booking = bookings.save(booking);
         reminderService.sendSessionRescheduled(booking, oldStart, oldEnd);
         bookingChangePublisher.publish(

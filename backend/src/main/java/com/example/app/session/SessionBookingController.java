@@ -137,6 +137,12 @@ public class SessionBookingController {
                 waitlistHolds, new TenantFeatureAccessService(settings));
     }
 
+    public record BookingServiceRequest(
+            Long typeId,
+            Integer position,
+            Long spaceId
+    ) {}
+
     public record BookingRequest(
             Long clientId,
             List<Long> clientIds,
@@ -159,8 +165,37 @@ public class SessionBookingController {
             /** Optional per-client payer overrides for this booking. Null leaves existing values unchanged on update. */
             List<BookingPayeeRequest> payees,
             /** Stable key shared by occurrences created from the same repeating booking action. */
-            String recurrenceSeriesKey
-    ) {}
+            String recurrenceSeriesKey,
+            /** Ordered service chain. Null/empty preserves the legacy typeId + endTime contract. */
+            List<BookingServiceRequest> services
+    ) {
+        /** Source-compatible constructor for legacy callers that only provide typeId. */
+        public BookingRequest(
+                Long clientId,
+                List<Long> clientIds,
+                Long consultantId,
+                String startTime,
+                String endTime,
+                Long spaceId,
+                Long typeId,
+                String notes,
+                String meetingLink,
+                Boolean online,
+                String meetingProvider,
+                Boolean allowPersonalBlockOverlap,
+                Long groupId,
+                String groupEmailOverride,
+                Long groupBillingCompanyIdOverride,
+                String bookingStatus,
+                List<BookingPayeeRequest> payees,
+                String recurrenceSeriesKey
+        ) {
+            this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
+                    meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
+                    groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
+                    recurrenceSeriesKey, null);
+        }
+    }
 
     public record BookingPayeeRequest(
             Long clientId,
@@ -182,6 +217,17 @@ public class SessionBookingController {
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
     public record SpaceSummary(Long id, String name) {}
     public record TypeSummary(Long id, String name, String description, String color, Integer durationMinutes, Integer breakMinutes, Integer maxParticipantsPerSession, SessionPriceCalculationMode priceCalculationMode) {}
+    public record BookingServiceResponse(
+            Long id,
+            int position,
+            TypeSummary type,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            LocalDateTime availabilityEndTime,
+            SpaceSummary space,
+            int durationMinutes,
+            int breakMinutes
+    ) {}
     public record GroupBillingCompanySummary(Long id, String name) {}
     public record BookingPayeeResponse(
             Long clientId,
@@ -247,7 +293,12 @@ public class SessionBookingController {
             String bookingStatus,
             BookingSource bookingSource,
             List<BookingPayeeResponse> payees,
-            List<BookingPaymentStatusResponse> paymentStatuses
+            List<BookingPaymentStatusResponse> paymentStatuses,
+            List<BookingServiceResponse> services,
+            LocalDateTime availabilityEndTime,
+            int totalServiceMinutes,
+            int totalBreakMinutes,
+            BigDecimal totalGross
     ) {}
     public record BookableSlotResponse(
             Long id,
@@ -320,27 +371,19 @@ public class SessionBookingController {
         var aEnd = aRep.getEndTime();
         var bStart = bRep.getStartTime();
         var bEnd = bRep.getEndTime();
-        for (var row : aGroup) {
-            row.setStartTime(bStart);
-            row.setEndTime(bEnd);
-        }
-        for (var row : bGroup) {
-            row.setStartTime(aStart);
-            row.setEndTime(aEnd);
-        }
         var excludes = new ArrayList<Long>();
         aGroup.forEach(row -> excludes.add(row.getId()));
         bGroup.forEach(row -> excludes.add(row.getId()));
         boolean aOnline = aRep.isOnlineSession();
         boolean bOnline = bRep.isOnlineSession();
-        bookingCreationService.validateBookingWindow(
-                companyId,
+        SessionServicePlanService.Plan aPlan = bookingCreationService.planExistingBookingEdit(aRep, bStart, bEnd);
+        SessionServicePlanService.Plan bPlan = bookingCreationService.planExistingBookingEdit(bRep, aStart, aEnd);
+        bookingCreationService.validateExistingBookingWindow(
+                aRep,
                 clientIdsOf(aGroup),
                 aRep.getConsultant().getId(),
-                aRep.getSpace() != null ? aRep.getSpace().getId() : null,
-                aRep.getStartTime(),
-                aRep.getEndTime(),
-                aRep.getType() != null ? aRep.getType().getId() : null,
+                bStart,
+                bEnd,
                 excludes,
                 spacesEnabled,
                 multipleSessionsPerSpaceEnabled,
@@ -348,14 +391,12 @@ public class SessionBookingController {
                 aOnline,
                 false
         );
-        bookingCreationService.validateBookingWindow(
-                companyId,
+        bookingCreationService.validateExistingBookingWindow(
+                bRep,
                 clientIdsOf(bGroup),
                 bRep.getConsultant().getId(),
-                bRep.getSpace() != null ? bRep.getSpace().getId() : null,
-                bRep.getStartTime(),
-                bRep.getEndTime(),
-                bRep.getType() != null ? bRep.getType().getId() : null,
+                aStart,
+                aEnd,
                 excludes,
                 spacesEnabled,
                 multipleSessionsPerSpaceEnabled,
@@ -363,30 +404,34 @@ public class SessionBookingController {
                 bOnline,
                 false
         );
-        if (intervalsOverlap(aRep.getStartTime(), effectiveEnd(aRep), bRep.getStartTime(), effectiveEnd(bRep))) {
-            boolean sameConsultant = aRep.getConsultant().getId().equals(bRep.getConsultant().getId());
-            boolean sameClient = clientIdsOf(aGroup).stream().anyMatch(clientIdsOf(bGroup)::contains);
-            Long spaceA = aRep.getSpace() != null ? aRep.getSpace().getId() : null;
-            Long spaceB = bRep.getSpace() != null ? bRep.getSpace().getId() : null;
-            boolean bothLive = !aOnline && !bOnline;
-            boolean sameSpace = !multipleSessionsPerSpaceEnabled
-                    && bothLive
-                    && (Objects.equals(spaceA, spaceB) && spaceA != null
-                    || bookingCreationService.shouldEnforceSpaceOverlapProtection(
-                            companyId,
-                            multipleSessionsPerSpaceEnabled,
-                            false,
-                            null
-                    ));
-            if (sameConsultant) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
-            }
-            if (sameClient) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "One of the selected clients already has a session at that time.");
-            }
-            if (sameSpace) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
-            }
+
+        boolean sameConsultant = aRep.getConsultant().getId().equals(bRep.getConsultant().getId())
+                && intervalsOverlap(aPlan.startTime(), aPlan.availabilityEndTime(), bPlan.startTime(), bPlan.availabilityEndTime());
+        boolean sameClient = clientIdsOf(aGroup).stream().anyMatch(clientIdsOf(bGroup)::contains)
+                && intervalsOverlap(aPlan.startTime(), aPlan.endTime(), bPlan.startTime(), bPlan.endTime());
+        boolean sameSpace = plansShareOverlappingSpace(
+                companyId,
+                aPlan,
+                bPlan,
+                multipleSessionsPerSpaceEnabled,
+                aOnline,
+                bOnline
+        );
+        if (sameConsultant) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
+        }
+        if (sameClient) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "One of the selected clients already has a session at that time.");
+        }
+        if (sameSpace) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
+        }
+
+        for (var row : aGroup) {
+            bookingCreationService.applyExistingBookingTime(row, bStart, bEnd);
+        }
+        for (var row : bGroup) {
+            bookingCreationService.applyExistingBookingTime(row, aStart, aEnd);
         }
         repo.saveAll(aGroup);
         repo.saveAll(bGroup);
@@ -826,7 +871,12 @@ public class SessionBookingController {
                 base.bookingStatus(),
                 base.bookingSource(),
                 base.payees(),
-                statuses
+                statuses,
+                base.services(),
+                base.availabilityEndTime(),
+                base.totalServiceMinutes(),
+                base.totalBreakMinutes(),
+                base.totalGross()
         );
     }
 
@@ -1099,28 +1149,11 @@ public class SessionBookingController {
     }
 
     private static BigDecimal sessionGross(SessionBooking row) {
-        if (row == null || row.getType() == null || row.getType().getLinkedServices() == null) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal total = BigDecimal.ZERO;
-        for (TypeTransactionService link : row.getType().getLinkedServices()) {
-            if (link == null || link.getTransactionService() == null || link.getTransactionService().getTaxRate() == null) {
-                continue;
-            }
-            BigDecimal net = link.getPrice() != null ? link.getPrice() : link.getTransactionService().getNetPrice();
-            if (net == null) {
-                net = BigDecimal.ZERO;
-            }
-            BigDecimal gross = net.add(net.multiply(link.getTransactionService().getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            total = total.add(gross);
-        }
-        return total;
+        return SessionBillingSupport.grossTotal(row);
     }
 
     private static boolean isTotalPriceCalculation(SessionBooking row) {
-        return row != null
-                && row.getType() != null
-                && row.getType().getPriceCalculationMode() == SessionPriceCalculationMode.TOTAL;
+        return row != null && SessionBillingSupport.priceCalculationMode(row) == SessionPriceCalculationMode.TOTAL;
     }
 
     private static boolean isPrimaryChargeRow(SessionBooking row, List<SessionBooking> groupRows) {
@@ -1161,18 +1194,42 @@ public class SessionBookingController {
         UserSummary consultant = u == null ? null
                 : new UserSummary(u.getId(), u.getFirstName(), u.getLastName(), u.getEmail(), u.getRole());
         var space = representative.getSpace() == null ? null : new SpaceSummary(representative.getSpace().getId(), representative.getSpace().getName());
-        var type = representative.getType() == null ? null : new TypeSummary(
-                representative.getType().getId(),
-                representative.getType().getName(),
-                representative.getType().getDescription(),
-                representative.getType().getColor(),
-                representative.getType().getDurationMinutes(),
-                representative.getType().getBreakMinutes(),
-                representative.getType().getMaxParticipantsPerSession(),
-                representative.getType().getPriceCalculationMode() != null
-                        ? representative.getType().getPriceCalculationMode()
-                        : SessionPriceCalculationMode.PER_CLIENT
-        );
+        var type = toTypeSummary(representative.getType());
+        List<BookingServiceResponse> serviceSummaries = SessionServiceSupport.orderedServices(representative).stream()
+                .map(service -> {
+                    SpaceSummary serviceSpace = service.getSpace() == null
+                            ? null
+                            : new SpaceSummary(service.getSpace().getId(), service.getSpace().getName());
+                    return new BookingServiceResponse(
+                            service.getId(),
+                            service.getPosition(),
+                            toServiceTypeSummary(service),
+                            service.getStartTime(),
+                            service.getEndTime(),
+                            service.getEndTime().plusMinutes(Math.max(0, service.getBreakMinutesSnapshot())),
+                            serviceSpace,
+                            service.getDurationMinutesSnapshot(),
+                            service.getBreakMinutesSnapshot()
+                    );
+                })
+                .toList();
+        if (serviceSummaries.isEmpty() && representative.getType() != null) {
+            int duration = representative.getStartTime() == null || representative.getEndTime() == null
+                    ? Math.max(1, representative.getType().getDurationMinutes() == null ? 60 : representative.getType().getDurationMinutes())
+                    : Math.max(1, (int) java.time.Duration.between(representative.getStartTime(), representative.getEndTime()).toMinutes());
+            int breakMinutes = Math.max(0, representative.getType().getBreakMinutes() == null ? 0 : representative.getType().getBreakMinutes());
+            serviceSummaries = List.of(new BookingServiceResponse(
+                    null,
+                    0,
+                    type,
+                    representative.getStartTime(),
+                    representative.getEndTime(),
+                    representative.getEndTime().plusMinutes(breakMinutes),
+                    space,
+                    duration,
+                    breakMinutes
+            ));
+        }
         String provider = representative.getMeetingProvider();
         if (provider == null && representative.getMeetingLink() != null && representative.getMeetingLink().contains("meet.google.com")) provider = "google";
         if (provider == null) provider = "zoom";
@@ -1224,7 +1281,56 @@ public class SessionBookingController {
                 SessionBookingStatus.normalizeStored(representative.getBookingStatus()),
                 representative.getBookingSource() == null ? BookingSource.MANUAL : representative.getBookingSource(),
                 payeeSummaries,
-                List.of()
+                List.of(),
+                serviceSummaries,
+                SessionServiceSupport.availabilityEnd(representative),
+                SessionServiceSupport.totalServiceMinutes(representative),
+                SessionServiceSupport.totalBreakMinutes(representative),
+                SessionBillingSupport.grossTotal(representative)
+        );
+    }
+
+    private static TypeSummary toServiceTypeSummary(SessionService service) {
+        if (service == null || service.getSessionType() == null) return null;
+        SessionType type = service.getSessionType();
+        SessionPriceCalculationMode priceMode;
+        try {
+            priceMode = service.getPriceCalculationModeSnapshot() == null
+                    ? null
+                    : SessionPriceCalculationMode.valueOf(service.getPriceCalculationModeSnapshot());
+        } catch (IllegalArgumentException ignored) {
+            priceMode = null;
+        }
+        if (priceMode == null) {
+            priceMode = type.getPriceCalculationMode() == null
+                    ? SessionPriceCalculationMode.PER_CLIENT
+                    : type.getPriceCalculationMode();
+        }
+        return new TypeSummary(
+                type.getId(),
+                service.getServiceNameSnapshot() == null ? type.getName() : service.getServiceNameSnapshot(),
+                type.getDescription(),
+                service.getColorSnapshot() == null ? type.getColor() : service.getColorSnapshot(),
+                service.getDurationMinutesSnapshot(),
+                service.getBreakMinutesSnapshot(),
+                type.getMaxParticipantsPerSession(),
+                priceMode
+        );
+    }
+
+    private static TypeSummary toTypeSummary(SessionType sessionType) {
+        if (sessionType == null) return null;
+        return new TypeSummary(
+                sessionType.getId(),
+                sessionType.getName(),
+                sessionType.getDescription(),
+                sessionType.getColor(),
+                sessionType.getDurationMinutes(),
+                sessionType.getBreakMinutes(),
+                sessionType.getMaxParticipantsPerSession(),
+                sessionType.getPriceCalculationMode() != null
+                        ? sessionType.getPriceCalculationMode()
+                        : SessionPriceCalculationMode.PER_CLIENT
         );
     }
 
@@ -1265,6 +1371,57 @@ public class SessionBookingController {
         return rows;
     }
 
+    private boolean plansShareOverlappingSpace(
+            Long companyId,
+            SessionServicePlanService.Plan first,
+            SessionServicePlanService.Plan second,
+            boolean multipleSessionsPerSpaceEnabled,
+            boolean firstOnline,
+            boolean secondOnline
+    ) {
+        if (multipleSessionsPerSpaceEnabled || firstOnline || secondOnline || first == null || second == null) {
+            return false;
+        }
+        List<SessionServicePlanService.Segment> firstRooms = first.segments().stream()
+                .filter(segment -> segment.space() != null)
+                .toList();
+        List<SessionServicePlanService.Segment> secondRooms = second.segments().stream()
+                .filter(segment -> segment.space() != null)
+                .toList();
+        for (SessionServicePlanService.Segment firstRoom : firstRooms) {
+            for (SessionServicePlanService.Segment secondRoom : secondRooms) {
+                if (Objects.equals(firstRoom.space().getId(), secondRoom.space().getId())
+                        && intervalsOverlap(
+                                firstRoom.startTime(),
+                                firstRoom.availabilityEndTime(),
+                                secondRoom.startTime(),
+                                secondRoom.availabilityEndTime()
+                        )) {
+                    return true;
+                }
+            }
+        }
+        boolean implicitRoomProtection = bookingCreationService.shouldEnforceSpaceOverlapProtection(
+                companyId,
+                multipleSessionsPerSpaceEnabled,
+                false,
+                null
+        );
+        if (!implicitRoomProtection) return false;
+        if (firstRooms.isEmpty() && secondRooms.isEmpty()) {
+            return intervalsOverlap(first.startTime(), first.availabilityEndTime(), second.startTime(), second.availabilityEndTime());
+        }
+        if (firstRooms.isEmpty()) {
+            return secondRooms.stream().anyMatch(room -> intervalsOverlap(
+                    first.startTime(), first.availabilityEndTime(), room.startTime(), room.availabilityEndTime()));
+        }
+        if (secondRooms.isEmpty()) {
+            return firstRooms.stream().anyMatch(room -> intervalsOverlap(
+                    room.startTime(), room.availabilityEndTime(), second.startTime(), second.availabilityEndTime()));
+        }
+        return false;
+    }
+
     private static List<Long> clientIdsOf(List<SessionBooking> rows) {
         return rows.stream()
                 .map(SessionBooking::getClient)
@@ -1279,10 +1436,6 @@ public class SessionBookingController {
     }
 
     private static LocalDateTime effectiveEnd(SessionBooking booking) {
-        int breakMinutes = 0;
-        if (booking.getType() != null && booking.getType().getBreakMinutes() != null) {
-            breakMinutes = Math.max(0, booking.getType().getBreakMinutes());
-        }
-        return breakMinutes > 0 ? booking.getEndTime().plusMinutes(breakMinutes) : booking.getEndTime();
+        return SessionServiceSupport.availabilityEnd(booking);
     }
 }

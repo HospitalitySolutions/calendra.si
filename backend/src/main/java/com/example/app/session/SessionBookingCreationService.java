@@ -52,6 +52,8 @@ public class SessionBookingCreationService {
     private final UserRepository users;
     private final SpaceRepository spaces;
     private final SessionTypeRepository types;
+    private final SessionServicePlanService servicePlans;
+    private final SessionServiceRepository sessionServices;
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
     private final ClientGroupRepository groupRepository;
@@ -77,6 +79,8 @@ public class SessionBookingCreationService {
             UserRepository users,
             SpaceRepository spaces,
             SessionTypeRepository types,
+            SessionServicePlanService servicePlans,
+            SessionServiceRepository sessionServices,
             CompanyRepository companies,
             AppSettingRepository settings,
             ClientGroupRepository groupRepository,
@@ -96,6 +100,8 @@ public class SessionBookingCreationService {
         this.users = users;
         this.spaces = spaces;
         this.types = types;
+        this.servicePlans = servicePlans;
+        this.sessionServices = sessionServices;
         this.companies = companies;
         this.settings = settings;
         this.groupRepository = groupRepository;
@@ -131,7 +137,9 @@ public class SessionBookingCreationService {
             GoogleMeetService googleMeetService,
             BookingChangePublisher bookingChangePublisher,
             OpenBillSyncService openBillSyncService) {
-        this(repo, personalBlocks, clients, users, spaces, types, companies, settings, groupRepository, clientCompanies,
+        this(repo, personalBlocks, clients, users, spaces, types,
+                new SessionServicePlanService(types, spaces), null,
+                companies, settings, groupRepository, clientCompanies,
                 reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null, null,
                 new TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())),
                 "Europe/Ljubljana");
@@ -150,7 +158,9 @@ public class SessionBookingCreationService {
     ) {
         var companyId = me.getCompany().getId();
         LocalDateTime start = parseToLocalDateTime(req.startTime());
-        LocalDateTime end = parseToLocalDateTime(req.endTime());
+        LocalDateTime requestedEnd = parseOptionalEndTime(req.endTime(), start, req.services());
+        SessionServicePlanService.Plan servicePlan = servicePlans.resolve(req, companyId, start, requestedEnd);
+        LocalDateTime end = servicePlan.endTime();
         String targetStoredStatus = resolveRequestedStoredStatusForCreate(companyId, req.bookingStatus());
         Long consultantId = resolveConsultantId(req, me);
         companies.findByIdForUpdate(companyId)
@@ -159,7 +169,7 @@ public class SessionBookingCreationService {
         boolean multipleSessionsPerSpaceEnabled = isMultipleSessionsPerSpaceEnabled(companyId);
         boolean multipleClientsPerSessionEnabled = isMultipleClientsPerSessionEnabled(companyId);
         ClientGroup clientGroup = resolveGroup(req.groupId(), companyId);
-        validateGroupBookingServiceType(req.typeId(), companyId, clientGroup != null);
+        servicePlans.validateGroupBooking(servicePlan, clientGroup != null);
         List<Long> requestedClientIds;
         if (clientGroup != null) {
             boolean explicitEmptySessionClients =
@@ -176,14 +186,18 @@ public class SessionBookingCreationService {
         } else {
             requestedClientIds = resolveRequestedClientIds(req, multipleClientsPerSessionEnabled);
         }
-        validateTypeParticipantLimit(req.typeId(), companyId, requestedClientIds.size());
+        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
+        if (waitlistRequestId != null && waitlistRequestId > 0 && servicePlan.segments().size() > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Waitlist conversion currently supports one service per session.");
+        }
         Long excludedWaitlistOfferId = resolveMatchingWaitlistOfferId(
                 waitlistRequestId,
                 companyId,
                 requestedClientIds,
                 consultantId,
-                req.spaceId(),
-                req.typeId(),
+                servicePlan.primarySpaceId(),
+                servicePlan.primaryTypeId(),
                 start,
                 end
         );
@@ -191,10 +205,7 @@ public class SessionBookingCreationService {
                 companyId,
                 requestedClientIds,
                 consultantId,
-                req.spaceId(),
-                start,
-                end,
-                req.typeId(),
+                servicePlan,
                 bookingExcludeIds((Long) null),
                 spacesEnabled,
                 multipleSessionsPerSpaceEnabled,
@@ -214,6 +225,7 @@ public class SessionBookingCreationService {
             var booking = new SessionBooking();
             booking.setBookingGroupKey(groupKey);
             applySharedFields(booking, req, me, start, end, companyId, meetingLink, targetStoredStatus);
+            servicePlans.synchronize(booking, servicePlan);
             booking.setClient(null);
             booking.setClientGroup(clientGroup);
             mergeSessionGroupOverrides(booking, req, companyId, clientGroup);
@@ -226,6 +238,7 @@ public class SessionBookingCreationService {
                 var booking = new SessionBooking();
                 booking.setBookingGroupKey(groupKey);
                 applySharedFields(booking, req, me, start, end, companyId, meetingLink, targetStoredStatus);
+                servicePlans.synchronize(booking, servicePlan);
                 booking.setClient(requireClient(clientId, companyId, me));
                 booking.setClientGroup(clientGroup);
                 mergeSessionGroupOverrides(booking, req, companyId, clientGroup);
@@ -268,7 +281,15 @@ public class SessionBookingCreationService {
         }
         var representative = existingRows.get(0);
         LocalDateTime start = parseToLocalDateTime(req.startTime());
-        LocalDateTime end = parseToLocalDateTime(req.endTime());
+        LocalDateTime requestedEnd = parseOptionalEndTime(req.endTime(), start, req.services());
+        SessionServicePlanService.Plan servicePlan = resolveUpdateServicePlan(
+                req,
+                representative,
+                companyId,
+                start,
+                requestedEnd
+        );
+        LocalDateTime end = servicePlan.endTime();
         String targetStoredStatus = resolveRequestedStoredStatusForUpdate(companyId, req.bookingStatus(), representative, start, end);
         if (!SecurityUtils.isAdmin(me)
                 && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
@@ -282,7 +303,7 @@ public class SessionBookingCreationService {
         boolean multipleClientsPerSessionEnabled = isMultipleClientsPerSessionEnabled(companyId);
         boolean allowMultipleClientsForRequest =
                 representative.getClientGroup() != null || multipleClientsPerSessionEnabled;
-        validateGroupBookingServiceType(req.typeId(), companyId, representative.getClientGroup() != null);
+        servicePlans.validateGroupBooking(servicePlan, representative.getClientGroup() != null);
         List<Long> requestedClientIds;
         if (representative.getClientGroup() != null) {
             boolean explicitEmpty =
@@ -304,22 +325,20 @@ public class SessionBookingCreationService {
         } else {
             requestedClientIds = resolveRequestedClientIds(req, allowMultipleClientsForRequest);
         }
-        validateTypeParticipantLimit(req.typeId(), companyId, requestedClientIds.size());
+        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
         var excludeIds = existingRows.stream().map(SessionBooking::getId).toList();
         validateBookingWindow(
                 companyId,
                 requestedClientIds,
                 consultantId,
-                req.spaceId(),
-                start,
-                end,
-                req.typeId(),
+                servicePlan,
                 excludeIds,
                 spacesEnabled,
                 multipleSessionsPerSpaceEnabled,
                 allowMultipleClientsForRequest,
                 isOnlineRequest(req),
-                Boolean.TRUE.equals(req.allowPersonalBlockOverlap())
+                Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
+                null
         );
         var meetingLink = req.meetingLink();
         if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
@@ -329,7 +348,7 @@ public class SessionBookingCreationService {
         String groupKey = SessionBookingController.groupKey(representative);
         if (requestedClientIds.isEmpty() && representative.getClientGroup() != null) {
             return consolidateGroupSessionToPlaceholderRow(
-                    existingRows, groupKey, req, me, start, end, companyId, meetingLink, targetStoredStatus);
+                    existingRows, groupKey, req, me, start, end, companyId, meetingLink, targetStoredStatus, servicePlan);
         }
         var existingByClientId = new java.util.LinkedHashMap<Long, SessionBooking>();
         boolean singleClientReplacement = representative.getClientGroup() == null
@@ -373,6 +392,7 @@ public class SessionBookingCreationService {
                 }
             }
             applySharedFields(row, req, me, start, end, companyId, meetingLink, targetStoredStatus);
+            servicePlans.synchronize(row, servicePlan);
             row.setBookingGroupKey(groupKey);
             row.setClient(requireClient(clientId, companyId, me));
             row.setClientGroup(representative.getClientGroup());
@@ -467,8 +487,34 @@ public class SessionBookingCreationService {
             String guestUserId,
             String bookingStatus,
             boolean sendConfirmation,
-            BookingSource bookingSource
+            BookingSource bookingSource,
+            List<SessionBookingController.BookingServiceRequest> services
     ) {
+        public ChannelBookingRequest(
+                Long companyId,
+                Long clientId,
+                Long consultantId,
+                LocalDateTime start,
+                LocalDateTime end,
+                Long spaceId,
+                Long typeId,
+                String notes,
+                String meetingLink,
+                Boolean online,
+                String meetingProvider,
+                boolean allowPersonalBlockOverlap,
+                String sourceChannel,
+                String sourceOrderId,
+                String guestUserId,
+                String bookingStatus,
+                boolean sendConfirmation,
+                BookingSource bookingSource
+        ) {
+            this(companyId, clientId, consultantId, start, end, spaceId, typeId, notes, meetingLink,
+                    online, meetingProvider, allowPersonalBlockOverlap, sourceChannel, sourceOrderId,
+                    guestUserId, bookingStatus, sendConfirmation, bookingSource, null);
+        }
+
         public ChannelBookingRequest(
                 Long companyId,
                 Long clientId,
@@ -490,7 +536,7 @@ public class SessionBookingCreationService {
         ) {
             this(companyId, clientId, consultantId, start, end, spaceId, typeId, notes, meetingLink,
                     online, meetingProvider, allowPersonalBlockOverlap, sourceChannel, sourceOrderId,
-                    guestUserId, bookingStatus, sendConfirmation, null);
+                    guestUserId, bookingStatus, sendConfirmation, null, null);
         }
     }
 
@@ -530,8 +576,14 @@ public class SessionBookingCreationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Company is required.");
         }
         LocalDateTime start = request.start();
-        LocalDateTime end = request.end();
-        if (start == null || end == null || !end.isAfter(start)) {
+        if (start == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid booking time window.");
+        }
+        LocalDateTime requestedEnd = request.end();
+        if (requestedEnd == null && request.services() != null && !request.services().isEmpty()) {
+            requestedEnd = start.plusMinutes(1);
+        }
+        if (requestedEnd == null || !requestedEnd.isAfter(start)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid booking time window.");
         }
 
@@ -539,38 +591,13 @@ public class SessionBookingCreationService {
         companies.findByIdForUpdate(companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
 
-        boolean spacesEnabled = isSpacesEnabled(companyId);
-        boolean multipleSessionsPerSpaceEnabled = isMultipleSessionsPerSpaceEnabled(companyId);
-        validateTypeParticipantLimit(request.typeId(), companyId, 1);
-        validateBookingWindow(
-                companyId,
-                List.of(client.getId()),
-                request.consultantId(),
-                request.spaceId(),
-                start,
-                end,
-                request.typeId(),
-                bookingExcludeIds((Long) null),
-                spacesEnabled,
-                multipleSessionsPerSpaceEnabled,
-                false,
-                Boolean.TRUE.equals(request.online()) || (request.meetingLink() != null && !request.meetingLink().isBlank()),
-                request.allowPersonalBlockOverlap()
-        );
-
-        User actor = resolveAdminActor(companyId);
         String meetingLink = request.meetingLink();
-        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank()) && request.consultantId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Online sessions require a meeting link when no consultant is assigned.");
-        }
-
         SessionBookingController.BookingRequest internalRequest = new SessionBookingController.BookingRequest(
                 client.getId(),
                 List.of(client.getId()),
                 request.consultantId(),
                 start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                end.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                requestedEnd.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                 request.spaceId(),
                 request.typeId(),
                 request.notes(),
@@ -583,8 +610,39 @@ public class SessionBookingCreationService {
                 null,
                 null,
                 null,
+                null,
+                request.services()
+        );
+        SessionServicePlanService.Plan servicePlan = servicePlans.resolve(
+                internalRequest,
+                companyId,
+                start,
+                requestedEnd
+        );
+        LocalDateTime end = servicePlan.endTime();
+
+        boolean spacesEnabled = isSpacesEnabled(companyId);
+        boolean multipleSessionsPerSpaceEnabled = isMultipleSessionsPerSpaceEnabled(companyId);
+        servicePlans.validateParticipantLimit(servicePlan, 1);
+        validateBookingWindow(
+                companyId,
+                List.of(client.getId()),
+                request.consultantId(),
+                servicePlan,
+                bookingExcludeIds((Long) null),
+                spacesEnabled,
+                multipleSessionsPerSpaceEnabled,
+                false,
+                Boolean.TRUE.equals(request.online()) || (meetingLink != null && !meetingLink.isBlank()),
+                request.allowPersonalBlockOverlap(),
                 null
         );
+
+        User actor = resolveAdminActor(companyId);
+        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank()) && request.consultantId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Online sessions require a meeting link when no consultant is assigned.");
+        }
 
         SessionBooking booking = new SessionBooking();
         booking.setBookingGroupKey(UUID.randomUUID().toString());
@@ -598,6 +656,7 @@ public class SessionBookingCreationService {
                 meetingLink,
                 SessionBookingStatus.RESERVED
         );
+        servicePlans.synchronize(booking, servicePlan);
         booking.setClient(client);
         applyChannelMetadata(booking, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus(), request.bookingSource());
         booking = repo.save(booking);
@@ -646,13 +705,12 @@ public class SessionBookingCreationService {
         }
 
         List<SessionBooking> existingRows = loadGroupedRows(representative, companyId);
-        SessionType type = representative.getType();
+        SessionServicePlanService.Plan representativePlan = servicePlans.fromBooking(representative);
+        SessionType type = representativePlan.primaryType();
         if (type == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session has no session type.");
         }
-        if (!type.isGroupBookingEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is not enabled for group bookings.");
-        }
+        servicePlans.validateGroupBooking(representativePlan, true);
 
         Client client = requireClientForCompany(request.clientId(), companyId);
         boolean alreadyBooked = existingRows.stream()
@@ -664,21 +722,24 @@ public class SessionBookingCreationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This guest is already booked into the selected group session.");
         }
         validateGroupSessionJoinCapacity(type, existingRows, client);
+        long activeParticipants = existingRows.stream()
+                .filter(row -> row.getClient() != null)
+                .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))
+                .count();
+        servicePlans.validateParticipantLimit(representativePlan, Math.toIntExact(activeParticipants + 1));
 
         validateBookingWindow(
                 companyId,
                 List.of(client.getId()),
                 representative.getConsultant() != null ? representative.getConsultant().getId() : null,
-                representative.getSpace() != null ? representative.getSpace().getId() : null,
-                representative.getStartTime(),
-                representative.getEndTime(),
-                representative.getType() != null ? representative.getType().getId() : null,
+                representativePlan,
                 existingRows.stream().map(SessionBooking::getId).toList(),
                 isSpacesEnabled(companyId),
                 isMultipleSessionsPerSpaceEnabled(companyId),
                 true,
                 representative.isOnlineSession(),
-                false
+                false,
+                null
         );
 
         SessionBooking joined = new SessionBooking();
@@ -687,10 +748,7 @@ public class SessionBookingCreationService {
         joined.setBookingGroupKey(SessionBookingController.groupKey(representative));
         joined.setRecurrenceSeriesKey(representative.getRecurrenceSeriesKey());
         joined.setConsultant(representative.getConsultant());
-        joined.setStartTime(representative.getStartTime());
-        joined.setEndTime(representative.getEndTime());
-        joined.setSpace(representative.getSpace());
-        joined.setType(representative.getType());
+        servicePlans.copy(representative, joined);
         joined.setNotes(representative.getNotes());
         joined.setMeetingLink(representative.getMeetingLink());
         joined.setMeetingProvider(representative.getMeetingProvider());
@@ -730,17 +788,49 @@ public class SessionBookingCreationService {
         return joined;
     }
 
-    public void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
-                                      Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
-                                      boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap) {
+    SessionServicePlanService.Plan planExistingBookingEdit(
+            SessionBooking booking,
+            LocalDateTime newStart,
+            LocalDateTime requestedEnd
+    ) {
+        if (booking == null || booking.getCompany() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking is required.");
+        }
+        if (!SessionServiceSupport.orderedServices(booking).isEmpty()) {
+            // Reschedule-only entry points (guest/public/Google) preserve the booked service
+            // duration, breaks, order and snapshots, including legacy bookings migrated to one
+            // SessionService row. The staff update API can still explicitly replace a single
+            // service or its end time through resolveUpdateServicePlan(...).
+            return servicePlans.retimeExisting(booking, newStart);
+        }
+        return servicePlans.resolveLegacy(
+                booking.getCompany().getId(),
+                booking.getType() == null ? null : booking.getType().getId(),
+                booking.getSpace() == null ? null : booking.getSpace().getId(),
+                newStart,
+                requestedEnd
+        );
+    }
+
+    public void validateExistingBookingWindow(
+            SessionBooking booking,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime newStart,
+            LocalDateTime requestedEnd,
+            List<Long> excludeIds,
+            boolean spacesEnabled,
+            boolean multipleSessionsPerSpaceEnabled,
+            boolean multipleClientsPerSessionEnabled,
+            boolean online,
+            boolean allowPersonalBlockOverlap
+    ) {
+        SessionServicePlanService.Plan plan = planExistingBookingEdit(booking, newStart, requestedEnd);
         validateBookingWindow(
-                companyId,
+                booking.getCompany().getId(),
                 clientIds,
                 consultantId,
-                spaceId,
-                start,
-                end,
-                typeId,
+                plan,
                 excludeIds,
                 spacesEnabled,
                 multipleSessionsPerSpaceEnabled,
@@ -751,38 +841,120 @@ public class SessionBookingCreationService {
         );
     }
 
-    private void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
-                                       Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
-                                       boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap,
-                                       Long excludedWaitlistOfferId) {
-        var requestedClientIds = clientIds == null ? List.<Long>of() : clientIds.stream().filter(id -> id != null && id > 0).distinct().toList();
+    public void applyExistingBookingTime(
+            SessionBooking booking,
+            LocalDateTime newStart,
+            LocalDateTime requestedEnd
+    ) {
+        servicePlans.synchronize(booking, planExistingBookingEdit(booking, newStart, requestedEnd));
+    }
+
+    public void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
+                                      Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
+                                      boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap) {
+        SessionServicePlanService.Plan plan = servicePlans.resolveLegacy(companyId, typeId, spaceId, start, end);
+        validateBookingWindow(
+                companyId,
+                clientIds,
+                consultantId,
+                plan,
+                excludeIds,
+                spacesEnabled,
+                multipleSessionsPerSpaceEnabled,
+                multipleClientsPerSessionEnabled,
+                online,
+                allowPersonalBlockOverlap,
+                null
+        );
+    }
+
+    private void validateBookingWindow(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            SessionServicePlanService.Plan servicePlan,
+            List<Long> excludeIds,
+            boolean spacesEnabled,
+            boolean multipleSessionsPerSpaceEnabled,
+            boolean multipleClientsPerSessionEnabled,
+            boolean online,
+            boolean allowPersonalBlockOverlap,
+            Long excludedWaitlistOfferId
+    ) {
+        if (servicePlan == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service plan is required.");
+        }
+        var requestedClientIds = clientIds == null
+                ? List.<Long>of()
+                : clientIds.stream().filter(id -> id != null && id > 0).distinct().toList();
         if (!multipleClientsPerSessionEnabled && requestedClientIds.size() > 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Multiple clients per session is disabled.");
         }
         final List<Long> safeExcludeIds = bookingExcludeIds(excludeIds);
-        final int requestedBreakMinutes = getRequestedBreakMinutes(companyId, typeId);
-        final LocalDateTime requestedBusyEnd = effectiveEnd(end, requestedBreakMinutes);
+        final LocalDateTime start = servicePlan.startTime();
+        final LocalDateTime end = servicePlan.endTime();
+        final LocalDateTime requestedBusyEnd = servicePlan.availabilityEndTime();
+        final Long primarySpaceId = servicePlan.primarySpaceId();
+        final boolean hasExplicitSpace = servicePlan.segments().stream().anyMatch(segment -> segment.space() != null);
+        final boolean enforceSpaceOverlapProtection = !multipleSessionsPerSpaceEnabled
+                && !online
+                && (hasExplicitSpace || shouldEnforceSpaceOverlapProtection(
+                        companyId,
+                        false,
+                        false,
+                        primarySpaceId
+                ));
 
-        boolean enforceSpaceOverlapProtection = shouldEnforceSpaceOverlapProtection(
-                companyId,
-                multipleSessionsPerSpaceEnabled,
-                online,
-                spaceId
-        );
         if (waitlistHolds != null) {
             java.time.Instant now = java.time.Instant.now();
             boolean heldByEmployee = consultantId != null
-                    && waitlistHolds.existsActiveEmployeeOverlap(companyId, consultantId, start, requestedBusyEnd, now, excludedWaitlistOfferId);
+                    && waitlistHolds.existsActiveEmployeeOverlap(
+                            companyId,
+                            consultantId,
+                            start,
+                            requestedBusyEnd,
+                            now,
+                            excludedWaitlistOfferId
+                    );
             boolean heldBySpace = false;
             if (enforceSpaceOverlapProtection) {
-                heldBySpace = spaceId == null
-                        ? waitlistHolds.existsActiveAnyRoomOverlap(companyId, start, requestedBusyEnd, now, excludedWaitlistOfferId)
-                        : waitlistHolds.existsActiveRoomOverlap(companyId, spaceId, start, requestedBusyEnd, now, excludedWaitlistOfferId);
+                List<SessionServicePlanService.Segment> heldRoomSegments = servicePlan.segments().stream()
+                        .filter(segment -> segment.space() != null)
+                        .toList();
+                if (heldRoomSegments.isEmpty()) {
+                    heldBySpace = waitlistHolds.existsActiveAnyRoomOverlap(
+                            companyId,
+                            start,
+                            requestedBusyEnd,
+                            now,
+                            excludedWaitlistOfferId
+                    );
+                } else {
+                    for (SessionServicePlanService.Segment segment : heldRoomSegments) {
+                        if (waitlistHolds.existsActiveRoomOverlap(
+                                companyId,
+                                segment.space().getId(),
+                                segment.startTime(),
+                                segment.availabilityEndTime(),
+                                now,
+                                excludedWaitlistOfferId
+                        )) {
+                            heldBySpace = true;
+                            break;
+                        }
+                    }
+                }
             }
             boolean heldWithoutResource = consultantId == null
                     && !enforceSpaceOverlapProtection
-                    && spaceId == null
-                    && waitlistHolds.existsActiveUnassignedOverlap(companyId, start, requestedBusyEnd, now, excludedWaitlistOfferId);
+                    && primarySpaceId == null
+                    && waitlistHolds.existsActiveUnassignedOverlap(
+                            companyId,
+                            start,
+                            requestedBusyEnd,
+                            now,
+                            excludedWaitlistOfferId
+                    );
             if (heldByEmployee || heldBySpace || heldWithoutResource) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This slot is temporarily held for a waitlist offer.");
             }
@@ -795,18 +967,56 @@ public class SessionBookingCreationService {
         }
 
         if (consultantId != null) {
-            if (repo.existsAvailabilityBlockingOverlapForConsultant(companyId, consultantId, start, requestedBusyEnd, safeExcludeIds)) {
+            validateConsultantSupportsServiceChain(companyId, consultantId, servicePlan);
+            if (repo.existsAvailabilityBlockingOverlapForConsultant(
+                    companyId,
+                    consultantId,
+                    start,
+                    requestedBusyEnd,
+                    safeExcludeIds
+            )) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
             }
-            if (!allowPersonalBlockOverlap && hasOverlappingPersonalOrAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
+            if (!allowPersonalBlockOverlap
+                    && hasOverlappingPersonalOrAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a personal session at that time.");
             }
         }
 
         if (enforceSpaceOverlapProtection) {
-            boolean spaceOverlap = spaceId == null
-                    ? repo.existsAvailabilityBlockingOverlapForAnyPhysicalSpace(companyId, start, requestedBusyEnd, safeExcludeIds)
-                    : repo.existsAvailabilityBlockingOverlapForSpace(companyId, spaceId, start, requestedBusyEnd, safeExcludeIds);
+            boolean spaceOverlap = false;
+            List<SessionServicePlanService.Segment> roomSegments = servicePlan.segments().stream()
+                    .filter(segment -> segment.space() != null)
+                    .toList();
+            if (!roomSegments.isEmpty()) {
+                for (SessionServicePlanService.Segment segment : roomSegments) {
+                    if (sessionServices != null) {
+                        spaceOverlap = sessionServices.existsAvailabilityBlockingOverlapForSpace(
+                                companyId,
+                                segment.space().getId(),
+                                segment.startTime(),
+                                segment.availabilityEndTime(),
+                                safeExcludeIds
+                        );
+                    } else {
+                        spaceOverlap = repo.existsAvailabilityBlockingOverlapForSpace(
+                                companyId,
+                                segment.space().getId(),
+                                segment.startTime(),
+                                segment.availabilityEndTime(),
+                                safeExcludeIds
+                        );
+                    }
+                    if (spaceOverlap) break;
+                }
+            } else {
+                spaceOverlap = repo.existsAvailabilityBlockingOverlapForAnyPhysicalSpace(
+                        companyId,
+                        start,
+                        requestedBusyEnd,
+                        safeExcludeIds
+                );
+            }
             if (spaceOverlap) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
             }
@@ -855,6 +1065,34 @@ public class SessionBookingCreationService {
             );
         }
         return offer.getId();
+    }
+
+    private void validateConsultantSupportsServiceChain(
+            Long companyId,
+            Long consultantId,
+            SessionServicePlanService.Plan servicePlan
+    ) {
+        if (servicePlan == null || servicePlan.segments() == null || servicePlan.segments().size() <= 1) {
+            return;
+        }
+        User consultant = users.findByIdAndCompanyId(consultantId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"));
+        if (consultant.getTypes() == null || consultant.getTypes().isEmpty()) {
+            return;
+        }
+        java.util.Set<Long> supportedTypeIds = consultant.getTypes().stream()
+                .map(SessionType::getId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        for (SessionServicePlanService.Segment segment : servicePlan.segments()) {
+            Long typeId = segment.type() == null ? null : segment.type().getId();
+            if (typeId != null && !supportedTypeIds.contains(typeId)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Selected consultant does not provide every service in this session."
+                );
+            }
+        }
     }
 
     private boolean hasOverlappingPersonalOrAvailabilityBlock(Long consultantId, Long companyId, LocalDateTime start, LocalDateTime end) {
@@ -926,11 +1164,8 @@ public class SessionBookingCreationService {
     }
 
     private static LocalDateTime effectiveEnd(SessionBooking booking) {
-        int breakMinutes = 0;
-        if (booking.getType() != null && booking.getType().getBreakMinutes() != null) {
-            breakMinutes = Math.max(0, booking.getType().getBreakMinutes());
-        }
-        return effectiveEnd(booking.getEndTime(), breakMinutes);
+        LocalDateTime availabilityEnd = SessionServiceSupport.availabilityEnd(booking);
+        return availabilityEnd != null ? availabilityEnd : booking.getEndTime();
     }
 
     private static boolean intervalsOverlap(LocalDateTime startA, LocalDateTime endA, LocalDateTime startB, LocalDateTime endB) {
@@ -1058,24 +1293,28 @@ public class SessionBookingCreationService {
         booking.setStartTime(start);
         booking.setEndTime(end);
         booking.setBookingStatus(bookingStatus);
-        if (req.spaceId() == null) {
-            booking.setSpace(null);
-        } else {
-            booking.setSpace(spaces.findByIdAndCompanyId(req.spaceId(), companyId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid space")));
-        }
+        // For the multi-service contract the resolved plan is authoritative. Avoid validating or
+        // applying the legacy root aliases here; synchronize(...) sets them to the first segment.
+        if (!hasExplicitServiceSelection(req)) {
+            if (req.spaceId() == null) {
+                booking.setSpace(null);
+            } else {
+                booking.setSpace(spaces.findByIdAndCompanyId(req.spaceId(), companyId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid space")));
+            }
 
-        if (req.typeId() == null) {
-            booking.setType(null);
-        } else {
-            var type = types.findById(req.typeId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type"));
-            if (!type.getCompany().getId().equals(companyId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type for this company");
+            if (req.typeId() == null) {
+                booking.setType(null);
+            } else {
+                var type = types.findById(req.typeId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type"));
+                if (!type.getCompany().getId().equals(companyId)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type for this company");
+                }
+                if (!type.isActive()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is inactive.");
+                }
+                booking.setType(type);
             }
-            if (!type.isActive()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is inactive.");
-            }
-            booking.setType(type);
         }
         booking.setNotes(req.notes() != null ? req.notes().trim() : "");
         boolean hasMeeting = meetingLink != null && !meetingLink.isBlank();
@@ -1098,6 +1337,30 @@ public class SessionBookingCreationService {
             booking.setMeetingProvisioningAttempts(0);
             booking.setMeetingConfirmationPending(false);
         }
+    }
+
+    private SessionServicePlanService.Plan resolveUpdateServicePlan(
+            SessionBookingController.BookingRequest request,
+            SessionBooking representative,
+            Long companyId,
+            LocalDateTime start,
+            LocalDateTime requestedEnd
+    ) {
+        List<SessionService> existingServices = SessionServiceSupport.orderedServices(representative);
+        boolean legacyRequest = !hasExplicitServiceSelection(request);
+        Long existingPrimaryTypeId = representative.getType() == null ? null : representative.getType().getId();
+        boolean preservesPrimaryType = request.typeId() == null
+                || Objects.equals(request.typeId(), existingPrimaryTypeId);
+        if (legacyRequest && existingServices.size() > 1 && preservesPrimaryType) {
+            // Older web/mobile clients only know typeId + endTime. Let them move or edit the
+            // booking without accidentally deleting the remaining service chain.
+            return servicePlans.retimeExisting(representative, start);
+        }
+        return servicePlans.resolve(request, companyId, start, requestedEnd);
+    }
+
+    private static boolean hasExplicitServiceSelection(SessionBookingController.BookingRequest request) {
+        return request != null && request.services() != null && !request.services().isEmpty();
     }
 
     private static String normalizeRecurrenceSeriesKey(String raw) {
@@ -1381,6 +1644,20 @@ public class SessionBookingCreationService {
         return req.meetingLink() != null && !req.meetingLink().isBlank();
     }
 
+    private LocalDateTime parseOptionalEndTime(
+            String value,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services
+    ) {
+        if (value == null || value.isBlank()) {
+            if (services != null && !services.isEmpty()) {
+                return start.plusMinutes(1);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startTime/endTime are required");
+        }
+        return parseToLocalDateTime(value);
+    }
+
     private LocalDateTime parseToLocalDateTime(String value) {
         if (value == null || value.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startTime/endTime are required");
@@ -1407,7 +1684,8 @@ public class SessionBookingCreationService {
             LocalDateTime end,
             Long companyId,
             String meetingLink,
-            String bookingStatus) {
+            String bookingStatus,
+            SessionServicePlanService.Plan servicePlan) {
         ClientGroup group = existingRows.get(0).getClientGroup();
         String existingRecurrenceSeriesKey = existingRows.stream()
                 .map(SessionBooking::getRecurrenceSeriesKey)
@@ -1462,6 +1740,7 @@ public class SessionBookingCreationService {
             keep.setGuestUserId(existingGuestUserId);
         }
         applySharedFields(keep, req, me, start, end, companyId, meetingLink, bookingStatus);
+        servicePlans.synchronize(keep, servicePlan);
         keep.setBookingGroupKey(groupKey);
         keep.setClient(null);
         keep.setClientGroup(group);

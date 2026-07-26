@@ -8,6 +8,7 @@ import com.example.app.session.PersonalCalendarBlock;
 import com.example.app.session.PersonalCalendarBlockRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,11 +42,24 @@ public class GoogleCalendarSyncService {
     private final GoogleCalendarConnectionRepository connections;
     private final GoogleCalendarEventLinkRepository links;
     private final SessionBookingRepository bookings;
+    private final SessionBookingCreationService bookingCreationService;
     private final PersonalCalendarBlockRepository personalBlocks;
     private final CalendarTodoRepository todos;
     private final ClientRepository clients;
 
-    public GoogleCalendarSyncService(GoogleCalendarConfig config, GoogleCalendarConnectionService connectionService, GoogleCalendarApiClient apiClient, GoogleCalendarEventMapper mapper, GoogleCalendarConnectionRepository connections, GoogleCalendarEventLinkRepository links, SessionBookingRepository bookings, PersonalCalendarBlockRepository personalBlocks, CalendarTodoRepository todos, ClientRepository clients) {
+    public GoogleCalendarSyncService(
+            GoogleCalendarConfig config,
+            GoogleCalendarConnectionService connectionService,
+            GoogleCalendarApiClient apiClient,
+            GoogleCalendarEventMapper mapper,
+            GoogleCalendarConnectionRepository connections,
+            GoogleCalendarEventLinkRepository links,
+            SessionBookingRepository bookings,
+            SessionBookingCreationService bookingCreationService,
+            PersonalCalendarBlockRepository personalBlocks,
+            CalendarTodoRepository todos,
+            ClientRepository clients
+    ) {
         this.config = config;
         this.connectionService = connectionService;
         this.apiClient = apiClient;
@@ -53,6 +67,7 @@ public class GoogleCalendarSyncService {
         this.connections = connections;
         this.links = links;
         this.bookings = bookings;
+        this.bookingCreationService = bookingCreationService;
         this.personalBlocks = personalBlocks;
         this.todos = todos;
         this.clients = clients;
@@ -547,16 +562,29 @@ public class GoogleCalendarSyncService {
             markConflict(link, "CONFLICT_TENANT_MISMATCH", "Mapped booking belongs to a different tenant.");
             return;
         }
-        if (booking.getConsultant() != null && bookings.existsOverlappingForConsultantExceptBooking(companyId, booking.getConsultant().getId(), start, end, booking.getId())) {
-            markConflict(link, "CONFLICT_CONSULTANT", "Google moved this booking to a time where the consultant already has another session.");
+        try {
+            List<Long> clientIds = booking.getClient() == null
+                    ? List.of()
+                    : List.of(booking.getClient().getId());
+            bookingCreationService.validateExistingBookingWindow(
+                    booking,
+                    clientIds,
+                    booking.getConsultant() == null ? null : booking.getConsultant().getId(),
+                    start,
+                    end,
+                    SessionBookingCreationService.bookingExcludeIds(booking.getId()),
+                    bookingCreationService.isSpacesEnabled(companyId),
+                    bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
+                    bookingCreationService.isMultipleClientsPerSessionEnabled(companyId),
+                    booking.isOnlineSession(),
+                    false
+            );
+        } catch (ResponseStatusException conflict) {
+            markConflict(link, "CONFLICT_AVAILABILITY",
+                    "Google moved this booking to a time that is not available in Calendra.");
             return;
         }
-        if (booking.getSpace() != null && bookings.existsOverlappingForSpaceExceptBooking(companyId, booking.getSpace().getId(), start, end, booking.getId())) {
-            markConflict(link, "CONFLICT_SPACE", "Google moved this booking to a time where the space is already occupied.");
-            return;
-        }
-        booking.setStartTime(start);
-        booking.setEndTime(end);
+        bookingCreationService.applyExistingBookingTime(booking, start, end);
         booking.setNotes(limit(description, 1000));
         booking.setClient(resolveClientForGoogleGuest(link.getConnection(), booking.getClient(), guestFromGoogleEvent(link.getConnection(), event)));
         applyGoogleMeetingFields(booking, event);

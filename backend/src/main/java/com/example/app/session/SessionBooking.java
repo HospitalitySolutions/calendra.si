@@ -10,6 +10,8 @@ import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -54,11 +56,21 @@ public class SessionBooking extends BaseEntity {
     @Column(nullable = false)
     private LocalDateTime endTime;
 
+    /** End of the complete resource-blocking window, including the final service break. */
+    @Column(name = "availability_end_time", nullable = false)
+    private LocalDateTime availabilityEndTime;
+
     @ManyToOne
     private Space space;
 
+    /** Backwards-compatible alias for the first service in {@link #services}. */
     @ManyToOne
     private SessionType type;
+
+    @OneToMany(mappedBy = "sessionBooking", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC, id ASC")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private List<SessionService> services = new ArrayList<>();
 
     /** Historical service-group snapshot used by analytics even after regrouping. */
     @Column(name = "service_group_id_snapshot")
@@ -72,11 +84,27 @@ public class SessionBooking extends BaseEntity {
 
     @PrePersist
     void snapshotServiceGroup() {
-        if (serviceGroupSnapshotCaptured) return;
-        ServiceGroup group = type == null ? null : type.getServiceGroup();
-        serviceGroupIdSnapshot = group == null ? null : group.getId();
-        serviceGroupNameSnapshot = group == null ? null : group.getName();
-        serviceGroupSnapshotCaptured = true;
+        if (!serviceGroupSnapshotCaptured) {
+            ServiceGroup group = type == null ? null : type.getServiceGroup();
+            serviceGroupIdSnapshot = group == null ? null : group.getId();
+            serviceGroupNameSnapshot = group == null ? null : group.getName();
+            serviceGroupSnapshotCaptured = true;
+        }
+        normalizeAvailabilityEndTime();
+    }
+
+    @PreUpdate
+    void normalizeAvailabilityEndTime() {
+        if (endTime == null) return;
+        // Legacy and untyped booking writers do not know about SessionService. Keep their
+        // resource window correct whenever the parent time changes. Multi-service writers
+        // set availabilityEndTime explicitly through SessionServicePlanService.
+        if (services == null || services.isEmpty() || availabilityEndTime == null) {
+            int breakMinutes = type != null && type.getBreakMinutes() != null
+                    ? Math.max(0, type.getBreakMinutes())
+                    : 0;
+            availabilityEndTime = endTime.plusMinutes(breakMinutes);
+        }
     }
 
     @Column(length = 1000)

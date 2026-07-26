@@ -128,7 +128,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               and sb.id not in (:excludeIds)
               and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
               and sb.start_time < :requestedBusyEnd
-              and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+              and coalesce(sb.availability_end_time, sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
             """, nativeQuery = true)
     boolean existsAvailabilityBlockingOverlapForConsultant(
             @Param("companyId") Long companyId,
@@ -148,7 +148,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               and (sb.meeting_link is null or sb.meeting_link = '')
               and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
               and sb.start_time < :requestedBusyEnd
-              and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+              and coalesce(sb.availability_end_time, sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
             """, nativeQuery = true)
     boolean existsAvailabilityBlockingOverlapForSpace(
             @Param("companyId") Long companyId,
@@ -167,7 +167,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               and (sb.meeting_link is null or sb.meeting_link = '')
               and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
               and sb.start_time < :requestedBusyEnd
-              and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+              and coalesce(sb.availability_end_time, sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
             """, nativeQuery = true)
     boolean existsAvailabilityBlockingOverlapForAnyPhysicalSpace(
             @Param("companyId") Long companyId,
@@ -690,21 +690,49 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("clientId") Long clientId,
             @Param("now") LocalDateTime now);
 
-    @Query("SELECT CASE WHEN COUNT(sb) > 0 THEN true ELSE false END FROM SessionBooking sb WHERE sb.company.id = :companyId "
-            + "AND sb.type.id = :typeId AND sb.endTime >= :now "
-            + "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            where sb.company_id = :companyId
+              and (
+                    sb.type_id = :typeId
+                    or exists (
+                        select 1
+                        from session_service ss
+                        where ss.session_booking_id = sb.id
+                          and ss.session_type_id = :typeId
+                    )
+              )
+              and sb.end_time >= :now
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+            """, nativeQuery = true)
     boolean existsUpcomingOrOngoingForType(
             @Param("companyId") Long companyId,
             @Param("typeId") Long typeId,
             @Param("now") LocalDateTime now);
 
-    @Query("SELECT CASE WHEN COUNT(sb) > 0 THEN true ELSE false END FROM SessionBooking sb "
-            + "JOIN sb.type t "
-            + "JOIN t.linkedServices ls "
-            + "WHERE sb.company.id = :companyId "
-            + "AND ls.transactionService.id = :transactionServiceId "
-            + "AND sb.endTime >= :now "
-            + "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            where sb.company_id = :companyId
+              and (
+                    exists (
+                        select 1
+                        from type_transaction_services link
+                        where link.session_type_id = sb.type_id
+                          and link.transaction_service_id = :transactionServiceId
+                    )
+                    or exists (
+                        select 1
+                        from session_service ss
+                        join type_transaction_services link on link.session_type_id = ss.session_type_id
+                        where ss.session_booking_id = sb.id
+                          and link.transaction_service_id = :transactionServiceId
+                    )
+              )
+              and sb.end_time >= :now
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+            """, nativeQuery = true)
     boolean existsUpcomingOrOngoingForTransactionService(
             @Param("companyId") Long companyId,
             @Param("transactionServiceId") Long transactionServiceId,

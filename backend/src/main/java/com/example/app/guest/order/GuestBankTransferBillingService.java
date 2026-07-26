@@ -7,6 +7,7 @@ import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionBillingSupport;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
@@ -111,28 +112,30 @@ public class GuestBankTransferBillingService {
             applyOrderReferenceAsBankTransferReference(bill, order);
         }
 
-        List<TypeTransactionService> linkedServices = resolveLinkedBillingServices(companyId, booking);
+        List<SessionBillingSupport.Charge> linkedServices = resolveLinkedBillingServices(companyId, booking);
         if (linkedServices.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an advance invoice cannot be generated.");
         }
 
         BigDecimal totalNet = BigDecimal.ZERO;
         BigDecimal totalGross = BigDecimal.ZERO;
-        for (TypeTransactionService link : linkedServices) {
-            TransactionService tx = link.getTransactionService();
-            if (tx == null) {
-                continue;
-            }
+        for (SessionBillingSupport.Charge charge : linkedServices) {
+            TransactionService tx = charge.transactionService();
+            if (tx == null) continue;
+            int quantity = Math.max(1, charge.quantity());
+            BigDecimal net = charge.netPrice() == null ? BigDecimal.ZERO : charge.netPrice();
+            BigDecimal unitGross = net.add(net.multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineGross = unitGross.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
+
             BillItem item = new BillItem();
             item.setBill(bill);
             item.setTransactionService(tx);
-            item.setQuantity(1);
-            BigDecimal net = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            item.setQuantity(quantity);
             item.setNetPrice(net);
-            BigDecimal gross = net.add(net.multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            item.setGrossPrice(gross);
-            totalNet = totalNet.add(net);
-            totalGross = totalGross.add(gross);
+            item.setGrossPrice(lineGross);
+            item.setSourceSessionBookingId(booking.getId());
+            totalNet = totalNet.add(net.multiply(BigDecimal.valueOf(quantity)));
+            totalGross = totalGross.add(lineGross);
             bill.getItems().add(item);
         }
         if (bill.getItems().isEmpty()) {
@@ -191,16 +194,9 @@ public class GuestBankTransferBillingService {
     }
 
 
-    private List<TypeTransactionService> resolveLinkedBillingServices(Long companyId, SessionBooking booking) {
-        if (booking == null || booking.getType() == null || booking.getType().getId() == null) {
-            return List.of();
-        }
-        SessionType type = sessionTypes.findByIdAndCompanyIdWithLinkedServices(booking.getType().getId(), companyId)
-                .orElse(null);
-        if (type == null || type.getLinkedServices() == null) {
-            return List.of();
-        }
-        return type.getLinkedServices();
+    private List<SessionBillingSupport.Charge> resolveLinkedBillingServices(Long companyId, SessionBooking booking) {
+        if (booking == null) return List.of();
+        return SessionBillingSupport.charges(booking, java.util.Set.of());
     }
 
     private void applyGuestOrderReferenceIfMissing(Bill bill, GuestOrder order) {
@@ -273,10 +269,12 @@ public class GuestBankTransferBillingService {
             BigDecimal taxMultiplier = item.getTransactionService() == null || item.getTransactionService().getTaxRate() == null
                     ? BigDecimal.ZERO
                     : item.getTransactionService().getTaxRate().multiplier;
-            BigDecimal itemNet = itemGross.divide(BigDecimal.ONE.add(taxMultiplier), 2, RoundingMode.HALF_UP);
+            BigDecimal lineNet = itemGross.divide(BigDecimal.ONE.add(taxMultiplier), 2, RoundingMode.HALF_UP);
+            int quantity = item.getQuantity() == null ? 1 : Math.max(1, item.getQuantity());
+            BigDecimal unitNet = lineNet.divide(BigDecimal.valueOf(quantity), 4, RoundingMode.HALF_UP);
             item.setGrossPrice(itemGross);
-            item.setNetPrice(itemNet);
-            adjustedNet = adjustedNet.add(itemNet);
+            item.setNetPrice(unitNet);
+            adjustedNet = adjustedNet.add(lineNet);
         }
         return new Totals(adjustedNet, requestedGross);
     }

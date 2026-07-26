@@ -234,14 +234,12 @@ public class GuestBookingActionsController {
         var consultant = users.findByIdAndCompanyId(slot.consultantId(), booking.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant not found."));
 
-        bookingCreationService.validateBookingWindow(
-                booking.getCompany().getId(),
+        bookingCreationService.validateExistingBookingWindow(
+                booking,
                 java.util.List.of(booking.getClient().getId()),
                 consultant.getId(),
-                booking.getSpace() == null ? null : booking.getSpace().getId(),
                 slot.startsAt(),
                 slot.endsAt(),
-                booking.getType().getId(),
                 SessionBookingCreationService.bookingExcludeIds(booking.getId()),
                 bookingCreationService.isSpacesEnabled(booking.getCompany().getId()),
                 bookingCreationService.isMultipleSessionsPerSpaceEnabled(booking.getCompany().getId()),
@@ -252,8 +250,7 @@ public class GuestBookingActionsController {
 
         LocalDateTime previousStartTime = booking.getStartTime();
         booking.setConsultant(consultant);
-        booking.setStartTime(slot.startsAt());
-        booking.setEndTime(slot.endsAt());
+        bookingCreationService.applyExistingBookingTime(booking, slot.startsAt(), slot.endsAt());
         booking.setBookingStatus(SessionBookingStatus.RESERVED);
         bookings.save(booking);
         bookingChangePublisher.publish(
