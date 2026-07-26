@@ -236,6 +236,18 @@ public final class GuestDtos {
             /** Explicit employee selected by the guest. The slot token remains authoritative. */
             String consultantId
     ) {
+        public CreateOrderRequest(
+                String companyId,
+                String productId,
+                String slotId,
+                String paymentMethodType,
+                String entitlementId,
+                String locale,
+                String language
+        ) {
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language, null, null);
+        }
+
         public CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {
             this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null, null);
         }
