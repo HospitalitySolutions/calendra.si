@@ -203,8 +203,11 @@ public class GuestOrderService {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         List<OrderServiceLine> serviceLines = resolveOrderServiceLines(companyId, request, guestUser, link.getClient());
         var product = serviceLines.get(0).product();
-        if (serviceLines.size() > 1 && !guestSettings.publicSettings(companyId).multipleServicesEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Multiple services are disabled for this tenant.");
+        if (serviceLines.size() > 1) {
+            GuestSettingsService.GuestPublicSettings publicSettings = guestSettings.publicSettings(companyId);
+            if (publicSettings != null && !publicSettings.multipleServicesEnabled()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Multiple services are disabled for this tenant.");
+            }
         }
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
         GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
@@ -360,6 +363,12 @@ public class GuestOrderService {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
         if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE || payable.compareTo(BigDecimal.ZERO) <= 0) {
+            return payable;
+        }
+        boolean sessionOnlyOrder = lines != null
+                && !lines.isEmpty()
+                && lines.stream().allMatch(line -> isSessionLikeProductType(line.product().productType()));
+        if (!sessionOnlyOrder) {
             return payable;
         }
         if (!rules.requireOnlinePayment() || !"deposit".equalsIgnoreCase(rules.paymentRequirement())) {
