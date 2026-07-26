@@ -6929,22 +6929,6 @@
     gap: 8px;
 }
 
-.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2) {
-    position: relative;
-}
-
-.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2)::after {
-    content: '';
-    position: absolute;
-    right: 10px;
-    bottom: 15px;
-    width: 8px;
-    height: 8px;
-    border: 1.5px solid #94a3b8;
-    border-radius: 2px;
-    pointer-events: none;
-}
-
 .calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2) input:disabled {
     color: #334155;
     background: #f8fafc;
@@ -7988,4 +7972,61 @@
     .calendar-service-chain__metric:last-child {
         justify-self: start;
     }
+}
+
+
+/* Desktop booking layout hard override: service full width, employee + space 50/50. */
+@media (min-width: 981px) {
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--client,
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service,
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service-chain {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant {
+        grid-column: 1 / 7 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--space {
+        grid-column: 7 / -1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain,
+    .calendar-edit-session-panel .calendar-service-chain--single,
+    .calendar-edit-session-panel .calendar-service-chain__single-field,
+    .calendar-edit-session-panel .calendar-service-chain__single-row {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-select {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        flex: 1 1 auto !important;
+    }
+}
+
+/* The end time is derived from selected services; do not draw a lock square beside Datum. */
+.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2)::after {
+    content: none !important;
+    display: none !important;
 }
