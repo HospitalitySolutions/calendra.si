@@ -16,6 +16,7 @@ import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingCreationService;
+import com.example.app.session.SessionBookingController;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.AppSettingRepository;
@@ -243,7 +244,9 @@ public class PublicBookingWidgetService {
                             type.getName(),
                             type.getDescription(),
                             type.getDurationMinutes() != null ? type.getDurationMinutes() : 60,
+                            Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes()),
                             toPriceLabel(type),
+                            sessionTypePriceGross(type),
                             type.getMaxParticipantsPerSession(),
                             isWebsiteBookingEnabled(type),
                             group == null ? null : group.getId(),
@@ -256,15 +259,20 @@ public class PublicBookingWidgetService {
     }
 
     @Transactional(readOnly = true)
-    public List<PublicBookingWidgetController.WidgetConsultantResponse> consultants(String tenantCode, Long typeId, HttpServletRequest request) {
+    public List<PublicBookingWidgetController.WidgetConsultantResponse> consultants(
+            String tenantCode,
+            Long typeId,
+            List<Long> typeIds,
+            HttpServletRequest request
+    ) {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "consultants");
-        SessionType type = resolveType(company.getId(), typeId);
+        List<SessionType> selectedTypes = resolveTypes(company.getId(), typeId, typeIds);
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
-        if (!rules.employeeSelectionAllowed() || isGroupWebsiteBookingOnly(type)) {
+        if (!rules.employeeSelectionAllowed() || isGroupWebsiteBookingOnly(selectedTypes)) {
             return List.of();
         }
-        return supportedConsultants(company.getId(), type).stream()
+        return supportedConsultants(company.getId(), selectedTypes).stream()
                 .map(consultant -> new PublicBookingWidgetController.WidgetConsultantResponse(
                         consultant.getId(),
                         consultantFullName(consultant)
@@ -273,38 +281,48 @@ public class PublicBookingWidgetService {
     }
 
     @Transactional(readOnly = true)
-    public PublicBookingWidgetController.AvailabilityResponse availability(String tenantCode, Long typeId, String dateText, Long consultantId, HttpServletRequest request) {
+    public PublicBookingWidgetController.AvailabilityResponse availability(
+            String tenantCode,
+            Long typeId,
+            List<Long> typeIds,
+            String dateText,
+            Long consultantId,
+            HttpServletRequest request
+    ) {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, request, false, "availability");
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         LocalDate date = parseDate(dateText);
-        SessionType type = resolveType(company.getId(), typeId);
+        List<SessionType> selectedTypes = resolveTypes(company.getId(), typeId, typeIds);
+        SessionType primaryType = selectedTypes.get(0);
         if (!dateAllowedByReservationRules(date, cfg, rules)) {
             return new PublicBookingWidgetController.AvailabilityResponse(cfg.availabilityEnabled(), DATE_FORMAT.format(date), List.of(), List.of());
         }
-        boolean groupOnlyWebsiteBooking = isGroupWebsiteBookingOnly(type);
+        boolean groupOnlyWebsiteBooking = isGroupWebsiteBookingOnly(selectedTypes);
         Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
         Long resolvedConsultantId = !groupOnlyWebsiteBooking && requestedConsultantId != null
-                ? resolveConsultantForBooking(company.getId(), requestedConsultantId, false).getId()
+                ? resolveConsultantForChain(company.getId(), requestedConsultantId, selectedTypes).getId()
                 : null;
 
         List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
-        List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions = buildGroupSessions(company, cfg, type, date, resolvedConsultantId);
+        List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions = groupOnlyWebsiteBooking
+                ? buildGroupSessions(company, cfg, primaryType, date, resolvedConsultantId)
+                : List.of();
         if (groupOnlyWebsiteBooking) {
             slots = List.of();
         } else if (cfg.availabilityEnabled()) {
             Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
-            for (PublicBookingWidgetController.AvailabilitySlotResponse s : buildBookableSlots(company, cfg, type, date, resolvedConsultantId)) {
-                merged.put(widgetSlotMergeKey(s, resolvedConsultantId), s);
+            for (PublicBookingWidgetController.AvailabilitySlotResponse slot : buildBookableSlots(company, cfg, selectedTypes, date, resolvedConsultantId)) {
+                merged.put(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
-            for (PublicBookingWidgetController.AvailabilitySlotResponse s : buildWorkingHoursSlots(company, cfg, type, date, resolvedConsultantId)) {
-                merged.putIfAbsent(widgetSlotMergeKey(s, resolvedConsultantId), s);
+            for (PublicBookingWidgetController.AvailabilitySlotResponse slot : buildWorkingHoursSlots(company, cfg, selectedTypes, date, resolvedConsultantId)) {
+                merged.putIfAbsent(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             slots = sortAvailabilitySlots(merged);
         } else {
-            slots = buildFallbackSlots(company, cfg, type, date, resolvedConsultantId);
+            slots = buildFallbackSlots(company, cfg, selectedTypes, date, resolvedConsultantId);
         }
 
         return new PublicBookingWidgetController.AvailabilityResponse(cfg.availabilityEnabled(), DATE_FORMAT.format(date), slots, groupSessions);
@@ -315,41 +333,46 @@ public class PublicBookingWidgetService {
      * session, so the calendar can mark only genuinely available days as selectable. Only today onward is evaluated.
      */
     @Transactional(readOnly = true)
-    public PublicBookingWidgetController.AvailabilityMonthResponse availabilityMonth(String tenantCode, Long typeId, String monthText, Long consultantId, HttpServletRequest request) {
+    public PublicBookingWidgetController.AvailabilityMonthResponse availabilityMonth(
+            String tenantCode,
+            Long typeId,
+            List<Long> typeIds,
+            String monthText,
+            Long consultantId,
+            HttpServletRequest request
+    ) {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, request, false, "availability-month");
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
-        SessionType type = resolveType(company.getId(), typeId);
+        List<SessionType> selectedTypes = resolveTypes(company.getId(), typeId, typeIds);
         YearMonth month = parseMonth(monthText);
-        boolean groupOnlyWebsiteBooking = isGroupWebsiteBookingOnly(type);
+        boolean groupOnlyWebsiteBooking = isGroupWebsiteBookingOnly(selectedTypes);
         Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
         Long resolvedConsultantId = !groupOnlyWebsiteBooking && requestedConsultantId != null
-                ? resolveConsultantForBooking(company.getId(), requestedConsultantId, false).getId()
+                ? resolveConsultantForChain(company.getId(), requestedConsultantId, selectedTypes).getId()
                 : null;
 
         LocalDate today = timeService.localDate(cfg.zoneId());
         LocalDate cursor = month.atDay(1);
-        if (cursor.isBefore(today)) {
-            cursor = today;
-        }
+        if (cursor.isBefore(today)) cursor = today;
         LocalDate monthEnd = month.atEndOfMonth();
 
         List<String> availableDates = new ArrayList<>();
         try {
             for (LocalDate date = cursor; !date.isAfter(monthEnd); date = date.plusDays(1)) {
                 if (dateAllowedByReservationRules(date, cfg, rules)
-                        && dayHasAvailability(company, cfg, type, date, resolvedConsultantId, groupOnlyWebsiteBooking, rules)) {
+                        && dayHasAvailability(company, cfg, selectedTypes, date, resolvedConsultantId, groupOnlyWebsiteBooking, rules)) {
                     availableDates.add(DATE_FORMAT.format(date));
                 }
             }
         } catch (RuntimeException ex) {
             LOG.error(
-                    "Widget month availability failed: tenantCode={}, companyId={}, typeId={}, consultantId={}, month={}",
+                    "Widget month availability failed: tenantCode={}, companyId={}, typeIds={}, consultantId={}, month={}",
                     tenantCode,
                     company.getId(),
-                    typeId,
+                    selectedTypes.stream().map(SessionType::getId).toList(),
                     resolvedConsultantId,
                     month,
                     ex
@@ -362,22 +385,20 @@ public class PublicBookingWidgetService {
     private boolean dayHasAvailability(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId,
             boolean groupOnlyWebsiteBooking,
             GuestSettingsService.GuestBookingRules rules
     ) {
         if (groupOnlyWebsiteBooking) {
-            return !buildGroupSessions(company, cfg, type, date, consultantId).isEmpty();
+            return !buildGroupSessions(company, cfg, selectedTypes.get(0), date, consultantId).isEmpty();
         }
         if (cfg.availabilityEnabled()) {
-            if (hasAnyBookableSlot(company, cfg, type, date, consultantId, rules)) {
-                return true;
-            }
-            return hasAnyWorkingHoursSlot(company, cfg, type, date, consultantId, rules);
+            if (hasAnyBookableSlot(company, cfg, selectedTypes, date, consultantId, rules)) return true;
+            return hasAnyWorkingHoursSlot(company, cfg, selectedTypes, date, consultantId, rules);
         }
-        return hasAnyFallbackSlot(company, cfg, type, date, consultantId, rules);
+        return hasAnyFallbackSlot(company, cfg, selectedTypes, date, consultantId, rules);
     }
 
     /**
@@ -387,30 +408,27 @@ public class PublicBookingWidgetService {
     private boolean hasAnyBookableSlot(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId,
             GuestSettingsService.GuestBookingRules rules
     ) {
-        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        int durationMinutes = chainVisibleDurationMinutes(selectedTypes, cfg);
         List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(
                         company.getId(), date.getDayOfWeek(), date, consultantId
                 ).stream()
                 .filter(slot -> slot.getConsultant() != null)
-                .filter(slot -> consultantSupportsType(slot.getConsultant(), type))
+                .filter(slot -> consultantSupportsTypes(slot.getConsultant(), selectedTypes))
                 .sorted(Comparator.comparing((BookableSlot slot) -> slot.getConsultant().getId())
                         .thenComparing(BookableSlot::getStartTime))
                 .toList();
-
         for (BookableSlot window : windows) {
             LocalTime cursor = window.getStartTime();
             while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
-                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, type.getId())) {
-                    return true;
-                }
+                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, selectedTypes)) return true;
                 cursor = cursor.plusMinutes(30);
             }
         }
@@ -420,30 +438,25 @@ public class PublicBookingWidgetService {
     private boolean hasAnyWorkingHoursSlot(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId,
             GuestSettingsService.GuestBookingRules rules
     ) {
-        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
-        List<User> consultants = supportedConsultants(company.getId(), type).stream()
+        int durationMinutes = chainVisibleDurationMinutes(selectedTypes, cfg);
+        List<User> consultants = supportedConsultants(company.getId(), selectedTypes).stream()
                 .filter(candidate -> consultantId == null || candidate.getId().equals(consultantId))
                 .toList();
-
         for (User consultant : consultants) {
             Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
-            if (dayWindow.isEmpty()) {
-                continue;
-            }
+            if (dayWindow.isEmpty()) continue;
             LocalTime cursor = dayWindow.get().start();
             LocalTime rangeEnd = dayWindow.get().end();
             while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
-                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, type.getId())) {
-                    return true;
-                }
+                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, selectedTypes)) return true;
                 cursor = cursor.plusMinutes(30);
             }
         }
@@ -453,35 +466,28 @@ public class PublicBookingWidgetService {
     private boolean hasAnyFallbackSlot(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId,
             GuestSettingsService.GuestBookingRules rules
     ) {
-        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        int durationMinutes = chainVisibleDurationMinutes(selectedTypes, cfg);
         LocalTime rangeStart;
         LocalTime rangeEnd;
         if (consultantId != null) {
             User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, company.getId()).orElse(null);
-            if (consultant == null) {
-                return false;
-            }
+            if (consultant == null || !consultantSupportsTypes(consultant, selectedTypes)) return false;
             Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date);
-            if (window.isEmpty()) {
-                return false;
-            }
+            if (window.isEmpty()) return false;
             rangeStart = window.get().start();
             rangeEnd = window.get().end();
         } else {
             rangeStart = cfg.workingHoursStart();
             rangeEnd = cfg.workingHoursEnd();
         }
-
         LocalTime cursor = rangeStart;
         while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
-            if (slotAllowedByReservationRules(date.atTime(cursor), cfg, rules)) {
-                return true;
-            }
+            if (slotAllowedByReservationRules(date.atTime(cursor), cfg, rules)) return true;
             cursor = cursor.plusMinutes(30);
         }
         return false;
@@ -503,7 +509,12 @@ public class PublicBookingWidgetService {
     }
 
     @Transactional
-    public PublicBookingWidgetController.BookingResponse createBooking(String tenantCode, PublicBookingWidgetController.BookingRequest request, String idempotencyKey, HttpServletRequest httpRequest) {
+    public PublicBookingWidgetController.BookingResponse createBooking(
+            String tenantCode,
+            PublicBookingWidgetController.BookingRequest request,
+            String idempotencyKey,
+            HttpServletRequest httpRequest
+    ) {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, httpRequest, true, "bookings");
@@ -511,66 +522,85 @@ public class PublicBookingWidgetService {
         widgetTurnstileService.verifyForPublicAction(company, request.turnstileToken(), widgetPublicAuditLogger.clientIp(httpRequest));
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
-        SessionType type = resolveType(company.getId(), request.typeId());
+        List<Long> requestedIds = request.services() == null ? List.of() : request.services().stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingInt(item -> item.position() == null ? Integer.MAX_VALUE : item.position()))
+                .map(PublicBookingWidgetController.BookingServiceRequest::typeId)
+                .filter(Objects::nonNull)
+                .toList();
+        List<SessionType> selectedTypes = resolveTypes(company.getId(), request.typeId(), requestedIds);
+        SessionType primaryType = selectedTypes.get(0);
         try {
             if (request.groupSessionId() != null) {
-                PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "group-booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> joinGroupSession(company, type, request, bookingSource));
-                widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "success", "typeId=" + type.getId() + ",groupSessionId=" + request.groupSessionId());
+                if (selectedTypes.size() != 1) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group sessions cannot be combined with other services.");
+                }
+                PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(
+                        company, "group-booking", idempotencyKey, request,
+                        PublicBookingWidgetController.BookingResponse.class,
+                        () -> joinGroupSession(company, primaryType, request, bookingSource)
+                );
+                widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "success", "typeIds=" + requestedTypeIds(selectedTypes) + ",groupSessionId=" + request.groupSessionId());
                 return response;
             }
-            if (isGroupWebsiteBookingOnly(type)) {
+            if (isGroupWebsiteBookingOnly(selectedTypes)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Please select one of the listed group booking time slots for this service.");
             }
             LocalDate date = parseDate(request.date());
             LocalDateTime start = parseStartTime(request.startTime(), date);
-            LocalDateTime end = start.plusMinutes(type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes());
-
+            LocalDateTime end = start.plusMinutes(chainVisibleDurationMinutes(selectedTypes, cfg));
             if (!slotAllowedByReservationRules(start, cfg, rules)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected time is outside the allowed reservation window.");
             }
-
-            User consultant = resolveConsultantForBooking(company.getId(), request.consultantId(), cfg.availabilityEnabled());
+            User consultant = request.consultantId() == null
+                    ? resolveConsultantForBooking(company.getId(), null, cfg.availabilityEnabled())
+                    : resolveConsultantForChain(company.getId(), request.consultantId(), selectedTypes);
             User actor = consultant != null ? consultant : resolveAdminActor(company.getId());
+            List<SessionBookingController.BookingServiceRequest> services = bookingServiceRequests(selectedTypes);
 
-            PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> {
-                // Keep all side effects behind the idempotency claim so duplicate browser/mobile
-                // retries with the same Idempotency-Key cannot create duplicate clients/bookings.
-                lockTenantForClientMatch(company);
-                Client client = findOrCreateClient(company, actor, request);
-                SessionBooking booking = bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
-                        company.getId(),
-                        client.getId(),
-                        consultant != null ? consultant.getId() : null,
-                        start,
-                        end,
-                        null,
-                        type.getId(),
-                        bookingNotes(bookingSource),
-                        null,
-                        false,
-                        null,
-                        false,
-                        "WEBSITE_WIDGET",
-                        null,
-                        null,
-                        "CONFIRMED",
-                        true,
-                        bookingSource
-                ));
-                String consultantName = booking.getConsultant() == null
-                        ? null
-                        : consultantFullName(booking.getConsultant());
-                return new PublicBookingWidgetController.BookingResponse(
-                        booking.getId(),
-                        booking.getType() == null ? type.getName() : booking.getType().getName(),
-                        booking.getStartTime().format(DATE_TIME_FORMAT),
-                        booking.getStartTime().format(HUMAN_FORMAT),
-                        client.getEmail(),
-                        consultantName
-                );
-            });
-            widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "success", "typeId=" + type.getId() + ",groupSessionId=null");
+            PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(
+                    company, "booking", idempotencyKey, request,
+                    PublicBookingWidgetController.BookingResponse.class,
+                    () -> {
+                        lockTenantForClientMatch(company);
+                        Client client = findOrCreateClient(company, actor, request);
+                        SessionBooking booking = bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
+                                company.getId(),
+                                client.getId(),
+                                consultant != null ? consultant.getId() : null,
+                                start,
+                                end,
+                                null,
+                                primaryType.getId(),
+                                bookingNotes(bookingSource),
+                                null,
+                                false,
+                                null,
+                                false,
+                                "WEBSITE_WIDGET",
+                                null,
+                                null,
+                                "CONFIRMED",
+                                true,
+                                bookingSource,
+                                services
+                        ));
+                        String consultantName = booking.getConsultant() == null ? null : consultantFullName(booking.getConsultant());
+                        List<String> serviceNames = selectedTypes.stream().map(SessionType::getName).toList();
+                        return new PublicBookingWidgetController.BookingResponse(
+                                booking.getId(),
+                                String.join(" + ", serviceNames),
+                                serviceNames,
+                                chainVisibleDurationMinutes(selectedTypes, cfg),
+                                booking.getStartTime().format(DATE_TIME_FORMAT),
+                                booking.getStartTime().format(HUMAN_FORMAT),
+                                client.getEmail(),
+                                consultantName
+                        );
+                    }
+            );
+            widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "success", "typeIds=" + requestedTypeIds(selectedTypes) + ",groupSessionId=null");
             return response;
         } catch (RuntimeException ex) {
             widgetPublicAuditLogger.logAttempt(company, httpRequest, "booking", "failed", ex.getMessage());
@@ -786,6 +816,8 @@ public class PublicBookingWidgetService {
         return new PublicBookingWidgetController.BookingResponse(
                 joined.getId(),
                 joined.getType() == null ? type.getName() : joined.getType().getName(),
+                List.of(joined.getType() == null ? type.getName() : joined.getType().getName()),
+                Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes()),
                 joined.getStartTime().format(DATE_TIME_FORMAT),
                 joined.getStartTime().format(HUMAN_FORMAT),
                 client.getEmail(),
@@ -920,53 +952,36 @@ public class PublicBookingWidgetService {
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildBookableSlots(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
-        if (date.isBefore(today)) {
-            return new ArrayList<>();
-        }
-
-        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-
+        if (date.isBefore(today)) return new ArrayList<>();
+        int durationMinutes = chainVisibleDurationMinutes(selectedTypes, cfg);
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(company.getId(), dayOfWeek, date, consultantId).stream()
+        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(company.getId(), date.getDayOfWeek(), date, consultantId).stream()
                 .filter(slot -> slot.getConsultant() != null)
-                .filter(slot -> consultantSupportsType(slot.getConsultant(), type))
-                .sorted(Comparator.comparing((BookableSlot s) -> s.getConsultant().getId()).thenComparing(BookableSlot::getStartTime))
+                .filter(slot -> consultantSupportsTypes(slot.getConsultant(), selectedTypes))
+                .sorted(Comparator.comparing((BookableSlot item) -> item.getConsultant().getId()).thenComparing(BookableSlot::getStartTime))
                 .toList();
-
         for (BookableSlot window : windows) {
             LocalTime cursor = window.getStartTime();
             while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!slotAllowedByReservationRules(start, cfg, websiteWidgetSettingsService.bookingRules(company.getId()))) {
-                    cursor = cursor.plusMinutes(30);
-                    continue;
-                }
-                if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, type.getId())) {
+                if (slotAllowedByReservationRules(start, cfg, websiteWidgetSettingsService.bookingRules(company.getId()))
+                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, selectedTypes)) {
                     String iso = DATE_TIME_FORMAT.format(start);
-                    // The public widget represents availability as "time is available if any matching
-                    // consultant can take it". Keep only one chip per start time when no consultant
-                    // was explicitly selected; the retained response still carries the consultant id
-                    // that should receive the booking.
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             window.getConsultant().getId() + "|" + start + "|" + end,
-                            cursor.format(SLOT_LABEL_FORMAT),
-                            iso,
-                            DATE_TIME_FORMAT.format(end),
-                            window.getConsultant().getId(),
-                            consultantFullName(window.getConsultant())
+                            cursor.format(SLOT_LABEL_FORMAT), iso, DATE_TIME_FORMAT.format(end),
+                            window.getConsultant().getId(), consultantFullName(window.getConsultant())
                     ));
                 }
                 cursor = cursor.plusMinutes(30);
             }
         }
-
         return new ArrayList<>(deduped.values());
     }
 
@@ -978,54 +993,37 @@ public class PublicBookingWidgetService {
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildWorkingHoursSlots(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
-        if (date.isBefore(today)) {
-            return new ArrayList<>();
-        }
-
-        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
-        List<User> consultants = supportedConsultants(company.getId(), type).stream()
-                .filter(c -> consultantId == null || c.getId().equals(consultantId))
+        if (date.isBefore(today)) return new ArrayList<>();
+        int durationMinutes = chainVisibleDurationMinutes(selectedTypes, cfg);
+        List<User> consultants = supportedConsultants(company.getId(), selectedTypes).stream()
+                .filter(candidate -> consultantId == null || candidate.getId().equals(consultantId))
                 .toList();
-
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
         for (User consultant : consultants) {
             Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
-            if (dayWindow.isEmpty()) {
-                continue;
-            }
-            LocalTime rangeEnd = dayWindow.get().end();
+            if (dayWindow.isEmpty()) continue;
             LocalTime cursor = dayWindow.get().start();
+            LocalTime rangeEnd = dayWindow.get().end();
             while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
-                if (!slotAllowedByReservationRules(start, cfg, websiteWidgetSettingsService.bookingRules(company.getId()))) {
-                    cursor = cursor.plusMinutes(30);
-                    continue;
-                }
-                if (isActuallyBookable(company.getId(), consultant.getId(), start, end, type.getId())) {
+                if (slotAllowedByReservationRules(start, cfg, websiteWidgetSettingsService.bookingRules(company.getId()))
+                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, selectedTypes)) {
                     String iso = DATE_TIME_FORMAT.format(start);
-                    // The public widget represents availability as "time is available if any matching
-                    // consultant can take it". Keep only one chip per start time when no consultant
-                    // was explicitly selected; the retained response still carries the consultant id
-                    // that should receive the booking.
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             consultant.getId() + "|" + start + "|" + end,
-                            cursor.format(SLOT_LABEL_FORMAT),
-                            iso,
-                            DATE_TIME_FORMAT.format(end),
-                            consultant.getId(),
-                            consultantFullName(consultant)
+                            cursor.format(SLOT_LABEL_FORMAT), iso, DATE_TIME_FORMAT.format(end),
+                            consultant.getId(), consultantFullName(consultant)
                     ));
                 }
                 cursor = cursor.plusMinutes(30);
             }
         }
-
         return new ArrayList<>(deduped.values());
     }
 
@@ -1109,35 +1107,26 @@ public class PublicBookingWidgetService {
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildFallbackSlots(
             Company company,
             WidgetConfig cfg,
-            SessionType type,
+            List<SessionType> selectedTypes,
             LocalDate date,
             Long consultantId
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
-        if (date.isBefore(today)) {
-            return new ArrayList<>();
-        }
-
-        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        if (date.isBefore(today)) return new ArrayList<>();
+        int durationMinutes = chainVisibleDurationMinutes(selectedTypes, cfg);
         LocalTime rangeStart;
         LocalTime rangeEnd;
         if (consultantId != null) {
-            User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, company.getId())
-                    .orElse(null);
-            if (consultant == null) {
-                return new ArrayList<>();
-            }
-            Optional<TimeWindow> w = resolveConsultantWorkingWindow(consultant, date);
-            if (w.isEmpty()) {
-                return new ArrayList<>();
-            }
-            rangeStart = w.get().start();
-            rangeEnd = w.get().end();
+            User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, company.getId()).orElse(null);
+            if (consultant == null || !consultantSupportsTypes(consultant, selectedTypes)) return new ArrayList<>();
+            Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date);
+            if (window.isEmpty()) return new ArrayList<>();
+            rangeStart = window.get().start();
+            rangeEnd = window.get().end();
         } else {
             rangeStart = cfg.workingHoursStart();
             rangeEnd = cfg.workingHoursEnd();
         }
-
         List<PublicBookingWidgetController.AvailabilitySlotResponse> items = new ArrayList<>();
         LocalTime cursor = rangeStart;
         while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
@@ -1146,14 +1135,11 @@ public class PublicBookingWidgetService {
                 cursor = cursor.plusMinutes(30);
                 continue;
             }
-            LocalDateTime fallbackEnd = start.plusMinutes(durationMinutes);
+            LocalDateTime end = start.plusMinutes(durationMinutes);
             items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
-                    (consultantId != null ? consultantId : 0L) + "|" + start + "|" + fallbackEnd,
-                    cursor.format(SLOT_LABEL_FORMAT),
-                    DATE_TIME_FORMAT.format(start),
-                    DATE_TIME_FORMAT.format(fallbackEnd),
-                    consultantId,
-                    null
+                    (consultantId != null ? consultantId : 0L) + "|" + start + "|" + end,
+                    cursor.format(SLOT_LABEL_FORMAT), DATE_TIME_FORMAT.format(start), DATE_TIME_FORMAT.format(end),
+                    consultantId, null
             ));
             cursor = cursor.plusMinutes(30);
         }
@@ -1198,16 +1184,20 @@ public class PublicBookingWidgetService {
         return slotStart.isAfter(timeService.localDateTime(zoneId));
     }
 
-    private boolean isActuallyBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
+    private boolean isActuallyBookable(
+            Long companyId,
+            Long consultantId,
+            LocalDateTime start,
+            LocalDateTime end,
+            List<SessionType> selectedTypes
+    ) {
         try {
-            bookingCreationService.validateBookingWindow(
+            bookingCreationService.validateServiceChainWindow(
                     companyId,
                     List.of(),
                     consultantId,
-                    null,
                     start,
-                    end,
-                    typeId,
+                    bookingServiceRequests(selectedTypes),
                     SessionBookingCreationService.bookingExcludeIds((Long) null),
                     bookingCreationService.isSpacesEnabled(companyId),
                     bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
@@ -1308,10 +1298,7 @@ public class PublicBookingWidgetService {
     }
 
     private List<User> supportedConsultants(Long companyId, SessionType type) {
-        return users.findActiveBookableByCompanyId(companyId).stream()
-                .filter(consultant -> consultantSupportsType(consultant, type))
-                .sorted(Comparator.comparing(this::consultantFullName, String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        return supportedConsultants(companyId, List.of(type));
     }
 
     private boolean isBookableConsultant(User user) {
@@ -1332,6 +1319,77 @@ public class PublicBookingWidgetService {
         if (slot.getStartDate() != null && date.isBefore(slot.getStartDate())) return false;
         if (slot.getEndDate() != null && date.isAfter(slot.getEndDate())) return false;
         return true;
+    }
+
+    private List<User> supportedConsultants(Long companyId, List<SessionType> selectedTypes) {
+        return users.findActiveBookableByCompanyId(companyId).stream()
+                .filter(consultant -> consultantSupportsTypes(consultant, selectedTypes))
+                .sorted(Comparator.comparing(this::consultantFullName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private boolean consultantSupportsTypes(User consultant, List<SessionType> selectedTypes) {
+        return selectedTypes != null && !selectedTypes.isEmpty()
+                && selectedTypes.stream().allMatch(type -> consultantSupportsType(consultant, type));
+    }
+
+    private User resolveConsultantForChain(Long companyId, Long consultantId, List<SessionType> selectedTypes) {
+        User consultant = resolveConsultantForBooking(companyId, consultantId, true);
+        if (consultant == null || !consultantSupportsTypes(consultant, selectedTypes)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected employee cannot perform every selected service.");
+        }
+        return consultant;
+    }
+
+    private List<SessionType> resolveTypes(Long companyId, Long legacyTypeId, List<Long> requestedTypeIds) {
+        List<Long> ids = new ArrayList<>();
+        if (requestedTypeIds != null) {
+            for (Long id : requestedTypeIds) {
+                if (id != null && !ids.contains(id)) ids.add(id);
+            }
+        }
+        if (ids.isEmpty() && legacyTypeId != null) ids.add(legacyTypeId);
+        if (ids.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
+        if (ids.size() > 5) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A booking can contain at most 5 services.");
+        List<SessionType> selectedTypes = ids.stream().map(id -> resolveType(companyId, id)).toList();
+        if (selectedTypes.size() > 1 && selectedTypes.stream().anyMatch(this::isGroupWebsiteBookingOnly)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group services cannot be combined with other services.");
+        }
+        var priceModes = selectedTypes.stream()
+                .map(type -> type.getPriceCalculationMode() == null ? "PER_CLIENT" : type.getPriceCalculationMode().name())
+                .distinct()
+                .toList();
+        if (priceModes.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All selected services must use the same price calculation mode.");
+        }
+        return selectedTypes;
+    }
+
+    private boolean isGroupWebsiteBookingOnly(List<SessionType> selectedTypes) {
+        return selectedTypes != null && selectedTypes.size() == 1 && isGroupWebsiteBookingOnly(selectedTypes.get(0));
+    }
+
+    private int chainVisibleDurationMinutes(List<SessionType> selectedTypes, WidgetConfig cfg) {
+        if (selectedTypes == null || selectedTypes.isEmpty()) return cfg.sessionLengthMinutes();
+        int total = 0;
+        for (int index = 0; index < selectedTypes.size(); index++) {
+            SessionType type = selectedTypes.get(index);
+            total += Math.max(1, type.getDurationMinutes() == null ? cfg.sessionLengthMinutes() : type.getDurationMinutes());
+            if (index < selectedTypes.size() - 1) total += Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes());
+        }
+        return Math.max(1, total);
+    }
+
+    private List<SessionBookingController.BookingServiceRequest> bookingServiceRequests(List<SessionType> selectedTypes) {
+        List<SessionBookingController.BookingServiceRequest> requests = new ArrayList<>();
+        for (int index = 0; index < selectedTypes.size(); index++) {
+            requests.add(new SessionBookingController.BookingServiceRequest(selectedTypes.get(index).getId(), index, null));
+        }
+        return List.copyOf(requests);
+    }
+
+    private List<Long> requestedTypeIds(List<SessionType> selectedTypes) {
+        return selectedTypes.stream().map(SessionType::getId).toList();
     }
 
     private SessionType resolveType(Long companyId, Long typeId) {

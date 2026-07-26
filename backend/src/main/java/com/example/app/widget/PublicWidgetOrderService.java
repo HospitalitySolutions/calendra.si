@@ -155,7 +155,8 @@ public class PublicWidgetOrderService {
                 request.paymentMethodType(),
                 request.entitlementId(),
                 request.locale(),
-                request.language()
+                request.language(),
+                request.serviceIds()
         );
         String idempotencyKey = idempotencyKey(httpRequest);
         BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);

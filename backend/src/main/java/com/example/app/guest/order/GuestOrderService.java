@@ -197,7 +197,9 @@ public class GuestOrderService {
                 : bookingSource;
         Long companyId = parseId(request.companyId());
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
-        var product = catalogService.resolveProduct(companyId, request.productId(), guestUser);
+        OrderProductSelection productSelection = resolveOrderProductSelection(companyId, request, guestUser, channel);
+        GuestCatalogService.ResolvedProduct product = productSelection.product();
+        List<Long> sessionTypeIds = productSelection.sessionTypeIds();
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
         GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
         if (request.slotId() != null && !request.slotId().isBlank() && isSessionLikeProductType(product.productType())) {
@@ -211,6 +213,7 @@ public class GuestOrderService {
                 companyId,
                 request.slotId(),
                 product,
+                sessionTypeIds,
                 paymentMethodType,
                 normalizedBookingSource
         );
@@ -239,6 +242,7 @@ public class GuestOrderService {
         order.setMetadataJson(buildMetadataJson(
                 request.slotId(),
                 product,
+                sessionTypeIds,
                 request.entitlementId(),
                 channel,
                 normalizedBookingSource
@@ -254,6 +258,7 @@ public class GuestOrderService {
             Long companyId,
             String slotId,
             GuestCatalogService.ResolvedProduct product,
+            List<Long> sessionTypeIds,
             GuestPaymentMethodType paymentMethodType,
             BookingSource bookingSource
     ) {
@@ -265,27 +270,29 @@ public class GuestOrderService {
                 .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
                 .filter(order -> order.getPaymentMethodType() == paymentMethodType)
                 .filter(order -> bookingSourceForOrder(order) == bookingSource)
-                .filter(order -> sameOrderSlotAndProduct(order, slotId, product))
+                .filter(order -> sameOrderSlotAndProduct(order, slotId, product, sessionTypeIds))
                 .findFirst()
                 .orElse(null);
     }
 
-    private boolean sameOrderSlotAndProduct(GuestOrder order, String slotId, GuestCatalogService.ResolvedProduct product) {
+    private boolean sameOrderSlotAndProduct(
+            GuestOrder order,
+            String slotId,
+            GuestCatalogService.ResolvedProduct product,
+            List<Long> sessionTypeIds
+    ) {
         try {
             Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
             Object storedSlot = map.get("slotId");
-            if (storedSlot == null || !slotId.trim().equals(String.valueOf(storedSlot).trim())) {
-                return false;
-            }
+            if (storedSlot == null || !slotId.trim().equals(String.valueOf(storedSlot).trim())) return false;
             Object storedProductType = map.get("productType");
             if (storedProductType != null && product.productType() != null
-                    && !product.productType().equals(String.valueOf(storedProductType))) {
-                return false;
-            }
+                    && !product.productType().equals(String.valueOf(storedProductType))) return false;
+            List<Long> requestedIds = sessionTypeIds == null ? List.of() : sessionTypeIds;
+            List<Long> storedIds = parseSessionTypeIds(map.get("sessionTypeIds"), map.get("sessionTypeId"));
+            if (!requestedIds.isEmpty()) return requestedIds.equals(storedIds);
             if (product.sessionType() != null && product.sessionType().getId() != null) {
-                Object storedSessionTypeId = map.get("sessionTypeId");
-                return storedSessionTypeId != null
-                        && String.valueOf(product.sessionType().getId()).equals(String.valueOf(storedSessionTypeId));
+                return List.of(product.sessionType().getId()).equals(storedIds);
             }
             if (product.persistedProduct() != null && product.persistedProduct().getId() != null) {
                 Object storedGuestProductId = map.get("guestProductId");
@@ -333,6 +340,114 @@ public class GuestOrderService {
             if (value != null && !value.isBlank()) return value.trim();
         }
         return null;
+    }
+
+    private OrderProductSelection resolveOrderProductSelection(
+            Long companyId,
+            GuestDtos.CreateOrderRequest request,
+            GuestUser guestUser,
+            PaymentChannel channel
+    ) {
+        List<Long> typeIds = new ArrayList<>();
+        if (request.serviceIds() != null) {
+            for (String rawId : request.serviceIds()) {
+                if (rawId == null || rawId.isBlank()) continue;
+                Long typeId = parseId(rawId);
+                if (!typeIds.contains(typeId)) typeIds.add(typeId);
+            }
+        }
+        if (typeIds.isEmpty()) {
+            GuestCatalogService.ResolvedProduct product = resolveProductForChannel(companyId, request.productId(), guestUser, channel);
+            List<Long> ids = product.sessionType() == null ? List.of() : List.of(product.sessionType().getId());
+            return new OrderProductSelection(product, ids);
+        }
+        if (typeIds.size() > 5) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A booking can contain at most 5 services.");
+        }
+        List<GuestCatalogService.ResolvedProduct> products = new ArrayList<>();
+        for (Long typeId : typeIds) {
+            GuestCatalogService.ResolvedProduct product = channel == PaymentChannel.WEBSITE
+                    ? catalogService.resolveWebsiteSessionProduct(companyId, typeId)
+                    : catalogService.resolveProduct(companyId, "session-" + typeId, guestUser);
+            if (product.sessionType() == null || !("SESSION_SINGLE".equals(product.productType()) || "CLASS_TICKET".equals(product.productType()))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only session services can be combined.");
+            }
+            if (typeIds.size() > 1 && product.sessionType().getMaxParticipantsPerSession() != null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group services cannot be combined with other services.");
+            }
+            products.add(product);
+        }
+        String currency = products.get(0).currency();
+        if (products.stream().anyMatch(product -> !Objects.equals(currency, product.currency()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All selected services must use the same currency.");
+        }
+        long priceModeCount = products.stream()
+                .map(GuestCatalogService.ResolvedProduct::sessionType)
+                .filter(Objects::nonNull)
+                .map(type -> type.getPriceCalculationMode() == null ? "PER_CLIENT" : type.getPriceCalculationMode().name())
+                .distinct()
+                .count();
+        if (priceModeCount > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All selected services must use the same price calculation mode.");
+        }
+        BigDecimal total = products.stream()
+                .map(GuestCatalogService.ResolvedProduct::priceGross)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        String name = products.stream().map(GuestCatalogService.ResolvedProduct::name).collect(java.util.stream.Collectors.joining(" + "));
+        GuestCatalogService.ResolvedProduct primary = products.get(0);
+        GuestCatalogService.ResolvedProduct combined = new GuestCatalogService.ResolvedProduct(
+                null,
+                primary.sessionType(),
+                name,
+                primary.productType(),
+                total,
+                currency,
+                products.stream().allMatch(GuestCatalogService.ResolvedProduct::bookable)
+        );
+        return new OrderProductSelection(combined, List.copyOf(typeIds));
+    }
+
+    private GuestCatalogService.ResolvedProduct resolveProductForChannel(
+            Long companyId,
+            String productId,
+            GuestUser guestUser,
+            PaymentChannel channel
+    ) {
+        if (channel == PaymentChannel.WEBSITE && productId != null && productId.startsWith("session-")) {
+            return catalogService.resolveWebsiteSessionProduct(
+                    companyId,
+                    parseId(productId.substring("session-".length()))
+            );
+        }
+        return catalogService.resolveProduct(companyId, productId, guestUser);
+    }
+
+    private static List<Long> parseSessionTypeIds(Object rawIds, Object fallbackId) {
+        List<Long> result = new ArrayList<>();
+        if (rawIds instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                try {
+                    Long value = Long.parseLong(String.valueOf(item));
+                    if (!result.contains(value)) result.add(value);
+                } catch (Exception ignored) {}
+            }
+        }
+        if (result.isEmpty() && fallbackId != null) {
+            try { result.add(Long.parseLong(String.valueOf(fallbackId))); } catch (Exception ignored) {}
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<com.example.app.session.SessionBookingController.BookingServiceRequest> bookingServices(List<Long> typeIds) {
+        List<com.example.app.session.SessionBookingController.BookingServiceRequest> services = new ArrayList<>();
+        if (typeIds != null) {
+            for (int index = 0; index < typeIds.size(); index++) {
+                Long typeId = typeIds.get(index);
+                if (typeId != null) services.add(new com.example.app.session.SessionBookingController.BookingServiceRequest(typeId, index, null));
+            }
+        }
+        return List.copyOf(services);
     }
 
     private static BigDecimal calculateOrderSubtotal(
@@ -395,9 +510,9 @@ public class GuestOrderService {
             }
             Long selectedEntitlementId = extractSelectedEntitlementId(order);
             if (selectedEntitlementId != null) {
-                entitlementService.consumeSelectedEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), selectedEntitlementId, booking);
+                entitlementService.consumeSelectedEntitlement(order.getClient(), order.getCompany().getId(), slotContext.primarySessionTypeId(), selectedEntitlementId, booking);
             } else {
-                entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), booking);
+                entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.primarySessionTypeId(), booking);
             }
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
@@ -829,6 +944,7 @@ public class GuestOrderService {
     private String buildMetadataJson(
             String slotId,
             GuestCatalogService.ResolvedProduct product,
+            List<Long> sessionTypeIds,
             String entitlementId,
             PaymentChannel channel,
             BookingSource bookingSource
@@ -841,6 +957,9 @@ public class GuestOrderService {
             map.put("productName", product.name());
             map.put("guestProductId", product.persistedProduct() == null ? null : product.persistedProduct().getId());
             map.put("sessionTypeId", product.sessionType() == null ? null : product.sessionType().getId());
+            map.put("sessionTypeIds", sessionTypeIds == null || sessionTypeIds.isEmpty()
+                    ? (product.sessionType() == null ? List.of() : List.of(product.sessionType().getId()))
+                    : sessionTypeIds);
             map.put("currency", product.currency());
             map.put("priceGross", product.priceGross() == null ? null : product.priceGross().doubleValue());
             map.put("channel", channel == null ? PaymentChannel.GUEST.name() : channel.name());
@@ -1284,36 +1403,23 @@ public class GuestOrderService {
         try {
             Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
             Object rawSlot = map.get("slotId");
-            Object rawTypeId = map.get("sessionTypeId");
-            if (rawSlot == null || rawTypeId == null) return null;
+            List<Long> sessionTypeIds = parseSessionTypeIds(map.get("sessionTypeIds"), map.get("sessionTypeId"));
+            if (rawSlot == null || sessionTypeIds.isEmpty()) return null;
 
             String slotText = String.valueOf(rawSlot);
             String[] parts = slotText.split("\\|");
             if (GuestCatalogService.isGroupSlotToken(slotText)) {
                 Long groupBookingId = GuestCatalogService.groupBookingIdFromSlotToken(slotText);
-                if (groupBookingId == null || parts.length < 4) {
-                    return null;
-                }
-                return new SlotContext(
-                        Long.parseLong(String.valueOf(rawTypeId)),
-                        null,
+                if (groupBookingId == null || parts.length < 4 || sessionTypeIds.size() != 1) return null;
+                return new SlotContext(sessionTypeIds, null,
                         java.time.LocalDateTime.parse(parts[2]),
-                        java.time.LocalDateTime.parse(parts[3]),
-                        groupBookingId
-                );
+                        java.time.LocalDateTime.parse(parts[3]), groupBookingId);
             }
-            if (parts.length < 3) {
-                return null;
-            }
-
+            if (parts.length < 3) return null;
             Long consultantId = parseOptionalConsultantId(parts[0]);
-            return new SlotContext(
-                    Long.parseLong(String.valueOf(rawTypeId)),
-                    consultantId,
+            return new SlotContext(sessionTypeIds, consultantId,
                     java.time.LocalDateTime.parse(parts[1]),
-                    java.time.LocalDateTime.parse(parts[2]),
-                    null
-            );
+                    java.time.LocalDateTime.parse(parts[2]), null);
         } catch (Exception ex) {
             return null;
         }
@@ -1421,7 +1527,7 @@ public class GuestOrderService {
                     slotContext.startsAt(),
                     slotContext.endsAt(),
                     null,
-                    slotContext.sessionTypeId(),
+                    slotContext.primarySessionTypeId(),
                     bookingNotesForOrder(order),
                     null,
                     false,
@@ -1432,7 +1538,8 @@ public class GuestOrderService {
                     String.valueOf(order.getGuestUser().getId()),
                     status,
                     "CONFIRMED".equalsIgnoreCase(status),
-                    bookingSourceForOrder(order)
+                    bookingSourceForOrder(order),
+                    bookingServices(slotContext.sessionTypeIds())
             ));
         } catch (ResponseStatusException ex) {
             if (HttpStatus.CONFLICT.equals(ex.getStatusCode())) {
@@ -1504,7 +1611,22 @@ public class GuestOrderService {
 
     private record GiftCardPaymentAdjustment(GuestOrder order, boolean coveredInFull) {}
 
-    private record SlotContext(Long sessionTypeId, Long consultantId, java.time.LocalDateTime startsAt, java.time.LocalDateTime endsAt, Long groupSessionId) {}
+    private record SlotContext(
+            List<Long> sessionTypeIds,
+            Long consultantId,
+            java.time.LocalDateTime startsAt,
+            java.time.LocalDateTime endsAt,
+            Long groupSessionId
+    ) {
+        Long primarySessionTypeId() {
+            return sessionTypeIds == null || sessionTypeIds.isEmpty() ? null : sessionTypeIds.get(0);
+        }
+    }
+
+    private record OrderProductSelection(
+            GuestCatalogService.ResolvedProduct product,
+            List<Long> sessionTypeIds
+    ) {}
 
     private static void runAfterCommit(Runnable task) {
         if (task == null) return;

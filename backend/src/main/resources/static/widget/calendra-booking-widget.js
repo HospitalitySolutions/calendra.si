@@ -20,6 +20,15 @@
       detailsSubtitle: 'Review your details and complete your booking.',
       serviceHelp: 'Choose a service that best fits your needs. You will choose the date and time in the next step.',
       selectedService: 'Selected service',
+      selectedServices: 'Selected services',
+      servicesSelected: 'services selected',
+      serviceSelectionHint: 'Select up to 5 services. They will be performed in the order shown.',
+      removeService: 'Remove service',
+      moveServiceUp: 'Move service up',
+      moveServiceDown: 'Move service down',
+      totalDuration: 'Total duration',
+      maxServicesReached: 'You can select up to 5 services.',
+      groupServiceCannotCombine: 'Group services cannot be combined with other services.',
       chooseConsultantOptional: 'Choose employee (optional)',
       chooseConsultantRequired: 'Choose employee',
       availableDate: 'Available date',
@@ -190,6 +199,15 @@
       detailsSubtitle: 'Preverite svoje podatke in dokončajte rezervacijo.',
       serviceHelp: 'Izberite storitev, ki najbolje ustreza vašim potrebam. Na naslednjem koraku boste izbrali datum in uro.',
       selectedService: 'Izbrana storitev',
+      selectedServices: 'Izbrane storitve',
+      servicesSelected: 'izbranih storitev',
+      serviceSelectionHint: 'Izberete lahko do 5 storitev. Izvedene bodo v prikazanem vrstnem redu.',
+      removeService: 'Odstrani storitev',
+      moveServiceUp: 'Premakni storitev navzgor',
+      moveServiceDown: 'Premakni storitev navzdol',
+      totalDuration: 'Skupno trajanje',
+      maxServicesReached: 'Izberete lahko največ 5 storitev.',
+      groupServiceCannotCombine: 'Skupinskih storitev ni mogoče kombinirati z drugimi storitvami.',
       chooseConsultantOptional: 'Izberite zaposlenega (neobvezno)',
       chooseConsultantRequired: 'Izberite zaposlenega',
       availableDate: 'Razpoložljiv datum',
@@ -414,6 +432,7 @@
         expandedServiceGroupKeys: [],
         consultants: [],
         selectedServiceId: null,
+        selectedServiceIds: [],
         selectedConsultantId: null,
         selectedDate: '',
         calendarMonth: '',
@@ -648,6 +667,7 @@
         services,
         expandedServiceGroupKeys: initiallyExpandedGroup ? [initiallyExpandedGroup] : [],
         selectedServiceId,
+        selectedServiceIds: selectedServiceId != null ? [selectedServiceId] : [],
         selectedDate,
         calendarMonth: this.monthKeyForDate(selectedDate),
         paymentMethod: defaultPaymentMethod,
@@ -840,125 +860,64 @@
     }
 
     async loadConsultants() {
-      if (!this.state.selectedServiceId) {
+      const serviceIds = this.selectedServiceIdsForRequest();
+      if (!serviceIds.length) {
         this.setState({ consultants: [], selectedConsultantId: null, slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, activeStep: 'service' });
         return;
       }
-
       if (this.currentServiceSupportsGroupSessions()) {
         const nextActiveStep = this.state.activeStep === 'consultant' ? 'datetime' : this.state.activeStep;
-        this.setState({
-          consultants: [],
-          selectedConsultantId: null,
-          selectedSlot: null,
-          selectedGroupSession: null,
-          groupSessions: [],
-          manualTime: '',
-          error: '',
-          activeStep: nextActiveStep,
-        });
+        this.setState({ consultants: [], selectedConsultantId: null, selectedSlot: null, selectedGroupSession: null, groupSessions: [], manualTime: '', error: '', activeStep: nextActiveStep });
         return;
       }
-
       try {
-        const consultants = await this.fetchJson(
-          `/api/public/widget/${encodeURIComponent(this.options.tenant)}/consultants?typeId=${encodeURIComponent(this.state.selectedServiceId)}`
-        );
+        const params = this.appendSelectedServiceParams(new URLSearchParams());
+        const consultants = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/consultants?${params.toString()}`);
         const existingSelectionStillValid = consultants.some((consultant) => consultant.id === this.state.selectedConsultantId);
-        // Don't auto-pick when the tenant-level step is ON: the user must actively confirm an employee.
         const selectedConsultantId = !this.shouldShowConsultantStep() && consultants.length === 1
           ? consultants[0].id
-          : existingSelectionStillValid
-            ? this.state.selectedConsultantId
-            : null;
-
-        const nextActiveStep = this.state.activeStep === 'consultant' && !this.shouldShowConsultantStep()
-          ? 'datetime'
-          : this.state.activeStep;
-
-        this.setState({
-          consultants,
-          selectedConsultantId,
-          selectedSlot: null,
-          selectedGroupSession: null,
-          groupSessions: [],
-          manualTime: '',
-          error: '',
-          activeStep: nextActiveStep,
-        });
+          : existingSelectionStillValid ? this.state.selectedConsultantId : null;
+        const nextActiveStep = this.state.activeStep === 'consultant' && !this.shouldShowConsultantStep() ? 'datetime' : this.state.activeStep;
+        this.setState({ consultants, selectedConsultantId, selectedSlot: null, selectedGroupSession: null, groupSessions: [], manualTime: '', error: '', activeStep: nextActiveStep });
       } catch (error) {
-        this.setState({
-          consultants: [],
-          selectedConsultantId: null,
-          slots: [],
-          groupSessions: [],
-          selectedSlot: null,
-          selectedGroupSession: null,
-          manualTime: '',
-          error: this.normalizeError(error, this.text().failedToLoadConsultants),
-        });
+        this.setState({ consultants: [], selectedConsultantId: null, slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, manualTime: '', error: this.normalizeError(error, this.text().failedToLoadConsultants) });
       }
     }
 
     async loadAvailability() {
-      const { selectedServiceId, selectedDate, selectedConsultantId, config } = this.state;
-      if (!selectedServiceId || !selectedDate) return;
-
+      const serviceIds = this.selectedServiceIdsForRequest();
+      const { selectedDate, selectedConsultantId, config } = this.state;
+      if (!serviceIds.length || !selectedDate) return;
       const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
-      const consultantRequiredForRegularSlots = !supportsGroupSessions
-        && this.shouldShowConsultantStep()
-        && config?.availabilityEnabled
-        && !selectedConsultantId;
-
+      const consultantRequiredForRegularSlots = !supportsGroupSessions && this.shouldShowConsultantStep() && config?.availabilityEnabled && !selectedConsultantId;
       if (!config?.availabilityEnabled && !supportsGroupSessions) {
-        if (this.availabilityAbortController) {
-          this.availabilityAbortController.abort();
-          this.availabilityAbortController = null;
-        }
+        if (this.availabilityAbortController) { this.availabilityAbortController.abort(); this.availabilityAbortController = null; }
         this.setState({ slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: false, error: '' });
         return;
       }
-
-      const requestKey = `${selectedServiceId}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
-      if (this.availabilityAbortController) {
-        this.availabilityAbortController.abort();
-      }
+      const requestKey = `${serviceIds.join(',')}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
+      if (this.availabilityAbortController) this.availabilityAbortController.abort();
       const controller = new AbortController();
       const requestSequence = ++this.availabilityRequestSequence;
       this.availabilityAbortController = controller;
-
       this.setState({ error: '', slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: true });
       try {
-        const params = new URLSearchParams({
-          typeId: String(selectedServiceId),
-          date: selectedDate,
-        });
-        if (selectedConsultantId != null) {
-          params.set('consultantId', String(selectedConsultantId));
-        }
-        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability?${params.toString()}`, {
-          signal: controller.signal,
-        });
-        const currentKey = `${this.state.selectedServiceId}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        const params = this.appendSelectedServiceParams(new URLSearchParams({ date: selectedDate }));
+        if (selectedConsultantId != null) params.set('consultantId', String(selectedConsultantId));
+        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability?${params.toString()}`, { signal: controller.signal });
+        const currentKey = `${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
         if (requestSequence !== this.availabilityRequestSequence || currentKey !== requestKey) return;
-
         const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
         const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
-        this.setState({
-          slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots),
-          groupSessions: filteredGroupSessions,
-          loadingAvailability: false,
-        });
+        this.setState({ slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots), groupSessions: filteredGroupSessions, loadingAvailability: false });
       } catch (error) {
         if (error?.name === 'AbortError') return;
-        const currentKey = `${this.state.selectedServiceId}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        const currentKey = `${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
         if (requestSequence === this.availabilityRequestSequence && currentKey === requestKey) {
           this.setState({ loadingAvailability: false, error: this.normalizeError(error, this.text().failedToLoadAvailability) });
         }
       } finally {
-        if (requestSequence === this.availabilityRequestSequence && this.availabilityAbortController === controller) {
-          this.availabilityAbortController = null;
-        }
+        if (requestSequence === this.availabilityRequestSequence && this.availabilityAbortController === controller) this.availabilityAbortController = null;
       }
     }
 
@@ -989,76 +948,47 @@
     }
 
     async loadMonthAvailability() {
-      const { selectedServiceId, calendarMonth, selectedConsultantId, config } = this.state;
-      if (!selectedServiceId || !calendarMonth) return;
-
+      const serviceIds = this.selectedServiceIdsForRequest();
+      const { calendarMonth, selectedConsultantId, config } = this.state;
+      if (!serviceIds.length || !calendarMonth) return;
       const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
-      const consultantRequired = !supportsGroupSessions
-        && this.shouldShowConsultantStep()
-        && config?.availabilityEnabled
-        && !selectedConsultantId;
+      const consultantRequired = !supportsGroupSessions && this.shouldShowConsultantStep() && config?.availabilityEnabled && !selectedConsultantId;
       if (consultantRequired) {
-        if (this.monthAvailabilityAbortController) {
-          this.monthAvailabilityAbortController.abort();
-          this.monthAvailabilityAbortController = null;
-        }
+        if (this.monthAvailabilityAbortController) { this.monthAvailabilityAbortController.abort(); this.monthAvailabilityAbortController = null; }
         this.monthAvailabilityRequestSequence += 1;
         this.setState({ availableDates: null, monthAvailabilityKey: 'pending-consultant', loadingMonthAvailability: false });
         return;
       }
-
       const monthKey = String(calendarMonth).slice(0, 7);
-      const cacheKey = `${selectedServiceId}|${selectedConsultantId != null ? selectedConsultantId : ''}|${monthKey}`;
+      const cacheKey = `${serviceIds.join(',')}|${selectedConsultantId != null ? selectedConsultantId : ''}|${monthKey}`;
       const cachedDates = this.monthAvailabilityCache.get(cacheKey);
       if (Array.isArray(cachedDates)) {
-        if (cacheKey !== this.state.monthAvailabilityKey || this.state.availableDates !== cachedDates) {
-          this.setState({ availableDates: cachedDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
-        }
+        if (cacheKey !== this.state.monthAvailabilityKey || this.state.availableDates !== cachedDates) this.setState({ availableDates: cachedDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
         return;
       }
       if (cacheKey === this.state.monthAvailabilityKey && this.state.loadingMonthAvailability) return;
-
-      if (this.monthAvailabilityAbortController) {
-        this.monthAvailabilityAbortController.abort();
-      }
+      if (this.monthAvailabilityAbortController) this.monthAvailabilityAbortController.abort();
       const controller = new AbortController();
       const requestSequence = ++this.monthAvailabilityRequestSequence;
       this.monthAvailabilityAbortController = controller;
       this.setState({ loadingMonthAvailability: true, monthAvailabilityKey: cacheKey });
-
       try {
-        const params = new URLSearchParams({
-          typeId: String(selectedServiceId),
-          month: monthKey,
-        });
-        if (selectedConsultantId != null) {
-          params.set('consultantId', String(selectedConsultantId));
-        }
-        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability-month?${params.toString()}`, {
-          signal: controller.signal,
-        });
+        const params = this.appendSelectedServiceParams(new URLSearchParams({ month: monthKey }));
+        if (selectedConsultantId != null) params.set('consultantId', String(selectedConsultantId));
+        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability-month?${params.toString()}`, { signal: controller.signal });
         const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
-        const currentCacheKey = `${this.state.selectedServiceId}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+        const currentCacheKey = `${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
         if (requestSequence !== this.monthAvailabilityRequestSequence || currentCacheKey !== cacheKey) return;
-
         const availableDates = Array.isArray(data.availableDates) ? data.availableDates : [];
         this.monthAvailabilityCache.set(cacheKey, availableDates);
-        this.setState({
-          availableDates,
-          monthAvailabilityKey: cacheKey,
-          loadingMonthAvailability: false,
-        });
+        this.setState({ availableDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
       } catch (error) {
         if (error?.name === 'AbortError') return;
         const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
-        const currentCacheKey = `${this.state.selectedServiceId}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
-        if (requestSequence === this.monthAvailabilityRequestSequence && currentCacheKey === cacheKey) {
-          this.setState({ availableDates: null, monthAvailabilityKey: '', loadingMonthAvailability: false });
-        }
+        const currentCacheKey = `${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+        if (requestSequence === this.monthAvailabilityRequestSequence && currentCacheKey === cacheKey) this.setState({ availableDates: null, monthAvailabilityKey: '', loadingMonthAvailability: false });
       } finally {
-        if (requestSequence === this.monthAvailabilityRequestSequence && this.monthAvailabilityAbortController === controller) {
-          this.monthAvailabilityAbortController = null;
-        }
+        if (requestSequence === this.monthAvailabilityRequestSequence && this.monthAvailabilityAbortController === controller) this.monthAvailabilityAbortController = null;
       }
     }
 
@@ -1121,8 +1051,67 @@
       this.state.form = { ...this.state.form, [field]: value };
     }
 
+    selectedServiceIdsForRequest() {
+      const raw = Array.isArray(this.state.selectedServiceIds) && this.state.selectedServiceIds.length
+        ? this.state.selectedServiceIds
+        : (this.state.selectedServiceId != null ? [this.state.selectedServiceId] : []);
+      return raw.map(Number).filter(Number.isFinite).filter((id, index, list) => list.indexOf(id) === index);
+    }
+
+    selectedServices() {
+      const byId = new Map((Array.isArray(this.state.services) ? this.state.services : []).map((item) => [Number(item.id), item]));
+      return this.selectedServiceIdsForRequest().map((id) => byId.get(id)).filter(Boolean);
+    }
+
     currentService() {
-      return this.state.services.find((item) => item.id === this.state.selectedServiceId) || null;
+      return this.selectedServices()[0] || null;
+    }
+
+    isServiceSelected(serviceId) {
+      return this.selectedServiceIdsForRequest().includes(Number(serviceId));
+    }
+
+    selectedServiceKey() {
+      return this.selectedServiceIdsForRequest().join(',');
+    }
+
+    appendSelectedServiceParams(params) {
+      const ids = this.selectedServiceIdsForRequest();
+      if (ids.length) params.set('typeId', String(ids[0]));
+      ids.forEach((id) => params.append('typeIds', String(id)));
+      return params;
+    }
+
+    selectedServiceDisplayName() {
+      return this.selectedServices().map((service) => this.serviceDisplayName(service)).filter(Boolean).join(' + ');
+    }
+
+    selectedServicesDurationMinutes() {
+      const services = this.selectedServices();
+      if (!services.length) return 0;
+      return services.reduce((total, service, index) => {
+        const duration = Number(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60);
+        const breakMinutes = index < services.length - 1 ? Number(service?.breakMinutes || 0) : 0;
+        return total + Math.max(1, duration) + Math.max(0, breakMinutes);
+      }, 0);
+    }
+
+    selectedServicesPriceInfo() {
+      const services = this.selectedServices();
+      const numeric = services.map((service) => {
+        const rawGross = service?.priceGross;
+        const gross = rawGross == null || rawGross === '' ? Number.NaN : Number(rawGross);
+        if (Number.isFinite(gross)) return gross;
+        return this.parsePriceLabel(service?.priceLabel)?.value;
+      });
+      if (!numeric.length || numeric.some((value) => !Number.isFinite(value))) return null;
+      const firstInfo = this.parsePriceLabel(services.find((service) => service?.priceLabel)?.priceLabel || '€0');
+      return { value: numeric.reduce((sum, value) => sum + value, 0), priceInfo: firstInfo };
+    }
+
+    selectedServicesPriceLabel() {
+      const aggregate = this.selectedServicesPriceInfo();
+      return aggregate ? this.formatMoneyAmount(aggregate.value, aggregate.priceInfo) : '';
     }
 
     serviceDisplayName(service) {
@@ -1145,7 +1134,9 @@
     }
 
     currentServiceSupportsGroupSessions() {
-      const maxParticipants = this.currentService()?.maxParticipantsPerSession;
+      const selected = this.selectedServices();
+      if (selected.length !== 1) return false;
+      const maxParticipants = selected[0]?.maxParticipantsPerSession;
       return maxParticipants != null && maxParticipants !== '';
     }
 
@@ -1165,7 +1156,7 @@
 
     isStepComplete(stepId) {
       const { form } = this.state;
-      if (stepId === 'service') return Boolean(this.state.selectedServiceId);
+      if (stepId === 'service') return this.selectedServiceIdsForRequest().length > 0;
       if (stepId === 'consultant') return !this.shouldShowConsultantStep() || this.consultantSelectionOptional() || Boolean(this.state.selectedConsultantId);
       if (stepId === 'datetime') {
         if (!this.state.selectedDate) return false;
@@ -1410,7 +1401,7 @@
       const t = this.text();
       const missing = [];
 
-      if (this.state.activeStep === 'service' && !this.state.selectedServiceId) missing.push(t.service);
+      if (this.state.activeStep === 'service' && this.selectedServiceIdsForRequest().length === 0) missing.push(t.service);
       if (this.state.activeStep === 'consultant' && this.shouldShowConsultantStep() && !this.consultantSelectionOptional() && !this.state.selectedConsultantId) missing.push(t.consultant);
 
       if (this.state.activeStep === 'datetime') {
@@ -1615,7 +1606,14 @@
       if (this.state.saving || this.submitInFlight) return;
       if (!this.validateCurrentStep()) return;
 
-      const { selectedServiceId, selectedDate, selectedSlot, selectedConsultantId, form, config, paymentMethod } = this.state;
+      const { selectedServiceId, selectedDate, selectedSlot, selectedGroupSession, selectedConsultantId, form, config, paymentMethod } = this.state;
+      const selectedServiceIds = this.selectedServiceIdsForRequest();
+      const bookingSlot = selectedSlot || (selectedGroupSession ? {
+        slotId: `group|${selectedGroupSession.id}|${selectedGroupSession.startTime}|${selectedGroupSession.endTime}`,
+        label: selectedGroupSession.label,
+        startTime: selectedGroupSession.startTime,
+        endTime: selectedGroupSession.endTime,
+      } : null);
       const effectivePaymentMethod = paymentMethod || this.defaultPaymentMethod();
       const t = this.text();
       if (!effectivePaymentMethod || !this.isPaymentMethodAvailable(effectivePaymentMethod)) {
@@ -1624,7 +1622,7 @@
       }
 
       // Slot is required — the full flow is only intended for slot-based availability.
-      if (!config?.availabilityEnabled || !selectedSlot) {
+      if (!config?.availabilityEnabled || !bookingSlot) {
         this.setState({ error: `${t.completePrefix} ${t.time}.`, activeStep: 'datetime' });
         return;
       }
@@ -1662,7 +1660,7 @@
         // Step B: create the order. The consultant is encoded into the slotId by the backend.
         // We still include selectedConsultantId when the employee step is used so the slot can be
         // resolved unambiguously for single-consultant tenants.
-        const slotId = selectedSlot.slotId || selectedSlot.id;
+        const slotId = bookingSlot.slotId || bookingSlot.id;
         if (!slotId) {
           throw new Error('Slot identifier missing.');
         }
@@ -1679,6 +1677,7 @@
           body: {
             companyId: session.companyId || '',
             productId,
+            serviceIds: selectedServiceIds.map(String),
             slotId,
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',
@@ -1716,9 +1715,9 @@
           saving: false,
           bookingSuccess: {
             id: orderId,
-            serviceName: this.serviceDisplayName(this.currentService()),
-            startsAtLabel: selectedSlot.label,
-            startTime: selectedSlot.startTime,
+            serviceName: this.selectedServiceDisplayName(),
+            startsAtLabel: bookingSlot.label,
+            startTime: bookingSlot.startTime,
             email: form.email.trim(),
           },
           paymentResult: checkout ? { type: effectivePaymentMethod, ...checkout } : null,
@@ -1728,7 +1727,7 @@
       } catch (error) {
         const status = Number(error?.status || 0);
         const message = this.normalizeError(error, t.bookingFailed);
-        if (this.isStaleSlotError(error, message) && selectedSlot) {
+        if (this.isStaleSlotError(error, message) && bookingSlot) {
           this.setState({
             saving: false,
             error: message,
@@ -1793,7 +1792,7 @@
       const config = this.state.config;
       return Boolean(
         config?.waitlistEnabled
-        && this.state.selectedServiceId
+        && this.selectedServiceIdsForRequest().length === 1
         && (config?.waitlistExactTimeEnabled || config?.waitlistFlexibleWindowsEnabled)
       );
     }
@@ -1993,7 +1992,7 @@
               <div class="waitlist-form-grid">
                 <label class="waitlist-field waitlist-field--wide">
                   <span>${escapeHtml(t.waitlistService)}</span>
-                  <div class="waitlist-readonly">${this.serviceIconMarkup(service, 0)}<strong>${escapeHtml(this.serviceDisplayName(service))}</strong></div>
+                  <div class="waitlist-readonly">${this.serviceIconMarkup(service, 0)}<strong>${escapeHtml(this.selectedServiceDisplayName())}</strong></div>
                 </label>
                 ${showEmployee ? `
                   <label class="waitlist-field waitlist-field--wide">
@@ -2143,7 +2142,7 @@
       const consultant = this.currentSummaryConsultant();
       const selectedTime = this.selectedTimeLabel();
       const dateLabel = this.displaySelectedDate();
-      const durationMinutes = service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60;
+      const durationMinutes = this.selectedServicesDurationMinutes();
       const consultantName = consultant?.name || this.state.selectedSlot?.consultantName || '';
 
       if (!service && !dateLabel && !selectedTime && !consultantName) {
@@ -2167,21 +2166,21 @@
         <aside class="summary-card ${this.state.activeStep === 'details' ? 'summary-card--final' : ''}">
           <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
           <div class="summary-rows">
-            ${row('user', t.summaryService, this.serviceDisplayName(service))}
+            ${row('user', t.summaryService, this.selectedServiceDisplayName())}
             ${row('calendar', t.summaryDateTime, dateLabel)}
             ${row('clock', t.summaryTime || t.labelTime, selectedTime)}
             ${row('clock', t.summaryDuration, service ? `${durationMinutes} ${t.durationSuffix}` : '')}
-            ${row('tag', t.summaryPrice, service?.priceLabel || '')}
+            ${row('tag', t.summaryPrice, this.selectedServicesPriceLabel())}
             ${row('user', t.summaryConsultant || t.summaryEmployee, consultantName)}
           </div>
-          ${service?.priceLabel ? `
+          ${this.selectedServicesPriceLabel() ? `
             <div class="summary-divider" aria-hidden="true"></div>
             <div class="summary-total-row">
               <span>${escapeHtml(t.summaryTotal || t.summaryPrice)}</span>
-              <strong>${escapeHtml(service.priceLabel)}</strong>
+              <strong>${escapeHtml(this.selectedServicesPriceLabel())}</strong>
             </div>
           ` : ''}
-          ${this.detailsPaymentSummaryMarkup(service)}
+          ${this.detailsPaymentSummaryMarkup({ ...service, priceLabel: this.selectedServicesPriceLabel() })}
         </aside>
       `;
     }
@@ -2226,7 +2225,7 @@
     serviceCardMarkup(item, index) {
       const t = this.text();
       return `
-        <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
+        <button class="service-card ${this.isServiceSelected(item.id) ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
           ${this.serviceIconMarkup(item, index)}
           <span class="service-card-main">
             <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
@@ -2253,7 +2252,7 @@
 
     standaloneServiceRowMarkup(item, index) {
       const t = this.text();
-      const selected = this.state.selectedServiceId === item.id;
+      const selected = this.isServiceSelected(item.id);
       return `
         <button class="standalone-service-row ${selected ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
           <span class="standalone-service-select">${selected ? this.uiIcon('check') : ''}</span>
@@ -2330,7 +2329,40 @@
       `;
     }
 
-    serviceSelectionMarkup() {
+    selectedServiceChainMarkup() {
+      const t = this.text();
+      const services = this.selectedServices();
+      if (!services.length) return '';
+      const totalPrice = this.selectedServicesPriceLabel();
+      const totalDuration = this.selectedServicesDurationMinutes();
+      return `
+        <section class="selected-services-panel" aria-label="${escapeHtml(t.selectedServices)}">
+          <div class="selected-services-header">
+            <div><strong>${escapeHtml(t.selectedServices)}</strong><small>${escapeHtml(t.serviceSelectionHint)}</small></div>
+            <span>${services.length} ${escapeHtml(t.servicesSelected)}</span>
+          </div>
+          <div class="selected-services-list">
+            ${services.map((service, index) => `
+              <div class="selected-service-row">
+                <span class="selected-service-order">${index + 1}</span>
+                <span class="selected-service-copy"><strong>${escapeHtml(this.serviceDisplayName(service))}</strong><small>${escapeHtml(String(service.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</small></span>
+                <span class="selected-service-actions">
+                  <button type="button" data-action="service-move-up" data-id="${service.id}" title="${escapeHtml(t.moveServiceUp)}" ${index === 0 ? 'disabled' : ''}>↑</button>
+                  <button type="button" data-action="service-move-down" data-id="${service.id}" title="${escapeHtml(t.moveServiceDown)}" ${index === services.length - 1 ? 'disabled' : ''}>↓</button>
+                  <button type="button" class="is-remove" data-action="service-remove" data-id="${service.id}" title="${escapeHtml(t.removeService)}">×</button>
+                </span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="selected-services-total">
+            <span>${escapeHtml(t.totalDuration)} <strong>${totalDuration} ${escapeHtml(t.durationSuffix)}</strong></span>
+            ${totalPrice ? `<span>${escapeHtml(t.summaryTotal)} <strong>${escapeHtml(totalPrice)}</strong></span>` : ''}
+          </div>
+        </section>
+      `;
+    }
+
+    serviceCatalogMarkup() {
       const services = Array.isArray(this.state.services) ? this.state.services : [];
       if (this.getAttribute('presentation') === 'standalone') {
         return this.standaloneServiceSelectionMarkup(services);
@@ -2366,6 +2398,10 @@
       `).join('')}</div>`;
     }
 
+    serviceSelectionMarkup() {
+      return `${this.serviceCatalogMarkup()}${this.selectedServiceChainMarkup()}`;
+    }
+
     renderStepContent() {
       const t = this.text();
       const service = this.currentService();
@@ -2378,7 +2414,7 @@
             <div class="success-icon">${this.uiIcon('check')}</div>
             <div class="success-title">${escapeHtml(t.confirmed)}</div>
             <p class="success-copy">
-              ${escapeHtml(this.state.bookingSuccess.serviceName || this.serviceDisplayName(service) || t.sessionFallback)} · ${escapeHtml(this.state.bookingSuccess.startsAtLabel || this.state.bookingSuccess.startTime || '')}
+              ${escapeHtml(this.state.bookingSuccess.serviceName || this.selectedServiceDisplayName() || t.sessionFallback)} · ${escapeHtml(this.state.bookingSuccess.startsAtLabel || this.state.bookingSuccess.startTime || '')}
             </p>
             <p class="success-copy">${escapeHtml(t.confirmationSent)} ${escapeHtml(this.state.bookingSuccess.email || this.state.form.email)}.</p>
             ${bt ? `
@@ -2400,21 +2436,21 @@
             ${this.serviceSelectionMarkup()}
             <div class="panel-actions panel-actions--footer">
               <div class="trust-note">${this.uiIcon('shield')}<span>${escapeHtml(t.secureData)}</span></div>
-              <button class="primary" type="button" data-action="next" ${!service ? 'disabled' : ''}>${escapeHtml(t.continue)} ${this.uiIcon('arrowRight')}</button>
+              <button class="primary" type="button" data-action="next" ${this.selectedServiceIdsForRequest().length === 0 ? 'disabled' : ''}>${escapeHtml(t.continue)} ${this.uiIcon('arrowRight')}</button>
             </div>
           </section>
         `;
       }
 
       if (this.state.activeStep === 'consultant') {
-        const consultantDurationText = `${service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60} ${t.durationSuffix}`;
+        const consultantDurationText = `${this.selectedServicesDurationMinutes()} ${t.durationSuffix}`;
         const consultantSummaryMarkup = `
           <aside class="summary-card summary-card--consultant-step">
             <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
             <div class="summary-detail-list">
               <div class="summary-detail-row">
                 <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
-                <strong class="summary-detail-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+                <strong class="summary-detail-value">${escapeHtml(this.selectedServiceDisplayName())}</strong>
               </div>
               <div class="summary-detail-row">
                 <span class="summary-detail-label">${escapeHtml(t.summaryDuration)}</span>
@@ -2535,12 +2571,12 @@
         `;
 
         const summaryConsultant = this.currentSummaryConsultant();
-        const durationText = service ? `${service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60} ${t.durationSuffix}` : '';
+        const durationText = service ? `${this.selectedServicesDurationMinutes()} ${t.durationSuffix}` : '';
         const datetimeSummaryRows = [
           `
             <div class="summary-detail-row">
               <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
-              <strong class="summary-detail-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+              <strong class="summary-detail-value">${escapeHtml(this.selectedServiceDisplayName())}</strong>
             </div>
           `,
           showConsultantPicker && summaryConsultant?.name ? `
@@ -2619,14 +2655,14 @@
       const summaryConsultant = this.currentSummaryConsultant();
       const dateLabel = this.displaySelectedDate();
       const timeLabel = this.selectedTimeLabel();
-      const durationText = service ? `${service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60} ${t.durationSuffix}` : '';
+      const durationText = service ? `${this.selectedServicesDurationMinutes()} ${t.durationSuffix}` : '';
       const activePaymentMethod = this.state.paymentMethod || (payAtVenueOnly ? 'PAY_AT_VENUE' : null);
       const paymentLabel = activePaymentMethod ? this.paymentMethodSummaryLabel(activePaymentMethod) : '';
       const detailsSummaryRows = [
         service ? `
           <div class="summary-detail-row">
             <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
-            <strong class="summary-detail-value">${escapeHtml(this.serviceDisplayName(service))}</strong>
+            <strong class="summary-detail-value">${escapeHtml(this.selectedServiceDisplayName())}</strong>
           </div>
         ` : '',
         dateLabel ? `
@@ -3562,6 +3598,27 @@
         :host([presentation="directory"][data-layout="compact"]) .panel,
         :host([presentation="directory"][data-layout="narrow"]) .panel,
         :host([presentation="directory"][data-layout="micro"]) .panel { padding-inline: 0; }
+
+        .selected-services-panel { margin-top: 18px; border: 1px solid #cfe0fb; border-radius: 18px; background: linear-gradient(180deg,#f8fbff,#fff); overflow: hidden; }
+        .selected-services-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:16px 18px; border-bottom:1px solid #e3edf9; }
+        .selected-services-header > div { display:grid; gap:4px; }
+        .selected-services-header strong { font-size:17px; color:var(--calendra-text); }
+        .selected-services-header small { color:var(--calendra-muted); line-height:1.4; }
+        .selected-services-header > span { flex:0 0 auto; padding:6px 10px; border-radius:999px; background:#e8f1ff; color:var(--calendra-primary); font-weight:800; font-size:12px; }
+        .selected-services-list { display:grid; }
+        .selected-service-row { display:grid; grid-template-columns:34px minmax(0,1fr) auto; gap:12px; align-items:center; padding:13px 16px; border-bottom:1px solid #edf2f8; }
+        .selected-service-order { width:30px; height:30px; display:grid; place-items:center; border-radius:999px; background:var(--calendra-primary); color:#fff; font-weight:850; }
+        .selected-service-copy { display:grid; gap:3px; min-width:0; }
+        .selected-service-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--calendra-text); }
+        .selected-service-copy small { color:var(--calendra-muted); }
+        .selected-service-actions { display:flex; gap:5px; }
+        .selected-service-actions button { width:30px; height:30px; border:1px solid var(--calendra-border); border-radius:9px; background:#fff; color:#4b5b73; cursor:pointer; font-weight:800; }
+        .selected-service-actions button:disabled { opacity:.3; cursor:default; }
+        .selected-service-actions button.is-remove { color:#dc3545; }
+        .selected-services-total { display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; padding:14px 18px; background:#eef5ff; color:#4b5b73; }
+        .selected-services-total strong { color:#0f172a; margin-left:6px; }
+        :host([data-layout="narrow"]) .selected-service-row, :host([data-layout="micro"]) .selected-service-row { grid-template-columns:30px minmax(0,1fr); }
+        :host([data-layout="narrow"]) .selected-service-actions, :host([data-layout="micro"]) .selected-service-actions { grid-column:2; justify-content:flex-end; }
       `;
     }
 
@@ -3633,9 +3690,28 @@
       this.shadowRoot.querySelectorAll('[data-action="service"]').forEach((button) => {
         button.addEventListener('click', async () => {
           this.resetTurnstile();
-
+          const serviceId = Number(button.dataset.id);
+          const service = this.state.services.find((item) => Number(item.id) === serviceId);
+          let selectedIds = this.selectedServiceIdsForRequest();
+          if (selectedIds.includes(serviceId)) {
+            selectedIds = selectedIds.filter((id) => id !== serviceId);
+          } else {
+            const isGroupService = service?.maxParticipantsPerSession != null && service?.maxParticipantsPerSession !== '';
+            const hasGroupService = this.selectedServices().some((item) => item?.maxParticipantsPerSession != null && item?.maxParticipantsPerSession !== '');
+            if (isGroupService) {
+              selectedIds = [serviceId];
+            } else if (hasGroupService) {
+              selectedIds = [serviceId];
+            } else if (selectedIds.length >= 5) {
+              this.setState({ error: this.text().maxServicesReached });
+              return;
+            } else {
+              selectedIds = [...selectedIds, serviceId];
+            }
+          }
           this.setState({
-            selectedServiceId: Number(button.dataset.id),
+            selectedServiceIds: selectedIds,
+            selectedServiceId: selectedIds[0] ?? null,
             selectedConsultantId: null,
             bookingSuccess: null,
             error: '',
@@ -3647,11 +3723,24 @@
             monthAvailabilityKey: '',
           });
           await this.loadConsultantsAndAvailability();
-          if (this.state.config?.turnstileEnabled && this.state.config?.turnstileSiteKey) {
-            await this.ensureTurnstileScript();
-          }
+          if (this.state.config?.turnstileEnabled && this.state.config?.turnstileSiteKey) await this.ensureTurnstileScript();
         });
       });
+
+      const updateServiceOrder = async (serviceId, action) => {
+        const ids = this.selectedServiceIdsForRequest();
+        const index = ids.indexOf(serviceId);
+        if (index < 0) return;
+        let next = [...ids];
+        if (action === 'remove') next = next.filter((id) => id !== serviceId);
+        if (action === 'up' && index > 0) [next[index - 1], next[index]] = [next[index], next[index - 1]];
+        if (action === 'down' && index < next.length - 1) [next[index + 1], next[index]] = [next[index], next[index + 1]];
+        this.setState({ selectedServiceIds: next, selectedServiceId: next[0] ?? null, selectedConsultantId: null, selectedSlot: null, selectedGroupSession: null, slots: [], groupSessions: [], availableDates: null, monthAvailabilityKey: '', error: '' });
+        await this.loadConsultantsAndAvailability();
+      };
+      this.shadowRoot.querySelectorAll('[data-action="service-remove"]').forEach((button) => button.addEventListener('click', () => void updateServiceOrder(Number(button.dataset.id), 'remove')));
+      this.shadowRoot.querySelectorAll('[data-action="service-move-up"]').forEach((button) => button.addEventListener('click', () => void updateServiceOrder(Number(button.dataset.id), 'up')));
+      this.shadowRoot.querySelectorAll('[data-action="service-move-down"]').forEach((button) => button.addEventListener('click', () => void updateServiceOrder(Number(button.dataset.id), 'down')));
 
       this.shadowRoot.querySelectorAll('[data-action="consultant"]').forEach((button) => {
         button.addEventListener('click', async () => {

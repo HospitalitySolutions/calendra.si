@@ -849,6 +849,61 @@ public class SessionBookingCreationService {
         servicePlans.synchronize(booking, planExistingBookingEdit(booking, newStart, requestedEnd));
     }
 
+    /** Validates an ordered public or channel service chain without creating a booking. */
+    public void validateServiceChainWindow(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services,
+            List<Long> excludeIds,
+            boolean spacesEnabled,
+            boolean multipleSessionsPerSpaceEnabled,
+            boolean multipleClientsPerSessionEnabled,
+            boolean online,
+            boolean allowPersonalBlockOverlap
+    ) {
+        if (services == null || services.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
+        }
+        LocalDateTime placeholderEnd = start == null ? null : start.plusMinutes(1);
+        SessionBookingController.BookingRequest request = new SessionBookingController.BookingRequest(
+                null,
+                clientIds == null ? List.of() : clientIds,
+                consultantId,
+                start == null ? null : start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                placeholderEnd == null ? null : placeholderEnd.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                null,
+                services.get(0) == null ? null : services.get(0).typeId(),
+                null,
+                null,
+                false,
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                services
+        );
+        SessionServicePlanService.Plan plan = servicePlans.resolve(request, companyId, start, placeholderEnd);
+        validateBookingWindow(
+                companyId,
+                clientIds,
+                consultantId,
+                plan,
+                excludeIds,
+                spacesEnabled,
+                multipleSessionsPerSpaceEnabled,
+                multipleClientsPerSessionEnabled,
+                online,
+                allowPersonalBlockOverlap,
+                null
+        );
+    }
+
     public void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
                                       Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
                                       boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap) {

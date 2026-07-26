@@ -192,10 +192,24 @@ public final class GuestDtos {
             /** UI locale selected in the guest app when the order is created. */
             String locale,
             /** Backwards-compatible alias for clients that send language instead of locale. */
-            String language
+            String language,
+            /** Ordered session service ids for a multi-service booking. Empty keeps the legacy productId contract. */
+            List<String> serviceIds
     ) {
+        public CreateOrderRequest(
+                String companyId,
+                String productId,
+                String slotId,
+                String paymentMethodType,
+                String entitlementId,
+                String locale,
+                String language
+        ) {
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language, null);
+        }
+
         public CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {
-            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null);
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null);
         }
     }
     public record OrderSummaryResponse(String orderId, String status, String paymentMethodType, double subtotalGross, double taxAmount, double totalGross, String currency) {}

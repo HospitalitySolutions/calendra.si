@@ -28,6 +28,7 @@ import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionType;
 import com.example.app.user.UserRepository;
 import java.math.BigDecimal;
 import java.util.List;
@@ -226,7 +227,52 @@ class GuestOrderServicePaymentRulesTest {
                 )
         );
 
-        return new Fixture(service, orders, guestUser, companies, paymentMethods, globalPaymentProviders, "11|2026-06-01T10:00:00|2026-06-01T11:00:00");
+        return new Fixture(service, orders, catalogService, guestUser, companies, paymentMethods, globalPaymentProviders, "11|2026-06-01T10:00:00|2026-06-01T11:00:00");
+    }
+
+
+    @Test
+    void createOrder_combinesOrderedWebsiteServicesIntoOneOrderTotal() {
+        Fixture fixture = fixtureWith(
+                false,
+                List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD"),
+                "none",
+                20,
+                "CLASS_TICKET",
+                BigDecimal.valueOf(49)
+        );
+        SessionType first = new SessionType();
+        first.setId(11L);
+        SessionType second = new SessionType();
+        second.setId(12L);
+        when(fixture.catalogService.resolveWebsiteSessionProduct(eq(10L), eq(11L))).thenReturn(
+                new GuestCatalogService.ResolvedProduct(null, first, "First service", "CLASS_TICKET", BigDecimal.valueOf(25), "EUR", true)
+        );
+        when(fixture.catalogService.resolveWebsiteSessionProduct(eq(10L), eq(12L))).thenReturn(
+                new GuestCatalogService.ResolvedProduct(null, second, "Second service", "CLASS_TICKET", BigDecimal.valueOf(35), "EUR", true)
+        );
+
+        var response = fixture.service.createOrder(
+                fixture.guestUser,
+                new GuestDtos.CreateOrderRequest(
+                        "10",
+                        "session-11",
+                        fixture.slotId,
+                        GuestPaymentMethodType.PAY_AT_VENUE.name(),
+                        null,
+                        "sl",
+                        null,
+                        List.of("11", "12")
+                ),
+                GuestOrderService.PaymentChannel.WEBSITE
+        );
+
+        assertThat(response.order().totalGross()).isEqualTo(60.0);
+        org.mockito.ArgumentCaptor<GuestOrder> orderCaptor = org.mockito.ArgumentCaptor.forClass(GuestOrder.class);
+        verify(fixture.orders).save(orderCaptor.capture());
+        assertThat(orderCaptor.getValue().getMetadataJson())
+                .contains("\"sessionTypeIds\":[11,12]")
+                .contains("First service + Second service");
     }
 
     @Test
@@ -410,6 +456,7 @@ class GuestOrderServicePaymentRulesTest {
     private record Fixture(
             GuestOrderService service,
             GuestOrderRepository orders,
+            GuestCatalogService catalogService,
             GuestUser guestUser,
             CompanyRepository companies,
             PaymentMethodRepository paymentMethods,

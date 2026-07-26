@@ -230,6 +230,29 @@ public class GuestCatalogService {
         return resolveProduct(companyId, productId, null);
     }
 
+    /** Resolves a session product using website-widget visibility instead of guest-app visibility. */
+    public ResolvedProduct resolveWebsiteSessionProduct(Long companyId, Long typeId) {
+        if (companyId == null || typeId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing service identifier.");
+        }
+        SessionType type = sessionTypes.findById(typeId)
+                .filter(candidate -> Objects.equals(candidate.getCompany().getId(), companyId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+        if (!type.isActive() || !type.isWidgetGroupBookingEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available for website booking.");
+        }
+        BigDecimal price = sessionTypePriceGross(type);
+        return new ResolvedProduct(
+                null,
+                type,
+                type.getName(),
+                type.getMaxParticipantsPerSession() != null ? "CLASS_TICKET" : "SESSION_SINGLE",
+                price,
+                tenantCurrency(companyId),
+                true
+        );
+    }
+
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {
         if (productId == null || productId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         if (productId.startsWith("session-")) {
