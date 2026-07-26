@@ -8030,3 +8030,210 @@
     content: none !important;
     display: none !important;
 }
+
+/* Final medium/desktop appointment layout.
+   Apply from tablet/desktop widths so 940–980px browser windows do not fall back
+   to the compact mobile field treatment. */
+@media (min-width: 721px) {
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking,
+    .calendar-edit-session-panel--new-create .form-row-layout.form-row-layout--booking,
+    .calendar-edit-session-panel--design-match .form-row-layout.form-row-layout--booking,
+    .calendar-edit-session-panel--booked .form-row-layout.form-row-layout--booking {
+        display: grid !important;
+        grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+        gap: 20px 28px !important;
+        width: 100% !important;
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--client,
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-row-divider,
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service,
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service-chain {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant {
+        grid-column: 1 / 7 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        order: initial !important;
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--space {
+        grid-column: 7 / -1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        order: initial !important;
+    }
+
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--space::before,
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant::before {
+        content: none !important;
+        display: none !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--service-chain {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: end !important;
+        column-gap: 12px !important;
+        row-gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--service-chain > .calendar-booking-service-infield-head--chain {
+        grid-column: 1 / -1 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--service-chain > .calendar-service-chain {
+        grid-column: 1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--service-chain > .calendar-booking-service-chain__billing-actions {
+        grid-column: 2 !important;
+        align-self: end !important;
+        width: auto !important;
+        min-width: max-content !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain,
+    .calendar-edit-session-panel .calendar-service-chain--single,
+    .calendar-edit-session-panel .calendar-service-chain__single-field,
+    .calendar-edit-session-panel .calendar-service-chain__single-row {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain--single {
+        display: block !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-field {
+        display: grid !important;
+        gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 54px !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-label {
+        display: block !important;
+        color: #475569 !important;
+        font-size: 0.9rem !important;
+        line-height: 1.2 !important;
+        font-weight: 760 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-select,
+    .calendar-edit-session-panel--new-create .calendar-service-chain__single-select,
+    .calendar-edit-session-panel--design-match .calendar-service-chain__single-select,
+    .calendar-edit-session-panel--booked .calendar-service-chain__single-select {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 54px !important;
+        height: 54px !important;
+        padding: 0 46px 0 16px !important;
+        border: 1px solid #d8e2ee !important;
+        border-radius: 16px !important;
+        background-color: #fff !important;
+        color: #111827 !important;
+        box-shadow: none !important;
+        font-size: 1rem !important;
+        line-height: 1.2 !important;
+        font-weight: 650 !important;
+        appearance: auto !important;
+        opacity: 1 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__head-add,
+    .calendar-edit-session-panel--new-create .calendar-service-chain__head-add,
+    .calendar-edit-session-panel--design-match .calendar-service-chain__head-add,
+    .calendar-edit-session-panel--booked .calendar-service-chain__head-add {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 54px !important;
+        min-width: 54px !important;
+        max-width: 54px !important;
+        height: 54px !important;
+        min-height: 54px !important;
+        padding: 0 !important;
+        border: 1px solid #d8e2ee !important;
+        border-radius: 16px !important;
+        background: #fff !important;
+        color: #1769e8 !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--consultant,
+    .calendar-edit-session-panel .calendar-booking-field--space {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--consultant > .form-field-inline-control,
+    .calendar-edit-session-panel .calendar-booking-field--space > .form-field-inline-control {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--consultant select,
+    .calendar-edit-session-panel .calendar-booking-field--space select,
+    .calendar-edit-session-panel--new-create .calendar-booking-field--consultant select,
+    .calendar-edit-session-panel--new-create .calendar-booking-field--space select,
+    .calendar-edit-session-panel--design-match .calendar-booking-field--consultant select,
+    .calendar-edit-session-panel--design-match .calendar-booking-field--space select,
+    .calendar-edit-session-panel--booked .calendar-booking-field--consultant select,
+    .calendar-edit-session-panel--booked .calendar-booking-field--space select {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 54px !important;
+        height: 54px !important;
+        padding: 0 46px 0 16px !important;
+        border: 1px solid #d8e2ee !important;
+        border-radius: 16px !important;
+        background-color: #fff !important;
+        color: #111827 !important;
+        box-shadow: none !important;
+        font-size: 1rem !important;
+        line-height: 1.2 !important;
+        font-weight: 650 !important;
+        appearance: auto !important;
+        opacity: 1 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-booking-field--consultant .form-field-inline-label,
+    .calendar-edit-session-panel .calendar-booking-field--space .form-field-inline-label {
+        display: block !important;
+        color: #475569 !important;
+        font-size: 0.9rem !important;
+        line-height: 1.2 !important;
+        font-weight: 760 !important;
+    }
+}
+
+/* The end time is calculated from the selected service chain. Do not render a
+   decorative lock/square beside the date field. */
+.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2)::after {
+    content: none !important;
+    display: none !important;
+}
