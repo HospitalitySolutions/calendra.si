@@ -988,6 +988,10 @@ public class GuestOrderService {
                 lines.add(service);
             }
             map.put("services", lines);
+            map.put("sessionTypeIds", (serviceLines == null ? List.<OrderServiceLine>of() : serviceLines).stream()
+                    .map(line -> line.product().sessionType() == null ? null : line.product().sessionType().getId())
+                    .filter(Objects::nonNull)
+                    .toList());
             map.put("serviceCount", lines.size());
             map.put("fullPriceGross", serviceLines == null ? 0d : serviceLines.stream()
                     .map(line -> line.product().priceGross() == null ? BigDecimal.ZERO : line.product().priceGross())
