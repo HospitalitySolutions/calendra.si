@@ -8068,28 +8068,35 @@
   }
 
   .billing-create-panel--advance .billing-invoice-table-head--advance {
+    grid-template-columns: minmax(72px, 1.35fr) 26px 42px 46px 46px 26px !important;
+    gap: 3px !important;
     min-height: 38px !important;
-    font-size: .65rem !important;
+    padding: 0 7px !important;
+    font-size: .62rem !important;
   }
 
   .billing-create-panel--advance .billing-invoice-table-head--advance > span:nth-child(3),
   .billing-create-panel--advance .billing-invoice-table-head--advance > span:nth-child(4),
   .billing-create-panel--advance .billing-invoice-table-head--advance > span:nth-child(5) {
-    font-size: .56rem !important;
+    font-size: .52rem !important;
     letter-spacing: -.01em !important;
   }
 
   .billing-create-panel--advance .billing-invoice-item-row--advance {
-    grid-template-rows: 50px !important;
+    grid-template-columns: minmax(72px, 1.35fr) 26px 42px 46px 46px 26px !important;
+    grid-template-rows: 46px !important;
+    gap: 3px !important;
+    padding: 0 7px !important;
   }
 
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field select,
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field input {
-    min-height: 34px !important;
+    min-height: 30px !important;
+    padding: 0 1px !important;
     border: 1px solid #d8e2ee !important;
     border-radius: 9px !important;
     background: #fff !important;
-    font-size: .72rem !important;
+    font-size: .66rem !important;
   }
 
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--service select {
@@ -8101,7 +8108,12 @@
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--price input,
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-row-amount {
-    font-size: .62rem !important;
+    font-size: .54rem !important;
+    letter-spacing: -.01em !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-row-amount strong {
+    font-size: inherit !important;
   }
 
   .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-discount-mini {
@@ -8129,36 +8141,64 @@
   }
 
   .billing-create-panel--advance .billing-invoice-payment-row {
-    grid-template-columns: 30px minmax(0, 1fr) 60px 28px 28px !important;
-    grid-template-rows: 34px auto !important;
-    gap: 4px !important;
-    min-height: 48px !important;
-    padding: 6px !important;
+    grid-template-columns: 24px minmax(0, 92px) 50px 22px 22px !important;
+    grid-template-rows: 30px auto !important;
+    gap: 2px !important;
+    min-height: 44px !important;
+    padding: 4px !important;
     border-radius: 12px !important;
+    align-items: center !important;
   }
 
-  .billing-create-panel--advance .billing-invoice-payment-icon,
   .billing-create-panel--advance .billing-invoice-match-mini,
   .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-delete-mini {
-    width: 28px !important;
-    min-width: 28px !important;
-    height: 32px !important;
-    min-height: 32px !important;
+    width: 22px !important;
+    min-width: 22px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-icon {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    width: 24px !important;
+    min-width: 24px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    border-radius: 8px !important;
   }
 
   .billing-create-panel--advance .billing-invoice-payment-row select,
   .billing-create-panel--advance .billing-invoice-payment-amount-input {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
-    min-height: 32px !important;
-    padding-left: 3px !important;
-    padding-right: 3px !important;
-    font-size: .68rem !important;
+    min-height: 28px !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: .6rem !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row select {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    max-width: 92px !important;
   }
 
   .billing-create-panel--advance .billing-invoice-payment-amount-input {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    max-width: 50px !important;
     text-align: right !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-match-mini {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-delete-mini {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
   }
 
   .billing-create-panel--advance .billing-invoice-advance-summary {
@@ -8195,6 +8235,17 @@
 
   .billing-create-panel--advance .billing-invoice-remaining-copy small {
     font-size: .69rem !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-icon .billing-payicon,
+  .billing-create-panel--advance .billing-invoice-match-mini .billing-invoice-match-icon svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-match-mini,
+  .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-delete-mini {
+    font-size: .8rem !important;
   }
 
   .billing-create-panel--advance .billing-bill-modal-footer {
@@ -8289,5 +8340,51 @@
 
   .billing-create-panel--advance .billing-bill-modal-title-row h2 {
     font-size: 1.22rem !important;
+  }
+}
+
+
+@media (max-width: 420px) {
+  .billing-create-panel--advance .billing-invoice-table-head--advance,
+  .billing-create-panel--advance .billing-invoice-item-row--advance {
+    grid-template-columns: minmax(68px, 1.35fr) 24px 40px 44px 44px 24px !important;
+    gap: 2px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--price input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-row-amount {
+    font-size: .52rem !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row {
+    grid-template-columns: 22px minmax(0, 88px) 46px 20px 20px !important;
+    gap: 2px !important;
+    padding: 4px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-icon {
+    width: 22px !important;
+    min-width: 22px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-match-mini,
+  .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-delete-mini {
+    width: 20px !important;
+    min-width: 20px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-row select {
+    max-width: 88px !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-amount-input {
+    max-width: 46px !important;
   }
 }
