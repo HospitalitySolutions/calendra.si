@@ -5,9 +5,9 @@ function formatMinutes(totalMinutes: number, locale: string) {
   const minutes = Math.max(0, Math.round(totalMinutes || 0))
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
-  if (hours <= 0) return locale === 'sr' ? `${rest} min` : `${rest} min`
-  if (rest <= 0) return `${hours} h`
-  return `${hours} h ${rest} min`
+  if (hours <= 0) return `${rest} min`
+  if (rest <= 0) return `${hours}h`
+  return locale === 'sl' || locale === 'sr' ? `${hours}h ${rest} min` : `${hours}h ${rest} min`
 }
 
 function timePart(value: string | null | undefined) {
@@ -25,43 +25,83 @@ function serviceName(type: any, locale: string) {
 function labels(locale: string) {
   if (locale === 'sl') {
     return {
-      services: 'Storitve', service: 'Storitev', add: 'Dodaj storitev', addTitle: 'Dodaj storitve', space: 'Prostor', noSpace: 'Brez prostora',
-      duration: 'Trajanje', price: 'Cena', totalDuration: 'Skupno trajanje', total: 'Skupaj',
-      moveUp: 'Premakni navzgor', moveDown: 'Premakni navzdol', remove: 'Odstrani storitev',
-      auto: 'Čas do se izračuna samodejno glede na izbrane storitve.', one: '1 storitev', many: '{count} storitve',
-      choose: 'Izberite storitev', conflict: 'Preverite kombinacijo storitev',
-      pickerTitle: 'Dodaj storitev', pickerDescription: 'Izberite storitev, ki jo želite dodati v termin.', pickerEmpty: 'Ni razpoložljivih storitev.', close: 'Zapri',
+      services: 'Storitve',
+      service: 'Storitev',
+      addTitle: 'Dodaj storitev',
+      space: 'Prostor',
+      noSpace: 'Brez lokacije',
+      duration: 'Trajanje',
+      price: 'Cena',
+      totalDuration: 'Skupno trajanje',
+      total: 'Skupaj',
+      moveUp: 'Premakni navzgor',
+      moveDown: 'Premakni navzdol',
+      change: 'Zamenjaj storitev',
+      remove: 'Odstrani storitev',
+      auto: 'Čas do se izračuna samodejno glede na izbrane storitve.',
+      one: '1 storitev',
+      many: '{count} storitve',
+      choose: 'Izberite storitev',
+      conflict: 'Preverite kombinacijo storitev',
+      pickerTitle: 'Dodaj storitev',
+      pickerDescription: 'Izberite storitev, ki jo želite dodati v termin.',
+      pickerEmpty: 'Ni razpoložljivih storitev.',
+      close: 'Zapri',
       addAction: 'Dodaj',
     }
   }
   if (locale === 'sr') {
     return {
-      services: 'Usluge', service: 'Usluga', add: 'Dodaj uslugu', addTitle: 'Dodaj usluge', space: 'Prostor', noSpace: 'Bez prostora',
-      duration: 'Trajanje', price: 'Cena', totalDuration: 'Ukupno trajanje', total: 'Ukupno',
-      moveUp: 'Pomeri nagore', moveDown: 'Pomeri nadole', remove: 'Ukloni uslugu',
-      auto: 'Vreme završetka se automatski računa prema izabranim uslugama.', one: '1 usluga', many: '{count} usluge',
-      choose: 'Izaberite uslugu', conflict: 'Proverite kombinaciju usluga',
-      pickerTitle: 'Dodaj uslugu', pickerDescription: 'Izaberite uslugu koju želite da dodate u termin.', pickerEmpty: 'Nema dostupnih usluga.', close: 'Zatvori',
+      services: 'Usluge',
+      service: 'Usluga',
+      addTitle: 'Dodaj uslugu',
+      space: 'Prostor',
+      noSpace: 'Bez lokacije',
+      duration: 'Trajanje',
+      price: 'Cena',
+      totalDuration: 'Ukupno trajanje',
+      total: 'Ukupno',
+      moveUp: 'Pomeri nagore',
+      moveDown: 'Pomeri nadole',
+      change: 'Zameni uslugu',
+      remove: 'Ukloni uslugu',
+      auto: 'Vreme završetka se automatski računa prema izabranim uslugama.',
+      one: '1 usluga',
+      many: '{count} usluge',
+      choose: 'Izaberite uslugu',
+      conflict: 'Proverite kombinaciju usluga',
+      pickerTitle: 'Dodaj uslugu',
+      pickerDescription: 'Izaberite uslugu koju želite da dodate u termin.',
+      pickerEmpty: 'Nema dostupnih usluga.',
+      close: 'Zatvori',
       addAction: 'Dodaj',
     }
   }
   return {
-    services: 'Services', service: 'Service', add: 'Add service', addTitle: 'Add services', space: 'Space', noSpace: 'No space',
-    duration: 'Duration', price: 'Price', totalDuration: 'Total duration', total: 'Total',
-    moveUp: 'Move up', moveDown: 'Move down', remove: 'Remove service',
-    auto: 'End time is calculated automatically from the selected services.', one: '1 service', many: '{count} services',
-    choose: 'Select service', conflict: 'Check the service combination',
-    pickerTitle: 'Add service', pickerDescription: 'Choose a service to add to this appointment.', pickerEmpty: 'No services available.', close: 'Close',
+    services: 'Services',
+    service: 'Service',
+    addTitle: 'Add service',
+    space: 'Space',
+    noSpace: 'No location',
+    duration: 'Duration',
+    price: 'Price',
+    totalDuration: 'Total duration',
+    total: 'Total',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+    change: 'Change service',
+    remove: 'Remove service',
+    auto: 'End time is calculated automatically from the selected services.',
+    one: '1 service',
+    many: '{count} services',
+    choose: 'Select service',
+    conflict: 'Check the service combination',
+    pickerTitle: 'Add service',
+    pickerDescription: 'Choose a service to add to this appointment.',
+    pickerEmpty: 'No services available.',
+    close: 'Close',
     addAction: 'Add',
   }
-}
-
-function MoveIcon({ direction }: { direction: 'up' | 'down' }) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d={direction === 'up' ? 'm6 14 6-6 6 6' : 'm6 10 6 6 6-6'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
 }
 
 function TrashIcon() {
@@ -84,6 +124,23 @@ function CloseIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 5.5a1.5 1.5 0 1 0 0 .01V5.5Zm0 5a1.5 1.5 0 1 0 0 .01v-.01Zm0 5a1.5 1.5 0 1 0 0 .01v-.01Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 7.8v4.6l3 1.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -117,8 +174,12 @@ export function CalendarServiceChainEditor({
 }) {
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerReplaceIndex, setPickerReplaceIndex] = useState<number | null>(null)
+  const [menuIndex, setMenuIndex] = useState<number | null>(null)
+
   const count = services.filter((service) => service.typeId != null).length
-  const isMultiMode = services.length > 1 || count > 1
+  const isMultiMode = count > 1
+
   const countLabel = (() => {
     if (locale === 'sl') {
       if (count === 1) return '1 storitev'
@@ -133,6 +194,7 @@ export function CalendarServiceChainEditor({
     }
     return count === 1 ? copy.one : copy.many.replace('{count}', String(count))
   })()
+
   const pricingModes = new Set(services
     .filter((service) => service.typeId != null)
     .map((service) => sessionTypes.find((entry) => Number(entry?.id) === Number(service.typeId)))
@@ -151,10 +213,13 @@ export function CalendarServiceChainEditor({
   const updateAt = (index: number, patch: Partial<CalendarServiceDraft>) => {
     onChange(services.map((service, idx) => (idx === index ? { ...service, ...patch } : service)))
   }
+
   const removeAt = (index: number) => {
     const next = services.filter((_, idx) => idx !== index)
-    onChange(next.length > 0 ? next : [{ typeId: null, spaceId: null }])
+    onChange(next.length > 0 ? next : [{ typeId: null, spaceId: defaultSpaceId ?? null }])
+    setMenuIndex(null)
   }
+
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= services.length) return
@@ -162,9 +227,28 @@ export function CalendarServiceChainEditor({
     const [row] = next.splice(index, 1)
     next.splice(target, 0, row)
     onChange(next)
+    setMenuIndex(null)
   }
 
-  const addService = (typeId: number) => {
+  const openAddPicker = () => {
+    setPickerReplaceIndex(null)
+    setMenuIndex(null)
+    setPickerOpen(true)
+  }
+
+  const openReplacePicker = (index: number) => {
+    setPickerReplaceIndex(index)
+    setMenuIndex(null)
+    setPickerOpen(true)
+  }
+
+  const addOrReplaceService = (typeId: number) => {
+    if (pickerReplaceIndex != null) {
+      updateAt(pickerReplaceIndex, { typeId })
+      setPickerReplaceIndex(null)
+      setPickerOpen(false)
+      return
+    }
     const fallbackSpaceId = services[services.length - 1]?.spaceId ?? defaultSpaceId ?? null
     if (services.length === 1 && services[0]?.typeId == null) {
       onChange([{ ...services[0], typeId }])
@@ -196,53 +280,65 @@ export function CalendarServiceChainEditor({
                 className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
                 aria-label={copy.addTitle}
                 title={copy.addTitle}
-                onClick={() => setPickerOpen(true)}
+                onClick={openAddPicker}
               >
                 <span aria-hidden><PlusIcon /></span>
               </button>
             </div>
 
             <div className="calendar-service-chain__list">
-              {services.map((service, index) => {
+              {services.filter((service) => service.typeId != null).map((service, index) => {
                 const segment = segments[index]
                 const type = sessionTypes.find((entry) => Number(entry?.id) === Number(service.typeId))
-                const selectedSpace = spaces.find((entry) => Number(entry?.id) === Number(service.spaceId))
                 return (
                   <article className="calendar-service-chain__item" key={`${service.id ?? 'new'}-${index}`}>
-                    <div className="calendar-service-chain__order" aria-hidden>{index + 1}</div>
                     <div className="calendar-service-chain__body">
-                      <div className="calendar-service-chain__select-row">
-                        <select
-                          className="calendar-service-chain__type-select"
-                          value={service.typeId ?? ''}
-                          aria-label={`${copy.service} ${index + 1}`}
-                          onChange={(event) => updateAt(index, { typeId: event.target.value ? Number(event.target.value) : null })}
-                        >
-                          <option value="">{copy.choose}</option>
-                          {sortedSessionTypes.map((entry) => (
-                            <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
-                          ))}
-                        </select>
-                        <div className="calendar-service-chain__actions">
-                          <button type="button" className="calendar-service-chain__move" disabled={index === 0} title={copy.moveUp} aria-label={copy.moveUp} onClick={() => move(index, -1)}><MoveIcon direction="up" /></button>
-                          <button type="button" className="calendar-service-chain__move" disabled={index === services.length - 1} title={copy.moveDown} aria-label={copy.moveDown} onClick={() => move(index, 1)}><MoveIcon direction="down" /></button>
-                          <button type="button" className="calendar-service-chain__remove" title={copy.remove} aria-label={copy.remove} onClick={() => removeAt(index)}><TrashIcon /></button>
+                      <div className="calendar-service-chain__card-top">
+                        <div className="calendar-service-chain__title-block">
+                          <strong className="calendar-service-chain__title">{serviceName(type, locale)}</strong>
+                          <span className="calendar-service-chain__duration-pill"><ClockIcon /> {formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</span>
+                        </div>
+                        <div className="calendar-service-chain__item-actions">
+                          <div className="calendar-service-chain__menu-wrap">
+                            <button
+                              type="button"
+                              className="calendar-service-chain__icon-btn calendar-service-chain__more-btn"
+                              aria-label={copy.change}
+                              title={copy.change}
+                              onClick={() => setMenuIndex((current) => (current === index ? null : index))}
+                            >
+                              <MoreIcon />
+                            </button>
+                            {menuIndex === index ? (
+                              <div className="calendar-service-chain__menu">
+                                <button type="button" onClick={() => openReplacePicker(index)}>{copy.change}</button>
+                                <button type="button" disabled={index === 0} onClick={() => move(index, -1)}>{copy.moveUp}</button>
+                                <button type="button" disabled={index === services.filter((entry) => entry.typeId != null).length - 1} onClick={() => move(index, 1)}>{copy.moveDown}</button>
+                              </div>
+                            ) : null}
+                          </div>
+                          <button type="button" className="calendar-service-chain__icon-btn calendar-service-chain__remove" title={copy.remove} aria-label={copy.remove} onClick={() => removeAt(index)}><TrashIcon /></button>
                         </div>
                       </div>
 
-                      <div className="calendar-service-chain__meta">
-                        <label>
+                      <div className="calendar-service-chain__meta calendar-service-chain__meta--cards">
+                        <label className="calendar-service-chain__meta-block calendar-service-chain__meta-block--space">
                           <span>{copy.space}</span>
                           <select value={service.spaceId ?? ''} onChange={(event) => updateAt(index, { spaceId: event.target.value ? Number(event.target.value) : null })}>
                             <option value="">{copy.noSpace}</option>
                             {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
                           </select>
                         </label>
-                        <span><b>{copy.duration}:</b> {formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</span>
-                        {segment?.grossPrice != null ? <span><b>{copy.price}:</b> {currency(segment.grossPrice)}</span> : null}
-                        <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
+                        <div className="calendar-service-chain__metric">
+                          <small>{copy.duration}</small>
+                          <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
+                          <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
+                        </div>
+                        <div className="calendar-service-chain__metric">
+                          <small>{copy.price}</small>
+                          <strong>{segment?.grossPrice != null ? currency(segment.grossPrice) : '—'}</strong>
+                        </div>
                       </div>
-                      {selectedSpace && !service.typeId ? <span className="calendar-service-chain__legacy-space">{selectedSpace.name}</span> : null}
                     </div>
                   </article>
                 )
@@ -257,33 +353,31 @@ export function CalendarServiceChainEditor({
             <p className="calendar-service-chain__auto-note">{copy.auto}</p>
           </>
         ) : (
-          <>
-            <label className="calendar-service-chain__single-field">
-              <span className="calendar-service-chain__single-label">{copy.service}</span>
-              <div className="calendar-service-chain__single-row">
-                <select
-                  className="calendar-service-chain__single-select"
-                  value={services[0]?.typeId ?? ''}
-                  aria-label={copy.service}
-                  onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
-                >
-                  <option value="">{copy.choose}</option>
-                  {sortedSessionTypes.map((entry) => (
-                    <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
-                  aria-label={copy.addTitle}
-                  title={copy.addTitle}
-                  onClick={() => setPickerOpen(true)}
-                >
-                  <span aria-hidden><PlusIcon /></span>
-                </button>
-              </div>
-            </label>
-          </>
+          <label className="calendar-service-chain__single-field">
+            <span className="calendar-service-chain__single-label">{copy.service}</span>
+            <div className="calendar-service-chain__single-row">
+              <select
+                className="calendar-service-chain__single-select"
+                value={services[0]?.typeId ?? ''}
+                aria-label={copy.service}
+                onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
+              >
+                <option value="">{copy.choose}</option>
+                {sortedSessionTypes.map((entry) => (
+                  <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
+                aria-label={copy.addTitle}
+                title={copy.addTitle}
+                onClick={openAddPicker}
+              >
+                <span aria-hidden><PlusIcon /></span>
+              </button>
+            </div>
+          </label>
         )}
 
         {warnings && warnings.length > 0 ? (
@@ -295,14 +389,14 @@ export function CalendarServiceChainEditor({
       </section>
 
       {pickerOpen ? (
-        <div className="calendar-service-picker-backdrop" onClick={() => setPickerOpen(false)}>
+        <div className="calendar-service-picker-backdrop" onClick={() => { setPickerOpen(false); setPickerReplaceIndex(null) }}>
           <div className="calendar-service-picker-modal" role="dialog" aria-modal="true" aria-label={copy.pickerTitle} onClick={(event) => event.stopPropagation()}>
             <div className="calendar-service-picker-modal__header">
               <div>
-                <h3>{copy.pickerTitle}</h3>
+                <h3>{pickerReplaceIndex != null ? copy.change : copy.pickerTitle}</h3>
                 <p>{copy.pickerDescription}</p>
               </div>
-              <button type="button" className="calendar-service-picker-modal__close" onClick={() => setPickerOpen(false)} aria-label={copy.close}>
+              <button type="button" className="calendar-service-picker-modal__close" onClick={() => { setPickerOpen(false); setPickerReplaceIndex(null) }} aria-label={copy.close}>
                 <CloseIcon />
               </button>
             </div>
@@ -314,7 +408,7 @@ export function CalendarServiceChainEditor({
                   key={entry.id}
                   type="button"
                   className="calendar-service-picker-modal__item"
-                  onClick={() => addService(Number(entry.id))}
+                  onClick={() => addOrReplaceService(Number(entry.id))}
                 >
                   <div className="calendar-service-picker-modal__item-copy">
                     <strong>{serviceName(entry, locale)}</strong>
