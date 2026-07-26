@@ -794,6 +794,13 @@ export type EmbeddedCreateBillRequest = {
   consultantId?: number | null
   billingTarget?: 'PERSON' | 'COMPANY'
   recipientCompanyId?: number | null
+  items?: Array<{
+    transactionServiceId: number
+    quantity?: number
+    netPrice?: string | number | null
+    grossPrice?: string | number | null
+    sourceSessionBookingId?: number | null
+  }>
 }
 
 export type BillingPageProps = {
@@ -1046,6 +1053,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const historySortOptions = useMemo(() => getHistorySortOptions(locale), [locale])
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [services, setServices] = useState<BillingService[]>([])
+  const [servicesLoaded, setServicesLoaded] = useState(false)
   const [bills, setBills] = useState<Bill[]>([])
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -1222,6 +1230,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     ])
     setSettings(settingsRes.data || {})
     setServices(servicesRes.data)
+    setServicesLoaded(true)
     setBills((billsRes.data || []).map((b: Bill) => normalizeBill(b)))
     setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)))
     setBookings(bookingsRes.data || [])
@@ -1278,6 +1287,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         embeddedCreateBill.consultantId ?? '',
         embeddedCreateBill.billingTarget ?? '',
         embeddedCreateBill.recipientCompanyId ?? '',
+        (embeddedCreateBill.items ?? []).map((item) => `${item.transactionServiceId}:${item.quantity ?? 1}:${item.netPrice ?? ''}:${item.grossPrice ?? ''}`).join(','),
       ].join(':')
     : ''
   const embeddedCreateKeyRef = useRef('')
@@ -1299,6 +1309,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       onEmbeddedClose?.()
       return
     }
+    const embeddedItemsNeedCatalog = (embeddedCreateBill.items ?? []).some((item) =>
+      String(item.netPrice ?? '').trim() === '' || String(item.grossPrice ?? '').trim() === '')
+    if (embeddedItemsNeedCatalog && !servicesLoaded) return
     if (embeddedCreateKeyRef.current === embeddedCreateKey) return
     embeddedCreateKeyRef.current = embeddedCreateKey
     const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
@@ -1306,8 +1319,20 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const embeddedClientIds = Array.from(new Set([embeddedCreateBill.clientId, ...(embeddedCreateBill.clientIds ?? [])]
       .map((value) => Number(value ?? 0))
       .filter((value) => Number.isInteger(value) && value > 0)))
+    const embeddedItems = (embeddedCreateBill.items ?? []).map((item) => {
+      const catalogService = services.find((service) => Number(service.id) === Number(item.transactionServiceId))
+      const netPrice = String(item.netPrice ?? '').trim() || String(catalogService?.netPrice ?? '0.00')
+      const grossPrice = String(item.grossPrice ?? '').trim() || grossStringFromService(catalogService)
+      return {
+        transactionServiceId: Number(item.transactionServiceId),
+        quantity: Math.max(1, Number(item.quantity ?? 1) || 1),
+        netPrice,
+        grossPrice,
+        sourceSessionBookingId: item.sourceSessionBookingId ?? embeddedCreateBill.sessionId ?? null,
+      }
+    }).filter((item) => Number.isInteger(item.transactionServiceId) && item.transactionServiceId > 0)
     setBillForm({
-      items: [],
+      items: embeddedItems,
       paymentMethodId: defaultPaymentMethodId,
       billingTarget: normalizedBillingTarget,
       billType: embeddedCreateBill.billType,
@@ -1319,7 +1344,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setBillingTab(embeddedCreateBill.billType === 'ADVANCE' && advanceBillingEnabled ? 'unusedAdvances' : 'open')
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
-  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, canIssueAdvanceInvoice, canIssueOpenInvoice, locale, me.id, onEmbeddedClose, showToast])
+  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, canIssueAdvanceInvoice, canIssueOpenInvoice, locale, me.id, onEmbeddedClose, services, servicesLoaded, showToast])
   /** Keep the side panel in sync when open bills reload (e.g. apply advance, polling) unless there are unsaved line edits. */
   useEffect(() => {
     setDetailOpenBill((prev) => {

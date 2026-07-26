@@ -18,6 +18,7 @@ export function CalendarLocalTimespanRow({
   allDayToggle,
   onCommitAllDayDate,
   allDayDateRange,
+  endTimeLocked = false,
 }: {
   startValue: string | undefined
   endValue: string | undefined
@@ -31,6 +32,8 @@ export function CalendarLocalTimespanRow({
   onCommitAllDayDate?: (ymd: string) => void
   /** When set, all-day mode uses a from/to date range instead of a single date. */
   allDayDateRange?: AllDayDateRangeConfig
+  /** Locks the end-time picker when it is derived from a service chain. */
+  endTimeLocked?: boolean
 }) {
   const sp = splitLocalDateTimeParts(startValue)
   const ep = splitLocalDateTimeParts(endValue)
@@ -50,6 +53,7 @@ export function CalendarLocalTimespanRow({
         allDayToggle ? 'calendar-timespan-row--with-all-day' : '',
         allDay ? 'calendar-timespan-row--all-day' : '',
         showAllDayDateRange ? 'calendar-timespan-row--all-day-range' : '',
+        endTimeLocked ? 'calendar-timespan-row--end-locked' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -75,6 +79,7 @@ export function CalendarLocalTimespanRow({
               <span className="calendar-timespan-label">{labels.timeTo}</span>
               <ModernTimePicker
                 value={endTime}
+                disabled={endTimeLocked}
                 onOpen={(trigger) => scrollIntoViewForAndroidPicker(trigger)}
                 onChange={(nextValue) => {
                   if (!nextValue) return
@@ -180,7 +185,7 @@ export function CalendarLocalTimespanRow({
                   onCommitAllDayDate(d)
                 } else {
                   onCommitStart(normalize(`${d}T${startTime}`))
-                  onCommitEnd(normalize(`${d}T${endTime}`))
+                  if (!endTimeLocked) onCommitEnd(normalize(`${d}T${endTime}`))
                 }
               }}
               aria-label={labels.date}

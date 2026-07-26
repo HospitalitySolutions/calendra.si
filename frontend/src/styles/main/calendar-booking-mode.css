@@ -6627,3 +6627,456 @@
         gap: 12px;
     }
 }
+
+/* Phase 2: ordered multi-service editor in Dodaj/Uredi termin */
+.calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service-chain {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+.calendar-booking-field--service-chain {
+    display: grid;
+    gap: 10px;
+}
+
+.calendar-service-chain {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid #dbe5f0;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045);
+}
+
+.calendar-service-chain__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.calendar-service-chain__head strong {
+    color: #1e293b;
+    font-size: 0.98rem;
+    font-weight: 850;
+    letter-spacing: -0.02em;
+}
+
+.calendar-service-chain__head > span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #eaf2ff;
+    color: #0f67e8;
+    font-size: 0.82rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.calendar-service-chain__list {
+    display: grid;
+    gap: 10px;
+}
+
+.calendar-service-chain__item {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    min-width: 0;
+    padding: 11px;
+    border: 1px solid #dbe4ee;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.035);
+}
+
+.calendar-service-chain__order {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-top: 2px;
+    border-radius: 999px;
+    background: #eaf2ff;
+    color: #0f67e8;
+    font-size: 0.9rem;
+    font-weight: 850;
+}
+
+.calendar-service-chain__body {
+    display: grid;
+    gap: 9px;
+    min-width: 0;
+}
+
+.calendar-service-chain__select-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.calendar-edit-session-panel .calendar-service-chain__type-select,
+.calendar-edit-session-panel .calendar-service-chain__meta select {
+    min-width: 0;
+    width: 100%;
+    min-height: 40px;
+    padding: 7px 34px 7px 10px;
+    border: 1px solid #d8e0ea;
+    border-radius: 10px;
+    background-color: #fff;
+    color: #0f172a;
+    font-size: 0.92rem;
+    font-weight: 720;
+    outline: none;
+}
+
+.calendar-edit-session-panel .calendar-service-chain__type-select:focus,
+.calendar-edit-session-panel .calendar-service-chain__meta select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.11);
+}
+
+.calendar-service-chain__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.calendar-service-chain__move,
+.calendar-service-chain__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid #dbe4ee;
+    border-radius: 9px;
+    background: #fff;
+    color: #475569;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.calendar-service-chain__move:hover:not(:disabled) {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.calendar-service-chain__remove {
+    color: #dc2626;
+}
+
+.calendar-service-chain__remove:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.calendar-service-chain__move:active:not(:disabled),
+.calendar-service-chain__remove:active {
+    transform: scale(0.96);
+}
+
+.calendar-service-chain__move:disabled {
+    opacity: 0.32;
+    cursor: default;
+}
+
+.calendar-service-chain__meta {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.25fr) repeat(3, minmax(105px, auto));
+    align-items: center;
+    gap: 7px 12px;
+    min-width: 0;
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.25;
+}
+
+.calendar-service-chain__meta label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.calendar-service-chain__meta label > span,
+.calendar-service-chain__meta b {
+    color: #475569;
+    font-weight: 760;
+}
+
+.calendar-edit-session-panel .calendar-service-chain__meta select {
+    min-height: 34px;
+    padding-block: 5px;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.calendar-service-chain__time {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #edf5ff;
+    color: #1267d8;
+    font-weight: 820;
+    white-space: nowrap;
+}
+
+.calendar-service-chain__legacy-space {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.calendar-service-chain__add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 14px;
+    border: 1.5px dashed #75a9fb;
+    border-radius: 12px;
+    background: rgba(239, 246, 255, 0.52);
+    color: #1267d8;
+    font-size: 0.91rem;
+    font-weight: 820;
+    cursor: pointer;
+}
+
+.calendar-service-chain__add:hover {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.calendar-service-chain__summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    border-radius: 13px;
+    background: linear-gradient(90deg, #eff6ff 0%, #f4f8ff 100%);
+}
+
+.calendar-service-chain__summary > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px 14px;
+}
+
+.calendar-service-chain__summary > div + div {
+    border-left: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.calendar-service-chain__summary span {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 650;
+}
+
+.calendar-service-chain__summary strong {
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-service-chain__auto-note {
+    margin: -3px 0 0;
+    color: #718096;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.calendar-service-chain__warning {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid #fed7aa;
+    border-radius: 11px;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.calendar-service-chain__warning strong {
+    font-weight: 850;
+}
+
+.calendar-booking-service-chain__billing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2) {
+    position: relative;
+}
+
+.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2)::after {
+    content: '';
+    position: absolute;
+    right: 10px;
+    bottom: 15px;
+    width: 8px;
+    height: 8px;
+    border: 1.5px solid #94a3b8;
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2) input:disabled {
+    color: #334155;
+    background: #f8fafc;
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+@media (max-width: 980px) {
+    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service-chain {
+        grid-column: 1 / -1;
+    }
+
+    .calendar-service-chain__meta {
+        grid-template-columns: minmax(160px, 1.4fr) repeat(2, minmax(95px, auto));
+    }
+
+    .calendar-service-chain__time {
+        grid-column: 2 / -1;
+        justify-self: start;
+    }
+}
+
+@media (max-width: 720px) {
+    .calendar-service-chain {
+        gap: 10px;
+        padding: 10px;
+        border-radius: 15px;
+        box-shadow: none;
+    }
+
+    .calendar-service-chain__head strong {
+        font-size: 0.91rem;
+    }
+
+    .calendar-service-chain__head > span {
+        min-height: 25px;
+        padding: 3px 8px;
+        font-size: 0.75rem;
+    }
+
+    .calendar-service-chain__item {
+        grid-template-columns: 26px minmax(0, 1fr);
+        gap: 7px;
+        padding: 9px;
+        border-radius: 13px;
+    }
+
+    .calendar-service-chain__order {
+        width: 25px;
+        height: 25px;
+        font-size: 0.78rem;
+    }
+
+    .calendar-service-chain__select-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .calendar-service-chain__actions {
+        justify-self: end;
+    }
+
+    .calendar-service-chain__move,
+    .calendar-service-chain__remove {
+        width: 31px;
+        height: 31px;
+        border-radius: 8px;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__type-select {
+        min-height: 38px;
+        font-size: 0.84rem;
+    }
+
+    .calendar-service-chain__meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        font-size: 0.75rem;
+    }
+
+    .calendar-service-chain__meta label {
+        grid-column: 1 / -1;
+        grid-template-columns: 55px minmax(0, 1fr);
+    }
+
+    .calendar-service-chain__time {
+        grid-column: auto;
+        justify-self: stretch;
+        min-height: 26px;
+        padding-inline: 6px;
+        font-size: 0.75rem;
+    }
+
+    .calendar-service-chain__add {
+        min-height: 38px;
+        font-size: 0.84rem;
+    }
+
+    .calendar-service-chain__summary > div {
+        padding: 9px 10px;
+    }
+
+    .calendar-service-chain__summary span {
+        font-size: 0.7rem;
+    }
+
+    .calendar-service-chain__summary strong {
+        font-size: 0.86rem;
+    }
+
+    .calendar-service-chain__auto-note {
+        font-size: 0.71rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-service-chain__meta {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .calendar-service-chain__meta label,
+    .calendar-service-chain__time {
+        grid-column: 1;
+    }
+
+    .calendar-service-chain__time {
+        justify-self: start;
+    }
+}
+
+/* The service-chain card owns the visible Storitve heading. Keep this row only for online-provider controls. */
+.calendar-booking-service-infield-head--chain > .form-field-inline-label {
+    display: none;
+}
+
+.calendar-booking-service-infield-head--chain:not(:has(.calendar-booking-service-online-line)):not(:has(.meeting-provider-summary)) {
+    display: none;
+}

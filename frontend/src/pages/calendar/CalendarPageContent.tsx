@@ -100,7 +100,7 @@ import {
   type DerivedBookingStatus,
   type StoredBookingStatus,
 } from './calendarStatus'
-import type { ConfirmNonBookableEditPayload, ConfirmNonBookableState } from './calendarTypes'
+import type { CalendarServiceChain, CalendarServiceDraft, ConfirmNonBookableEditPayload, ConfirmNonBookableState } from './calendarTypes'
 import {
   isCalendarViewWithToolbarMonthChip,
   isWebTimeGridLikeView,
@@ -1572,6 +1572,28 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarCreateAdvanceConsultantIdRaw = Number(calendarOpenBillSearchParams.get('advanceConsultantId') ?? 0)
   const calendarCreateAdvanceCompanyIdRaw = Number(calendarOpenBillSearchParams.get('advanceCompanyId') ?? 0)
   const calendarCreateAdvanceBillingTarget: 'COMPANY' | 'PERSON' = calendarOpenBillSearchParams.get('advanceBillingTarget') === 'COMPANY' ? 'COMPANY' : 'PERSON'
+  const calendarAdvanceSourceBooking = Number.isInteger(calendarCreateAdvanceSessionIdRaw) && calendarCreateAdvanceSessionIdRaw > 0
+    ? (calendarData.booked || []).find((booking: any) => Number(booking?.id) === Number(calendarCreateAdvanceSessionIdRaw)) ?? selectedBookedSession
+    : selectedBookedSession
+  const calendarAdvanceServiceRefs = Array.isArray(calendarAdvanceSourceBooking?.services) && calendarAdvanceSourceBooking.services.length > 0
+    ? [...calendarAdvanceSourceBooking.services].sort((left: any, right: any) => Number(left?.position ?? 0) - Number(right?.position ?? 0))
+    : calendarAdvanceSourceBooking?.type
+      ? [{ type: calendarAdvanceSourceBooking.type, typeId: calendarAdvanceSourceBooking.type?.id }]
+      : []
+  const calendarAdvanceItems = calendarAdvanceServiceRefs.flatMap((serviceRef: any) => {
+    const typeId = Number(serviceRef?.type?.id ?? serviceRef?.typeId)
+    const type = metaTypes.find((entry: any) => Number(entry?.id) === typeId) ?? serviceRef?.type
+    const links = Array.isArray(type?.linkedServices) ? type.linkedServices : []
+    return links.map((link: any) => ({
+      transactionServiceId: Number(link?.transactionServiceId),
+      quantity: 1,
+      netPrice: link?.price == null ? '' : String(link.price),
+      grossPrice: link?.unitGross == null ? '' : String(link.unitGross),
+      sourceSessionBookingId: Number.isInteger(calendarCreateAdvanceSessionIdRaw) && calendarCreateAdvanceSessionIdRaw > 0
+        ? calendarCreateAdvanceSessionIdRaw
+        : null,
+    })).filter((item: any) => Number.isInteger(item.transactionServiceId) && item.transactionServiceId > 0)
+  })
   const calendarCreateAdvanceRequest = calendarCreateAdvanceRequested ? {
     billType: 'ADVANCE' as const,
     sessionId: Number.isInteger(calendarCreateAdvanceSessionIdRaw) && calendarCreateAdvanceSessionIdRaw > 0 ? calendarCreateAdvanceSessionIdRaw : null,
@@ -1580,6 +1602,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     consultantId: Number.isInteger(calendarCreateAdvanceConsultantIdRaw) && calendarCreateAdvanceConsultantIdRaw > 0 ? calendarCreateAdvanceConsultantIdRaw : null,
     billingTarget: calendarCreateAdvanceBillingTarget,
     recipientCompanyId: calendarCreateAdvanceBillingTarget === 'COMPANY' && Number.isInteger(calendarCreateAdvanceCompanyIdRaw) && calendarCreateAdvanceCompanyIdRaw > 0 ? calendarCreateAdvanceCompanyIdRaw : null,
+    items: calendarAdvanceItems,
   } : null
 
   const closeCalendarOpenBillEditor = useCallback(() => {
@@ -1966,6 +1989,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
               endTime: pending.endTime,
               spaceId: pending.spaceId ?? null,
               typeId: pending.typeId ?? null,
+              services: Array.isArray(pending.services) ? pending.services : undefined,
               notes: pending.notes ?? '',
               meetingLink: null,
               online: true,
@@ -1982,6 +2006,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
               endTime: pending.endTime,
               spaceId: pending.spaceId ?? null,
               typeId: pending.typeId ?? null,
+              services: Array.isArray(pending.services) ? pending.services : undefined,
               notes: pending.notes ?? '',
               meetingLink: null,
               online: true,
@@ -2068,6 +2093,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           endTime: pending.endTime,
           spaceId: pending.spaceId ?? null,
           typeId: pending.typeId ?? null,
+          services: Array.isArray(pending.services) ? pending.services : undefined,
           notes: pending.notes ?? '',
           meetingLink: null,
           online: true,
@@ -3173,25 +3199,209 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return n
   }
 
+  const getTypeGrossPrice = (typeId: number | null | undefined): number | null => {
+    const type = getTypeMeta(typeId)
+    const linked = Array.isArray(type?.linkedServices) ? type.linkedServices : []
+    if (linked.length === 0) return null
+    let total = 0
+    let found = false
+    for (const line of linked) {
+      const raw = line?.unitGross ?? line?.price
+      const amount = Number(raw)
+      if (!Number.isFinite(amount)) continue
+      total += amount
+      found = true
+    }
+    return found ? Math.max(0, total) : null
+  }
+
+  const normalizeCalendarServiceDrafts = (
+    raw: unknown,
+    fallbackTypeId?: number | null,
+    fallbackSpaceId?: number | null,
+  ): CalendarServiceDraft[] => {
+    const source = Array.isArray(raw) ? raw : []
+    const normalized = source
+      .map((entry: any) => ({
+        id: Number.isInteger(Number(entry?.id)) && Number(entry?.id) > 0 ? Number(entry.id) : null,
+        typeId: Number.isInteger(Number(entry?.typeId ?? entry?.type?.id)) && Number(entry?.typeId ?? entry?.type?.id) > 0
+          ? Number(entry?.typeId ?? entry?.type?.id)
+          : null,
+        spaceId: Number.isInteger(Number(entry?.spaceId ?? entry?.space?.id)) && Number(entry?.spaceId ?? entry?.space?.id) > 0
+          ? Number(entry?.spaceId ?? entry?.space?.id)
+          : null,
+        position: Number.isFinite(Number(entry?.position)) ? Number(entry.position) : Number.MAX_SAFE_INTEGER,
+      }))
+      .sort((left, right) => left.position - right.position)
+      .map(({ id, typeId, spaceId }) => ({ id, typeId, spaceId }))
+    if (normalized.length > 0) return normalized
+    const typeId = Number.isInteger(Number(fallbackTypeId)) && Number(fallbackTypeId) > 0 ? Number(fallbackTypeId) : null
+    const spaceId = Number.isInteger(Number(fallbackSpaceId)) && Number(fallbackSpaceId) > 0 ? Number(fallbackSpaceId) : null
+    return [{ typeId, spaceId }]
+  }
+
+  const buildCalendarServiceChain = (
+    startValue: string | null | undefined,
+    rawServices: CalendarServiceDraft[],
+    fallbackEndValue?: string | null,
+  ): CalendarServiceChain => {
+    const drafts = normalizeCalendarServiceDrafts(rawServices)
+    const safeStartValue = String(startValue || fallbackEndValue || '1970-01-01T00:00:00')
+    const normalizedStart = normalizeToLocalDateTime(safeStartValue)
+    const startDate = new Date(normalizedStart)
+    if (!Number.isFinite(startDate.getTime())) {
+      return {
+        drafts,
+        segments: [],
+        endTime: normalizeToLocalDateTime(fallbackEndValue || safeStartValue),
+        availabilityEndTime: normalizeToLocalDateTime(fallbackEndValue || safeStartValue),
+        totalServiceMinutes: 0,
+        totalInternalBreakMinutes: 0,
+        totalBreakMinutes: 0,
+        totalSpanMinutes: 0,
+        totalGross: null,
+      }
+    }
+    let cursorMs = startDate.getTime()
+    let totalServiceMinutes = 0
+    let totalBreakMinutes = 0
+    let totalGross = 0
+    let hasGross = false
+    const segments = drafts.map((draft, position) => {
+      const durationMinutes = draft.typeId == null ? 0 : getTypeDurationMinutes(draft.typeId)
+      const breakMinutes = draft.typeId == null ? 0 : getTypeBreakMinutes(draft.typeId)
+      const grossPrice = getTypeGrossPrice(draft.typeId)
+      const segmentStartMs = cursorMs
+      const segmentEndMs = segmentStartMs + durationMinutes * 60_000
+      const availabilityEndMs = segmentEndMs + breakMinutes * 60_000
+      cursorMs = availabilityEndMs
+      totalServiceMinutes += durationMinutes
+      totalBreakMinutes += breakMinutes
+      if (grossPrice != null) {
+        totalGross += grossPrice
+        hasGross = true
+      }
+      return {
+        ...draft,
+        position,
+        startTime: toLocalDateTimeString(new Date(segmentStartMs)),
+        endTime: toLocalDateTimeString(new Date(segmentEndMs)),
+        availabilityEndTime: toLocalDateTimeString(new Date(availabilityEndMs)),
+        durationMinutes,
+        breakMinutes,
+        grossPrice,
+      }
+    })
+    const typedSegments = segments.filter((segment) => segment.typeId != null)
+    if (typedSegments.length === 0) {
+      const legacyEnd = normalizeToLocalDateTime(fallbackEndValue || safeStartValue)
+      const legacyEndMs = new Date(legacyEnd).getTime()
+      const totalSpanMinutes = Number.isFinite(legacyEndMs) ? Math.max(0, Math.round((legacyEndMs - startDate.getTime()) / 60_000)) : 0
+      return {
+        drafts,
+        segments,
+        endTime: legacyEnd,
+        availabilityEndTime: legacyEnd,
+        totalServiceMinutes: totalSpanMinutes,
+        totalInternalBreakMinutes: 0,
+        totalBreakMinutes: 0,
+        totalSpanMinutes,
+        totalGross: null,
+      }
+    }
+    const last = typedSegments[typedSegments.length - 1]
+    const internalBreakMinutes = Math.max(0, totalBreakMinutes - last.breakMinutes)
+    const endTime = last.endTime
+    return {
+      drafts,
+      segments,
+      endTime,
+      availabilityEndTime: last.availabilityEndTime,
+      totalServiceMinutes,
+      totalInternalBreakMinutes: internalBreakMinutes,
+      totalBreakMinutes,
+      totalSpanMinutes: totalServiceMinutes + internalBreakMinutes,
+      totalGross: hasGross ? totalGross : null,
+    }
+  }
+
+  const bookingServicesPayload = (services: CalendarServiceDraft[] | undefined | null) =>
+    normalizeCalendarServiceDrafts(services)
+      .filter((service) => service.typeId != null)
+      .map((service, position) => ({ typeId: Number(service.typeId), position, spaceId: service.spaceId ?? null }))
+
+  const bookingServicesPayloadForInterval = (
+    startTime: string | null | undefined,
+    endTime: string | null | undefined,
+    services: CalendarServiceDraft[] | undefined | null,
+  ) => isLocalBookingAllDay(startTime, endTime) ? [] : bookingServicesPayload(services)
+
+  const getBookingServiceDrafts = (bookingLike: any): CalendarServiceDraft[] =>
+    normalizeCalendarServiceDrafts(bookingLike?.services, bookingLike?.type?.id ?? bookingLike?.typeId, bookingLike?.space?.id ?? bookingLike?.spaceId)
+
+  const getServiceChainMaxParticipants = (services: CalendarServiceDraft[]) => {
+    const limits = normalizeCalendarServiceDrafts(services)
+      .map((service) => getTypeMaxParticipants(service.typeId))
+      .filter((value): value is number => value != null)
+    return limits.length > 0 ? Math.min(...limits) : null
+  }
+
+  const getServiceChainCompatibilityError = (services: CalendarServiceDraft[], groupMode: boolean, allDay = false) => {
+    const selectedTypes = normalizeCalendarServiceDrafts(services)
+      .filter((service) => service.typeId != null)
+      .map((service) => metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId)))
+      .filter(Boolean)
+    if (allDay && selectedTypes.length > 1) {
+      return locale === 'sl'
+        ? 'Termin z več storitvami ne more biti označen kot celodnevni. Izklopite Cel dan ali odstranite dodatne storitve.'
+        : locale === 'sr'
+          ? 'Termin sa više usluga ne može biti celodnevni. Isključite Ceo dan ili uklonite dodatne usluge.'
+          : 'A multi-service session cannot be all day. Turn off All day or remove the additional services.'
+    }
+    const pricingModes = new Set(selectedTypes.map((entry: any) => String(entry?.priceCalculationMode || 'PER_CLIENT')))
+    if (pricingModes.size > 1) {
+      return locale === 'sl'
+        ? 'Izbrane storitve uporabljajo različna načina obračuna in jih ni mogoče združiti v isti termin.'
+        : locale === 'sr'
+          ? 'Izabrane usluge koriste različite načine obračuna i ne mogu se spojiti u isti termin.'
+          : 'The selected services use different pricing modes and cannot be combined in one session.'
+    }
+    if (groupMode && selectedTypes.some((entry: any) => entry?.groupBookingEnabled !== true)) {
+      return locale === 'sl'
+        ? 'Vse izbrane storitve morajo dovoljevati skupinske termine.'
+        : locale === 'sr'
+          ? 'Sve izabrane usluge moraju dozvoljavati grupne termine.'
+          : 'Every selected service must allow group sessions.'
+    }
+    return null
+  }
+
   const getBookingBreakMinutes = (booking: any) => {
-    const direct = Number(booking?.type?.breakMinutes)
+    const availabilityEndMs = new Date(booking?.availabilityEndTime).getTime()
+    const endMs = new Date(booking?.endTime).getTime()
+    if (Number.isFinite(availabilityEndMs) && Number.isFinite(endMs) && availabilityEndMs >= endMs) {
+      return Math.round((availabilityEndMs - endMs) / 60_000)
+    }
+    const ordered = Array.isArray(booking?.services) ? [...booking.services].sort((a: any, b: any) => Number(a?.position ?? 0) - Number(b?.position ?? 0)) : []
+    const direct = Number(ordered[ordered.length - 1]?.breakMinutes ?? booking?.type?.breakMinutes)
     if (Number.isFinite(direct) && direct >= 0) return direct
     return getTypeBreakMinutes(booking?.type?.id)
   }
 
   const getBookingBusyEndMs = (booking: any) => {
+    const directBusyEnd = new Date(booking?.availabilityEndTime).getTime()
+    if (Number.isFinite(directBusyEnd)) return directBusyEnd
     const endMs = new Date(booking?.endTime).getTime()
     if (!Number.isFinite(endMs)) return endMs
     return endMs + getBookingBreakMinutes(booking) * 60000
   }
 
   const getBookingBreakRange = (booking: any) => {
-    const breakMinutes = getBookingBreakMinutes(booking)
-    if (!Number.isFinite(breakMinutes) || breakMinutes <= 0) return null
     const startMs = new Date(booking?.endTime).getTime()
-    if (!Number.isFinite(startMs)) return null
-    const endMs = startMs + breakMinutes * 60000
-    if (endMs <= startMs) return null
+    const directEndMs = new Date(booking?.availabilityEndTime).getTime()
+    const endMs = Number.isFinite(directEndMs) ? directEndMs : startMs + getBookingBreakMinutes(booking) * 60000
+    const breakMinutes = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.round((endMs - startMs) / 60_000) : 0
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || breakMinutes <= 0 || endMs <= startMs) return null
     return { startMs, endMs, breakMinutes }
   }
 
@@ -3205,35 +3415,254 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const updateBookingFormStartTime = (nextStartTime: string) => {
     const normalizedStartTime = normalizeToLocalDateTime(nextStartTime)
     bookingEndEditedManuallyRef.current = false
-    setForm((currentForm: any) => ({
-      ...currentForm,
-      startTime: normalizedStartTime,
-      endTime: getBookingEndTimeForStart(normalizedStartTime, currentForm.typeId),
-    }))
+    setForm((currentForm: any) => {
+      const serviceDrafts = normalizeCalendarServiceDrafts(currentForm.services, currentForm.typeId, currentForm.spaceId)
+      const chain = buildCalendarServiceChain(normalizedStartTime, serviceDrafts, currentForm.endTime)
+      return {
+        ...currentForm,
+        startTime: normalizedStartTime,
+        endTime: bookingServicesPayload(serviceDrafts).length > 0 ? chain.endTime : getBookingEndTimeForStart(normalizedStartTime, currentForm.typeId),
+        services: serviceDrafts,
+      }
+    })
   }
 
   const updateBookingFormEndTime = (nextEndTime: string) => {
-    bookingEndEditedManuallyRef.current = true
-    setForm((currentForm: any) => ({
-      ...currentForm,
-      endTime: normalizeToLocalDateTime(nextEndTime),
-    }))
+    setForm((currentForm: any) => {
+      const serviceDrafts = normalizeCalendarServiceDrafts(currentForm.services, currentForm.typeId, currentForm.spaceId)
+      if (bookingServicesPayload(serviceDrafts).length > 0) {
+        const chain = buildCalendarServiceChain(currentForm.startTime, serviceDrafts, currentForm.endTime)
+        bookingEndEditedManuallyRef.current = false
+        return { ...currentForm, endTime: chain.endTime, services: serviceDrafts }
+      }
+      bookingEndEditedManuallyRef.current = true
+      return { ...currentForm, endTime: normalizeToLocalDateTime(nextEndTime) }
+    })
+  }
+
+  const updateBookingFormServices = (nextServices: CalendarServiceDraft[]) => {
+    bookingEndEditedManuallyRef.current = false
+    setForm((currentForm: any) => {
+      const services = normalizeCalendarServiceDrafts(nextServices)
+      const chain = buildCalendarServiceChain(currentForm.startTime, services, currentForm.endTime)
+      const first = services.find((service) => service.typeId != null) ?? services[0]
+      const allDay = isLocalBookingAllDay(currentForm.startTime, currentForm.endTime)
+      return {
+        ...currentForm,
+        services,
+        typeId: first?.typeId ?? null,
+        spaceId: first?.spaceId ?? null,
+        endTime: allDay ? currentForm.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : currentForm.endTime,
+      }
+    })
+  }
+
+  const updateSelectedBookedSessionServices = (nextServices: CalendarServiceDraft[]) => {
+    setSelectedBookedSession((current: any) => {
+      if (!current) return current
+      const services = normalizeCalendarServiceDrafts(nextServices)
+      const chain = buildCalendarServiceChain(current.startTime, services, current.endTime)
+      const first = services.find((service) => service.typeId != null) ?? services[0]
+      const firstType = first?.typeId != null ? metaTypes.find((type: any) => Number(type?.id) === Number(first.typeId)) ?? null : null
+      const firstSpace = first?.spaceId != null ? metaSpaces.find((space: any) => Number(space?.id) === Number(first.spaceId)) ?? null : null
+      const allDay = isLocalBookingAllDay(current.startTime, current.endTime)
+      return {
+        ...current,
+        services,
+        type: firstType,
+        space: firstSpace,
+        endTime: allDay ? current.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : current.endTime,
+        availabilityEndTime: allDay ? current.endTime : bookingServicesPayload(services).length > 0 ? chain.availabilityEndTime : current.availabilityEndTime,
+        totalServiceMinutes: chain.totalServiceMinutes,
+        totalBreakMinutes: chain.totalBreakMinutes,
+        totalGross: chain.totalGross ?? current.totalGross,
+      }
+    })
+  }
+
+  const updateSelectedBookedSessionStartTime = (nextStartTime: string) => {
+    const normalizedStartTime = normalizeToLocalDateTime(nextStartTime)
+    setSelectedBookedSession((current: any) => {
+      if (!current) return current
+      const services = getBookingServiceDrafts(current)
+      const chain = buildCalendarServiceChain(normalizedStartTime, services, current.endTime)
+      return {
+        ...current,
+        services,
+        startTime: normalizedStartTime,
+        endTime: bookingServicesPayload(services).length > 0 ? chain.endTime : current.endTime,
+        availabilityEndTime: bookingServicesPayload(services).length > 0 ? chain.availabilityEndTime : current.availabilityEndTime,
+        totalServiceMinutes: chain.totalServiceMinutes,
+        totalBreakMinutes: chain.totalBreakMinutes,
+        totalGross: chain.totalGross ?? current.totalGross,
+      }
+    })
   }
 
   const updateBookingFormType = (nextTypeId: number | null) => {
     setForm((currentForm: any) => {
+      const services = normalizeCalendarServiceDrafts(currentForm.services, currentForm.typeId, currentForm.spaceId)
+      services[0] = { ...services[0], typeId: nextTypeId }
+      const chain = buildCalendarServiceChain(currentForm.startTime, services, currentForm.endTime)
       const allDay = isLocalBookingAllDay(currentForm.startTime, currentForm.endTime)
       return {
         ...currentForm,
+        services,
         typeId: nextTypeId,
-        endTime: allDay
-          ? currentForm.endTime
-          : bookingEndEditedManuallyRef.current
-            ? currentForm.endTime
-            : getBookingEndTimeForStart(currentForm.startTime, nextTypeId),
+        endTime: allDay ? currentForm.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : getBookingEndTimeForStart(currentForm.startTime, nextTypeId),
       }
     })
   }
+
+  const formServiceDrafts = normalizeCalendarServiceDrafts(form?.services, form?.typeId, form?.spaceId)
+  const formServiceChain = buildCalendarServiceChain(form?.startTime, formServiceDrafts, form?.endTime)
+  const bookedServiceDrafts = selectedBookedSession
+    ? getBookingServiceDrafts(selectedBookedSession)
+    : [{ typeId: null, spaceId: null }]
+  const bookedServiceChain = selectedBookedSession
+    ? buildCalendarServiceChain(selectedBookedSession.startTime, bookedServiceDrafts, selectedBookedSession.endTime)
+    : buildCalendarServiceChain(form?.startTime, [{ typeId: null, spaceId: null }], form?.endTime)
+
+  const serviceChainValidationWarnings = (
+    chain: CalendarServiceChain,
+    services: CalendarServiceDraft[],
+    consultantId: number | null | undefined,
+    selectedClientCount: number,
+    groupMode: boolean,
+    excludeBookingId?: number | null,
+  ) => {
+    const warnings: string[] = []
+    const typedServices = normalizeCalendarServiceDrafts(services).filter((service) => service.typeId != null)
+    if (typedServices.length === 0) return warnings
+
+    const selectedTypes = typedServices
+      .map((service) => metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId)))
+      .filter(Boolean)
+    const pricingModes = new Set(selectedTypes.map((entry: any) => String(entry?.priceCalculationMode || 'PER_CLIENT')))
+    if (pricingModes.size > 1) {
+      warnings.push(locale === 'sl'
+        ? 'Izbrane storitve uporabljajo različna načina obračuna in jih ni mogoče združiti v isti termin.'
+        : locale === 'sr'
+          ? 'Izabrane usluge koriste različite načine obračuna i ne mogu se spojiti u isti termin.'
+          : 'The selected services use different pricing modes and cannot be combined in one session.')
+    }
+    if (groupMode && selectedTypes.some((entry: any) => entry?.groupBookingEnabled !== true)) {
+      warnings.push(locale === 'sl'
+        ? 'Vse izbrane storitve morajo dovoljevati skupinske termine.'
+        : locale === 'sr'
+          ? 'Sve izabrane usluge moraju dozvoljavati grupne termine.'
+          : 'Every selected service must allow group sessions.')
+    }
+    const maxParticipants = getServiceChainMaxParticipants(typedServices)
+    if (maxParticipants != null && selectedClientCount > maxParticipants) {
+      warnings.push(locale === 'sl'
+        ? `Kombinacija storitev dovoljuje največ ${maxParticipants} strank.`
+        : locale === 'sr'
+          ? `Kombinacija usluga dozvoljava najviše ${maxParticipants} klijenata.`
+          : `This service combination allows at most ${maxParticipants} clients.`)
+    }
+
+    const startMs = new Date(chain.segments[0]?.startTime || '').getTime()
+    const busyEndMs = new Date(chain.availabilityEndTime).getTime()
+    if (consultantId != null && Number.isFinite(startMs) && Number.isFinite(busyEndMs)) {
+      const consultantConflict = (calendarData.booked || []).some((booking: any) => {
+        if (excludeBookingId != null && Number(booking?.id) === Number(excludeBookingId)) return false
+        if (Number(booking?.consultant?.id ?? booking?.consultantId) !== Number(consultantId)) return false
+        const otherStart = new Date(booking?.startTime).getTime()
+        const otherEnd = getBookingBusyEndMs(booking)
+        return Number.isFinite(otherStart) && Number.isFinite(otherEnd) && startMs < otherEnd && busyEndMs > otherStart
+      })
+      const personalConflict = personalModuleEnabled && (calendarData.personal || []).some((block: any) => {
+        if (String(block?.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK) return false
+        if (Number(block?.consultant?.id ?? block?.consultantId ?? block?.ownerId) !== Number(consultantId)) return false
+        const otherStart = new Date(block?.startTime).getTime()
+        const otherEnd = new Date(block?.endTime).getTime()
+        return Number.isFinite(otherStart) && Number.isFinite(otherEnd) && startMs < otherEnd && busyEndMs > otherStart
+      })
+      if (consultantConflict || personalConflict) {
+        warnings.push(locale === 'sl'
+          ? 'Celotna veriga storitev se časovno prekriva z drugim terminom ali osebnim blokom zaposlenega.'
+          : locale === 'sr'
+            ? 'Ceo niz usluga se vremenski preklapa sa drugim terminom ili ličnim blokom zaposlenog.'
+            : 'The complete service chain overlaps another session or personal block for this employee.')
+      }
+    }
+
+    const existingServiceSegments = (booking: any) => {
+      const persisted = Array.isArray(booking?.services) ? [...booking.services] : []
+      const mapped = persisted.map((entry: any) => ({
+        spaceId: Number(entry?.space?.id ?? entry?.spaceId) || null,
+        startMs: new Date(entry?.startTime || booking?.startTime).getTime(),
+        endMs: new Date(entry?.availabilityEndTime || entry?.endTime || booking?.availabilityEndTime || booking?.endTime).getTime(),
+      })).filter((entry: any) => entry.spaceId != null && Number.isFinite(entry.startMs) && Number.isFinite(entry.endMs))
+      if (mapped.length > 0) return mapped
+      const legacySpaceId = Number(booking?.space?.id ?? booking?.spaceId) || null
+      if (legacySpaceId == null) return []
+      return [{ spaceId: legacySpaceId, startMs: new Date(booking?.startTime).getTime(), endMs: getBookingBusyEndMs(booking) }]
+    }
+    const roomConflict = chain.segments.some((segment) => {
+      if (segment.spaceId == null || segment.typeId == null) return false
+      const segmentStart = new Date(segment.startTime).getTime()
+      const segmentEnd = new Date(segment.availabilityEndTime).getTime()
+      if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd)) return false
+      return (calendarData.booked || []).some((booking: any) => {
+        if (excludeBookingId != null && Number(booking?.id) === Number(excludeBookingId)) return false
+        return existingServiceSegments(booking).some((existing: any) =>
+          Number(existing.spaceId) === Number(segment.spaceId)
+          && segmentStart < existing.endMs
+          && segmentEnd > existing.startMs)
+      })
+    })
+    if (roomConflict) {
+      warnings.push(locale === 'sl'
+        ? 'Vsaj eden od izbranih prostorov je zaseden v času svoje storitve.'
+        : locale === 'sr'
+          ? 'Najmanje jedan izabrani prostor je zauzet tokom svoje usluge.'
+          : 'At least one selected space is occupied during its service segment.')
+    }
+    return Array.from(new Set(warnings))
+  }
+
+  const multiServiceAllDayWarning = locale === 'sl'
+    ? 'Termin z več storitvami ne more biti označen kot celodnevni.'
+    : locale === 'sr'
+      ? 'Termin sa više usluga ne može biti celodnevni.'
+      : 'A multi-service session cannot be all day.'
+  const formServiceWarnings = selection && !form?.personal && !form?.todo && !availabilitySelection
+    ? Array.from(new Set([
+        ...serviceChainValidationWarnings(
+          formServiceChain,
+          formServiceDrafts,
+          form?.consultantId,
+          Array.from(new Set([...(Array.isArray(form?.clientIds) ? form.clientIds : []), form?.clientId]
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value > 0))).length,
+          Boolean(bookingGroupMode),
+        ),
+        ...(isLocalBookingAllDay(form?.startTime, form?.endTime) && bookingServicesPayload(formServiceDrafts).length > 1
+          ? [multiServiceAllDayWarning]
+          : []),
+      ]))
+    : []
+  const bookedServiceWarnings = selectedBookedSession
+    ? Array.from(new Set([
+        ...serviceChainValidationWarnings(
+          bookedServiceChain,
+          bookedServiceDrafts,
+          selectedBookedSession?.consultant?.id ?? selectedBookedSession?.consultantId,
+          Array.from(new Set([...(Array.isArray(selectedBookedSession?.clientIds) ? selectedBookedSession.clientIds : []),
+            ...(Array.isArray(selectedBookedSession?.clients) ? selectedBookedSession.clients.map((client: any) => client?.id) : []),
+            selectedBookedSession?.client?.id]
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value > 0))).length,
+          Boolean(groupBookingEnabled && selectedBookedSession?.groupId != null && Number(selectedBookedSession.groupId) > 0),
+          selectedBookedSession?.id,
+        ),
+        ...(isLocalBookingAllDay(selectedBookedSession?.startTime, selectedBookedSession?.endTime) && bookingServicesPayload(bookedServiceDrafts).length > 1
+          ? [multiServiceAllDayWarning]
+          : []),
+      ]))
+    : []
 
   const effectiveConsultantFilterId = calendarMode === 'spaces' ? null : consultantFilterId
 
@@ -4244,7 +4673,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           eventId: eventKey(ev),
           id: props.id,
           kind: props.kind,
-          title: String(ev.title || props.task || bookedServiceDisplayLabel(props.type) || (props.kind === 'personal' ? t('formPersonal') : '') || '').trim() || '—',
+          title: String(ev.title || props.task || bookedServiceDisplayLabel(props) || (props.kind === 'personal' ? t('formPersonal') : '') || '').trim() || '—',
           start: ev.start,
           end: ev.end,
           color: ev.color,
@@ -4742,7 +5171,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
   const overlapSessionDisplayTitle = useCallback((item: any) => {
     if (item?.kind === 'personal') return String(item?.title || item?.task || t('formPersonal') || '').trim() || '—'
-    return bookedServiceDisplayLabel(item?.type) || String(item?.title || '').trim() || '—'
+    return bookedServiceDisplayLabel(item) || String(item?.title || '').trim() || '—'
   }, [t])
 
   const overlapSessionDisplaySubtitle = useCallback((item: any) => {
@@ -5371,7 +5800,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const count =
         rawClients.length > 0 ? rawClients.length : bookingLike?.client?.id ? 1 : 0
       const name = (g?.name && String(g.name).trim()) || `Group #${gid}`
-      const maxRaw = bookingLike?.type?.maxParticipantsPerSession ?? getTypeMaxParticipants(bookingLike?.type?.id)
+      const maxRaw = getServiceChainMaxParticipants(getBookingServiceDrafts(bookingLike))
+        ?? bookingLike?.type?.maxParticipantsPerSession
+        ?? getTypeMaxParticipants(bookingLike?.type?.id)
       const max =
         maxRaw != null &&
         Number.isFinite(Number(maxRaw)) &&
@@ -5394,16 +5825,31 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return clients.length > 1 ? `${first} +${clients.length - 1}` : first
   }
 
-  function bookedServiceDisplayLabel(sessionType: any) {
-    const typeId = Number(sessionType?.id)
+  function singleBookedServiceLabel(sessionType: any) {
+    const typeId = Number(sessionType?.id ?? sessionType?.typeId ?? sessionType?.type?.id)
     const catalogType = Number.isFinite(typeId)
       ? metaTypes.find((type: any) => Number(type?.id) === typeId)
       : null
-    const description = String(
-      sessionType?.description || catalogType?.description || '',
-    ).trim()
+    const sourceType = sessionType?.type || sessionType
+    const description = String(sourceType?.description || catalogType?.description || '').trim()
     if (description) return description
-    return String(sessionType?.name || catalogType?.name || '').trim()
+    return String(sourceType?.name || catalogType?.name || '').trim()
+  }
+
+  function bookedServiceLabels(bookingOrType: any) {
+    const ordered = Array.isArray(bookingOrType?.services)
+      ? [...bookingOrType.services].sort((left: any, right: any) => Number(left?.position ?? 0) - Number(right?.position ?? 0))
+      : []
+    const labels = ordered.map((service: any) => singleBookedServiceLabel(service)).filter(Boolean)
+    if (labels.length > 0) return labels
+    const fallback = singleBookedServiceLabel(bookingOrType?.type || bookingOrType)
+    return fallback ? [fallback] : []
+  }
+
+  function bookedServiceDisplayLabel(bookingOrType: any) {
+    const labels = bookedServiceLabels(bookingOrType)
+    if (labels.length === 0) return ''
+    return labels.length > 1 ? `${labels[0]} +${labels.length - 1}` : labels[0]
   }
 
   /** Desktop booked block label: LastName FirstName · service description. */
@@ -5435,7 +5881,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }
       return fallback
     })()
-    const serviceLabel = bookedServiceDisplayLabel(bookingLike?.type)
+    const serviceLabel = bookedServiceDisplayLabel(bookingLike)
     return serviceLabel ? `${clientName} · ${serviceLabel}` : clientName
   }
 
@@ -5737,9 +6183,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         )
     const availableConsultants = metaUsers.filter((u: any) => u.consultant)
     const defaultConsultantId = consultantId || availableConsultants[0]?.id || user.id
+    const defaultSpaceId = preselectedSpaceId !== undefined ? preselectedSpaceId : (metaSpaces[0]?.id ?? null)
+    const defaultServices = [{ typeId: defaultTypeId, spaceId: defaultSpaceId }]
+    const defaultChain = buildCalendarServiceChain(startLocal, defaultServices, endLocal)
+    const resolvedEndTime = isLocalBookingAllDay(startLocal, endLocal) || defaultTypeId == null
+      ? endLocal
+      : defaultChain.endTime
     setSelection({
       start: startLocal,
-      end: endLocal,
+      end: resolvedEndTime,
       ...(selectionResourceId !== undefined ? { resourceId: selectionResourceId } : {}),
     })
     setClientSearch('')
@@ -5760,9 +6212,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       groupId: null,
       consultantId: defaultConsultantId,
       startTime: startLocal,
-      endTime: endLocal,
-      spaceId: preselectedSpaceId !== undefined ? preselectedSpaceId : (metaSpaces[0]?.id ?? null),
+      endTime: resolvedEndTime,
+      spaceId: defaultSpaceId,
       typeId: defaultTypeId,
+      services: defaultServices,
       notes: '',
       personal: false,
       online: false,
@@ -5773,14 +6226,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     })
     placeSessionPopup(anchorEl)
     if (useBookingSidePanel && !opts?.skipCompactNavigate) {
-      const defaultSpaceId = preselectedSpaceId !== undefined ? preselectedSpaceId : (metaSpaces[0]?.id ?? null)
       const ridForUrl =
         selectionResourceId !== undefined && selectionResourceId !== null && selectionResourceId !== ''
           ? String(selectionResourceId)
           : undefined
       const qs = buildNewSlotSearchParams({
         start: startLocal,
-        end: endLocal,
+        end: resolvedEndTime,
         consultantId: defaultConsultantId,
         spaceId: defaultSpaceId,
         clientId: preselectedClientId != null ? preselectedClientId : undefined,
@@ -6829,11 +7281,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     })
   }
 
-  const findOverlappingSessionsForBooking = (start: string, end: string, consultantId: number | null, typeId?: number | null) => {
+  const findOverlappingSessionsForBooking = (
+    start: string,
+    end: string,
+    consultantId: number | null,
+    typeId?: number | null,
+    availabilityEndTime?: string | null,
+    excludeBookingId?: number | null,
+  ) => {
     const startMs = new Date(start).getTime()
     const endMs = new Date(end).getTime()
-    const requestedBusyEndMs = endMs + getTypeBreakMinutes(typeId) * 60000
+    const directBusyEndMs = new Date(availabilityEndTime || '').getTime()
+    const requestedBusyEndMs = Number.isFinite(directBusyEndMs) ? directBusyEndMs : endMs + getTypeBreakMinutes(typeId) * 60000
     return (calendarData.booked || []).filter((b: any) => {
+      if (excludeBookingId != null && Number(b?.id) === Number(excludeBookingId)) return false
       if (b.consultant?.id !== consultantId) return false
       const bStart = new Date(b.startTime).getTime()
       const bEnd = getBookingBusyEndMs(b)
@@ -6857,6 +7318,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
   const saveBooking = async (skipBookedOverlapCheck = false, skipNonBookableConfirm = false, skipPersonalOverlapConfirm = false) => {
     setSaveBookingError(null)
+    const currentServiceDrafts = normalizeCalendarServiceDrafts(form?.services, form?.typeId, form?.spaceId)
+    const currentBookingIsAllDay = isLocalBookingAllDay(form?.startTime, form?.endTime)
+    const currentServicesPayload = bookingServicesPayloadForInterval(form?.startTime, form?.endTime, currentServiceDrafts)
+    const computedServiceChain = buildCalendarServiceChain(form?.startTime, currentServiceDrafts, form?.endTime)
+    const currentServiceChain = currentBookingIsAllDay
+      ? { ...computedServiceChain, endTime: normalizeToLocalDateTime(form.endTime), availabilityEndTime: normalizeToLocalDateTime(form.endTime), totalBreakMinutes: 0, totalInternalBreakMinutes: 0 }
+      : computedServiceChain
+    const primaryService = currentServiceDrafts.find((service) => service.typeId != null) ?? currentServiceDrafts[0]
     if (form.personal && !personalModuleEnabled) {
       setForm((f: any) => ({ ...f, personal: false }))
       setSaveBookingError(t('calendarErrorPersonalModuleDisabled'))
@@ -6973,6 +7442,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         return
       }
     }
+    if (!form.personal && !form.todo) {
+      const compatibilityError = getServiceChainCompatibilityError(currentServiceDrafts, Boolean(bookingGroupMode), currentBookingIsAllDay)
+      if (compatibilityError) {
+        setSaveBookingError(compatibilityError)
+        return
+      }
+    }
     if (!form.personal && !form.todo && form.online && form.consultantId === user.id) {
       const provider = form.meetingProvider || 'zoom'
       const needsConnect = provider === 'google' ? googleConnected === false : zoomConnected === false
@@ -6984,9 +7460,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           groupId: groupPending ? resolvedGroupId : null,
           consultantId: form.consultantId,
           startTime: form.startTime,
-          endTime: form.endTime,
-          spaceId: form.spaceId ?? null,
-          typeId: form.typeId ?? null,
+          endTime: currentServiceChain.endTime,
+          spaceId: primaryService?.spaceId ?? form.spaceId ?? null,
+          typeId: primaryService?.typeId ?? form.typeId ?? null,
+          services: currentServicesPayload,
           notes: form.notes ?? '',
           meetingProvider: provider,
           waitlistRequestId: form.waitlistRequestId ?? null,
@@ -6998,9 +7475,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }
     }
     if (!form.personal && !form.todo) {
-      const typeMaxParticipants = getTypeMaxParticipants(form.typeId)
+      const typeMaxParticipants = getServiceChainMaxParticipants(currentServiceDrafts)
       if (typeMaxParticipants != null && resolvedClientIds.length > typeMaxParticipants) {
-        setSaveBookingError(`This service type allows at most ${typeMaxParticipants} participants per session.`)
+        setSaveBookingError(locale === 'sl'
+          ? `Izbrane storitve dovoljujejo največ ${typeMaxParticipants} udeležencev na termin.`
+          : `The selected services allow at most ${typeMaxParticipants} participants per session.`)
         return
       }
     }
@@ -7016,9 +7495,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (!skipPersonalOverlapConfirm) {
         const overlappingPersonal = findOverlappingPersonalBlocksForBooking(
           form.startTime,
-          form.endTime,
+          currentServiceChain.endTime,
           form.consultantId,
-          getTypeBreakMinutes(form.typeId),
+          Math.max(0, currentServiceChain.totalBreakMinutes - currentServiceChain.totalInternalBreakMinutes),
         )
         if (overlappingPersonal.length > 0) {
           setConfirmBookedPersonalOverlap({ type: 'create' })
@@ -7026,9 +7505,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         }
       }
       if (!skipBookedOverlapCheck) {
-        const overlapping = findOverlappingSessionsForBooking(form.startTime, form.endTime, form.consultantId, form.typeId)
+        const overlapping = findOverlappingSessionsForBooking(form.startTime, currentServiceChain.endTime, form.consultantId, primaryService?.typeId ?? form.typeId, currentServiceChain.availabilityEndTime)
         if (overlapping.length > 0) {
-          setConfirmOverlap({ overlapping, start: form.startTime, end: form.endTime })
+          setConfirmOverlap({ overlapping, start: form.startTime, end: currentServiceChain.endTime })
           return
         }
       }
@@ -7067,8 +7546,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             : { clientId: resolvedClientIds[0]!, clientIds: resolvedClientIds }),
           groupId: bookingGroupMode && resolvedGroupId != null ? resolvedGroupId : undefined,
           consultantId: form.consultantId,
-          spaceId: form.spaceId ?? null,
-          typeId: form.typeId ?? null,
+          spaceId: primaryService?.spaceId ?? form.spaceId ?? null,
+          typeId: primaryService?.typeId ?? form.typeId ?? null,
+          services: currentServicesPayload,
           notes: form.notes ?? '',
           meetingLink: form.meetingLink ?? null,
           online: form.online ?? false,
@@ -7082,7 +7562,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const bookingDates: Array<{ startTime: string; endTime: string }> = []
         if (form.repeats) {
           const baseStart = new Date(form.startTime)
-          const baseEnd = new Date(form.endTime)
+          const baseEnd = new Date(currentServiceChain.endTime)
           const durationMs = baseEnd.getTime() - baseStart.getTime()
           const repeatInterval = form.repeatInterval ?? 1
           const repeatUnit = form.repeatUnit ?? 'weeks'
@@ -7119,7 +7599,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             }
           }
         } else {
-          bookingDates.push({ startTime: form.startTime, endTime: form.endTime })
+          bookingDates.push({ startTime: form.startTime, endTime: currentServiceChain.endTime })
         }
         const waitlistRequestId = Number(form.waitlistRequestId)
         const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
@@ -7859,9 +8339,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             clientIds: resolvedClientIds,
             consultantId: selectedBookedSession.consultant?.id ?? null,
             startTime: selectedBookedSession.startTime,
-            endTime: selectedBookedSession.endTime,
-            spaceId: selectedBookedSession.space?.id ?? null,
-            typeId: selectedBookedSession.type?.id ?? null,
+            endTime: buildCalendarServiceChain(selectedBookedSession.startTime, getBookingServiceDrafts(selectedBookedSession), selectedBookedSession.endTime).endTime,
+            spaceId: getBookingServiceDrafts(selectedBookedSession)[0]?.spaceId ?? selectedBookedSession.space?.id ?? null,
+            typeId: getBookingServiceDrafts(selectedBookedSession)[0]?.typeId ?? selectedBookedSession.type?.id ?? null,
+            services: bookingServicesPayloadForInterval(selectedBookedSession.startTime, selectedBookedSession.endTime, getBookingServiceDrafts(selectedBookedSession)),
             notes: selectedBookedSession.notes ?? '',
             meetingLink: selectedBookedSession.online ? (selectedBookedSession.meetingLink ?? null) : null,
             online: !!selectedBookedSession.online,
@@ -7975,8 +8456,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             consultantId: selectedBookedSession.consultant?.id ?? null,
             startTime: selectedBookedSession.startTime,
             endTime: selectedBookedSession.endTime,
-            spaceId: selectedBookedSession.space?.id ?? null,
-            typeId: selectedBookedSession.type?.id ?? null,
+            spaceId: getBookingServiceDrafts(selectedBookedSession)[0]?.spaceId ?? selectedBookedSession.space?.id ?? null,
+            typeId: getBookingServiceDrafts(selectedBookedSession)[0]?.typeId ?? selectedBookedSession.type?.id ?? null,
+            services: bookingServicesPayloadForInterval(selectedBookedSession.startTime, selectedBookedSession.endTime, getBookingServiceDrafts(selectedBookedSession)),
             notes: selectedBookedSession.notes ?? '',
             meetingLink: selectedBookedSession.online ? (selectedBookedSession.meetingLink ?? null) : null,
             online: !!selectedBookedSession.online,
@@ -8423,6 +8905,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     bookingStatusOverride?: StoredBookingStatus,
   ) => {
     if (!selectedBookedSession?.id) return
+    const currentBookedServiceDrafts = getBookingServiceDrafts(selectedBookedSession)
+    const currentBookedIsAllDay = isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime)
+    const currentBookedServicesPayload = bookingServicesPayloadForInterval(selectedBookedSession.startTime, selectedBookedSession.endTime, currentBookedServiceDrafts)
+    const computedBookedServiceChain = buildCalendarServiceChain(selectedBookedSession.startTime, currentBookedServiceDrafts, selectedBookedSession.endTime)
+    const currentBookedServiceChain = currentBookedIsAllDay
+      ? { ...computedBookedServiceChain, endTime: normalizeToLocalDateTime(selectedBookedSession.endTime), availabilityEndTime: normalizeToLocalDateTime(selectedBookedSession.endTime), totalBreakMinutes: 0, totalInternalBreakMinutes: 0 }
+      : computedBookedServiceChain
+    const currentBookedPrimaryService = currentBookedServiceDrafts.find((service) => service.typeId != null) ?? currentBookedServiceDrafts[0]
     let resolvedClientIds = [...selectedBookedClientIds]
     const persistedBooked = (calendarData?.booked || []).find((b: any) => b.id === selectedBookedSession.id) as any
     const typed = bookedClientSearch.trim()
@@ -8500,7 +8990,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     const statusValidation = getStatusTransitionValidation(
       selectedBookedSession.startTime,
-      selectedBookedSession.endTime,
+      currentBookedServiceChain.endTime,
       persistedBooked?.bookingStatus ?? selectedBookedSession.bookingStatus,
       requestedStoredStatus,
     )
@@ -8510,8 +9000,36 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     const bookedIsGroupSession = Number.isFinite(selectedBookedSession.groupId) && selectedBookedSession.groupId > 0
     if (resolvedClientIds.length === 0 && !bookedIsGroupSession) return
+    const compatibilityError = getServiceChainCompatibilityError(currentBookedServiceDrafts, bookedIsGroupSession, currentBookedIsAllDay)
+    if (compatibilityError) {
+      showToast('error', compatibilityError)
+      return
+    }
     const consultantId = selectedBookedSession.consultant?.id
-    const typeBreakMinutes = getTypeBreakMinutes(selectedBookedSession.type?.id)
+    const typeBreakMinutes = Math.max(0, currentBookedServiceChain.totalBreakMinutes - currentBookedServiceChain.totalInternalBreakMinutes)
+    const maxParticipants = getServiceChainMaxParticipants(currentBookedServiceDrafts)
+    if (maxParticipants != null && resolvedClientIds.length > maxParticipants) {
+      showToast('error', locale === 'sl'
+        ? `Izbrane storitve dovoljujejo največ ${maxParticipants} udeležencev na termin.`
+        : `The selected services allow at most ${maxParticipants} participants per session.`)
+      return
+    }
+    if (Number.isFinite(consultantId)) {
+      const overlappingBooked = findOverlappingSessionsForBooking(
+        selectedBookedSession.startTime,
+        currentBookedServiceChain.endTime,
+        consultantId,
+        currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id,
+        currentBookedServiceChain.availabilityEndTime,
+        selectedBookedSession.id,
+      )
+      if (overlappingBooked.length > 0) {
+        showToast('error', locale === 'sl'
+          ? 'Izbrana veriga storitev se prekriva z drugim terminom zaposlenega.'
+          : 'The selected service chain overlaps another employee booking.')
+        return
+      }
+    }
     if (!skipNonBookableConfirm && Number.isFinite(consultantId)) {
       const originalInterval = (
         persistedBooked &&
@@ -8523,7 +9041,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         : undefined
       if (!isBookedMoveIntervalBookable(
         selectedBookedSession.startTime,
-        selectedBookedSession.endTime,
+        currentBookedServiceChain.endTime,
         consultantId,
         typeBreakMinutes,
         originalInterval,
@@ -8537,9 +9055,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             groupId: selectedBookedSession.groupId,
             consultantId: selectedBookedSession.consultant?.id ?? null,
             startTime: selectedBookedSession.startTime,
-            endTime: selectedBookedSession.endTime,
-            spaceId: selectedBookedSession.space?.id ?? null,
-            typeId: selectedBookedSession.type?.id ?? null,
+            endTime: currentBookedServiceChain.endTime,
+            spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
+            typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
+            services: currentBookedServicesPayload,
             notes: selectedBookedSession.notes ?? '',
             online: !!selectedBookedSession.online,
             meetingLink: selectedBookedSession.meetingLink ?? null,
@@ -8557,7 +9076,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       Number.isFinite(consultantId) &&
       findOverlappingPersonalBlocksForBooking(
         selectedBookedSession.startTime,
-        selectedBookedSession.endTime,
+        currentBookedServiceChain.endTime,
         consultantId,
         typeBreakMinutes,
       ).length > 0
@@ -8581,9 +9100,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           groupId: selectedBookedSession.groupId ?? null,
           consultantId: selectedBookedSession.consultant?.id ?? null,
           startTime: selectedBookedSession.startTime,
-          endTime: selectedBookedSession.endTime,
-          spaceId: selectedBookedSession.space?.id ?? null,
-          typeId: selectedBookedSession.type?.id ?? null,
+          endTime: currentBookedServiceChain.endTime,
+          spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
+          typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
+          services: currentBookedServicesPayload,
           notes: selectedBookedSession.notes ?? '',
           meetingProvider: provider,
           bookingStatus: requestedStoredStatus,
@@ -8603,9 +9123,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         ...bookedPayloadClients,
         consultantId: selectedBookedSession.consultant?.id ?? null,
         startTime: selectedBookedSession.startTime,
-        endTime: selectedBookedSession.endTime,
-        spaceId: selectedBookedSession.space?.id ?? null,
-        typeId: selectedBookedSession.type?.id ?? null,
+        endTime: currentBookedServiceChain.endTime,
+        spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
+        typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
+        services: currentBookedServicesPayload,
         notes: selectedBookedSession.notes ?? '',
         meetingLink: online ? (selectedBookedSession.meetingLink ?? null) : null,
         online,
@@ -8648,7 +9169,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     // Create repeated future bookings if repeats is enabled
     if (selectedBookedSession.repeats) {
       const baseStart = new Date(selectedBookedSession.startTime)
-      const baseEnd = new Date(selectedBookedSession.endTime)
+      const baseEnd = new Date(currentBookedServiceChain.endTime)
       const durationMs = baseEnd.getTime() - baseStart.getTime()
       const repeatInterval = selectedBookedSession.repeatInterval ?? 1
       const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
@@ -8682,8 +9203,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             consultantId: selectedBookedSession.consultant?.id ?? null,
             startTime: toLocalDateTimeString(s),
             endTime: toLocalDateTimeString(e),
-            spaceId: selectedBookedSession.space?.id ?? null,
-            typeId: selectedBookedSession.type?.id ?? null,
+            spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
+            typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
+            services: currentBookedServicesPayload,
             notes: selectedBookedSession.notes ?? '',
             meetingLink: online ? (selectedBookedSession.meetingLink ?? null) : null,
             online,
@@ -9843,7 +10365,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const start = formatTooltipTime(event.start || null)
     const end = formatTooltipTime(event.end || null)
     const timeRange = start && end ? `${start} - ${end}` : (start || end || '')
-    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (bookedServiceDisplayLabel(props.type) || t('calendarEventTypeBooked'))
+    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (bookedServiceDisplayLabel(props) || t('calendarEventTypeBooked'))
     const clientLabel = props.kind === 'booked' ? formatBookingClientsLabel(props) : null
     const gidRaw = props.groupId
     const bookingIsGroup =
@@ -9879,7 +10401,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const start = formatTooltipTime(startDate && Number.isFinite(startDate.getTime()) ? startDate : null)
     const end = formatTooltipTime(endDate && Number.isFinite(endDate.getTime()) ? endDate : null)
     const timeRange = start && end ? `${start} - ${end}` : (start || end || '')
-    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (bookedServiceDisplayLabel(props.type || item?.type) || t('calendarEventTypeBooked'))
+    const typeLabel = props.kind === 'personal' ? t('formPersonal') : (bookedServiceDisplayLabel(props?.services?.length ? props : (props.type || item?.type)) || t('calendarEventTypeBooked'))
     const clientLabel = props.kind === 'booked' ? formatBookingClientsLabel(props) : null
     const gidRaw = props.groupId
     const bookingIsGroup =
@@ -10299,7 +10821,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     setOverlapDrawerGroupId(action.overlapGroupId)
   }
 
-  const calendarSessionModalProps = {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openCalendarGroupDetail,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentGroupNameDraft,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft}
+  const calendarSessionModalProps = {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openCalendarGroupDetail,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentGroupNameDraft,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft}
 
   return (
     <div className={isNativeAndroid ? 'calendar-page-android-root' : 'calendar-page-web-root'}>
@@ -11974,7 +12496,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             if (props.kind === 'booked') {
               if (groupBookingEnabled && props.groupId != null && Number(props.groupId) > 0) {
                 const label = String(arg.event.title || '').trim() || '—'
-                const serviceLabel = bookedServiceDisplayLabel(props?.type)
+                const serviceLabel = bookedServiceDisplayLabel(props)
                 const showMobileService = eventDurationMinutes >= 45 && Boolean(serviceLabel)
                 const showCompactOneLine = Boolean(mainTimeRange)
                   && eventDurationMinutes > 0
@@ -12018,7 +12540,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const mobileLabel = fallbackTitle || [fn, ln].filter(Boolean).join(' ') || resolvedLastName
               const wide = formatBookedBlockDesktopLabel(props, fallbackTitle || mobileLabel)
               const fullClientLabel = wide.split(' · ')[0] || mobileLabel || resolvedLastName || '—'
-              const narrowTypeName = bookedServiceDisplayLabel(props?.type)
+              const narrowTypeName = bookedServiceDisplayLabel(props)
               const narrowPrimaryLabel = fullClientLabel
               const showMobileService = eventDurationMinutes >= 45 && Boolean(narrowTypeName)
               const showCompactOneLine = Boolean(mainTimeRange)

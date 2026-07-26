@@ -4,8 +4,9 @@ import { BrowserQRCodeReader } from '@zxing/browser'
 import { createPortal } from 'react-dom'
 import { api } from '../../../api'
 import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
+import { CalendarServiceChainEditor } from './CalendarServiceChainEditor'
 export function CalendarSessionModals({ ctx }: { ctx: any }) {
-  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
+  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
 
   const [bookedBillingActionMenu, setBookedBillingActionMenu] = useState<null | 'advance' | 'invoice'>(null)
   const [bookedBillingView, setBookedBillingView] = useState<null | 'advances' | 'invoices'>(null)
@@ -1235,10 +1236,34 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     if (start) return start
     return '—'
   }
-  const sessionViewServiceName = sessionForBillingSummary?.type?.name || sessionForBillingSummary?.typeName || (locale === 'sl' ? 'Termin' : 'Session')
+  const orderedSessionViewServices = Array.isArray(sessionForBillingSummary?.services)
+    ? [...sessionForBillingSummary.services].sort((a: any, b: any) => Number(a?.position ?? 0) - Number(b?.position ?? 0))
+    : []
+  const sessionViewServiceNames = orderedSessionViewServices
+    .map((entry: any) => {
+      const typeId = Number(entry?.type?.id ?? entry?.typeId)
+      const catalogType = metaTypes.find((type: any) => Number(type?.id) === typeId)
+      return String(entry?.type?.name || entry?.type?.description || catalogType?.name || catalogType?.description || entry?.serviceName || '').trim()
+    })
+    .filter(Boolean)
+  const sessionViewServiceName = sessionViewServiceNames.length > 0
+    ? sessionViewServiceNames.join(' · ')
+    : sessionForBillingSummary?.type?.name || sessionForBillingSummary?.typeName || (locale === 'sl' ? 'Termin' : 'Session')
+  const sessionViewServiceLabel = sessionViewServiceNames.length > 1
+    ? (locale === 'sl' ? 'Storitve' : locale === 'sr' ? 'Usluge' : 'Services')
+    : (locale === 'sl' ? 'Storitev' : locale === 'sr' ? 'Usluga' : 'Service')
   const sessionViewDate = formatSessionDate(sessionForBillingSummary?.startTime)
   const sessionViewTime = buildSessionViewTimeRange(sessionForBillingSummary)
-  const sessionViewLocation = sessionForBillingSummary?.space?.name || '—'
+  const sessionViewSpaceNames = Array.from(new Set(orderedSessionViewServices
+    .map((entry: any) => {
+      const spaceId = Number(entry?.space?.id ?? entry?.spaceId)
+      const catalogSpace = metaSpaces.find((space: any) => Number(space?.id) === spaceId)
+      return String(entry?.space?.name || catalogSpace?.name || '').trim()
+    })
+    .filter(Boolean)))
+  const sessionViewLocation = sessionViewSpaceNames.length > 0
+    ? sessionViewSpaceNames.join(', ')
+    : sessionForBillingSummary?.space?.name || '—'
   const sessionViewConsultant = sessionForBillingSummary?.consultant ? fullName(sessionForBillingSummary.consultant) : '—'
 
   const SessionBillingViewIcon = ({ kind }: any) => kind === 'advance' ? (
@@ -1476,7 +1501,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               <span className="calendar-session-billing-view-session-icon" aria-hidden>
                 <SessionBillingViewIcon kind="advance" />
               </span>
-              <div><small>{locale === 'sl' ? 'Storitev' : 'Service'}</small><strong>{sessionViewServiceName}</strong></div>
+              <div><small>{sessionViewServiceLabel}</small><strong>{sessionViewServiceName}</strong></div>
               <div><small>{locale === 'sl' ? 'Datum' : 'Date'}</small><strong>{sessionViewDate || '—'}</strong></div>
               <div><small>{locale === 'sl' ? 'Čas' : 'Time'}</small><strong>{sessionViewTime}</strong></div>
               <div><small>{locale === 'sl' ? 'Prostor' : 'Space'}</small><strong>{sessionViewLocation}</strong></div>
@@ -1608,7 +1633,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             <span className="calendar-session-billing-view-session-icon" aria-hidden>
               <SessionBillingViewIcon kind={isAdvances ? 'advance' : 'invoice'} />
             </span>
-            <div><small>{locale === 'sl' ? 'Storitev' : 'Service'}</small><strong>{sessionViewServiceName}</strong></div>
+            <div><small>{sessionViewServiceLabel}</small><strong>{sessionViewServiceName}</strong></div>
             <div><small>{locale === 'sl' ? 'Datum' : 'Date'}</small><strong>{sessionViewDate || '—'}</strong></div>
             <div><small>{locale === 'sl' ? 'Čas' : 'Time'}</small><strong>{sessionViewTime}</strong></div>
             <div><small>{locale === 'sl' ? 'Prostor' : 'Space'}</small><strong>{sessionViewLocation}</strong></div>
@@ -2627,8 +2652,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               )}
               <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               {showBookingTypeRow && (
-                <div className="form-row form-row-infield calendar-booking-service-with-online calendar-booking-field--service">
-                  <div className="calendar-booking-service-infield-head">
+                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain">
+                  <div className="calendar-booking-service-infield-head calendar-booking-service-infield-head--chain">
                     <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
                     {onlineSessionBookingEnabled && selectedBookedSession.online ? (
                       <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
@@ -2682,23 +2707,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </div>
                     ) : null}
                   </div>
-                  <div className="form-field-inline-control calendar-booking-service-select-only" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="calendar-booking-service-select-shell">
-                      <select
-                        value={selectedBookedSession.type?.id ?? ''}
-                        onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: bookedSessionSelectableMetaTypes.find((ty: any) => Number(ty.id) === Number(e.target.value)) ?? null })}
-                      >
-                        <option value="">{t('formNoType')}</option>
-                        {bookedSessionIsGroup && !bookedSessionSelectedTypeAllowed && selectedBookedSession.type?.id ? (
-                          <option value={selectedBookedSession.type.id} disabled>
-                            {selectedBookedSession.type.name} ({locale === 'sl' ? 'Skupina ni omogočena' : 'Group is off'})
-                          </option>
-                        ) : null}
-                        {bookedSessionSelectableMetaTypes.map((ty: any) => (
-                          <option key={ty.id} value={ty.id}>{formatSessionTypeOptionLabel(ty)}</option>
-                        ))}
-                      </select>
-                    </div>
+                  <CalendarServiceChainEditor
+                    locale={locale}
+                    services={bookedServiceDrafts}
+                    segments={bookedServiceChain.segments}
+                    sessionTypes={bookedSessionSelectableMetaTypes}
+                    spaces={metaSpaces}
+                    currency={currency}
+                    totalSpanMinutes={bookedServiceChain.totalSpanMinutes}
+                    totalGross={bookedServiceChain.totalGross}
+                    clientCount={selectedBookedClientIds.length}
+                    warnings={bookedServiceWarnings}
+                    onChange={updateSelectedBookedSessionServices}
+                    onAdd={() => updateSelectedBookedSessionServices([
+                      ...bookedServiceDrafts,
+                      { typeId: null, spaceId: bookedServiceDrafts[bookedServiceDrafts.length - 1]?.spaceId ?? selectedBookedSession.space?.id ?? null },
+                    ])}
+                  />
+                  <div className="calendar-booking-service-chain__billing-actions">
                     <div className="calendar-session-billing-actions">
                       {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
                       <div className="calendar-session-billing-action-wrap">
@@ -2768,7 +2794,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 </div>
               )}
-              {showBookingSpaceRow && (
+              {showBookingSpaceRow && !showBookingTypeRow && (
                 <div className="form-row form-row-infield calendar-booking-field--space">
                   <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
                   <div className="form-field-inline-control">
@@ -2784,34 +2810,27 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <CalendarLocalTimespanRow
                   startValue={selectedBookedSession.startTime}
                   endValue={selectedBookedSession.endTime}
-                  onCommitStart={(s) =>
-                    setSelectedBookedSession((prev: any) => (prev ? { ...prev, startTime: s } : prev))
-                  }
+                  onCommitStart={(s) => updateSelectedBookedSessionStartTime(s)}
                   onCommitEnd={(s) =>
                     setSelectedBookedSession((prev: any) => (prev ? { ...prev, endTime: s } : prev))
                   }
+                  endTimeLocked={!isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime) && bookedServiceDrafts.some((service: any) => service.typeId != null)}
                   normalize={normalizeToLocalDateTime}
                   labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                   allDayToggle={{
                     checked: isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime),
                     onToggle: () => {
-                      setSelectedBookedSession((prev: any) => {
-                        if (!prev) return prev
-                        if (isLocalBookingAllDay(prev.startTime, prev.endTime)) {
-                          const d =
-                            splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
-                          const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                          const start = normalizeToLocalDateTime(`${d}T${hm}:00`)
-                          const end = getBookingEndTimeForStart(start, prev.type?.id ?? null)
-                          return { ...prev, startTime: start, endTime: end }
-                        }
-                        const d =
-                          splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
-                        return {
-                          ...prev,
-                          startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
-                          endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
-                        }
+                      if (isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime)) {
+                        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(selectedBookedSession.startTime)).date || localTodayYmd()
+                        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+                        updateSelectedBookedSessionStartTime(normalizeToLocalDateTime(`${d}T${hm}:00`))
+                        return
+                      }
+                      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(selectedBookedSession.startTime)).date || localTodayYmd()
+                      setSelectedBookedSession({
+                        ...selectedBookedSession,
+                        startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
+                        endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
                       })
                     },
                     label: t('formAllDay'),
@@ -4694,18 +4713,22 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             setBookingGroupMode(on)
                             if (on) {
                               const firstGroupType = metaTypes.find((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
-                              setForm((prev: any) => {
-                                const currentType = metaTypes.find((type: any) => type?.id === prev.typeId)
-                                return {
-                                  ...prev,
-                                  clientId: null,
-                                  clientIds: [],
-                                  typeId: currentType?.groupBookingEnabled === true ? prev.typeId : firstGroupType?.id ?? null,
-                                }
+                              const compatibleServices = formServiceDrafts.filter((service: any) => {
+                                if (service.typeId == null) return true
+                                const type = metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId))
+                                return type?.active !== false && type?.groupBookingEnabled === true
                               })
+                              const nextServices = compatibleServices.some((service: any) => service.typeId != null)
+                                ? compatibleServices
+                                : [{ typeId: firstGroupType?.id ?? null, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }]
+                              setForm((prev: any) => ({ ...prev, clientId: null, clientIds: [] }))
+                              updateBookingFormServices(nextServices)
                             } else {
                               const firstActiveType = metaTypes.find((type: any) => type?.active !== false)
-                              setForm((prev: any) => ({ ...prev, groupId: null, typeId: prev.typeId == null ? firstActiveType?.id ?? null : prev.typeId }))
+                              setForm((prev: any) => ({ ...prev, groupId: null }))
+                              if (!formServiceDrafts.some((service: any) => service.typeId != null) && firstActiveType) {
+                                updateBookingFormServices([{ typeId: firstActiveType.id, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }])
+                              }
                               setGroupSearch('')
                               setGroupDropdownOpen(false)
                               setEditingGroupSearch(false)
@@ -5028,94 +5051,77 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               )}
               {!form.todo && !form.personal && !availabilitySelection && showBookingTypeRow && (
-                <div className={`form-row form-row-infield calendar-booking-field--service${!isNativeAndroid && onlineSessionBookingEnabled ? ' calendar-booking-service-with-online' : ''}`}>
-                  {!isNativeAndroid ? (
-                    <>
-                      <div className="calendar-booking-service-infield-head">
-                        <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
-                        {onlineSessionBookingEnabled && form.online ? (
-                          <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
-                            <span className="meeting-provider-summary__name">
-                              {form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
-                            </span>
-                            <button
-                              type="button"
-                              className="secondary meeting-provider-change-btn"
-                              onClick={() => {
-                                setMeetingPickerCancelUnchecksOnline(false)
+                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain">
+                  <div className="calendar-booking-service-infield-head calendar-booking-service-infield-head--chain">
+                    <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
+                    {onlineSessionBookingEnabled && form.online ? (
+                      <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
+                        <span className="meeting-provider-summary__name">
+                          {form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
+                        </span>
+                        <button
+                          type="button"
+                          className="secondary meeting-provider-change-btn"
+                          onClick={() => {
+                            setMeetingPickerCancelUnchecksOnline(false)
+                            setMeetingProviderPickerTarget('create')
+                            setMeetingProviderPickerOpen(true)
+                          }}
+                        >
+                          {t('formChange')}
+                        </button>
+                      </div>
+                    ) : null}
+                    {onlineSessionBookingEnabled ? (
+                      <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                        <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                          <input
+                            type="checkbox"
+                            checked={!!form.online}
+                            aria-labelledby={addBookingOnlineCaptionId}
+                            onChange={(e) => {
+                              const on = e.target.checked
+                              if (on) {
+                                setForm({ ...form, online: true })
+                                setMeetingPickerCancelUnchecksOnline(true)
                                 setMeetingProviderPickerTarget('create')
                                 setMeetingProviderPickerOpen(true)
-                              }}
-                            >
-                              {t('formChange')}
-                            </button>
-                          </div>
-                        ) : null}
-                        {onlineSessionBookingEnabled ? (
-                          <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
-                            <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
-                              <input
-                                type="checkbox"
-                                checked={!!form.online}
-                                aria-labelledby={addBookingOnlineCaptionId}
-                                onChange={(e) => {
-                                  const on = e.target.checked
-                                  if (on) {
-                                    setForm({ ...form, online: true })
-                                    setMeetingPickerCancelUnchecksOnline(true)
-                                    setMeetingProviderPickerTarget('create')
-                                    setMeetingProviderPickerOpen(true)
-                                  } else {
-                                    setForm({ ...form, online: false })
-                                    setMeetingProviderPickerOpen(false)
-                                    setMeetingProviderPickerTarget(null)
-                                    setMeetingPickerCancelUnchecksOnline(false)
-                                  }
-                                }}
-                              />
-                              <span className="repeats-toggle-slider" />
-                            </label>
-                            <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
-                              {t('formSessionOnlineShort')}
-                            </span>
-                          </div>
-                        ) : null}
+                              } else {
+                                setForm({ ...form, online: false })
+                                setMeetingProviderPickerOpen(false)
+                                setMeetingProviderPickerTarget(null)
+                                setMeetingPickerCancelUnchecksOnline(false)
+                              }
+                            }}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                        <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
+                          {t('formSessionOnlineShort')}
+                        </span>
                       </div>
-                      <div className="form-field-inline-control calendar-booking-service-select-only">
-                        <select
-                          value={form.typeId || ''}
-                          onChange={(e) => updateBookingFormType(Number(e.target.value) || null)}
-                        >
-                          <option value="">{t('formNoType')}</option>
-                          {selectableMetaTypes.map((ty: any) => (
-                            <option key={ty.id} value={ty.id}>
-                              {formatSessionTypeOptionLabel(ty)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
-                      <div className="form-field-inline-control">
-                        <select
-                          value={form.typeId || ''}
-                          onChange={(e) => updateBookingFormType(Number(e.target.value) || null)}
-                        >
-                          <option value="">{t('formNoType')}</option>
-                          {selectableMetaTypes.map((ty: any) => (
-                            <option key={ty.id} value={ty.id}>
-                              {formatSessionTypeOptionLabel(ty)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  )}
+                    ) : null}
+                  </div>
+                  <CalendarServiceChainEditor
+                    locale={locale}
+                    services={formServiceDrafts}
+                    segments={formServiceChain.segments}
+                    sessionTypes={selectableMetaTypes}
+                    spaces={metaSpaces}
+                    currency={currency}
+                    totalSpanMinutes={formServiceChain.totalSpanMinutes}
+                    totalGross={formServiceChain.totalGross}
+                    clientCount={selectedFormClientIds.length}
+                    warnings={formServiceWarnings}
+                    onChange={updateBookingFormServices}
+                    onAdd={() => updateBookingFormServices([
+                      ...formServiceDrafts,
+                      { typeId: null, spaceId: formServiceDrafts[formServiceDrafts.length - 1]?.spaceId ?? form.spaceId ?? null },
+                    ])}
+                  />
                 </div>
               )}
-              {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && (
+              {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && !showBookingTypeRow && (
                 <div className="form-row form-row-infield calendar-booking-field--space">
                   <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
                   <div className="form-field-inline-control">
@@ -5132,32 +5138,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   endValue={form.endTime}
                   onCommitStart={(s) => updateBookingFormStartTime(s)}
                   onCommitEnd={(s) => updateBookingFormEndTime(s)}
+                  endTimeLocked={!isLocalBookingAllDay(form.startTime, form.endTime) && formServiceDrafts.some((service: any) => service.typeId != null)}
                   normalize={normalizeToLocalDateTime}
                   labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                   allDayToggle={{
                     checked: isLocalBookingAllDay(form.startTime, form.endTime),
                     onToggle: () => {
-                      setForm((f: any) => {
-                        if (isLocalBookingAllDay(f.startTime, f.endTime)) {
-                          const d =
-                            splitLocalDateTimeParts(normalizeToLocalDateTime(f.startTime)).date || localTodayYmd()
-                          const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                          const start = normalizeToLocalDateTime(`${d}T${hm}:00`)
-                          bookingEndEditedManuallyRef.current = false
-                          return {
-                            ...f,
-                            startTime: start,
-                            endTime: getBookingEndTimeForStart(start, f.typeId),
-                          }
-                        }
-                        const d =
-                          splitLocalDateTimeParts(normalizeToLocalDateTime(f.startTime)).date || localTodayYmd()
-                        bookingEndEditedManuallyRef.current = true
-                        return {
-                          ...f,
-                          startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
-                          endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
-                        }
+                      if (isLocalBookingAllDay(form.startTime, form.endTime)) {
+                        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(form.startTime)).date || localTodayYmd()
+                        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+                        updateBookingFormStartTime(normalizeToLocalDateTime(`${d}T${hm}:00`))
+                        return
+                      }
+                      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(form.startTime)).date || localTodayYmd()
+                      bookingEndEditedManuallyRef.current = true
+                      setForm({
+                        ...form,
+                        startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
+                        endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
                       })
                     },
                     label: t('formAllDay'),
