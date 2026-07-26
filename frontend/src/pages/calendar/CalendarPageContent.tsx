@@ -3334,7 +3334,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     startTime: string | null | undefined,
     endTime: string | null | undefined,
     services: CalendarServiceDraft[] | undefined | null,
-  ) => isLocalBookingAllDay(startTime, endTime) ? [] : bookingServicesPayload(services)
+  ) => isLocalBookingAllDay(startTime ?? undefined, endTime ?? undefined) ? [] : bookingServicesPayload(services)
 
   const getBookingServiceDrafts = (bookingLike: any): CalendarServiceDraft[] =>
     normalizeCalendarServiceDrafts(bookingLike?.services, bookingLike?.type?.id ?? bookingLike?.typeId, bookingLike?.space?.id ?? bookingLike?.spaceId)
