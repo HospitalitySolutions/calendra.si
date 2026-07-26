@@ -248,8 +248,73 @@ public final class GuestDtos {
             this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language, null, null);
         }
 
+        /**
+         * Backwards-compatible constructor used by the first public multi-service API.
+         * Each entry is interpreted as a session-type id and converted to an ordered
+         * {@link SelectedServiceRequest}.
+         */
+        public CreateOrderRequest(
+                String companyId,
+                String productId,
+                String slotId,
+                String paymentMethodType,
+                String entitlementId,
+                String locale,
+                String language,
+                List<String> serviceIds
+        ) {
+            this(
+                    companyId,
+                    productId,
+                    slotId,
+                    paymentMethodType,
+                    entitlementId,
+                    locale,
+                    language,
+                    toSelectedServices(serviceIds),
+                    null
+            );
+        }
+
         public CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {
             this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null, null);
+        }
+
+        /** Legacy accessor retained for integrations that still read serviceIds. */
+        public List<String> serviceIds() {
+            if (services == null || services.isEmpty()) return List.of();
+            return services.stream()
+                    .map(service -> service == null ? null : firstNonBlank(service.sessionTypeId(), sessionTypeIdFromProduct(service.productId())))
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+        }
+
+        private static List<SelectedServiceRequest> toSelectedServices(List<String> serviceIds) {
+            if (serviceIds == null || serviceIds.isEmpty()) return null;
+            java.util.ArrayList<SelectedServiceRequest> selected = new java.util.ArrayList<>();
+            for (int position = 0; position < serviceIds.size(); position++) {
+                String raw = serviceIds.get(position);
+                if (raw == null || raw.isBlank()) continue;
+                String value = raw.trim();
+                String sessionTypeId = sessionTypeIdFromProduct(value);
+                if (sessionTypeId == null) sessionTypeId = value;
+                String selectedProductId = value.startsWith("session-") ? value : "session-" + sessionTypeId;
+                selected.add(new SelectedServiceRequest(selectedProductId, sessionTypeId, position, null, null));
+            }
+            return selected.isEmpty() ? null : List.copyOf(selected);
+        }
+
+        private static String sessionTypeIdFromProduct(String productId) {
+            if (productId == null || productId.isBlank()) return null;
+            String value = productId.trim();
+            return value.startsWith("session-") && value.length() > "session-".length()
+                    ? value.substring("session-".length())
+                    : null;
+        }
+
+        private static String firstNonBlank(String first, String second) {
+            if (first != null && !first.isBlank()) return first.trim();
+            return second == null || second.isBlank() ? null : second.trim();
         }
     }
     public record OrderSummaryResponse(String orderId, String status, String paymentMethodType, double subtotalGross, double taxAmount, double totalGross, String currency) {}

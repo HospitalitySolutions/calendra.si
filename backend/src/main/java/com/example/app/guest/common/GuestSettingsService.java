@@ -349,7 +349,74 @@ public class GuestSettingsService {
         return Math.min(value, 100);
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, boolean cancellationAllowed, boolean modificationAllowed, boolean multipleServicesEnabled) {}
+    public record GuestPublicSettings(
+            boolean guestAppEnabled,
+            boolean publicDiscoverable,
+            String publicName,
+            String publicDescription,
+            String publicCity,
+            String publicPhone,
+            String companyAddress,
+            String invoiceCompanyName,
+            String defaultLanguage,
+            boolean employeeSelectionStep,
+            boolean useEmployeeContact,
+            boolean billingEnabled,
+            boolean inboxEnabled,
+            String tenantType,
+            String cardImageUrl,
+            String logoImageUrl,
+            String iconImageUrl,
+            boolean cancellationAllowed,
+            boolean modificationAllowed,
+            boolean multipleServicesEnabled
+    ) {
+        /** Backwards-compatible constructor for callers created before multi-service settings existed. */
+        public GuestPublicSettings(
+                boolean guestAppEnabled,
+                boolean publicDiscoverable,
+                String publicName,
+                String publicDescription,
+                String publicCity,
+                String publicPhone,
+                String companyAddress,
+                String invoiceCompanyName,
+                String defaultLanguage,
+                boolean employeeSelectionStep,
+                boolean useEmployeeContact,
+                boolean billingEnabled,
+                boolean inboxEnabled,
+                String tenantType,
+                String cardImageUrl,
+                String logoImageUrl,
+                String iconImageUrl,
+                boolean cancellationAllowed,
+                boolean modificationAllowed
+        ) {
+            this(
+                    guestAppEnabled,
+                    publicDiscoverable,
+                    publicName,
+                    publicDescription,
+                    publicCity,
+                    publicPhone,
+                    companyAddress,
+                    invoiceCompanyName,
+                    defaultLanguage,
+                    employeeSelectionStep,
+                    useEmployeeContact,
+                    billingEnabled,
+                    inboxEnabled,
+                    tenantType,
+                    cardImageUrl,
+                    logoImageUrl,
+                    iconImageUrl,
+                    cancellationAllowed,
+                    modificationAllowed,
+                    false
+            );
+        }
+    }
     public record GuestBookingRules(
             int cancelUntilHours,
             int rescheduleUntilHours,

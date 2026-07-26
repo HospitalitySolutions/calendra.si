@@ -390,10 +390,13 @@ public class GuestOrderService {
         for (int position = 0; position < ordered.size(); position++) {
             GuestDtos.SelectedServiceRequest item = ordered.get(position).value();
             String productId = normalizeId(item.productId());
-            if (productId == null && normalizeId(item.sessionTypeId()) != null) {
-                productId = "session-" + item.sessionTypeId().trim();
+            String sessionTypeId = normalizeId(item.sessionTypeId());
+            GuestCatalogService.ResolvedProduct resolved;
+            if (sessionTypeId != null && (productId == null || productId.equals("session-" + sessionTypeId))) {
+                resolved = catalogService.resolveWebsiteSessionProduct(companyId, parseRequiredId(sessionTypeId, "Invalid service identifier."));
+            } else {
+                resolved = catalogService.resolveProduct(companyId, productId, guestUser);
             }
-            GuestCatalogService.ResolvedProduct resolved = catalogService.resolveProduct(companyId, productId, guestUser);
             if (!isSessionLikeProductType(resolved.productType()) || resolved.sessionType() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only bookable services can be combined in one session.");
             }
@@ -448,6 +451,16 @@ public class GuestOrderService {
             return normalizeId(value) == null ? null : Long.parseLong(value.trim());
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service space identifier.");
+        }
+    }
+
+    private static Long parseRequiredId(String value, String message) {
+        try {
+            String normalized = normalizeId(value);
+            if (normalized == null) throw new NumberFormatException("blank");
+            return Long.parseLong(normalized);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
         }
     }
 

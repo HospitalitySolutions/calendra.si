@@ -362,6 +362,19 @@ public class GuestCatalogService {
         return resolveProduct(companyId, productId, null);
     }
 
+    /**
+     * Resolves a public website service by its session-type id. This method is
+     * retained for the original multi-service widget contract and delegates to
+     * the same product resolution used by Calendra Connect.
+     */
+    @Transactional(readOnly = true)
+    public ResolvedProduct resolveWebsiteSessionProduct(Long companyId, Long sessionTypeId) {
+        if (sessionTypeId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing service identifier.");
+        }
+        return resolveProduct(companyId, "session-" + sessionTypeId, null);
+    }
+
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {
         if (productId == null || productId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         if (productId.startsWith("session-")) {
