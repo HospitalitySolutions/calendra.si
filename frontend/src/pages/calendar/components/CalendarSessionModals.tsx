@@ -2627,29 +2627,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </div>
               </div>
               )}
-              {showBookingConsultantRow && (
-                <div className="form-row form-row-infield calendar-booking-field--consultant">
-                  <span className="form-field-inline-label">{t('formConsultant')}</span>
-                  <div className="form-field-inline-control">
-                  <select
-                    value={selectedBookedSession.consultant?.id ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      if (val === '') {
-                        setSelectedBookedSession({ ...selectedBookedSession, consultant: null })
-                      } else {
-                        setSelectedBookedSession({ ...selectedBookedSession, consultant: metaUsers.find((u: any) => u.id === Number(val)) })
-                      }
-                    }}
-                  >
-                    <option value="">{t('formUnassigned')}</option>
-                    {metaConsultants.map((c: any) => (
-                      <option key={c.id} value={c.id}>{fullName(c)}</option>
-                    ))}
-                  </select>
-                  </div>
-                </div>
-              )}
               <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               {showBookingTypeRow && (
                 <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain">
@@ -2788,6 +2765,29 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         <BookedEntitlementScanIcon />
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+              {showBookingConsultantRow && (
+                <div className="form-row form-row-infield calendar-booking-field--consultant">
+                  <span className="form-field-inline-label">{t('formConsultant')}</span>
+                  <div className="form-field-inline-control">
+                  <select
+                    value={selectedBookedSession.consultant?.id ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === '') {
+                        setSelectedBookedSession({ ...selectedBookedSession, consultant: null })
+                      } else {
+                        setSelectedBookedSession({ ...selectedBookedSession, consultant: metaUsers.find((u: any) => u.id === Number(val)) })
+                      }
+                    }}
+                  >
+                    <option value="">{t('formUnassigned')}</option>
+                    {metaConsultants.map((c: any) => (
+                      <option key={c.id} value={c.id}>{fullName(c)}</option>
+                    ))}
+                  </select>
                   </div>
                 </div>
               )}
@@ -5044,14 +5044,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   )}
                 </div>
               </div>
-              {showBookingConsultantRow && (
-                <div className="form-row form-row-infield calendar-booking-field--consultant">
-                  <span className="form-field-inline-label">{t('formConsultant')}</span>
-                  <div className="form-field-inline-control">
-                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </select>
-                  </div>
-                </div>
-              )}
               {!form.todo && !form.personal && !availabilitySelection && (
                 <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               )}
@@ -5121,6 +5113,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     onChange={updateBookingFormServices}
                     defaultSpaceId={form.spaceId ?? null}
                   />
+                </div>
+              )}
+              {showBookingConsultantRow && (
+                <div className="form-row form-row-infield calendar-booking-field--consultant">
+                  <span className="form-field-inline-label">{t('formConsultant')}</span>
+                  <div className="form-field-inline-control">
+                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </select>
+                  </div>
                 </div>
               )}
               {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && (!showBookingTypeRow || formServiceDrafts.filter((service: any) => service.typeId != null).length <= 1) && (

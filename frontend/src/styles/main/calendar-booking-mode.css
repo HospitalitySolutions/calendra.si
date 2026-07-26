@@ -1,6 +1,6 @@
-/* Booking mode: align top rows and keep repeats below timespan */
+/* Booking mode: client full width, service full width, consultant + space side by side */
 .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--client {
-    grid-column: 1 / span 8;
+    grid-column: 1 / -1;
 }
 
 .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-row-divider {
@@ -10,30 +10,21 @@
     margin: 2px 0;
 }
 
+.calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service,
+.calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service-chain {
+    grid-column: 1 / -1;
+}
+
 .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant {
-    grid-column: 9 / -1;
-    align-self: start;
-    position: relative;
-}
-
-.calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    top: 10px;
-    bottom: 10px;
-    width: 1px;
-    background: #e2e8f0;
-    pointer-events: none;
-}
-
-.calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--service {
     grid-column: 1 / span 6;
+    align-self: start;
+    min-width: 0;
 }
 
 .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--space {
     grid-column: 7 / -1;
     position: relative;
+    min-width: 0;
 }
 
 .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--space::before {
@@ -45,6 +36,18 @@
     width: 1px;
     background: #e2e8f0;
     pointer-events: none;
+}
+
+.calendar-edit-session-panel .form-row-layout.form-row-layout--booking:not(:has(> .calendar-booking-field--consultant)) > .calendar-booking-field--space {
+    grid-column: 1 / -1;
+}
+
+.calendar-edit-session-panel .form-row-layout.form-row-layout--booking:not(:has(> .calendar-booking-field--consultant)) > .calendar-booking-field--space::before {
+    content: none;
+}
+
+.calendar-edit-session-panel .form-row-layout.form-row-layout--booking:not(:has(> .calendar-booking-field--space)) > .calendar-booking-field--consultant {
+    grid-column: 1 / -1;
 }
 
 .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-timespan-row {
@@ -205,7 +208,6 @@
         grid-column: 1 / -1;
     }
 
-    .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant::before,
     .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--space::before {
         content: none;
     }
