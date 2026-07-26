@@ -11,9 +11,12 @@ import com.example.app.common.TimeService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.ServiceGroup;
 import com.example.app.session.ServiceGroupRepository;
+import com.example.app.session.BookingSource;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
+import com.example.app.session.SessionService;
+import com.example.app.session.SessionServiceSupport;
 import com.example.app.session.SessionType;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
@@ -247,6 +250,27 @@ public class AnalyticsService {
             List<UsageRanking> roomHours
     ) {}
 
+    public record MultiServiceSourceMetric(String source, long bookings) {}
+
+    public record MultiServiceUsageMetric(
+            Long serviceId,
+            String serviceName,
+            long usageCount,
+            BigDecimal revenueGross
+    ) {}
+
+    public record MultiServiceAnalyticsResponse(
+            String rangeStart,
+            String rangeEnd,
+            long bookings,
+            long selectedServices,
+            long multiServiceBookings,
+            double averageServicesPerBooking,
+            double multiServiceConversionRate,
+            List<MultiServiceSourceMetric> bookingSources,
+            List<MultiServiceUsageMetric> services
+    ) {}
+
     private static final class Bucket {
         long sessionsTotal = 0;
         final Set<Long> clientIds = new HashSet<>();
@@ -271,6 +295,18 @@ public class AnalyticsService {
     private static final class CountBucket {
         long count = 0;
         long minutes = 0;
+    }
+
+    private static final class MultiServiceBucket {
+        final Long serviceId;
+        final String serviceName;
+        long usageCount;
+        BigDecimal revenueGross = BigDecimal.ZERO;
+
+        MultiServiceBucket(Long serviceId, String serviceName) {
+            this.serviceId = serviceId;
+            this.serviceName = safeAnalyticsName(serviceName, "Service");
+        }
     }
 
     private record GroupKey(Long id, String name) {}
@@ -448,12 +484,30 @@ public class AnalyticsService {
             }
 
             if (serviceGroupsEnabled) {
-                GroupAnalyticsBucket groupBucket = groupBucketForBooking(groupAnalytics, currentGroupActive, b);
-                ServiceAnalyticsBucket serviceBucket = groupBucket.service(
-                        b.getType() == null ? null : b.getType().getId(),
-                        b.getType() == null ? "Service" : b.getType().getName()
-                );
-                accumulateBookingMetric(groupBucket, serviceBucket, b.getBookingStatus(), durationMinutes);
+                List<SessionService> serviceLines = SessionServiceSupport.orderedServices(b);
+                if (serviceLines.isEmpty()) {
+                    GroupAnalyticsBucket groupBucket = groupBucketForBooking(groupAnalytics, currentGroupActive, b);
+                    ServiceAnalyticsBucket serviceBucket = groupBucket.service(
+                            b.getType() == null ? null : b.getType().getId(),
+                            b.getType() == null ? "Service" : b.getType().getName()
+                    );
+                    accumulateBookingMetric(groupBucket, serviceBucket, b.getBookingStatus(), durationMinutes);
+                } else {
+                    for (SessionService line : serviceLines) {
+                        Long groupId = line.getServiceGroupIdSnapshot();
+                        String groupName = line.getServiceGroupNameSnapshot();
+                        if (groupId == null && line.getSessionType() != null && line.getSessionType().getServiceGroup() != null) {
+                            groupId = line.getSessionType().getServiceGroup().getId();
+                            groupName = line.getSessionType().getServiceGroup().getName();
+                        }
+                        GroupAnalyticsBucket groupBucket = groupBucket(groupAnalytics, currentGroupActive, groupId, groupName);
+                        ServiceAnalyticsBucket serviceBucket = groupBucket.service(
+                                line.getSessionType() == null ? null : line.getSessionType().getId(),
+                                line.getServiceNameSnapshot()
+                        );
+                        accumulateBookingMetric(groupBucket, serviceBucket, b.getBookingStatus(), Math.max(1, line.getDurationMinutesSnapshot()));
+                    }
+                }
             }
         }
 
@@ -755,6 +809,130 @@ public class AnalyticsService {
                 toRankedAmounts(serviceRanking, 20),
                 invoiceRows
         );
+    }
+
+    @Transactional(readOnly = true)
+    public MultiServiceAnalyticsResponse multiService(
+            User me,
+            String periodRaw,
+            LocalDate fromParam,
+            LocalDate toParam,
+            Long consultantIdParam
+    ) {
+        Long companyId = me.getCompany().getId();
+        Long consultantFilter = resolveConsultantFilter(me, consultantIdParam);
+        ZoneId zone = ZoneId.of(remindersTimezone);
+        DateRange range = resolveRange(normalizePeriod(periodRaw), fromParam, toParam, zone);
+        LocalDateTime rangeStart = range.from().atStartOfDay();
+        LocalDateTime rangeEndExclusive = range.to().plusDays(1).atStartOfDay();
+
+        List<SessionBooking> rows = bookingRepository.findAnalyticsByCompanyIdAndRange(
+                companyId, rangeStart, rangeEndExclusive, consultantFilter, null, null, null);
+        Map<String, SessionBooking> logicalBookings = new LinkedHashMap<>();
+        for (SessionBooking booking : rows) {
+            String key = booking.getBookingGroupKey() == null || booking.getBookingGroupKey().isBlank()
+                    ? "id:" + booking.getId()
+                    : "group:" + booking.getBookingGroupKey();
+            logicalBookings.putIfAbsent(key, booking);
+        }
+
+        Map<String, Long> sources = new LinkedHashMap<>();
+        Map<String, MultiServiceBucket> services = new LinkedHashMap<>();
+        Map<Long, SessionBooking> bookingById = new HashMap<>();
+        rows.forEach(booking -> bookingById.put(booking.getId(), booking));
+        long selectedServiceCount = 0;
+        long multiServiceBookings = 0;
+
+        for (SessionBooking booking : logicalBookings.values()) {
+            List<SessionService> lines = SessionServiceSupport.orderedServices(booking);
+            int count = lines.isEmpty() ? (booking.getType() == null ? 0 : 1) : lines.size();
+            selectedServiceCount += count;
+            if (count > 1) multiServiceBookings++;
+
+            BookingSource source = BookingSource.resolve(booking.getBookingSource(), booking.getSourceChannel());
+            sources.merge(multiServiceSourceLabel(source), 1L, Long::sum);
+
+            if (lines.isEmpty() && booking.getType() != null) {
+                String key = booking.getType().getId() + "|" + safeAnalyticsName(booking.getType().getName(), "Service");
+                services.computeIfAbsent(key, ignored -> new MultiServiceBucket(booking.getType().getId(), booking.getType().getName())).usageCount++;
+            } else {
+                for (SessionService line : lines) {
+                    Long id = line.getSessionType() == null ? null : line.getSessionType().getId();
+                    String name = safeAnalyticsName(line.getServiceNameSnapshot(), "Service");
+                    String key = String.valueOf(id) + "|" + name;
+                    services.computeIfAbsent(key, ignored -> new MultiServiceBucket(id, name)).usageCount++;
+                }
+            }
+        }
+
+        List<Bill> bills = billRepository.findAnalyticsByCompanyIdAndIssueDateRange(
+                companyId, range.from(), range.to(), consultantFilter);
+        for (Bill bill : bills) {
+            for (BillItem item : bill.getItems()) {
+                if (item == null || item.getSourceSessionBookingId() == null) continue;
+                SessionBooking sourceBooking = bookingById.get(item.getSourceSessionBookingId());
+                if (sourceBooking == null) continue;
+                BigDecimal lineGross = money(item.getGrossPrice())
+                        .multiply(BigDecimal.valueOf(item.getQuantity() == null ? 1 : Math.max(0, item.getQuantity())));
+                if (lineGross.signum() == 0) continue;
+                String label = safeServiceLabel(item);
+                MultiServiceBucket target = findMatchingServiceBucket(services, sourceBooking, label);
+                if (target != null) target.revenueGross = target.revenueGross.add(lineGross);
+            }
+        }
+
+        long bookingCount = logicalBookings.size();
+        double average = bookingCount == 0 ? 0.0 : Math.round((selectedServiceCount * 100.0) / bookingCount) / 100.0;
+        double conversion = bookingCount == 0 ? 0.0 : Math.round((multiServiceBookings * 10000.0) / bookingCount) / 100.0;
+        List<MultiServiceSourceMetric> sourceRows = sources.entrySet().stream()
+                .map(entry -> new MultiServiceSourceMetric(entry.getKey(), entry.getValue()))
+                .sorted(Comparator.comparing(MultiServiceSourceMetric::bookings).reversed())
+                .toList();
+        List<MultiServiceUsageMetric> serviceRows = services.values().stream()
+                .map(bucket -> new MultiServiceUsageMetric(bucket.serviceId, bucket.serviceName, bucket.usageCount, bucket.revenueGross))
+                .sorted(Comparator
+                        .comparing(MultiServiceUsageMetric::revenueGross, Comparator.reverseOrder())
+                        .thenComparing(Comparator.comparingLong(MultiServiceUsageMetric::usageCount).reversed())
+                        .thenComparing(MultiServiceUsageMetric::serviceName))
+                .toList();
+        return new MultiServiceAnalyticsResponse(
+                range.from().toString(), range.to().toString(), bookingCount, selectedServiceCount,
+                multiServiceBookings, average, conversion, sourceRows, serviceRows);
+    }
+
+    private String multiServiceSourceLabel(BookingSource source) {
+        if (source == null) return "STAFF";
+        return switch (source) {
+            case MANUAL -> "STAFF";
+            case MOBILE_APP -> "GUEST_APP";
+            case WEBSITE_WIDGET -> "WIDGET";
+            case PUBLIC_BOOKING_PAGE -> "CALENDRA_WEBSITE";
+        };
+    }
+
+    private MultiServiceBucket findMatchingServiceBucket(
+            Map<String, MultiServiceBucket> buckets,
+            SessionBooking booking,
+            String invoiceLabel
+    ) {
+        String normalizedLabel = invoiceLabel == null ? "" : invoiceLabel.trim().toLowerCase(Locale.ROOT);
+        List<SessionService> lines = SessionServiceSupport.orderedServices(booking);
+        for (SessionService line : lines) {
+            String name = safeAnalyticsName(line.getServiceNameSnapshot(), "Service");
+            if (!normalizedLabel.isBlank() && normalizedLabel.contains(name.toLowerCase(Locale.ROOT))) {
+                Long id = line.getSessionType() == null ? null : line.getSessionType().getId();
+                return buckets.get(String.valueOf(id) + "|" + name);
+            }
+        }
+        if (lines.size() == 1) {
+            SessionService line = lines.getFirst();
+            Long id = line.getSessionType() == null ? null : line.getSessionType().getId();
+            return buckets.get(String.valueOf(id) + "|" + safeAnalyticsName(line.getServiceNameSnapshot(), "Service"));
+        }
+        if (lines.isEmpty() && booking.getType() != null) {
+            return buckets.get(booking.getType().getId() + "|" + safeAnalyticsName(booking.getType().getName(), "Service"));
+        }
+        return null;
     }
 
     @Transactional(readOnly = true)

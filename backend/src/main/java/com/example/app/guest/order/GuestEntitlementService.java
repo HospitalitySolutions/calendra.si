@@ -8,6 +8,7 @@ import com.example.app.course.MembershipCourseRepository;
 import com.example.app.common.TimeService;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -86,10 +87,16 @@ public class GuestEntitlementService {
 
     @Transactional
     public GuestEntitlementSelection consumeSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId, SessionBooking booking) {
+        return consumeSelectedEntitlement(client, companyId, sessionTypeId, entitlementId, booking, null);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestEntitlement validateSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId) {
         GuestEntitlement entitlement = entitlements.findById(entitlementId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available."));
         Instant now = timeService.instant(companyId);
-        boolean matchesClient = entitlement.getClient() != null && Objects.equals(entitlement.getClient().getId(), client.getId());
+        boolean matchesClient = client != null && entitlement.getClient() != null
+                && Objects.equals(entitlement.getClient().getId(), client.getId());
         boolean matchesCompany = entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId);
         boolean active = entitlement.getStatus() == EntitlementStatus.ACTIVE;
         boolean validFrom = entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now);
@@ -99,20 +106,34 @@ public class GuestEntitlementService {
         boolean matchesService = entitlement.getProduct() != null
                 && (entitlement.getProduct().getSessionType() == null || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId));
         if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !notGiftCard || !matchesService) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this booking.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this service.");
         }
-        return consumeEntitlement(entitlement, booking);
+        return entitlement;
+    }
+
+    @Transactional
+    public GuestEntitlementSelection consumeSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId, SessionBooking booking, SessionService sessionService) {
+        GuestEntitlement entitlement = validateSelectedEntitlement(client, companyId, sessionTypeId, entitlementId);
+        return consumeEntitlement(entitlement, booking, sessionService);
     }
 
     private GuestEntitlementSelection consumeEntitlement(GuestEntitlement entitlement, SessionBooking booking) {
-        List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
-        if (!existingUsages.isEmpty()) {
-            GuestEntitlementUsage existingUsage = existingUsages.get(0);
+        return consumeEntitlement(entitlement, booking, null);
+    }
+
+    private GuestEntitlementSelection consumeEntitlement(GuestEntitlement entitlement, SessionBooking booking, SessionService sessionService) {
+        GuestEntitlementUsage existingUsage = sessionService != null && sessionService.getId() != null
+                ? usages.findBySessionServiceId(sessionService.getId()).orElse(null)
+                : usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId()).stream()
+                    .filter(row -> row.getSessionService() == null)
+                    .findFirst().orElse(null);
+        if (existingUsage != null) {
             return new GuestEntitlementSelection(existingUsage.getEntitlement(), false);
         }
         GuestEntitlementUsage usage = new GuestEntitlementUsage();
         usage.setEntitlement(entitlement);
         usage.setSessionBooking(booking);
+        usage.setSessionService(sessionService);
         usage.setReason(EntitlementUsageReason.BOOKING);
         usage.setUsedAt(Instant.now());
         usages.save(usage);
@@ -338,25 +359,65 @@ public class GuestEntitlementService {
     }
 
     @Transactional
+    public boolean restoreCreditsForRemovedServices(
+            SessionBooking booking,
+            com.example.app.session.SessionServicePlanService.Plan nextPlan
+    ) {
+        if (booking == null || booking.getId() == null) return false;
+        List<GuestEntitlementUsage> usageRows = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
+        if (usageRows.isEmpty()) return false;
+
+        Map<Long, Integer> retainedCounts = new LinkedHashMap<>();
+        if (nextPlan != null && nextPlan.segments() != null) {
+            for (var segment : nextPlan.segments()) {
+                if (segment.type() != null && segment.type().getId() != null) {
+                    retainedCounts.merge(segment.type().getId(), 1, Integer::sum);
+                }
+            }
+        }
+        Map<Long, Integer> matchedCounts = new LinkedHashMap<>();
+        List<GuestEntitlementUsage> removed = new ArrayList<>();
+        for (GuestEntitlementUsage usage : usageRows) {
+            SessionService line = usage.getSessionService();
+            if (line == null || line.getSessionType() == null || line.getSessionType().getId() == null) continue;
+            Long typeId = line.getSessionType().getId();
+            int matched = matchedCounts.getOrDefault(typeId, 0);
+            int retained = retainedCounts.getOrDefault(typeId, 0);
+            if (matched < retained) {
+                matchedCounts.put(typeId, matched + 1);
+            } else {
+                restoreUsageCredit(usage);
+                removed.add(usage);
+            }
+        }
+        if (!removed.isEmpty()) usages.deleteAll(removed);
+        return !removed.isEmpty();
+    }
+
+    @Transactional
     public boolean maybeRestoreCreditForBooking(SessionBooking booking) {
         List<GuestEntitlementUsage> usageRows = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
         if (usageRows.isEmpty()) return false;
         for (GuestEntitlementUsage usage : usageRows) {
-            GuestEntitlement entitlement = usage.getEntitlement();
-            if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD) {
-                BigDecimal restoredBalance = usage.getUnitsBefore() == null
-                        ? entitlement.getRemainingValueGross()
-                        : BigDecimal.valueOf(usage.getUnitsBefore(), 2).setScale(2, RoundingMode.HALF_UP);
-                entitlement.setRemainingValueGross(restoredBalance);
-                entitlement.setRemainingUses(1);
-            } else {
-                incrementIfLimited(entitlement);
-            }
-            entitlement.setStatus(EntitlementStatus.ACTIVE);
-            entitlements.save(entitlement);
+            restoreUsageCredit(usage);
         }
         usages.deleteAll(usageRows);
         return true;
+    }
+
+    private void restoreUsageCredit(GuestEntitlementUsage usage) {
+        GuestEntitlement entitlement = usage.getEntitlement();
+        if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD) {
+            BigDecimal restoredBalance = usage.getUnitsBefore() == null
+                    ? entitlement.getRemainingValueGross()
+                    : BigDecimal.valueOf(usage.getUnitsBefore(), 2).setScale(2, RoundingMode.HALF_UP);
+            entitlement.setRemainingValueGross(restoredBalance);
+            entitlement.setRemainingUses(1);
+        } else {
+            incrementIfLimited(entitlement);
+        }
+        entitlement.setStatus(EntitlementStatus.ACTIVE);
+        entitlements.save(entitlement);
     }
 
     @Transactional(readOnly = true)

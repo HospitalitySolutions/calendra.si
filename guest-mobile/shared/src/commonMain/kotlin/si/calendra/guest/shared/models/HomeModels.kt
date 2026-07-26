@@ -3,6 +3,18 @@ package si.calendra.guest.shared.models
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class BookingServiceLine(
+    val sessionTypeId: String,
+    val name: String,
+    val position: Int,
+    val durationMinutes: Int,
+    val startsAt: String? = null,
+    val endsAt: String? = null,
+    val priceGross: Double = 0.0,
+    val currency: String = "EUR"
+)
+
+@Serializable
 data class UpcomingBooking(
     val bookingId: String,
     val sessionTypeName: String,
@@ -11,7 +23,12 @@ data class UpcomingBooking(
     val employeePhone: String? = null,
     val endsAt: String? = null,
     val consultantName: String? = null,
-    val sessionTypeId: String? = null
+    val sessionTypeId: String? = null,
+    val services: List<BookingServiceLine> = emptyList(),
+    val totalDurationMinutes: Int = 0,
+    val totalPriceGross: Double = 0.0,
+    val currency: String = "EUR",
+    val paymentStatus: String? = null
 )
 
 @Serializable

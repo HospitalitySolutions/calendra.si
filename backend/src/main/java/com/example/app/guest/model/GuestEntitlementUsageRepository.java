@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface GuestEntitlementUsageRepository extends JpaRepository<GuestEntitlementUsage, Long> {
     Optional<GuestEntitlementUsage> findBySessionBookingId(Long sessionBookingId);
+    Optional<GuestEntitlementUsage> findBySessionServiceId(Long sessionServiceId);
     List<GuestEntitlementUsage> findAllBySessionBookingIdOrderByUsedAtAsc(Long sessionBookingId);
     List<GuestEntitlementUsage> findAllBySessionBookingIdInOrderByUsedAtAsc(Collection<Long> sessionBookingIds);
     List<GuestEntitlementUsage> findAllByEntitlementIdOrderByUsedAtDesc(Long entitlementId);

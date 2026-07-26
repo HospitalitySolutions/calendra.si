@@ -52,6 +52,10 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.TaskAlt
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -166,7 +170,9 @@ data class ProviderOption(
     /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Empty means no online methods are selectable. */
     val acceptedPaymentMethods: List<String> = emptyList(),
     /** Tenant config type (salon, gym, spa, therapy, personal_training) driving the card icon. */
-    val tenantType: String? = null
+    val tenantType: String? = null,
+    /** Enables ordered multi-service selection in Calendra Connect. */
+    val multipleServicesEnabled: Boolean = false
 )
 
 
@@ -281,10 +287,10 @@ fun BookScreen(
     services: List<ServiceOption>,
     redeemableEntitlements: List<RedeemableEntitlementOption> = emptyList(),
     onOpenNotifications: () -> Unit,
-    onLoadAvailability: suspend (ServiceOption, LocalDate, String?) -> List<AvailabilitySlot>,
-    onLoadConsultants: suspend (ServiceOption) -> List<ConsultantOption> = { _ -> emptyList() },
+    onLoadAvailability: suspend (List<ServiceOption>, LocalDate, String?) -> List<AvailabilitySlot>,
+    onLoadConsultants: suspend (List<ServiceOption>) -> List<ConsultantOption> = { _ -> emptyList() },
     employeeSelectionStepEnabled: (String) -> Boolean = { false },
-    onCheckout: suspend (ServiceOption, String, String, String?, String?) -> Unit,
+    onCheckout: suspend (List<ServiceOption>, String, String, String?, Map<String, String?>) -> Unit,
     rescheduleContext: BookingRescheduleContext? = null,
     launchRequest: BookLaunchRequest? = null,
     onLaunchRequestConsumed: () -> Unit = {},
@@ -295,7 +301,7 @@ fun BookScreen(
 
     var currentStep by remember { mutableStateOf(BookingFlowStep.PROVIDER) }
     var selectedProviderId by remember { mutableStateOf<String?>(providers.firstOrNull()?.companyId) }
-    var selectedServiceId by remember { mutableStateOf<String?>(null) }
+    var selectedServiceIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedConsultantId by remember { mutableStateOf<String?>(null) }
     var consultants by remember { mutableStateOf<List<ConsultantOption>>(emptyList()) }
     var loadingConsultants by remember { mutableStateOf(false) }
@@ -343,9 +349,16 @@ fun BookScreen(
         }
     }
 
-    LaunchedEffect(providerScopedServices) {
-        if (providerScopedServices.none { it.id == selectedServiceId }) {
-            selectedServiceId = providerScopedServices.firstOrNull()?.id
+    LaunchedEffect(providerScopedServices, selectedProviderId) {
+        val validIds = selectedServiceIds.filter { id -> providerScopedServices.any { it.id == id } }
+        val multipleEnabled = providers.firstOrNull { it.companyId == selectedProviderId }?.multipleServicesEnabled == true
+        val next = when {
+            validIds.isNotEmpty() -> if (multipleEnabled) validIds else listOf(validIds.first())
+            providerScopedServices.isNotEmpty() && !multipleEnabled -> listOf(providerScopedServices.first().id)
+            else -> emptyList()
+        }
+        if (next != selectedServiceIds) {
+            selectedServiceIds = next
             selectedSlotId = null
         }
     }
@@ -361,10 +374,10 @@ fun BookScreen(
                     it.name.equals(context.sessionTypeName, ignoreCase = true))
         }
         if (candidate != null) {
-            selectedServiceId = candidate.id
+            selectedServiceIds = listOf(candidate.id)
             selectedSlotId = null
         }
-        if (selectedServiceId != null) {
+        if (selectedServiceIds.isNotEmpty()) {
             currentStep = if (employeeStepActive) BookingFlowStep.EMPLOYEE else BookingFlowStep.DATE_TIME
         }
         rescheduleInitialized = true
@@ -399,11 +412,11 @@ fun BookScreen(
 
         if (candidate != null) {
             entitlementLaunchMode = true
-            selectedServiceId = candidate.id
+            selectedServiceIds = listOf(candidate.id)
             currentStep = BookingFlowStep.DATE_TIME
         } else {
             entitlementLaunchMode = false
-            selectedServiceId = null
+            selectedServiceIds = emptyList()
             availabilityLoadError = bookTr(languageCode, "No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
             currentStep = BookingFlowStep.DATE_TIME
         }
@@ -413,14 +426,19 @@ fun BookScreen(
     }
 
     val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
+    val multipleServicesEnabled = selectedProvider?.multipleServicesEnabled == true && !entitlementLaunchMode && rescheduleContext == null
     val skipsOnlinePayment = selectedProvider?.billingEnabled == false || selectedProvider?.requireOnlinePayment == false
-    val selectedService = providerScopedServices.firstOrNull { it.id == selectedServiceId }
+    val selectedServices = selectedServiceIds.mapNotNull { id -> providerScopedServices.firstOrNull { it.id == id } }
+    val selectedService = selectedServices.firstOrNull()
+    val totalPriceGross = selectedServices.sumOf { it.priceGross }
+    val totalDurationMinutes = selectedServices.sumOf { it.durationMinutes ?: 0 }
+    val bookingCurrency = selectedServices.firstOrNull()?.currency ?: "EUR"
     val depositPercent = (selectedProvider?.depositPercent ?: 0).coerceIn(1, 100)
     val isDepositMode = !skipsOnlinePayment && selectedProvider?.paymentRequirement.equals("deposit", ignoreCase = true)
-    val amountDueNow = if (selectedService != null && isDepositMode) {
-        ((selectedService.priceGross * depositPercent) / 100.0)
+    val amountDueNow = if (selectedServices.isNotEmpty() && isDepositMode) {
+        ((totalPriceGross * depositPercent) / 100.0)
     } else {
-        selectedService?.priceGross ?: 0.0
+        totalPriceGross
     }
     val acceptedPaymentApiValues = selectedProvider?.acceptedPaymentMethods?.map { it.uppercase(Locale.ROOT) }.orEmpty()
     fun isMethodAllowed(method: PaymentMethodUi): Boolean {
@@ -433,9 +451,9 @@ fun BookScreen(
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
     val selectedConsultant = consultants.firstOrNull { it.id == selectedConsultantId }
     val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
-        selectedService != null && entitlement.companyId == selectedService.companyId
+        selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
                 && !entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
-                && (entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == selectedService.sessionTypeId)
+                && selectedServices.any { service -> entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == service.sessionTypeId }
     }
     val selectedEntitlement = if (selectedEntitlementId != null) {
         matchingEntitlements.firstOrNull { it.entitlementId == selectedEntitlementId }
@@ -445,13 +463,13 @@ fun BookScreen(
     val usesEntitlementPayment = selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && selectedEntitlement != null
     val showPaymentMethodSummary = !skipsOnlinePayment || usesEntitlementPayment
     val matchingGiftCards = redeemableEntitlements.filter { entitlement ->
-        selectedService != null && entitlement.companyId == selectedService.companyId
+        selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
                 && entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
                 && ((entitlement.remainingValueGross ?: 0.0) > 0.0)
-                && (entitlement.currency.isNullOrBlank() || entitlement.currency.equals(selectedService.currency, ignoreCase = true))
+                && (entitlement.currency.isNullOrBlank() || entitlement.currency.equals(bookingCurrency, ignoreCase = true))
     }.sortedBy { it.remainingValueGross ?: 0.0 }
     val matchingGiftCardsTotal = matchingGiftCards.sumOf { it.remainingValueGross ?: 0.0 }
-    val hasGiftCardCoverage = selectedService != null && matchingGiftCardsTotal + 0.0001 >= amountDueNow
+    val hasGiftCardCoverage = selectedServices.isNotEmpty() && matchingGiftCardsTotal + 0.0001 >= amountDueNow
     val cardSubtitle = bookTr(
         languageCode,
         "Pay securely with card after confirmation",
@@ -473,7 +491,7 @@ fun BookScreen(
         buildString {
             append(giftCard.productName)
             append(" • ")
-            append(giftCard.remainingValueGross?.let { balance -> "${balance.formatPrice()} ${giftCard.currency ?: selectedService?.currency.orEmpty()}" } ?: bookTr(languageCode, "available", "na voljo"))
+            append(giftCard.remainingValueGross?.let { balance -> "${balance.formatPrice()} ${giftCard.currency ?: bookingCurrency}" } ?: bookTr(languageCode, "available", "na voljo"))
             if (!giftCard.validUntil.isNullOrBlank()) {
                 append(bookTr(languageCode, " • valid until ", " • velja do "))
                 append(giftCard.validUntil.take(10))
@@ -519,7 +537,7 @@ fun BookScreen(
             selectedSlotId = null
             availabilityLoadError = null
             val consultantIdForLoad = if (employeeStepActive && !entitlementLaunchMode) selectedConsultantId else null
-            runCatching { onLoadAvailability(service, selectedDate, consultantIdForLoad) }
+            runCatching { onLoadAvailability(selectedServices, selectedDate, consultantIdForLoad) }
                 .onSuccess { list ->
                     slots = list
                     dateAvailability = dateAvailability + (selectedDate to list.isNotEmpty())
@@ -548,11 +566,11 @@ fun BookScreen(
         }
     }
 
-    LaunchedEffect(selectedService?.id, selectedDate, selectedConsultantId, employeeStepActive) {
+    LaunchedEffect(selectedServiceIds, selectedDate, selectedConsultantId, employeeStepActive) {
         if (selectedService != null) refreshSlots()
     }
 
-    LaunchedEffect(selectedService?.id, selectedMonth, selectedConsultantId, employeeStepActive, currentStep) {
+    LaunchedEffect(selectedServiceIds, selectedMonth, selectedConsultantId, employeeStepActive, currentStep) {
         val service = selectedService ?: run {
             dateAvailability = emptyMap()
             return@LaunchedEffect
@@ -571,7 +589,7 @@ fun BookScreen(
         val loadedAvailability = mutableMapOf<LocalDate, Boolean>()
         dateAvailability = emptyMap()
         for (date in monthDates) {
-            val result = runCatching { onLoadAvailability(service, date, consultantIdForLoad) }.getOrNull()
+            val result = runCatching { onLoadAvailability(selectedServices, date, consultantIdForLoad) }.getOrNull()
             if (result != null) {
                 loadedAvailability[date] = result.isNotEmpty()
                 dateAvailability = loadedAvailability.toMap()
@@ -580,10 +598,10 @@ fun BookScreen(
     }
 
 
-    LaunchedEffect(selectedService?.id, employeeStepActive) {
+    LaunchedEffect(selectedServiceIds, employeeStepActive) {
         if (employeeStepActive && selectedService != null) {
             loadingConsultants = true
-            consultants = runCatching { onLoadConsultants(selectedService) }.getOrElse { emptyList() }
+            consultants = runCatching { onLoadConsultants(selectedServices) }.getOrElse { emptyList() }
             loadingConsultants = false
             if (consultants.none { it.id == selectedConsultantId }) {
                 selectedConsultantId = null
@@ -594,7 +612,7 @@ fun BookScreen(
         }
     }
 
-    LaunchedEffect(selectedService?.id, matchingEntitlements.joinToString("|") { it.entitlementId }, entitlementLaunchMode) {
+    LaunchedEffect(selectedServiceIds, matchingEntitlements.joinToString("|") { it.entitlementId }, entitlementLaunchMode) {
         if (matchingEntitlements.isEmpty()) {
             if (!entitlementLaunchMode) selectedEntitlementId = null
         } else if (selectedEntitlementId == null) {
@@ -604,7 +622,7 @@ fun BookScreen(
         }
     }
 
-    LaunchedEffect(selectedService?.id, matchingEntitlements.size, matchingGiftCards.size, hasGiftCardCoverage, acceptedPaymentApiValues, entitlementLaunchMode) {
+    LaunchedEffect(selectedServiceIds, matchingEntitlements.size, matchingGiftCards.size, hasGiftCardCoverage, acceptedPaymentApiValues, entitlementLaunchMode) {
         if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && matchingEntitlements.isEmpty() && !entitlementLaunchMode) {
             selectedPaymentMethod = PaymentMethodUi.CARD
         }
@@ -704,7 +722,8 @@ fun BookScreen(
                                 selected = provider.companyId == selectedProviderId,
                                 onClick = {
                                     selectedProviderId = provider.companyId
-                                    selectedServiceId = services.firstOrNull { it.companyId == provider.companyId }?.id
+                                    selectedServiceIds = if (provider.multipleServicesEnabled) emptyList()
+                                    else services.firstOrNull { it.companyId == provider.companyId }?.let { listOf(it.id) } ?: emptyList()
                                     selectedSlotId = null
                                 }
                             )
@@ -713,7 +732,50 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.SERVICE -> {
-                    item { StraightSectionHeader(bookTr(languageCode, "SELECTED SERVICE", "IZBERI STORITEV")) }
+                    item {
+                        StraightSectionHeader(
+                            if (multipleServicesEnabled) bookTr(languageCode, "SERVICES", "STORITVE")
+                            else bookTr(languageCode, "SELECT SERVICE", "IZBERI STORITEV")
+                        )
+                    }
+
+                    if (multipleServicesEnabled && selectedServices.isNotEmpty()) {
+                        item(key = "selected-service-chain") {
+                            SelectedServicesSummaryCard(
+                                services = selectedServices,
+                                languageCode = languageCode,
+                                totalDurationMinutes = totalDurationMinutes,
+                                totalPriceGross = totalPriceGross,
+                                currency = bookingCurrency,
+                                onRemove = { serviceId ->
+                                    selectedServiceIds = selectedServiceIds.filterNot { it == serviceId }
+                                    selectedSlotId = null
+                                },
+                                onMoveUp = { serviceId ->
+                                    val index = selectedServiceIds.indexOf(serviceId)
+                                    if (index > 0) {
+                                        selectedServiceIds = selectedServiceIds.toMutableList().also {
+                                            val previous = it[index - 1]
+                                            it[index - 1] = it[index]
+                                            it[index] = previous
+                                        }
+                                        selectedSlotId = null
+                                    }
+                                },
+                                onMoveDown = { serviceId ->
+                                    val index = selectedServiceIds.indexOf(serviceId)
+                                    if (index >= 0 && index < selectedServiceIds.lastIndex) {
+                                        selectedServiceIds = selectedServiceIds.toMutableList().also {
+                                            val next = it[index + 1]
+                                            it[index + 1] = it[index]
+                                            it[index] = next
+                                        }
+                                        selectedSlotId = null
+                                    }
+                                }
+                            )
+                        }
+                    }
 
                     if (providerScopedServices.isEmpty()) {
                         item {
@@ -732,12 +794,18 @@ fun BookScreen(
                                 }
                             }
                             items(groupServices, key = { it.id }) { service ->
+                                val isSelected = selectedServiceIds.contains(service.id)
                                 ServiceListRow(
                                     service = service,
                                     languageCode = languageCode,
-                                    selected = service.id == selectedServiceId,
+                                    selected = isSelected,
+                                    multiSelection = multipleServicesEnabled,
                                     onClick = {
-                                        selectedServiceId = service.id
+                                        selectedServiceIds = if (multipleServicesEnabled) {
+                                            if (isSelected) selectedServiceIds else selectedServiceIds + service.id
+                                        } else {
+                                            listOf(service.id)
+                                        }
                                         selectedSlotId = null
                                     }
                                 )
@@ -848,14 +916,14 @@ fun BookScreen(
                             BookingReviewSummary(
                                 languageCode = languageCode,
                                 providerName = selectedProvider?.tenantName.orEmpty(),
-                                serviceName = selectedService.description?.takeIf { it.isNotBlank() } ?: selectedService.name,
+                                serviceName = selectedServices.joinToString("\n") { service -> service.description?.takeIf { it.isNotBlank() } ?: service.name },
                                 serviceIcon = bookTenantIcon(selectedService.tenantType),
                                 employeeName = if (employeeStepActive) selectedConsultant?.fullName else null,
-                                duration = selectedService.durationMinutes?.let { bookTr(languageCode, "$it min", "$it min") },
+                                duration = totalDurationMinutes.takeIf { it > 0 }?.let { bookTr(languageCode, "$it min", "$it min") },
                                 dateTime = selectedSlot?.startsAt?.asSummaryDateTime(languageCode).orEmpty(),
                                 total = "",
                                 depositText = if (!skipsOnlinePayment && isDepositMode) {
-                                    bookTr(languageCode, "Pay now: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})", "Plačilo zdaj: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})")
+                                    bookTr(languageCode, "Pay now: $depositPercent% (${amountDueNow.formatPrice()} ${bookingCurrency})", "Plačilo zdaj: $depositPercent% (${amountDueNow.formatPrice()} ${bookingCurrency})")
                                 } else null
                             )
                         }
@@ -893,8 +961,8 @@ fun BookScreen(
                     onClick = advanceStep
                 )
                 BookingFlowStep.SERVICE -> ContinueButton(
-                    label = bookTr(languageCode, "Continue", "Nadaljuj"),
-                    enabled = selectedService != null,
+                    label = if (multipleServicesEnabled) bookTr(languageCode, "Choose time", "Izberi termin") else bookTr(languageCode, "Continue", "Nadaljuj"),
+                    enabled = selectedServices.isNotEmpty(),
                     onClick = advanceStep
                 )
                 BookingFlowStep.EMPLOYEE -> ContinueButton(
@@ -948,7 +1016,7 @@ fun BookScreen(
                             )
                             Spacer(Modifier.height(7.dp))
                         }
-                        PaymentTotalRow(languageCode = languageCode, total = "${selectedService.priceGross.formatPrice()} ${selectedService.currency}")
+                        PaymentTotalRow(languageCode = languageCode, total = "${totalPriceGross.formatPrice()} ${bookingCurrency}")
                         Spacer(Modifier.height(5.dp))
                     }
                     ContinueButton(
@@ -975,8 +1043,15 @@ fun BookScreen(
                             scope.launch {
                                 submitting = true
                                 val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
-                                val entitlementIdForOrder = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) selectedEntitlement?.entitlementId else null
-                                runCatching { onCheckout(service, slot.slotId, method, consultantIdForOrder, entitlementIdForOrder) }
+                                val entitlementByService = selectedServices.associate { selected ->
+                                    val matching = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) {
+                                        matchingEntitlements.firstOrNull { entitlement ->
+                                            entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == selected.sessionTypeId
+                                        }?.entitlementId
+                                    } else null
+                                    selected.id to matching
+                                }
+                                runCatching { onCheckout(selectedServices, slot.slotId, method, consultantIdForOrder, entitlementByService) }
                                 submitting = false
                             }
                         }
@@ -1296,7 +1371,13 @@ private fun ProviderListRow(provider: ProviderOption, languageCode: String, sele
 }
 
 @Composable
-private fun ServiceListRow(service: ServiceOption, languageCode: String, selected: Boolean, onClick: () -> Unit) {
+private fun ServiceListRow(
+    service: ServiceOption,
+    languageCode: String,
+    selected: Boolean,
+    multiSelection: Boolean = false,
+    onClick: () -> Unit
+) {
     ElevatedCard(
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
@@ -1331,12 +1412,124 @@ private fun ServiceListRow(service: ServiceOption, languageCode: String, selecte
                     service.durationMinutes?.let { TagPillCompact(bookTr(languageCode, "$it min", "$it min")) }
                 }
             }
-            Text(
-                "${service.priceGross.formatPrice()} ${service.currency}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF0F6BFF)
-            )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "${service.priceGross.formatPrice()} ${service.currency}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF0F6BFF)
+                )
+                if (multiSelection) {
+                    Surface(
+                        color = if (selected) Color(0xFFE9F1FF) else Color(0xFF0F6BFF),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                if (selected) Icons.Rounded.Check else Icons.Rounded.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (selected) Color(0xFF0F6BFF) else Color.White
+                            )
+                            Text(
+                                if (selected) bookTr(languageCode, "Added", "Dodano") else bookTr(languageCode, "Add", "Dodaj"),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selected) Color(0xFF0F6BFF) else Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedServicesSummaryCard(
+    services: List<ServiceOption>,
+    languageCode: String,
+    totalDurationMinutes: Int,
+    totalPriceGross: Double,
+    currency: String,
+    onRemove: (String) -> Unit,
+    onMoveUp: (String) -> Unit,
+    onMoveDown: (String) -> Unit
+) {
+    OutlinedCard(
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color(0xFFD7E4F6)),
+        colors = CardDefaults.outlinedCardColors(containerColor = Color(0xFFF8FBFF)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        bookTr(languageCode, "Selected services", "Izbrane storitve"),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF082143)
+                    )
+                    Text(
+                        bookTr(languageCode, "${services.size} services", "${services.size} storitev"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF60728A)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        bookTr(languageCode, "$totalDurationMinutes min", "$totalDurationMinutes min"),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF60728A)
+                    )
+                    Text(
+                        "${totalPriceGross.formatPrice()} $currency",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0F6BFF)
+                    )
+                }
+            }
+            services.forEachIndexed { index, service ->
+                if (index > 0) HorizontalDivider(color = Color(0xFFE4ECF7))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(shape = CircleShape, color = Color(0xFFE9F1FF), modifier = Modifier.size(28.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("${index + 1}", fontWeight = FontWeight.Bold, color = Color(0xFF0F6BFF))
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(service.name, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
+                        Text(
+                            listOfNotNull(service.durationMinutes?.let { "$it min" }, "${service.priceGross.formatPrice()} ${service.currency}").joinToString(" • "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF60728A)
+                        )
+                    }
+                    IconButton(onClick = { onMoveUp(service.id) }, enabled = index > 0, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.ArrowUpward, contentDescription = bookTr(languageCode, "Move up", "Premakni gor"), modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = { onMoveDown(service.id) }, enabled = index < services.lastIndex, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.ArrowDownward, contentDescription = bookTr(languageCode, "Move down", "Premakni dol"), modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = { onRemove(service.id) }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = bookTr(languageCode, "Remove", "Odstrani"), modifier = Modifier.size(18.dp), tint = Color(0xFFD32F2F))
+                    }
+                }
+            }
         }
     }
 }

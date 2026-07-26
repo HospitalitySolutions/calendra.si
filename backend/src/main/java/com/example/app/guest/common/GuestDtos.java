@@ -41,7 +41,9 @@ public final class GuestDtos {
             /** When false, guests cannot cancel upcoming bookings. */
             boolean cancellationAllowed,
             /** When false, guests cannot modify/reschedule upcoming bookings. */
-            boolean modificationAllowed
+            boolean modificationAllowed,
+            /** Enables ordered multi-service selection in public booking channels. */
+            boolean multipleServicesEnabled
     ) {}
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
@@ -115,6 +117,16 @@ public final class GuestDtos {
     public record TenantLinkResponse(String companyId, String clientId, String status, String joinedVia) {}
     public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {}
 
+    public record BookingServiceResponse(
+            String sessionTypeId,
+            String name,
+            int position,
+            int durationMinutes,
+            String startsAt,
+            String endsAt,
+            double priceGross,
+            String currency
+    ) {}
     public record UpcomingBookingResponse(
             String bookingId,
             String sessionTypeName,
@@ -123,7 +135,12 @@ public final class GuestDtos {
             String employeePhone,
             String endsAt,
             String consultantName,
-            String sessionTypeId
+            String sessionTypeId,
+            List<BookingServiceResponse> services,
+            int totalDurationMinutes,
+            double totalPriceGross,
+            String currency,
+            String paymentStatus
     ) {}
     public record EntitlementResponse(
             String entitlementId,
@@ -180,8 +197,29 @@ public final class GuestDtos {
             int serviceSortOrder
     ) {}
     public record AvailabilitySlotResponse(String slotId, String startsAt, String endsAt, boolean available) {}
-    public record AvailabilityResponse(String sessionTypeId, String date, List<AvailabilitySlotResponse> slots) {}
+    public record AvailabilityResponse(
+            String sessionTypeId,
+            String date,
+            List<AvailabilitySlotResponse> slots,
+            List<String> sessionTypeIds,
+            int totalDurationMinutes,
+            double estimatedPriceGross,
+            String currency
+    ) {
+        public AvailabilityResponse(String sessionTypeId, String date, List<AvailabilitySlotResponse> slots) {
+            this(sessionTypeId, date, slots,
+                    sessionTypeId == null ? List.of() : List.of(sessionTypeId), 0, 0d, "EUR");
+        }
+    }
     public record ConsultantResponse(String id, String firstName, String lastName, String email) {}
+
+    public record SelectedServiceRequest(
+            String productId,
+            String sessionTypeId,
+            Integer position,
+            String entitlementId,
+            String spaceId
+    ) {}
 
     public record CreateOrderRequest(
             String companyId,
@@ -193,23 +231,13 @@ public final class GuestDtos {
             String locale,
             /** Backwards-compatible alias for clients that send language instead of locale. */
             String language,
-            /** Ordered session service ids for a multi-service booking. Empty keeps the legacy productId contract. */
-            List<String> serviceIds
+            /** Ordered service lines. Null/empty preserves the legacy single-service request. */
+            List<SelectedServiceRequest> services,
+            /** Explicit employee selected by the guest. The slot token remains authoritative. */
+            String consultantId
     ) {
-        public CreateOrderRequest(
-                String companyId,
-                String productId,
-                String slotId,
-                String paymentMethodType,
-                String entitlementId,
-                String locale,
-                String language
-        ) {
-            this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language, null);
-        }
-
         public CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {
-            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null);
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null, null);
         }
     }
     public record OrderSummaryResponse(String orderId, String status, String paymentMethodType, double subtotalGross, double taxAmount, double totalGross, String currency) {}
@@ -263,7 +291,16 @@ public final class GuestDtos {
             String paymentIban
     ) {}
     public record WalletResponse(List<EntitlementResponse> entitlements, List<WalletOrderResponse> orders) {}
-    public record BookingHistoryItemResponse(String bookingId, String sessionTypeName, String startsAt, String bookingStatus) {}
+    public record BookingHistoryItemResponse(
+            String bookingId,
+            String sessionTypeName,
+            String startsAt,
+            String bookingStatus,
+            List<BookingServiceResponse> services,
+            int totalDurationMinutes,
+            double totalPriceGross,
+            String currency
+    ) {}
     public record ToggleAutoRenewRequest(Boolean autoRenews) {}
     public record ToggleAutoRenewResponse(String entitlementId, boolean autoRenews) {}
 

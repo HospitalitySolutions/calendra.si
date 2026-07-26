@@ -46,6 +46,10 @@ public class WaitlistRequest extends BaseEntity {
     @JoinColumn(name = "service_group_id")
     private ServiceGroup serviceGroup;
 
+    /** True when waitlist_request_services is an ordered chain rather than OR alternatives. */
+    @Column(name = "service_chain", nullable = false)
+    private boolean serviceChain;
+
     @Column(name = "service_group_id_snapshot")
     private Long serviceGroupIdSnapshot;
 

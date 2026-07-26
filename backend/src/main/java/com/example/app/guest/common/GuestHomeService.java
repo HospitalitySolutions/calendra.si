@@ -45,16 +45,25 @@ public class GuestHomeService {
                         now,
                         PageRequest.of(0, 10)
                 ).stream()
-                .map(b -> new GuestDtos.UpcomingBookingResponse(
-                        String.valueOf(b.getId()),
-                        b.getType() == null ? "Session" : b.getType().getName(),
-                        b.getStartTime().toString(),
-                        b.getBookingStatus() == null ? "CONFIRMED" : b.getBookingStatus(),
-                        b.getConsultant() == null ? null : b.getConsultant().getPhone(),
-                        b.getEndTime() == null ? null : b.getEndTime().toString(),
-                        GuestMapper.formatConsultantDisplayName(b.getConsultant()),
-                        b.getType() == null ? null : String.valueOf(b.getType().getId())
-                ))
+                .map(b -> {
+                    List<GuestDtos.BookingServiceResponse> serviceLines = GuestBookingViewSupport.services(b, "EUR");
+                    String paymentStatus = resolvePaymentStatus(b);
+                    return new GuestDtos.UpcomingBookingResponse(
+                            String.valueOf(b.getId()),
+                            GuestBookingViewSupport.summaryName(serviceLines),
+                            b.getStartTime().toString(),
+                            b.getBookingStatus() == null ? "CONFIRMED" : b.getBookingStatus(),
+                            b.getConsultant() == null ? null : b.getConsultant().getPhone(),
+                            b.getEndTime() == null ? null : b.getEndTime().toString(),
+                            GuestMapper.formatConsultantDisplayName(b.getConsultant()),
+                            b.getType() == null ? null : String.valueOf(b.getType().getId()),
+                            serviceLines,
+                            com.example.app.session.SessionServiceSupport.totalServiceMinutes(b),
+                            GuestBookingViewSupport.totalPrice(serviceLines),
+                            "EUR",
+                            paymentStatus
+                    );
+                })
                 .toList();
         List<GuestDtos.EntitlementResponse> active = entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(
                         link.getClient().getId(),
@@ -73,5 +82,16 @@ public class GuestHomeService {
                 .map(order -> new GuestDtos.PendingOrderResponse(String.valueOf(order.getId()), order.getStatus().name(), order.getPaymentMethodType().name(), order.getTotalGross().doubleValue(), order.getReferenceCode()))
                 .toList();
         return new GuestDtos.HomeResponse(tenant, upcoming, active, pending);
+    }
+
+    private String resolvePaymentStatus(com.example.app.session.SessionBooking booking) {
+        if (booking == null || booking.getSourceOrderId() == null || booking.getSourceOrderId().isBlank()) return null;
+        try {
+            return orders.findById(Long.parseLong(booking.getSourceOrderId()))
+                    .map(order -> order.getStatus().name())
+                    .orElse(null);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 }

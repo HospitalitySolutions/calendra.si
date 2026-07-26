@@ -36,7 +36,11 @@ data class BookingHistoryItem(
     val bookingId: String,
     val sessionTypeName: String,
     val startsAt: String,
-    val bookingStatus: String
+    val bookingStatus: String,
+    val services: List<BookingServiceLine> = emptyList(),
+    val totalDurationMinutes: Int = 0,
+    val totalPriceGross: Double = 0.0,
+    val currency: String = "EUR"
 )
 
 @Serializable

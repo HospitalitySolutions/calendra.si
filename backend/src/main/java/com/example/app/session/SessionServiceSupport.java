@@ -61,6 +61,32 @@ public final class SessionServiceSupport {
                 : 0;
     }
 
+    public static String serviceSummary(SessionBooking booking) {
+        List<SessionService> services = orderedServices(booking);
+        if (!services.isEmpty()) {
+            return services.stream()
+                    .map(SessionService::getServiceNameSnapshot)
+                    .filter(name -> name != null && !name.isBlank())
+                    .reduce((left, right) -> left + " + " + right)
+                    .orElse("Session");
+        }
+        return booking != null && booking.getType() != null && booking.getType().getName() != null
+                ? booking.getType().getName() : "Session";
+    }
+
+    public static String serviceListText(SessionBooking booking) {
+        List<SessionService> services = orderedServices(booking);
+        if (services.isEmpty()) return serviceSummary(booking);
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < services.size(); i++) {
+            SessionService service = services.get(i);
+            if (i > 0) out.append("\n");
+            out.append(i + 1).append(". ").append(service.getServiceNameSnapshot())
+                    .append(" (").append(service.getDurationMinutesSnapshot()).append(" min)");
+        }
+        return out.toString();
+    }
+
     public static List<SessionService> mutableOrderedCopy(SessionBooking booking) {
         return new ArrayList<>(orderedServices(booking));
     }

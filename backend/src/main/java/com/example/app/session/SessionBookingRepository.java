@@ -307,6 +307,8 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             LEFT JOIN FETCH sb.consultant consultant
             LEFT JOIN FETCH sb.space space
             LEFT JOIN FETCH sb.type sessionType
+            LEFT JOIN FETCH sb.services analyticsServiceLine
+            LEFT JOIN FETCH analyticsServiceLine.sessionType
             WHERE sb.company.id = :companyId
               AND sb.startTime >= :rangeStart
               AND sb.startTime < :rangeEnd
@@ -346,6 +348,8 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             SELECT DISTINCT sb FROM SessionBooking sb
             LEFT JOIN FETCH sb.type sessionType
             LEFT JOIN FETCH sessionType.serviceGroup
+            LEFT JOIN FETCH sb.services analyticsServiceLine
+            LEFT JOIN FETCH analyticsServiceLine.sessionType
             WHERE sb.company.id = :companyId AND sb.id IN :ids
             """)
     List<SessionBooking> findAnalyticsSnapshotsByCompanyIdAndIds(

@@ -9,6 +9,7 @@ import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionServiceSupport;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -128,7 +129,7 @@ public class GuestNotificationService {
     public void bookingConfirmed(GuestUser guestUser, Company company, Client client, SessionBooking booking) {
         create(guestUser, company, client, GuestNotificationType.BOOKING_CONFIRMED,
                 "Booking confirmed",
-                "Your booking for " + (booking.getType() == null ? "session" : booking.getType().getName()) + " is confirmed.",
+                "Your booking for " + SessionServiceSupport.serviceSummary(booking) + " is confirmed.",
                 null);
     }
 
@@ -148,9 +149,7 @@ public class GuestNotificationService {
     @Transactional
     public GuestNotification webBookingUpdated(SessionBooking booking) {
         if (booking == null || booking.getClient() == null || booking.getClient().isAnonymized()) return null;
-        String serviceName = booking.getType() == null || booking.getType().getName() == null || booking.getType().getName().isBlank()
-                ? "session"
-                : booking.getType().getName();
+        String serviceName = SessionServiceSupport.serviceSummary(booking);
         String title = "Booking updated";
         String body = "Your booking for " + serviceName + " has been updated.";
         GuestNotification created = createForClient(

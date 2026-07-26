@@ -14,6 +14,7 @@ import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.monitoring.ScheduledJobTrackerService;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionServiceSupport;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import java.time.LocalDateTime;
@@ -315,9 +316,10 @@ public class GuestBookingReminderService {
     }
 
     private static String localizedBody(GuestUser guestUser, SessionBooking booking) {
-        String service = booking.getType() != null && booking.getType().getName() != null && !booking.getType().getName().isBlank()
-                ? booking.getType().getName().trim()
-                : (isSl(guestUser) ? "Termin" : "Your booking");
+        String service = SessionServiceSupport.serviceSummary(booking);
+        if (service == null || service.isBlank() || "Session".equals(service)) {
+            service = isSl(guestUser) ? "Termin" : "Your booking";
+        }
         String date = booking.getStartTime().format(DATE);
         String time = booking.getStartTime().format(TIME);
         if (isSl(guestUser)) {

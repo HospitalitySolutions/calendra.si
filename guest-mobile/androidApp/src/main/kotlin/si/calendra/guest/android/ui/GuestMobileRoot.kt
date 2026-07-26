@@ -1174,15 +1174,20 @@ fun GuestMobileRoot() {
                                 paymentRequirement = provider.paymentRequirement,
                                 depositPercent = provider.depositPercent,
                                 acceptedPaymentMethods = provider.acceptedPaymentMethods,
-                                tenantType = provider.tenantType
+                                tenantType = provider.tenantType,
+                                multipleServicesEnabled = provider.multipleServicesEnabled
                             )
                         },
                         services = aggregatedServices(state.uiState),
                         redeemableEntitlements = aggregatedRedeemableEntitlements(state.uiState),
                         onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
-                        onLoadAvailability = { service, date, consultantId -> repo.availability(service.companyId, service.sessionTypeId, date.toString(), consultantId).slots },
-                        onLoadConsultants = { service ->
-                            runCatching { repo.consultants(service.companyId, service.sessionTypeId) }.getOrElse { emptyList() }
+                        onLoadAvailability = { selectedServices, date, consultantId ->
+                            val primary = selectedServices.first()
+                            repo.availability(primary.companyId, selectedServices.map { it.sessionTypeId }, date.toString(), consultantId).slots
+                        },
+                        onLoadConsultants = { selectedServices ->
+                            val primary = selectedServices.first()
+                            runCatching { repo.consultants(primary.companyId, selectedServices.map { it.sessionTypeId }) }.getOrElse { emptyList() }
                                 .map { si.calendra.guest.android.ui.screens.ConsultantOption(id = it.id, firstName = it.firstName, lastName = it.lastName, email = it.email) }
                         },
                         employeeSelectionStepEnabled = { companyId ->
@@ -1190,17 +1195,26 @@ fun GuestMobileRoot() {
                         },
                         launchRequest = bookLaunchRequest,
                         onLaunchRequestConsumed = { bookLaunchRequest = null },
-                        onCheckout = onCheckout@{ service, slotId, paymentMethodType, consultantId, entitlementId ->
+                        onCheckout = onCheckout@{ selectedServices, slotId, paymentMethodType, consultantId, entitlementByService ->
+                            val primary = selectedServices.first()
                             val checkout = runCatching {
                                 val order = repo.createOrder(
                                     CreateOrderRequest(
-                                        companyId = service.companyId,
-                                        productId = service.productId,
+                                        companyId = primary.companyId,
+                                        productId = primary.productId,
                                         slotId = slotId,
                                         paymentMethodType = paymentMethodType,
                                         consultantId = consultantId,
-                                        entitlementId = if (paymentMethodType == "ENTITLEMENT") entitlementId else null,
-                                        locale = appUiLocale
+                                        entitlementId = null,
+                                        locale = appUiLocale,
+                                        services = selectedServices.mapIndexed { index, service ->
+                                            SelectedServiceRequest(
+                                                productId = service.productId,
+                                                sessionTypeId = service.sessionTypeId,
+                                                position = index,
+                                                entitlementId = entitlementByService[service.id]
+                                            )
+                                        }
                                     )
                                 )
                                 repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = false, locale = appUiLocale))
@@ -1212,7 +1226,7 @@ fun GuestMobileRoot() {
                             if ((paymentMethodType == "CARD" || paymentMethodType == "PAYPAL") && !checkout.checkoutUrl.isNullOrBlank()) {
                                 pendingExternalCheckout = PendingExternalCheckout(
                                     orderId = checkout.orderId,
-                                    companyId = service.companyId,
+                                    companyId = primary.companyId,
                                     paymentMethodType = paymentMethodType
                                 )
                             }
@@ -1223,7 +1237,7 @@ fun GuestMobileRoot() {
                             ) ?: run {
                                 statusMessage = checkout.bankTransfer?.instructions ?: checkout.status
                             }
-                            refreshTenant(service.companyId)
+                            refreshTenant(primary.companyId)
                             bookLaunchRequest = null
                             bookReturnRoute = null
                             navigateToTab(RootRoute.Home.route)
@@ -1282,15 +1296,20 @@ fun GuestMobileRoot() {
                                     paymentRequirement = provider.paymentRequirement,
                                     depositPercent = provider.depositPercent,
                                     acceptedPaymentMethods = provider.acceptedPaymentMethods,
-                                    tenantType = provider.tenantType
+                                    tenantType = provider.tenantType,
+                                    multipleServicesEnabled = provider.multipleServicesEnabled
                                 )
                             },
                             services = aggregatedServices(state.uiState),
                             redeemableEntitlements = aggregatedRedeemableEntitlements(state.uiState),
                             onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
-                            onLoadAvailability = { service, date, consultantId -> repo.availability(service.companyId, service.sessionTypeId, date.toString(), consultantId).slots },
-                            onLoadConsultants = { service ->
-                                runCatching { repo.consultants(service.companyId, service.sessionTypeId) }.getOrElse { emptyList() }
+                            onLoadAvailability = { selectedServices, date, consultantId ->
+                                val primary = selectedServices.first()
+                                repo.availability(primary.companyId, selectedServices.map { it.sessionTypeId }, date.toString(), consultantId).slots
+                            },
+                            onLoadConsultants = { selectedServices ->
+                                val primary = selectedServices.first()
+                                runCatching { repo.consultants(primary.companyId, selectedServices.map { it.sessionTypeId }) }.getOrElse { emptyList() }
                                     .map { si.calendra.guest.android.ui.screens.ConsultantOption(id = it.id, firstName = it.firstName, lastName = it.lastName, email = it.email) }
                             },
                             employeeSelectionStepEnabled = { companyId ->
@@ -3060,6 +3079,11 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
                     cardImageUrl = it.cardImageUrl,
                     logoImageUrl = it.logoImageUrl,
                     iconImageUrl = it.iconImageUrl,
+                    services = booking.services.sortedBy { line -> line.position }.map { line -> line.name },
+                    totalDurationMinutes = booking.totalDurationMinutes,
+                    totalPriceGross = booking.totalPriceGross,
+                    currency = booking.currency,
+                    paymentStatus = booking.paymentStatus,
                     cancellationAllowed = it.cancellationAllowed,
                     modificationAllowed = it.modificationAllowed
                 )
@@ -3083,6 +3107,10 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
                     cardImageUrl = it.cardImageUrl,
                     logoImageUrl = it.logoImageUrl,
                     iconImageUrl = it.iconImageUrl,
+                    services = booking.services.sortedBy { line -> line.position }.map { line -> line.name },
+                    totalDurationMinutes = booking.totalDurationMinutes,
+                    totalPriceGross = booking.totalPriceGross,
+                    currency = booking.currency,
                     cancellationAllowed = it.cancellationAllowed,
                     modificationAllowed = it.modificationAllowed
                 )
@@ -3119,6 +3147,11 @@ private fun aggregatedCalendarBookings(state: GuestUiState): List<UpcomingBookin
                 cardImageUrl = tenant.cardImageUrl,
                 logoImageUrl = tenant.logoImageUrl,
                 iconImageUrl = tenant.iconImageUrl,
+                services = booking.services.sortedBy { line -> line.position }.map { line -> line.name },
+                totalDurationMinutes = booking.totalDurationMinutes,
+                totalPriceGross = booking.totalPriceGross,
+                currency = booking.currency,
+                paymentStatus = booking.paymentStatus,
                 cancellationAllowed = tenant.cancellationAllowed,
                 modificationAllowed = tenant.modificationAllowed
             )

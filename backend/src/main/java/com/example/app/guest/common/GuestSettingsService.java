@@ -75,7 +75,8 @@ public class GuestSettingsService {
         boolean useEmployeeContact = root.path("useEmployeeContact").asBoolean(false);
         boolean cancellationAllowed = reservationRules.cancellationAllowed();
         boolean modificationAllowed = reservationRules.modificationAllowed();
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl, cancellationAllowed, modificationAllowed);
+        boolean multipleServicesEnabled = root.path("multipleServicesEnabled").asBoolean(false);
+        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl, cancellationAllowed, modificationAllowed, multipleServicesEnabled);
     }
 
     public Boolean billingEnabled(Long companyId) {
@@ -348,7 +349,7 @@ public class GuestSettingsService {
         return Math.min(value, 100);
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, boolean cancellationAllowed, boolean modificationAllowed) {}
+    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, boolean cancellationAllowed, boolean modificationAllowed, boolean multipleServicesEnabled) {}
     public record GuestBookingRules(
             int cancelUntilHours,
             int rescheduleUntilHours,

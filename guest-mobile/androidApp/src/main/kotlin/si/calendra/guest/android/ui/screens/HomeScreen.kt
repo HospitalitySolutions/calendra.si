@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Message
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonOutline
+import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -112,6 +113,11 @@ data class UpcomingBookingCard(
     val cardImageUrl: String?,
     val logoImageUrl: String?,
     val iconImageUrl: String?,
+    val services: List<String> = emptyList(),
+    val totalDurationMinutes: Int = 0,
+    val totalPriceGross: Double = 0.0,
+    val currency: String = "EUR",
+    val paymentStatus: String? = null,
     val cancellationAllowed: Boolean = true,
     val modificationAllowed: Boolean = true
 )
@@ -464,6 +470,14 @@ fun UpcomingBookingFocusCard(
                         .fillMaxWidth()
                         .padding(horizontal = 13.dp, vertical = 5.dp)
                 ) {
+                    if (booking.services.isNotEmpty()) {
+                        BookingInfoLine(
+                            icon = Icons.Rounded.ReceiptLong,
+                            label = if (isSl) "STORITVE" else "SERVICES",
+                            value = booking.services.mapIndexed { index, name -> "${index + 1}. $name" }.joinToString("\n")
+                        )
+                        HorizontalDivider(color = SoftBorder, modifier = Modifier.padding(start = 34.dp, top = 3.dp, bottom = 3.dp))
+                    }
                     BookingInfoLine(
                         icon = Icons.Rounded.Person,
                         label = if (isSl) "ZAPOSLENI" else "EMPLOYEE",
@@ -481,6 +495,24 @@ fun UpcomingBookingFocusCard(
                         label = if (isSl) "PONUDNIK" else "TENANT",
                         value = booking.tenantName
                     )
+                    if (booking.totalDurationMinutes > 0 || booking.totalPriceGross > 0.0 || !booking.paymentStatus.isNullOrBlank()) {
+                        HorizontalDivider(color = SoftBorder, modifier = Modifier.padding(start = 34.dp, top = 3.dp, bottom = 3.dp))
+                        BookingInfoLine(
+                            icon = Icons.Rounded.ReceiptLong,
+                            label = if (isSl) "SKUPAJ" else "TOTAL",
+                            value = buildString {
+                                if (booking.totalDurationMinutes > 0) append("${booking.totalDurationMinutes} min")
+                                if (booking.totalPriceGross > 0.0) {
+                                    if (isNotEmpty()) append(" • ")
+                                    append("${String.format(java.util.Locale.UK, "%.2f", booking.totalPriceGross)} ${booking.currency}")
+                                }
+                                booking.paymentStatus?.takeIf { it.isNotBlank() }?.let {
+                                    if (isNotEmpty()) append(" • ")
+                                    append(it)
+                                }
+                            }
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
 
                     BookingPrimaryActionButton(

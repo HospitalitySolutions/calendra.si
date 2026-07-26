@@ -2,6 +2,7 @@ package com.example.app.guest.model;
 
 import com.example.app.common.BaseEntity;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionService;
 import com.example.app.user.User;
 import jakarta.persistence.*;
 import java.time.Instant;
@@ -20,6 +21,11 @@ public class GuestEntitlementUsage extends BaseEntity {
     @ManyToOne(optional = true)
     @JoinColumn(name = "session_booking_id")
     private SessionBooking sessionBooking;
+
+    /** Exact service line covered by this usage; null for legacy and whole-booking usages. */
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "session_service_id")
+    private SessionService sessionService;
 
     @Column(nullable = false)
     private int unitsUsed = 1;

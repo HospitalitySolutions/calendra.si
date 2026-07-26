@@ -4,6 +4,7 @@ import com.example.app.billing.Bill;
 import com.example.app.billing.BillRepository;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
+import com.example.app.guest.common.GuestBookingViewSupport;
 import com.example.app.guest.model.*;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.tenant.GuestTenantService;
@@ -208,12 +209,19 @@ public class GuestWalletService {
                         LocalDateTime.now(),
                         PageRequest.of(safePage(page), safeSize(size, 50, 200))
                 ).stream()
-                .map(b -> new GuestDtos.BookingHistoryItemResponse(
-                        String.valueOf(b.getId()),
-                        b.getType() == null ? "Session" : b.getType().getName(),
-                        b.getStartTime().toString(),
-                        b.getBookingStatus() == null ? "COMPLETED" : b.getBookingStatus()
-                ))
+                .map(b -> {
+                    List<GuestDtos.BookingServiceResponse> serviceLines = GuestBookingViewSupport.services(b, "EUR");
+                    return new GuestDtos.BookingHistoryItemResponse(
+                            String.valueOf(b.getId()),
+                            GuestBookingViewSupport.summaryName(serviceLines),
+                            b.getStartTime().toString(),
+                            b.getBookingStatus() == null ? "COMPLETED" : b.getBookingStatus(),
+                            serviceLines,
+                            com.example.app.session.SessionServiceSupport.totalServiceMinutes(b),
+                            GuestBookingViewSupport.totalPrice(serviceLines),
+                            "EUR"
+                    );
+                })
                 .toList();
     }
 

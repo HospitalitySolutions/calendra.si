@@ -35,8 +35,8 @@ class RemoteGuestRepository(
     override suspend fun anonymizeTenant(companyId: String): TenantLink = api.anonymizeTenant(companyId)
     override suspend fun home(companyId: String): HomePayload = api.home(companyId)
     override suspend fun products(companyId: String): List<ProductSummary> = api.products(companyId)
-    override suspend fun availability(companyId: String, sessionTypeId: String, date: String, consultantId: String?): AvailabilityResponse = api.availability(companyId, sessionTypeId, date, consultantId)
-    override suspend fun consultants(companyId: String, sessionTypeId: String): List<ConsultantSummary> = api.consultants(companyId, sessionTypeId)
+    override suspend fun availability(companyId: String, sessionTypeIds: List<String>, date: String, consultantId: String?): AvailabilityResponse = api.availability(companyId, sessionTypeIds, date, consultantId)
+    override suspend fun consultants(companyId: String, sessionTypeIds: List<String>): List<ConsultantSummary> = api.consultants(companyId, sessionTypeIds)
     override suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse = api.createOrder(request)
     override suspend fun rescheduleBooking(companyId: String, bookingId: String, newSlotId: String): BookingActionResult =
         api.rescheduleBooking(bookingId, newSlotId)

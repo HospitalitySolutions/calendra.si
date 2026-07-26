@@ -17,6 +17,7 @@ import com.example.app.settings.SettingKey;
 import com.example.app.settings.TenantSmsQuotaService;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionServiceSupport;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.sms.SmsGateway;
@@ -836,8 +837,8 @@ public class ReminderService {
         String companyName = settingOr(companyId, SettingKey.COMPANY_NAME, company.getName());
         String clientFirstName = nz(client.getFirstName());
         String clientLastName = nz(client.getLastName());
-        String serviceName = booking.getType() != null ? nz(booking.getType().getName()) : "";
-        String serviceCategories = "";
+        String serviceName = SessionServiceSupport.serviceSummary(booking);
+        String serviceCategories = SessionServiceSupport.serviceListText(booking);
 
         LocalDateTime start = booking.getStartTime();
         LocalDateTime end = booking.getEndTime();

@@ -38,5 +38,9 @@ data class AvailabilitySlot(
 data class AvailabilityResponse(
     val sessionTypeId: String,
     val date: String,
-    val slots: List<AvailabilitySlot>
+    val slots: List<AvailabilitySlot>,
+    val sessionTypeIds: List<String> = listOf(sessionTypeId),
+    val totalDurationMinutes: Int = 0,
+    val estimatedPriceGross: Double = 0.0,
+    val currency: String = "EUR"
 )

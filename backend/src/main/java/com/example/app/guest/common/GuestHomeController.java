@@ -68,16 +68,42 @@ public class GuestHomeController {
     }
 
     @GetMapping("/availability")
-    public GuestDtos.AvailabilityResponse availability(@RequestParam String companyId, @RequestParam String sessionTypeId, @RequestParam String date, @RequestParam(required = false) String consultantId, HttpServletRequest request) {
+    public GuestDtos.AvailabilityResponse availability(
+            @RequestParam String companyId,
+            @RequestParam(required = false) String sessionTypeId,
+            @RequestParam(required = false) List<String> sessionTypeIds,
+            @RequestParam String date,
+            @RequestParam(required = false) String consultantId,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
         Long consultantIdNum = (consultantId == null || consultantId.isBlank()) ? null : Long.parseLong(consultantId.trim());
-        return catalogService.availability(Long.parseLong(companyId), Long.parseLong(sessionTypeId), date, consultantIdNum, guestUser);
+        List<Long> serviceIds = parseServiceIds(sessionTypeId, sessionTypeIds);
+        return catalogService.availability(Long.parseLong(companyId), serviceIds, date, consultantIdNum, guestUser);
     }
 
     @GetMapping("/consultants")
-    public List<GuestDtos.ConsultantResponse> consultants(@RequestParam String companyId, @RequestParam String sessionTypeId, HttpServletRequest request) {
-        authContextService.requireGuest(request);
-        return catalogService.consultants(Long.parseLong(companyId), Long.parseLong(sessionTypeId));
+    public List<GuestDtos.ConsultantResponse> consultants(
+            @RequestParam String companyId,
+            @RequestParam(required = false) String sessionTypeId,
+            @RequestParam(required = false) List<String> sessionTypeIds,
+            HttpServletRequest request
+    ) {
+        GuestUser guestUser = authContextService.requireGuest(request);
+        return catalogService.consultants(Long.parseLong(companyId), parseServiceIds(sessionTypeId, sessionTypeIds), guestUser);
+    }
+
+    private static List<Long> parseServiceIds(String legacyId, List<String> ids) {
+        List<String> raw = ids == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(ids);
+        if (raw.isEmpty() && legacyId != null && !legacyId.isBlank()) raw.add(legacyId);
+        List<Long> parsed = raw.stream()
+                .flatMap(value -> java.util.Arrays.stream(value.split(",")))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(Long::parseLong)
+                .toList();
+        if (parsed.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
+        return parsed;
     }
 
     @PostMapping("/orders")

@@ -3,15 +3,27 @@ package si.calendra.guest.shared.models
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class SelectedServiceRequest(
+    val productId: String? = null,
+    val sessionTypeId: String? = null,
+    val position: Int,
+    val entitlementId: String? = null,
+    val spaceId: String? = null
+)
+
+@Serializable
 data class CreateOrderRequest(
     val companyId: String,
+    /** Legacy primary product id retained for backwards compatibility. */
     val productId: String,
     val slotId: String? = null,
     val paymentMethodType: String,
     val consultantId: String? = null,
     val entitlementId: String? = null,
     /** UI language/locale selected in the app when the order is created. */
-    val locale: String? = null
+    val locale: String? = null,
+    /** Ordered service lines; omitted for tenants using the legacy single-service flow. */
+    val services: List<SelectedServiceRequest>? = null
 )
 
 @Serializable

@@ -13,6 +13,8 @@ import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
+import com.example.app.session.SessionBookingController;
+import com.example.app.session.SessionServicePlanService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionType;
@@ -205,6 +207,136 @@ public class GuestCatalogService {
         return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), sorted);
     }
 
+    /** Shared ordered-chain availability used by mobile, widget and public booking. */
+    @Transactional(readOnly = true)
+    public GuestDtos.AvailabilityResponse availability(
+            Long companyId,
+            List<Long> sessionTypeIds,
+            String dateText,
+            Long consultantId,
+            GuestUser guestUser
+    ) {
+        List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
+        SessionType first = chain.get(0);
+        if (chain.size() == 1) {
+            GuestDtos.AvailabilityResponse legacy = availability(companyId, first.getId(), dateText, consultantId, guestUser);
+            return new GuestDtos.AvailabilityResponse(
+                    String.valueOf(first.getId()),
+                    dateText,
+                    legacy.slots(),
+                    List.of(String.valueOf(first.getId())),
+                    Math.max(1, first.getDurationMinutes() == null ? 60 : first.getDurationMinutes()),
+                    sessionTypePriceGross(first).doubleValue(),
+                    tenantCurrency(companyId)
+            );
+        }
+        if (!guestSettings.publicSettings(companyId).multipleServicesEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Multiple services are disabled for this tenant.");
+        }
+        if (chain.stream().anyMatch(this::isGuestGroupService)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group services cannot be combined in one public booking.");
+        }
+
+        GuestDtos.AvailabilityResponse firstServiceAvailability = availability(
+                companyId, first.getId(), dateText, consultantId, guestUser
+        );
+        List<SessionBookingController.BookingServiceRequest> requests = new ArrayList<>();
+        for (int i = 0; i < chain.size(); i++) {
+            requests.add(new SessionBookingController.BookingServiceRequest(chain.get(i).getId(), i, null));
+        }
+        List<GuestDtos.AvailabilitySlotResponse> slots = new ArrayList<>();
+        int totalDuration = 0;
+        for (int i = 0; i < chain.size(); i++) {
+            SessionType service = chain.get(i);
+            totalDuration += Math.max(1, service.getDurationMinutes() == null ? 60 : service.getDurationMinutes());
+            if (i < chain.size() - 1) {
+                totalDuration += Math.max(0, service.getBreakMinutes() == null ? 0 : service.getBreakMinutes());
+            }
+        }
+        for (GuestDtos.AvailabilitySlotResponse candidate : firstServiceAvailability.slots()) {
+            try {
+                String[] parts = candidate.slotId().split("\\|");
+                if (parts.length < 3) continue;
+                Long candidateConsultantId = parseOptionalConsultantId(parts[0]);
+                if (candidateConsultantId == null || !consultantSupportsAll(candidateConsultantId, chain, companyId)) continue;
+                LocalDateTime startsAt = LocalDateTime.parse(parts[1]);
+                SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindow(
+                        companyId, List.of(), candidateConsultantId, startsAt, requests,
+                        SessionBookingCreationService.bookingExcludeIds((Long) null)
+                );
+                slots.add(new GuestDtos.AvailabilitySlotResponse(
+                        slotToken(candidateConsultantId, plan.startTime(), plan.endTime()),
+                        plan.startTime().toString(),
+                        plan.endTime().toString(),
+                        true
+                ));
+            } catch (RuntimeException ignored) {
+                // Candidate is omitted unless the complete ordered chain fits.
+            }
+        }
+        double totalPrice = chain.stream().map(GuestCatalogService::sessionTypePriceGross)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue();
+        return new GuestDtos.AvailabilityResponse(
+                String.valueOf(first.getId()),
+                dateText,
+                slots.stream().sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt)).toList(),
+                chain.stream().map(type -> String.valueOf(type.getId())).toList(),
+                totalDuration,
+                totalPrice,
+                tenantCurrency(companyId)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestDtos.ConsultantResponse> consultants(Long companyId, List<Long> sessionTypeIds, GuestUser guestUser) {
+        List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
+        if (chain.size() > 1 && !guestSettings.publicSettings(companyId).multipleServicesEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Multiple services are disabled for this tenant.");
+        }
+        if (!guestSettings.bookingRules(companyId).employeeSelectionAllowed()) return List.of();
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .filter(this::isBookableGuestConsultant)
+                .filter(user -> chain.stream().allMatch(type -> consultantSupportsSessionType(user, type)))
+                .sorted(Comparator.comparing(user -> ((user.getFirstName() + " " + user.getLastName()).trim()), String.CASE_INSENSITIVE_ORDER))
+                .map(user -> new GuestDtos.ConsultantResponse(String.valueOf(user.getId()), user.getFirstName(), user.getLastName(), user.getEmail()))
+                .toList();
+    }
+
+    private List<SessionType> resolveGuestServiceChain(Long companyId, List<Long> sessionTypeIds, GuestUser guestUser) {
+        List<Long> ids = sessionTypeIds == null ? List.of() : sessionTypeIds.stream().filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
+        List<SessionType> chain = new ArrayList<>();
+        for (Long id : ids) {
+            SessionType type = sessionTypes.findById(id)
+                    .filter(candidate -> Objects.equals(candidate.getCompany().getId(), companyId))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+            if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A selected service is not available in this booking channel.");
+            }
+            chain.add(type);
+        }
+        return List.copyOf(chain);
+    }
+
+    private boolean consultantSupportsAll(Long consultantId, List<SessionType> chain, Long companyId) {
+        return users.findById(consultantId)
+                .filter(User::isActive)
+                .filter(user -> Objects.equals(user.getCompany().getId(), companyId))
+                .filter(this::isBookableGuestConsultant)
+                .map(user -> chain.stream().allMatch(type -> consultantSupportsSessionType(user, type)))
+                .orElse(false);
+    }
+
+    private static Long parseOptionalConsultantId(String raw) {
+        try {
+            if (raw == null || raw.isBlank() || "null".equalsIgnoreCase(raw)) return null;
+            return Long.parseLong(raw.trim());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<GuestDtos.ConsultantResponse> consultants(Long companyId, Long sessionTypeId) {
         SessionType type = sessionTypes.findById(sessionTypeId)
@@ -228,29 +360,6 @@ public class GuestCatalogService {
 
     public ResolvedProduct resolveProduct(Long companyId, String productId) {
         return resolveProduct(companyId, productId, null);
-    }
-
-    /** Resolves a session product using website-widget visibility instead of guest-app visibility. */
-    public ResolvedProduct resolveWebsiteSessionProduct(Long companyId, Long typeId) {
-        if (companyId == null || typeId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing service identifier.");
-        }
-        SessionType type = sessionTypes.findById(typeId)
-                .filter(candidate -> Objects.equals(candidate.getCompany().getId(), companyId))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
-        if (!type.isActive() || !type.isWidgetGroupBookingEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available for website booking.");
-        }
-        BigDecimal price = sessionTypePriceGross(type);
-        return new ResolvedProduct(
-                null,
-                type,
-                type.getName(),
-                type.getMaxParticipantsPerSession() != null ? "CLASS_TICKET" : "SESSION_SINGLE",
-                price,
-                tenantCurrency(companyId),
-                true
-        );
     }
 
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {
@@ -859,7 +968,7 @@ public class GuestCatalogService {
     /**
      * Session types store per-linked-service net prices; guest checkout and app UI require gross.
      */
-    private static BigDecimal sessionTypePriceGross(SessionType type) {
+    public static BigDecimal sessionTypePriceGross(SessionType type) {
         if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) {
             return BigDecimal.ZERO;
         }

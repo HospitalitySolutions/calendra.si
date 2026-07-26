@@ -187,10 +187,6 @@ public class SessionBookingCreationService {
             requestedClientIds = resolveRequestedClientIds(req, multipleClientsPerSessionEnabled);
         }
         servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
-        if (waitlistRequestId != null && waitlistRequestId > 0 && servicePlan.segments().size() > 1) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Waitlist conversion currently supports one service per session.");
-        }
         Long excludedWaitlistOfferId = resolveMatchingWaitlistOfferId(
                 waitlistRequestId,
                 companyId,
@@ -225,7 +221,7 @@ public class SessionBookingCreationService {
             var booking = new SessionBooking();
             booking.setBookingGroupKey(groupKey);
             applySharedFields(booking, req, me, start, end, companyId, meetingLink, targetStoredStatus);
-            servicePlans.synchronize(booking, servicePlan);
+            synchronizeServicePlan(booking, servicePlan);
             booking.setClient(null);
             booking.setClientGroup(clientGroup);
             mergeSessionGroupOverrides(booking, req, companyId, clientGroup);
@@ -238,7 +234,7 @@ public class SessionBookingCreationService {
                 var booking = new SessionBooking();
                 booking.setBookingGroupKey(groupKey);
                 applySharedFields(booking, req, me, start, end, companyId, meetingLink, targetStoredStatus);
-                servicePlans.synchronize(booking, servicePlan);
+                synchronizeServicePlan(booking, servicePlan);
                 booking.setClient(requireClient(clientId, companyId, me));
                 booking.setClientGroup(clientGroup);
                 mergeSessionGroupOverrides(booking, req, companyId, clientGroup);
@@ -392,7 +388,7 @@ public class SessionBookingCreationService {
                 }
             }
             applySharedFields(row, req, me, start, end, companyId, meetingLink, targetStoredStatus);
-            servicePlans.synchronize(row, servicePlan);
+            synchronizeServicePlan(row, servicePlan);
             row.setBookingGroupKey(groupKey);
             row.setClient(requireClient(clientId, companyId, me));
             row.setClientGroup(representative.getClientGroup());
@@ -656,7 +652,7 @@ public class SessionBookingCreationService {
                 meetingLink,
                 SessionBookingStatus.RESERVED
         );
-        servicePlans.synchronize(booking, servicePlan);
+        synchronizeServicePlan(booking, servicePlan);
         booking.setClient(client);
         applyChannelMetadata(booking, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus(), request.bookingSource());
         booking = repo.save(booking);
@@ -846,62 +842,51 @@ public class SessionBookingCreationService {
             LocalDateTime newStart,
             LocalDateTime requestedEnd
     ) {
-        servicePlans.synchronize(booking, planExistingBookingEdit(booking, newStart, requestedEnd));
+        synchronizeServicePlan(booking, planExistingBookingEdit(booking, newStart, requestedEnd));
     }
 
-    /** Validates an ordered public or channel service chain without creating a booking. */
-    public void validateServiceChainWindow(
+    private void synchronizeServicePlan(SessionBooking booking, SessionServicePlanService.Plan plan) {
+        if (booking != null && booking.getId() != null && guestEntitlementService != null) {
+            guestEntitlementService.restoreCreditsForRemovedServices(booking, plan);
+        }
+        servicePlans.synchronize(booking, plan);
+    }
+
+    /**
+     * Public-channel full-chain validation used by Calendra Connect, the widget and public booking page.
+     * Returns the resolved plan so callers can expose the authoritative end time.
+     */
+    public SessionServicePlanService.Plan validateServiceChainWindow(
             Long companyId,
             List<Long> clientIds,
             Long consultantId,
             LocalDateTime start,
             List<SessionBookingController.BookingServiceRequest> services,
-            List<Long> excludeIds,
-            boolean spacesEnabled,
-            boolean multipleSessionsPerSpaceEnabled,
-            boolean multipleClientsPerSessionEnabled,
-            boolean online,
-            boolean allowPersonalBlockOverlap
+            List<Long> excludeIds
     ) {
         if (services == null || services.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
         }
-        LocalDateTime placeholderEnd = start == null ? null : start.plusMinutes(1);
         SessionBookingController.BookingRequest request = new SessionBookingController.BookingRequest(
-                null,
-                clientIds == null ? List.of() : clientIds,
-                consultantId,
-                start == null ? null : start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                placeholderEnd == null ? null : placeholderEnd.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                null,
-                services.get(0) == null ? null : services.get(0).typeId(),
-                null,
-                null,
-                false,
-                null,
-                false,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                services
+                null, clientIds, consultantId, start == null ? null : start.toString(), null, null,
+                services.get(0).typeId(), null, null, false, null, false, null, null, null,
+                "CONFIRMED", null, null, services
         );
-        SessionServicePlanService.Plan plan = servicePlans.resolve(request, companyId, start, placeholderEnd);
+        SessionServicePlanService.Plan plan = servicePlans.resolve(request, companyId, start, start == null ? null : start.plusMinutes(1));
         validateBookingWindow(
                 companyId,
                 clientIds,
                 consultantId,
                 plan,
                 excludeIds,
-                spacesEnabled,
-                multipleSessionsPerSpaceEnabled,
-                multipleClientsPerSessionEnabled,
-                online,
-                allowPersonalBlockOverlap,
+                isSpacesEnabled(companyId),
+                isMultipleSessionsPerSpaceEnabled(companyId),
+                isMultipleClientsPerSessionEnabled(companyId),
+                false,
+                false,
                 null
         );
+        return plan;
     }
 
     public void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
@@ -1795,7 +1780,7 @@ public class SessionBookingCreationService {
             keep.setGuestUserId(existingGuestUserId);
         }
         applySharedFields(keep, req, me, start, end, companyId, meetingLink, bookingStatus);
-        servicePlans.synchronize(keep, servicePlan);
+        synchronizeServicePlan(keep, servicePlan);
         keep.setBookingGroupKey(groupKey);
         keep.setClient(null);
         keep.setClientGroup(group);

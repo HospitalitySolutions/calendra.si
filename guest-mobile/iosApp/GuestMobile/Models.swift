@@ -37,6 +37,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let depositPercent: Int?
     /// Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Nil/empty means no allowlist enforced.
     let acceptedPaymentMethods: [String]?
+    /// Enables ordered multi-service selection in Calendra Connect.
+    let multipleServicesEnabled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id = "companyId"
@@ -60,6 +62,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case paymentRequirement
         case depositPercent
         case acceptedPaymentMethods
+        case multipleServicesEnabled
     }
 
     init(
@@ -83,7 +86,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
         requireOnlinePayment: Bool? = nil,
         paymentRequirement: String? = nil,
         depositPercent: Int? = nil,
-        acceptedPaymentMethods: [String]? = nil
+        acceptedPaymentMethods: [String]? = nil,
+        multipleServicesEnabled: Bool? = nil
     ) {
         self.id = id
         self.name = name
@@ -106,6 +110,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.paymentRequirement = paymentRequirement
         self.depositPercent = depositPercent
         self.acceptedPaymentMethods = acceptedPaymentMethods
+        self.multipleServicesEnabled = multipleServicesEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -131,6 +136,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.paymentRequirement = try c.decodeIfPresent(String.self, forKey: .paymentRequirement)
         self.depositPercent = try c.decodeIfPresent(Int.self, forKey: .depositPercent)
         self.acceptedPaymentMethods = try c.decodeIfPresent([String].self, forKey: .acceptedPaymentMethods)
+        self.multipleServicesEnabled = try c.decodeIfPresent(Bool.self, forKey: .multipleServicesEnabled)
     }
 }
 
@@ -155,6 +161,7 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
     let paymentRequirement: String?
     let depositPercent: Int?
     let acceptedPaymentMethods: [String]?
+    let multipleServicesEnabled: Bool?
 
     var id: String { companyId }
 
@@ -177,7 +184,8 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
         requireOnlinePayment: Bool? = nil,
         paymentRequirement: String? = nil,
         depositPercent: Int? = nil,
-        acceptedPaymentMethods: [String]? = nil
+        acceptedPaymentMethods: [String]? = nil,
+        multipleServicesEnabled: Bool? = nil
     ) {
         self.companyId = companyId
         self.companyName = companyName
@@ -198,6 +206,7 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
         self.paymentRequirement = paymentRequirement
         self.depositPercent = depositPercent
         self.acceptedPaymentMethods = acceptedPaymentMethods
+        self.multipleServicesEnabled = multipleServicesEnabled
     }
 }
 
@@ -385,6 +394,20 @@ struct UpdateGuestProfileSettingsPayload: Codable {
     }
 }
 
+
+struct BookingServiceLineModel: Codable, Hashable, Identifiable {
+    let sessionTypeId: String
+    let name: String
+    let position: Int
+    let durationMinutes: Int
+    let startsAt: String?
+    let endsAt: String?
+    let priceGross: Double?
+    let currency: String?
+
+    var id: String { "\(position)-\(sessionTypeId)" }
+}
+
 struct BookingModel: Identifiable, Codable, Hashable {
     let id: String
     let title: String
@@ -394,6 +417,11 @@ struct BookingModel: Identifiable, Codable, Hashable {
     let endsAt: String?
     let consultantName: String?
     let sessionTypeId: String?
+    let services: [BookingServiceLineModel]?
+    let totalDurationMinutes: Int?
+    let totalPriceGross: Double?
+    let currency: String?
+    let paymentStatus: String?
 
     init(
         id: String,
@@ -403,7 +431,12 @@ struct BookingModel: Identifiable, Codable, Hashable {
         status: String,
         employeePhone: String? = nil,
         consultantName: String? = nil,
-        sessionTypeId: String? = nil
+        sessionTypeId: String? = nil,
+        services: [BookingServiceLineModel]? = nil,
+        totalDurationMinutes: Int? = nil,
+        totalPriceGross: Double? = nil,
+        currency: String? = nil,
+        paymentStatus: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -413,6 +446,11 @@ struct BookingModel: Identifiable, Codable, Hashable {
         self.employeePhone = employeePhone
         self.consultantName = consultantName
         self.sessionTypeId = sessionTypeId
+        self.services = services
+        self.totalDurationMinutes = totalDurationMinutes
+        self.totalPriceGross = totalPriceGross
+        self.currency = currency
+        self.paymentStatus = paymentStatus
     }
 
     enum CodingKeys: String, CodingKey {
@@ -424,6 +462,11 @@ struct BookingModel: Identifiable, Codable, Hashable {
         case endsAt
         case consultantName
         case sessionTypeId
+        case services
+        case totalDurationMinutes
+        case totalPriceGross
+        case currency
+        case paymentStatus
     }
 }
 struct EntitlementModel: Identifiable, Codable, Hashable {
@@ -608,7 +651,11 @@ struct AvailabilitySlotModel: Identifiable, Codable, Hashable {
 
 struct AvailabilityResponseModel: Codable {
     let sessionTypeId: String
+    let sessionTypeIds: [String]?
     let date: String
+    let totalDurationMinutes: Int?
+    let estimatedPriceGross: Double?
+    let currency: String?
     let slots: [AvailabilitySlotModel]
 }
 
@@ -795,6 +842,11 @@ struct BookingCardModel: Identifiable, Hashable {
     let endsAt: String?
     let consultantName: String?
     let sessionTypeId: String?
+    let services: [BookingServiceLineModel]
+    let totalDurationMinutes: Int
+    let totalPriceGross: Double
+    let currency: String
+    let paymentStatus: String?
     var cancellationAllowed: Bool = true
     var modificationAllowed: Bool = true
 }
@@ -980,6 +1032,14 @@ struct TenantCodePayload: Codable {
     let tenantCode: String
 }
 
+struct SelectedServicePayload: Codable {
+    let productId: String?
+    let sessionTypeId: String?
+    let position: Int
+    let entitlementId: String?
+    let spaceId: String?
+}
+
 struct CreateOrderPayload: Codable {
     let companyId: String
     let productId: String
@@ -987,14 +1047,16 @@ struct CreateOrderPayload: Codable {
     let paymentMethodType: String
     let consultantId: String?
     let entitlementId: String?
+    let services: [SelectedServicePayload]?
 
-    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil) {
+    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil) {
         self.companyId = companyId
         self.productId = productId
         self.slotId = slotId
         self.paymentMethodType = paymentMethodType
         self.consultantId = consultantId
         self.entitlementId = entitlementId
+        self.services = services
     }
 }
 

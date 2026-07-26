@@ -3,6 +3,7 @@ package com.example.app.google.calendar;
 import com.example.app.session.CalendarTodo;
 import com.example.app.session.PersonalCalendarBlock;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionServiceSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -25,9 +26,26 @@ public class GoogleCalendarEventMapper {
     public ObjectNode toGoogleEvent(SessionBooking booking) {
         ObjectNode event = objectMapper.createObjectNode();
         String clientName = booking.getClient() == null ? "Client" : safe((booking.getClient().getFirstName() + " " + booking.getClient().getLastName()).trim());
-        String serviceName = booking.getType() == null ? "Session" : safe(booking.getType().getName());
+        var serviceTypes = SessionServiceSupport.orderedTypes(booking);
+        String serviceName = serviceTypes.isEmpty() ? "Session" : serviceTypes.stream()
+                .map(type -> safe(type.getName()))
+                .reduce((left, right) -> left + " + " + right)
+                .orElse("Session");
         event.put("summary", "Booking: " + clientName + " - " + serviceName);
         StringBuilder description = new StringBuilder("Created by Calendra");
+        if (!serviceTypes.isEmpty()) {
+            description.append("\n\nServices:");
+            int position = 1;
+            for (var service : SessionServiceSupport.orderedServices(booking)) {
+                description.append("\n").append(position++).append(". ")
+                        .append(service.getServiceNameSnapshot())
+                        .append(" (").append(service.getDurationMinutesSnapshot()).append(" min)");
+            }
+            if (SessionServiceSupport.orderedServices(booking).isEmpty()) {
+                description.append("\n1. ").append(serviceName);
+            }
+            description.append("\nTotal duration: ").append(SessionServiceSupport.totalServiceMinutes(booking)).append(" min");
+        }
         if (booking.getNotes() != null && !booking.getNotes().isBlank()) description.append("\n\nNotes: ").append(booking.getNotes());
         if (booking.getBookingGroupKey() != null && !booking.getBookingGroupKey().isBlank()) description.append("\nBooking group: ").append(booking.getBookingGroupKey());
         event.put("description", description.toString());

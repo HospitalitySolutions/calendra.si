@@ -45,7 +45,7 @@ struct BookView: View {
 
     @State private var currentStep: BookFlowStep = .provider
     @State private var selectedProviderId: String?
-    @State private var selectedServiceId: String?
+    @State private var selectedServiceIds: [String] = []
     @State private var selectedConsultantId: String?
     @State private var consultants: [ConsultantSummaryModel] = []
     @State private var isLoadingConsultants = false
@@ -101,9 +101,25 @@ struct BookView: View {
         providers.first(where: { $0.id == selectedProviderId })
     }
 
-    private var selectedService: ServiceOptionModel? {
-        servicesForSelectedProvider.first(where: { $0.id == selectedServiceId })
+    private var selectedServices: [ServiceOptionModel] {
+        selectedServiceIds.compactMap { id in servicesForSelectedProvider.first(where: { $0.id == id }) }
     }
+
+    private var selectedService: ServiceOptionModel? { selectedServices.first }
+
+    private var multipleServicesEnabled: Bool {
+        selectedProvider?.multipleServicesEnabled == true && !entitlementLaunchMode && rescheduleContext == nil
+    }
+
+    private var totalDurationMinutes: Int {
+        selectedServices.reduce(0) { $0 + ($1.durationMinutes ?? 0) }
+    }
+
+    private var totalPriceGross: Double {
+        selectedServices.reduce(0) { $0 + $1.priceGross }
+    }
+
+    private var bookingCurrency: String { selectedServices.first?.currency ?? "EUR" }
 
     private var selectedSlot: AvailabilitySlotModel? {
         slots.first(where: { $0.id == selectedSlotId })
@@ -133,11 +149,10 @@ struct BookView: View {
     }
 
     private var amountDueNow: Double {
-        guard let selectedService else { return 0.0 }
         if isDepositMode {
-            return selectedService.priceGross * Double(depositPercentValue) / 100.0
+            return totalPriceGross * Double(depositPercentValue) / 100.0
         }
-        return selectedService.priceGross
+        return totalPriceGross
     }
 
     private var visibleSteps: [BookFlowStep] {
@@ -164,9 +179,14 @@ struct BookView: View {
     }
 
     private var matchingEntitlements: [AccessCardModel] {
-        guard let selectedService else { return [] }
-        return store.matchingEntitlements(companyId: selectedService.companyId, sessionTypeId: selectedService.sessionTypeId)
-            .filter { $0.type.uppercased() != "GIFT_CARD" }
+        guard let primary = selectedServices.first else { return [] }
+        return store.accessCards.filter { card in
+            guard card.companyId == primary.companyId, card.type.uppercased() != "GIFT_CARD" else { return false }
+            guard card.status.uppercased() == "ACTIVE" || card.status.uppercased() == "PENDING" else { return false }
+            return selectedServices.contains { service in
+                card.sessionTypeId?.isEmpty != false || card.sessionTypeId == service.sessionTypeId
+            }
+        }
     }
 
     private var selectedEntitlement: AccessCardModel? {
@@ -185,7 +205,7 @@ struct BookView: View {
             let balance = card.remainingValueGross ?? 0.0
             guard balance > 0.0 else { return false }
             if let currency = card.currency, !currency.isEmpty,
-               currency.uppercased() != selectedService.currency.uppercased() {
+               currency.uppercased() != bookingCurrency.uppercased() {
                 return false
             }
             return true
@@ -197,7 +217,7 @@ struct BookView: View {
     }
 
     private var hasGiftCardCoverage: Bool {
-        guard let selectedService else { return false }
+        guard !selectedServices.isEmpty else { return false }
         return matchingGiftCardsTotal + 0.0001 >= amountDueNow
     }
 
@@ -274,7 +294,9 @@ struct BookView: View {
 
     private var primaryButtonTitle: String {
         if rescheduleContext != nil && currentStep == .dateTime { return tr("Confirm reschedule", "Potrdi prestavitev") }
-        return currentStep == .paymentReview ? tr("Confirm booking", "Potrdi rezervacijo") : tr("Continue", "Nadaljuj")
+        if currentStep == .paymentReview { return tr("Confirm booking", "Potrdi rezervacijo") }
+        if currentStep == .service && multipleServicesEnabled { return tr("Choose time", "Izberi termin") }
+        return tr("Continue", "Nadaljuj")
     }
 
     private var unreadNotifications: Int {
@@ -354,7 +376,7 @@ struct BookView: View {
             if rescheduleContext == nil {
                 entitlementLaunchMode = false
                 currentStep = .provider
-                selectedServiceId = nil
+                selectedServiceIds = []
                 selectedConsultantId = nil
                 selectedSlotId = nil
                 consultants = []
@@ -372,8 +394,9 @@ struct BookView: View {
             }
         }
         .onChange(of: selectedProviderId) { providerId in
-            if servicesForSelectedProvider.contains(where: { $0.id == selectedServiceId }) == false {
-                selectedServiceId = nil
+            let validIds = selectedServiceIds.filter { id in servicesForSelectedProvider.contains(where: { $0.id == id }) }
+            selectedServiceIds = multipleServicesEnabled ? validIds : Array(validIds.prefix(1))
+            if selectedServiceIds.isEmpty {
                 selectedSlotId = nil
                 slots = []
                 dateAvailability = [:]
@@ -385,13 +408,13 @@ struct BookView: View {
             }
             ensurePaymentMethodAllowed()
         }
-        .onChange(of: selectedServiceId) { _ in
+        .onChange(of: selectedServiceIds) { _ in
             selectedSlotId = nil
             dateAvailability = [:]
             selectedConsultantId = nil
             consultants = []
-            if employeeStepEnabled, let selectedService {
-                Task { await loadConsultants(for: selectedService) }
+            if employeeStepEnabled, !selectedServices.isEmpty {
+                Task { await loadConsultants(for: selectedServices) }
             }
             ensurePaymentMethodAllowed()
         }
@@ -408,15 +431,15 @@ struct BookView: View {
             }
         }
         .task(id: availabilityTaskKey) {
-            guard let selectedService else { return }
+            guard !selectedServices.isEmpty else { return }
             let steps = visibleSteps
             guard let currentIdx = steps.firstIndex(of: currentStep),
                   let dateIdx = steps.firstIndex(of: .dateTime),
                   currentIdx >= dateIdx else { return }
-            await loadAvailability(for: selectedService)
+            await loadAvailability(for: selectedServices)
         }
         .task(id: monthAvailabilityTaskKey) {
-            guard let selectedService else {
+            guard !selectedServices.isEmpty else {
                 dateAvailability = [:]
                 return
             }
@@ -424,7 +447,7 @@ struct BookView: View {
             guard let currentIdx = steps.firstIndex(of: currentStep),
                   let dateIdx = steps.firstIndex(of: .dateTime),
                   currentIdx >= dateIdx else { return }
-            await loadMonthAvailability(for: selectedService)
+            await loadMonthAvailability(for: selectedServices)
         }
         .sheet(isPresented: $showingPaymentMethodsSheet) {
             PaymentMethodPickerSheet(
@@ -645,7 +668,11 @@ struct BookView: View {
 
     private var serviceStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            straightSectionHeader(tr("SELECTED SERVICE", "IZBERI STORITEV"))
+            straightSectionHeader(multipleServicesEnabled ? tr("SERVICES", "STORITVE") : tr("SELECT SERVICE", "IZBERI STORITEV"))
+
+            if multipleServicesEnabled, !selectedServices.isEmpty {
+                selectedServicesSummary
+            }
 
             if selectedProvider == nil {
                 emptyInlineMessage(tr("Select a provider first", "Najprej izberite ponudnika"), tr("Choose a provider before selecting a service.", "Pred izbiro storitve izberite ponudnika."))
@@ -660,10 +687,15 @@ struct BookView: View {
                                 straightSectionHeader(groupName.uppercased())
                             }
                             ForEach(section) { service in
+                                let selected = selectedServiceIds.contains(service.id)
                                 Button {
-                                    selectedServiceId = service.id
+                                    if multipleServicesEnabled {
+                                        if !selected { selectedServiceIds.append(service.id) }
+                                    } else {
+                                        selectedServiceIds = [service.id]
+                                    }
                                 } label: {
-                                    serviceLineRow(service: service, selected: selectedServiceId == service.id)
+                                    serviceLineRow(service: service, selected: selected, multiSelection: multipleServicesEnabled)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -672,6 +704,71 @@ struct BookView: View {
                 }
             }
         }
+    }
+
+    private var selectedServicesSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tr("Selected services", "Izbrane storitve"))
+                        .font(.system(size: 18, weight: .heavy))
+                        .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                    Text(tr("\(selectedServices.count) services", "\(selectedServices.count) storitev"))
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("\(totalDurationMinutes) min")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                    Text("\(priceString(totalPriceGross)) \(bookingCurrency)")
+                        .font(.system(size: 18, weight: .heavy))
+                        .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                }
+            }
+
+            ForEach(Array(selectedServices.enumerated()), id: \.element.id) { index, service in
+                if index > 0 { Divider().opacity(0.45) }
+                HStack(spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                        .frame(width: 28, height: 28)
+                        .background(Color(red: 0.91, green: 0.95, blue: 1.0))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(service.name).font(.system(size: 15, weight: .bold))
+                        Text([service.durationMinutes.map { "\($0) min" }, "\(priceString(service.priceGross)) \(service.currency)"].compactMap { $0 }.joined(separator: " • "))
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                    }
+                    Spacer()
+                    Button { moveService(service.id, by: -1) } label: { Image(systemName: "arrow.up") }
+                        .disabled(index == 0)
+                    Button { moveService(service.id, by: 1) } label: { Image(systemName: "arrow.down") }
+                        .disabled(index == selectedServices.count - 1)
+                    Button {
+                        selectedServiceIds.removeAll { $0 == service.id }
+                    } label: {
+                        Image(systemName: "trash").foregroundColor(.red)
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(16)
+        .background(Color(red: 0.97, green: 0.985, blue: 1.0))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color(red: 0.84, green: 0.89, blue: 0.96), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 22))
+    }
+
+    private func moveService(_ id: String, by offset: Int) {
+        guard let index = selectedServiceIds.firstIndex(of: id) else { return }
+        let target = index + offset
+        guard selectedServiceIds.indices.contains(target) else { return }
+        selectedServiceIds.swapAt(index, target)
+        selectedSlotId = nil
     }
 
     private var dateStep: some View {
@@ -857,7 +954,7 @@ struct BookView: View {
         .contentShape(Rectangle())
     }
 
-    private func serviceLineRow(service: ServiceOptionModel, selected: Bool) -> some View {
+    private func serviceLineRow(service: ServiceOptionModel, selected: Bool, multiSelection: Bool = false) -> some View {
         HStack(alignment: .center, spacing: 12) {
             selectionRail(selected)
             squareIconTile(bookTenantIcon(service.tenantType), selected: selected)
@@ -876,9 +973,20 @@ struct BookView: View {
                 }
             }
             Spacer(minLength: 8)
-            Text("\(priceString(service.priceGross)) \(service.currency)")
-                .font(.system(size: 18, weight: .heavy))
-                .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+            VStack(alignment: .trailing, spacing: 8) {
+                Text("\(priceString(service.priceGross)) \(service.currency)")
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                if multiSelection {
+                    Label(selected ? tr("Added", "Dodano") : tr("Add", "Dodaj"), systemImage: selected ? "checkmark" : "plus")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(selected ? Color(red: 0.05, green: 0.42, blue: 1.0) : .white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(selected ? Color(red: 0.91, green: 0.95, blue: 1.0) : Color(red: 0.05, green: 0.42, blue: 1.0))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity)
@@ -1064,7 +1172,7 @@ struct BookView: View {
         case .giftCard:
             if let giftCard = matchingGiftCards.first {
                 let balanceText = giftCard.remainingValueGross.map { priceString($0) } ?? tr("available", "na voljo")
-                let currencyText = giftCard.currency ?? selectedService?.currency ?? ""
+                let currencyText = giftCard.currency ?? bookingCurrency
                 return "\(giftCard.name) • \(balanceText) \(currencyText)".trimmingCharacters(in: .whitespaces)
             }
             return tr("Use your gift card balance", "Uporabite dobroimetje darilne kartice")
@@ -1081,18 +1189,20 @@ struct BookView: View {
             if let provider = selectedProvider {
                 reviewSummaryLine(icon: "building.2", label: tr("Provider", "Ponudnik"), value: provider.name)
             }
-            reviewSummaryLine(icon: bookTenantIcon(service.tenantType), label: tr("Service", "Storitev"), value: service.description.nilIfBlank ?? service.name)
+            ForEach(Array(selectedServices.enumerated()), id: \.element.id) { index, selected in
+                reviewSummaryLine(icon: bookTenantIcon(selected.tenantType), label: index == 0 ? tr("Services", "Storitve") : "", value: selected.description.nilIfBlank ?? selected.name)
+            }
             if employeeStepEnabled, let consultant = selectedConsultant {
                 reviewSummaryLine(icon: "person", label: tr("Employee", "Zaposleni"), value: consultant.fullName)
             }
-            if let durationMinutes = service.durationMinutes {
-                reviewSummaryLine(icon: "timer", label: tr("Duration", "Trajanje"), value: "\(durationMinutes) min")
+            if totalDurationMinutes > 0 {
+                reviewSummaryLine(icon: "timer", label: tr("Duration", "Trajanje"), value: "\(totalDurationMinutes) min")
             }
             if let slot = selectedSlot {
                 reviewSummaryLine(icon: "calendar", label: tr("Date & time", "Datum in ura"), value: localizedPrettyRange(start: slot.startsAt, end: slot.endsAt))
             }
             if !skipsOnlinePaymentMethods && isDepositMode {
-                reviewSummaryLine(icon: "creditcard", label: tr("Deposit", "Predplačilo"), value: "\(depositPercentValue)% · \(priceString(amountDueNow)) \(service.currency)")
+                reviewSummaryLine(icon: "creditcard", label: tr("Deposit", "Predplačilo"), value: "\(depositPercentValue)% · \(priceString(amountDueNow)) \(bookingCurrency)")
             }
         }
         .padding(16)
@@ -1106,7 +1216,7 @@ struct BookView: View {
                 .tracking(1.2)
                 .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
             Spacer()
-            Text("\(priceString(service.priceGross)) \(service.currency)")
+            Text("\(priceString(totalPriceGross)) \(bookingCurrency)")
                 .font(.system(size: 22, weight: .heavy))
                 .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
         }
@@ -1214,8 +1324,8 @@ struct BookView: View {
             return
         }
         if currentStep == .paymentReview {
-            guard let selectedService, let selectedSlot else { return }
-            Task { await confirmBooking(service: selectedService, slot: selectedSlot) }
+            guard !selectedServices.isEmpty, let selectedSlot else { return }
+            Task { await confirmBooking(services: selectedServices, slot: selectedSlot) }
             return
         }
         let nextIdx = idx + 1
@@ -1231,7 +1341,7 @@ struct BookView: View {
         if let service = store.serviceOptions.first(where: {
             $0.companyId == context.companyId && (($0.sessionTypeId == context.sessionTypeId && context.sessionTypeId != nil) || $0.name.caseInsensitiveCompare(context.sessionTypeName) == .orderedSame)
         }) {
-            selectedServiceId = service.id
+            selectedServiceIds = [service.id]
             selectedSlotId = nil
             currentStep = employeeStepEnabled ? .employee : .dateTime
         }
@@ -1254,11 +1364,11 @@ struct BookView: View {
 
         if let service = matchedService(for: request) {
             entitlementLaunchMode = true
-            selectedServiceId = service.id
+            selectedServiceIds = [service.id]
             currentStep = .dateTime
         } else {
             entitlementLaunchMode = false
-            selectedServiceId = nil
+            selectedServiceIds = []
             currentStep = .service
             notice = tr("No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
         }
@@ -1282,16 +1392,17 @@ struct BookView: View {
         return providerServices.first(where: { $0.name.localizedCaseInsensitiveContains(request.entitlementName) || request.entitlementName.localizedCaseInsensitiveContains($0.name) })
     }
 
-    private func loadAvailability(for service: ServiceOptionModel) async {
+    private func loadAvailability(for services: [ServiceOptionModel]) async {
         let steps = visibleSteps
         guard let currentIdx = steps.firstIndex(of: currentStep),
               let dateIdx = steps.firstIndex(of: .dateTime),
               currentIdx >= dateIdx else { return }
+        guard let primary = services.first else { return }
         do {
             isLoadingSlots = true
             slots = try await store.loadAvailability(
-                companyId: service.companyId,
-                sessionTypeId: service.sessionTypeId,
+                companyId: primary.companyId,
+                sessionTypeIds: services.map(\.sessionTypeId),
                 date: selectedDate,
                 consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
             )
@@ -1310,7 +1421,7 @@ struct BookView: View {
         }
     }
 
-    private func loadMonthAvailability(for service: ServiceOptionModel) async {
+    private func loadMonthAvailability(for services: [ServiceOptionModel]) async {
         let steps = visibleSteps
         guard let currentIdx = steps.firstIndex(of: currentStep),
               let dateIdx = steps.firstIndex(of: .dateTime),
@@ -1320,6 +1431,7 @@ struct BookView: View {
             return
         }
 
+        guard let primary = services.first else { return }
         let cal = Calendar.current
         guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: visibleMonth)),
               let range = cal.range(of: .day, in: .month, for: monthStart) else {
@@ -1337,8 +1449,8 @@ struct BookView: View {
             if cal.startOfDay(for: date) < todayStart { continue }
             do {
                 let daySlots = try await store.loadAvailability(
-                    companyId: service.companyId,
-                    sessionTypeId: service.sessionTypeId,
+                    companyId: primary.companyId,
+                    sessionTypeIds: services.map(\.sessionTypeId),
                     date: date,
                     consultantId: consultantId
                 )
@@ -1351,10 +1463,11 @@ struct BookView: View {
         }
     }
 
-    private func loadConsultants(for service: ServiceOptionModel) async {
+    private func loadConsultants(for services: [ServiceOptionModel]) async {
+        guard let primary = services.first else { return }
         isLoadingConsultants = true
         do {
-            consultants = try await store.loadConsultants(companyId: service.companyId, sessionTypeId: service.sessionTypeId)
+            consultants = try await store.loadConsultants(companyId: primary.companyId, sessionTypeIds: services.map(\.sessionTypeId))
         } catch {
             guard !isCancellation(error), !Task.isCancelled else { return }
             consultants = []
@@ -1377,17 +1490,24 @@ struct BookView: View {
         }
     }
 
-    private func confirmBooking(service: ServiceOptionModel, slot: AvailabilitySlotModel) async {
+    private func confirmBooking(services: [ServiceOptionModel], slot: AvailabilitySlotModel) async {
+        guard let primary = services.first else { return }
         do {
             isSubmitting = true
             let paymentApi = usesEntitlementPayment ? GuestBookingPaymentChoice.entitlement.apiValue : (skipsOnlinePaymentMethods ? "PAY_AT_VENUE" : selectedPaymentMethod.apiValue)
             let checkout = try await store.createOrder(
-                companyId: service.companyId,
-                productId: service.productId,
+                companyId: primary.companyId,
+                productId: primary.productId,
                 slotId: slot.id,
                 paymentMethod: paymentApi,
                 consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil,
-                entitlementId: selectedPaymentMethod == .entitlement ? selectedEntitlement?.entitlementId : nil
+                entitlementId: nil,
+                services: services.enumerated().map { index, service in
+                    let entitlement = selectedPaymentMethod == .entitlement
+                        ? matchingEntitlements.first(where: { $0.sessionTypeId == nil || $0.sessionTypeId == service.sessionTypeId })?.entitlementId
+                        : nil
+                    return SelectedServicePayload(productId: service.productId, sessionTypeId: service.sessionTypeId, position: index, entitlementId: entitlement, spaceId: nil)
+                }
             )
             isSubmitting = false
 
@@ -1407,11 +1527,11 @@ struct BookView: View {
     }
 
     private var availabilityTaskKey: String {
-        "\(selectedService?.id ?? "none")-\(DateFormatting.dayString(selectedDate))-\(selectedConsultantId ?? "any")"
+        "\(selectedServiceIds.joined(separator: ","))-\(DateFormatting.dayString(selectedDate))-\(selectedConsultantId ?? "any")"
     }
 
     private var monthAvailabilityTaskKey: String {
-        "\(selectedService?.id ?? "none")-\(DateFormatting.dayString(visibleMonth))-\(selectedConsultantId ?? "any")-\(currentStep.rawValue)"
+        "\(selectedServiceIds.joined(separator: ","))-\(DateFormatting.dayString(visibleMonth))-\(selectedConsultantId ?? "any")-\(currentStep.rawValue)"
     }
 
     private func priceString(_ value: Double) -> String {

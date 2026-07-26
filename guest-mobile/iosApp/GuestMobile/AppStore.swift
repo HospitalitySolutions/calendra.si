@@ -116,6 +116,11 @@ final class AppStore: ObservableObject {
                         endsAt: booking.endsAt,
                         consultantName: booking.consultantName,
                         sessionTypeId: booking.sessionTypeId,
+                        services: (booking.services ?? []).sorted { $0.position < $1.position },
+                        totalDurationMinutes: booking.totalDurationMinutes ?? 0,
+                        totalPriceGross: booking.totalPriceGross ?? 0,
+                        currency: booking.currency ?? "EUR",
+                        paymentStatus: booking.paymentStatus,
                         cancellationAllowed: dashboard.tenant.cancellationAllowed ?? true,
                         modificationAllowed: dashboard.tenant.modificationAllowed ?? true
                     )
@@ -982,18 +987,18 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func loadAvailability(companyId: String, sessionTypeId: String, date: Date, consultantId: String? = nil) async throws -> [AvailabilitySlotModel] {
+    func loadAvailability(companyId: String, sessionTypeIds: [String], date: Date, consultantId: String? = nil) async throws -> [AvailabilitySlotModel] {
         let day = Self.dayFormatter.string(from: date)
-        if usePreviewData { return preview.availability(for: sessionTypeId, date: day) }
-        return try await api.availability(companyId: companyId, sessionTypeId: sessionTypeId, date: day, consultantId: consultantId).slots
+        if usePreviewData { return preview.availability(for: sessionTypeIds.first ?? "", date: day) }
+        return try await api.availability(companyId: companyId, sessionTypeIds: sessionTypeIds, date: day, consultantId: consultantId).slots
     }
 
-    func loadConsultants(companyId: String, sessionTypeId: String) async throws -> [ConsultantSummaryModel] {
+    func loadConsultants(companyId: String, sessionTypeIds: [String]) async throws -> [ConsultantSummaryModel] {
         if usePreviewData { return [] }
-        return try await api.consultants(companyId: companyId, sessionTypeId: sessionTypeId)
+        return try await api.consultants(companyId: companyId, sessionTypeIds: sessionTypeIds)
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil) async throws -> CheckoutResponseModel {
         let response: CheckoutResponseModel
         if usePreviewData {
             let completeImmediately = paymentMethod == "ENTITLEMENT" || paymentMethod == "PAY_AT_VENUE"
@@ -1010,7 +1015,7 @@ final class AppStore: ObservableObject {
                 merchantDisplayName: nil
             )
         } else {
-            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId)
+            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId, services: services)
         }
         try await refreshTenant(companyId: companyId)
         return response

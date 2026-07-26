@@ -556,11 +556,48 @@ struct HomeBookingCard: View {
 
     private var detailsAndActions: some View {
         VStack(spacing: 0) {
+            if !booking.services.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(isSl ? "STORITVE" : "SERVICES")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(mutedText)
+                    ForEach(Array(booking.services.enumerated()), id: \.element.id) { index, service in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(brandBlue)
+                                .frame(width: 24, height: 24)
+                                .background(Circle().fill(brandBlue.opacity(0.10)))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(service.name)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(brandText)
+                                Text(serviceDetail(service))
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(mutedText)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Divider().overlay(softBorder).padding(.vertical, 5)
+            }
+
             infoLine(icon: "person.fill", label: isSl ? "ZAPOSLENI" : "EMPLOYEE", value: booking.consultantName?.isEmpty == false ? booking.consultantName! : (isSl ? "Bo potrjeno" : "To be confirmed"))
             Divider().overlay(softBorder).padding(.leading, 36).padding(.vertical, 5)
             infoLine(icon: "location.fill", label: isSl ? "LOKACIJA" : "LOCATION", value: bookingLocationLine(booking: booking, isSl: isSl))
             Divider().overlay(softBorder).padding(.leading, 36).padding(.vertical, 5)
             infoLine(icon: "building.2.fill", label: isSl ? "PONUDNIK" : "TENANT", value: booking.tenantName)
+
+            if booking.totalDurationMinutes > 0 || booking.totalPriceGross > 0 || !(booking.paymentStatus ?? "").isEmpty {
+                Divider().overlay(softBorder).padding(.leading, 36).padding(.vertical, 5)
+                infoLine(
+                    icon: "receipt.fill",
+                    label: isSl ? "POVZETEK" : "SUMMARY",
+                    value: bookingSummary
+                )
+            }
 
             Button {
                 activeActionMenu = activeActionMenu == .contact ? nil : .contact
@@ -598,6 +635,25 @@ struct HomeBookingCard: View {
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(Color.white)
+    }
+
+    private func serviceDetail(_ service: BookingServiceLineModel) -> String {
+        var parts: [String] = []
+        if service.durationMinutes > 0 { parts.append("\(service.durationMinutes) min") }
+        if let price = service.priceGross, price > 0 {
+            parts.append(String(format: "%.2f %@", price, service.currency ?? booking.currency))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var bookingSummary: String {
+        var parts: [String] = []
+        if booking.totalDurationMinutes > 0 { parts.append("\(booking.totalDurationMinutes) min") }
+        if booking.totalPriceGross > 0 { parts.append(String(format: "%.2f %@", booking.totalPriceGross, booking.currency)) }
+        if let payment = booking.paymentStatus, !payment.isEmpty {
+            parts.append(payment.replacingOccurrences(of: "_", with: " ").capitalized)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func infoLine(icon: String, label: String, value: String) -> some View {

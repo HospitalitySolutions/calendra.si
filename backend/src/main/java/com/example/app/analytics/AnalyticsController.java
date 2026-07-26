@@ -65,6 +65,17 @@ public class AnalyticsController {
                 me, period, from, to, consultantId, paymentStatus, paymentMethodId, clientQuery, billType);
     }
 
+    @GetMapping("/multi-service")
+    public AnalyticsService.MultiServiceAnalyticsResponse multiService(
+            @AuthenticationPrincipal User me,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) Long consultantId
+    ) {
+        return analyticsService.multiService(me, period, from, to, consultantId);
+    }
+
     @GetMapping("/reports/bookings-attendance")
     public AnalyticsService.BookingsAttendanceReportResponse bookingsAttendanceReport(
             @AuthenticationPrincipal User me,

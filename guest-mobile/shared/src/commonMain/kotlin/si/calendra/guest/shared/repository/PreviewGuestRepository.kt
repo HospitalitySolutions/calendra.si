@@ -95,14 +95,14 @@ class PreviewGuestRepository : GuestRepository {
 
     override suspend fun availability(
         companyId: String,
-        sessionTypeId: String,
+        sessionTypeIds: List<String>,
         date: String,
         consultantId: String?
-    ): AvailabilityResponse = preview.availability(sessionTypeId, date)
+    ): AvailabilityResponse = preview.availability(sessionTypeIds.firstOrNull().orEmpty(), date).copy(sessionTypeIds = sessionTypeIds)
 
     override suspend fun consultants(
         companyId: String,
-        sessionTypeId: String
+        sessionTypeIds: List<String>
     ): List<ConsultantSummary> = emptyList()
 
     override suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse =
