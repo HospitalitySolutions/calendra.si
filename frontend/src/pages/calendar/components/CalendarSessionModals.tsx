@@ -2719,10 +2719,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     clientCount={selectedBookedClientIds.length}
                     warnings={bookedServiceWarnings}
                     onChange={updateSelectedBookedSessionServices}
-                    onAdd={() => updateSelectedBookedSessionServices([
-                      ...bookedServiceDrafts,
-                      { typeId: null, spaceId: bookedServiceDrafts[bookedServiceDrafts.length - 1]?.spaceId ?? selectedBookedSession.space?.id ?? null },
-                    ])}
+                    defaultSpaceId={selectedBookedSession.space?.id ?? null}
                   />
                   <div className="calendar-booking-service-chain__billing-actions">
                     <div className="calendar-session-billing-actions">
@@ -2794,11 +2791,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 </div>
               )}
-              {showBookingSpaceRow && !showBookingTypeRow && (
+              {showBookingSpaceRow && (!showBookingTypeRow || bookedServiceDrafts.filter((service: any) => service.typeId != null).length <= 1) && (
                 <div className="form-row form-row-infield calendar-booking-field--space">
                   <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
                   <div className="form-field-inline-control">
-                  <select value={selectedBookedSession.space?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, space: metaSpaces.find((s: any) => s.id === Number(e.target.value)) })}>
+                  <select
+                    value={selectedBookedSession.space?.id ?? ''}
+                    onChange={(e) => {
+                      const nextSpaceId = Number(e.target.value) || null
+                      updateSelectedBookedSessionServices(bookedServiceDrafts.map((service: any, index: number) => (
+                        index === 0 ? { ...service, spaceId: nextSpaceId } : service
+                      )))
+                    }}
+                  >
                     <option value="">{t('formNoSpace')}</option>
                     {metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -5114,18 +5119,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     clientCount={selectedFormClientIds.length}
                     warnings={formServiceWarnings}
                     onChange={updateBookingFormServices}
-                    onAdd={() => updateBookingFormServices([
-                      ...formServiceDrafts,
-                      { typeId: null, spaceId: formServiceDrafts[formServiceDrafts.length - 1]?.spaceId ?? form.spaceId ?? null },
-                    ])}
+                    defaultSpaceId={form.spaceId ?? null}
                   />
                 </div>
               )}
-              {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && !showBookingTypeRow && (
+              {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && (!showBookingTypeRow || formServiceDrafts.filter((service: any) => service.typeId != null).length <= 1) && (
                 <div className="form-row form-row-infield calendar-booking-field--space">
                   <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
                   <div className="form-field-inline-control">
-                  <select value={form.spaceId || ''} onChange={(e) => setForm({ ...form, spaceId: Number(e.target.value) || null })}><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                  <select
+                    value={form.spaceId || ''}
+                    onChange={(e) => {
+                      const nextSpaceId = Number(e.target.value) || null
+                      updateBookingFormServices(formServiceDrafts.map((service: any, index: number) => (
+                        index === 0 ? { ...service, spaceId: nextSpaceId } : service
+                      )))
+                    }}
+                  ><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
                   </div>
                 </div>
               )}
