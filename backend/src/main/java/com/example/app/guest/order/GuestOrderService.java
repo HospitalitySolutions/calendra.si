@@ -958,7 +958,18 @@ public class GuestOrderService {
             map.put("slotId", slotId);
             map.put("entitlementId", entitlementId == null || entitlementId.isBlank() ? null : entitlementId);
             map.put("productType", product.productType());
-            map.put("productName", product.name());
+            String productName = product.name();
+            if (serviceLines != null && serviceLines.size() > 1) {
+                List<String> serviceNames = serviceLines.stream()
+                        .map(OrderServiceLine::product)
+                        .map(GuestCatalogService.ResolvedProduct::name)
+                        .filter(name -> name != null && !name.isBlank())
+                        .toList();
+                if (!serviceNames.isEmpty()) {
+                    productName = String.join(" + ", serviceNames);
+                }
+            }
+            map.put("productName", productName);
             map.put("guestProductId", product.persistedProduct() == null ? null : product.persistedProduct().getId());
             map.put("sessionTypeId", product.sessionType() == null ? null : product.sessionType().getId());
             map.put("currency", product.currency());
