@@ -740,6 +740,18 @@ a.config-nav-item {
     outline: none;
 }
 
+
+@media (max-width: 1024px) {
+    .config-shell--detail.config-shell--notifications-mobile {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+}
+
 @media (max-width: 420px) {
     .config-shell--overview {
         padding: 38px 12px 64px;

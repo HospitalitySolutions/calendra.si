@@ -187,7 +187,6 @@ Due date: {{dueDate}}
 Thank you,
 {{companyName}}`;
 
-
 function notificationEnabledKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
@@ -519,6 +518,31 @@ const EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY = "EMAIL_CUSTOM_REPLY_TO_EMAIL";
 const EMAIL_CUSTOM_DOMAIN_KEY = "EMAIL_CUSTOM_DOMAIN";
 const EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS_KEY =
   "EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS";
+
+const NOTIFICATION_RELEVANT_SETTING_KEYS = new Set([
+  INVOICE_DELIVERY_EMAIL_ENABLED_KEY,
+  INVOICE_DELIVERY_EMAIL_SUBJECT_KEY,
+  INVOICE_DELIVERY_EMAIL_BODY_KEY,
+  EMAIL_SENDER_MODE_KEY,
+  EMAIL_CUSTOM_FROM_NAME_KEY,
+  EMAIL_CUSTOM_FROM_EMAIL_KEY,
+  EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY,
+  EMAIL_CUSTOM_DOMAIN_KEY,
+  EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS_KEY,
+]);
+
+function snapshotNotificationSettings(settings: Record<string, string>) {
+  return JSON.stringify(
+    Object.keys(settings)
+      .filter(
+        (key) =>
+          key.startsWith("NOTIFICATIONS_") ||
+          NOTIFICATION_RELEVANT_SETTING_KEYS.has(key),
+      )
+      .sort()
+      .map((key) => [key, settings[key] ?? ""]),
+  );
+}
 
 type EmailSenderMode = "DEFAULT_CALENDRA" | "CUSTOM_DOMAIN";
 
@@ -1320,6 +1344,8 @@ export function ConfigurationNotificationsSection({
         ? window.matchMedia("(max-width: 1024px)").matches
         : false,
     );
+  const [lastSavedNotificationSnapshot, setLastSavedNotificationSnapshot] =
+    useState(() => snapshotNotificationSettings(settings));
   const [templateVariant, setTemplateVariant] =
     useState<NotificationTemplateVariant>("regular");
   const templateBodyRef = useRef<HTMLDivElement | null>(null);
@@ -1362,6 +1388,9 @@ export function ConfigurationNotificationsSection({
   const visibleNotificationEvents = baseVisibleNotificationEvents.filter(
     (event) => waitlistEnabled || event.category !== "waitlist",
   );
+  const notificationSettingsSnapshot = snapshotNotificationSettings(settings);
+  const hasPendingNotificationChanges =
+    notificationSettingsSnapshot !== lastSavedNotificationSnapshot;
 
   useEffect(() => {
     if (!waitlistEnabled && editingEvent?.startsWith("waitlist")) {
@@ -1490,6 +1519,11 @@ export function ConfigurationNotificationsSection({
       document.body.style.overflow = previousOverflow;
     };
   }, [isCompactNotificationsLayout, selectedEvent]);
+
+  const handleSave = async () => {
+    await onSave();
+    setLastSavedNotificationSnapshot(snapshotNotificationSettings(settings));
+  };
 
   const setNotificationEnabled = (
     id: NotificationEventKind,
@@ -2476,9 +2510,11 @@ export function ConfigurationNotificationsSection({
         @media (max-width: 1024px) {
           .notif-page-shell {
             width: 100%;
+            display: block;
+            background: #ffffff;
           }
           .notif-card {
-            padding: 0 12px 18px;
+            padding: 0 12px 96px;
             border: 0;
             border-radius: 0;
             background: transparent;
@@ -2551,6 +2587,31 @@ export function ConfigurationNotificationsSection({
           .notif-mobile-channel-note {
             margin-top: -2px;
           }
+          .notif-savebar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 30;
+            justify-content: stretch;
+            margin: 0;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.94) 24%, #fff 100%);
+          }
+          .notif-save-button {
+            width: 100%;
+            min-width: 0;
+            min-height: 52px;
+            border: 0;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #1c78ff 0%, #0f62fe 100%);
+            color: #ffffff;
+            font-size: 15px;
+            box-shadow: 0 14px 28px rgba(15, 98, 254, 0.24);
+          }
+          .notif-save-button:disabled {
+            opacity: 0.72;
+          }
           .notif-event-row,
           .notif-layout.has-editor .notif-event-row {
             grid-template-columns: 48px minmax(0, 1fr) auto;
@@ -2570,7 +2631,7 @@ export function ConfigurationNotificationsSection({
             width: 100%;
           }
           .notif-card {
-            padding: 0 12px 18px;
+            padding: 0 12px 96px;
             border: 0;
             border-radius: 0;
             background: transparent;
@@ -2951,24 +3012,12 @@ export function ConfigurationNotificationsSection({
             font-size: 11px;
           }
           .notif-savebar {
-            position: sticky;
-            bottom: 0;
-            z-index: 3;
-            justify-content: stretch;
-            margin: 10px -16px 0;
-            padding: 12px 16px max(2px, env(safe-area-inset-bottom));
-            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.94) 28%, #fff 100%);
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
           }
           .notif-save-button {
-            width: 100%;
-            min-width: 0;
             min-height: 50px;
-            border: 1px solid rgba(15, 98, 254, 0.12);
-            border-radius: 11px;
-            background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
-            color: var(--notif-blue);
+            border-radius: 12px;
             font-size: 14px;
-            box-shadow: 0 6px 16px rgba(15, 98, 254, 0.08);
           }
         }
       `}</style>
@@ -3847,17 +3896,19 @@ export function ConfigurationNotificationsSection({
               ) : null}
             </div>
           ) : null}
-          <div className="notif-savebar">
-            <button
-              type="button"
-              className="notif-save-button"
-              onClick={() => void onSave()}
-              disabled={savingSettings}
-            >
-              <GuestSaveIcon />
-              {savingSettings ? t("formSaving") : t("configSaveConfiguration")}
-            </button>
-          </div>
+          {!isCompactNotificationsLayout || hasPendingNotificationChanges ? (
+            <div className="notif-savebar">
+              <button
+                type="button"
+                className="notif-save-button"
+                onClick={() => void handleSave()}
+                disabled={savingSettings}
+              >
+                <GuestSaveIcon />
+                {savingSettings ? t("formSaving") : t("configSaveConfiguration")}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

@@ -1505,7 +1505,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                         ? (locale === 'sl' ? 'Upravljanje računa' : locale === 'sr' ? 'Upravljanje nalogom' : 'Account management')
                         : configurationTab === 'booking'
                           ? (locale === 'sl' ? 'Prostori' : locale === 'sr' ? 'Prostori' : 'Spaces')
-                          : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}
+                          : configurationTab === 'notifications'
+                            ? (locale === 'sl' ? 'Obvestila' : locale === 'sr' ? 'Obaveštenja' : 'Notifications')
+                            : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}
                     </strong>
                   </div>
                 )}

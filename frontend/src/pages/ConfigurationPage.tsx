@@ -5586,10 +5586,12 @@ export function ConfigurationPage() {
     [locale, t],
   );
   const configDetailTitle = getConfigTabLabel(tab);
+  const isCompactNotificationsDetail =
+    isCompactConfigViewport && tab === "notifications";
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : isCompactConfigViewport
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5649,7 +5651,7 @@ export function ConfigurationPage() {
         ) : (
           <>
             {isCompactConfigViewport ? (
-              tab === "integrations" || tab === "company" || tab === "booking" ? null : (
+              tab === "integrations" || tab === "company" || tab === "booking" || tab === "notifications" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
