@@ -2473,10 +2473,84 @@ export function ConfigurationNotificationsSection({
             border-top: 1px solid var(--notif-line);
           }
         }
-        @media (max-width: 980px) {
-          .notif-page-shell { width: 100%; }
-          .notif-tabs { display: flex; width: 100%; overflow-x: auto; }
-          .notif-tab { flex: 0 0 auto; }
+        @media (max-width: 1024px) {
+          .notif-page-shell {
+            width: 100%;
+          }
+          .notif-card {
+            padding: 0 12px 18px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: visible;
+          }
+          .notif-card::before {
+            display: none;
+          }
+          .notif-card-content {
+            display: grid;
+            gap: 14px;
+          }
+          .notif-sender-card {
+            display: none;
+          }
+          .notif-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            align-items: end;
+            gap: 0;
+            width: auto;
+            margin: 0 -12px 12px;
+            padding: 12px 10px 0;
+            overflow: visible;
+            border-bottom: 0;
+            background: linear-gradient(180deg, #1d74ff 0%, #0f62fe 100%);
+            box-shadow: inset 0 -1px 0 rgba(255,255,255,0.12);
+          }
+          .notif-tab {
+            min-width: 0;
+            padding: 16px 8px 14px;
+            border-radius: 0;
+            color: rgba(255, 255, 255, 0.76);
+            font-size: 14px;
+            line-height: 1.15;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: transparent;
+          }
+          .notif-tab:hover {
+            background: transparent;
+            color: #ffffff;
+          }
+          .notif-tab::after {
+            content: '';
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            bottom: 0;
+            height: 3px;
+            border-radius: 999px 999px 0 0;
+            background: transparent;
+            transform: scaleX(0.28);
+            opacity: 0;
+            transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+          }
+          .notif-tab.is-active {
+            color: #ffffff;
+            background: transparent;
+            box-shadow: none;
+          }
+          .notif-tab.is-active::after {
+            background: #ffffff;
+            transform: scaleX(1);
+            opacity: 1;
+          }
+          .notif-mobile-channel-note {
+            margin-top: -2px;
+          }
           .notif-event-row,
           .notif-layout.has-editor .notif-event-row {
             grid-template-columns: 48px minmax(0, 1fr) auto;
@@ -2524,52 +2598,18 @@ export function ConfigurationNotificationsSection({
             grid-template-columns: 1fr;
           }
           .notif-tabs {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0;
-            width: 100%;
-            margin: 0;
-            overflow: visible;
-            border-bottom: 1px solid #dbe5f3;
+            margin: 0 -12px 10px;
+            padding: 10px 8px 0;
           }
           .notif-tab {
-            min-width: 0;
-            padding: 13px 4px 14px;
-            border-radius: 0;
-            color: #07173b;
+            padding: 14px 4px 13px;
             font-size: 13px;
-            line-height: 1.15;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            background: transparent;
-          }
-          .notif-tab:hover {
-            background: transparent;
           }
           .notif-tab::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: -1px;
-            height: 2px;
-            border-radius: 999px 999px 0 0;
-            background: transparent;
-            transform: scaleX(0.3);
-            opacity: 0;
-            transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
-          }
-          .notif-tab.is-active {
-            color: var(--notif-blue);
-            background: transparent;
-            box-shadow: none;
-          }
-          .notif-tab.is-active::after {
-            background: var(--notif-blue);
-            transform: scaleX(1);
-            opacity: 1;
+            left: 10px;
+            right: 10px;
+            height: 3px;
+            bottom: 0;
           }
           .notif-mobile-channel-note {
             display: flex;
