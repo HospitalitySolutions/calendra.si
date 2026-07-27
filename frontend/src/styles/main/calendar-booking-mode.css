@@ -9182,3 +9182,12 @@
         width: min(340px, calc(100vw - 48px));
     }
 }
+
+
+/* Desktop Uredi termin: status and booking source are already visible in the fixed footer. */
+@media (min-width: 721px) {
+    .calendar-edit-session-panel--booked .calendar-mobile-session-more-menu__status-action,
+    .calendar-edit-session-panel--booked .calendar-mobile-session-more-menu__source-info {
+        display: none !important;
+    }
+}

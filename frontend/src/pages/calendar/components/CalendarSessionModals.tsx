@@ -2372,7 +2372,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               </span>
                               <span className="calendar-mobile-session-more-menu__chevron" aria-hidden>›</span>
                             </button>
-                            <div className="calendar-mobile-session-more-menu__item">
+                            <div className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__source-info">
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
                               <span className="calendar-mobile-session-more-menu__copy">
                                 <strong>{bookingSourceFieldLabel}</strong>
