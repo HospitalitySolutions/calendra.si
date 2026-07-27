@@ -2719,7 +2719,8 @@ export function ConfigurationNotificationsSection({
             width: 100%;
           }
           .notif-card {
-            padding: 0 12px 96px;
+            width: 100%;
+            padding: 0 0 96px;
             border: 0;
             border-radius: 0;
             background: transparent;
