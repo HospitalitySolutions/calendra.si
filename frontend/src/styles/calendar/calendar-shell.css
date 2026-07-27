@@ -322,18 +322,21 @@
 
 @media (max-width: 780px) {
     /*
-     * The mobile calendar lives in .main-area--calendar, whose content box already starts below
-     * the sticky blue app header. Using the measured app-header height again here double-offsets
-     * FullCalendar's date row (roughly one extra header height), leaving a large white gap and, in
-     * resource day view, pushing the weekday/date cells behind the resource row. Keep the sticky
-     * inset relative to the calendar scrollport itself so the date row begins directly below blue.
+     * Mobile uses document scrolling so the blue application header remains sticky at the top of
+     * the viewport. FullCalendar's own sticky date row defaults to top: 0, which places it behind
+     * that blue header as soon as the user scrolls. Use Shell's measured header height for every
+     * FullCalendar view so weekday/date headers remain visible directly below the top row.
      */
-    .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
-        top: 0;
+    .calendar-fc-shell .fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > * {
+        position: -webkit-sticky;
+        position: sticky;
+        top: var(--calendar-shell-header-sticky-below, 61px) !important;
+        z-index: 9;
+        background: var(--color-surface);
     }
 
     .calendar-resource-day-header-fallback {
-        top: 0;
+        top: var(--calendar-shell-header-sticky-below, 61px);
     }
 
     /* Empty holiday placeholders must not reserve a blank line above weekday/date on mobile. */
