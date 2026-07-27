@@ -715,6 +715,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     details: 'Podrobnosti',
     editClientTitle: 'Uredi stranko',
     editClientSubtitle: 'Posodobi podatke o stranki in upravljaj z njenimi termini.',
+    editCompanyTitle: 'Uredi podjetje',
+    editGroupTitle: 'Uredi skupino',
     client: 'STRANKA',
     company: 'PODJETJE',
     newButtonMobile: 'Novo',
@@ -884,6 +886,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     details: 'Details',
     editClientTitle: 'Edit client',
     editClientSubtitle: 'Update client details and manage their appointments.',
+    editCompanyTitle: 'Edit company',
+    editGroupTitle: 'Edit group',
     client: 'CLIENT',
     company: 'COMPANY',
     newButtonMobile: 'New',
@@ -2545,6 +2549,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     return (
       <div
         className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
+        data-field-key={key}
         onClick={() => {
           if (companyDetailEditField !== key) setCompanyDetailEditField(key)
         }}
@@ -2624,6 +2629,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     return (
       <div
         className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
+        data-field-key={key}
         onClick={() => { if (groupDetailEditField !== key) setGroupDetailEditField(key) }}
         role="button"
         tabIndex={0}
@@ -4395,6 +4401,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="clients-action-workspace-header">
+              <div className="clients-action-workspace-mobile-heading">
+                <h2>{clientsCopy.editCompanyTitle}</h2>
+              </div>
               <div className="clients-action-workspace-client">
                 <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>{(detailCompany.name?.[0] || 'C').toUpperCase()}</span>
                 <div className="clients-name-stack clients-action-workspace-title-stack">
@@ -4919,6 +4928,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="clients-action-workspace-header">
+              <div className="clients-action-workspace-mobile-heading">
+                <h2>{clientsCopy.editGroupTitle}</h2>
+              </div>
               <div className="clients-action-workspace-client">
                 <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>{(detailGroup.name?.[0] || 'G').toUpperCase()}</span>
                 <div className="clients-name-stack clients-action-workspace-title-stack">
