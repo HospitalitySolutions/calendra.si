@@ -6177,3 +6177,45 @@
         padding-bottom: env(safe-area-inset-bottom);
     }
 }
+
+
+/* Mobile group-member picker: add inline confirm check inside search field. */
+@media (max-width: 760px) {
+    .clients-group-detail-modal .group-members-tab-picker .calendar-client-picker__search-wrap--confirmable {
+        position: relative;
+    }
+
+    .clients-group-detail-modal .group-members-tab-picker .calendar-client-picker__search-wrap--confirmable input {
+        padding-right: 40px;
+    }
+
+    .clients-group-detail-modal .group-members-tab-picker .calendar-client-picker__confirm {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        z-index: 3;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
+        min-height: 30px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #1672f3;
+        color: #fff;
+        box-shadow: none;
+        font-size: 0.94rem;
+        font-weight: 800;
+        line-height: 1;
+        transform: translateY(-50%);
+    }
+
+    .clients-group-detail-modal .group-members-tab-picker .calendar-client-picker__confirm:hover,
+    .clients-group-detail-modal .group-members-tab-picker .calendar-client-picker__confirm:focus-visible {
+        background: #0f63d9;
+        outline: none;
+    }
+}

@@ -26,8 +26,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
-  // Use the same left-close/title/right-actions header for booked sessions on every resolution.
-  const bookedSessionUsesActionHeader = true
   const [mobileBillingActionsOpen, setMobileBillingActionsOpen] = useState<null | 'advance' | 'invoice'>(null)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(() =>
@@ -2203,8 +2201,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             style={getSessionPopupInlineStyle(true)}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`booking-side-panel-header${bookedSessionUsesActionHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
-              {bookedSessionUsesActionHeader ? (
+            <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
+              {compactSessionEditHeader ? (
                 !confirmDelete ? (
                   <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-booked">
                     <button type="button" className="secondary booking-side-panel-close" onClick={closeBookedModal} aria-label={t('mobileNavClose')}>
@@ -2274,9 +2272,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                     )}
                                   </span>
                                   <span className="calendar-mobile-session-more-menu__copy">
-                                    <strong>{mobilePrimaryBillingKind === 'advance' ? (locale === 'sl' ? 'Predplačilo' : 'Advance payment') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
+                                    <strong>{mobilePrimaryBillingKind === 'advance' ? (locale === 'sl' ? 'Predračun' : 'Proforma invoice') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
                                     <small>{mobilePrimaryBillingKind === 'advance'
-                                      ? (locale === 'sl' ? 'Ustvari ali odpri predplačilo' : 'Create or open an advance payment')
+                                      ? (locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice')
                                       : (locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice')}</small>
                                   </span>
                                   {mobilePrimaryBillingHasMultipleActions && (
@@ -2312,8 +2310,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                 >
                                   <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
                                   <span className="calendar-mobile-session-more-menu__copy">
-                                    <strong>{locale === 'sl' ? 'Predplačilo' : 'Advance payment'}</strong>
-                                    <small>{locale === 'sl' ? 'Ustvari ali odpri predplačilo' : 'Create or open an advance payment'}</small>
+                                    <strong>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</strong>
+                                    <small>{locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice'}</small>
                                   </span>
                                   {bookedBillingHasExistingAdvance && (
                                     <span className="calendar-mobile-session-more-menu__chevron calendar-mobile-session-more-menu__invoice-chevron" aria-hidden>⌃</span>
@@ -2372,7 +2370,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               </span>
                               <span className="calendar-mobile-session-more-menu__chevron" aria-hidden>›</span>
                             </button>
-                            <div className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__source-info">
+                            <div className="calendar-mobile-session-more-menu__item">
                               <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
                               <span className="calendar-mobile-session-more-menu__copy">
                                 <strong>{bookingSourceFieldLabel}</strong>
@@ -2464,7 +2462,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-field-inline-control">
                 <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className="calendar-client-picker__search-row">
-                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}`}>
+                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookedSessionSelectedClients.length > 0 && !bookedSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
                       {bookedSessionClientFieldCompact ? (
                         <button
                           type="button"
@@ -2524,6 +2522,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           }}
                         />
                       )}
+                      {!bookedSessionClientFieldCompact && bookedSessionSelectedClients.length > 0 && (
+                        <button
+                          type="button"
+                          className="calendar-client-picker__confirm"
+                          aria-label={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                          title={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setBookedClientDropdownOpen(false)
+                            setEditingBookedClientSearch(false)
+                            setBookedClientSearch('')
+                            bookedClientSearchInputRef.current?.blur()
+                          }}
+                        >
+                          <span aria-hidden>✓</span>
+                        </button>
+                      )}
                     </div>
                     <div className="calendar-client-picker__actions">
                       <button
@@ -2558,14 +2573,16 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     </div>
                     {bookedClientDropdownOpen && (
                       <div className="client-dropdown-panel calendar-client-picker__dropdown" onMouseDown={(e) => e.preventDefault()}>
-                        {visibleBookedClients.slice(0, 10).map((client: any) => (
+                        {visibleBookedClients.slice(0, 10).map((client: any) => {
+                          const selected = selectedBookedClientIds.includes(client.id)
+                          return (
                           <button
                             key={client.id}
                             type="button"
-                            className={`client-list-item ${selectedBookedClientIds.includes(client.id) ? 'selected' : ''}`}
+                            className={`client-list-item calendar-client-picker__dropdown-item ${selected ? 'selected' : ''}`}
                             onClick={() => {
                               if (multipleClientsPerSessionEnabled) {
-                                const nextIds = selectedBookedClientIds.includes(client.id)
+                                const nextIds = selected
                                   ? selectedBookedClientIds.filter((id) => id !== client.id)
                                   : [...selectedBookedClientIds, client.id]
                                 applyBookedSessionClientIds(nextIds)
@@ -2577,9 +2594,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               setBookedClientSearch('')
                             }}
                           >
-                            {fullName(client)}
+                            <span className="calendar-client-picker__dropdown-check" aria-hidden>{selected ? '✓' : ''}</span>
+                            <span className="calendar-client-picker__dropdown-label">{fullName(client)}</span>
                           </button>
-                        ))}
+                        )})}
                         {visibleBookedClients.length === 0 && <span className="muted">{t('formNoClientsFoundAddOne')}</span>}
                       </div>
                     )}
@@ -4867,7 +4885,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   ) : (
                 <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className="calendar-client-picker__search-row">
-                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}`}>
+                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookSessionSelectedClients.length > 0 && !bookSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
                       <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                       </span>
@@ -4947,6 +4965,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           }}
                         />
                       )}
+                      {!bookSessionClientFieldCompact && bookSessionSelectedClients.length > 0 && (
+                        <button
+                          type="button"
+                          className="calendar-client-picker__confirm"
+                          aria-label={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                          title={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setClientDropdownOpen(false)
+                            setEditingClientSearch(false)
+                            setClientSearch('')
+                            clientSearchInputRef.current?.blur()
+                          }}
+                        >
+                          <span aria-hidden>✓</span>
+                        </button>
+                      )}
                     </div>
                     <div className="calendar-client-picker__actions">
                       <button
@@ -4984,14 +5019,16 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     </div>
                     {clientDropdownOpen && (
                       <div className="client-dropdown-panel calendar-client-picker__dropdown" onMouseDown={(e) => e.preventDefault()}>
-                        {visibleClients.slice(0, 10).map((client: any) => (
+                        {visibleClients.slice(0, 10).map((client: any) => {
+                          const selected = selectedFormClientIds.includes(client.id)
+                          return (
                           <button
                             key={client.id}
                             type="button"
-                            className={`client-list-item ${selectedFormClientIds.includes(client.id) ? 'selected' : ''}`}
+                            className={`client-list-item calendar-client-picker__dropdown-item ${selected ? 'selected' : ''}`}
                             onClick={() => {
                               if (multipleClientsPerSessionEnabled) {
-                                const nextIds = selectedFormClientIds.includes(client.id)
+                                const nextIds = selected
                                   ? selectedFormClientIds.filter((id) => id !== client.id)
                                   : [...selectedFormClientIds, client.id]
                                 applyFormClientIds(nextIds)
@@ -5003,9 +5040,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               setClientSearch('')
                             }}
                           >
-                            {fullName(client)}
+                            <span className="calendar-client-picker__dropdown-check" aria-hidden>{selected ? '✓' : ''}</span>
+                            <span className="calendar-client-picker__dropdown-label">{fullName(client)}</span>
                           </button>
-                        ))}
+                        )})}
                         {visibleClients.length === 0 && <span className="muted">{t('formNoClientsFoundAddOne')}</span>}
                       </div>
                     )}

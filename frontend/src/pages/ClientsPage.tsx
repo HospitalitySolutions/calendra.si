@@ -5158,7 +5158,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="calendar-client-picker__search-row">
-                          <div className="client-search-wrap calendar-client-picker__search-wrap">
+                          <div className={`client-search-wrap calendar-client-picker__search-wrap${pendingGroupMemberIds.length > 0 ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}> 
                             <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="11" cy="11" r="8" />
@@ -5182,6 +5182,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               aria-autocomplete="list"
                               aria-expanded={groupMemberDropdownOpen}
                             />
+                            {pendingGroupMemberIds.length > 0 && (
+                              <button
+                                type="button"
+                                className="calendar-client-picker__confirm"
+                                aria-label={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                                title={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setGroupMemberDropdownOpen(false)
+                                  setGroupMemberSearch('')
+                                }}
+                              >
+                                <span aria-hidden>✓</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                         {groupMemberDropdownOpen &&

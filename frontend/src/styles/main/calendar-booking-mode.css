@@ -8922,272 +8922,76 @@
 }
 
 
-/* Add service picker refinements for mobile/tablet: align header sizing with
-   Uredi termin, remove native search-field double edge, and use compact action
-   pills on the right of each service card. */
-.calendar-service-picker-modal__search input {
-    -webkit-appearance: none;
-    appearance: none;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    background: transparent;
-}
-
-.calendar-service-picker-modal__search input::-webkit-search-decoration,
-.calendar-service-picker-modal__search input::-webkit-search-results-decoration,
-.calendar-service-picker-modal__search input::-webkit-search-results-button,
-.calendar-service-picker-modal__search input::-webkit-search-cancel-button {
-    -webkit-appearance: none;
-}
-
-@media (max-width: 1024px) {
-    .calendar-service-picker-modal {
-        width: 100% !important;
-        max-width: none !important;
-        height: 100dvh !important;
-        max-height: none !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        background: #f8fafc !important;
-        box-shadow: none !important;
-        grid-template-rows: auto auto minmax(0, 1fr) !important;
+/* --------------------------------------------------------------------------
+   Mobile client picker refinements: show left checkmarks in client lists and
+   add an inline confirm button inside the search field.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-wrap--confirmable,
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap--confirmable {
+        position: relative !important;
     }
 
-    .calendar-service-picker-backdrop {
-        align-items: stretch !important;
-        justify-content: stretch !important;
-        padding: 0 !important;
-        background: rgba(15, 23, 42, 0.46) !important;
+    .calendar-edit-session-panel--new-create .calendar-client-picker__search-wrap--confirmable input,
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap--confirmable input {
+        padding-right: 38px !important;
     }
 
-    .calendar-service-picker-modal__header {
-        display: grid !important;
-        grid-template-columns: 38px minmax(0, 1fr) !important;
+    .calendar-edit-session-panel--new-create .calendar-client-picker__confirm,
+    .calendar-edit-session-panel--booked .calendar-client-picker__confirm {
+        position: absolute !important;
+        top: 50% !important;
+        right: 7px !important;
+        z-index: 3 !important;
+        display: inline-flex !important;
         align-items: center !important;
-        gap: 8px !important;
-        min-height: 0 !important;
-        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
-        border-bottom: 0 !important;
-        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%) !important;
-        box-sizing: border-box !important;
-        border-radius: 0 !important;
-    }
-
-    .calendar-service-picker-modal__heading {
-        grid-column: 2 !important;
-        min-width: 0 !important;
-    }
-
-    .calendar-service-picker-modal__header h3 {
-        margin: 0 !important;
-        overflow: hidden !important;
-        color: #fff !important;
-        font-size: 1.22rem !important;
-        font-weight: 860 !important;
-        line-height: 1.1 !important;
-        letter-spacing: -0.035em !important;
-        text-overflow: ellipsis !important;
-        white-space: nowrap !important;
-    }
-
-    .calendar-service-picker-modal__header p {
-        display: none !important;
-    }
-
-    .calendar-service-picker-modal__close {
-        grid-column: 1 !important;
-        grid-row: 1 !important;
-        width: 38px !important;
-        min-width: 38px !important;
-        height: 38px !important;
-        min-height: 38px !important;
-        padding: 0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.28) !important;
-        border-radius: 12px !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-        color: #fff !important;
-        box-shadow: none !important;
-        order: -1 !important;
-    }
-
-    .calendar-service-picker-modal__close:hover,
-    .calendar-service-picker-modal__close:focus-visible {
-        border-color: rgba(255, 255, 255, 0.36) !important;
-        background: rgba(255, 255, 255, 0.14) !important;
-        color: #fff !important;
-    }
-
-    .calendar-service-picker-modal__toolbar {
-        padding: 16px 16px 8px !important;
-        background: #f8fafc !important;
-    }
-
-    .calendar-service-picker-modal__search {
-        min-height: 48px !important;
-        padding: 0 14px !important;
-        border-radius: 14px !important;
-        background: #fff !important;
-        box-shadow: none !important;
-        overflow: hidden !important;
-    }
-
-    .calendar-service-picker-modal__search input {
-        height: 46px !important;
-        font-size: 0.94rem !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        box-shadow: none !important;
-        background: transparent !important;
-    }
-
-    .calendar-service-picker-modal__list {
-        align-content: start !important;
-        gap: 10px !important;
-        padding: 8px 16px max(24px, env(safe-area-inset-bottom)) !important;
-        overflow-y: auto !important;
-        overscroll-behavior: contain !important;
-        background: #f8fafc !important;
-    }
-
-    .calendar-service-picker-modal__item {
-        min-height: 82px !important;
-        padding: 14px 16px !important;
-        border: 1px solid #dbe5f0 !important;
-        border-radius: 16px !important;
-        background: #fff !important;
-        box-shadow: none !important;
-        transform: none !important;
-    }
-
-    .calendar-service-picker-modal__item-copy {
-        gap: 6px !important;
-        min-width: 0 !important;
-        flex: 1 1 auto !important;
-    }
-
-    .calendar-service-picker-modal__item-copy strong {
-        color: #0f172a !important;
-        font-size: 0.96rem !important;
-        font-weight: 820 !important;
-        line-height: 1.25 !important;
-    }
-
-    .calendar-service-picker-modal__item-copy span {
-        color: #64748b !important;
-        font-size: 0.8rem !important;
-        font-weight: 580 !important;
-    }
-
-    .calendar-service-picker-modal__item-action {
-        flex: none !important;
-        min-width: 84px !important;
-        min-height: 40px !important;
-        padding: 7px 16px !important;
-        border-radius: 999px !important;
-        background: #eaf2ff !important;
-        color: #1267d8 !important;
-        font-size: 0.84rem !important;
-        font-weight: 820 !important;
-        text-align: center !important;
         justify-content: center !important;
-    }
-}
-
-@media (max-width: 420px) {
-    .calendar-service-picker-modal__header {
-        grid-template-columns: 38px minmax(0, 1fr) !important;
-        gap: 8px !important;
-        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
-    }
-
-    .calendar-service-picker-modal__header h3 {
-        font-size: 1.16rem !important;
-    }
-
-    .calendar-service-picker-modal__toolbar {
-        padding-inline: 12px !important;
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: #0d8df4 !important;
+        color: #fff !important;
+        box-shadow: none !important;
+        font-size: 0.94rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+        transform: translateY(-50%) !important;
     }
 
-    .calendar-service-picker-modal__list {
-        padding-inline: 12px !important;
+    .calendar-edit-session-panel--new-create .calendar-client-picker__confirm:hover,
+    .calendar-edit-session-panel--new-create .calendar-client-picker__confirm:focus-visible,
+    .calendar-edit-session-panel--booked .calendar-client-picker__confirm:hover,
+    .calendar-edit-session-panel--booked .calendar-client-picker__confirm:focus-visible {
+        background: #0b79d3 !important;
+        outline: none !important;
     }
 
-    .calendar-service-picker-modal__item {
-        min-height: 78px !important;
-        padding: 13px 14px !important;
+    .calendar-edit-session-panel--new-create .calendar-client-picker__dropdown-item,
+    .calendar-edit-session-panel--booked .calendar-client-picker__dropdown-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
 
-    .calendar-service-picker-modal__item-action {
-        min-width: 78px !important;
-        padding-inline: 12px !important;
-    }
-}
-
-
-/* Desktop booked-session header actions
-   Use the same close/title/overflow structure as mobile. Billing and scanner
-   actions now live in the top-right three-dots menu, so the duplicate icon
-   group beside the service chain is removed at every resolution. */
-.calendar-edit-session-panel--booked .calendar-booking-service-chain__billing-actions {
-    display: none !important;
-}
-
-@media (min-width: 940px) {
-    .calendar-edit-session-panel--booked .booking-side-panel-header,
-    .calendar-edit-session-panel--booked .booking-side-panel-header--compact-booking {
-        min-height: 78px;
-        padding: 16px 22px !important;
-        border-bottom: 1px solid #e2e8f0;
-        background: #fff;
-        box-sizing: border-box;
+    .calendar-edit-session-panel--new-create .calendar-client-picker__dropdown-check,
+    .calendar-edit-session-panel--booked .calendar-client-picker__dropdown-check {
+        flex-shrink: 0 !important;
+        width: 1.25rem !important;
+        text-align: center !important;
+        font-size: 0.86rem !important;
+        font-weight: 700 !important;
+        color: #2563eb !important;
     }
 
-    .calendar-edit-session-panel--booked .booking-side-panel-header-toolbar--session-edit-booked {
-        grid-template-columns: 44px minmax(0, 1fr) 44px;
-        gap: 12px;
-        min-height: 44px;
-    }
-
-    .calendar-edit-session-panel--booked .calendar-edit-session-panel__compact-title-wrap {
-        justify-self: stretch;
-    }
-
-    .calendar-edit-session-panel--booked .calendar-edit-session-panel__compact-title {
-        font-size: 1.72rem;
-        line-height: 1.08;
-        letter-spacing: -0.04em;
-    }
-
-    .calendar-edit-session-panel--booked .booking-side-panel-header-ico-group {
-        justify-self: end;
-    }
-
-    .calendar-edit-session-panel--booked .booking-side-panel-close,
-    .calendar-edit-session-panel--booked .calendar-mobile-session-more-btn {
-        width: 44px;
-        min-width: 44px;
-        height: 44px;
-        min-height: 44px;
-        border: 1px solid #d9e2ec;
-        border-radius: 14px;
-        background: #fff;
-        color: #0f172a;
-        box-shadow: none;
-    }
-
-    .calendar-edit-session-panel--booked .calendar-mobile-session-more-menu {
-        top: calc(100% + 10px);
-        right: 0;
-        width: min(340px, calc(100vw - 48px));
-    }
-}
-
-
-/* Desktop Uredi termin: status and booking source are already visible in the fixed footer. */
-@media (min-width: 721px) {
-    .calendar-edit-session-panel--booked .calendar-mobile-session-more-menu__status-action,
-    .calendar-edit-session-panel--booked .calendar-mobile-session-more-menu__source-info {
-        display: none !important;
+    .calendar-edit-session-panel--new-create .calendar-client-picker__dropdown-label,
+    .calendar-edit-session-panel--booked .calendar-client-picker__dropdown-label {
+        min-width: 0 !important;
+        text-align: left !important;
     }
 }
