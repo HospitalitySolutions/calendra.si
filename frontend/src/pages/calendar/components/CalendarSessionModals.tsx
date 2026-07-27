@@ -2462,7 +2462,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-field-inline-control">
                 <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className="calendar-client-picker__search-row">
-                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookedSessionSelectedClients.length > 0 && !bookedSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
+                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookedClientDropdownOpen && bookedSessionSelectedClients.length > 0 && !bookedSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
                       {bookedSessionClientFieldCompact ? (
                         <button
                           type="button"
@@ -2522,7 +2522,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           }}
                         />
                       )}
-                      {!bookedSessionClientFieldCompact && bookedSessionSelectedClients.length > 0 && (
+                      {bookedClientDropdownOpen && !bookedSessionClientFieldCompact && bookedSessionSelectedClients.length > 0 && (
                         <button
                           type="button"
                           className="calendar-client-picker__confirm"
@@ -4885,7 +4885,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   ) : (
                 <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className="calendar-client-picker__search-row">
-                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookSessionSelectedClients.length > 0 && !bookSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
+                    <div className={`client-search-wrap calendar-client-picker__search-wrap${bookSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${clientDropdownOpen && bookSessionSelectedClients.length > 0 && !bookSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
                       <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                       </span>
@@ -4965,7 +4965,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           }}
                         />
                       )}
-                      {!bookSessionClientFieldCompact && bookSessionSelectedClients.length > 0 && (
+                      {clientDropdownOpen && !bookSessionClientFieldCompact && bookSessionSelectedClients.length > 0 && (
                         <button
                           type="button"
                           className="calendar-client-picker__confirm"
