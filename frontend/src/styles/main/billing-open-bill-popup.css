@@ -5964,11 +5964,12 @@
     .billing-payee-modal--editor .billing-payee-modal-grid {
         grid-template-columns: 1fr;
         gap: 12px;
-        padding: 0 14px 16px;
+        padding: 0 14px calc(env(safe-area-inset-bottom, 0px) + 96px);
         flex: 1 1 auto;
         min-height: 0;
         overflow: auto;
         align-content: start;
+        scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
     }
 
     .billing-payee-modal--editor .field {
