@@ -359,6 +359,37 @@
         padding-top: 0;
     }
 
+    /*
+     * Keep the entire calendar header block fixed while the time grid scrolls on mobile:
+     * - standard views: weekday/date row
+     * - resource views: weekday/date row + resource/staff/space row beneath it
+     */
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-timeGridWorkWeek-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-timeGridWeek-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .fc-col-header,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .fc-col-header {
+        position: -webkit-sticky;
+        position: sticky;
+        top: 0;
+        z-index: 9;
+        background: var(--color-surface);
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-timeGridWorkWeek-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-timeGridWeek-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .fc-col-header th,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .fc-col-header th {
+        background: var(--color-surface);
+    }
+
     .calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
     .calendar-fc-shell:has(.fc-resourceTimeGridWorkWeek-view),
     .calendar-web-inner--bottom-panel .calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
