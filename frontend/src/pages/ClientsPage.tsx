@@ -15,6 +15,125 @@ type ConsultantSummary = UserSummary & { consultant?: boolean }
 type EntityTab = 'clients' | 'companies' | 'groups'
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
 
+
+const CLIENTS_MOBILE_KEYBOARD_CLASS = 'clients-mobile-keyboard-open'
+
+function isClientsTextEntryElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false
+  if (element.isContentEditable) return true
+  if (element instanceof HTMLTextAreaElement) return !element.disabled && !element.readOnly
+  if (!(element instanceof HTMLInputElement) || element.disabled || element.readOnly) return false
+
+  const nonTextInputTypes = new Set([
+    'button',
+    'checkbox',
+    'color',
+    'file',
+    'hidden',
+    'image',
+    'radio',
+    'range',
+    'reset',
+    'submit',
+  ])
+  return !nonTextInputTypes.has((element.type || 'text').toLowerCase())
+}
+
+function useClientsMobileKeyboardVisibility() {
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
+    const visualViewport = window.visualViewport
+    const root = document.documentElement
+    if (!visualViewport) {
+      root.classList.remove(CLIENTS_MOBILE_KEYBOARD_CLASS)
+      return
+    }
+
+    let baselineHeight = visualViewport.height
+    let baselineWidth = visualViewport.width
+    let frameId = 0
+    let orientationTimer: number | undefined
+
+    const setKeyboardClass = (open: boolean) => {
+      root.classList.toggle(CLIENTS_MOBILE_KEYBOARD_CLASS, open)
+    }
+
+    const updateKeyboardState = () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(() => {
+        const viewport = window.visualViewport
+        if (!viewport) {
+          setKeyboardClass(false)
+          return
+        }
+
+        const currentHeight = viewport.height
+        const currentWidth = viewport.width
+        const activeElement = document.activeElement
+        const textEntryFocused = isClientsTextEntryElement(activeElement)
+        const mobileOrTablet = window.matchMedia('(max-width: 1024px)').matches
+
+        // A meaningful width change indicates rotation or a layout-mode change. Reset
+        // the baseline so the new orientation is not mistaken for an open keyboard.
+        if (Math.abs(currentWidth - baselineWidth) > 80) {
+          baselineWidth = currentWidth
+          baselineHeight = currentHeight
+        }
+
+        // Keep the largest keyboard-free viewport observed in the current orientation.
+        // Closing Android's keyboard often leaves the input focused, so focus alone is
+        // not sufficient for deciding whether the footer should remain hidden.
+        if (!textEntryFocused || currentHeight > baselineHeight) {
+          baselineHeight = Math.max(baselineHeight, currentHeight)
+        }
+
+        const coveredHeight = baselineHeight - currentHeight
+        const keyboardThreshold = Math.max(120, baselineHeight * 0.16)
+        const keyboardOpen = mobileOrTablet
+          && textEntryFocused
+          && viewport.scale <= 1.05
+          && coveredHeight > keyboardThreshold
+
+        setKeyboardClass(keyboardOpen)
+      })
+    }
+
+    const resetAfterOrientationChange = () => {
+      setKeyboardClass(false)
+      if (orientationTimer) window.clearTimeout(orientationTimer)
+      orientationTimer = window.setTimeout(() => {
+        const viewport = window.visualViewport
+        if (viewport) {
+          baselineHeight = viewport.height
+          baselineWidth = viewport.width
+        }
+        updateKeyboardState()
+      }, 300)
+    }
+
+    document.addEventListener('focusin', updateKeyboardState)
+    document.addEventListener('focusout', updateKeyboardState)
+    visualViewport.addEventListener('resize', updateKeyboardState)
+    visualViewport.addEventListener('scroll', updateKeyboardState)
+    window.addEventListener('resize', updateKeyboardState)
+    window.addEventListener('orientationchange', resetAfterOrientationChange)
+    updateKeyboardState()
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      if (orientationTimer) window.clearTimeout(orientationTimer)
+      document.removeEventListener('focusin', updateKeyboardState)
+      document.removeEventListener('focusout', updateKeyboardState)
+      visualViewport.removeEventListener('resize', updateKeyboardState)
+      visualViewport.removeEventListener('scroll', updateKeyboardState)
+      window.removeEventListener('resize', updateKeyboardState)
+      window.removeEventListener('orientationchange', resetAfterOrientationChange)
+      root.classList.remove(CLIENTS_MOBILE_KEYBOARD_CLASS)
+    }
+  }, [])
+}
+
 type ClientForm = {
   firstName: string
   lastName: string
@@ -698,6 +817,7 @@ type ClientsPageProps = {
 }
 
 export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, onEmbeddedClose, onEmbeddedSaved }: ClientsPageProps = {}) {
+  useClientsMobileKeyboardVisibility()
   const { t, locale } = useLocale()
   const location = useLocation()
   const navigate = useNavigate()
