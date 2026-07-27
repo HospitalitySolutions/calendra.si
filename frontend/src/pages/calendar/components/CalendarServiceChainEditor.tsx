@@ -48,6 +48,7 @@ function labels(locale: string) {
       pickerEmpty: 'Ni razpoložljivih storitev.',
       close: 'Zapri',
       addAction: 'Dodaj',
+      searchPlaceholder: 'Išči storitev ...',
     }
   }
   if (locale === 'sr') {
@@ -75,6 +76,7 @@ function labels(locale: string) {
       pickerEmpty: 'Nema dostupnih usluga.',
       close: 'Zatvori',
       addAction: 'Dodaj',
+      searchPlaceholder: 'Pretraži uslugu ...',
     }
   }
   return {
@@ -101,6 +103,7 @@ function labels(locale: string) {
     pickerEmpty: 'No services available.',
     close: 'Close',
     addAction: 'Add',
+    searchPlaceholder: 'Search services ...',
   }
 }
 
@@ -136,6 +139,24 @@ function MoreIcon() {
   )
 }
 
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 7.8v4.6l3 1.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="11" cy="11" r="6.7" stroke="currentColor" strokeWidth="1.9" />
+      <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function CalendarServiceChainEditor({
   locale,
   services,
@@ -166,6 +187,7 @@ export function CalendarServiceChainEditor({
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerReplaceIndex, setPickerReplaceIndex] = useState<number | null>(null)
+  const [pickerQuery, setPickerQuery] = useState('')
   const [menuIndex, setMenuIndex] = useState<number | null>(null)
 
   const count = services.filter((service) => service.typeId != null).length
@@ -201,6 +223,12 @@ export function CalendarServiceChainEditor({
     [locale, sessionTypes],
   )
 
+  const filteredSessionTypes = useMemo(() => {
+    const query = pickerQuery.trim().toLocaleLowerCase(locale)
+    if (!query) return sortedSessionTypes
+    return sortedSessionTypes.filter((entry) => serviceName(entry, locale).toLocaleLowerCase(locale).includes(query))
+  }, [locale, pickerQuery, sortedSessionTypes])
+
   const updateAt = (index: number, patch: Partial<CalendarServiceDraft>) => {
     onChange(services.map((service, idx) => (idx === index ? { ...service, ...patch } : service)))
   }
@@ -223,14 +251,22 @@ export function CalendarServiceChainEditor({
 
   const openAddPicker = () => {
     setPickerReplaceIndex(null)
+    setPickerQuery('')
     setMenuIndex(null)
     setPickerOpen(true)
   }
 
   const openReplacePicker = (index: number) => {
     setPickerReplaceIndex(index)
+    setPickerQuery('')
     setMenuIndex(null)
     setPickerOpen(true)
+  }
+
+  const closePicker = () => {
+    setPickerOpen(false)
+    setPickerReplaceIndex(null)
+    setPickerQuery('')
   }
 
   const addOrReplaceService = (typeId: number) => {
@@ -287,6 +323,7 @@ export function CalendarServiceChainEditor({
                       <div className="calendar-service-chain__card-top">
                         <div className="calendar-service-chain__title-block">
                           <strong className="calendar-service-chain__title">{serviceName(type, locale)}</strong>
+                          <span className="calendar-service-chain__duration-pill"><ClockIcon /> {formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</span>
                         </div>
                         <div className="calendar-service-chain__item-actions">
                           <div className="calendar-service-chain__menu-wrap">
@@ -319,12 +356,10 @@ export function CalendarServiceChainEditor({
                             {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
                           </select>
                         </label>
-                        <div className="calendar-service-chain__metric calendar-service-chain__metric--duration">
+                        <div className="calendar-service-chain__metric">
                           <small>{copy.duration}</small>
-                          <div className="calendar-service-chain__duration-line">
-                            <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
-                            <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
-                          </div>
+                          <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
+                          <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
                         </div>
                         <div className="calendar-service-chain__metric">
                           <small>{copy.price}</small>
@@ -342,7 +377,6 @@ export function CalendarServiceChainEditor({
               <div><span>{copy.total}</span><strong>{displayedTotalGross == null ? '—' : currency(displayedTotalGross)}</strong></div>
             </div>
 
-            <p className="calendar-service-chain__auto-note">{copy.auto}</p>
           </>
         ) : (
           <label className="calendar-service-chain__single-field">
@@ -381,21 +415,36 @@ export function CalendarServiceChainEditor({
       </section>
 
       {pickerOpen ? (
-        <div className="calendar-service-picker-backdrop" onClick={() => { setPickerOpen(false); setPickerReplaceIndex(null) }}>
+        <div className="calendar-service-picker-backdrop" onClick={closePicker}>
           <div className="calendar-service-picker-modal" role="dialog" aria-modal="true" aria-label={copy.pickerTitle} onClick={(event) => event.stopPropagation()}>
             <div className="calendar-service-picker-modal__header">
-              <div>
+              <div className="calendar-service-picker-modal__heading">
                 <h3>{pickerReplaceIndex != null ? copy.change : copy.pickerTitle}</h3>
                 <p>{copy.pickerDescription}</p>
               </div>
-              <button type="button" className="calendar-service-picker-modal__close" onClick={() => { setPickerOpen(false); setPickerReplaceIndex(null) }} aria-label={copy.close}>
+              <button type="button" className="calendar-service-picker-modal__close" onClick={closePicker} aria-label={copy.close}>
                 <CloseIcon />
               </button>
             </div>
+
+            <div className="calendar-service-picker-modal__toolbar">
+              <label className="calendar-service-picker-modal__search">
+                <span aria-hidden><SearchIcon /></span>
+                <input
+                  type="search"
+                  value={pickerQuery}
+                  placeholder={copy.searchPlaceholder}
+                  aria-label={copy.searchPlaceholder}
+                  autoComplete="off"
+                  onChange={(event) => setPickerQuery(event.target.value)}
+                />
+              </label>
+            </div>
+
             <div className="calendar-service-picker-modal__list">
-              {sortedSessionTypes.length === 0 ? (
+              {filteredSessionTypes.length === 0 ? (
                 <div className="calendar-service-picker-modal__empty">{copy.pickerEmpty}</div>
-              ) : sortedSessionTypes.map((entry) => (
+              ) : filteredSessionTypes.map((entry) => (
                 <button
                   key={entry.id}
                   type="button"
@@ -404,7 +453,8 @@ export function CalendarServiceChainEditor({
                 >
                   <div className="calendar-service-picker-modal__item-copy">
                     <strong>{serviceName(entry, locale)}</strong>
-                    <span>
+                    <span className="calendar-service-picker-modal__duration">
+                      <ClockIcon />
                       {formatMinutes(Number(entry?.durationMinutes ?? 0), locale)}
                       {Number.isFinite(Number(entry?.priceGross)) ? ` • ${currency(Number(entry.priceGross))}` : ''}
                     </span>

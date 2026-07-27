@@ -8642,3 +8642,269 @@
         align-self: center !important;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Service picker: modern searchable layout. On mobile the picker uses the same
+   compact blue header treatment as Dodaj/Uredi termin. The only header action
+   is the close button on the left; search remains inside the content area.
+   -------------------------------------------------------------------------- */
+.calendar-service-picker-modal {
+    grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.calendar-service-picker-modal__heading {
+    min-width: 0;
+}
+
+.calendar-service-picker-modal__toolbar {
+    padding: 14px 20px 4px;
+    background: #fff;
+}
+
+.calendar-service-picker-modal__search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid #d8e2ee;
+    border-radius: 14px;
+    background: #fff;
+    color: #64748b;
+    box-sizing: border-box;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.calendar-service-picker-modal__search:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.11);
+}
+
+.calendar-service-picker-modal__search > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.calendar-service-picker-modal__search input {
+    width: 100%;
+    min-width: 0;
+    height: 46px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #0f172a;
+    font: inherit;
+    font-size: 0.94rem;
+    font-weight: 560;
+}
+
+.calendar-service-picker-modal__search input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+}
+
+.calendar-service-picker-modal__search input::-webkit-search-cancel-button {
+    cursor: pointer;
+}
+
+.calendar-service-picker-modal__duration {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+@media (max-width: 720px) {
+    .calendar-service-picker-backdrop {
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        padding: 0 !important;
+        background: rgba(15, 23, 42, 0.46) !important;
+    }
+
+    .calendar-service-picker-modal {
+        width: 100% !important;
+        max-width: none !important;
+        height: 100dvh !important;
+        max-height: none !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #f8fafc !important;
+        box-shadow: none !important;
+        grid-template-rows: auto auto minmax(0, 1fr) !important;
+    }
+
+    .calendar-service-picker-modal__header {
+        display: grid !important;
+        grid-template-columns: 44px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 12px !important;
+        min-height: 76px !important;
+        padding: 14px 18px !important;
+        border-bottom: 0 !important;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%) !important;
+        box-sizing: border-box !important;
+    }
+
+    .calendar-service-picker-modal__heading {
+        grid-column: 2 !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-service-picker-modal__header h3 {
+        margin: 0 !important;
+        overflow: hidden !important;
+        color: #fff !important;
+        font-size: 1.22rem !important;
+        font-weight: 860 !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.035em !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    .calendar-service-picker-modal__header p {
+        display: none !important;
+    }
+
+    .calendar-service-picker-modal__close {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        padding: 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        border-radius: 14px !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+        order: -1 !important;
+    }
+
+    .calendar-service-picker-modal__close:hover,
+    .calendar-service-picker-modal__close:focus-visible {
+        border-color: rgba(255, 255, 255, 0.36) !important;
+        background: rgba(255, 255, 255, 0.14) !important;
+        color: #fff !important;
+    }
+
+    .calendar-service-picker-modal__toolbar {
+        padding: 16px 16px 8px !important;
+        background: #f8fafc !important;
+    }
+
+    .calendar-service-picker-modal__search {
+        min-height: 48px !important;
+        padding: 0 14px !important;
+        border-radius: 14px !important;
+        background: #fff !important;
+    }
+
+    .calendar-service-picker-modal__search input {
+        height: 46px !important;
+        font-size: 0.94rem !important;
+    }
+
+    .calendar-service-picker-modal__list {
+        align-content: start !important;
+        gap: 10px !important;
+        padding: 8px 16px max(24px, env(safe-area-inset-bottom)) !important;
+        overflow-y: auto !important;
+        overscroll-behavior: contain !important;
+        background: #f8fafc !important;
+    }
+
+    .calendar-service-picker-modal__item {
+        min-height: 82px !important;
+        padding: 14px 16px !important;
+        border: 1px solid #dbe5f0 !important;
+        border-radius: 16px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .calendar-service-picker-modal__item:hover,
+    .calendar-service-picker-modal__item:focus-visible {
+        border-color: #bfdbfe !important;
+        background: #fff !important;
+        box-shadow: 0 6px 18px rgba(29, 78, 216, 0.07) !important;
+        transform: none !important;
+    }
+
+    .calendar-service-picker-modal__item-copy {
+        gap: 6px !important;
+    }
+
+    .calendar-service-picker-modal__item-copy strong {
+        color: #0f172a !important;
+        font-size: 0.96rem !important;
+        font-weight: 820 !important;
+        line-height: 1.25 !important;
+    }
+
+    .calendar-service-picker-modal__item-copy span {
+        color: #64748b !important;
+        font-size: 0.8rem !important;
+        font-weight: 580 !important;
+    }
+
+    .calendar-service-picker-modal__item-action {
+        min-height: 38px !important;
+        padding: 7px 14px !important;
+        border-radius: 999px !important;
+        background: #eaf2ff !important;
+        color: #1267d8 !important;
+        font-size: 0.84rem !important;
+        font-weight: 820 !important;
+    }
+
+    .calendar-service-picker-modal__empty {
+        padding: 22px 8px !important;
+        color: #64748b !important;
+        font-size: 0.86rem !important;
+        text-align: center !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-service-picker-modal__header {
+        grid-template-columns: 40px minmax(0, 1fr) !important;
+        gap: 10px !important;
+        min-height: 70px !important;
+        padding: 12px 14px !important;
+    }
+
+    .calendar-service-picker-modal__close {
+        width: 40px !important;
+        min-width: 40px !important;
+        height: 40px !important;
+        border-radius: 12px !important;
+    }
+
+    .calendar-service-picker-modal__header h3 {
+        font-size: 1.16rem !important;
+    }
+
+    .calendar-service-picker-modal__toolbar {
+        padding-inline: 12px !important;
+    }
+
+    .calendar-service-picker-modal__list {
+        padding-inline: 12px !important;
+    }
+
+    .calendar-service-picker-modal__item {
+        min-height: 78px !important;
+        padding: 13px 14px !important;
+    }
+
+    .calendar-service-picker-modal__item-action {
+        padding-inline: 12px !important;
+    }
+}
