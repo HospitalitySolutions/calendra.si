@@ -6130,3 +6130,33 @@
         border-radius: 15px;
     }
 }
+
+/* Mobile: keep Stranke / Podjetja / Skupine visible while scrolling, matching Čakalna vrsta. */
+@media (max-width: 720px) {
+    /* Remove the short header box as the sticky containing block so the tabs can stay
+       fixed for the full length of the clients page, while the search/filter toolbar scrolls. */
+    .clients-modern-page--mobile .clients-page-header.clients-page-header--sticky-mobile {
+        display: contents;
+    }
+
+    .clients-modern-page--mobile .clients-page-header__entity.clients-entity-tabs-shell {
+        position: sticky;
+        top: calc(61px + env(safe-area-inset-top));
+        z-index: 190;
+        display: block;
+        width: 100%;
+        min-height: 58px;
+        margin: -1px 0 0;
+        padding: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee;
+        overflow: visible;
+    }
+
+    .clients-modern-page--mobile .clients-session-tabs.clients-entity-tabs,
+    .clients-modern-page--mobile .clients-entity-tabs {
+        position: static;
+        top: auto;
+        z-index: auto;
+    }
+}
