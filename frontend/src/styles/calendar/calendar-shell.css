@@ -1893,3 +1893,47 @@
     border-color: rgba(96, 165, 250, 0.55);
     box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
 }
+/* --------------------------------------------------------------------------
+   Phase 1 mobile swipe navigation
+   Horizontal gestures navigate Day / 3-day / Week / Work week / Month.
+   Vertical movement remains native inside FullCalendar's scroll containers.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-swipe-navigation-enabled {
+        touch-action: pan-y pinch-zoom;
+        overscroll-behavior-x: contain;
+        overflow-x: clip;
+    }
+
+    .calendar-swipe-navigation-enabled.calendar-is-swiping {
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: grabbing;
+    }
+
+    .calendar-swipe-navigation-enabled .calendar-snapshot-layer {
+        contain: layout paint style;
+        will-change: transform;
+    }
+
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-col-header-cell:not(.fc-timegrid-axis),
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-timegrid-col,
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-daygrid-day,
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-col-header-cell:not(.fc-timegrid-axis),
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-timegrid-col,
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-daygrid-day {
+        will-change: transform;
+        backface-visibility: hidden;
+    }
+}
+
+@media (max-width: 939px) and (prefers-reduced-motion: reduce) {
+    .calendar-swipe-navigation-enabled.calendar-not-swiping .fc-col-header-cell:not(.fc-timegrid-axis),
+    .calendar-swipe-navigation-enabled.calendar-not-swiping .fc-timegrid-col,
+    .calendar-swipe-navigation-enabled.calendar-not-swiping .fc-daygrid-day,
+    .calendar-swipe-navigation-enabled.calendar-not-swiping .calendar-snapshot-layer .fc-col-header-cell:not(.fc-timegrid-axis),
+    .calendar-swipe-navigation-enabled.calendar-not-swiping .calendar-snapshot-layer .fc-timegrid-col,
+    .calendar-swipe-navigation-enabled.calendar-not-swiping .calendar-snapshot-layer .fc-daygrid-day {
+        transition-duration: 1ms !important;
+    }
+}

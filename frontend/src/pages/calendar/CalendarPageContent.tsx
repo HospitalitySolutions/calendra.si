@@ -144,6 +144,19 @@ const EmbeddedClientsPage = lazy(() =>
 const CALENDAR_DEFAULT_BOOKED_COLOR = '#16A34A'
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
 
+const MOBILE_SWIPE_CALENDAR_VIEWS = new Set([
+  'timeGridDay',
+  'resourceTimeGridDay',
+  'timeGridThreeDay',
+  'resourceTimeGridThreeDay',
+  'timeGridWeek',
+  'resourceTimeGridWeek',
+  'timeGridWorkWeek',
+  'resourceTimeGridWorkWeek',
+  'dayGridMonth',
+  'resourceDayGridMonth',
+])
+
 function createRecurrenceSeriesKey(): string {
   const randomUuid = globalThis.crypto?.randomUUID?.()
   if (randomUuid) return randomUuid
@@ -511,6 +524,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   const calendarDateNavArrowsInRail = useCalendarDateNavArrowsInRail()
   const calendarMobileHeaderNav = useCalendarMobileHeaderNav()
+  const calendarSwipeNavigationEnabled =
+    calendarFiltersBottomBar && MOBILE_SWIPE_CALENDAR_VIEWS.has(view)
   const calendarToolbarMonthLabel = useMemo(() => {
     const api = calendarRef.current?.getApi()
     const d = api?.getDate()
@@ -890,8 +905,35 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     })
   }, [])
 
+  const getCalendarSwipeWidth = useCallback(() => {
+    const width = calendarAndroidWeekRef.current?.getBoundingClientRect().width
+    return Math.max(1, width || window.innerWidth)
+  }, [])
+
+  const isCalendarSwipeBlockedTarget = useCallback((target: HTMLElement | null) => {
+    if (!target) return false
+    return Boolean(target.closest([
+      'input',
+      'textarea',
+      'select',
+      'button',
+      'a',
+      '[contenteditable="true"]',
+      '[role="button"]',
+      '.fc-event',
+      '.fc-event-resizer',
+      '.client-dropdown-panel',
+      '.config-dropdown',
+      '.calendar-android-toolbar',
+      '.calendar-rail-date-nav',
+      '.calendar-filters-bottom-bar',
+      '.modal',
+      '.booking-side-panel',
+    ].join(',')))
+  }, [])
+
   const createCalendarSnapshot = useCallback(() => {
-    const shell = document.querySelector('.calendar-fc-shell') as HTMLElement
+    const shell = calendarAndroidWeekRef.current?.querySelector('.calendar-fc-shell') as HTMLElement | null
     if (!shell) return
 
     if (calendarSnapshotRef.current) {
@@ -925,8 +967,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       document.querySelectorAll('.fc-event-mirror').forEach((n) => n.remove())
     }
     
-    // Disable snapshot animations on large resolutions (laptops & monitors)
-    if (window.innerWidth >= 1024) {
+    // Phase 1 animations are enabled only for mobile calendar layouts.
+    if (!calendarSwipeNavigationEnabled) {
       if (dir < 0) api.prev()
       else api.next()
       return
@@ -934,7 +976,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     
     createCalendarSnapshot()
     
-    const screenW = window.innerWidth
+    const screenW = getCalendarSwipeWidth()
     setCalendarIsSwiping(true)
     setSwipeTransitionActive(true)
     setCalendarSlideX(dir < 0 ? -screenW : screenW)
@@ -960,29 +1002,15 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         }, 320)
       })
     })
-  }, [createCalendarSnapshot])
+  }, [calendarSwipeNavigationEnabled, createCalendarSnapshot, getCalendarSwipeWidth])
 
   const handleCalendarSwipeTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
-    // Disable click-and-drag swipe on large resolutions. Leaves standard drag/drop functional.
-    if (window.innerWidth >= 1024) return
-    
+    if (!calendarSwipeNavigationEnabled) return
+
     const target = e.target as HTMLElement | null
-    if (target?.closest('select')) return
-    // Event drag sets isDraggingEventRef only in eventDragStart, after movement; without this, the first
-    // few pixels of a horizontal drag on a session tile are classified as week swipe (api.prev/next).
-    // Only skip for booked/personal/todo tiles — bookable/availability blocks are still .fc-event but use
-    // selection, not event drag; blocking all .fc-event broke swipe from most of the grid.
-    if (!isNativeAndroid && !isViewOnly) {
-      const eventEl = target?.closest('.fc-event') as HTMLElement | null
-      const touchOnDraggableSessionTile =
-        eventEl != null &&
-        (eventEl.classList.contains('calendar-event-booked-visual') ||
-          eventEl.classList.contains('calendar-event-personal-visual') ||
-          eventEl.classList.contains('calendar-event-todo-visual'))
-      if (touchOnDraggableSessionTile) return
-    }
-    if (pinchZoomRef.current > 1.001) return
-    if ('touches' in e && e.touches.length >= 2) return
+    if (isCalendarSwipeBlockedTarget(target)) return
+    if (isDraggingEventRef.current || pinchZoomRef.current > 1.001) return
+    if ('touches' in e && e.touches.length !== 1) return
     const t = 'touches' in e ? e.touches[0] : e
     calendarSwipeStartRef.current = { x: t.clientX, y: t.clientY }
     calendarSwipeAxisDecidedRef.current = false
@@ -1006,11 +1034,11 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       target.addEventListener('touchcancel', onNativeEnd, { passive: true })
       target.addEventListener('mouseup', onNativeEnd, { passive: true })
     }
-  }, [isNativeAndroid, isViewOnly])
+  }, [calendarSwipeNavigationEnabled, isCalendarSwipeBlockedTarget])
 
   const handleCalendarSwipeTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | null
-    if (target?.closest('select')) return
+    if (isCalendarSwipeBlockedTarget(target)) return
     if (isDraggingEventRef.current) {
       isDraggingEventRef.current = false
       dragEdgeSideRef.current = 0
@@ -1066,12 +1094,12 @@ export default function CalendarPage({ user }: CalendarPageProps) {
 
     if (wasHorizontal) {
       const dir = calendarSlideDirRef.current
-      const screenW = window.innerWidth
+      const screenW = getCalendarSwipeWidth()
       const wrap = swipeWrapRef.current
 
       const velocity = swipeVelocityRef.current.vx
       const VELOCITY_THRESHOLD = 0.3
-      const DISTANCE_THRESHOLD = 56
+      const DISTANCE_THRESHOLD = Math.min(96, Math.max(48, screenW * 0.16))
       const fastFlick = Math.abs(velocity) > VELOCITY_THRESHOLD
       const flickAgainstDir = (dir < 0 && velocity > 0) || (dir > 0 && velocity < 0)
       const shouldSnapBack = dir === 0 || (Math.abs(dx) < DISTANCE_THRESHOLD && !(fastFlick && !flickAgainstDir))
@@ -1124,7 +1152,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const minDx = 56
     if (Math.abs(dx) < minDx || Math.abs(dx) < Math.abs(dy) * 1.15) return
     navigateCalendar(dx > 0 ? -1 : 1)
-  }, [cleanupDragArtifacts, navigateCalendar])
+  }, [cleanupDragArtifacts, getCalendarSwipeWidth, isCalendarSwipeBlockedTarget, navigateCalendar])
 
   const handleDragEdgeAutoNavigate = useCallback((clientX: number) => {
     if (!isNativeAndroid || !isDraggingEventRef.current) return
@@ -1168,11 +1196,16 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (!calendarSwipeAxisDecidedRef.current) {
       if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
         calendarSwipeAxisDecidedRef.current = true
-        calendarSwipeIsHorizontalRef.current = Math.abs(dx) > Math.abs(dy) * 1.15
+        calendarSwipeIsHorizontalRef.current = Math.abs(dx) > Math.abs(dy) * 1.2
+        if (!calendarSwipeIsHorizontalRef.current) {
+          // Leave vertical movement entirely to the browser/FullCalendar scroller.
+          calendarSwipeStartRef.current = null
+          return
+        }
         if (calendarSwipeIsHorizontalRef.current) {
           const dir = dx > 0 ? -1 : 1
           calendarSlideDirRef.current = dir
-          const screenW = window.innerWidth
+          const screenW = getCalendarSwipeWidth()
           const initialOffset = dir < 0 ? -screenW + dx : screenW + dx
 
           const wrap = swipeWrapRef.current
@@ -1199,7 +1232,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     }
     if (calendarSwipeIsHorizontalRef.current) {
       const dir = calendarSlideDirRef.current
-      const screenW = window.innerWidth
+      const screenW = getCalendarSwipeWidth()
       const liveOffset = dir < 0 ? -screenW + dx : screenW + dx
 
       swipeWrapRef.current?.style.setProperty('--calendar-slide-x', `${liveOffset}px`)
@@ -1214,7 +1247,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       swipeVelocityRef.current.lastX = t.clientX
       swipeVelocityRef.current.lastT = now
     }
-  }, [createCalendarSnapshot, handleDragEdgeAutoNavigate])
+  }, [createCalendarSnapshot, getCalendarSwipeWidth, handleDragEdgeAutoNavigate])
 
   useEffect(() => {
     swipeHandlersRef.current.move = handleCalendarTouchMove
@@ -11023,12 +11056,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           onTouchEndCapture={handleCalendarSwipeTouchEnd}
           onTouchCancelCapture={clearDraggingState}
           onTouchMoveCapture={handleCalendarTouchMove}
-          onMouseDownCapture={!isNativeAndroid ? handleCalendarSwipeTouchStart : undefined}
-          onMouseUpCapture={!isNativeAndroid ? handleCalendarSwipeTouchEnd : undefined}
-          onMouseMoveCapture={!isNativeAndroid ? (event) => {
-            handleCalendarMouseMove(event)
-            handleCalendarTouchMove(event)
-          } : undefined}
+          onMouseMoveCapture={!isNativeAndroid ? handleCalendarMouseMove : undefined}
           onMouseLeave={!isNativeAndroid ? () => {
             handleCalendarMouseLeave()
             clearDraggingState()
@@ -11135,6 +11163,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             calendarMode === 'spaces' ? 'calendar-mode-spaces' : (calendarMode === 'bookings' ? 'calendar-mode-bookings' : ''),
             modeSwitching ? 'calendar-mode-switching' : '',
             !isNativeAndroid ? 'calendar-web-wrap' : '',
+            calendarSwipeNavigationEnabled ? 'calendar-swipe-navigation-enabled' : '',
             calendarIsSwiping ? 'calendar-is-swiping' : 'calendar-not-swiping',
             swipeTransitionActive ? 'calendar-sliding-enabled' : ''
           ].filter(Boolean).join(' ')}
@@ -11444,6 +11473,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     type: 'timeGrid',
                     duration: { days: 3 },
                     dateAlignment: 'day',
+                    dateIncrement: { days: 3 },
                     allDaySlot: calendarHasContinuousAllDaySessions,
                   },
                   dayGridMonth: { dayHeaders: false, showNonCurrentDates: false, fixedWeekCount: false },
@@ -11464,6 +11494,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     type: 'timeGrid',
                     duration: { days: 3 },
                     dateAlignment: 'day',
+                    dateIncrement: { days: 3 },
                     allDaySlot: calendarHasContinuousAllDaySessions,
                   },
                   dayGridMonth: { dayHeaderFormat: { weekday: 'long' } },
@@ -11485,6 +11516,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     type: 'resourceTimeGrid',
                     duration: { days: 3 },
                     dateAlignment: 'day',
+                    dateIncrement: { days: 3 },
                     allDaySlot: calendarHasContinuousAllDaySessions,
                     datesAboveResources: true,
                   },
