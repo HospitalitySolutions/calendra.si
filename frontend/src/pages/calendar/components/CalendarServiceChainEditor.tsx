@@ -47,7 +47,7 @@ function labels(locale: string) {
       pickerDescription: 'Izberite storitev, ki jo želite dodati v termin.',
       pickerEmpty: 'Ni razpoložljivih storitev.',
       close: 'Zapri',
-      addAction: 'Dodaj',
+      addAction: 'Izberi',
       searchPlaceholder: 'Išči storitev ...',
     }
   }
@@ -75,7 +75,7 @@ function labels(locale: string) {
       pickerDescription: 'Izaberite uslugu koju želite da dodate u termin.',
       pickerEmpty: 'Nema dostupnih usluga.',
       close: 'Zatvori',
-      addAction: 'Dodaj',
+      addAction: 'Izaberi',
       searchPlaceholder: 'Pretraži uslugu ...',
     }
   }
@@ -102,7 +102,7 @@ function labels(locale: string) {
     pickerDescription: 'Choose a service to add to this appointment.',
     pickerEmpty: 'No services available.',
     close: 'Close',
-    addAction: 'Add',
+    addAction: 'Select',
     searchPlaceholder: 'Search services ...',
   }
 }

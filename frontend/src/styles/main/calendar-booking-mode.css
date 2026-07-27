@@ -8920,3 +8920,206 @@
         grid-template-columns: minmax(0, 1fr) !important;
     }
 }
+
+
+/* Add service picker refinements for mobile/tablet: align header sizing with
+   Uredi termin, remove native search-field double edge, and use compact action
+   pills on the right of each service card. */
+.calendar-service-picker-modal__search input {
+    -webkit-appearance: none;
+    appearance: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
+.calendar-service-picker-modal__search input::-webkit-search-decoration,
+.calendar-service-picker-modal__search input::-webkit-search-results-decoration,
+.calendar-service-picker-modal__search input::-webkit-search-results-button,
+.calendar-service-picker-modal__search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+}
+
+@media (max-width: 1024px) {
+    .calendar-service-picker-modal {
+        width: 100% !important;
+        max-width: none !important;
+        height: 100dvh !important;
+        max-height: none !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #f8fafc !important;
+        box-shadow: none !important;
+        grid-template-rows: auto auto minmax(0, 1fr) !important;
+    }
+
+    .calendar-service-picker-backdrop {
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        padding: 0 !important;
+        background: rgba(15, 23, 42, 0.46) !important;
+    }
+
+    .calendar-service-picker-modal__header {
+        display: grid !important;
+        grid-template-columns: 38px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 8px !important;
+        min-height: 0 !important;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
+        border-bottom: 0 !important;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%) !important;
+        box-sizing: border-box !important;
+        border-radius: 0 !important;
+    }
+
+    .calendar-service-picker-modal__heading {
+        grid-column: 2 !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-service-picker-modal__header h3 {
+        margin: 0 !important;
+        overflow: hidden !important;
+        color: #fff !important;
+        font-size: 1.22rem !important;
+        font-weight: 860 !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.035em !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    .calendar-service-picker-modal__header p {
+        display: none !important;
+    }
+
+    .calendar-service-picker-modal__close {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        width: 38px !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        border-radius: 12px !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+        order: -1 !important;
+    }
+
+    .calendar-service-picker-modal__close:hover,
+    .calendar-service-picker-modal__close:focus-visible {
+        border-color: rgba(255, 255, 255, 0.36) !important;
+        background: rgba(255, 255, 255, 0.14) !important;
+        color: #fff !important;
+    }
+
+    .calendar-service-picker-modal__toolbar {
+        padding: 16px 16px 8px !important;
+        background: #f8fafc !important;
+    }
+
+    .calendar-service-picker-modal__search {
+        min-height: 48px !important;
+        padding: 0 14px !important;
+        border-radius: 14px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    .calendar-service-picker-modal__search input {
+        height: 46px !important;
+        font-size: 0.94rem !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .calendar-service-picker-modal__list {
+        align-content: start !important;
+        gap: 10px !important;
+        padding: 8px 16px max(24px, env(safe-area-inset-bottom)) !important;
+        overflow-y: auto !important;
+        overscroll-behavior: contain !important;
+        background: #f8fafc !important;
+    }
+
+    .calendar-service-picker-modal__item {
+        min-height: 82px !important;
+        padding: 14px 16px !important;
+        border: 1px solid #dbe5f0 !important;
+        border-radius: 16px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .calendar-service-picker-modal__item-copy {
+        gap: 6px !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+    }
+
+    .calendar-service-picker-modal__item-copy strong {
+        color: #0f172a !important;
+        font-size: 0.96rem !important;
+        font-weight: 820 !important;
+        line-height: 1.25 !important;
+    }
+
+    .calendar-service-picker-modal__item-copy span {
+        color: #64748b !important;
+        font-size: 0.8rem !important;
+        font-weight: 580 !important;
+    }
+
+    .calendar-service-picker-modal__item-action {
+        flex: none !important;
+        min-width: 84px !important;
+        min-height: 40px !important;
+        padding: 7px 16px !important;
+        border-radius: 999px !important;
+        background: #eaf2ff !important;
+        color: #1267d8 !important;
+        font-size: 0.84rem !important;
+        font-weight: 820 !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-service-picker-modal__header {
+        grid-template-columns: 38px minmax(0, 1fr) !important;
+        gap: 8px !important;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
+    }
+
+    .calendar-service-picker-modal__header h3 {
+        font-size: 1.16rem !important;
+    }
+
+    .calendar-service-picker-modal__toolbar {
+        padding-inline: 12px !important;
+    }
+
+    .calendar-service-picker-modal__list {
+        padding-inline: 12px !important;
+    }
+
+    .calendar-service-picker-modal__item {
+        min-height: 78px !important;
+        padding: 13px 14px !important;
+    }
+
+    .calendar-service-picker-modal__item-action {
+        min-width: 78px !important;
+        padding-inline: 12px !important;
+    }
+}
