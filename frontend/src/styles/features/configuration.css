@@ -741,16 +741,6 @@ a.config-nav-item {
 }
 
 
-@media (max-width: 1024px) {
-    .config-shell--detail.config-shell--notifications-mobile {
-        width: 100%;
-        max-width: none;
-        margin: 0;
-        padding: 0;
-        background: #ffffff;
-        box-sizing: border-box;
-    }
-}
 
 @media (max-width: 420px) {
     .config-shell--overview {
@@ -1826,4 +1816,100 @@ a.config-nav-item {
   .reservation-rules-page-stack {
     gap: 16px;
   }
+}
+
+
+/* Obvestila: compact full-bleed layout. The blue channel tabs touch the blue app header. */
+@media (max-width: 1024px) {
+    .main-area--configuration-notifications {
+        background: #ffffff;
+    }
+
+    .main-area--configuration-notifications > .content.content--configuration-notifications {
+        width: 100%;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .main-area--configuration-notifications .stack.gap-lg {
+        width: 100%;
+        gap: 0;
+    }
+
+    .config-shell--detail.config-shell--notifications-mobile {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .config-shell--notifications-mobile .config-content {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+/* Obvestila uses one continuous blue header + channel-tab band on compact screens. */
+@media (max-width: 1024px) {
+    .app-header.app-header--notifications {
+        min-height: 62px;
+        box-sizing: border-box;
+        padding: max(10px, env(safe-area-inset-top)) 18px 10px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border: 0;
+        border-bottom: 0;
+        box-shadow: none;
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .app-header.app-header--notifications {
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border: 0;
+    }
+
+    .app-header--notifications .app-header-brand {
+        display: none !important;
+    }
+
+    .app-header--notifications .app-header-section-title {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + (env(safe-area-inset-top) / 4));
+        transform: translate(-50%, -50%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        max-width: calc(100% - 150px);
+        color: #ffffff;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .app-header--notifications .app-header-section-title strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 1rem;
+        line-height: 1;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+    }
+
+    .app-header--notifications .app-header-mobile-nav-trigger,
+    .app-header--notifications .staff-notification-trigger,
+    .app-header--notifications .header-actions {
+        color: #ffffff;
+    }
+
+    .app-header--notifications .app-header-mobile-nav-trigger {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: transparent;
+        box-shadow: none;
+    }
 }

@@ -998,6 +998,66 @@ function getNotificationTemplateBody(
   );
 }
 
+function NotificationChannelTabIcon({
+  channel,
+}: {
+  channel: NotificationChannel;
+}) {
+  if (channel === "email") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </svg>
+    );
+  }
+
+  if (channel === "guestApp") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <rect x="7" y="2" width="10" height="20" rx="2" />
+        <path d="M11 18h2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      width="23"
+      height="23"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3 1.6-4.8A8 8 0 1 1 21 15Z" />
+    </svg>
+  );
+}
+
 function NotificationInfoIcon({
   kind,
 }: {
@@ -1896,6 +1956,24 @@ export function ConfigurationNotificationsSection({
           color: #0f172a;
           background: #f8fafc;
         }
+        .notif-tab-icon {
+          display: inline-grid;
+          place-items: center;
+          width: 24px;
+          height: 24px;
+          flex: 0 0 auto;
+        }
+        .notif-tab-icon svg {
+          display: block;
+          width: 22px;
+          height: 22px;
+        }
+        .notif-tab-label {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
         .notif-tab.is-active {
           color: var(--notif-blue);
           background: #eaf2ff;
@@ -2510,11 +2588,13 @@ export function ConfigurationNotificationsSection({
         @media (max-width: 1024px) {
           .notif-page-shell {
             width: 100%;
+            max-width: none;
             display: block;
             background: #ffffff;
           }
           .notif-card {
-            padding: 0 12px 96px;
+            width: 100%;
+            padding: 0 0 96px;
             border: 0;
             border-radius: 0;
             background: transparent;
@@ -2533,20 +2613,26 @@ export function ConfigurationNotificationsSection({
           }
           .notif-tabs {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            align-items: end;
+            grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.72fr) minmax(0, 1.38fr);
+            align-items: stretch;
             gap: 0;
-            width: auto;
-            margin: 0 -12px 12px;
-            padding: 12px 10px 0;
+            width: 100%;
+            margin: -1px 0 14px;
+            padding: 0;
             overflow: visible;
+            border: 0;
             border-bottom: 0;
-            background: linear-gradient(180deg, #1d74ff 0%, #0f62fe 100%);
-            box-shadow: inset 0 -1px 0 rgba(255,255,255,0.12);
+            background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+            box-shadow: none;
           }
           .notif-tab {
             min-width: 0;
-            padding: 16px 8px 14px;
+            min-height: 72px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            padding: 12px 8px 13px;
             border-radius: 0;
             color: rgba(255, 255, 255, 0.76);
             font-size: 14px;
@@ -2554,7 +2640,6 @@ export function ConfigurationNotificationsSection({
             text-align: center;
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;
             background: transparent;
           }
           .notif-tab:hover {
@@ -2564,10 +2649,10 @@ export function ConfigurationNotificationsSection({
           .notif-tab::after {
             content: '';
             position: absolute;
-            left: 14px;
-            right: 14px;
+            left: 12%;
+            right: 12%;
             bottom: 0;
-            height: 3px;
+            height: 4px;
             border-radius: 999px 999px 0 0;
             background: transparent;
             transform: scaleX(0.28);
@@ -2584,8 +2669,11 @@ export function ConfigurationNotificationsSection({
             transform: scaleX(1);
             opacity: 1;
           }
+          .notif-layout {
+            padding: 0 14px;
+          }
           .notif-mobile-channel-note {
-            margin-top: -2px;
+            margin: 0 14px 2px;
           }
           .notif-savebar {
             position: fixed;
@@ -2659,18 +2747,28 @@ export function ConfigurationNotificationsSection({
             grid-template-columns: 1fr;
           }
           .notif-tabs {
-            margin: 0 -12px 10px;
-            padding: 10px 8px 0;
+            margin: -1px 0 12px;
+            padding: 0;
           }
           .notif-tab {
-            padding: 14px 4px 13px;
-            font-size: 13px;
+            min-height: 66px;
+            gap: 7px;
+            padding: 11px 4px 12px;
+            font-size: 12.5px;
+          }
+          .notif-tab-icon,
+          .notif-tab-icon svg {
+            width: 21px;
+            height: 21px;
           }
           .notif-tab::after {
-            left: 10px;
-            right: 10px;
-            height: 3px;
+            left: 10%;
+            right: 10%;
+            height: 4px;
             bottom: 0;
+          }
+          .notif-layout {
+            padding: 0 12px;
           }
           .notif-mobile-channel-note {
             display: flex;
@@ -3174,7 +3272,10 @@ export function ConfigurationNotificationsSection({
                   role="tab"
                   aria-selected={channel === id}
                 >
-                  {label}
+                  <span className="notif-tab-icon" aria-hidden>
+                    <NotificationChannelTabIcon channel={id} />
+                  </span>
+                  <span className="notif-tab-label">{label}</span>
                 </button>
               ))}
           </div>
