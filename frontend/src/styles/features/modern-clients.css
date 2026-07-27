@@ -6160,3 +6160,74 @@
         z-index: auto;
     }
 }
+
+/* Mobile/tablet: while a text-entry field has focus (and the on-screen keyboard is
+   therefore open), remove the bottom save action so it does not cover the form. */
+@media (max-width: 1024px) {
+    .clients-action-workspace-modal:has(
+        :is(
+            input:not([type]),
+            input[type="text"],
+            input[type="email"],
+            input[type="tel"],
+            input[type="number"],
+            input[type="search"],
+            input[type="url"],
+            input[type="password"],
+            textarea,
+            [contenteditable="true"]
+        ):focus
+    ) .clients-action-workspace-footer,
+    .clients-simple-create-form:has(
+        :is(
+            input:not([type]),
+            input[type="text"],
+            input[type="email"],
+            input[type="tel"],
+            input[type="number"],
+            input[type="search"],
+            input[type="url"],
+            input[type="password"],
+            textarea,
+            [contenteditable="true"]
+        ):focus
+    ) .clients-simple-create-submit {
+        display: none !important;
+    }
+}
+
+@media (max-width: 760px) {
+    .clients-simple-create-form:has(
+        :is(
+            input:not([type]),
+            input[type="text"],
+            input[type="email"],
+            input[type="tel"],
+            input[type="number"],
+            input[type="search"],
+            input[type="url"],
+            input[type="password"],
+            textarea,
+            [contenteditable="true"]
+        ):focus
+    ) {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .clients-simple-create-form:has(
+        :is(
+            input:not([type]),
+            input[type="text"],
+            input[type="email"],
+            input[type="tel"],
+            input[type="number"],
+            input[type="search"],
+            input[type="url"],
+            input[type="password"],
+            textarea,
+            [contenteditable="true"]
+        ):focus
+    ) .clients-simple-create-body {
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+}
