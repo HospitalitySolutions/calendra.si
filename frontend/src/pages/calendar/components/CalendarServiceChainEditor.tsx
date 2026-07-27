@@ -136,15 +136,6 @@ function MoreIcon() {
   )
 }
 
-function ClockIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 7.8v4.6l3 1.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 export function CalendarServiceChainEditor({
   locale,
   services,
@@ -296,7 +287,6 @@ export function CalendarServiceChainEditor({
                       <div className="calendar-service-chain__card-top">
                         <div className="calendar-service-chain__title-block">
                           <strong className="calendar-service-chain__title">{serviceName(type, locale)}</strong>
-                          <span className="calendar-service-chain__duration-pill"><ClockIcon /> {formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</span>
                         </div>
                         <div className="calendar-service-chain__item-actions">
                           <div className="calendar-service-chain__menu-wrap">
@@ -329,10 +319,12 @@ export function CalendarServiceChainEditor({
                             {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
                           </select>
                         </label>
-                        <div className="calendar-service-chain__metric">
+                        <div className="calendar-service-chain__metric calendar-service-chain__metric--duration">
                           <small>{copy.duration}</small>
-                          <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
-                          <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
+                          <div className="calendar-service-chain__duration-line">
+                            <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
+                            <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
+                          </div>
                         </div>
                         <div className="calendar-service-chain__metric">
                           <small>{copy.price}</small>
