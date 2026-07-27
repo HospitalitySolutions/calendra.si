@@ -8610,3 +8610,19 @@
     max-width: none !important;
   }
 }
+
+/* Mobile Novo predplačilo: reduce only the text inside Količina and Cena inputs. */
+@media (max-width: 820px) {
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--price input {
+    font-size: 0.46rem !important;
+    line-height: 1 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--price input {
+    font-size: 0.44rem !important;
+  }
+}
