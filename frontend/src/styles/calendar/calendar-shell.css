@@ -1937,3 +1937,48 @@
         transition-duration: 1ms !important;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Phase 1 swipe follow-up: keep weekday/date headers visible throughout the
+   horizontal transition. FullCalendar clips transformed individual <th>
+   elements to their original table cells, which caused entering dates (for
+   example SUN 2) to disappear while the adjacent period followed the finger.
+   Move the complete column-header table instead and leave its cells unshifted.
+   -------------------------------------------------------------------------- */
+@media (max-width: 939px) {
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-col-header-cell:not(.fc-timegrid-axis),
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-col-header-cell:not(.fc-timegrid-axis) {
+        transform: none !important;
+        transition: none !important;
+        will-change: auto;
+    }
+
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-col-header {
+        transform: translate3d(var(--calendar-slide-x, 0px), 0, 0);
+        will-change: transform;
+        backface-visibility: hidden;
+    }
+
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-col-header {
+        transform: translate3d(var(--calendar-slide-clone, 0px), 0, 0);
+        will-change: transform;
+        backface-visibility: hidden;
+    }
+
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-is-swiping .fc-col-header,
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-is-swiping .calendar-snapshot-layer .fc-col-header {
+        transition: none !important;
+    }
+
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-not-swiping .fc-col-header,
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-not-swiping .calendar-snapshot-layer .fc-col-header {
+        transition: transform 320ms cubic-bezier(0.2, 0, 0, 1);
+    }
+}
+
+@media (max-width: 939px) and (prefers-reduced-motion: reduce) {
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-not-swiping .fc-col-header,
+    .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-not-swiping .calendar-snapshot-layer .fc-col-header {
+        transition-duration: 1ms !important;
+    }
+}
