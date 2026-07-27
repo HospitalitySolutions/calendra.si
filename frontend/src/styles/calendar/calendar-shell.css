@@ -339,7 +339,22 @@
 
     .calendar-resource-day-header-fallback {
         top: var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px));
-        z-index: 120;
+        z-index: 122;
+    }
+
+    /*
+     * In a one-day resource view FullCalendar deliberately renders only the resource row.
+     * The date row is the fallback sibling above the calendar, so both rows cannot share the
+     * same sticky top value. CalendarPageContent measures the real fallback height and exposes
+     * it here; the native space/staff row then sticks immediately below the date row.
+     */
+    .calendar-fc-shell--resource-day-fallback-layout .fc.fc-resourceTimeGridDay-view .fc-scrollgrid-section-header > th,
+    .calendar-fc-shell--resource-day-fallback-layout .fc.fc-resourceTimeGridDay-view .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
+        top: calc(
+            var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px)) +
+            var(--calendar-resource-day-fallback-height, 0px)
+        );
+        z-index: 121;
     }
 
     /* Empty holiday placeholders must not reserve a blank line above weekday/date on mobile. */

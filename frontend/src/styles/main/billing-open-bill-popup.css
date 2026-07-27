@@ -155,19 +155,19 @@
 
 .billing-bill-modal-items {
     display: grid;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-bill-session-group {
     display: grid;
-    gap: 8px;
+    gap: 6px;
 }
 
 .billing-bill-session-group-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 7px;
     padding: 2px 4px;
 }
 
@@ -433,7 +433,7 @@
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-bill-modal-primary-icon {
@@ -532,14 +532,14 @@
 
 .billing-bill-modal-activity-row small {
     color: #64748b;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
 }
 
 .billing-bill-modal-payment-summary-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-bill-modal-method-chip {
@@ -591,7 +591,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     margin-top: 12px;
 }
 
@@ -628,7 +628,7 @@
 
 .billing-bill-modal-split-breakdown b {
     color: #0b63f6;
-    font-size: 1rem;
+    font-size: 0.92rem;
 }
 
 .billing-bill-modal-summary-line--credit span,
@@ -661,7 +661,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 7px;
     flex-wrap: wrap;
 }
 
@@ -691,7 +691,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     box-shadow: 0 6px 16px rgba(59, 130, 246, 0.14);
 }
 
@@ -716,7 +716,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     box-shadow: 0 6px 16px rgba(37, 99, 235, 0.12);
 }
 
@@ -994,7 +994,7 @@
 .billing-multi-bill-payment-panel h3,
 .billing-payee-popover h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.92rem;
     letter-spacing: -0.01em;
     color: #0f172a;
 }
@@ -1011,7 +1011,7 @@
 .billing-one-payee-switch {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     color: #475569;
     font-size: 0.86rem;
     font-weight: 700;
@@ -1200,7 +1200,7 @@
 .billing-bill-modal-item-row-wrap {
     display: grid;
     grid-template-columns: 22px minmax(0, 1fr);
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 
@@ -1248,7 +1248,7 @@
 
 .billing-payment-method-list {
     display: grid;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-payment-method-row {
@@ -1259,7 +1259,7 @@
     display: grid;
     grid-template-columns: 38px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-payment-method-icon {
@@ -1284,7 +1284,7 @@
     padding: 10px 16px;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    gap: 7px;
     align-items: center;
 }
 
@@ -1292,7 +1292,7 @@
     display: grid;
     grid-template-columns: 34px minmax(0, 1fr);
     grid-template-rows: auto auto;
-    column-gap: 10px;
+    column-gap: 7px;
     align-items: center;
     min-width: 0;
     border-right: 1px solid rgba(148, 163, 184, 0.22);
@@ -1359,7 +1359,7 @@
 .billing-payee-popover-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 7px;
     margin-top: 16px;
 }
 
@@ -1424,7 +1424,7 @@
 .billing-invoice-one-payee-switch {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     min-height: 34px;
     border: 0;
     background: transparent;
@@ -1588,7 +1588,7 @@
 .billing-invoice-add-tab {
     justify-content: center;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     text-align: center;
     border-style: dashed;
     color: #64748b;
@@ -1608,7 +1608,7 @@
 .billing-invoice-inline-note {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-top: 16px;
     color: #64748b;
     font-size: 0.86rem;
@@ -1637,7 +1637,7 @@
 .billing-invoice-section-title-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     margin-bottom: 16px;
 }
 
@@ -1675,7 +1675,7 @@
 
 .billing-invoice-item-list {
     display: grid;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-invoice-item-row {
@@ -1794,7 +1794,7 @@
 
 .billing-invoice-payment-list {
     display: grid;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-invoice-payment-row {
@@ -1802,7 +1802,7 @@
     display: grid;
     grid-template-columns: 38px minmax(112px, 1fr) minmax(88px, 104px) 38px 38px;
     grid-template-rows: auto auto;
-    gap: 10px;
+    gap: 7px;
     align-items: center;
     padding: 8px 10px;
     border: 1px solid rgba(148, 163, 184, 0.24);
@@ -1909,7 +1909,7 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-invoice-remaining-copy strong {
@@ -2035,7 +2035,7 @@
     min-width: 0;
     display: grid;
     grid-template-columns: 38px minmax(0, 1fr);
-    column-gap: 10px;
+    column-gap: 7px;
     row-gap: 1px;
     align-items: center;
     padding: 0 14px;
@@ -2121,13 +2121,56 @@
 }
 
 .billing-payee-mobile-topbar,
-.billing-payee-mobile-summary { display: none; }
-.billing-payee-mobile-topbar-title { min-width: 0; flex: 1; font-weight: 800; letter-spacing: -0.02em; }
-.billing-payee-mobile-save { border: none; background: transparent; color: #fff; font-weight: 800; box-shadow: none; padding: 0 2px; }
-.billing-payee-mobile-save:hover { background: transparent; box-shadow: none; }
-.billing-payee-mobile-readonly { display:flex; flex-direction:column; gap:10px; padding:16px 18px; border-radius:18px; border:1px solid #d7e2f0; background:#fff; box-shadow:0 10px 24px rgba(15,23,42,.05); }
-.billing-payee-mobile-readonly span { color:#7f94b3; font-size:.82rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
-.billing-payee-mobile-readonly strong { color:#0f172a; font-size:1rem; font-weight:800; line-height:1.35; }
+.billing-payee-mobile-summary {
+    display: none;
+}
+
+.billing-payee-mobile-topbar-title {
+    min-width: 0;
+    flex: 1;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.billing-payee-mobile-save {
+    border: none;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 800;
+    box-shadow: none;
+    padding: 0 2px;
+}
+
+.billing-payee-mobile-save:hover {
+    background: transparent;
+    box-shadow: none;
+}
+
+.billing-payee-mobile-readonly {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 13px 14px;
+    border-radius: 14px;
+    border: 1px solid #d7e2f0;
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.billing-payee-mobile-readonly span {
+    color: #7f94b3;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.billing-payee-mobile-readonly strong {
+    color: #0f172a;
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
 
 .billing-payee-modal-grid {
     display: grid;
@@ -2175,7 +2218,7 @@
 .billing-payee-client-picker-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 42px;
-    gap: 8px;
+    gap: 6px;
     align-items: stretch;
 }
 
@@ -2352,7 +2395,7 @@
 .billing-advance-picker-card-headline {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     flex-wrap: wrap;
 }
 
@@ -2401,7 +2444,7 @@
 
 .billing-advance-picker-controls {
     display: grid;
-    gap: 10px;
+    gap: 7px;
     padding: 14px 16px;
     border-radius: 16px;
     background: #fbfcfe;
@@ -2735,7 +2778,7 @@
     background: #fff7ed;
     border: 1px solid rgba(249, 115, 22, 0.24);
     color: #9a3412;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
     font-weight: 800;
     line-height: 1.35;
 }
@@ -2965,7 +3008,7 @@
 
 .billing-entitlement-wallet-copy small {
     color: #64748b;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
 }
 
 .billing-entitlement-wallet-copy em {
@@ -3040,7 +3083,7 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     padding: 10px 12px;
     border-radius: 12px;
     background: #f8fafc;
@@ -3131,7 +3174,7 @@
 
 .billing-entitlement-manual-form label {
     display: grid;
-    gap: 8px;
+    gap: 6px;
     color: #334155;
     font-size: 0.86rem;
     font-weight: 800;
@@ -3143,7 +3186,7 @@
     border-radius: 12px;
     border: 1px solid rgba(148, 163, 184, 0.34);
     color: #0f172a;
-    font-size: 1rem;
+    font-size: 0.92rem;
     font-weight: 700;
     padding: 0 14px;
     box-shadow: none;
@@ -3158,9 +3201,9 @@
 .billing-entitlement-manual-hint {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     color: #64748b;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
 }
 
 .billing-entitlement-manual-hint span {
@@ -3199,7 +3242,7 @@
     align-items: center;
     gap: 12px;
     color: #94a3b8;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
 }
 
 .billing-entitlement-or-row::before,
@@ -3214,7 +3257,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .billing-entitlement-open-scanner-btn svg {
@@ -3451,7 +3494,7 @@
     background: #ffffff;
     box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
     display: grid;
-    gap: 8px;
+    gap: 6px;
 }
 
 .billing-invoice-add-menu button {
@@ -3525,7 +3568,7 @@
     background: #ffffff;
     box-shadow: 0 16px 38px rgba(15, 23, 42, 0.055);
     display: grid;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-invoice-external-picker-head {
@@ -3628,7 +3671,7 @@
 .billing-invoice-selection-toolbar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     min-height: 46px;
     margin: 0 0 12px;
     padding: 8px 10px;
@@ -3645,7 +3688,7 @@
 .billing-invoice-selection-toolbar label {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     color: #64748b;
     font-size: 0.78rem;
     font-weight: 800;
@@ -3682,7 +3725,7 @@
 @media (max-width: 1050px) {
     .billing-invoice-tabs-row--bookmarks {
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 7px;
     }
 
     .billing-invoice-bill-tab--bookmark,
@@ -3775,7 +3818,7 @@
 .billing-invoice-payment-panel .billing-invoice-section-title-row h3 {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .billing-invoice-items-panel .billing-invoice-section-title-row h3::before,
@@ -3816,13 +3859,13 @@
 .billing-invoice-table-head,
 .billing-invoice-item-row {
     grid-template-columns: 48px minmax(120px, 1.35fr) minmax(64px, 0.5fr) minmax(82px, 0.62fr) minmax(88px, 0.62fr) 38px;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-invoice-table-head--with-client,
 .billing-invoice-item-row--with-client {
     grid-template-columns: 48px minmax(120px, 1.2fr) minmax(92px, 0.9fr) minmax(58px, 0.42fr) minmax(78px, 0.56fr) minmax(82px, 0.56fr) 38px;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-invoice-item-row {
@@ -3902,7 +3945,7 @@
     }
 
     .billing-bill-modal-title-row {
-        gap: 8px;
+        gap: 6px;
     }
 
     .billing-bill-modal-title-row h2 {
@@ -3947,7 +3990,7 @@
     .billing-invoice-management-head {
         flex-direction: column;
         align-items: stretch;
-        gap: 10px;
+        gap: 7px;
         margin-bottom: 14px;
     }
 
@@ -3968,14 +4011,14 @@
         width: 100%;
         min-height: 40px;
         padding: 8px 0 0;
-        font-size: 0.82rem;
+        font-size: 0.74rem;
         line-height: 1.3;
     }
 
     .billing-invoice-tabs-row--bookmarks {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 10px;
+        gap: 7px;
         padding-top: 0;
     }
 
@@ -4062,7 +4105,7 @@
 
     .billing-invoice-add-menu button {
         min-height: 60px;
-        gap: 10px;
+        gap: 7px;
         padding: 10px;
     }
 
@@ -4106,7 +4149,7 @@
     .billing-invoice-payment-panel .billing-invoice-section-title-row {
         margin-bottom: 12px;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px;
     }
 
     .billing-invoice-items-panel .billing-invoice-section-title-row span,
@@ -4139,7 +4182,7 @@
     .billing-invoice-item-row,
     .billing-invoice-item-row--with-client {
         grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 40px;
-        gap: 10px;
+        gap: 7px;
         align-items: start;
         padding: 12px;
         border-radius: 14px;
@@ -4151,7 +4194,7 @@
         align-self: start;
         padding-top: 4px;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
     }
 
     .billing-invoice-item-row .billing-bill-modal-field--service {
@@ -4186,7 +4229,7 @@
     }
 
     .billing-invoice-row-amount strong {
-        font-size: 1rem;
+        font-size: 0.92rem;
     }
 
     .billing-invoice-delete-mini {
@@ -4231,7 +4274,7 @@
     .billing-invoice-payment-row {
         grid-template-columns: 34px minmax(0, 1fr) 40px 40px;
         grid-template-rows: auto auto auto;
-        gap: 10px;
+        gap: 7px;
         padding: 10px;
         border-radius: 13px;
     }
@@ -4289,12 +4332,12 @@
     .billing-invoice-remaining-strip {
         min-height: 52px;
         padding: 10px 12px;
-        gap: 10px;
+        gap: 7px;
         border-radius: 13px;
     }
 
     .billing-invoice-remaining-copy strong {
-        font-size: 0.82rem;
+        font-size: 0.74rem;
     }
 
     .billing-invoice-remaining-copy small {
@@ -4302,7 +4345,7 @@
     }
 
     .billing-invoice-remaining-amount {
-        font-size: 1rem;
+        font-size: 0.92rem;
     }
 
     .billing-invoice-totals-card .billing-bill-modal-summary-line span,
@@ -4317,7 +4360,7 @@
     .billing-invoice-compact-summary {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: 7px;
         padding: 0;
         min-height: 0;
         border: 0;
@@ -4329,7 +4372,7 @@
         display: grid;
         grid-template-columns: 34px minmax(0, 1fr);
         align-items: center;
-        column-gap: 10px;
+        column-gap: 7px;
         row-gap: 2px;
         padding: 12px;
         border: 1px solid rgba(148, 163, 184, 0.22);
@@ -4359,7 +4402,7 @@
     .billing-bill-modal-footer {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: 7px;
         align-items: stretch;
         padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
         position: sticky;
@@ -4394,7 +4437,7 @@
         grid-column: 1 / -1;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: 7px;
         width: 100%;
     }
 
@@ -4411,7 +4454,7 @@
     }
 
     .billing-bill-modal-header p {
-        font-size: 0.82rem;
+        font-size: 0.74rem;
     }
 
     .billing-invoice-management-card,
@@ -4524,13 +4567,13 @@
     min-width: 0;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .billing-invoice-discount-title h3 {
     margin: 0;
     color: #111827;
-    font-size: 1rem;
+    font-size: 0.92rem;
     letter-spacing: -0.01em;
 }
 
@@ -4854,7 +4897,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: 7px;
 }
 
 .billing-line-discount-popover-head div {
@@ -4886,7 +4929,7 @@
     background: rgba(15, 23, 42, 0.06);
     color: #334155;
     box-shadow: none;
-    font-size: 1rem;
+    font-size: 0.92rem;
     line-height: 1;
 }
 
@@ -5047,7 +5090,7 @@
     .billing-invoice-item-row,
     .billing-invoice-item-row--with-client {
         grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 40px 40px;
-        gap: 10px;
+        gap: 7px;
         align-items: start;
     }
 
@@ -5255,7 +5298,7 @@
         width: 100%;
         display: grid;
         justify-items: center;
-        gap: 10px;
+        gap: 7px;
         padding: 0 58px;
         text-align: center;
     }
@@ -5263,7 +5306,7 @@
     .billing-create-panel--advance .billing-bill-modal-title-row {
         display: grid;
         justify-items: center;
-        gap: 10px;
+        gap: 7px;
     }
 
     .billing-create-panel--advance .billing-bill-modal-title-row h2 {
@@ -5392,7 +5435,7 @@
     }
 
     .billing-create-panel--advance .billing-invoice-tab-copy {
-        gap: 8px;
+        gap: 6px;
     }
 
     .billing-create-panel--advance .billing-invoice-tab-copy strong {
@@ -5402,7 +5445,7 @@
 
     .billing-create-panel--advance .billing-invoice-tab-copy small {
         padding: 5px 11px;
-        font-size: 0.82rem;
+        font-size: 0.74rem;
         background: #eaf2ff;
         color: #0b63f6;
     }
@@ -5444,7 +5487,7 @@
     .billing-create-panel--advance .billing-invoice-section-title-row {
         align-items: center;
         margin-bottom: 16px;
-        gap: 10px;
+        gap: 7px;
     }
 
     .billing-create-panel--advance .billing-invoice-section-title-row::before {
@@ -5478,7 +5521,7 @@
         margin-left: auto;
         min-height: 28px;
         padding: 5px 10px;
-        font-size: 0.82rem;
+        font-size: 0.74rem;
         color: #0b63f6;
         background: #eaf2ff;
         white-space: nowrap;
@@ -5503,7 +5546,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: 6px;
         padding: 28px 18px;
         border: 1px dashed rgba(147, 197, 253, 0.72);
         border-radius: 18px;
@@ -5564,7 +5607,7 @@
     .billing-create-panel--advance .billing-invoice-payment-row {
         grid-template-columns: 42px minmax(0, 1fr) minmax(82px, 108px) 42px 42px;
         grid-template-rows: auto;
-        gap: 8px;
+        gap: 6px;
         padding: 8px;
         border-radius: 16px;
         background: rgba(255, 255, 255, 0.94);
@@ -5610,7 +5653,7 @@
         border-radius: 13px;
         color: #059669;
         background: #d1fae5;
-        font-size: 1rem;
+        font-size: 0.92rem;
     }
 
     .billing-create-panel--advance .billing-invoice-remaining-amount {
@@ -5667,7 +5710,7 @@
         border-radius: 16px;
         justify-content: center;
         background: linear-gradient(180deg, #2f75ff 0%, #0b63f6 100%);
-        font-size: 1rem;
+        font-size: 0.92rem;
         box-shadow: 0 14px 28px rgba(37, 99, 235, 0.30);
     }
 }
@@ -5757,7 +5800,7 @@
 
 .billing-bank-transfer-settings-list {
     display: grid;
-    gap: 10px;
+    gap: 7px;
     margin: 16px 0 0;
     padding: 0;
     list-style: none;
@@ -5766,7 +5809,7 @@
 .billing-bank-transfer-settings-list li {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     padding: 12px 14px;
     border-radius: 14px;
     border: 1px solid rgba(239, 68, 68, 0.18);
@@ -5867,33 +5910,149 @@
         min-width: 44px;
     }
 
-    .billing-payee-modal.billing-payee-modal--editor { width:100vw; max-width:100vw; max-height:100vh; height:100vh; border-radius:0; border:none; padding:0; overflow:hidden; display:flex; flex-direction:column; box-shadow:none; }
-    .billing-payee-modal-backdrop { padding:0; align-items:stretch; justify-content:stretch; }
-    .billing-payee-mobile-topbar { display:flex; align-items:center; gap:14px; min-height:68px; padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 12px; background:linear-gradient(180deg,#0b63f6 0%,#0a5be0 100%); color:#fff; box-shadow:0 10px 24px rgba(11,99,246,.24); }
-    .billing-payee-mobile-topbar .billing-bill-modal-close { width:42px; height:42px; min-height:42px; border-radius:14px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); color:#fff; }
-    .billing-payee-mobile-topbar-title { font-size:1.04rem; }
+    .billing-payee-modal.billing-payee-modal--editor {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100vh;
+        height: 100vh;
+        border-radius: 0;
+        border: none;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: none;
+    }
+
+    .billing-payee-modal-backdrop {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+
+    .billing-payee-mobile-topbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 58px;
+        padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px;
+        background: linear-gradient(180deg, #0b63f6 0%, #0a5be0 100%);
+        color: #ffffff;
+        box-shadow: 0 10px 24px rgba(11, 99, 246, 0.24);
+    }
+
+    .billing-payee-mobile-topbar .billing-bill-modal-close {
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+    }
+
+    .billing-payee-mobile-topbar-title {
+        font-size: 0.95rem;
+    }
+
     .billing-payee-modal--editor .billing-payee-modal-head,
     .billing-payee-modal--editor .billing-payee-modal-footer,
-    .billing-payee-modal--editor .billing-payee-desktop-only { display:none !important; }
-    .billing-payee-modal--editor .billing-payee-type-switcher.booking-type-switcher { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin:16px; padding:4px; border-radius:16px; }
-    .billing-payee-modal--editor .billing-payee-type-switcher .booking-type-btn { min-width:0; min-height:48px; border-radius:12px; font-size:1rem; font-weight:800; }
-    .billing-payee-modal--editor .billing-payee-type-switcher .booking-type-btn.active { color:#fff; background:linear-gradient(180deg,#1d6fff 0%,#0b63f6 100%); border-color:transparent; box-shadow:none; }
-    .billing-payee-mobile-summary { display:grid; gap:12px; padding:0 16px 16px; }
-    .billing-payee-modal--editor .billing-payee-modal-grid { grid-template-columns:1fr; gap:14px; padding:0 16px 20px; flex:1 1 auto; min-height:0; overflow:auto; align-content:start; }
-    .billing-payee-modal--editor .field { gap:8px; }
-    .billing-payee-modal--editor .field-label { color:#7f94b3; font-size:.82rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    .billing-payee-modal--editor .billing-payee-desktop-only {
+        display: none !important;
+    }
+
+    .billing-payee-modal--editor .billing-payee-type-switcher.booking-type-switcher {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        margin: 14px;
+        padding: 3px;
+        border-radius: 14px;
+    }
+
+    .billing-payee-modal--editor .billing-payee-type-switcher .booking-type-btn {
+        min-width: 0;
+        min-height: 42px;
+        border-radius: 11px;
+        font-size: 0.92rem;
+        font-weight: 800;
+    }
+
+    .billing-payee-modal--editor .billing-payee-type-switcher .booking-type-btn.active {
+        color: #ffffff;
+        background: linear-gradient(180deg, #1d6fff 0%, #0b63f6 100%);
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .billing-payee-mobile-summary {
+        display: grid;
+        gap: 7px;
+        padding: 0 14px 14px;
+    }
+
+    .billing-payee-modal--editor .billing-payee-modal-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 0 14px 16px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        align-content: start;
+    }
+
+    .billing-payee-modal--editor .field {
+        gap: 6px;
+    }
+
+    .billing-payee-modal--editor .field-label {
+        color: #7f94b3;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
     .billing-payee-modal--editor .field > input,
     .billing-payee-modal--editor .field > select,
     .billing-payee-modal--editor .field > textarea,
     .billing-payee-modal--editor .client-selected-display,
-    .billing-payee-modal--editor .client-search-wrap input { min-height:56px; border-radius:18px; border-color:#d7e2f0; font-size:1rem; box-shadow:none; background:#fff; }
+    .billing-payee-modal--editor .client-search-wrap input {
+        min-height: 46px;
+        border-radius: 14px;
+        border-color: #d7e2f0;
+        font-size: 0.92rem;
+        box-shadow: none;
+        background: #ffffff;
+    }
+
     .billing-payee-modal--editor .client-picker,
     .billing-payee-modal--editor .client-search-wrap,
-    .billing-payee-modal--editor .client-selected-display { width:100%; }
-    .billing-payee-modal--editor .client-selected-display { display:inline-flex; align-items:center; justify-content:space-between; padding:0 16px; text-align:left; font-weight:500; }
-    .billing-payee-modal--editor .client-search-wrap { min-height:56px; }
-    .billing-payee-modal--editor .client-search-wrap--compact-client .client-search-icon { right:16px; }
-    .billing-payee-modal--editor .billing-payee-client-picker-row { grid-template-columns:1fr; }
+    .billing-payee-modal--editor .client-selected-display {
+        width: 100%;
+    }
+
+    .billing-payee-modal--editor .client-selected-display {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        text-align: left;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+
+    .billing-payee-modal--editor .client-search-wrap {
+        min-height: 46px;
+    }
+
+    .billing-payee-modal--editor .client-search-wrap--compact-client .client-search-icon {
+        right: 14px;
+    }
+
+    .billing-payee-modal--editor .billing-payee-client-picker-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Mobile open-bill editor refinements requested after v2. */
@@ -6396,7 +6555,7 @@
 
 .billing-folio-fiscal-view .field {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .billing-folio-fiscal-view textarea {
@@ -6643,7 +6802,7 @@
   .billing-create-panel--advance .billing-invoice-section-title-row {
     min-height: 38px;
     margin: 0 0 10px;
-    gap: 8px;
+    gap: 6px;
   }
 
   .billing-create-panel--advance .billing-invoice-section-title-row::before,
@@ -6791,7 +6950,7 @@
     background: linear-gradient(100deg, #0b69e8 0%, #0f76ed 100%);
     color: #fff;
     box-shadow: none;
-    font-size: 1rem;
+    font-size: 0.92rem;
   }
 
   .billing-create-panel--advance .billing-invoice-add-dashed--line small {
@@ -6969,7 +7128,7 @@
   .billing-create-panel--advance .billing-bill-modal-footer-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 10px;
+    gap: 7px;
     padding: 0 10px 12px;
     border: 1px solid #d8e2ee;
     border-top: 0;
@@ -7008,7 +7167,7 @@
 
   .billing-create-panel--advance .billing-line-discount-popover {
     left: 16px;
-    right: 16px;
+    right: 14px;
     bottom: max(16px, env(safe-area-inset-bottom, 0px));
     width: auto;
     max-width: none;
@@ -7048,7 +7207,7 @@
   .billing-create-panel--advance .billing-line-discount-segmented button {
     min-height: 40px;
     border-radius: 9px;
-    font-size: 1rem;
+    font-size: 0.92rem;
   }
 
   .billing-create-panel--advance .billing-line-discount-input-wrap {
@@ -7059,7 +7218,7 @@
 
   .billing-create-panel--advance .billing-line-discount-input-wrap input {
     min-height: 52px;
-    font-size: 1rem;
+    font-size: 0.92rem;
   }
 
   .billing-create-panel--advance .billing-line-discount-actions {
@@ -7304,7 +7463,7 @@
   .billing-open-detail-actions-menu > .billing-preview-choice-popover {
     position: fixed;
     left: 16px;
-    right: 16px;
+    right: 14px;
     bottom: max(16px, env(safe-area-inset-bottom, 0px));
     width: auto;
     max-width: none;
@@ -7343,7 +7502,7 @@
 
   .billing-open-detail-panel .billing-invoice-tabs-row--bookmarks {
     display: flex;
-    gap: 10px;
+    gap: 7px;
     overflow-x: auto;
     padding: 0;
     scrollbar-width: none;
@@ -7460,7 +7619,7 @@
   .billing-open-detail-panel .billing-invoice-section-title-row {
     min-height: 38px;
     margin: 0 0 10px;
-    gap: 8px;
+    gap: 6px;
   }
 
   .billing-open-detail-panel .billing-invoice-section-title-row::before,
@@ -7631,7 +7790,7 @@
     border: 0;
     background: transparent;
     color: #dc2626;
-    font-size: 1rem;
+    font-size: 0.92rem;
   }
 
   .billing-open-detail-panel .billing-invoice-add-dashed--line {
@@ -7642,7 +7801,7 @@
     background: linear-gradient(100deg, #0b69e8 0%, #0f76ed 100%);
     color: #fff;
     box-shadow: none;
-    font-size: 1rem;
+    font-size: 0.92rem;
   }
 
   .billing-open-detail-panel .billing-invoice-add-dashed--line small {
@@ -7727,7 +7886,7 @@
     display: grid;
     grid-template-columns: minmax(0,1fr) auto auto;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     min-height: 58px;
     padding: 9px 12px;
     border: 1px solid #d8e2ee;
@@ -7877,7 +8036,7 @@
   .billing-open-detail-panel .billing-bill-modal-footer-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    gap: 10px;
+    gap: 7px;
     padding: 0 10px 12px;
     border: 1px solid #d8e2ee;
     border-top: 0;
@@ -7916,7 +8075,7 @@
 
   .billing-open-detail-panel .billing-line-discount-popover {
     left: 16px;
-    right: 16px;
+    right: 14px;
     bottom: max(16px, env(safe-area-inset-bottom, 0px));
     width: auto;
     max-width: none;

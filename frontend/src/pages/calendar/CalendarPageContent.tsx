@@ -462,6 +462,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }>(null)
   const [modeSwitching, setModeSwitching] = useState(false)
   const calendarRef = useRef<InstanceType<typeof FullCalendar>>(null)
+  const calendarFcShellRef = useRef<HTMLDivElement>(null)
+  const calendarResourceDayHeaderFallbackRef = useRef<HTMLDivElement>(null)
   const realtimeCalendarReloadTimerRef = useRef<number | null>(null)
   const loadRef = useRef<() => Promise<void>>(async () => {})
   const speechRecognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null)
@@ -2317,7 +2319,11 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       d.getMonth() === now.getMonth() &&
       d.getDate() === now.getDate()
     return (
-      <div className="calendar-resource-day-header-fallback" key={visibleRange.start}>
+      <div
+        ref={calendarResourceDayHeaderFallbackRef}
+        className="calendar-resource-day-header-fallback"
+        key={visibleRange.start}
+      >
         <div className="calendar-resource-day-header-fallback-inner">
           <div className="calendar-resource-day-header-fallback-axis" aria-hidden />
           <div className="calendar-resource-day-header-fallback-cell">
@@ -2355,6 +2361,58 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     calendarLocaleTag,
     openCalendarDayView,
   ])
+
+  /*
+   * A one-day resource view is structurally different from the other FullCalendar views:
+   * FullCalendar renders only the resource row when the visible range contains one date.
+   * The date row above it is therefore our fallback sibling. Measure that fallback so the
+   * native resource header can use a second sticky offset and remain directly underneath it.
+   */
+  useLayoutEffect(() => {
+    const shell = calendarFcShellRef.current
+    if (!shell) return
+
+    const clearMeasuredHeight = () => {
+      shell.style.removeProperty('--calendar-resource-day-fallback-height')
+    }
+
+    if (isNativeAndroid || !useResourceColumns || view !== 'resourceTimeGridDay') {
+      clearMeasuredHeight()
+      return
+    }
+
+    const fallback = calendarResourceDayHeaderFallbackRef.current
+    if (!fallback) {
+      clearMeasuredHeight()
+      return
+    }
+
+    let animationFrame = 0
+    const syncMeasuredHeight = () => {
+      window.cancelAnimationFrame(animationFrame)
+      animationFrame = window.requestAnimationFrame(() => {
+        const isVisible = window.getComputedStyle(fallback).display !== 'none'
+        const height = isVisible ? Math.ceil(fallback.getBoundingClientRect().height) : 0
+        shell.style.setProperty('--calendar-resource-day-fallback-height', `${height}px`)
+      })
+    }
+
+    syncMeasuredHeight()
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncMeasuredHeight) : null
+    resizeObserver?.observe(fallback)
+
+    window.addEventListener('resize', syncMeasuredHeight)
+    window.visualViewport?.addEventListener('resize', syncMeasuredHeight)
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', syncMeasuredHeight)
+      window.visualViewport?.removeEventListener('resize', syncMeasuredHeight)
+      clearMeasuredHeight()
+    }
+  }, [isNativeAndroid, useResourceColumns, view, visibleRange?.start])
 
   useEffect(() => {
     if (isNativeAndroid) return
@@ -11190,9 +11248,16 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }
         >
         <div
+          ref={!isNativeAndroid ? calendarFcShellRef : undefined}
           className={
             !isNativeAndroid
-              ? ['calendar-fc-shell', hideNativeSelectionWhileDraftPreview ? 'calendar-hide-native-selection-highlight' : '']
+              ? [
+                  'calendar-fc-shell',
+                  useResourceColumns && view === 'resourceTimeGridDay'
+                    ? 'calendar-fc-shell--resource-day-fallback-layout'
+                    : '',
+                  hideNativeSelectionWhileDraftPreview ? 'calendar-hide-native-selection-highlight' : '',
+                ]
                   .filter(Boolean)
                   .join(' ')
               : undefined
