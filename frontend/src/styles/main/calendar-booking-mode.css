@@ -8563,7 +8563,22 @@
     }
 
     .calendar-edit-session-panel .calendar-service-chain--multi .calendar-service-chain__meta-block--space {
+        display: grid !important;
         grid-column: auto !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        align-items: start !important;
+        gap: 4px !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain--multi .calendar-service-chain__meta-block--space > span {
+        display: block !important;
+        margin: 0 !important;
+        line-height: 1.2 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain--multi .calendar-service-chain__meta-block--space select {
+        width: 100% !important;
         min-width: 0 !important;
     }
 
