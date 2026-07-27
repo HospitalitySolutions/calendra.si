@@ -1051,11 +1051,16 @@
       this.state.form = { ...this.state.form, [field]: value };
     }
 
+    multipleServicesEnabled() {
+      return this.state.config?.multipleServicesEnabled === true;
+    }
+
     selectedServiceIdsForRequest() {
       const raw = Array.isArray(this.state.selectedServiceIds) && this.state.selectedServiceIds.length
         ? this.state.selectedServiceIds
         : (this.state.selectedServiceId != null ? [this.state.selectedServiceId] : []);
-      return raw.map(Number).filter(Number.isFinite).filter((id, index, list) => list.indexOf(id) === index);
+      const normalized = raw.map(Number).filter(Number.isFinite).filter((id, index, list) => list.indexOf(id) === index);
+      return this.multipleServicesEnabled() ? normalized : normalized.slice(0, 1);
     }
 
     selectedServices() {
@@ -2330,6 +2335,7 @@
     }
 
     selectedServiceChainMarkup() {
+      if (!this.multipleServicesEnabled()) return '';
       const t = this.text();
       const services = this.selectedServices();
       if (!services.length) return '';
@@ -3693,7 +3699,9 @@
           const serviceId = Number(button.dataset.id);
           const service = this.state.services.find((item) => Number(item.id) === serviceId);
           let selectedIds = this.selectedServiceIdsForRequest();
-          if (selectedIds.includes(serviceId)) {
+          if (!this.multipleServicesEnabled()) {
+            selectedIds = [serviceId];
+          } else if (selectedIds.includes(serviceId)) {
             selectedIds = selectedIds.filter((id) => id !== serviceId);
           } else {
             const isGroupService = service?.maxParticipantsPerSession != null && service?.maxParticipantsPerSession !== '';

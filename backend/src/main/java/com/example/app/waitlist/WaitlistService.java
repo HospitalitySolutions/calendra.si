@@ -27,6 +27,7 @@ import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.DayOfWeek;
@@ -61,6 +62,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class WaitlistService {
     private static final ZoneId ZONE = ZoneId.of("Europe/Ljubljana");
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final List<WaitlistRequestStatus> DUPLICATE_BLOCKING_STATUSES = List.of(
             WaitlistRequestStatus.ACTIVE,
             WaitlistRequestStatus.OFFERED,
@@ -481,7 +483,7 @@ public class WaitlistService {
         WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
         input = normalizeInput(input, cfg);
         validateInput(input, cfg);
-        ServiceSelection selection = resolveServiceSelection(input, companyId);
+        ServiceSelection selection = resolveServiceSelection(input, companyId, orderedServiceChain(row).size());
         row.setClient(clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.")));
         applyServiceSelection(row, selection);
@@ -1349,8 +1351,35 @@ public class WaitlistService {
         }
     }
 
+    private boolean multipleServicesEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.GUEST_APP_SETTINGS_JSON)
+                .map(AppSetting::getValue)
+                .map(raw -> {
+                    try {
+                        return JSON.readTree(raw == null ? "{}" : raw)
+                                .path("multipleServicesEnabled")
+                                .asBoolean(false);
+                    } catch (Exception ignored) {
+                        return false;
+                    }
+                })
+                .orElse(false);
+    }
+
     private ServiceSelection resolveServiceSelection(RequestInput input, Long companyId) {
+        return resolveServiceSelection(input, companyId, 1);
+    }
+
+    private ServiceSelection resolveServiceSelection(RequestInput input, Long companyId, int existingServiceCount) {
         List<Long> requestedChain = input.serviceIds() == null ? List.of() : input.serviceIds().stream().filter(Objects::nonNull).toList();
+        int maximumAllowedWhileDisabled = Math.max(1, existingServiceCount);
+        if (requestedChain.size() > maximumAllowedWhileDisabled && !multipleServicesEnabled(companyId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "MULTIPLE_SERVICES_DISABLED: Multiple services per appointment are disabled for this tenant."
+            );
+        }
         if (!requestedChain.isEmpty()) {
             List<SessionType> chain = new ArrayList<>();
             for (Long serviceId : requestedChain) {

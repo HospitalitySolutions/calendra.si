@@ -154,6 +154,7 @@ public class PublicBookingWidgetService {
         var websiteSettings = websiteWidgetSettingsService.widgetSettings(company.getId());
         var bookingRules = websiteWidgetSettingsService.bookingRules(company.getId());
         var waitlistSettings = waitlistSettingsService.get(company.getId());
+        var publicSettings = guestSettingsService.publicSettings(company.getId());
         var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
@@ -185,6 +186,7 @@ public class PublicBookingWidgetService {
                 waitlistSettings.flexibleWindowsEnabled(),
                 waitlistSettings.employeePreferenceEnabled(),
                 waitlistSettings.maxRequestedDateRangeDays(),
+                publicSettings.multipleServicesEnabled(),
                 allowedPaymentMethods
         );
     }
@@ -1582,6 +1584,14 @@ public class PublicBookingWidgetService {
             orderedIds.add(typeId);
         } else if (typeId != null && !Objects.equals(orderedIds.get(0), typeId)) {
             orderedIds.add(0, typeId);
+        }
+
+        if (orderedIds.size() > 1
+                && !guestSettingsService.publicSettings(companyId).multipleServicesEnabled()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "MULTIPLE_SERVICES_DISABLED: Multiple services per appointment are disabled for this tenant."
+            );
         }
 
         List<SessionType> chain = new ArrayList<>();

@@ -170,6 +170,7 @@ export function CalendarServiceChainEditor({
   warnings,
   onChange,
   defaultSpaceId = null,
+  multipleServicesEnabled = false,
 }: {
   locale: string
   services: CalendarServiceDraft[]
@@ -183,6 +184,7 @@ export function CalendarServiceChainEditor({
   warnings?: string[]
   onChange: (next: CalendarServiceDraft[]) => void
   defaultSpaceId?: number | null
+  multipleServicesEnabled?: boolean
 }) {
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -192,6 +194,7 @@ export function CalendarServiceChainEditor({
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
+  const canAddServices = multipleServicesEnabled === true
 
   const countLabel = (() => {
     if (locale === 'sl') {
@@ -250,6 +253,7 @@ export function CalendarServiceChainEditor({
   }
 
   const openAddPicker = () => {
+    if (!canAddServices) return
     setPickerReplaceIndex(null)
     setPickerQuery('')
     setMenuIndex(null)
@@ -274,6 +278,10 @@ export function CalendarServiceChainEditor({
       updateAt(pickerReplaceIndex, { typeId })
       setPickerReplaceIndex(null)
       setPickerOpen(false)
+      return
+    }
+    if (!canAddServices) {
+      closePicker()
       return
     }
     const fallbackSpaceId = services[services.length - 1]?.spaceId ?? defaultSpaceId ?? null
@@ -302,15 +310,17 @@ export function CalendarServiceChainEditor({
                 <strong>{copy.services}</strong>
                 <span>{countLabel}</span>
               </div>
-              <button
-                type="button"
-                className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
-                aria-label={copy.addTitle}
-                title={copy.addTitle}
-                onClick={openAddPicker}
-              >
-                <span aria-hidden><PlusIcon /></span>
-              </button>
+              {canAddServices ? (
+                <button
+                  type="button"
+                  className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
+                  aria-label={copy.addTitle}
+                  title={copy.addTitle}
+                  onClick={openAddPicker}
+                >
+                  <span aria-hidden><PlusIcon /></span>
+                </button>
+              ) : null}
             </div>
 
             <div className="calendar-service-chain__list">
@@ -381,7 +391,7 @@ export function CalendarServiceChainEditor({
         ) : (
           <label className="calendar-service-chain__single-field">
             <span className="calendar-service-chain__single-label">{copy.service}</span>
-            <div className="calendar-service-chain__single-row">
+            <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}`}>
               <select
                 className="calendar-service-chain__single-select"
                 value={services[0]?.typeId ?? ''}
@@ -393,15 +403,17 @@ export function CalendarServiceChainEditor({
                   <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
-                aria-label={copy.addTitle}
-                title={copy.addTitle}
-                onClick={openAddPicker}
-              >
-                <span aria-hidden><PlusIcon /></span>
-              </button>
+              {canAddServices ? (
+                <button
+                  type="button"
+                  className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
+                  aria-label={copy.addTitle}
+                  title={copy.addTitle}
+                  onClick={openAddPicker}
+                >
+                  <span aria-hidden><PlusIcon /></span>
+                </button>
+              ) : null}
             </div>
           </label>
         )}

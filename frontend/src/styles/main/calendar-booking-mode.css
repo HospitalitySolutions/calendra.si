@@ -8908,3 +8908,15 @@
         padding-inline: 12px !important;
     }
 }
+
+/* When the tenant disables multiple services, the single-service selector owns
+   the complete row and the add-service action is not rendered. */
+.calendar-service-chain__single-row--single-only {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 720px) {
+    .calendar-edit-session-panel .calendar-service-chain__single-row--single-only {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+}

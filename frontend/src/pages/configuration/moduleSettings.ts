@@ -52,6 +52,7 @@ export type ModulesDraft = {
   guestBuyTabEnabled: boolean;
   guestEntitlementsEnabled: boolean;
   guestInboxEnabled: boolean;
+  multipleServicesEnabled: boolean;
 };
 
 export type ModulesStringKey = {
@@ -132,6 +133,7 @@ const MODULE_VISIBILITY_KEYS = new Set<string>([
   "guestBuyTabEnabled",
   "guestEntitlementsEnabled",
   "guestInboxEnabled",
+  "multipleServicesEnabled",
 ]);
 
 export const normalizeModuleVisibilityPackage = (
@@ -395,6 +397,7 @@ export const buildModulesDraftFromCommitted = (
   guestBuyTabEnabled: g.buyTabEnabled,
   guestEntitlementsEnabled: g.entitlementsEnabled,
   guestInboxEnabled: g.inboxEnabled,
+  multipleServicesEnabled: g.multipleServicesEnabled,
 });
 
 export type ModulesPresetPackage = "BASIC" | "PROFESSIONAL" | "PREMIUM";
@@ -528,6 +531,8 @@ export const normalizeModulesDraftDependencies = (
     draft.TYPES_ENABLED === "true" && draft.COURSES_ENABLED === "true"
       ? "true"
       : "false",
+  multipleServicesEnabled:
+    draft.TYPES_ENABLED === "true" && draft.multipleServicesEnabled === true,
   MULTIPLE_SESSIONS_PER_SPACE_ENABLED:
     draft.SPACES_ENABLED === "true" &&
     draft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === "true"

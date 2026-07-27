@@ -23,6 +23,7 @@ import com.example.app.user.UserRepository;
 import com.example.app.zoom.ZoomService;
 import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -45,6 +46,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class SessionBookingCreationService {
     private static final long EXCLUDE_NONE_SENTINEL = -1L;
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final SessionBookingRepository repo;
     private final PersonalCalendarBlockRepository personalBlocks;
@@ -157,6 +159,7 @@ public class SessionBookingCreationService {
             Long waitlistRequestId
     ) {
         var companyId = me.getCompany().getId();
+        validateMultipleServicesForCreate(companyId, req);
         LocalDateTime start = parseToLocalDateTime(req.startTime());
         LocalDateTime requestedEnd = parseOptionalEndTime(req.endTime(), start, req.services());
         SessionServicePlanService.Plan servicePlan = servicePlans.resolve(req, companyId, start, requestedEnd);
@@ -276,6 +279,7 @@ public class SessionBookingCreationService {
             previouslyUnbilledById.put(row.getId(), row.getBilledAt() == null);
         }
         var representative = existingRows.get(0);
+        validateMultipleServicesForUpdate(companyId, req, representative);
         LocalDateTime start = parseToLocalDateTime(req.startTime());
         LocalDateTime requestedEnd = parseOptionalEndTime(req.endTime(), start, req.services());
         SessionServicePlanService.Plan servicePlan = resolveUpdateServicePlan(
@@ -1401,6 +1405,66 @@ public class SessionBookingCreationService {
 
     private static boolean hasExplicitServiceSelection(SessionBookingController.BookingRequest request) {
         return request != null && request.services() != null && !request.services().isEmpty();
+    }
+
+    private void validateMultipleServicesForCreate(
+            Long companyId,
+            SessionBookingController.BookingRequest request
+    ) {
+        if (requestedServiceCount(request) <= 1 || multipleServicesEnabled(companyId)) {
+            return;
+        }
+        throw multipleServicesDisabled();
+    }
+
+    private void validateMultipleServicesForUpdate(
+            Long companyId,
+            SessionBookingController.BookingRequest request,
+            SessionBooking representative
+    ) {
+        int requestedCount = requestedServiceCount(request);
+        if (requestedCount <= 1 || multipleServicesEnabled(companyId)) {
+            return;
+        }
+        int existingCount = Math.max(1, SessionServiceSupport.orderedServices(representative).size());
+        if (requestedCount > existingCount) {
+            throw multipleServicesDisabled();
+        }
+    }
+
+    private static int requestedServiceCount(SessionBookingController.BookingRequest request) {
+        if (request == null) return 0;
+        if (request.services() != null && !request.services().isEmpty()) {
+            return (int) request.services().stream()
+                    .filter(Objects::nonNull)
+                    .map(SessionBookingController.BookingServiceRequest::typeId)
+                    .filter(Objects::nonNull)
+                    .count();
+        }
+        return request.typeId() == null ? 0 : 1;
+    }
+
+    private boolean multipleServicesEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.GUEST_APP_SETTINGS_JSON)
+                .map(AppSetting::getValue)
+                .map(raw -> {
+                    try {
+                        return JSON.readTree(raw == null ? "{}" : raw)
+                                .path("multipleServicesEnabled")
+                                .asBoolean(false);
+                    } catch (Exception ignored) {
+                        return false;
+                    }
+                })
+                .orElse(false);
+    }
+
+    private static ResponseStatusException multipleServicesDisabled() {
+        return new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "MULTIPLE_SERVICES_DISABLED: Multiple services per appointment are disabled for this tenant."
+        );
     }
 
     private static String normalizeRecurrenceSeriesKey(String raw) {

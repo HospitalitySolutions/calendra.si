@@ -48,6 +48,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     return () => media.removeEventListener?.('change', sync)
   }, [])
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
+  const multipleServicesEnabled = (() => {
+    try {
+      return JSON.parse(String(settings?.GUEST_APP_SETTINGS_JSON || '{}'))?.multipleServicesEnabled === true
+    } catch {
+      return false
+    }
+  })()
   const waitlistModuleEnabled = settings?.WAITLIST_ENABLED !== 'false'
   const allDayDateRangeLabels = {
     startLabel: locale === 'sl' ? 'Od datuma' : 'From date',
@@ -2697,6 +2704,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     warnings={bookedServiceWarnings}
                     onChange={updateSelectedBookedSessionServices}
                     defaultSpaceId={selectedBookedSession.space?.id ?? null}
+                    multipleServicesEnabled={multipleServicesEnabled}
                   />
                   <div className="calendar-booking-service-chain__billing-actions">
                     <div className="calendar-session-billing-actions">
@@ -5112,6 +5120,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     warnings={formServiceWarnings}
                     onChange={updateBookingFormServices}
                     defaultSpaceId={form.spaceId ?? null}
+                    multipleServicesEnabled={multipleServicesEnabled}
                   />
                 </div>
               )}

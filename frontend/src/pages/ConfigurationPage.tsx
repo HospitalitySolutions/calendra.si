@@ -3192,6 +3192,9 @@ export function ConfigurationPage() {
             modulesDraft.COURSES_ENABLED === "true"
               ? "true"
               : "false",
+          multipleServicesEnabled:
+            modulesDraft.TYPES_ENABLED === "true" &&
+            modulesDraft.multipleServicesEnabled === true,
           MULTIPLE_SESSIONS_PER_SPACE_ENABLED:
             modulesDraft.SPACES_ENABLED === "true" &&
             modulesDraft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === "true"
@@ -3285,6 +3288,7 @@ export function ConfigurationPage() {
           buyTabEnabled: modulesDraftForSave.guestBuyTabEnabled,
           entitlementsEnabled: modulesDraftForSave.guestEntitlementsEnabled,
           inboxEnabled: modulesDraftForSave.guestInboxEnabled,
+          multipleServicesEnabled: modulesDraftForSave.multipleServicesEnabled,
         };
         if (
           modulesDraftForSave.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "true"
@@ -4762,6 +4766,7 @@ export function ConfigurationPage() {
           ...d,
           TYPES_ENABLED: checked ? "true" : "false",
           COURSES_ENABLED: checked ? d.COURSES_ENABLED : "false",
+          multipleServicesEnabled: checked ? d.multipleServicesEnabled : false,
         };
       }
       if (key === "COURSES_ENABLED" && d.TYPES_ENABLED !== "true") {
@@ -4846,6 +4851,7 @@ export function ConfigurationPage() {
       }
       if (next.TYPES_ENABLED !== "true") {
         next.COURSES_ENABLED = "false";
+        next.multipleServicesEnabled = false;
       }
       if (next.MULTIPLE_CLIENTS_PER_SESSION_ENABLED !== "true") {
         next.GROUP_BOOKING_ENABLED = "false";
@@ -5302,6 +5308,25 @@ export function ConfigurationPage() {
               disabled: !moduleOn("TYPES_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("SERVICE_GROUPS_ENABLED", checked),
+            },
+            {
+              id: "services-multiple-services",
+              ...moduleVisibilityProps("multipleServicesEnabled"),
+              icon: "services",
+              title:
+                locale === "sl"
+                  ? "Več storitev na termin"
+                  : "Multiple services per appointment",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči dodajanje več storitev v isti termin v administraciji, spletnem vtičniku, javni rezervaciji in aplikaciji Calendra Connect."
+                  : "Allow multiple services in one appointment across the admin app, website widget, public booking and Calendra Connect.",
+              checked:
+                moduleOn("TYPES_ENABLED") &&
+                moduleBool("multipleServicesEnabled"),
+              disabled: !moduleOn("TYPES_ENABLED"),
+              onChange: (checked) =>
+                setModuleBooleanSetting("multipleServicesEnabled", checked),
             },
             {
               id: "services-courses",

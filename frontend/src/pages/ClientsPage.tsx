@@ -2414,6 +2414,24 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     )
   }
 
+  const mobileAutofillGuardProps = (
+    fieldName: string,
+    autoCapitalize: 'none' | 'words' | 'sentences' = 'none',
+  ) => isClientsMobile
+    ? ({
+        name: fieldName,
+        autoComplete: 'new-password',
+        autoCorrect: 'off',
+        autoCapitalize,
+        spellCheck: false,
+        'aria-autocomplete': 'none',
+        'data-lpignore': 'true',
+        'data-1p-ignore': 'true',
+        'data-bwignore': 'true',
+        'data-form-type': 'other',
+      } as const)
+    : ({ name: fieldName, autoComplete: 'off' } as const)
+
   const renderClientEditableField = (
     key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId',
     label: string,
@@ -2520,6 +2538,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             ) : (
               <input
                 autoFocus
+                {...mobileAutofillGuardProps(
+                  `calendra-edit-client-${key}`,
+                  key === 'firstName' || key === 'lastName' ? 'words' : 'none',
+                )}
+                type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
+                inputMode={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
                 value={detailEditDraft[key as 'firstName' | 'lastName' | 'email' | 'phone'] ?? ''}
                 onChange={(e) => setDetailEditDraft({ ...detailEditDraft, [key]: e.target.value })}
                 onKeyDown={(e) => {
@@ -2569,6 +2593,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
             <input
               autoFocus
+              {...mobileAutofillGuardProps(
+                `calendra-edit-company-${key}`,
+                key === 'name' || key === 'address' || key === 'city' ? 'words' : 'none',
+              )}
+              type={key === 'email' ? 'email' : key === 'telephone' ? 'tel' : 'text'}
+              inputMode={key === 'email' ? 'email' : key === 'telephone' ? 'tel' : 'text'}
               value={value}
               onChange={(e) => setCompanyDetailEditDraft({ ...companyDetailEditDraft, [key]: e.target.value })}
               onKeyDown={(e) => {
@@ -2602,16 +2632,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           autoFocus={key === 'firstName'}
           required={required}
           type={inputType}
-          name={`calendra-new-client-${key}`}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize={key === 'firstName' || key === 'lastName' ? 'words' : 'none'}
-          spellCheck={false}
+          {...mobileAutofillGuardProps(
+            `calendra-new-client-${key}`,
+            key === 'firstName' || key === 'lastName' ? 'words' : 'none',
+          )}
           inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
           enterKeyHint={key === 'phone' ? 'done' : 'next'}
-          data-lpignore="true"
-          data-1p-ignore="true"
-          data-bwignore="true"
           value={form[key]}
           placeholder={placeholder}
           onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -2663,6 +2689,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             ) : (
               <input
                 autoFocus
+                {...mobileAutofillGuardProps(
+                  `calendra-edit-group-${key}`,
+                  key === 'name' ? 'words' : 'none',
+                )}
+                type={key === 'email' ? 'email' : 'text'}
+                inputMode={key === 'email' ? 'email' : 'text'}
                 value={(groupDetailEditDraft[key as 'name' | 'email'] as string) ?? ''}
                 onChange={(e) => setGroupDetailEditDraft({ ...groupDetailEditDraft, [key]: e.target.value })}
                 onKeyDown={(e) => {
@@ -2743,7 +2775,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         return (
           <label key={field.id} className={commonClass}>
             <span>{label}</span>
-            <textarea value={value} onChange={(e) => onChange(fieldId, e.target.value)} required={field.required} />
+            <textarea
+              {...mobileAutofillGuardProps(`calendra-custom-field-${fieldId}`, 'sentences')}
+              value={value}
+              onChange={(e) => onChange(fieldId, e.target.value)}
+              required={field.required}
+            />
           </label>
         )
       }
@@ -2751,7 +2788,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <label key={field.id} className={commonClass}>
           <span>{label}</span>
           <input
+            {...mobileAutofillGuardProps(`calendra-custom-field-${fieldId}`)}
             type={inputTypeForCustomField(field.fieldType)}
+            inputMode={field.fieldType === 'EMAIL' ? 'email' : field.fieldType === 'PHONE' ? 'tel' : undefined}
             value={value}
             onChange={(e) => onChange(fieldId, e.target.value)}
             required={field.required}
@@ -4792,7 +4831,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             onMouseDown={(e) => e.stopPropagation()}
           >
             {isClientsMobile ? (
-              <form className="clients-create-modal-form clients-simple-create-form" onSubmit={submitCompanyForm}>
+              <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={submitCompanyForm}>
                 <div className="clients-simple-create-header">
                   <button
                     type="button"
@@ -4809,31 +4848,31 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.companyName} *</span>
-                        <input required placeholder={`${clientsCopy.companyName} *`} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-name', 'words')} required placeholder={`${clientsCopy.companyName} *`} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.vatId}</span>
-                        <input placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-vat-id')} inputMode="text" placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.email}</span>
-                        <input type="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-email')} type="email" inputMode="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.telephone}</span>
-                        <input placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-telephone')} type="tel" inputMode="tel" placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.address}</span>
-                        <input placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-address', 'words')} placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field">
                         <span>{clientsCopy.postalCode}</span>
-                        <input placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-postal-code')} inputMode="text" placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field">
                         <span>{clientsCopy.city}</span>
-                        <input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-company-city', 'words')} placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
                       </label>
                       {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
                         setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
@@ -5287,7 +5326,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             onMouseDown={(e) => e.stopPropagation()}
           >
             {isClientsMobile ? (
-              <form className="clients-create-modal-form clients-simple-create-form" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
+              <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
                 <div className="clients-simple-create-header">
                   <button
                     type="button"
@@ -5304,11 +5343,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.groupName} *</span>
-                        <input required placeholder={`${clientsCopy.groupName} *`} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-group-name', 'words')} required placeholder={`${clientsCopy.groupName} *`} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
                       </label>
                       <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
                         <span>{clientsCopy.groupEmail}</span>
-                        <input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
+                        <input {...mobileAutofillGuardProps('calendra-new-group-email')} type="email" inputMode="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
                       </label>
                       {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
                         setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))

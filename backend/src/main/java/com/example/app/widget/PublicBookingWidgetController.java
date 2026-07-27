@@ -52,6 +52,7 @@ public class PublicBookingWidgetController {
             boolean waitlistFlexibleWindowsEnabled,
             boolean waitlistEmployeePreferenceEnabled,
             int waitlistMaxRequestedDateRangeDays,
+            boolean multipleServicesEnabled,
             AllowedPaymentMethodsResponse allowedPaymentMethods
     ) {}
 

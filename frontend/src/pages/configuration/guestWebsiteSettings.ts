@@ -11,6 +11,7 @@ export type GuestAppSettingsForm = {
   buyTabEnabled: boolean;
   entitlementsEnabled: boolean;
   inboxEnabled: boolean;
+  multipleServicesEnabled: boolean;
   publicDiscoverable: boolean;
   publicName: string;
   publicAddress: string;
@@ -243,6 +244,7 @@ export const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   buyTabEnabled: true,
   entitlementsEnabled: false,
   inboxEnabled: true,
+  multipleServicesEnabled: false,
   publicDiscoverable: false,
   publicName: "",
   publicAddress: "",
@@ -644,6 +646,7 @@ export const parseGuestAppSettings = (
       buyTabEnabled: parsed?.buyTabEnabled !== false,
       entitlementsEnabled: parsed?.entitlementsEnabled === true,
       inboxEnabled: parsed?.inboxEnabled !== false,
+      multipleServicesEnabled: parsed?.multipleServicesEnabled === true,
       publicDiscoverable: parsed?.publicDiscoverable === true,
       publicName: normalizePublicName(parsed?.publicName),
       publicAddress: normalizePublicAddress(parsed?.publicAddress),
@@ -897,6 +900,7 @@ export const serializeGuestAppSettings = (value: GuestAppSettingsForm) =>
     buyTabEnabled: value.buyTabEnabled,
     entitlementsEnabled: value.entitlementsEnabled,
     inboxEnabled: value.inboxEnabled,
+    multipleServicesEnabled: value.multipleServicesEnabled,
     publicDiscoverable: value.publicDiscoverable,
     publicName: normalizePublicName(value.publicName).trim(),
     publicAddress: normalizePublicAddress(value.publicAddress),
