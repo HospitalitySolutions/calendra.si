@@ -6471,21 +6471,189 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </>
             )}
           </div>
-          <div className="billing-payee-mobile-summary">
-            {draft.billingTarget === 'PERSON' ? (
-              <>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Ime' : 'First name'}</span><strong>{draftClient?.firstName || '—'}</strong></div>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Priimek' : 'Last name'}</span><strong>{draftClient?.lastName || '—'}</strong></div>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{draftClient?.email || '—'}</strong></div>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{draftClient?.phone || '—'}</strong></div>
-              </>
-            ) : (
-              <>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Podjetje' : 'Company'}</span><strong>{draftCompany?.name || '—'}</strong></div>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{draftCompany?.email || '—'}</strong></div>
-                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{draftCompany?.telephone || '—'}</strong></div>
-              </>
+          <div className="billing-payee-modal-grid">
+            {billForm.billingTarget === 'COMPANY' && (
+              <Field label={billingCopy.recipientCompany}>
+                <div className="client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
+                  <div className={`client-search-wrap${!editingRecipientCompanySearch ? ' client-search-wrap--compact-client' : ''}`}>
+                    {editingRecipientCompanySearch ? (
+                      <input
+                        placeholder={billingCopy.searchCompanyPlaceholder}
+                        value={recipientCompanySearch}
+                        onChange={(e) => setRecipientCompanySearch(e.target.value)}
+                        onFocus={() => setRecipientCompanyPickerOpen(true)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="client-selected-display"
+                        onClick={() => {
+                          setEditingRecipientCompanySearch(true)
+                          setRecipientCompanySearch('')
+                          setRecipientCompanyPickerOpen(true)
+                        }}
+                      >
+                        {selectedRecipientCompany?.name || billingCopy.selectCompany}
+                      </button>
+                    )}
+                    <span className="client-search-icon" aria-hidden>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary client-add-btn billing-payee-desktop-only"
+                    onClick={() => openAddCompanyModal({ mode: 'createBill' })}
+                  >
+                    +
+                  </button>
+                  {recipientCompanyPickerOpen && (
+                    <div className="client-dropdown-panel">
+                      {selectedClientCompany && (
+                        <button
+                          type="button"
+                          className={`client-list-item ${billForm.recipientCompanyId === selectedClientCompany.id ? 'selected' : ''}`}
+                          onClick={() => {
+                            setBillForm({ ...billForm, recipientCompanyId: selectedClientCompany.id })
+                            setRecipientCompanyPickerOpen(false)
+                            setEditingRecipientCompanySearch(false)
+                          }}
+                        >
+                          {`${selectedClientCompany.name} ${billingCopy.linkedToClientSuffix}`}
+                        </button>
+                      )}
+                      {visibleRecipientCompanies
+                        .filter((company) => !selectedClientCompany || company.id !== selectedClientCompany.id)
+                        .slice(0, 10)
+                        .map((company) => (
+                          <button
+                            key={company.id}
+                            type="button"
+                            className={`client-list-item ${billForm.recipientCompanyId === company.id ? 'selected' : ''}`}
+                            onClick={() => {
+                              setBillForm({ ...billForm, recipientCompanyId: company.id })
+                              setRecipientCompanyPickerOpen(false)
+                              setEditingRecipientCompanySearch(false)
+                            }}
+                          >
+                            {company.name}
+                          </button>
+                        ))}
+                      {visibleRecipientCompanies.length === 0 && <span className="muted">{billingCopy.noCompaniesFound}</span>}
+                    </div>
+                  )}
+                </div>
+              </Field>
             )}
+            {(billForm.billingTarget === 'PERSON' || clientsLinkedToInvoiceCompany.length > 0) && (
+              <Field label={billForm.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
+                <div className="billing-payee-client-picker-row">
+                  <select
+                    value={billForm.clientId ?? ''}
+                    onChange={(e) => {
+                      const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
+                      const pool = billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients
+                      const nextClient = pool.find((client) => client.id === nextClientId)
+                      setBillForm({
+                        ...billForm,
+                        clientId: nextClientId,
+                        recipientCompanyId: billForm.billingTarget === 'COMPANY'
+                          ? (billForm.recipientCompanyId ?? nextClient?.billingCompany?.id)
+                          : undefined,
+                      })
+                    }}
+                  >
+                    <option value="">{billingCopy.selectClient}</option>
+                    {(billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients).map((client) => (
+                      <option key={client.id} value={client.id}>{fullName(client)}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="secondary client-add-btn billing-payee-desktop-only"
+                    onClick={() => openAddClientModal({ mode: 'createBill' })}
+                  >
+                    +
+                  </button>
+                </div>
+              </Field>
+            )}
+            <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
+              <select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
+                <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
+                {(isAdmin ? users : [me]).map((user) => (
+                  <option key={user.id} value={user.id}>{fullName(user)}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <div className="billing-payee-modal-footer">
+            <button type="button" className="billing-bill-modal-save-btn" onClick={() => setEditingCreateBillPayee(false)}>
+              <span>{locale === 'sl' ? 'Uporabi' : 'Apply'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderAddOpenBillDialog = () => {
+    if (!addOpenBillContext) return null
+    const ctx = addOpenBillContext
+    const sessionBookings = bookings.filter((booking) => Number(booking.id) === ctx.sessionId
+      || (booking.paymentStatuses ?? []).some((status) => Number(status.bookingId) === ctx.sessionId))
+    const peerClientIds = new Set<number>()
+    sessionBookings.forEach((booking) => {
+      const groupKey = String(booking.bookingGroupKey ?? '').trim()
+      if (!groupKey) return
+      bookings
+        .filter((other) => String(other.bookingGroupKey ?? '').trim() === groupKey)
+        .forEach((other) => {
+          const peerClientId = other.client?.id
+          if (peerClientId) peerClientIds.add(peerClientId)
+        })
+    })
+    const sortedClients = [...clients].sort((a, b) => {
+      const aPeer = peerClientIds.has(a.id) ? 0 : 1
+      const bPeer = peerClientIds.has(b.id) ? 0 : 1
+      if (aPeer !== bPeer) return aPeer - bPeer
+      return fullName(a).localeCompare(fullName(b))
+    })
+    const ctxClient = ctx.clientId ? clients.find((c) => c.id === ctx.clientId) ?? null : null
+    const filteredCompanyClients = ctx.recipientCompanyId == null
+      ? sortedClients
+      : sortedClients.filter((client) => client.billingCompany?.id === ctx.recipientCompanyId)
+    return (
+      <div className="billing-payee-modal-backdrop" onMouseDown={() => { if (!creatingAdditionalOpenBill) setAddOpenBillContext(null) }} role="presentation">
+        <div className="billing-payee-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Dodaj nov račun' : 'Add new bill'}>
+          <div className="billing-payee-modal-head">
+            <div>
+              <h3>{locale === 'sl' ? 'Dodaj nov račun' : 'Add new bill'}</h3>
+              <p>{locale === 'sl' ? 'Za isti termin lahko dodate dodatne odprte račune za druge plačnike.' : 'Add an additional open bill for another payee on the same session.'}</p>
+            </div>
+            <button type="button" className="billing-bill-modal-close" onClick={() => setAddOpenBillContext(null)} aria-label="Close" disabled={creatingAdditionalOpenBill}>×</button>
+          </div>
+          <div className="booking-type-switcher billing-bill-modal-target-switcher billing-payee-type-switcher" role="group" aria-label={locale === 'sl' ? 'Vrsta plačnika' : 'Payee type'}>
+            <button
+              type="button"
+              className={ctx.billingTarget === 'PERSON' ? 'booking-type-btn active' : 'booking-type-btn'}
+              aria-pressed={ctx.billingTarget === 'PERSON'}
+              onClick={() => setAddOpenBillContext({ ...ctx, billingTarget: 'PERSON', recipientCompanyId: undefined })}
+            >
+              {billingCopy.targetPerson}
+            </button>
+            <button
+              type="button"
+              className={ctx.billingTarget === 'COMPANY' ? 'booking-type-btn active' : 'booking-type-btn'}
+              aria-pressed={ctx.billingTarget === 'COMPANY'}
+              onClick={() => setAddOpenBillContext({
+                ...ctx,
+                billingTarget: 'COMPANY',
+                recipientCompanyId: ctx.recipientCompanyId ?? ctxClient?.billingCompany?.id,
+              })}
+            >
+              {billingCopy.targetCompany}
+            </button>
           </div>
           <div className="billing-payee-modal-grid">
             {ctx.billingTarget === 'COMPANY' && (
@@ -6606,6 +6774,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             >
               {billingCopy.targetCompany}
             </button>
+          </div>
+          <div className="billing-payee-mobile-summary">
+            {draft.billingTarget === 'PERSON' ? (
+              <>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Ime' : 'First name'}</span><strong>{draftClient?.firstName || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Priimek' : 'Last name'}</span><strong>{draftClient?.lastName || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{draftClient?.email || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{draftClient?.phone || '—'}</strong></div>
+              </>
+            ) : (
+              <>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Podjetje' : 'Company'}</span><strong>{draftCompany?.name || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{draftCompany?.email || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{draftCompany?.telephone || '—'}</strong></div>
+              </>
+            )}
           </div>
           <div className="billing-payee-modal-grid">
             {draft.billingTarget === 'COMPANY' && (
