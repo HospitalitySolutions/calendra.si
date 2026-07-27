@@ -26,6 +26,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
+  // Use the same left-close/title/right-actions header for booked sessions on every resolution.
+  const bookedSessionUsesActionHeader = true
   const [mobileBillingActionsOpen, setMobileBillingActionsOpen] = useState<null | 'advance' | 'invoice'>(null)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(() =>
@@ -2201,8 +2203,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             style={getSessionPopupInlineStyle(true)}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
-              {compactSessionEditHeader ? (
+            <div className={`booking-side-panel-header${bookedSessionUsesActionHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
+              {bookedSessionUsesActionHeader ? (
                 !confirmDelete ? (
                   <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-booked">
                     <button type="button" className="secondary booking-side-panel-close" onClick={closeBookedModal} aria-label={t('mobileNavClose')}>
@@ -2272,9 +2274,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                     )}
                                   </span>
                                   <span className="calendar-mobile-session-more-menu__copy">
-                                    <strong>{mobilePrimaryBillingKind === 'advance' ? (locale === 'sl' ? 'Predračun' : 'Proforma invoice') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
+                                    <strong>{mobilePrimaryBillingKind === 'advance' ? (locale === 'sl' ? 'Predplačilo' : 'Advance payment') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
                                     <small>{mobilePrimaryBillingKind === 'advance'
-                                      ? (locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice')
+                                      ? (locale === 'sl' ? 'Ustvari ali odpri predplačilo' : 'Create or open an advance payment')
                                       : (locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice')}</small>
                                   </span>
                                   {mobilePrimaryBillingHasMultipleActions && (
@@ -2310,8 +2312,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                 >
                                   <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
                                   <span className="calendar-mobile-session-more-menu__copy">
-                                    <strong>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</strong>
-                                    <small>{locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice'}</small>
+                                    <strong>{locale === 'sl' ? 'Predplačilo' : 'Advance payment'}</strong>
+                                    <small>{locale === 'sl' ? 'Ustvari ali odpri predplačilo' : 'Create or open an advance payment'}</small>
                                   </span>
                                   {bookedBillingHasExistingAdvance && (
                                     <span className="calendar-mobile-session-more-menu__chevron calendar-mobile-session-more-menu__invoice-chevron" aria-hidden>⌃</span>
