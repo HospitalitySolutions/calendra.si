@@ -2388,12 +2388,48 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     }
 
     let animationFrame = 0
+    const clearMobileFixedState = () => {
+      fallback.classList.remove('is-mobile-fixed')
+      fallback.style.removeProperty('--calendar-resource-day-fixed-left')
+      fallback.style.removeProperty('--calendar-resource-day-fixed-width')
+    }
     const syncMeasuredHeight = () => {
       window.cancelAnimationFrame(animationFrame)
       animationFrame = window.requestAnimationFrame(() => {
         const isVisible = window.getComputedStyle(fallback).display !== 'none'
         const height = isVisible ? Math.ceil(fallback.getBoundingClientRect().height) : 0
         shell.style.setProperty('--calendar-resource-day-fallback-height', `${height}px`)
+
+        /*
+         * Mobile Chrome/Safari can stop honoring position: sticky for this React fallback
+         * because it is a sibling of FullCalendar's table header inside the swipe layer.
+         * Keep the normal sticky layout as the default, then promote only the visible inner
+         * strip to a viewport-fixed row after the calendar reaches the app header. The outer
+         * element remains in flow as a height placeholder, so the native resource row keeps
+         * its measured second offset and the calendar does not jump while scrolling.
+         */
+        const isCompactMobile = window.matchMedia('(max-width: 780px)').matches
+        const stickyOffsetValue = window
+          .getComputedStyle(shell)
+          .getPropertyValue('--calendar-shell-header-sticky-below')
+        const parsedStickyOffset = Number.parseFloat(stickyOffsetValue)
+        const stickyOffset = Number.isFinite(parsedStickyOffset) ? parsedStickyOffset : 61
+        const shellRect = shell.getBoundingClientRect()
+        const shouldUseFixedFallback =
+          isCompactMobile &&
+          isVisible &&
+          height > 0 &&
+          shellRect.top <= stickyOffset &&
+          shellRect.bottom > stickyOffset + height
+
+        fallback.classList.toggle('is-mobile-fixed', shouldUseFixedFallback)
+        if (shouldUseFixedFallback) {
+          fallback.style.setProperty('--calendar-resource-day-fixed-left', `${Math.round(shellRect.left)}px`)
+          fallback.style.setProperty('--calendar-resource-day-fixed-width', `${Math.round(shellRect.width)}px`)
+        } else {
+          fallback.style.removeProperty('--calendar-resource-day-fixed-left')
+          fallback.style.removeProperty('--calendar-resource-day-fixed-width')
+        }
       })
     }
 
@@ -2403,13 +2439,18 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     resizeObserver?.observe(fallback)
 
     window.addEventListener('resize', syncMeasuredHeight)
+    window.addEventListener('scroll', syncMeasuredHeight, { passive: true })
     window.visualViewport?.addEventListener('resize', syncMeasuredHeight)
+    window.visualViewport?.addEventListener('scroll', syncMeasuredHeight)
 
     return () => {
       window.cancelAnimationFrame(animationFrame)
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncMeasuredHeight)
+      window.removeEventListener('scroll', syncMeasuredHeight)
       window.visualViewport?.removeEventListener('resize', syncMeasuredHeight)
+      window.visualViewport?.removeEventListener('scroll', syncMeasuredHeight)
+      clearMobileFixedState()
       clearMeasuredHeight()
     }
   }, [isNativeAndroid, useResourceColumns, view, visibleRange?.start])

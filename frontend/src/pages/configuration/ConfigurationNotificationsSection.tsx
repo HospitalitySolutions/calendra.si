@@ -2624,6 +2624,10 @@ export function ConfigurationNotificationsSection({
             border-bottom: 0;
             background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
             box-shadow: none;
+            position: -webkit-sticky;
+            position: sticky;
+            top: var(--calendar-shell-header-sticky-below, 62px);
+            z-index: 190;
           }
           .notif-tab {
             min-width: 0;
@@ -3287,15 +3291,13 @@ export function ConfigurationNotificationsSection({
                 App nastavitve → Komunikacija.
               </span>
             </div>
-          ) : channel !== "email" && channelAvailability[channel] ? (
+          ) : channel === "guestApp" && channelAvailability.guestApp ? (
             <div className="notif-mobile-channel-note" role="note">
               <span className="notif-mobile-channel-note-icon">
                 <NotificationInfoIcon kind={channel} />
               </span>
               <span>
-                {channel === "sms"
-                  ? "SMS obvestila se pošiljajo na telefonsko številko gosta, ki jo imate shranjeno v rezervaciji."
-                  : "Push obvestila bodo prikazana v aplikaciji za vaše goste."}
+                Push obvestila bodo prikazana v aplikaciji za vaše goste.
               </span>
             </div>
           ) : null}

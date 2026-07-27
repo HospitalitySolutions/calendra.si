@@ -507,9 +507,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     return () => window.removeEventListener('clients-mobile-header-change', onClientsHeaderChange)
   }, [isClientsRoute])
 
-  /** Calendar overlays and mobile sticky rows use the measured shell header bottom as their viewport offset. */
+  /** Calendar overlays and compact-page sticky rows use the measured shell header bottom as their viewport offset. */
   useLayoutEffect(() => {
-    if (!isCalendarRoute || isNativeAndroid) return
+    if ((!isCalendarRoute && !isNotificationsConfigurationRoute) || isNativeAndroid) return
     const main = mainAreaRef.current
     const header = headerRef.current
     if (!main || !header) return
@@ -535,7 +535,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       window.visualViewport?.removeEventListener('resize', sync)
       main.style.removeProperty('--calendar-shell-header-sticky-below')
     }
-  }, [isCalendarRoute, isNativeAndroid, location.pathname])
+  }, [isCalendarRoute, isNotificationsConfigurationRoute, isNativeAndroid, location.pathname])
 
   useEffect(() => {
     if (!mobileNavOpen) return

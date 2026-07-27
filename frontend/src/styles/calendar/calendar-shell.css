@@ -529,6 +529,7 @@
  * table row is not reliable because Scheduler can leave an empty row in the DOM on narrow screens.
  */
 .calendar-resource-day-header-fallback {
+    position: -webkit-sticky;
     position: sticky;
     top: 0;
     z-index: 9;
@@ -565,6 +566,28 @@
 }
 
 @media (max-width: 780px) {
+    .calendar-resource-day-header-fallback.is-mobile-fixed {
+        min-height: var(--calendar-resource-day-fallback-height, 0px);
+    }
+
+    .calendar-resource-day-header-fallback.is-mobile-fixed > .calendar-resource-day-header-fallback-inner {
+        position: fixed;
+        top: var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px));
+        left: var(--calendar-resource-day-fixed-left, 0px);
+        width: var(--calendar-resource-day-fixed-width, 100vw);
+        z-index: 122;
+        background: var(--color-surface);
+        border-bottom: 1px solid var(--fc-border-color);
+        box-sizing: border-box;
+    }
+
+    /* A swipe snapshot is positioned inside the calendar shell; never let its cloned fallback become viewport-fixed. */
+    .calendar-snapshot-layer .calendar-resource-day-header-fallback.is-mobile-fixed > .calendar-resource-day-header-fallback-inner {
+        position: static;
+        width: 100%;
+        border-bottom: 0;
+    }
+
     .calendar-resource-day-header-fallback-inner {
         grid-template-columns: 38px minmax(0, 1fr);
     }
