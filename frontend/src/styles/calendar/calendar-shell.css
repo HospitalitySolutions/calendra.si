@@ -322,27 +322,48 @@
 
 @media (max-width: 780px) {
     /*
-     * Mobile uses document scrolling so the blue application header remains sticky at the top of
-     * the viewport. FullCalendar's own sticky date row defaults to top: 0, which places it behind
-     * that blue header as soon as the user scrolls. Use Shell's measured header height for every
-     * FullCalendar view so weekday/date headers remain visible directly below the top row.
+     * The mobile calendar lives in .main-area--calendar, whose content box already starts below
+     * the sticky blue app header. Using the measured app-header height again here double-offsets
+     * FullCalendar's date row (roughly one extra header height), leaving a large white gap and, in
+     * resource day view, pushing the weekday/date cells behind the resource row. Keep the sticky
+     * inset relative to the calendar scrollport itself so the date row begins directly below blue.
      */
-    .calendar-fc-shell .fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > * {
-        position: -webkit-sticky;
-        position: sticky;
-        top: var(--calendar-shell-header-sticky-below, 61px) !important;
-        z-index: 9;
-        background: var(--color-surface);
+    .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
+        top: 0;
     }
 
     .calendar-resource-day-header-fallback {
-        top: var(--calendar-shell-header-sticky-below, 61px);
+        top: 0;
     }
 
     /* Empty holiday placeholders must not reserve a blank line above weekday/date on mobile. */
     .calendar-fc-shell .fc-timegrid .calendar-header-holiday-pill--empty,
     .calendar-resource-day-header-fallback .calendar-header-holiday-pill--empty {
         display: none;
+    }
+
+    /* Resource week/work-week should sit directly below the blue header on mobile too. */
+    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .calendar-header-holiday-pill--empty,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .calendar-header-holiday-pill--empty {
+        display: none;
+    }
+
+    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .fc-day-header-stack,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .fc-day-header-stack {
+        padding-top: 0;
+        gap: 2px;
+    }
+
+    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .fc-col-header-cell-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .fc-col-header-cell-cushion {
+        padding-top: 0;
+    }
+
+    .calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
+    .calendar-fc-shell:has(.fc-resourceTimeGridWorkWeek-view),
+    .calendar-web-inner--bottom-panel .calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
+    .calendar-web-inner--bottom-panel .calendar-fc-shell:has(.fc-resourceTimeGridWorkWeek-view) {
+        overflow: visible;
     }
 }
 
@@ -459,7 +480,8 @@
 
 .calendar-web-inner--bottom-panel .calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
 .calendar-web-inner--bottom-panel .calendar-fc-shell:has(.fc-resourceTimeGridWorkWeek-view) {
-    overflow-x: hidden;
+    /* Avoid breaking sticky weekday/date headers on narrow web layouts. */
+    overflow-x: visible;
 }
 
 /* Resource time grids: same min-width / stretch behavior as standard time grids inside the shell */
