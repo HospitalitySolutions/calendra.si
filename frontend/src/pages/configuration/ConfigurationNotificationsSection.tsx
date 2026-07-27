@@ -1307,6 +1307,19 @@ export function ConfigurationNotificationsSection({
   const [editingEvent, setEditingEvent] =
     useState<NotificationEventKind | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState(false);
+  const [openCategories, setOpenCategories] = useState<
+    Record<NotificationEventDefinition["category"], boolean>
+  >({
+    bookings: true,
+    billing: false,
+    waitlist: false,
+  });
+  const [isCompactNotificationsLayout, setIsCompactNotificationsLayout] =
+    useState(() =>
+      typeof window !== "undefined"
+        ? window.matchMedia("(max-width: 1024px)").matches
+        : false,
+    );
   const [templateVariant, setTemplateVariant] =
     useState<NotificationTemplateVariant>("regular");
   const templateBodyRef = useRef<HTMLDivElement | null>(null);
@@ -1455,18 +1468,28 @@ export function ConfigurationNotificationsSection({
   }, [selectedEvent]);
 
   useEffect(() => {
-    if (!selectedEvent) return;
-    if (
-      typeof window === "undefined" ||
-      !window.matchMedia("(max-width: 640px)").matches
-    )
-      return;
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(max-width: 1024px)");
+    const syncCompactLayout = () => {
+      setIsCompactNotificationsLayout(mediaQuery.matches);
+    };
+    syncCompactLayout();
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncCompactLayout);
+      return () => mediaQuery.removeEventListener("change", syncCompactLayout);
+    }
+    mediaQuery.addListener(syncCompactLayout);
+    return () => mediaQuery.removeListener(syncCompactLayout);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedEvent || !isCompactNotificationsLayout) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [selectedEvent]);
+  }, [isCompactNotificationsLayout, selectedEvent]);
 
   const setNotificationEnabled = (
     id: NotificationEventKind,
@@ -2351,6 +2374,94 @@ export function ConfigurationNotificationsSection({
           opacity: 0.72;
           cursor: progress;
         }
+        .notif-category {
+          overflow: hidden;
+          border: 1px solid var(--notif-line);
+          border-radius: 16px;
+          background: rgba(255,255,255,0.96);
+          box-shadow: 0 8px 20px rgba(8, 23, 58, 0.04);
+        }
+        .notif-category-header {
+          width: 100%;
+          min-height: 82px;
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr) 24px;
+          align-items: center;
+          gap: 16px;
+          padding: 14px 18px;
+          border: 0;
+          background: transparent;
+          color: var(--notif-ink);
+          text-align: left;
+          cursor: pointer;
+        }
+        .notif-category-header:hover {
+          background: #f8fbff;
+        }
+        .notif-category-icon {
+          display: grid;
+          place-items: center;
+          width: 52px;
+          height: 52px;
+          border-radius: 13px;
+          color: var(--notif-blue);
+          background: linear-gradient(180deg, #eef4ff 0%, #e7efff 100%);
+        }
+        .notif-category-copy strong,
+        .notif-category-copy span {
+          display: block;
+        }
+        .notif-category-copy strong {
+          margin-bottom: 4px;
+          font-size: 17px;
+          font-weight: 850;
+        }
+        .notif-category-copy span {
+          color: var(--notif-muted);
+          font-size: 14px;
+        }
+        .notif-category-chevron {
+          display: grid;
+          place-items: center;
+          transition: transform 160ms ease;
+        }
+        .notif-category.is-open .notif-category-chevron {
+          transform: rotate(90deg);
+        }
+        .notif-category-events {
+          margin: 0 14px 14px;
+          overflow: hidden;
+          border: 1px solid #e3eaf4;
+          border-radius: 14px;
+          background: #fff;
+        }
+        .notif-category-events .notif-event-row,
+        .notif-layout.has-editor .notif-category-events .notif-event-row {
+          grid-template-columns: 52px minmax(220px, 1fr) minmax(180px, .32fr) 68px 24px;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          cursor: pointer;
+        }
+        .notif-category-events .notif-event-row + .notif-event-row {
+          border-top: 1px solid #e8eef7;
+        }
+        .notif-category-events .notif-event-row:hover {
+          background: #f8fbff;
+        }
+        .notif-event-row:focus-visible {
+          outline: 2px solid rgba(15, 98, 254, .45);
+          outline-offset: -2px;
+        }
+        .notif-event-switch {
+          display: inline-flex;
+          justify-self: start;
+        }
+        .notif-event-open-indicator {
+          display: grid;
+          place-items: center;
+          color: #66758f;
+        }
         @media (max-width: 1180px) {
           .notif-layout.has-editor {
             grid-template-columns: 1fr;
@@ -2619,6 +2730,62 @@ export function ConfigurationNotificationsSection({
           .notif-row-chevron svg {
             width: 19px;
             height: 19px;
+          }
+          .notif-event-list {
+            gap: 12px;
+          }
+          .notif-category {
+            border-radius: 14px;
+          }
+          .notif-category-header {
+            min-height: 76px;
+            grid-template-columns: 46px minmax(0, 1fr) 22px;
+            gap: 12px;
+            padding: 12px 14px;
+          }
+          .notif-category-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+          }
+          .notif-category-icon svg {
+            width: 22px;
+            height: 22px;
+          }
+          .notif-category-copy strong {
+            font-size: 15px;
+          }
+          .notif-category-copy span {
+            font-size: 12.5px;
+            line-height: 1.3;
+          }
+          .notif-category-events {
+            margin: 0 10px 10px;
+            border-radius: 12px;
+          }
+          .notif-category-events .notif-event-row,
+          .notif-layout.has-editor .notif-category-events .notif-event-row {
+            grid-template-columns: 44px minmax(0, 1fr) auto 18px;
+            grid-template-areas:
+              'icon copy switch indicator'
+              'reminder reminder reminder reminder';
+            gap: 0 11px;
+            padding: 12px;
+          }
+          .notif-event-switch {
+            grid-area: switch;
+            justify-self: end;
+          }
+          .notif-event-open-indicator {
+            grid-area: indicator;
+          }
+          .notif-event-open-indicator svg {
+            width: 17px;
+            height: 17px;
+          }
+          .notif-category-events .notif-reminder-select-wrap {
+            margin: 10px -12px -12px;
+            padding: 0 12px;
           }
           .notif-template-panel {
             position: fixed;
@@ -2949,102 +3116,301 @@ export function ConfigurationNotificationsSection({
             >
               <div>
                 <div className="notif-event-list">
-                  {visibleNotificationEvents.map((event, index) => {
-                    const checked = getNotificationEnabled(
-                      settings,
-                      channel,
-                      event.id,
-                    );
-                    const reminderValue = event.reminder
-                      ? getReminderValue(settings, channel, event.reminder)
-                      : "";
-                    const reminderOptions =
-                      event.reminder === "after"
-                        ? reminderAfterOptions
-                        : reminderBeforeOptions;
-                    const isEditing = selectedEvent?.id === event.id;
-                    const openEditor = () =>
-                      setEditingEvent((prev) =>
-                        prev === event.id ? null : event.id,
-                      );
-                    const previousCategory =
-                      index > 0 ? visibleNotificationEvents[index - 1].category : null;
-                    const groupLabel =
-                      event.category === "bookings"
-                        ? "Rezervacije"
-                        : event.category === "waitlist"
-                          ? "Čakalna vrsta"
-                          : "Računi";
-                    return (
-                      <div key={`${channel}-${event.id}-group`} style={{ display: "contents" }}>
-                        {previousCategory !== event.category ? (
-                          <div className="notif-event-group-title">{groupLabel}</div>
-                        ) : null}
-                      <div
-                        className={
-                          isEditing
-                            ? "notif-event-row is-editing"
-                            : "notif-event-row"
-                        }
-                      >
-                        <span className="notif-event-icon">
-                          <NotificationEventIcon icon={event.icon} />
-                        </span>
-                        <span className="notif-event-copy">
-                          <strong>{event.title}</strong>
-                          <span>{event.description}</span>
-                        </span>
-                        {event.reminder && checked ? (
-                          <span className="notif-reminder-select-wrap">
-                            <label>Privzeti čas opomnika</label>
-                            <select
-                              className="notif-reminder-select"
-                              value={reminderValue}
-                              onChange={(e) =>
-                                setReminderValue(
-                                  event.reminder!,
-                                  e.target.value,
-                                )
+                  {isCompactNotificationsLayout
+                    ? (["billing", "bookings", "waitlist"] as const).map(
+                        (category) => {
+                          const events = visibleNotificationEvents.filter(
+                            (event) => event.category === category,
+                          );
+                          if (events.length === 0) return null;
+
+                          const categoryLabel =
+                            category === "bookings"
+                              ? "Rezervacije"
+                              : category === "waitlist"
+                                ? "Čakalna vrsta"
+                                : "Računi";
+                          const categoryDescription =
+                            category === "bookings"
+                              ? "Obvestila o sejah in rezervacijah."
+                              : category === "waitlist"
+                                ? "Obvestila o spremembah v čakalni vrsti."
+                                : "Obvestila o računih in plačilih.";
+                          const categoryIcon =
+                            category === "bookings"
+                              ? "calendar"
+                              : category === "waitlist"
+                                ? "message"
+                                : "mail";
+                          const isOpen = openCategories[category];
+
+                          return (
+                            <section
+                              key={`${channel}-${category}`}
+                              className={
+                                isOpen
+                                  ? "notif-category is-open"
+                                  : "notif-category"
                               }
                             >
-                              {reminderOptions.map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
-                              ))}
-                            </select>
-                          </span>
-                        ) : (
-                          <span
-                            className="notif-reminder-placeholder"
-                            aria-hidden
-                          />
-                        )}
-                        <NotificationSwitch
-                          checked={checked}
-                          onChange={(next) =>
-                            setNotificationEnabled(event.id, next)
-                          }
-                        />
-                        <button
-                          type="button"
-                          className={
-                            isEditing
-                              ? "notif-row-action is-active"
-                              : "notif-row-action"
-                          }
-                          aria-label={`${channelCopy[channel].editLabel}: ${event.title}`}
-                          onClick={openEditor}
-                        >
-                          <span>{channelCopy[channel].editLabel}</span>
-                          <span className="notif-row-action-icon" aria-hidden>
-                            <NotificationChevronIcon expanded={isEditing} />
-                          </span>
-                        </button>
-                      </div>
-                      </div>
-                    );
-                  })}
+                              <button
+                                type="button"
+                                className="notif-category-header"
+                                aria-expanded={isOpen}
+                                onClick={() =>
+                                  setOpenCategories((prev) => ({
+                                    ...prev,
+                                    [category]: !prev[category],
+                                  }))
+                                }
+                              >
+                                <span className="notif-category-icon">
+                                  <NotificationEventIcon icon={categoryIcon} />
+                                </span>
+                                <span className="notif-category-copy">
+                                  <strong>{categoryLabel}</strong>
+                                  <span>{categoryDescription}</span>
+                                </span>
+                                <span
+                                  className="notif-category-chevron"
+                                  aria-hidden
+                                >
+                                  <NotificationChevronIcon expanded={isOpen} />
+                                </span>
+                              </button>
+
+                              {isOpen ? (
+                                <div className="notif-category-events">
+                                  {events.map((event) => {
+                                    const checked = getNotificationEnabled(
+                                      settings,
+                                      channel,
+                                      event.id,
+                                    );
+                                    const reminderValue = event.reminder
+                                      ? getReminderValue(
+                                          settings,
+                                          channel,
+                                          event.reminder,
+                                        )
+                                      : "";
+                                    const reminderOptions =
+                                      event.reminder === "after"
+                                        ? reminderAfterOptions
+                                        : reminderBeforeOptions;
+                                    const isEditing =
+                                      selectedEvent?.id === event.id;
+                                    const openEditor = () =>
+                                      setEditingEvent((prev) =>
+                                        prev === event.id ? null : event.id,
+                                      );
+
+                                    return (
+                                      <div
+                                        key={`${channel}-${event.id}`}
+                                        className={
+                                          isEditing
+                                            ? "notif-event-row is-editing"
+                                            : "notif-event-row"
+                                        }
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`${channelCopy[channel].editLabel}: ${event.title}`}
+                                        onClick={openEditor}
+                                        onKeyDown={(keyboardEvent) => {
+                                          if (
+                                            keyboardEvent.key === "Enter" ||
+                                            keyboardEvent.key === " "
+                                          ) {
+                                            keyboardEvent.preventDefault();
+                                            openEditor();
+                                          }
+                                        }}
+                                      >
+                                        <span className="notif-event-icon">
+                                          <NotificationEventIcon
+                                            icon={event.icon}
+                                          />
+                                        </span>
+                                        <span className="notif-event-copy">
+                                          <strong>{event.title}</strong>
+                                          <span>{event.description}</span>
+                                        </span>
+                                        {event.reminder && checked ? (
+                                          <span
+                                            className="notif-reminder-select-wrap"
+                                            onClick={(clickEvent) =>
+                                              clickEvent.stopPropagation()
+                                            }
+                                          >
+                                            <label>Privzeti čas opomnika</label>
+                                            <select
+                                              className="notif-reminder-select"
+                                              value={reminderValue}
+                                              onChange={(changeEvent) =>
+                                                setReminderValue(
+                                                  event.reminder!,
+                                                  changeEvent.target.value,
+                                                )
+                                              }
+                                            >
+                                              {reminderOptions.map((option) => (
+                                                <option
+                                                  key={option}
+                                                  value={option}
+                                                >
+                                                  {option}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </span>
+                                        ) : (
+                                          <span
+                                            className="notif-reminder-placeholder"
+                                            aria-hidden
+                                          />
+                                        )}
+                                        <span
+                                          className="notif-event-switch"
+                                          onClick={(clickEvent) =>
+                                            clickEvent.stopPropagation()
+                                          }
+                                        >
+                                          <NotificationSwitch
+                                            checked={checked}
+                                            onChange={(next) =>
+                                              setNotificationEnabled(
+                                                event.id,
+                                                next,
+                                              )
+                                            }
+                                          />
+                                        </span>
+                                        <span
+                                          className="notif-event-open-indicator"
+                                          aria-hidden
+                                        >
+                                          <NotificationChevronIcon
+                                            expanded={false}
+                                          />
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </section>
+                          );
+                        },
+                      )
+                    : visibleNotificationEvents.map((event, index) => {
+                        const checked = getNotificationEnabled(
+                          settings,
+                          channel,
+                          event.id,
+                        );
+                        const reminderValue = event.reminder
+                          ? getReminderValue(settings, channel, event.reminder)
+                          : "";
+                        const reminderOptions =
+                          event.reminder === "after"
+                            ? reminderAfterOptions
+                            : reminderBeforeOptions;
+                        const isEditing = selectedEvent?.id === event.id;
+                        const openEditor = () =>
+                          setEditingEvent((prev) =>
+                            prev === event.id ? null : event.id,
+                          );
+                        const previousCategory =
+                          index > 0
+                            ? visibleNotificationEvents[index - 1].category
+                            : null;
+                        const groupLabel =
+                          event.category === "bookings"
+                            ? "Rezervacije"
+                            : event.category === "waitlist"
+                              ? "Čakalna vrsta"
+                              : "Računi";
+                        return (
+                          <div
+                            key={`${channel}-${event.id}-group`}
+                            style={{ display: "contents" }}
+                          >
+                            {previousCategory !== event.category ? (
+                              <div className="notif-event-group-title">
+                                {groupLabel}
+                              </div>
+                            ) : null}
+                            <div
+                              className={
+                                isEditing
+                                  ? "notif-event-row is-editing"
+                                  : "notif-event-row"
+                              }
+                            >
+                              <span className="notif-event-icon">
+                                <NotificationEventIcon icon={event.icon} />
+                              </span>
+                              <span className="notif-event-copy">
+                                <strong>{event.title}</strong>
+                                <span>{event.description}</span>
+                              </span>
+                              {event.reminder && checked ? (
+                                <span className="notif-reminder-select-wrap">
+                                  <label>Privzeti čas opomnika</label>
+                                  <select
+                                    className="notif-reminder-select"
+                                    value={reminderValue}
+                                    onChange={(changeEvent) =>
+                                      setReminderValue(
+                                        event.reminder!,
+                                        changeEvent.target.value,
+                                      )
+                                    }
+                                  >
+                                    {reminderOptions.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </span>
+                              ) : (
+                                <span
+                                  className="notif-reminder-placeholder"
+                                  aria-hidden
+                                />
+                              )}
+                              <NotificationSwitch
+                                checked={checked}
+                                onChange={(next) =>
+                                  setNotificationEnabled(event.id, next)
+                                }
+                              />
+                              <button
+                                type="button"
+                                className={
+                                  isEditing
+                                    ? "notif-row-action is-active"
+                                    : "notif-row-action"
+                                }
+                                aria-label={`${channelCopy[channel].editLabel}: ${event.title}`}
+                                onClick={openEditor}
+                              >
+                                <span>{channelCopy[channel].editLabel}</span>
+                                <span
+                                  className="notif-row-action-icon"
+                                  aria-hidden
+                                >
+                                  <NotificationChevronIcon
+                                    expanded={isEditing}
+                                  />
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
               </div>
 
