@@ -6071,3 +6071,62 @@
         background-size: 21px 21px;
     }
 }
+
+/* Final cleanup: unified field sizing and no side icons/pencil icons on edit screens. */
+@media (max-width: 1024px) {
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card {
+        min-height: 76px;
+        padding: 14px 18px !important;
+        border-radius: 16px;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card::before,
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card::after,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card::before,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card::after,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card::before,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card::after {
+        content: none !important;
+        display: none !important;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > span,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > span,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > span {
+        font-size: 0.74rem;
+        line-height: 1.15;
+        letter-spacing: 0.08em;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > strong,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > strong,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > strong {
+        margin-top: 8px;
+        font-size: 1rem;
+        line-height: 1.18;
+        font-weight: 760;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit input,
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit select,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit input,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit select,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit input,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit select {
+        min-height: 32px;
+        font-size: 1rem;
+        font-weight: 740;
+    }
+}
+
+@media (max-width: 760px) {
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card {
+        min-height: 74px;
+        padding: 13px 16px !important;
+        border-radius: 15px;
+    }
+}
