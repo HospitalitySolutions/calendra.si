@@ -322,18 +322,24 @@
 
 @media (max-width: 780px) {
     /*
-     * The mobile calendar lives in .main-area--calendar, whose content box already starts below
-     * the sticky blue app header. Using the measured app-header height again here double-offsets
-     * FullCalendar's date row (roughly one extra header height), leaving a large white gap and, in
-     * resource day view, pushing the weekday/date cells behind the resource row. Keep the sticky
-     * inset relative to the calendar scrollport itself so the date row begins directly below blue.
+     * Mobile web scrolls the document/window, while the blue calendar app header is itself sticky.
+     * Therefore the FullCalendar header must stick below that blue row rather than at viewport top.
+     * When top: 0 is used, the calendar header does become sticky, but it sits underneath the blue
+     * header (z-index 200) and appears to have disappeared. Shell.tsx measures the real blue-header
+     * height and exposes it through --calendar-shell-header-sticky-below.
      */
-    .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
-        top: 0;
+    .calendar-fc-shell .fc .fc-scrollgrid-section-header > th,
+    .calendar-fc-shell .fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
+        position: -webkit-sticky;
+        position: sticky;
+        top: var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px));
+        z-index: 120;
+        background: var(--color-surface);
     }
 
     .calendar-resource-day-header-fallback {
-        top: 0;
+        top: var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px));
+        z-index: 120;
     }
 
     /* Empty holiday placeholders must not reserve a blank line above weekday/date on mobile. */
@@ -360,34 +366,12 @@
     }
 
     /*
-     * Keep the entire calendar header block fixed while the time grid scrolls on mobile:
-     * - standard views: weekday/date row
-     * - resource views: weekday/date row + resource/staff/space row beneath it
+     * FullCalendar already makes the whole header section sticky when stickyHeaderDates is enabled.
+     * Do not independently make .fc-col-header sticky: nesting one sticky table inside another creates
+     * a second containing block and is unreliable in mobile Chrome/Safari, especially in resource views.
      */
-    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-timeGridWorkWeek-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-timeGridWeek-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .fc-col-header,
-    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .fc-col-header {
-        position: -webkit-sticky;
-        position: sticky;
-        top: 0;
-        z-index: 9;
-        background: var(--color-surface);
-    }
-
-    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-timeGridWorkWeek-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-timeGridWeek-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-resourceTimeGridWorkWeek-view .fc-col-header th,
-    .calendar-fc-shell .fc.fc-resourceTimeGridWeek-view .fc-col-header th {
-        background: var(--color-surface);
+    .calendar-fc-shell .fc .fc-col-header {
+        position: static;
     }
 
     .calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
