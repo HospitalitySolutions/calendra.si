@@ -2120,6 +2120,15 @@
     font-size: 0.86rem;
 }
 
+.billing-payee-mobile-topbar,
+.billing-payee-mobile-summary { display: none; }
+.billing-payee-mobile-topbar-title { min-width: 0; flex: 1; font-weight: 800; letter-spacing: -0.02em; }
+.billing-payee-mobile-save { border: none; background: transparent; color: #fff; font-weight: 800; box-shadow: none; padding: 0 2px; }
+.billing-payee-mobile-save:hover { background: transparent; box-shadow: none; }
+.billing-payee-mobile-readonly { display:flex; flex-direction:column; gap:10px; padding:16px 18px; border-radius:18px; border:1px solid #d7e2f0; background:#fff; box-shadow:0 10px 24px rgba(15,23,42,.05); }
+.billing-payee-mobile-readonly span { color:#7f94b3; font-size:.82rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.billing-payee-mobile-readonly strong { color:#0f172a; font-size:1rem; font-weight:800; line-height:1.35; }
+
 .billing-payee-modal-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5857,6 +5866,34 @@
         width: 44px;
         min-width: 44px;
     }
+
+    .billing-payee-modal.billing-payee-modal--editor { width:100vw; max-width:100vw; max-height:100vh; height:100vh; border-radius:0; border:none; padding:0; overflow:hidden; display:flex; flex-direction:column; box-shadow:none; }
+    .billing-payee-modal-backdrop { padding:0; align-items:stretch; justify-content:stretch; }
+    .billing-payee-mobile-topbar { display:flex; align-items:center; gap:14px; min-height:68px; padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 12px; background:linear-gradient(180deg,#0b63f6 0%,#0a5be0 100%); color:#fff; box-shadow:0 10px 24px rgba(11,99,246,.24); }
+    .billing-payee-mobile-topbar .billing-bill-modal-close { width:42px; height:42px; min-height:42px; border-radius:14px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); color:#fff; }
+    .billing-payee-mobile-topbar-title { font-size:1.04rem; }
+    .billing-payee-modal--editor .billing-payee-modal-head,
+    .billing-payee-modal--editor .billing-payee-modal-footer,
+    .billing-payee-modal--editor .billing-payee-desktop-only { display:none !important; }
+    .billing-payee-modal--editor .billing-payee-type-switcher.booking-type-switcher { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin:16px; padding:4px; border-radius:16px; }
+    .billing-payee-modal--editor .billing-payee-type-switcher .booking-type-btn { min-width:0; min-height:48px; border-radius:12px; font-size:1rem; font-weight:800; }
+    .billing-payee-modal--editor .billing-payee-type-switcher .booking-type-btn.active { color:#fff; background:linear-gradient(180deg,#1d6fff 0%,#0b63f6 100%); border-color:transparent; box-shadow:none; }
+    .billing-payee-mobile-summary { display:grid; gap:12px; padding:0 16px 16px; }
+    .billing-payee-modal--editor .billing-payee-modal-grid { grid-template-columns:1fr; gap:14px; padding:0 16px 20px; flex:1 1 auto; min-height:0; overflow:auto; align-content:start; }
+    .billing-payee-modal--editor .field { gap:8px; }
+    .billing-payee-modal--editor .field-label { color:#7f94b3; font-size:.82rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    .billing-payee-modal--editor .field > input,
+    .billing-payee-modal--editor .field > select,
+    .billing-payee-modal--editor .field > textarea,
+    .billing-payee-modal--editor .client-selected-display,
+    .billing-payee-modal--editor .client-search-wrap input { min-height:56px; border-radius:18px; border-color:#d7e2f0; font-size:1rem; box-shadow:none; background:#fff; }
+    .billing-payee-modal--editor .client-picker,
+    .billing-payee-modal--editor .client-search-wrap,
+    .billing-payee-modal--editor .client-selected-display { width:100%; }
+    .billing-payee-modal--editor .client-selected-display { display:inline-flex; align-items:center; justify-content:space-between; padding:0 16px; text-align:left; font-weight:500; }
+    .billing-payee-modal--editor .client-search-wrap { min-height:56px; }
+    .billing-payee-modal--editor .client-search-wrap--compact-client .client-search-icon { right:16px; }
+    .billing-payee-modal--editor .billing-payee-client-picker-row { grid-template-columns:1fr; }
 }
 
 /* Mobile open-bill editor refinements requested after v2. */

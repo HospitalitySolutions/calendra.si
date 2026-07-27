@@ -6417,9 +6417,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const renderCreateBillPayeeDialog = () => {
     if (!editingCreateBillPayee) return null
+    const selectedPayeeClient = clients.find((client) => client.id === billForm.clientId) || null
     return (
       <div className="billing-payee-modal-backdrop" onMouseDown={() => setEditingCreateBillPayee(false)} role="presentation">
-        <div className="billing-payee-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
+        <div className="billing-payee-modal billing-payee-modal--editor" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
+          <div className="billing-payee-mobile-topbar">
+            <button type="button" className="billing-bill-modal-close" onClick={() => setEditingCreateBillPayee(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
+            <button type="button" className="billing-payee-mobile-save" onClick={() => setEditingCreateBillPayee(false)}>{locale === 'sl' ? 'Shrani' : 'Save'}</button>
+          </div>
           <div className="billing-payee-modal-head">
             <div>
               <h3>{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit payee for this bill'}</h3>
@@ -6448,6 +6454,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             >
               {billingCopy.targetCompany}
             </button>
+          </div>
+          <div className="billing-payee-mobile-summary">
+            {billForm.billingTarget === 'PERSON' ? (
+              <>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Ime' : 'First name'}</span><strong>{selectedPayeeClient?.firstName || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Priimek' : 'Last name'}</span><strong>{selectedPayeeClient?.lastName || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{selectedPayeeClient?.email || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{selectedPayeeClient?.phone || '—'}</strong></div>
+              </>
+            ) : (
+              <>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Podjetje' : 'Company'}</span><strong>{selectedRecipientCompany?.name || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{selectedRecipientCompany?.email || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{selectedRecipientCompany?.telephone || '—'}</strong></div>
+              </>
+            )}
           </div>
           <div className="billing-payee-modal-grid">
             {billForm.billingTarget === 'COMPANY' && (
@@ -6480,7 +6502,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                   <button
                     type="button"
-                    className="secondary client-add-btn"
+                    className="secondary client-add-btn billing-payee-desktop-only"
                     onClick={() => openAddCompanyModal({ mode: 'createBill' })}
                   >
                     +
@@ -6548,7 +6570,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </select>
                   <button
                     type="button"
-                    className="secondary client-add-btn"
+                    className="secondary client-add-btn billing-payee-desktop-only"
                     onClick={() => openAddClientModal({ mode: 'createBill' })}
                   >
                     +
@@ -6719,7 +6741,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       : clients
     return (
       <div className="billing-payee-modal-backdrop" onMouseDown={() => setEditingOpenBillPayeeId(null)} role="presentation">
-        <div className="billing-payee-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
+        <div className="billing-payee-modal billing-payee-modal--editor" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
+          <div className="billing-payee-mobile-topbar">
+            <button type="button" className="billing-bill-modal-close" onClick={() => setEditingOpenBillPayeeId(null)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
+            <button type="button" className="billing-payee-mobile-save" onClick={() => setEditingOpenBillPayeeId(null)}>{locale === 'sl' ? 'Shrani' : 'Save'}</button>
+          </div>
           <div className="billing-payee-modal-head">
             <div>
               <h3>{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit payee for this bill'}</h3>
@@ -6747,6 +6774,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             >
               {billingCopy.targetCompany}
             </button>
+          </div>
+          <div className="billing-payee-mobile-summary">
+            {draft.billingTarget === 'PERSON' ? (
+              <>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Ime' : 'First name'}</span><strong>{draftClient?.firstName || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Priimek' : 'Last name'}</span><strong>{draftClient?.lastName || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{draftClient?.email || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{draftClient?.phone || '—'}</strong></div>
+              </>
+            ) : (
+              <>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Podjetje' : 'Company'}</span><strong>{draftCompany?.name || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{draftCompany?.email || '—'}</strong></div>
+                <div className="billing-payee-mobile-readonly"><span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span><strong>{draftCompany?.telephone || '—'}</strong></div>
+              </>
+            )}
           </div>
           <div className="billing-payee-modal-grid">
             {draft.billingTarget === 'COMPANY' && (
@@ -6779,7 +6822,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                   <button
                     type="button"
-                    className="secondary client-add-btn"
+                    className="secondary client-add-btn billing-payee-desktop-only"
                     onClick={() => openAddCompanyModal({ mode: 'editOpenBill', openBillId: targetOpenBill.id })}
                   >
                     +
@@ -6837,7 +6880,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 </select>
                 <button
                   type="button"
-                  className="secondary client-add-btn"
+                  className="secondary client-add-btn billing-payee-desktop-only"
                   onClick={() => openAddClientModal({ mode: 'editOpenBill', openBillId: targetOpenBill.id })}
                 >
                   +
