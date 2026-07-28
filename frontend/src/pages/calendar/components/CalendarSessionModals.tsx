@@ -2727,6 +2727,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     onChange={updateSelectedBookedSessionServices}
                     defaultSpaceId={selectedBookedSession.space?.id ?? null}
                     multipleServicesEnabled={multipleServicesEnabled}
+                    allowServiceEdit={!bookedBillingHasExistingOpenBill}
                   />
                   <div className="calendar-booking-service-chain__billing-actions">
                     <div className="calendar-session-billing-actions">
@@ -5163,6 +5164,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     onChange={updateBookingFormServices}
                     defaultSpaceId={form.spaceId ?? null}
                     multipleServicesEnabled={multipleServicesEnabled}
+                    allowServiceEdit
                   />
                 </div>
               )}

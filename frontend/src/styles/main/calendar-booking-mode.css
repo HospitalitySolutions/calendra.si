@@ -8995,3 +8995,263 @@
         text-align: left !important;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Service chain refinement: move timing next to duration, use a dedicated
+   reorder button, and add the per-service edit popup.
+   -------------------------------------------------------------------------- */
+.calendar-service-chain__title-block {
+    gap: 0;
+}
+
+.calendar-service-chain__duration-line {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: 0;
+}
+
+.calendar-service-chain__duration-line > strong {
+    flex: none;
+}
+
+.calendar-service-chain__menu button {
+    gap: 8px;
+}
+
+.calendar-service-chain__menu button svg {
+    flex: none;
+}
+
+.calendar-service-chain__menu--compact {
+    min-width: 190px;
+}
+
+.calendar-service-chain__reorder-btn,
+.calendar-service-chain__more-btn,
+.calendar-service-chain__remove {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+}
+
+.calendar-service-edit-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.46);
+}
+
+.calendar-service-edit-modal {
+    width: min(100%, 520px);
+    max-width: 520px;
+    max-height: min(88vh, 760px);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.22);
+    overflow: hidden;
+}
+
+.calendar-service-edit-modal__header {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    background: #fff;
+    border-bottom: 1px solid #e6edf5;
+}
+
+.calendar-service-edit-modal__heading h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.18rem;
+    font-weight: 850;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+}
+
+.calendar-service-edit-modal__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid #dbe5f0;
+    border-radius: 14px;
+    background: #fff;
+    color: #0f172a;
+    cursor: pointer;
+}
+
+.calendar-service-edit-modal__body {
+    display: grid;
+    gap: 14px;
+    padding: 20px;
+    overflow-y: auto;
+    background: #fff;
+}
+
+.calendar-service-edit-modal__field {
+    display: grid;
+    gap: 6px;
+}
+
+.calendar-service-edit-modal__field > span {
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 760;
+}
+
+.calendar-service-edit-modal__field > input,
+.calendar-service-edit-modal__field > select,
+.calendar-service-edit-modal__price-wrap {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 14px;
+    border: 1px solid #d8e2ee;
+    border-radius: 14px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 600;
+    box-sizing: border-box;
+}
+
+.calendar-service-edit-modal__field > input[readonly] {
+    color: #475569;
+    background: #f8fafc;
+}
+
+.calendar-service-edit-modal__price-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.calendar-service-edit-modal__price-wrap input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    padding: 0;
+    background: transparent;
+    color: #0f172a;
+    font: inherit;
+}
+
+.calendar-service-edit-modal__price-wrap span {
+    flex: none;
+    color: #64748b;
+    font-size: 0.92rem;
+    font-weight: 760;
+}
+
+.calendar-service-edit-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 20px 20px;
+    background: #fff;
+}
+
+.calendar-service-edit-modal__footer .primary {
+    min-height: 46px;
+    padding: 0 20px;
+    border-radius: 14px;
+}
+
+@media (max-width: 720px) {
+    .calendar-edit-session-panel .calendar-service-chain--multi .calendar-service-chain__item-actions {
+        gap: 6px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain--multi .calendar-service-chain__meta-block--space select,
+    .calendar-edit-session-panel .calendar-service-chain__meta--cards select {
+        min-height: 34px !important;
+        padding: 4px 22px 4px 8px !important;
+        font-size: 0.76rem !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+    }
+
+    .calendar-service-chain__reorder-btn,
+    .calendar-service-chain__more-btn,
+    .calendar-service-chain__remove {
+        width: 36px;
+        min-width: 36px;
+        height: 36px;
+        border-radius: 12px;
+    }
+
+    .calendar-service-chain__menu {
+        min-width: 176px;
+    }
+
+    .calendar-service-edit-backdrop {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+
+    .calendar-service-edit-modal {
+        width: 100%;
+        max-width: none;
+        max-height: none;
+        height: 100dvh;
+        border-radius: 0;
+        box-shadow: none;
+        background: #f8fafc;
+    }
+
+    .calendar-service-edit-modal__header {
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 12px;
+        min-height: 76px;
+        padding: 14px 18px;
+        border-bottom: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+    }
+
+    .calendar-service-edit-modal__heading h3 {
+        color: #fff;
+        font-size: 1.2rem;
+    }
+
+    .calendar-service-edit-modal__close {
+        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+    }
+
+    .calendar-service-edit-modal__body {
+        padding: 16px;
+        background: #f8fafc;
+    }
+
+    .calendar-service-edit-modal__field > input,
+    .calendar-service-edit-modal__field > select,
+    .calendar-service-edit-modal__price-wrap {
+        min-height: 48px;
+        border-radius: 16px;
+    }
+
+    .calendar-service-edit-modal__footer {
+        padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+        background: #f8fafc;
+    }
+
+    .calendar-service-edit-modal__footer .primary {
+        width: 100%;
+        min-height: 50px;
+        border-radius: 16px;
+    }
+}

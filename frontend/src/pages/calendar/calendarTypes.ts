@@ -7,6 +7,10 @@ export type CalendarServiceDraft = {
   spaceId: number | null
   /** Existing child-row id, when editing a persisted booking. */
   id?: number | null
+  /** Optional duration override for this specific booked service. */
+  durationMinutesOverride?: number | null
+  /** Optional gross-price override for this specific booked service. */
+  grossPriceOverride?: number | null
 }
 
 export type CalendarServiceSegment = CalendarServiceDraft & {

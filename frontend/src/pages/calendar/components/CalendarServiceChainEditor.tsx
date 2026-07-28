@@ -37,8 +37,8 @@ function labels(locale: string) {
       moveUp: 'Premakni navzgor',
       moveDown: 'Premakni navzdol',
       change: 'Zamenjaj storitev',
+      edit: 'Uredi storitev',
       remove: 'Odstrani storitev',
-      auto: 'Čas do se izračuna samodejno glede na izbrane storitve.',
       one: '1 storitev',
       many: '{count} storitve',
       choose: 'Izberite storitev',
@@ -49,6 +49,10 @@ function labels(locale: string) {
       close: 'Zapri',
       addAction: 'Izberi',
       searchPlaceholder: 'Išči storitev ...',
+      saveChanges: 'Shrani spremembe',
+      serviceName: 'Ime storitve',
+      editServiceTitle: 'Uredi storitev',
+      reorder: 'Premakni storitev',
     }
   }
   if (locale === 'sr') {
@@ -65,8 +69,8 @@ function labels(locale: string) {
       moveUp: 'Pomeri nagore',
       moveDown: 'Pomeri nadole',
       change: 'Zameni uslugu',
+      edit: 'Uredi uslugu',
       remove: 'Ukloni uslugu',
-      auto: 'Vreme završetka se automatski računa prema izabranim uslugama.',
       one: '1 usluga',
       many: '{count} usluge',
       choose: 'Izaberite uslugu',
@@ -77,6 +81,10 @@ function labels(locale: string) {
       close: 'Zatvori',
       addAction: 'Izaberi',
       searchPlaceholder: 'Pretraži uslugu ...',
+      saveChanges: 'Sačuvaj izmene',
+      serviceName: 'Naziv usluge',
+      editServiceTitle: 'Uredi uslugu',
+      reorder: 'Pomeri uslugu',
     }
   }
   return {
@@ -92,8 +100,8 @@ function labels(locale: string) {
     moveUp: 'Move up',
     moveDown: 'Move down',
     change: 'Change service',
+    edit: 'Edit service',
     remove: 'Remove service',
-    auto: 'End time is calculated automatically from the selected services.',
     one: '1 service',
     many: '{count} services',
     choose: 'Select service',
@@ -104,6 +112,10 @@ function labels(locale: string) {
     close: 'Close',
     addAction: 'Select',
     searchPlaceholder: 'Search services ...',
+    saveChanges: 'Save changes',
+    serviceName: 'Service name',
+    editServiceTitle: 'Edit service',
+    reorder: 'Reorder service',
   }
 }
 
@@ -157,6 +169,32 @@ function SearchIcon() {
   )
 }
 
+function ReorderIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 5l-3 3 3 3M15 19l3-3-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.5 8h11M17.5 16h-11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PencilIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 20l3.4-.7 10-10a2 2 0 0 0-2.8-2.8l-10 10L4 20Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m13.5 6.5 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function SwapIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3-3m-3 3 3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function CalendarServiceChainEditor({
   locale,
   services,
@@ -171,6 +209,7 @@ export function CalendarServiceChainEditor({
   onChange,
   defaultSpaceId = null,
   multipleServicesEnabled = false,
+  allowServiceEdit = true,
 }: {
   locale: string
   services: CalendarServiceDraft[]
@@ -185,12 +224,17 @@ export function CalendarServiceChainEditor({
   onChange: (next: CalendarServiceDraft[]) => void
   defaultSpaceId?: number | null
   multipleServicesEnabled?: boolean
+  allowServiceEdit?: boolean
 }) {
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerReplaceIndex, setPickerReplaceIndex] = useState<number | null>(null)
   const [pickerQuery, setPickerQuery] = useState('')
   const [menuIndex, setMenuIndex] = useState<number | null>(null)
+  const [reorderMenuIndex, setReorderMenuIndex] = useState<number | null>(null)
+  const [editingServiceIndex, setEditingServiceIndex] = useState<number | null>(null)
+  const [editingServiceDuration, setEditingServiceDuration] = useState('60')
+  const [editingServicePrice, setEditingServicePrice] = useState('0,00')
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
@@ -232,6 +276,14 @@ export function CalendarServiceChainEditor({
     return sortedSessionTypes.filter((entry) => serviceName(entry, locale).toLocaleLowerCase(locale).includes(query))
   }, [locale, pickerQuery, sortedSessionTypes])
 
+  const durationOptions = useMemo(() => {
+    const items: Array<{ value: string; label: string }> = []
+    for (let minutes = 5; minutes <= 720; minutes += 5) {
+      items.push({ value: String(minutes), label: formatMinutes(minutes, locale) })
+    }
+    return items
+  }, [locale])
+
   const updateAt = (index: number, patch: Partial<CalendarServiceDraft>) => {
     onChange(services.map((service, idx) => (idx === index ? { ...service, ...patch } : service)))
   }
@@ -240,6 +292,7 @@ export function CalendarServiceChainEditor({
     const next = services.filter((_, idx) => idx !== index)
     onChange(next.length > 0 ? next : [{ typeId: null, spaceId: defaultSpaceId ?? null }])
     setMenuIndex(null)
+    setReorderMenuIndex(null)
   }
 
   const move = (index: number, direction: -1 | 1) => {
@@ -250,6 +303,7 @@ export function CalendarServiceChainEditor({
     next.splice(target, 0, row)
     onChange(next)
     setMenuIndex(null)
+    setReorderMenuIndex(null)
   }
 
   const openAddPicker = () => {
@@ -257,6 +311,7 @@ export function CalendarServiceChainEditor({
     setPickerReplaceIndex(null)
     setPickerQuery('')
     setMenuIndex(null)
+    setReorderMenuIndex(null)
     setPickerOpen(true)
   }
 
@@ -264,6 +319,7 @@ export function CalendarServiceChainEditor({
     setPickerReplaceIndex(index)
     setPickerQuery('')
     setMenuIndex(null)
+    setReorderMenuIndex(null)
     setPickerOpen(true)
   }
 
@@ -300,6 +356,37 @@ export function CalendarServiceChainEditor({
     setPickerOpen(false)
   }
 
+  const openEditService = (index: number) => {
+    const service = services[index]
+    const segment = segments[index]
+    const type = sessionTypes.find((entry) => Number(entry?.id) === Number(service?.typeId))
+    const duration = Math.max(
+      1,
+      Number(service?.durationMinutesOverride ?? segment?.durationMinutes ?? type?.durationMinutes ?? 60) || 60,
+    )
+    const price = Number(service?.grossPriceOverride ?? segment?.grossPrice ?? 0) || 0
+    setEditingServiceIndex(index)
+    setEditingServiceDuration(String(duration))
+    setEditingServicePrice(price.toFixed(2).replace('.', ','))
+    setMenuIndex(null)
+    setReorderMenuIndex(null)
+  }
+
+  const closeEditService = () => {
+    setEditingServiceIndex(null)
+  }
+
+  const saveEditService = () => {
+    if (editingServiceIndex == null) return
+    const durationMinutesOverride = Math.max(1, Number(editingServiceDuration) || 60)
+    const normalizedPrice = Number(String(editingServicePrice || '0').replace(',', '.'))
+    updateAt(editingServiceIndex, {
+      durationMinutesOverride,
+      grossPriceOverride: Number.isFinite(normalizedPrice) ? Math.max(0, normalizedPrice) : 0,
+    })
+    setEditingServiceIndex(null)
+  }
+
   return (
     <>
       <section className={`calendar-service-chain ${isMultiMode ? 'calendar-service-chain--multi' : 'calendar-service-chain--single'}`} aria-label={isMultiMode ? copy.services : copy.service}>
@@ -327,30 +414,52 @@ export function CalendarServiceChainEditor({
               {services.filter((service) => service.typeId != null).map((service, index) => {
                 const segment = segments[index]
                 const type = sessionTypes.find((entry) => Number(entry?.id) === Number(service.typeId))
+                const typedServicesCount = services.filter((entry) => entry.typeId != null).length
                 return (
                   <article className="calendar-service-chain__item" key={`${service.id ?? 'new'}-${index}`}>
                     <div className="calendar-service-chain__body">
                       <div className="calendar-service-chain__card-top">
                         <div className="calendar-service-chain__title-block">
                           <strong className="calendar-service-chain__title">{serviceName(type, locale)}</strong>
-                          <span className="calendar-service-chain__duration-pill"><ClockIcon /> {formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</span>
                         </div>
                         <div className="calendar-service-chain__item-actions">
+                          <div className="calendar-service-chain__menu-wrap">
+                            <button
+                              type="button"
+                              className="calendar-service-chain__icon-btn calendar-service-chain__reorder-btn"
+                              aria-label={copy.reorder}
+                              title={copy.reorder}
+                              onClick={() => {
+                                setReorderMenuIndex((current) => (current === index ? null : index))
+                                setMenuIndex(null)
+                              }}
+                            >
+                              <ReorderIcon />
+                            </button>
+                            {reorderMenuIndex === index ? (
+                              <div className="calendar-service-chain__menu calendar-service-chain__menu--compact">
+                                <button type="button" disabled={index === 0} onClick={() => move(index, -1)}>{copy.moveUp}</button>
+                                <button type="button" disabled={index === typedServicesCount - 1} onClick={() => move(index, 1)}>{copy.moveDown}</button>
+                              </div>
+                            ) : null}
+                          </div>
                           <div className="calendar-service-chain__menu-wrap">
                             <button
                               type="button"
                               className="calendar-service-chain__icon-btn calendar-service-chain__more-btn"
                               aria-label={copy.change}
                               title={copy.change}
-                              onClick={() => setMenuIndex((current) => (current === index ? null : index))}
+                              onClick={() => {
+                                setMenuIndex((current) => (current === index ? null : index))
+                                setReorderMenuIndex(null)
+                              }}
                             >
                               <MoreIcon />
                             </button>
                             {menuIndex === index ? (
                               <div className="calendar-service-chain__menu">
-                                <button type="button" onClick={() => openReplacePicker(index)}>{copy.change}</button>
-                                <button type="button" disabled={index === 0} onClick={() => move(index, -1)}>{copy.moveUp}</button>
-                                <button type="button" disabled={index === services.filter((entry) => entry.typeId != null).length - 1} onClick={() => move(index, 1)}>{copy.moveDown}</button>
+                                {allowServiceEdit ? <button type="button" onClick={() => openEditService(index)}><PencilIcon /> {copy.edit}</button> : null}
+                                <button type="button" onClick={() => openReplacePicker(index)}><SwapIcon /> {copy.change}</button>
                               </div>
                             ) : null}
                           </div>
@@ -368,8 +477,10 @@ export function CalendarServiceChainEditor({
                         </label>
                         <div className="calendar-service-chain__metric">
                           <small>{copy.duration}</small>
-                          <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
-                          <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
+                          <div className="calendar-service-chain__duration-line">
+                            <strong>{formatMinutes(segment?.durationMinutes ?? Number(type?.durationMinutes ?? 0), locale)}</strong>
+                            <span className="calendar-service-chain__time">{timePart(segment?.startTime)}–{timePart(segment?.endTime)}</span>
+                          </div>
                         </div>
                         <div className="calendar-service-chain__metric">
                           <small>{copy.price}</small>
@@ -474,6 +585,52 @@ export function CalendarServiceChainEditor({
                   <span className="calendar-service-picker-modal__item-action">{copy.addAction}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editingServiceIndex != null ? (
+        <div className="calendar-service-edit-backdrop" onClick={closeEditService}>
+          <div className="calendar-service-edit-modal" role="dialog" aria-modal="true" aria-label={copy.editServiceTitle} onClick={(event) => event.stopPropagation()}>
+            <div className="calendar-service-edit-modal__header">
+              <button type="button" className="calendar-service-edit-modal__close" onClick={closeEditService} aria-label={copy.close}>
+                <CloseIcon />
+              </button>
+              <div className="calendar-service-edit-modal__heading">
+                <h3>{copy.editServiceTitle}</h3>
+              </div>
+            </div>
+            <div className="calendar-service-edit-modal__body">
+              <label className="calendar-service-edit-modal__field">
+                <span>{copy.serviceName}</span>
+                <input
+                  type="text"
+                  readOnly
+                  value={serviceName(sessionTypes.find((entry) => Number(entry?.id) === Number(services[editingServiceIndex]?.typeId)), locale)}
+                />
+              </label>
+              <label className="calendar-service-edit-modal__field">
+                <span>{copy.duration}</span>
+                <select value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
+                  {durationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label className="calendar-service-edit-modal__field">
+                <span>{copy.price}</span>
+                <div className="calendar-service-edit-modal__price-wrap">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editingServicePrice}
+                    onChange={(event) => setEditingServicePrice(event.target.value)}
+                  />
+                  <span>€</span>
+                </div>
+              </label>
+            </div>
+            <div className="calendar-service-edit-modal__footer">
+              <button type="button" className="primary" onClick={saveEditService}>{copy.saveChanges}</button>
             </div>
           </div>
         </div>

@@ -3375,10 +3375,16 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         spaceId: Number.isInteger(Number(entry?.spaceId ?? entry?.space?.id)) && Number(entry?.spaceId ?? entry?.space?.id) > 0
           ? Number(entry?.spaceId ?? entry?.space?.id)
           : null,
+        durationMinutesOverride: Number.isFinite(Number(entry?.durationMinutesOverride ?? entry?.durationMinutes)) && Number(entry?.durationMinutesOverride ?? entry?.durationMinutes) > 0
+          ? Number(entry?.durationMinutesOverride ?? entry?.durationMinutes)
+          : undefined,
+        grossPriceOverride: Number.isFinite(Number(entry?.grossPriceOverride ?? entry?.grossPrice)) && Number(entry?.grossPriceOverride ?? entry?.grossPrice) >= 0
+          ? Number(entry?.grossPriceOverride ?? entry?.grossPrice)
+          : undefined,
         position: Number.isFinite(Number(entry?.position)) ? Number(entry.position) : Number.MAX_SAFE_INTEGER,
       }))
       .sort((left, right) => left.position - right.position)
-      .map(({ id, typeId, spaceId }) => ({ id, typeId, spaceId }))
+      .map(({ id, typeId, spaceId, durationMinutesOverride, grossPriceOverride }) => ({ id, typeId, spaceId, durationMinutesOverride, grossPriceOverride }))
     if (normalized.length > 0) return normalized
     const typeId = Number.isInteger(Number(fallbackTypeId)) && Number(fallbackTypeId) > 0 ? Number(fallbackTypeId) : null
     const spaceId = Number.isInteger(Number(fallbackSpaceId)) && Number(fallbackSpaceId) > 0 ? Number(fallbackSpaceId) : null
@@ -3413,9 +3419,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     let totalGross = 0
     let hasGross = false
     const segments = drafts.map((draft, position) => {
-      const durationMinutes = draft.typeId == null ? 0 : getTypeDurationMinutes(draft.typeId)
+      const durationMinutes = draft.typeId == null
+        ? 0
+        : Math.max(1, Number(draft.durationMinutesOverride ?? getTypeDurationMinutes(draft.typeId)) || getTypeDurationMinutes(draft.typeId))
       const breakMinutes = draft.typeId == null ? 0 : getTypeBreakMinutes(draft.typeId)
-      const grossPrice = getTypeGrossPrice(draft.typeId)
+      const defaultGrossPrice = getTypeGrossPrice(draft.typeId)
+      const grossPrice = Number.isFinite(Number(draft.grossPriceOverride)) ? Number(draft.grossPriceOverride) : defaultGrossPrice
       const segmentStartMs = cursorMs
       const segmentEndMs = segmentStartMs + durationMinutes * 60_000
       const availabilityEndMs = segmentEndMs + breakMinutes * 60_000
@@ -3473,7 +3482,17 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const bookingServicesPayload = (services: CalendarServiceDraft[] | undefined | null) =>
     normalizeCalendarServiceDrafts(services)
       .filter((service) => service.typeId != null)
-      .map((service, position) => ({ typeId: Number(service.typeId), position, spaceId: service.spaceId ?? null }))
+      .map((service, position) => ({
+        typeId: Number(service.typeId),
+        position,
+        spaceId: service.spaceId ?? null,
+        ...(Number.isFinite(Number(service.durationMinutesOverride)) && Number(service.durationMinutesOverride) > 0
+          ? { durationMinutes: Number(service.durationMinutesOverride) }
+          : {}),
+        ...(Number.isFinite(Number(service.grossPriceOverride)) && Number(service.grossPriceOverride) >= 0
+          ? { grossPrice: Number(service.grossPriceOverride) }
+          : {}),
+      }))
 
   const bookingServicesPayloadForInterval = (
     startTime: string | null | undefined,
