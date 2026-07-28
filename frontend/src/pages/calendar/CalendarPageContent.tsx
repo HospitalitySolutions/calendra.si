@@ -2455,6 +2455,9 @@ export default function CalendarPage({ user }: CalendarPageProps) {
 
     window.addEventListener('resize', syncMeasuredHeight)
     window.addEventListener('scroll', syncMeasuredHeight, { passive: true })
+    // Scroll events do not bubble from element scrollports. Capture them at document level as
+    // a safeguard for tablets / embedded webviews where the calendar can still scroll inside <main>.
+    document.addEventListener('scroll', syncMeasuredHeight, { passive: true, capture: true })
     window.visualViewport?.addEventListener('resize', syncMeasuredHeight)
     window.visualViewport?.addEventListener('scroll', syncMeasuredHeight)
 
@@ -2463,6 +2466,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncMeasuredHeight)
       window.removeEventListener('scroll', syncMeasuredHeight)
+      document.removeEventListener('scroll', syncMeasuredHeight, true)
       window.visualViewport?.removeEventListener('resize', syncMeasuredHeight)
       window.visualViewport?.removeEventListener('scroll', syncMeasuredHeight)
       clearMobileFixedState()

@@ -348,8 +348,13 @@
      * same sticky top value. CalendarPageContent measures the real fallback height and exposes
      * it here; the native space/staff row then sticks immediately below the date row.
      */
-    .calendar-fc-shell--resource-day-fallback-layout .fc.fc-resourceTimeGridDay-view .fc-scrollgrid-section-header > th,
-    .calendar-fc-shell--resource-day-fallback-layout .fc.fc-resourceTimeGridDay-view .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
+    /*
+     * The view-type class is rendered on FullCalendar's inner view element, not reliably on
+     * the outer `.fc` root. Target the resource day view directly so this second offset applies
+     * in both Space mode and Bookings / Vsi termini (po osebju).
+     */
+    .calendar-fc-shell--resource-day-fallback-layout .fc-resourceTimeGridDay-view .fc-scrollgrid-section-header > th,
+    .calendar-fc-shell--resource-day-fallback-layout .fc-resourceTimeGridDay-view .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
         top: calc(
             var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px)) +
             var(--calendar-resource-day-fallback-height, 0px)
@@ -579,7 +584,7 @@
      * The React fallback already sits before FullCalendar in the DOM, so keep it visible and remove
      * only FullCalendar's duplicate date row when Scheduler renders that row below the resources.
      */
-    .calendar-fc-shell--resource-day-fallback-layout .fc.fc-resourceTimeGridDay-view .fc-col-header tr:has(.fc-day-header-stack) {
+    .calendar-fc-shell--resource-day-fallback-layout .fc-resourceTimeGridDay-view .fc-col-header tr:has(.fc-day-header-stack) {
         display: none;
     }
 
