@@ -1063,7 +1063,11 @@ export function ConfigurationPage() {
     useState<GuestBookingRulesForm>(defaultGuestBookingRules);
   const [websiteSettings, setWebsiteSettings] =
     useState<WebsiteWidgetSettingsForm>(defaultWebsiteWidgetSettings);
+  const [websiteSettingsCommitted, setWebsiteSettingsCommitted] =
+    useState<WebsiteWidgetSettingsForm>(defaultWebsiteWidgetSettings);
   const [websiteBookingRules, setWebsiteBookingRules] =
+    useState<WebsiteBookingRulesForm>(defaultWebsiteBookingRules);
+  const [websiteBookingRulesCommitted, setWebsiteBookingRulesCommitted] =
     useState<WebsiteBookingRulesForm>(defaultWebsiteBookingRules);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null);
@@ -2976,7 +2980,9 @@ export function ConfigurationPage() {
     }
     setGuestBookingRules(nextGuestBookingRules);
     setWebsiteSettings(nextWebsiteSettings);
+    setWebsiteSettingsCommitted(nextWebsiteSettings);
     setWebsiteBookingRules(nextWebsiteBookingRules);
+    setWebsiteBookingRulesCommitted(nextWebsiteBookingRules);
     setPersonalTaskPresets(
       parsePersonalTaskPresets(settingsData[PERSONAL_TASK_PRESETS_KEY]),
     );
@@ -3956,13 +3962,15 @@ export function ConfigurationPage() {
       );
       const nextWebsiteSettings =
         normalizeWebsiteSettingsForPaymentLocation(persistedSettings);
-      setWebsiteSettings(nextWebsiteSettings);
-      setWebsiteBookingRules(
+      const nextWebsiteBookingRules =
         normalizeWebsiteBookingRulesForPaymentLocation(
           persistedRules,
           nextWebsiteSettings.paymentOnLocation,
-        ),
-      );
+        );
+      setWebsiteSettings(nextWebsiteSettings);
+      setWebsiteSettingsCommitted(nextWebsiteSettings);
+      setWebsiteBookingRules(nextWebsiteBookingRules);
+      setWebsiteBookingRulesCommitted(nextWebsiteBookingRules);
       setSettings({
         ...payload,
         ...data,
@@ -4570,6 +4578,33 @@ export function ConfigurationPage() {
     paymentGlobalCapabilities.paypalEnabled,
     stripePaymentsAvailableCommitted,
     visibleGuestPaymentMethodOptions,
+  ]);
+
+  const websiteConfigurationDirty = useMemo(() => {
+    const currentSettings = JSON.stringify(
+      normalizeWebsiteSettingsForPaymentLocation(websiteSettings),
+    );
+    const committedSettings = JSON.stringify(
+      normalizeWebsiteSettingsForPaymentLocation(websiteSettingsCommitted),
+    );
+    const currentRules = JSON.stringify(
+      normalizeWebsiteBookingRulesForPaymentLocation(
+        websiteBookingRules,
+        websiteSettings.paymentOnLocation,
+      ),
+    );
+    const committedRules = JSON.stringify(
+      normalizeWebsiteBookingRulesForPaymentLocation(
+        websiteBookingRulesCommitted,
+        websiteSettingsCommitted.paymentOnLocation,
+      ),
+    );
+    return currentSettings !== committedSettings || currentRules !== committedRules;
+  }, [
+    websiteBookingRules,
+    websiteBookingRulesCommitted,
+    websiteSettings,
+    websiteSettingsCommitted,
   ]);
 
   const toggleGuestPaymentMethod = (id: GuestPaymentMethodId) => {
@@ -5591,7 +5626,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : isCompactConfigViewport
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5651,7 +5686,7 @@ export function ConfigurationPage() {
         ) : (
           <>
             {isCompactConfigViewport ? (
-              tab === "integrations" || tab === "company" || tab === "booking" || tab === "notifications" || tab === "modules" ? null : (
+              tab === "integrations" || tab === "company" || tab === "booking" || tab === "notifications" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -13251,39 +13286,11 @@ export function ConfigurationPage() {
               overflow: visible;
             }
             .website-settings-card button { font-family: inherit; }
-            .website-settings-card .gapp-subtabs {
-              display: flex;
-              align-items: center;
-              gap: 10px;
-              flex-wrap: wrap;
-              margin: 20px 0 10px;
-              padding: 0;
-              border-bottom: 1px solid #edf2f7;
+            .website-settings-card .website-mobile-titlebar {
+              display: none;
             }
-            .website-settings-card .gapp-subtab {
-              position: relative;
-              appearance: none;
-              border: 0;
-              background: transparent;
-              color: #334155;
-              font-weight: 700;
-              font-size: 15px;
-              padding: 10px 14px;
-              cursor: pointer;
-              border-radius: 10px;
-              box-shadow: none;
-              outline: none;
-              transition: color .18s ease, background .18s ease, box-shadow .18s ease;
-            }
-            .website-settings-card .gapp-subtab:hover { color: #0f172a; background: #f8fafc; }
-            .website-settings-card .gapp-subtab.active {
-              color: #2563eb;
-              background: #eaf2ff;
-              box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16), 0 3px 10px rgba(37, 99, 235, 0.18);
-            }
-            .website-settings-card .gapp-subtab.active::after { content: none; }
             .website-settings-card .gapp-panel {
-              margin-top: 12px;
+              margin-top: 0;
               border: 1px solid rgba(203, 213, 225, 0.86);
               border-radius: 22px;
               background: #fff;
@@ -13295,22 +13302,6 @@ export function ConfigurationPage() {
               display: grid;
               grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
               gap: 38px 70px;
-            }
-            .website-settings-card .gapp-column { display: grid; gap: 22px; align-content: start; }
-            .website-settings-card .gapp-field { display: grid; gap: 8px; }
-            .website-settings-card .gapp-label {
-              display: block;
-              font-size: 14px;
-              font-weight: 800;
-              color: var(--gapp-text);
-              line-height: 1.2;
-            }
-            .website-settings-card .gapp-hint {
-              display: block;
-              margin-top: 0;
-              color: var(--gapp-muted);
-              font-size: 12.5px;
-              line-height: 1.45;
             }
             .website-settings-card .gapp-section-heading { margin: 0 0 20px; }
             .website-settings-card .gapp-section-heading h3 { margin: 0 0 6px; font-size: 19px; line-height: 1.2; color: var(--gapp-text); letter-spacing: 0; font-weight: 800; }
@@ -13361,7 +13352,21 @@ export function ConfigurationPage() {
               justify-content: space-between;
               gap: 12px;
             }
+            .website-settings-card .gapp-label {
+              display: block;
+              font-size: 14px;
+              font-weight: 800;
+              color: var(--gapp-text);
+              line-height: 1.2;
+            }
             .website-settings-card .gapp-toggle-head .gapp-label { margin-top: 2px; }
+            .website-settings-card .gapp-hint {
+              display: block;
+              margin-top: 0;
+              color: var(--gapp-muted);
+              font-size: 12.5px;
+              line-height: 1.45;
+            }
             .website-settings-card .gapp-switch {
               position: relative;
               display: inline-flex;
@@ -13399,30 +13404,6 @@ export function ConfigurationPage() {
               transition: transform .18s ease;
             }
             .website-settings-card .gapp-switch.active .gapp-switch-knob { transform: translateX(34px); }
-            .website-settings-card .gapp-segmented {
-              display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              overflow: hidden;
-              border: 1px solid var(--gapp-line);
-              border-radius: 11px;
-              background: #f8fafc;
-              min-height: 42px;
-            }
-            .website-settings-card .gapp-segmented button {
-              appearance: none;
-              border: 0;
-              background: transparent;
-              color: #334155;
-              font-size: 14px;
-              font-weight: 800;
-              cursor: pointer;
-              transition: background .18s ease, color .18s ease, box-shadow .18s ease;
-            }
-            .website-settings-card .gapp-segmented button.active {
-              background: var(--gapp-blue);
-              color: #fff;
-              box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
-            }
             .website-settings-card .gapp-field.gapp-deposit-field { margin-top: 12px; }
             .website-settings-card .gapp-deposit-input-wrap { position: relative; display: flex; align-items: center; }
             .website-settings-card .gapp-deposit-input {
@@ -13451,15 +13432,8 @@ export function ConfigurationPage() {
               right: 10px;
               top: 50%;
               transform: translateY(-50%);
-              min-width: 24px;
-              height: 24px;
-              border-radius: 999px;
-              display: grid;
-              place-items: center;
-              padding: 0 7px;
-              background: #e7efff;
               color: #1d4ed8;
-              font-size: 12px;
+              font-size: 14px;
               font-weight: 900;
               pointer-events: none;
             }
@@ -13484,151 +13458,321 @@ export function ConfigurationPage() {
             }
             .website-settings-card .gapp-primary-button:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); }
             .website-settings-card .gapp-primary-button:disabled { opacity: .62; cursor: not-allowed; transform: none; }
+            .website-settings-card .website-mobile-savebar { display: none; }
             @media (max-width: 980px) {
-              .website-settings-card { padding: 24px; }
+              .website-settings-card {
+                width: 100%;
+                padding: 0 0 calc(96px + env(safe-area-inset-bottom, 0px));
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+              }
+              .website-settings-card .website-mobile-titlebar {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 100vw;
+                margin-left: calc(50% - 50vw);
+                margin-right: calc(50% - 50vw);
+                margin-top: -16px;
+                min-height: 72px;
+                padding: 16px 18px;
+                background: linear-gradient(180deg, #1f79ff 0%, #1565ee 100%);
+                color: #fff;
+                box-shadow: 0 2px 0 rgba(255,255,255,.12) inset;
+                text-align: center;
+              }
+              .website-settings-card .website-mobile-titlebar h2 {
+                margin: 0;
+                font-size: 18px;
+                line-height: 1.2;
+                font-weight: 800;
+                color: inherit;
+              }
+              .website-settings-card .gapp-panel {
+                margin-top: 0;
+                width: 100vw;
+                margin-left: calc(50% - 50vw);
+                margin-right: calc(50% - 50vw);
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                padding: 16px 0 0;
+                box-shadow: none;
+              }
               .website-settings-card .gapp-grid,
               .website-settings-card .gapp-form-grid,
-              .website-settings-card .gapp-payment-layout { grid-template-columns: 1fr; }
-              .website-settings-card .gapp-payment-toggle-row { grid-template-columns: 1fr; }
-              .website-settings-card .gapp-subtabs { gap: 18px; overflow-x: auto; }
-              .website-settings-card .gapp-panel { padding: 22px; }
+              .website-settings-card .gapp-payment-layout { grid-template-columns: 1fr; gap: 0; }
+              .website-settings-card .gapp-pane {
+                width: 100%;
+                min-width: 0;
+                padding: 0 16px;
+              }
+              .website-settings-card .gapp-section-shell {
+                border: 1px solid rgba(203, 213, 225, 0.92);
+                border-radius: 26px;
+                background: rgba(255,255,255,.98);
+                box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+                padding: 18px 16px 18px;
+              }
+              .website-settings-card .gapp-section-heading {
+                margin-bottom: 18px;
+              }
+              .website-settings-card .gapp-section-heading h3 {
+                font-size: 28px;
+                line-height: 1.08;
+                font-weight: 900;
+                letter-spacing: -0.03em;
+              }
+              .website-settings-card .gapp-section-heading p {
+                font-size: 15px;
+                line-height: 1.5;
+                max-width: none;
+              }
+              .website-settings-card .gapp-payment-list {
+                gap: 12px;
+                margin-bottom: 14px;
+              }
+              .website-settings-card .gapp-payment-row {
+                grid-template-columns: 48px minmax(0, 1fr) auto;
+                gap: 14px;
+                min-height: 78px;
+                padding: 14px 14px;
+                border-radius: 18px;
+              }
+              .website-settings-card .gapp-payment-icon {
+                width: 44px;
+                height: 44px;
+                border-radius: 13px;
+                background: #f4f8ff;
+              }
+              .website-settings-card .gapp-payment-row strong {
+                font-size: 17px;
+                line-height: 1.25;
+              }
+              .website-settings-card .gapp-payment-toggle-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                margin-top: 0;
+              }
+              .website-settings-card .gapp-payment-toggle-card {
+                padding: 16px;
+                border-radius: 18px;
+                box-shadow: none;
+                background: #fff;
+              }
+              .website-settings-card .gapp-toggle-head {
+                align-items: flex-start;
+              }
+              .website-settings-card .gapp-label {
+                font-size: 17px;
+                line-height: 1.25;
+              }
+              .website-settings-card .gapp-hint {
+                font-size: 15px;
+                line-height: 1.5;
+                margin-top: 10px;
+              }
+              .website-settings-card .gapp-field.gapp-deposit-field { margin-top: 14px; }
+              .website-settings-card .gapp-deposit-input {
+                min-height: 50px;
+                border-radius: 15px;
+                font-size: 17px;
+                padding: 12px 42px 12px 14px;
+              }
+              .website-settings-card .gapp-savebar {
+                display: none;
+              }
+              .website-settings-card .website-mobile-savebar {
+                display: flex;
+                position: fixed;
+                left: max(12px, env(safe-area-inset-left, 0px) + 12px);
+                right: max(12px, env(safe-area-inset-right, 0px) + 12px);
+                bottom: max(12px, env(safe-area-inset-bottom, 0px) + 8px);
+                z-index: 80;
+                pointer-events: none;
+              }
+              .website-settings-card .website-mobile-savebar .gapp-primary-button {
+                width: 100%;
+                min-height: 58px;
+                border-radius: 18px;
+                font-size: 18px;
+                font-weight: 900;
+                pointer-events: auto;
+              }
+            }
+            @media (max-width: 680px) {
+              .website-settings-card .website-mobile-titlebar {
+                min-height: 68px;
+                padding: 14px 16px;
+              }
+              .website-settings-card .website-mobile-titlebar h2 {
+                font-size: 17px;
+              }
+              .website-settings-card .gapp-pane {
+                padding: 0 12px;
+              }
+              .website-settings-card .gapp-section-shell {
+                border-radius: 22px;
+                padding: 16px 14px 16px;
+              }
+              .website-settings-card .gapp-section-heading h3 {
+                font-size: 24px;
+              }
+              .website-settings-card .gapp-section-heading p,
+              .website-settings-card .gapp-hint {
+                font-size: 14px;
+              }
+              .website-settings-card .gapp-payment-row {
+                min-height: 72px;
+                padding: 12px 12px;
+              }
+              .website-settings-card .gapp-payment-row strong,
+              .website-settings-card .gapp-label {
+                font-size: 16px;
+              }
             }
           `}</style>
+                  <div className="website-mobile-titlebar">
+                    <h2>Spletni vtičnik</h2>
+                  </div>
                   <div className="gapp-panel">
-                    <>
-                        <div className="gapp-grid gapp-payment-layout">
-                          <div className="gapp-pane">
-                            <div className="gapp-section-heading">
-                              <h3>Sprejeti načini plačila</h3>
-                              <p>
-                                Izberite, katere načine plačila želite omogočiti
-                                gostom v booking widgetu na spletni strani.
-                              </p>
-                            </div>
-                            <div className="gapp-payment-list">
-                              {visibleGuestPaymentMethodOptions.map(
-                                (method) => (
-                                  <div
-                                    className="gapp-payment-row"
-                                    key={method.id}
-                                  >
-                                    <span className="gapp-payment-icon">
-                                      <GuestPaymentMethodIcon
-                                        kind={method.id}
-                                      />
-                                    </span>
-                                    <strong>{method.label}</strong>
-                                    <GuestSwitch
-                                      checked={
-                                        !websiteSettings.paymentOnLocation &&
-                                        websiteSettings.acceptedPaymentMethodIds.includes(
-                                          method.id,
-                                        )
-                                      }
-                                      onChange={() =>
-                                        toggleWebsitePaymentMethod(method.id)
-                                      }
-                                      disabled={
-                                        websiteSettings.paymentOnLocation
-                                      }
-                                    />
-                                  </div>
-                                ),
-                              )}
-                            </div>
-                            <div className="gapp-payment-toggle-row">
-                              <div className="gapp-payment-toggle-card">
-                                <div className="gapp-toggle-head">
-                                  <span className="gapp-label">
-                                    Delno plačilo
-                                  </span>
-                                  <GuestSwitch
-                                    checked={
-                                      !websiteSettings.paymentOnLocation &&
-                                      websiteBookingRules.paymentRequirement ===
-                                        "deposit"
+                    <div className="gapp-grid gapp-payment-layout">
+                      <div className="gapp-pane">
+                        <div className="gapp-section-shell">
+                          <div className="gapp-section-heading">
+                            <h3>Sprejeti načini plačila</h3>
+                            <p>
+                              Izberite, katere načine plačila želite omogočiti
+                              gostom v booking widgetu na spletni strani.
+                            </p>
+                          </div>
+                          <div className="gapp-payment-list">
+                            {visibleGuestPaymentMethodOptions.map((method) => (
+                              <div className="gapp-payment-row" key={method.id}>
+                                <span className="gapp-payment-icon">
+                                  <GuestPaymentMethodIcon kind={method.id} />
+                                </span>
+                                <strong>{method.label}</strong>
+                                <GuestSwitch
+                                  checked={
+                                    !websiteSettings.paymentOnLocation &&
+                                    websiteSettings.acceptedPaymentMethodIds.includes(
+                                      method.id,
+                                    )
+                                  }
+                                  onChange={() =>
+                                    toggleWebsitePaymentMethod(method.id)
+                                  }
+                                  disabled={websiteSettings.paymentOnLocation}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="gapp-payment-toggle-row">
+                            <div className="gapp-payment-toggle-card">
+                              <div className="gapp-toggle-head">
+                                <span className="gapp-label">Delno plačilo</span>
+                                <GuestSwitch
+                                  checked={
+                                    !websiteSettings.paymentOnLocation &&
+                                    websiteBookingRules.paymentRequirement ===
+                                      "deposit"
+                                  }
+                                  onChange={(checked) => {
+                                    if (!websiteSettings.paymentOnLocation) {
+                                      setWebsiteBookingRules({
+                                        ...websiteBookingRules,
+                                        paymentRequirement: checked
+                                          ? "deposit"
+                                          : "full",
+                                      });
                                     }
-                                    onChange={(checked) => {
-                                      if (!websiteSettings.paymentOnLocation) {
+                                  }}
+                                  disabled={websiteSettings.paymentOnLocation}
+                                />
+                              </div>
+                              <span className="gapp-hint">
+                                Ko je izklopljeno, se ob spletnem plačilu
+                                samodejno zaračuna polni znesek.
+                              </span>
+                              {!websiteSettings.paymentOnLocation &&
+                              websiteBookingRules.paymentRequirement ===
+                                "deposit" ? (
+                                <GuestField
+                                  className="gapp-deposit-field"
+                                  label="Znesek pologa"
+                                  hint="Odstotek od skupnega zneska, ki ga gost plača ob rezervaciji."
+                                >
+                                  <div className="gapp-deposit-input-wrap">
+                                    <input
+                                      className="gapp-deposit-input"
+                                      value={websiteBookingRules.depositPercent}
+                                      onChange={(e) =>
                                         setWebsiteBookingRules({
                                           ...websiteBookingRules,
-                                          paymentRequirement: checked
-                                            ? "deposit"
-                                            : "full",
-                                        });
+                                          depositPercent: e.target.value.replace(
+                                            /[^0-9]/g,
+                                            "",
+                                          ),
+                                        })
                                       }
-                                    }}
-                                    disabled={websiteSettings.paymentOnLocation}
-                                  />
-                                </div>
-                                <span className="gapp-hint">
-                                  Ko je izklopljeno, se ob spletnem plačilu
-                                  samodejno zaračuna polni znesek.
+                                    />
+                                    <span className="gapp-deposit-input-suffix">
+                                      %
+                                    </span>
+                                  </div>
+                                </GuestField>
+                              ) : null}
+                            </div>
+                            <div className="gapp-payment-toggle-card">
+                              <div className="gapp-toggle-head">
+                                <span className="gapp-label">
+                                  Plačilo na lokaciji
                                 </span>
-                                {!websiteSettings.paymentOnLocation &&
-                                websiteBookingRules.paymentRequirement ===
-                                  "deposit" ? (
-                                  <GuestField
-                                    className="gapp-deposit-field"
-                                    label="Znesek pologa"
-                                    hint="Odstotek od skupnega zneska, ki ga gost plača ob rezervaciji."
-                                  >
-                                    <div className="gapp-deposit-input-wrap">
-                                      <input
-                                        className="gapp-deposit-input"
-                                        value={
-                                          websiteBookingRules.depositPercent
-                                        }
-                                        onChange={(e) =>
-                                          setWebsiteBookingRules({
-                                            ...websiteBookingRules,
-                                            depositPercent:
-                                              e.target.value.replace(
-                                                /[^0-9]/g,
-                                                "",
-                                              ),
-                                          })
-                                        }
-                                      />
-                                      <span className="gapp-deposit-input-suffix">
-                                        %
-                                      </span>
-                                    </div>
-                                  </GuestField>
-                                ) : null}
+                                <GuestSwitch
+                                  checked={websiteSettings.paymentOnLocation}
+                                  onChange={toggleWebsitePaymentOnLocation}
+                                />
                               </div>
-                              <div className="gapp-payment-toggle-card">
-                                <div className="gapp-toggle-head">
-                                  <span className="gapp-label">
-                                    Plačilo na lokaciji
-                                  </span>
-                                  <GuestSwitch
-                                    checked={websiteSettings.paymentOnLocation}
-                                    onChange={toggleWebsitePaymentOnLocation}
-                                  />
-                                </div>
-                                <span className="gapp-hint">
-                                  Ko je vklopljeno, gost rezervira brez
-                                  spletnega plačila in poravna na lokaciji.
-                                </span>
-                              </div>
+                              <span className="gapp-hint">
+                                Ko je vklopljeno, gost rezervira brez spletnega
+                                plačila in poravna na lokaciji.
+                              </span>
                             </div>
                           </div>
+                          <div className="gapp-savebar">
+                            <button
+                              type="button"
+                              className="gapp-primary-button"
+                              onClick={saveWebsiteConfiguration}
+                              disabled={savingSettings}
+                            >
+                              <GuestSaveIcon />
+                              {savingSettings
+                                ? t("formSaving")
+                                : t("configSaveConfiguration")}
+                            </button>
+                          </div>
                         </div>
-                        <div className="gapp-savebar">
-                          <button
-                            type="button"
-                            className="gapp-primary-button"
-                            onClick={saveWebsiteConfiguration}
-                            disabled={savingSettings}
-                          >
-                            <GuestSaveIcon />
-                            {savingSettings
-                              ? t("formSaving")
-                              : t("configSaveConfiguration")}
-                          </button>
-                        </div>
-                    </>
+                      </div>
+                    </div>
+                    {websiteConfigurationDirty ? (
+                      <div className="website-mobile-savebar">
+                        <button
+                          type="button"
+                          className="gapp-primary-button"
+                          onClick={saveWebsiteConfiguration}
+                          disabled={savingSettings}
+                        >
+                          <GuestSaveIcon />
+                          {savingSettings
+                            ? t("formSaving")
+                            : t("configSaveConfiguration")}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </Card>
               ) : tab === "notifications" ? (
@@ -14245,13 +14389,6 @@ export function ConfigurationPage() {
               ) : tab === "modules" && modulesDraftDisplay ? (
                 <Card className="settings-card modules-design-card">
                   <div className="modules-design-shell">
-                    <h2 className="modules-design-mobile-title">
-                      {locale === "sl"
-                        ? "Konfiguracija nastavitev"
-                        : locale === "sr"
-                          ? "Konfiguracija podešavanja"
-                          : "Settings configuration"}
-                    </h2>
                     <div className="modules-design-grid">
                       {[
                         ["booking", "services"],
@@ -14270,7 +14407,6 @@ export function ConfigurationPage() {
                                 group={group}
                                 expandedRows={expandedModuleRows}
                                 onToggleExpanded={toggleExpandedModuleRow}
-                                compactCollapsible={isCompactConfigViewport}
                               />
                             ))}
                         </div>
