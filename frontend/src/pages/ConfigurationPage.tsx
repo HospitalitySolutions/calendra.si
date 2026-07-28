@@ -5667,7 +5667,7 @@ export function ConfigurationPage() {
   const usesMobileTabletDetailLayout =
     isCompactConfigViewport ||
     (isTabletConfigViewport &&
-      ["booking", "billing", "website", "notifications", "customFields", "modules"].includes(
+      ["booking", "billing", "website", "notifications", "customFields", "modules", "deliveryLogs"].includes(
         tab,
       ));
   const showCompactConfigOverview =
@@ -5688,7 +5688,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : usesMobileTabletDetailLayout
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}${tab === "deliveryLogs" ? " config-shell--delivery-logs-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5755,7 +5755,8 @@ export function ConfigurationPage() {
               tab === "website" ||
               tab === "notifications" ||
               tab === "customFields" ||
-              tab === "modules" ? null : (
+              tab === "modules" ||
+              tab === "deliveryLogs" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"

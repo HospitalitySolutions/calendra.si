@@ -2169,7 +2169,8 @@ a.config-nav-item {
     .config-shell--detail.config-shell--booking-mobile,
     .config-shell--detail.config-shell--website-mobile,
     .config-shell--detail.config-shell--custom-fields-mobile,
-    .config-shell--detail.config-shell--modules-mobile {
+    .config-shell--detail.config-shell--modules-mobile,
+    .config-shell--detail.config-shell--delivery-logs-mobile {
         width: 100%;
         max-width: none;
         margin: 0;
@@ -2181,7 +2182,8 @@ a.config-nav-item {
     .config-shell--booking-mobile .config-content,
     .config-shell--website-mobile .config-content,
     .config-shell--custom-fields-mobile .config-content,
-    .config-shell--modules-mobile .config-content {
+    .config-shell--modules-mobile .config-content,
+    .config-shell--delivery-logs-mobile .config-content {
         width: 100%;
         max-width: none;
         min-width: 0;
