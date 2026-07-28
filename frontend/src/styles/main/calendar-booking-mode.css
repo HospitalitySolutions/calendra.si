@@ -9809,8 +9809,9 @@
 /* --------------------------------------------------------------------------
    Mobile Dodaj/Uredi termin refinements.
    - show only the service description in the mobile service selector
-   - keep the original service action button size and bring the buttons together
-   - give time and date controls equal width and typography
+   - keep Edit / Add service buttons on separate fixed tracks
+   - make Čas od / Čas do shorter so Datum gets more space
+   - keep mobile time/date typography compact and consistent
    - hide the complete service-chain conflict notice on mobile
    -------------------------------------------------------------------------- */
 .calendar-edit-session-panel .calendar-service-chain__single-select--mobile {
@@ -9829,25 +9830,47 @@
     .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit,
     .calendar-service-chain__single-row--with-edit {
         grid-template-columns: minmax(0, 1fr) 48px 48px !important;
-        column-gap: 0 !important;
+        align-items: center !important;
+        column-gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-select-wrap,
+    .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-select-wrap {
+        min-width: 0 !important;
+        width: 100% !important;
+        overflow: hidden !important;
     }
 
     .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit,
-    .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit {
-        margin-left: 8px !important;
-    }
-
+    .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit,
     .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__head-add,
-    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit {
+    .calendar-service-chain__single-row--with-edit .calendar-service-chain__head-add {
+        margin-left: 0 !important;
         width: 48px !important;
         min-width: 48px !important;
         max-width: 48px !important;
         height: 48px !important;
         min-height: 48px !important;
+        flex: 0 0 48px !important;
+        justify-self: stretch !important;
     }
 
     .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
-        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 0.84fr) minmax(0, 0.84fr) minmax(0, 1.32fr) !important;
+        align-items: end !important;
+        column-gap: 8px !important;
+        row-gap: 8px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) .calendar-timespan-field:not(.calendar-timespan-field--date) {
+        flex: initial !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) .calendar-timespan-field--date {
+        flex: initial !important;
+        min-width: 0 !important;
     }
 
     .calendar-edit-session-panel .calendar-timespan-field,
@@ -9868,6 +9891,11 @@
         font-size: 0.84rem !important;
         line-height: 1.2 !important;
         font-weight: 650 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"] {
+        font-size: 0.84rem !important;
+        letter-spacing: 0 !important;
     }
 
     .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"]::-webkit-date-and-time-value,

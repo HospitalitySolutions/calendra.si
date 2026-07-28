@@ -403,8 +403,7 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
     }
 
     window.requestAnimationFrame(() => {
-      hourInputRef.current?.focus()
-      hourInputRef.current?.select()
+      dialogRef.current?.focus()
     })
 
     return () => {
