@@ -1377,7 +1377,7 @@ a.config-nav-item {
 }
 
 /* Mobile and tablet App settings accordion. */
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
     .config-shell--modules-mobile {
         padding: 18px;
     }
@@ -1394,6 +1394,7 @@ a.config-nav-item {
 
     .config-shell--modules-mobile .modules-design-shell {
         gap: 14px;
+        padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     }
 
     .config-shell--modules-mobile .modules-design-mobile-title {
@@ -1594,7 +1595,15 @@ a.config-nav-item {
     }
 
     .config-shell--modules-mobile .modules-design-card .gapp-savebar {
-        margin-top: 2px;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 90;
+        display: flex;
+        margin: 0;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+        background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.95) 24%, #ffffff 100%);
     }
 
     .config-shell--modules-mobile .modules-design-card .gapp-savebar .gapp-primary-button {
@@ -1606,7 +1615,7 @@ a.config-nav-item {
     }
 }
 
-@media (min-width: 640px) and (max-width: 920px) {
+@media (min-width: 640px) and (max-width: 1024px) {
     .config-shell--modules-mobile .modules-design-settings-panel {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2142,6 +2151,45 @@ a.config-nav-item {
   }
 }
 
+
+/* Compact configuration detail pages that use the blue app header as their title row. */
+@media (max-width: 1024px) {
+    .main-area--configuration-detail-white {
+        background: #ffffff;
+    }
+
+    .main-area--configuration-detail-white > .content.content--configuration-detail-white {
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .config-shell--detail.config-shell--booking-mobile,
+    .config-shell--detail.config-shell--website-mobile,
+    .config-shell--detail.config-shell--custom-fields-mobile,
+    .config-shell--detail.config-shell--modules-mobile {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .config-shell--booking-mobile .config-content,
+    .config-shell--website-mobile .config-content,
+    .config-shell--custom-fields-mobile .config-content,
+    .config-shell--modules-mobile .config-content {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+    }
+}
 
 /* Obvestila: compact full-bleed layout. The blue channel tabs touch the blue app header. */
 @media (max-width: 1024px) {

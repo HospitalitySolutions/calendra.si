@@ -1141,6 +1141,11 @@ export function ConfigurationPage() {
       ? window.matchMedia("(max-width: 920px)").matches
       : false,
   );
+  const [isTabletConfigViewport, setIsTabletConfigViewport] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 1024px)").matches
+      : false,
+  );
   const [isMobileBillingViewport, setIsMobileBillingViewport] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia(`(max-width: ${BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH}px)`).matches
@@ -2262,6 +2267,19 @@ export function ConfigurationPage() {
   }, []);
 
   useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    )
+      return;
+    const mq = window.matchMedia("(max-width: 1024px)");
+    const syncTabletViewport = () => setIsTabletConfigViewport(mq.matches);
+    syncTabletViewport();
+    mq.addEventListener("change", syncTabletViewport);
+    return () => mq.removeEventListener("change", syncTabletViewport);
+  }, []);
+
+  useEffect(() => {
     if (companyProfilesInitialized || Object.keys(settings).length === 0)
       return;
     const profiles = loadCompanyProfilesFromSettings(settings);
@@ -3107,12 +3125,23 @@ export function ConfigurationPage() {
     });
   }, [query, navigate, showToast]);
 
+  const committedModulesDraft = useMemo(
+    () => buildModulesDraftFromCommitted(settings, guestAppSettings),
+    [settings, guestAppSettings],
+  );
+
   const modulesDraftDisplay = useMemo(() => {
     if (tab !== "modules") return null;
-    return (
-      modulesDraft ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-    );
-  }, [tab, modulesDraft, settings, guestAppSettings]);
+    return modulesDraft ?? committedModulesDraft;
+  }, [tab, modulesDraft, committedModulesDraft]);
+
+  const modulesDraftDirty = useMemo(
+    () =>
+      tab === "modules" &&
+      modulesDraft !== null &&
+      JSON.stringify(modulesDraft) !== JSON.stringify(committedModulesDraft),
+    [tab, modulesDraft, committedModulesDraft],
+  );
 
   const configNavItems = useMemo((): ConfigNavItem[] => {
     const items: ConfigNavItem[] = [
@@ -5573,6 +5602,12 @@ export function ConfigurationPage() {
   }
 
   const tabQuery = query.get("tab");
+  const usesMobileTabletDetailLayout =
+    isCompactConfigViewport ||
+    (isTabletConfigViewport &&
+      ["booking", "website", "notifications", "customFields", "modules"].includes(
+        tab,
+      ));
   const showCompactConfigOverview =
     isCompactConfigViewport && !isConfigTab(tabQuery);
   const getConfigTabLabel = useCallback(
@@ -5587,11 +5622,11 @@ export function ConfigurationPage() {
   );
   const configDetailTitle = getConfigTabLabel(tab);
   const isCompactNotificationsDetail =
-    isCompactConfigViewport && tab === "notifications";
+    usesMobileTabletDetailLayout && tab === "notifications";
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
-    : isCompactConfigViewport
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
+    : usesMobileTabletDetailLayout
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5650,8 +5685,14 @@ export function ConfigurationPage() {
           </section>
         ) : (
           <>
-            {isCompactConfigViewport ? (
-              tab === "integrations" || tab === "company" || tab === "booking" || tab === "notifications" || tab === "modules" ? null : (
+            {usesMobileTabletDetailLayout ? (
+              tab === "integrations" ||
+              tab === "company" ||
+              tab === "booking" ||
+              tab === "website" ||
+              tab === "notifications" ||
+              tab === "customFields" ||
+              tab === "modules" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -9683,7 +9724,7 @@ export function ConfigurationPage() {
             @media (max-width: 1180px) {
               .booking-spaces-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
             }
-            @media (max-width: 920px) {
+            @media (max-width: 1024px) {
               .booking-modern-shell {
                 width: 100%;
               }
@@ -9760,17 +9801,17 @@ export function ConfigurationPage() {
               .booking-spaces-search {
                 width: 100%;
                 min-width: 0;
-                min-height: 52px;
-                border: 1px solid #d7e1ef;
-                border-radius: 15px;
-                padding: 0 16px;
-                color: #111827;
+                min-height: 44px;
+                border: 1px solid #d7dfeb;
+                border-radius: 10px;
+                padding: 0 12px;
+                color: #172033;
                 background: #fff;
                 font: inherit;
-                font-size: 16px;
+                font-size: 13px;
                 font-weight: 600;
                 outline: none;
-                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+                box-shadow: none;
               }
               .booking-spaces-search::placeholder {
                 color: #8a98ad;
@@ -9784,18 +9825,28 @@ export function ConfigurationPage() {
                 position: relative;
               }
               .booking-spaces-filter-button {
-                min-width: 88px;
-                height: 100%;
-                min-height: 52px;
-                padding: 0 16px;
-                border: 1px solid #d7e1ef;
-                border-radius: 15px;
+                min-width: 90px;
+                height: 44px;
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                padding: 0 14px;
+                border: 1px solid #d7dfeb;
+                border-radius: 10px;
                 color: #172033;
                 background: #fff;
                 font: inherit;
-                font-size: 14px;
-                font-weight: 800;
-                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+                font-size: 13px;
+                font-weight: 750;
+                box-shadow: none;
+                cursor: pointer;
+              }
+              .booking-spaces-filter-button svg {
+                width: 18px;
+                height: 18px;
+                flex: 0 0 auto;
               }
               .booking-spaces-filter-menu {
                 position: absolute;
@@ -9896,7 +9947,7 @@ export function ConfigurationPage() {
               }
               .booking-space-card {
                 width: 100%;
-                min-height: 104px;
+                min-height: 94px;
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) auto;
                 grid-template-rows: auto auto;
@@ -9919,7 +9970,7 @@ export function ConfigurationPage() {
                 margin: 0;
                 min-width: 0;
                 color: #101828;
-                font-size: 19px;
+                font-size: 16px;
                 line-height: 1.2;
                 font-weight: 850;
                 white-space: nowrap;
@@ -9932,7 +9983,7 @@ export function ConfigurationPage() {
                 margin: 0;
                 min-width: 0;
                 color: #66758f;
-                font-size: 14px;
+                font-size: 12px;
                 line-height: 1.35;
                 white-space: nowrap;
                 overflow: hidden;
@@ -9945,7 +9996,7 @@ export function ConfigurationPage() {
                 min-height: 30px;
                 padding: 0 12px;
                 align-self: center;
-                font-size: 12px;
+                font-size: 11px;
               }
               .booking-space-menu-wrap {
                 top: 50%;
@@ -9998,8 +10049,8 @@ export function ConfigurationPage() {
                 gap: 8px;
               }
               .booking-spaces-filter-button {
-                min-width: 76px;
-                padding: 0 12px;
+                min-width: 84px;
+                padding: 0 10px;
               }
               .booking-primary-button--compact {
                 min-height: 52px;
@@ -10007,15 +10058,15 @@ export function ConfigurationPage() {
                 font-size: 16px;
               }
               .booking-space-card {
-                min-height: 98px;
+                min-height: 92px;
                 column-gap: 8px;
                 padding: 16px 48px 16px 16px;
               }
               .booking-space-card h4 {
-                font-size: 18px;
+                font-size: 16px;
               }
               .booking-space-card p {
-                font-size: 13px;
+                font-size: 12px;
               }
               .booking-space-menu-wrap {
                 top: 50%;
@@ -10055,7 +10106,20 @@ export function ConfigurationPage() {
                                 onClick={() => setSpaceFilterOpen((open) => !open)}
                                 aria-expanded={spaceFilterOpen}
                               >
-                                Filtri
+                                <svg
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden
+                                >
+                                  <path d="M4 6h16M7 12h10M10 18h4" />
+                                </svg>
+                                <span>Filtri</span>
                               </button>
                               {spaceFilterOpen ? (
                                 <div className="booking-spaces-filter-menu" role="menu">
@@ -13484,14 +13548,31 @@ export function ConfigurationPage() {
             }
             .website-settings-card .gapp-primary-button:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); }
             .website-settings-card .gapp-primary-button:disabled { opacity: .62; cursor: not-allowed; transform: none; }
-            @media (max-width: 980px) {
-              .website-settings-card { padding: 24px; }
+            @media (max-width: 1024px) {
+              .website-settings-card {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: #ffffff;
+                box-shadow: none;
+              }
               .website-settings-card .gapp-grid,
               .website-settings-card .gapp-form-grid,
               .website-settings-card .gapp-payment-layout { grid-template-columns: 1fr; }
               .website-settings-card .gapp-payment-toggle-row { grid-template-columns: 1fr; }
               .website-settings-card .gapp-subtabs { gap: 18px; overflow-x: auto; }
-              .website-settings-card .gapp-panel { padding: 22px; }
+              .website-settings-card .gapp-panel {
+                width: 100%;
+                margin: 0;
+                padding: 20px 16px calc(96px + env(safe-area-inset-bottom, 0px));
+                border: 0;
+                border-radius: 0;
+                background: #ffffff;
+                box-shadow: none;
+              }
             }
           `}</style>
                   <div className="gapp-panel">
@@ -14245,13 +14326,6 @@ export function ConfigurationPage() {
               ) : tab === "modules" && modulesDraftDisplay ? (
                 <Card className="settings-card modules-design-card">
                   <div className="modules-design-shell">
-                    <h2 className="modules-design-mobile-title">
-                      {locale === "sl"
-                        ? "Konfiguracija nastavitev"
-                        : locale === "sr"
-                          ? "Konfiguracija podešavanja"
-                          : "Settings configuration"}
-                    </h2>
                     <div className="modules-design-grid">
                       {[
                         ["booking", "services"],
@@ -14270,27 +14344,29 @@ export function ConfigurationPage() {
                                 group={group}
                                 expandedRows={expandedModuleRows}
                                 onToggleExpanded={toggleExpandedModuleRow}
-                                compactCollapsible={isCompactConfigViewport}
+                                compactCollapsible={usesMobileTabletDetailLayout}
                               />
                             ))}
                         </div>
                       ))}
                     </div>
-                    <div className="gapp-savebar">
-                      <button
-                        type="button"
-                        className="gapp-primary-button"
-                        onClick={() =>
-                          void saveSettings({ applyModulesDraft: true })
-                        }
-                        disabled={savingSettings}
-                      >
-                        <GuestSaveIcon />
-                        {savingSettings
-                          ? t("formSaving")
-                          : t("configSaveConfiguration")}
-                      </button>
-                    </div>
+                    {(!isTabletConfigViewport || modulesDraftDirty) ? (
+                      <div className="gapp-savebar">
+                        <button
+                          type="button"
+                          className="gapp-primary-button"
+                          onClick={() =>
+                            void saveSettings({ applyModulesDraft: true })
+                          }
+                          disabled={savingSettings}
+                        >
+                          <GuestSaveIcon />
+                          {savingSettings
+                            ? t("formSaving")
+                            : t("configSaveConfiguration")}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </Card>
               ) : null}

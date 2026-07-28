@@ -477,15 +477,18 @@ export function ConfigurationCustomFieldsSection() {
         @media (max-width: 1024px) {
           .custom-fields-settings {
             width: 100%;
-            gap: 16px;
+            gap: 14px;
             padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+            background: #ffffff;
           }
           .custom-fields-mobile-tabs-wrap {
             display: block;
-            width: 100vw;
-            margin-left: calc(50% - 50vw);
-            margin-right: calc(50% - 50vw);
-            margin-top: -16px;
+            position: -webkit-sticky;
+            position: sticky;
+            top: var(--calendar-shell-header-sticky-below, 62px);
+            z-index: 190;
+            width: 100%;
+            margin: -1px 0 0;
             background: linear-gradient(180deg, #1f79ff 0%, #1565ee 100%);
             box-shadow: 0 2px 0 rgba(255,255,255,.12) inset;
           }
@@ -524,6 +527,7 @@ export function ConfigurationCustomFieldsSection() {
             background: rgba(255,255,255,.96);
           }
           .custom-fields-card {
+            width: 100%;
             background: transparent;
             border: 0;
             box-shadow: none;
@@ -531,15 +535,25 @@ export function ConfigurationCustomFieldsSection() {
           }
           .custom-fields-layout {
             grid-template-columns: 1fr;
-            gap: 16px;
+            gap: 14px;
             padding: 0;
           }
-          .custom-fields-list,
-          .custom-fields-form {
-            border-radius: 28px;
+          .custom-fields-list {
+            margin: 0 14px;
+            border-radius: 24px;
             padding: 18px 16px;
-            background: rgba(255,255,255,.98);
-            box-shadow: 0 16px 36px rgba(15, 23, 42, .08);
+            background: #ffffff;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, .07);
+          }
+          .custom-fields-form {
+            width: 100%;
+            margin: 0;
+            border-left: 0;
+            border-right: 0;
+            border-radius: 0;
+            padding: 20px 16px;
+            background: #ffffff;
+            box-shadow: none;
           }
           .custom-fields-row {
             grid-template-columns: 1fr;
@@ -603,9 +617,11 @@ export function ConfigurationCustomFieldsSection() {
             font-size: 16px;
             padding: 16px 8px 14px;
           }
-          .custom-fields-list,
+          .custom-fields-list {
+            border-radius: 22px;
+          }
           .custom-fields-form {
-            border-radius: 24px;
+            border-radius: 0;
           }
           .custom-fields-empty {
             padding: 24px 18px;

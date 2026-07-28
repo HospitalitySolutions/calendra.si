@@ -3257,7 +3257,14 @@ export function ConfigurationNotificationsSection({
               ) : null}
             </section>
           ) : null}
-          <div className="notif-tabs" role="tablist" aria-label="Obvestila">
+          <div
+            className="notif-tabs"
+            role="tablist"
+            aria-label="Obvestila"
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(availableChannels.length, 1)}, minmax(0, 1fr))`,
+            }}
+          >
             {(
               [
                 ["email", "E-pošta"],
