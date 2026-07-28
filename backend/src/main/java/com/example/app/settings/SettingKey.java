@@ -48,6 +48,8 @@ public enum SettingKey {
     SECURITY_PASSKEYS_ENABLED,
     SECURITY_API_INTEGRATIONS_ENABLED,
     SESSION_LENGTH_MINUTES,
+    /** Horizontal calendar grid/label interval in minutes. Supported values: 30 or 60. */
+    CALENDAR_GRID_INTERVAL_MINUTES,
     WORKING_HOURS_START,
     WORKING_HOURS_END,
     PERSONAL_TASK_PRESETS_JSON,

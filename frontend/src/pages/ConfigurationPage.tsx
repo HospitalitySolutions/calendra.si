@@ -238,6 +238,9 @@ const BILLING_MOBILE_HIDDEN_SUBTABS: BillingSubtab[] = [
 const isBillingSubtabHiddenOnMobile = (subtab: BillingSubtab) =>
   BILLING_MOBILE_HIDDEN_SUBTABS.includes(subtab);
 
+const normalizeCalendarGridIntervalMinutes = (value: unknown): "30" | "60" =>
+  String(value || "").trim() === "60" ? "60" : "30";
+
 type ConfigNavIcon =
   | "general"
   | "company"
@@ -1130,6 +1133,10 @@ export function ConfigurationPage() {
   const [paymentCapabilitiesLoaded, setPaymentCapabilitiesLoaded] =
     useState(false);
   const [modulesDraft, setModulesDraft] = useState<ModulesDraft | null>(null);
+  const [calendarGridIntervalMinutes, setCalendarGridIntervalMinutes] =
+    useState<"30" | "60">("30");
+  const [committedCalendarGridIntervalMinutes, setCommittedCalendarGridIntervalMinutes] =
+    useState<"30" | "60">("30");
   const [expandedModuleRows, setExpandedModuleRows] = useState<string[]>(
     DEFAULT_EXPANDED_MODULE_ROWS,
   );
@@ -2860,6 +2867,10 @@ export function ConfigurationPage() {
     } as Record<string, string>),
     );
     const fallback = getWorkingHoursFallback();
+    const loadedCalendarGridIntervalMinutes =
+      normalizeCalendarGridIntervalMinutes(
+        settingsData.CALENDAR_GRID_INTERVAL_MINUTES,
+      );
     const parsedGuestApp = parseGuestAppSettings(
       settingsData[GUEST_APP_SETTINGS_KEY],
     );
@@ -2869,6 +2880,7 @@ export function ConfigurationPage() {
     const nextSettings: Record<string, string> = {
       ...settingsData,
       MODULE_CONFIG_TYPE: unifiedTenantType,
+      CALENDAR_GRID_INTERVAL_MINUTES: loadedCalendarGridIntervalMinutes,
       ...(!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END
         ? fallback
         : {}),
@@ -2907,6 +2919,8 @@ export function ConfigurationPage() {
         nextWebsiteSettings.paymentOnLocation,
       );
     setSettings(nextSettings);
+    setCalendarGridIntervalMinutes(loadedCalendarGridIntervalMinutes);
+    setCommittedCalendarGridIntervalMinutes(loadedCalendarGridIntervalMinutes);
     setSubscriptionBillingInterval(
       String(
         nextSettings.BILLING_SUBSCRIPTION_INTERVAL || "MONTHLY",
@@ -3142,6 +3156,10 @@ export function ConfigurationPage() {
       JSON.stringify(modulesDraft) !== JSON.stringify(committedModulesDraft),
     [tab, modulesDraft, committedModulesDraft],
   );
+  const modulesValueSettingsDirty =
+    tab === "modules" &&
+    calendarGridIntervalMinutes !== committedCalendarGridIntervalMinutes;
+  const modulesSettingsDirty = modulesDraftDirty || modulesValueSettingsDirty;
 
   const configNavItems = useMemo((): ConfigNavItem[] => {
     const items: ConfigNavItem[] = [
@@ -3204,6 +3222,8 @@ export function ConfigurationPage() {
         settings.WORKING_HOURS_END,
         "23:00",
       );
+      const normalizedCalendarGridIntervalMinutes =
+        normalizeCalendarGridIntervalMinutes(calendarGridIntervalMinutes);
       let effectiveSettings = settings;
       let effectiveGuestApp = guestAppSettings;
       let effectiveWebsiteSettings = websiteSettings;
@@ -3409,6 +3429,8 @@ export function ConfigurationPage() {
 
       const payload = {
         ...effectiveSettings,
+        CALENDAR_GRID_INTERVAL_MINUTES:
+          normalizedCalendarGridIntervalMinutes,
         WORKING_HOURS_START: normalizedStart,
         WORKING_HOURS_END: normalizedEnd,
         [PERSONAL_TASK_PRESETS_KEY]:
@@ -3446,6 +3468,14 @@ export function ConfigurationPage() {
         [PERSONAL_TASK_PRESETS_KEY]: String(persistedPresetsRaw || ""),
       };
       setSettings(merged);
+      const persistedCalendarGridIntervalMinutes =
+        normalizeCalendarGridIntervalMinutes(
+          merged.CALENDAR_GRID_INTERVAL_MINUTES,
+        );
+      setCalendarGridIntervalMinutes(persistedCalendarGridIntervalMinutes);
+      setCommittedCalendarGridIntervalMinutes(
+        persistedCalendarGridIntervalMinutes,
+      );
       setGuestAppSettings(
         parseGuestAppSettings(merged[GUEST_APP_SETTINGS_KEY]),
       );
@@ -5204,6 +5234,39 @@ export function ConfigurationPage() {
               }
               ariaLabel={locale === "sl" ? "Koledar do" : "Calendar to"}
             />
+          ),
+        },
+        {
+          id: "booking-calendar-grid-interval",
+          icon: "calendar",
+          title:
+            locale === "sl"
+              ? "Razmik črt koledarja"
+              : "Calendar line interval",
+          subtitle:
+            locale === "sl"
+              ? "Izberi razmik med vodoravnimi črtami v dnevnem in tedenskem pogledu."
+              : "Choose the spacing between horizontal lines in day and week views.",
+          valueControl: (
+            <select
+              className="modules-design-inline-control modules-design-select-control"
+              value={calendarGridIntervalMinutes}
+              onChange={(event) =>
+                setCalendarGridIntervalMinutes(
+                  normalizeCalendarGridIntervalMinutes(event.target.value),
+                )
+              }
+              aria-label={
+                locale === "sl"
+                  ? "Razmik črt koledarja"
+                  : "Calendar line interval"
+              }
+            >
+              <option value="30">30 min</option>
+              <option value="60">
+                {locale === "sl" ? "1 ura" : "1 hour"}
+              </option>
+            </select>
           ),
         },
       ],
@@ -14350,7 +14413,7 @@ export function ConfigurationPage() {
                         </div>
                       ))}
                     </div>
-                    {(!isTabletConfigViewport || modulesDraftDirty) ? (
+                    {(!isTabletConfigViewport || modulesSettingsDirty) ? (
                       <div className="gapp-savebar">
                         <button
                           type="button"
