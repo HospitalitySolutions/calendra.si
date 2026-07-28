@@ -9228,9 +9228,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
       {detailOpenBill && (() => {
         const detailItems = getOpenBillItems(detailOpenBill)
-        const detailNet = estimateNet(detailItems)
-        const detailTax = estimateTax(detailItems)
-        const detailGross = detailNet + detailTax
         const detailSessionLabel = formatOpenBillSession(detailOpenBill.sessionInfo)
         const detailIncludedSessions = getOpenBillIncludedSessions(detailOpenBill)
         const activeExpandedSessionId = detailIncludedSessions.some((session) => session.sessionId === expandedBatchSessionId)
@@ -9257,6 +9254,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailActionItems = detailOnePayeeForAll
           ? detailBaseRelatedOpenBills.flatMap((entry) => getOpenBillItems(entry))
           : getOpenBillItems(detailActionOpenBill)
+        const detailSubtotalGross = estimateGross(detailActionItems)
+        const detailDiscountDraft = getOpenBillDiscountDraft(detailActionOpenBill)
+        const detailDiscountedItems = applyDiscountToItemsForVat(detailActionItems, detailDiscountDraft)
+        const detailVatRows = vatBreakdownRowsForItems(detailDiscountedItems)
+        const detailDiscountGross = calculateDiscountGross(detailSubtotalGross, detailDiscountDraft, detailActionItems)
+        const detailGross = payableGrossAfterDiscount(detailSubtotalGross, detailDiscountDraft, detailActionItems)
         const detailActionGross = detailOnePayeeForAll
           ? Number(detailBaseRelatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0).toFixed(2))
           : openBillPayableGross(detailActionOpenBill)
