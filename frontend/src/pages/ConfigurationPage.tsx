@@ -14034,12 +14034,7 @@ export function ConfigurationPage() {
                             }
                             onClick={() => setIntegrationSubtabAndUrl(entry.id)}
                           >
-                            <span className="billing-subtab-content">
-                              <span className="billing-subtab-icon" aria-hidden>
-                                <BillingTopTabIcon subtab={entry.id} />
-                              </span>
-                              <span>{entry.label}</span>
-                            </span>
+                            {entry.label}
                           </button>
                         ))}
                       </div>
