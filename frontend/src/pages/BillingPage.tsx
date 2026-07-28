@@ -6396,7 +6396,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? currency(discountValueNumber(lineDraft))
       : `${discountValueNumber(lineDraft)}%`
     return (
-      <div key={index} className={`billing-invoice-item-row${billForm.billType === 'ADVANCE' ? ' billing-invoice-item-row--advance' : ''}`}>
+      <div key={index} className="billing-invoice-item-row billing-invoice-item-row--advance billing-invoice-item-row--compact-create">
         <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
         <div className="billing-bill-modal-field billing-bill-modal-field--service">
           <select
@@ -6450,6 +6450,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <button
             type="button"
             className={`billing-invoice-discount-mini${lineDiscountActive ? ' is-active' : ''}${lineDiscountOpen ? ' is-open' : ''}`}
+            data-mobile-label={lineDiscountButtonLabel}
             onClick={(event) => {
               event.stopPropagation()
               setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index)
@@ -6481,7 +6482,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
     return (
-      <section className={`billing-invoice-payment-card${billForm.billType === 'ADVANCE' ? ' billing-invoice-payment-card--advance' : ''}`}>
+      <section className="billing-invoice-payment-card billing-invoice-payment-card--advance billing-invoice-payment-card--compact-create">
         <div className="billing-invoice-section-title-row">
           <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
           <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
@@ -9210,11 +9211,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
       {editorOnlyMode && !detailOpenBill && (
         <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" role="presentation">
-          <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-bill-modal billing-open-detail-panel--loading">
+          <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-open-detail-panel--invoice-editor billing-bill-modal billing-open-detail-panel--loading">
             <div className="billing-bill-modal-header">
               <div>
                 <div className="billing-bill-modal-title-row">
-                  <h2>{locale === 'sl' ? 'Uredi račun' : 'Edit invoice'}</h2>
+                  <h2>{locale === 'sl' ? 'Uredi odprti račun' : 'Edit open bill'}</h2>
                   <span className="billing-bill-modal-status billing-bill-modal-status--open">{locale === 'sl' ? 'Odprto' : 'Open'}</span>
                 </div>
                 <p>{locale === 'sl' ? 'Nalaganje podatkov računa…' : 'Loading bill data…'}</p>
@@ -9297,11 +9298,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailSummaryItems = useOnePayeeForAllBills ? detailItems.length : detailItems.length
         return (
           <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" onMouseDown={onDetailOpenBillBackdropMouseDown} role="presentation">
-            <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-open-detail-panel--invoice-editor billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
               <div className="billing-bill-modal-header">
                 <div>
                   <div className="billing-bill-modal-title-row">
-                    <h2>{locale === 'sl' ? 'Uredi račun' : 'Edit Invoice'}</h2>
+                    <h2>{locale === 'sl' ? 'Uredi odprti račun' : 'Edit open bill'}</h2>
                     <span className="billing-bill-modal-status billing-bill-modal-status--open">{locale === 'sl' ? 'Odprto' : 'Open'}</span>
                   </div>
                   <p>{openBillEditorSubtitle(detailOpenBill)}</p>
@@ -9351,7 +9352,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
               {renderModernOpenBillEditor(detailOpenBill)}
 
-              <div className="billing-bill-modal-footer">
+              <div className="billing-bill-modal-footer billing-bill-modal-footer--open-edit">
+                <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer billing-invoice-totals-card--edit-footer" aria-label={locale === 'sl' ? 'Povzetek odprtega računa' : 'Open bill summary'}>
+                  <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(detailSubtotalGross)}</strong></div>
+                  {detailVatRows.map((row) => (
+                    <div key={row.key} className="billing-bill-modal-summary-line">
+                      <span>{row.label}</span>
+                      <strong>{currency(row.taxTotal)}</strong>
+                    </div>
+                  ))}
+                  {detailDiscountGross > 0.005 && (
+                    <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(detailDiscountGross)}</strong></div>
+                  )}
+                  <div className="billing-bill-modal-summary-divider" />
+                  <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(detailGross)}</strong></div>
+                </section>
                 <button type="button" className="billing-bill-modal-delete" onClick={() => deleteOpenBill(detailOpenBill)} disabled={deletingOpenId === detailOpenBill.id}>
                   🗑 {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
                 </button>
@@ -9367,7 +9382,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </button>
                   {renderOpenBillPreviewChoicePopover(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
                 </div>
-                <div className="billing-bill-modal-footer-actions">
+                <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-open-edit">
                   <button
                     type="button"
                     className="billing-bill-modal-save-btn"
@@ -9390,6 +9405,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         {locale === 'sl' ? 'Zaključi račun' : 'Close invoice'}
                       </>
                     )}
+                  </button>
+                </div>
+                <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--mobile-open-edit">
+                  <button
+                    type="button"
+                    className="billing-bill-modal-save-btn"
+                    onClick={() => void printOpenBillInvoicePreview(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                    disabled={printingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                  >
+                    {printingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni' : 'Print')}
+                  </button>
+                  <button
+                    type="button"
+                    className="billing-bill-modal-primary-action"
+                    onClick={() => void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)}
+                    disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}
+                  >
+                    {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
                   </button>
                 </div>
               </div>
@@ -9434,7 +9467,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       : undefined)
         return (
           <div className={`modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop${isCreateAdvanceBill ? ' billing-bill-modal-backdrop--advance-create' : ''}`} onMouseDown={onCreateBillBackdropMouseDown} role="presentation">
-            <div className={`modal large-modal booking-side-panel billing-create-panel billing-bill-modal${isCreateAdvanceBill ? ' billing-create-panel--advance' : ''}`} onMouseDown={(e) => e.stopPropagation()}>
+            <div className={`modal large-modal booking-side-panel billing-create-panel billing-bill-modal${isCreateAdvanceBill ? ' billing-create-panel--advance' : ' billing-create-panel--open'}`} onMouseDown={(e) => e.stopPropagation()}>
               <div className="billing-bill-modal-header">
                 {isCreateAdvanceBill && (
                   <button
@@ -9456,7 +9489,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" className="billing-bill-modal-close" onClick={closeCreateBillModal} aria-label="Close">×</button>
               </div>
 
-              <div className={`billing-invoice-modern-body billing-invoice-modern-body--create${isCreateAdvanceBill ? ' billing-invoice-modern-body--advance-create' : ''}`}>
+              <div className={`billing-invoice-modern-body billing-invoice-modern-body--create billing-invoice-modern-body--advance-create${isCreateAdvanceBill ? '' : ' billing-invoice-modern-body--open-create'}`}>
                 <section className="billing-invoice-management-card">
                   <div className={`billing-invoice-management-head billing-invoice-management-head--create${!isCreateAdvanceBill ? ' billing-invoice-management-head--create-open' : ''}`}>
                     <div>
@@ -9516,14 +9549,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
                     </div>
                     {(!isCreateAdvanceBill || billForm.items.length > 0) && (
-                      <div className={`billing-invoice-table-head${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
+                      <div className="billing-invoice-table-head billing-invoice-table-head--advance billing-invoice-table-head--compact-create" aria-hidden>
                         <span />
                         <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
                         <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
                         <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
                         <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
-                        <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Popust' : 'Discount') : ''}</span>
-                        <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Akcije' : 'Actions') : ''}</span>
+                        <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
+                        <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
                       </div>
                     )}
                     <div className="billing-invoice-item-list">
@@ -9604,7 +9637,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 {renderCreateBillPayeeDialog()}
               </div>
 
-              <div className={`billing-bill-modal-footer${isCreateAdvanceBill && mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
+              <div className={`billing-bill-modal-footer${mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
                 {isCreateAdvanceBill && (
                   <section className="billing-invoice-totals-card billing-invoice-totals-card--advance-footer" aria-label={locale === 'sl' ? 'Povzetek predplačila' : 'Advance summary'}>
                     <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
@@ -9621,7 +9654,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
                   </section>
                 )}
-                <div className="billing-bill-modal-footer-actions">
+                {!isCreateAdvanceBill && (
+                  <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer" aria-label={locale === 'sl' ? 'Povzetek odprtega računa' : 'Open bill summary'}>
+                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
+                    {createVatRows.map((row) => (
+                      <div key={row.key} className="billing-bill-modal-summary-line">
+                        <span>{row.label}</span>
+                        <strong>{currency(row.taxTotal)}</strong>
+                      </div>
+                    ))}
+                    {createBillDiscountGross > 0.005 && (
+                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
+                    )}
+                    <div className="billing-bill-modal-summary-divider" />
+                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
+                  </section>
+                )}
+                <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-create">
                   {!isCreateAdvanceBill && (
                     <button
                       type="button"
@@ -9666,6 +9715,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     )}
                   </button>
                 </div>
+                {!isCreateAdvanceBill && (
+                  <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--mobile-open-create">
+                    <button
+                      type="button"
+                      className="billing-bill-modal-save-btn"
+                      onClick={() => void createAndCloseManualOpenBill('print')}
+                      disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueOpenInvoice}
+                      title={createCloseTooltip}
+                    >
+                      {creatingBill ? billingCopy.creating : (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')}
+                    </button>
+                    <button
+                      type="button"
+                      className="billing-bill-modal-primary-action"
+                      onClick={() => void createManualOpenBillFromCreateBillForm()}
+                      disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
+                      title={createCloseTooltip}
+                    >
+                      {creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
