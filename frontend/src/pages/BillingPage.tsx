@@ -6248,7 +6248,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const billDiscountDraft = getOpenBillDiscountDraft(rowBill)
     const lineState = calculateDiscountedLineStates(billItems, billDiscountDraft)[idx]
     const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
-    const displayedUnitGross = Number((displayedLineGross / Math.max(1, Number(item.quantity || 1))).toFixed(2))
+    // Keep the editable Cena column tied to the original unit gross price.
+    // Item-level discounts only change the calculated Skupaj column.
+    const displayedUnitGross = Number(item.grossPrice || 0)
     const lineDraft = getLineItemDiscount(billDiscountDraft, idx)
     const lineDiscountActive = discountValueNumber(lineDraft) > 0
     const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === rowBill.id && openOpenBillItemDiscount.index === idx
@@ -7607,9 +7609,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </span>
               <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
               <span>{locale === 'sl' ? 'Klient' : 'Client'}</span>
-              <span>{locale === 'sl' ? 'Količina' : 'Qty'}</span>
+              <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
               <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
-              <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
+              <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
               <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
               <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
             </div>
