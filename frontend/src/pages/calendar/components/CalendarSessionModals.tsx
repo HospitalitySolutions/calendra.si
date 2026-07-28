@@ -2258,7 +2258,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
             className={[useBookingSidePanel ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}` : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--booked', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle(true)}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (mobileBookingDetailsOpen) {
+                setMobileBookingDetailsOpen(false)
+                setMobileBillingActionsOpen(null)
+              }
+            }}
           >
             <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
               {compactSessionEditHeader ? (
@@ -2449,10 +2455,91 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 )
               ) : (
-                <PageHeader
-                  title={t('formBookedSession')}
-                  actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeBookedModal} aria-label={t('mobileNavClose')}>×</button>}
-                />
+                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--desktop-session-edit">
+                  <button
+                    type="button"
+                    className="secondary booking-side-panel-close"
+                    onClick={closeBookedModal}
+                    aria-label={t('mobileNavClose')}
+                  >
+                    ×
+                  </button>
+                  <h1 className="calendar-desktop-session-header__title">{t('formBookedSession')}</h1>
+                  <div className="calendar-desktop-session-actions">
+                    <button
+                      type="button"
+                      className="calendar-desktop-session-actions__toggle"
+                      aria-label={locale === 'sl' ? 'Več dejanj' : 'More actions'}
+                      aria-haspopup="menu"
+                      aria-expanded={mobileBookingDetailsOpen}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setMobileBillingActionsOpen(null)
+                        setMobileBookingDetailsOpen((open) => !open)
+                      }}
+                    >
+                      <span aria-hidden>⋮</span>
+                    </button>
+                    {mobileBookingDetailsOpen && (
+                      <div
+                        className="calendar-desktop-session-actions__menu"
+                        role="menu"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {advanceBillingEnabled && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="calendar-desktop-session-actions__item calendar-desktop-session-actions__item--advance"
+                            disabled={bookedPaymentActionButtonsDisabled}
+                            onClick={() => {
+                              setMobileBookingDetailsOpen(false)
+                              openBookedAdvanceForm()
+                            }}
+                          >
+                            <span className="calendar-desktop-session-actions__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
+                            <span>{locale === 'sl' ? 'Predplačilo' : 'Advance'}</span>
+                          </button>
+                        )}
+                        {canShowOpenBillForBookedStatus && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="calendar-desktop-session-actions__item calendar-desktop-session-actions__item--invoice"
+                            disabled={bookedPaymentActionButtonsDisabled}
+                            onClick={() => {
+                              setMobileBookingDetailsOpen(false)
+                              void openBookedInvoiceEditor()
+                            }}
+                          >
+                            <span className="calendar-desktop-session-actions__icon" aria-hidden>
+                              <svg viewBox="0 0 24 24" fill="none">
+                                <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
+                              </svg>
+                            </span>
+                            <span>{locale === 'sl' ? 'Račun' : 'Invoice'}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="calendar-desktop-session-actions__item calendar-desktop-session-actions__item--scanner"
+                          disabled={bookingServiceScanDisabled}
+                          onClick={() => {
+                            if (bookingServiceScanDisabled) return
+                            setMobileBookingDetailsOpen(false)
+                            openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
+                          }}
+                        >
+                          <span className="calendar-desktop-session-actions__icon" aria-hidden><BookedEntitlementScanIcon /></span>
+                          <span>{locale === 'sl' ? 'Skener' : 'Scanner'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
             <div className="booking-side-panel-body">
@@ -2786,7 +2873,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     multipleServicesEnabled={multipleServicesEnabled}
                     allowServiceEdit={!bookedBillingHasExistingOpenBill}
                   />
-                  <div className="calendar-booking-service-chain__billing-actions">
+                  <div className="calendar-booking-service-chain__billing-actions calendar-booking-service-chain__billing-actions--relocated-desktop">
                     <div className="calendar-session-billing-actions">
                       {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
                       <div className="calendar-session-billing-action-wrap">

@@ -9409,3 +9409,148 @@
         border-radius: 16px !important;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Desktop Uredi termin header actions.
+   Close stays on the left; billing/scanner actions live in the top-right menu.
+   -------------------------------------------------------------------------- */
+@media (min-width: 1025px) {
+    .calendar-edit-session-panel--booked .booking-side-panel-header {
+        overflow: visible !important;
+    }
+
+    .calendar-edit-session-panel--booked .booking-side-panel-header-toolbar--desktop-session-edit {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr) 46px;
+        align-items: center;
+        gap: 18px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-header__title {
+        min-width: 0;
+        margin: 0;
+        color: #0f172a;
+        font-size: clamp(2rem, 2.5vw, 2.35rem);
+        line-height: 1.1;
+        letter-spacing: -0.05em;
+        font-weight: 860;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions {
+        position: relative;
+        display: inline-flex;
+        justify-self: end;
+        align-items: center;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        min-width: 46px;
+        height: 46px;
+        min-height: 46px;
+        padding: 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: none;
+        cursor: pointer;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__toggle > span {
+        display: block;
+        margin-top: -3px;
+        font-size: 1.7rem;
+        line-height: 1;
+        letter-spacing: 1px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__toggle:hover,
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__toggle:focus-visible,
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__toggle[aria-expanded="true"] {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+        outline: none;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__menu {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: 0;
+        z-index: 10150;
+        width: 220px;
+        padding: 8px;
+        display: grid;
+        gap: 3px;
+        border: 1px solid #dbe4ef;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__item {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr);
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        min-height: 48px;
+        padding: 9px 12px;
+        border: 0;
+        border-radius: 11px;
+        background: transparent;
+        color: #0f172a;
+        font-size: 0.96rem;
+        line-height: 1.2;
+        font-weight: 760;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__item:hover:not(:disabled),
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__item:focus-visible:not(:disabled) {
+        background: #f4f7fb;
+        outline: none;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__item:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        color: #2563eb;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__item--advance .calendar-desktop-session-actions__icon {
+        color: #7c3aed;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__item--invoice .calendar-desktop-session-actions__icon {
+        color: #16a34a;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-desktop-session-actions__icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-booking-service-chain__billing-actions--relocated-desktop {
+        display: none !important;
+    }
+}
+
+/* Keep Add service directly beside Edit service whenever both actions exist. */
+.calendar-service-chain__single-row--with-edit {
+    grid-template-columns: minmax(0, 1fr) 48px 48px;
+}
