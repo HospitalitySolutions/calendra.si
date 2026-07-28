@@ -410,6 +410,18 @@ export function CalendarRailIconFilters({
 
   if (!showConsultant && !showSpace) return null
 
+  const consultantValueLabel =
+    consultantFilterId == null
+      ? t('calendarFilterByStaffColumns')
+      : consultantFilterId === CONSULTANT_FILTER_ALL_SESSION
+        ? t('calendarFilterAllSessionsMerged')
+        : fullName(consultantUsers.find((u) => u.id === consultantFilterId) ?? { firstName: '', lastName: '—' })
+
+  const spaceValueLabel =
+    spaceFilterId == null
+      ? t('calendarSpaceFilterAllLocations')
+      : spaces.find((s) => s.id === spaceFilterId)?.name ?? t('calendarSpaceFilterAllLocations')
+
   const portalPanel = open
     ? createPortal(
         <div
@@ -499,7 +511,7 @@ export function CalendarRailIconFilters({
 
   const rootClass =
     layout === 'footer'
-      ? 'calendar-header-filters calendar-header-filters--footer-icon'
+      ? 'calendar-header-filters calendar-header-filters--footer-icon calendar-header-filters--footer-dropdowns'
       : 'calendar-header-filters calendar-header-filters--header-icons'
 
   return (
@@ -510,14 +522,22 @@ export function CalendarRailIconFilters({
           <button
             ref={consultantBtnRef}
             type="button"
-            className={`calendar-header-mode-btn calendar-rail-filter-popup-trigger${open === 'consultant' ? ' active' : ''}`}
+            className={`calendar-header-mode-btn calendar-rail-filter-popup-trigger${layout === 'footer' ? ' calendar-rail-filter-popup-trigger--footer-dropdown' : ''}${open === 'consultant' ? ' active' : ''}`}
             aria-expanded={open === 'consultant'}
             aria-haspopup="listbox"
-            aria-label={t('calendarConsultant')}
-            title={t('calendarConsultant')}
+            aria-label={layout === 'footer' ? `${t('calendarConsultant')}: ${consultantValueLabel}` : t('calendarConsultant')}
+            title={layout === 'footer' ? consultantValueLabel : t('calendarConsultant')}
             onClick={() => toggle('consultant')}
           >
             <IconFilterConsultant />
+            {layout === 'footer' ? (
+              <>
+                <span className="calendar-rail-filter-popup-trigger__label">{consultantValueLabel}</span>
+                <svg className="calendar-rail-filter-popup-trigger__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </>
+            ) : null}
           </button>
         </div>
       )}
@@ -526,14 +546,22 @@ export function CalendarRailIconFilters({
           <button
             ref={spaceBtnRef}
             type="button"
-            className={`calendar-header-mode-btn calendar-rail-filter-popup-trigger${open === 'space' ? ' active' : ''}`}
+            className={`calendar-header-mode-btn calendar-rail-filter-popup-trigger${layout === 'footer' ? ' calendar-rail-filter-popup-trigger--footer-dropdown' : ''}${open === 'space' ? ' active' : ''}`}
             aria-expanded={open === 'space'}
             aria-haspopup="listbox"
-            aria-label={t('calendarSpace')}
-            title={t('calendarSpace')}
+            aria-label={layout === 'footer' ? `${t('calendarSpace')}: ${spaceValueLabel}` : t('calendarSpace')}
+            title={layout === 'footer' ? spaceValueLabel : t('calendarSpace')}
             onClick={() => toggle('space')}
           >
             <IconFilterSpace />
+            {layout === 'footer' ? (
+              <>
+                <span className="calendar-rail-filter-popup-trigger__label">{spaceValueLabel}</span>
+                <svg className="calendar-rail-filter-popup-trigger__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </>
+            ) : null}
           </button>
         </div>
       )}

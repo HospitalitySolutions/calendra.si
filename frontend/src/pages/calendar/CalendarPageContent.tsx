@@ -10774,16 +10774,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       .sort((a, b) => (a.start?.getTime() || 0) - (b.start?.getTime() || 0))
   }, [events])
 
-  const bottomPillLabel = useMemo(() => {
+  const sessionCountLabel = useMemo(() => {
+    const count = todayRemainingSessions.length
+    const sessionsWord =
+      locale === 'sl' ? slovenianTerminCountForm(count) : count === 1 ? 'session' : 'sessions'
+    return `${count} ${sessionsWord}`
+  }, [locale, todayRemainingSessions.length])
+
+  const todaySessionsTitle = useMemo(() => {
     const useTodayWord = calendarFiltersBottomBar || isNativeAndroid
     const dateLabel = useTodayWord
       ? t('calendarToday')
       : new Date().toLocaleDateString(calendarLocaleTag, { day: 'numeric', month: 'short' })
-    const count = todayRemainingSessions.length
-    const sessionsWord =
-      locale === 'sl' ? slovenianTerminCountForm(count) : count === 1 ? 'session' : 'sessions'
-    return `${dateLabel} · ${count} ${sessionsWord}`
-  }, [calendarFiltersBottomBar, calendarLocaleTag, isNativeAndroid, locale, t, todayRemainingSessions.length])
+    return `${dateLabel} · ${sessionCountLabel}`
+  }, [calendarFiltersBottomBar, calendarLocaleTag, isNativeAndroid, sessionCountLabel, t])
 
   const openSessionsSheet = useCallback(() => {
     setSessionsSheetTab('today')
@@ -12909,7 +12913,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             </div>
             <div className="calendar-bottom-panel__center" style={{ gap: 12 }}>
               <button type="button" className="calendar-bottom-panel-pill calendar-bottom-panel-pill--button" onClick={openSessionsSheet}>
-                {bottomPillLabel}
+                {sessionCountLabel}
               </button>
             </div>
             <div className="calendar-bottom-panel__end">
@@ -13323,7 +13327,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             </div>
             <div className="calendar-android-filter-footer-center">
               <button type="button" className="calendar-bottom-panel-pill calendar-bottom-panel-pill--button calendar-bottom-panel-pill--android" onClick={openSessionsSheet}>
-                {bottomPillLabel}
+                {sessionCountLabel}
               </button>
             </div>
             <div className="calendar-android-filter-footer-right">
@@ -13483,7 +13487,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             </div>
             <div className="calendar-sessions-sheet-content">
               <div className="calendar-sessions-sheet-title">
-                {sessionsSheetTab === 'today' ? bottomPillLabel : unassignedSheetTitle}
+                {sessionsSheetTab === 'today' ? todaySessionsTitle : unassignedSheetTitle}
               </div>
               <div className="calendar-sessions-sheet-list">
                 {sessionsSheetTab === 'today' ? (
