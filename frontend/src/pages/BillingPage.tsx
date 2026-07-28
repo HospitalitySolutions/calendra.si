@@ -1231,6 +1231,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [isOpenBillsMobile, setIsOpenBillsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false,
   )
+  const [isBillingMobileOrTablet, setIsBillingMobileOrTablet] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
+  )
 
   const load = async () => {
     const [settingsRes, servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
@@ -1623,6 +1626,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 760px)')
     const apply = () => setIsOpenBillsMobile(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1024px)')
+    const apply = () => setIsBillingMobileOrTablet(mq.matches)
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
@@ -6479,6 +6490,46 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
+  const renderBillingNewClientEditableField = (
+    key: 'firstName' | 'lastName' | 'email' | 'phone',
+    label: string,
+    wide = false,
+    inputType: 'text' | 'email' | 'tel' = 'text',
+  ) => {
+    const required = key === 'firstName' || key === 'lastName'
+    const value = key === 'firstName'
+      ? newClientFirstName
+      : key === 'lastName'
+        ? newClientLastName
+        : key === 'email'
+          ? newClientEmail
+          : newClientPhone
+    const updateValue = (nextValue: string) => {
+      if (key === 'firstName') setNewClientFirstName(nextValue)
+      else if (key === 'lastName') setNewClientLastName(nextValue)
+      else if (key === 'email') setNewClientEmail(nextValue)
+      else setNewClientPhone(nextValue)
+    }
+
+    return (
+      <label className={`clients-detail-field-card clients-create-field${wide ? ' clients-detail-field-card--wide' : ''}`}>
+        <span>{label}{required ? ' *' : ''}</span>
+        <input
+          autoFocus={key === 'firstName'}
+          required={required}
+          type={inputType}
+          name={`calendra-billing-new-client-${key}`}
+          autoComplete="off"
+          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+          enterKeyHint={key === 'phone' ? 'done' : 'next'}
+          value={value}
+          placeholder={`${label}${required ? ' *' : ''}`}
+          onChange={(event) => updateValue(event.target.value)}
+        />
+      </label>
+    )
+  }
+
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
     return (
@@ -9751,7 +9802,60 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       {renderEntitlementPaymentModal()}
 
 
-      {showAddClientModal && (
+      {showAddClientModal && (isBillingMobileOrTablet ? (
+        <div
+          className="modal-backdrop billing-client-create-popup-backdrop clients-action-workspace-backdrop clients-simple-create-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeAddClientModal()
+          }}
+          role="presentation"
+        >
+          <div
+            className="modal large-modal billing-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal clients-simple-create-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <form
+              className="clients-create-modal-form clients-simple-create-form"
+              autoComplete="off"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!creatingClientInline && newClientFirstName.trim() && newClientLastName.trim()) void createClientInline()
+              }}
+            >
+              <div className="clients-simple-create-header">
+                <button
+                  type="button"
+                  className="clients-simple-create-close"
+                  onClick={closeAddClientModal}
+                  aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+                >
+                  ×
+                </button>
+                <h2>{billingCopy.newClientTitle}</h2>
+              </div>
+              <div className="clients-simple-create-body">
+                <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                  <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                    {renderBillingNewClientEditableField('firstName', billingCopy.clientFirstName)}
+                    {renderBillingNewClientEditableField('lastName', billingCopy.clientLastName)}
+                    {renderBillingNewClientEditableField('email', billingCopy.email, true, 'email')}
+                    {renderBillingNewClientEditableField('phone', billingCopy.telephone, true, 'tel')}
+                  </div>
+                  <button
+                    type="submit"
+                    className="clients-gapp-save-button clients-simple-create-submit"
+                    disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
+                  >
+                    {creatingClientInline
+                      ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…')
+                      : (locale === 'sl' ? 'Ustvari stranko' : 'Create client')}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : (
         <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddClientModal}>
           <div className="modal billing-add-company-modal billing-add-client-modal" onClick={(e) => e.stopPropagation()}>
             <div className="billing-bill-modal-header">
@@ -9798,7 +9902,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {showAddCompanyModal && (
         <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddCompanyModal}>
