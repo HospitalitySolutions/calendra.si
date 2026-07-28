@@ -22,6 +22,12 @@ function serviceName(type: any, locale: string) {
   return description || name || (locale === 'sl' ? 'Izberite storitev' : locale === 'sr' ? 'Izaberite uslugu' : 'Select service')
 }
 
+function serviceDescription(type: any, locale: string) {
+  const description = String(type?.description || '').trim()
+  const name = String(type?.name || '').trim()
+  return description || name || (locale === 'sl' ? 'Izberite storitev' : locale === 'sr' ? 'Izaberite uslugu' : 'Select service')
+}
+
 function labels(locale: string) {
   if (locale === 'sl') {
     return {
@@ -542,7 +548,7 @@ export function CalendarServiceChainEditor({
             <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}`}>
               <div className={`calendar-service-chain__single-select-wrap${singleServiceGross != null ? ' calendar-service-chain__single-select-wrap--with-price' : ''}`}>
                 <select
-                  className="calendar-service-chain__single-select"
+                  className="calendar-service-chain__single-select calendar-service-chain__single-select--desktop"
                   value={services[0]?.typeId ?? ''}
                   aria-label={copy.service}
                   onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
@@ -550,6 +556,17 @@ export function CalendarServiceChainEditor({
                   <option value="">{copy.choose}</option>
                   {sortedSessionTypes.map((entry) => (
                     <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
+                  ))}
+                </select>
+                <select
+                  className="calendar-service-chain__single-select calendar-service-chain__single-select--mobile"
+                  value={services[0]?.typeId ?? ''}
+                  aria-label={copy.service}
+                  onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
+                >
+                  <option value="">{copy.choose}</option>
+                  {sortedSessionTypes.map((entry) => (
+                    <option key={entry.id} value={entry.id}>{serviceDescription(entry, locale)}</option>
                   ))}
                 </select>
                 {singleServiceGross != null ? (

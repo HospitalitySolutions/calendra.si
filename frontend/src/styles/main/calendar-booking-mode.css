@@ -9805,3 +9805,81 @@
 .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only {
     grid-template-columns: minmax(0, 1fr) 48px;
 }
+
+/* --------------------------------------------------------------------------
+   Mobile Dodaj/Uredi termin refinements.
+   - show only the service description in the mobile service selector
+   - keep the original service action button size and bring the buttons together
+   - give time and date controls equal width and typography
+   - hide the complete service-chain conflict notice on mobile
+   -------------------------------------------------------------------------- */
+.calendar-edit-session-panel .calendar-service-chain__single-select--mobile {
+    display: none !important;
+}
+
+@media (max-width: 720px) {
+    .calendar-edit-session-panel .calendar-service-chain__single-select--desktop {
+        display: none !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-select--mobile {
+        display: block !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit,
+    .calendar-service-chain__single-row--with-edit {
+        grid-template-columns: minmax(0, 1fr) 48px 48px !important;
+        column-gap: 0 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit,
+    .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit {
+        margin-left: 8px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__head-add,
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit {
+        width: 48px !important;
+        min-width: 48px !important;
+        max-width: 48px !important;
+        height: 48px !important;
+        min-height: 48px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-field,
+    .calendar-edit-session-panel .calendar-timespan-field--date,
+    .calendar-edit-session-panel .calendar-timespan-input-inner,
+    .calendar-edit-session-panel .calendar-timespan-input-inner .modern-time-picker__trigger,
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"] {
+        width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner .modern-time-picker__trigger,
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"] {
+        height: 44px !important;
+        min-height: 44px !important;
+        padding-inline: 8px !important;
+        font-size: 0.84rem !important;
+        line-height: 1.2 !important;
+        font-weight: 650 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"]::-webkit-date-and-time-value,
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"]::-webkit-datetime-edit {
+        min-width: 0;
+        padding: 0;
+        font-size: inherit;
+        line-height: inherit;
+        text-align: left;
+    }
+
+    .calendar-edit-session-panel .calendar-service-chain__warning {
+        display: none !important;
+    }
+}
