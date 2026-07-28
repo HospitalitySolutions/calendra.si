@@ -51,7 +51,7 @@ public class PlatformAdminController {
     private static final String PROD_PREMISE_DEFAULT = "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices/register";
 
     private static final Set<String> ALLOWED_PLATFORM_TENANCY_AUDIT_ACTIONS = Set.of(
-            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE", "EMAIL_SENDER", "REFERRAL_REWARD");
+            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE", "EMAIL_SENDER", "REFERRAL_REWARD", "TRIAL_FOLLOW_UP");
 
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
@@ -63,6 +63,7 @@ public class PlatformAdminController {
     private final StripePlatformSettingsService stripePlatformSettingsService;
     private final PlatformTenancyDeletionService tenancyDeletionService;
     private final ManualTenantService manualTenantService;
+    private final TrialFollowUpEmailService trialFollowUpEmailService;
     private final ReferralRepository referrals;
 
     public PlatformAdminController(
@@ -76,6 +77,7 @@ public class PlatformAdminController {
             StripePlatformSettingsService stripePlatformSettingsService,
             PlatformTenancyDeletionService tenancyDeletionService,
             ManualTenantService manualTenantService,
+            TrialFollowUpEmailService trialFollowUpEmailService,
             ReferralRepository referrals) {
         this.companies = companies;
         this.settings = settings;
@@ -87,6 +89,7 @@ public class PlatformAdminController {
         this.stripePlatformSettingsService = stripePlatformSettingsService;
         this.tenancyDeletionService = tenancyDeletionService;
         this.manualTenantService = manualTenantService;
+        this.trialFollowUpEmailService = trialFollowUpEmailService;
         this.referrals = referrals;
     }
 
@@ -215,6 +218,8 @@ public class PlatformAdminController {
             String reason) {}
 
     public record DeleteTenancyRequest(String reason) {}
+
+    public record SendTrialFollowUpRequest(String language) {}
 
     public record TenantEmailSenderAdminDto(
             String mode,
@@ -370,6 +375,32 @@ public class PlatformAdminController {
             @AuthenticationPrincipal User actor
     ) {
         return manualTenantService.resendPayment(id, actor);
+    }
+
+    @PostMapping("/tenancies/{id}/trial-follow-up")
+    public TrialFollowUpEmailService.SendResult sendTrialFollowUp(
+            @PathVariable Long id,
+            @RequestBody(required = false) SendTrialFollowUpRequest body,
+            @AuthenticationPrincipal User actor
+    ) {
+        Company company = companies.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        TenancyDetailsDto details = buildTenancyDetails(company);
+        String language = body == null ? "sl" : body.language();
+        TrialFollowUpEmailService.SendResult result = trialFollowUpEmailService.send(
+                details.contactEmail(),
+                details.contactName(),
+                details.companyName(),
+                language);
+
+        PlatformTenancyAdminAuditLog row = new PlatformTenancyAdminAuditLog();
+        row.setCompany(company);
+        row.setActorUser(actor);
+        row.setActionType("TRIAL_FOLLOW_UP");
+        row.setSummary("Trial presentation follow-up sent");
+        row.setDetail("Recipient: " + result.recipient() + "\nLanguage: " + result.language());
+        tenancyAdminAuditLogs.save(row);
+        return result;
     }
 
     /**
@@ -958,6 +989,7 @@ public class PlatformAdminController {
             case "MANAGE_ADDONS" -> "Manage add-ons";
             case "DELETE_TENANT" -> "Delete tenant";
             case "MANUAL_CREATE" -> "Manual tenant";
+            case "TRIAL_FOLLOW_UP" -> "Trial follow-up";
             default -> code;
         };
     }

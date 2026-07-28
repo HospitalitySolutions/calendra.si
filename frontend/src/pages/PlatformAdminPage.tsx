@@ -38,6 +38,20 @@ type PlatformTenancyAuditPayload = {
   reason: string;
 };
 
+type TrialFollowUpLanguage = "sl" | "sr" | "en";
+
+type TrialFollowUpResponse = {
+  recipient: string;
+  language: TrialFollowUpLanguage;
+  subject: string;
+};
+
+const TRIAL_FOLLOW_UP_LANGUAGE_LABELS: Record<TrialFollowUpLanguage, string> = {
+  sl: "Slovenian",
+  sr: "Serbian",
+  en: "English",
+};
+
 function buildPlatformAdminAuditPayload(
   kind: string,
   root: HTMLElement,
@@ -5583,6 +5597,11 @@ export function PlatformAdminPage() {
   const [manualTenantSaving, setManualTenantSaving] = useState(false);
   const [manualTenantErr, setManualTenantErr] = useState<string | null>(null);
   const [manualTenantResult, setManualTenantResult] = useState<string | null>(null);
+  const [trialFollowUpOpen, setTrialFollowUpOpen] = useState(false);
+  const [trialFollowUpLanguage, setTrialFollowUpLanguage] = useState<TrialFollowUpLanguage>("sl");
+  const [trialFollowUpSending, setTrialFollowUpSending] = useState(false);
+  const [trialFollowUpErr, setTrialFollowUpErr] = useState<string | null>(null);
+  const [trialFollowUpResult, setTrialFollowUpResult] = useState<string | null>(null);
   const [emailSender, setEmailSender] = useState<TenantEmailSenderAdminDto | null>(null);
   const [emailSenderDraft, setEmailSenderDraft] = useState<TenantEmailSenderAdminDto | null>(null);
   const [emailSenderLoading, setEmailSenderLoading] = useState(false);
@@ -5591,6 +5610,12 @@ export function PlatformAdminPage() {
   const [emailSenderOk, setEmailSenderOk] = useState<string | null>(null);
 
   selectedRef.current = selected;
+
+  useEffect(() => {
+    setTrialFollowUpOpen(false);
+    setTrialFollowUpErr(null);
+    setTrialFollowUpResult(null);
+  }, [selected?.id]);
 
   const reloadAuditForCurrentSelection = useCallback(async () => {
     const id = selectedRef.current?.id;
@@ -6280,6 +6305,46 @@ export function PlatformAdminPage() {
     }
   }, [reloadAuditForCurrentSelection, selected]);
 
+  const openTrialFollowUp = useCallback(() => {
+    if (!selected) return;
+    setTrialFollowUpLanguage("sl");
+    setTrialFollowUpErr(null);
+    setTrialFollowUpResult(null);
+    setTrialFollowUpOpen(true);
+  }, [selected]);
+
+  const sendTrialFollowUp = useCallback(async () => {
+    if (!selected) return;
+    setTrialFollowUpSending(true);
+    setTrialFollowUpErr(null);
+    try {
+      const { data } = await api.post<TrialFollowUpResponse>(
+        `/platform-admin/tenancies/${selected.id}/trial-follow-up`,
+        { language: trialFollowUpLanguage },
+      );
+      setTrialFollowUpOpen(false);
+      setTrialFollowUpResult(
+        `Trial follow-up sent to ${data.recipient} in ${TRIAL_FOLLOW_UP_LANGUAGE_LABELS[data.language] ?? data.language}.`,
+      );
+      await reloadAuditForCurrentSelection();
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        setTrialFollowUpErr(
+          String(
+            e.response?.data?.message ||
+              e.response?.data?.detail ||
+              e.response?.data?.error ||
+              e.message,
+          ),
+        );
+      } else {
+        setTrialFollowUpErr("Could not send the trial follow-up email.");
+      }
+    } finally {
+      setTrialFollowUpSending(false);
+    }
+  }, [reloadAuditForCurrentSelection, selected, trialFollowUpLanguage]);
+
   const manualSelectedAddonKeys = useMemo(
     () => new Set(manualTenantForm.addOns.map((row) => row.key)),
     [manualTenantForm.addOns],
@@ -6422,6 +6487,16 @@ export function PlatformAdminPage() {
                         {manualTenantResult}
                       </div>
                     ) : null}
+                    {trialFollowUpErr && !trialFollowUpOpen ? (
+                      <div className="platform-admin-manual-error" style={{ marginBottom: 16 }}>
+                        {trialFollowUpErr}
+                      </div>
+                    ) : null}
+                    {trialFollowUpResult ? (
+                      <div className="platform-admin-manual-result" style={{ marginBottom: 16 }}>
+                        {trialFollowUpResult}
+                      </div>
+                    ) : null}
 
                     <section className="platform-admin-hero">
                       <aside className="platform-admin-panel platform-admin-panel-pad platform-admin-tenant-card">
@@ -6553,6 +6628,15 @@ export function PlatformAdminPage() {
                             </nav>
 
                             <div className="platform-admin-top-actions">
+                              <button
+                                className="platform-admin-button platform-admin-secondary platform-admin-small platform-admin-follow-up-button"
+                                type="button"
+                                onClick={openTrialFollowUp}
+                                disabled={!selected.contactEmail?.trim()}
+                                title={selected.contactEmail?.trim() ? "Send a trial presentation follow-up" : "This tenant has no owner email"}
+                              >
+                                Send trial follow-up
+                              </button>
                               <button
                                 className="platform-admin-button platform-admin-primary platform-admin-small"
                                 type="button"
@@ -7190,6 +7274,86 @@ export function PlatformAdminPage() {
                   />
                 )}
         </main>
+
+        {trialFollowUpOpen && selected ? (
+          <div
+            className="platform-admin-manual-tenant-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Send trial follow-up"
+          >
+            <div className="platform-admin-manual-tenant-modal platform-admin-follow-up-modal">
+              <div className="platform-admin-manual-tenant-header">
+                <div className="platform-admin-manual-tenant-title">
+                  <div className="platform-admin-eyebrow">Tenant follow-up</div>
+                  <h2>Send presentation invitation</h2>
+                  <p>
+                    Send the selected tenant a branded follow-up with one main button
+                    for booking a 30-minute Calendra presentation.
+                  </p>
+                </div>
+                <button
+                  className="platform-admin-button platform-admin-secondary platform-admin-small"
+                  type="button"
+                  disabled={trialFollowUpSending}
+                  onClick={() => setTrialFollowUpOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {trialFollowUpErr ? (
+                <div className="platform-admin-manual-error">{trialFollowUpErr}</div>
+              ) : null}
+
+              <section className="platform-admin-manual-section platform-admin-follow-up-summary">
+                <div className="platform-admin-follow-up-recipient">
+                  <span>Recipient</span>
+                  <strong>{selected.contactName || selected.companyName}</strong>
+                  <a href={`mailto:${selected.contactEmail}`}>{selected.contactEmail}</a>
+                </div>
+                <div className="platform-admin-manual-field">
+                  <label htmlFor="trialFollowUpLanguage">Email language</label>
+                  <select
+                    id="trialFollowUpLanguage"
+                    value={trialFollowUpLanguage}
+                    disabled={trialFollowUpSending}
+                    onChange={(e) =>
+                      setTrialFollowUpLanguage(e.target.value as TrialFollowUpLanguage)
+                    }
+                  >
+                    <option value="sl">Slovenian</option>
+                    <option value="sr">Serbian</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+                <div className="platform-admin-follow-up-note">
+                  The email includes the phone number <strong>040 641 644</strong> and a
+                  single CTA button linking to <strong>calendra.si/predstavitev</strong>.
+                </div>
+              </section>
+
+              <div className="platform-admin-manual-actions">
+                <button
+                  className="platform-admin-button platform-admin-secondary"
+                  type="button"
+                  disabled={trialFollowUpSending}
+                  onClick={() => setTrialFollowUpOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="platform-admin-button platform-admin-primary"
+                  type="button"
+                  disabled={trialFollowUpSending || !selected.contactEmail?.trim()}
+                  onClick={sendTrialFollowUp}
+                >
+                  {trialFollowUpSending ? "Sending…" : "Send follow-up"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {manualTenantOpen ? (
           <div
