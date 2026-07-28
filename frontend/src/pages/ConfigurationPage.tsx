@@ -5591,7 +5591,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : isCompactConfigViewport
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5651,7 +5651,7 @@ export function ConfigurationPage() {
         ) : (
           <>
             {isCompactConfigViewport ? (
-              tab === "integrations" || tab === "company" || tab === "booking" || tab === "notifications" ? null : (
+              tab === "integrations" || tab === "company" || tab === "booking" || tab === "notifications" || tab === "modules" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -14245,6 +14245,13 @@ export function ConfigurationPage() {
               ) : tab === "modules" && modulesDraftDisplay ? (
                 <Card className="settings-card modules-design-card">
                   <div className="modules-design-shell">
+                    <h2 className="modules-design-mobile-title">
+                      {locale === "sl"
+                        ? "Konfiguracija nastavitev"
+                        : locale === "sr"
+                          ? "Konfiguracija podešavanja"
+                          : "Settings configuration"}
+                    </h2>
                     <div className="modules-design-grid">
                       {[
                         ["booking", "services"],
@@ -14263,6 +14270,7 @@ export function ConfigurationPage() {
                                 group={group}
                                 expandedRows={expandedModuleRows}
                                 onToggleExpanded={toggleExpandedModuleRow}
+                                compactCollapsible={isCompactConfigViewport}
                               />
                             ))}
                         </div>

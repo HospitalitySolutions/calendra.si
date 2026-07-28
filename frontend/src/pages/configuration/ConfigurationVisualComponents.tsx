@@ -412,36 +412,96 @@ export function ModulesDesignGroupCard({
   group,
   expandedRows,
   onToggleExpanded,
+  compactCollapsible = false,
 }: {
   group: ModulesDesignGroup;
   expandedRows: string[];
   onToggleExpanded: (id: string) => void;
+  compactCollapsible?: boolean;
 }) {
   const visibleRows = group.rows.filter((line) => !line.hidden);
+  const [compactExpanded, setCompactExpanded] = useState(
+    group.id === "booking",
+  );
   if (visibleRows.length === 0) return null;
+
+  const compactStateClass = compactCollapsible
+    ? compactExpanded
+      ? " is-compact-expanded"
+      : " is-compact-collapsed"
+    : "";
+
   return (
     <section
-      className={`modules-design-group-card modules-design-group-card--${group.tone} modules-design-group-card--id-${group.id}`}
+      className={`modules-design-group-card modules-design-group-card--${group.tone} modules-design-group-card--id-${group.id}${compactStateClass}`}
     >
+      {compactCollapsible ? (
+        <div className="modules-design-group-header modules-design-group-header--compact">
+          <button
+            type="button"
+            className="modules-design-group-trigger"
+            onClick={() => setCompactExpanded((current) => !current)}
+            aria-expanded={compactExpanded}
+            aria-controls={`modules-design-panel-${group.id}`}
+          >
+            <span className="modules-design-group-icon">
+              <ModulesDesignIcon kind={group.icon} />
+            </span>
+            <span className="modules-design-group-title">
+              <strong>{group.title}</strong>
+              <span>{group.subtitle}</span>
+            </span>
+            <span
+              className={
+                compactExpanded
+                  ? "modules-design-group-accordion-chevron is-open"
+                  : "modules-design-group-accordion-chevron"
+              }
+              aria-hidden
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m7 10 5 5 5-5" />
+              </svg>
+            </span>
+          </button>
+          {group.hideSwitch ? null : (
+            <GuestSwitch checked={group.checked} onChange={group.onChange} />
+          )}
+        </div>
+      ) : (
+        <div
+          className={
+            group.hideSwitch
+              ? "modules-design-group-header no-group-switch"
+              : "modules-design-group-header"
+          }
+        >
+          <span className="modules-design-group-icon">
+            <ModulesDesignIcon kind={group.icon} />
+          </span>
+          <span className="modules-design-group-title">
+            <strong>{group.title}</strong>
+            <span>{group.subtitle}</span>
+          </span>
+          {group.hideSwitch ? null : (
+            <GuestSwitch checked={group.checked} onChange={group.onChange} />
+          )}
+        </div>
+      )}
       <div
-        className={
-          group.hideSwitch
-            ? "modules-design-group-header no-group-switch"
-            : "modules-design-group-header"
-        }
+        className="modules-design-settings-panel"
+        id={`modules-design-panel-${group.id}`}
+        hidden={compactCollapsible && !compactExpanded}
       >
-        <span className="modules-design-group-icon">
-          <ModulesDesignIcon kind={group.icon} />
-        </span>
-        <span className="modules-design-group-title">
-          <strong>{group.title}</strong>
-          <span>{group.subtitle}</span>
-        </span>
-        {group.hideSwitch ? null : (
-          <GuestSwitch checked={group.checked} onChange={group.onChange} />
-        )}
-      </div>
-      <div className="modules-design-settings-panel">
         {visibleRows.map((line) => (
           <ModulesDesignSettingLine
             key={line.id}

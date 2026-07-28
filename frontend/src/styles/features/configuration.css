@@ -853,6 +853,9 @@ a.config-nav-item {
     display: grid;
     gap: 22px;
 }
+.modules-design-mobile-title {
+    display: none;
+}
 .modules-design-page-header {
     display: grid;
     gap: 8px;
@@ -1005,6 +1008,22 @@ a.config-nav-item {
 }
 .modules-design-group-header.no-group-switch {
     grid-template-columns: 54px minmax(0, 1fr);
+}
+.modules-design-group-trigger {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+}
+.modules-design-group-accordion-chevron {
+    display: grid;
+    place-items: center;
+    color: #64748b;
+    transition: transform .18s ease, color .18s ease;
+}
+.modules-design-group-accordion-chevron.is-open {
+    transform: rotate(180deg);
+    color: #2563eb;
 }
 .modules-design-group-icon {
     display: grid;
@@ -1356,6 +1375,311 @@ a.config-nav-item {
     .modules-design-group-header { grid-template-columns: 46px minmax(0, 1fr); }
     .modules-design-group-header > .gapp-switch { grid-column: 1 / -1; justify-self: start; }
 }
+
+/* Mobile and tablet App settings accordion. */
+@media (max-width: 920px) {
+    .config-shell--modules-mobile {
+        padding: 18px;
+    }
+
+    .config-shell--modules-mobile .modules-design-card.settings-card {
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-shell {
+        gap: 14px;
+    }
+
+    .config-shell--modules-mobile .modules-design-mobile-title {
+        display: block;
+        margin: 4px 0 14px;
+        color: #0f172a;
+        font-size: clamp(24px, 4.2vw, 32px);
+        font-weight: 900;
+        line-height: 1.12;
+        letter-spacing: -0.035em;
+        text-align: center;
+    }
+
+    .config-shell--modules-mobile .modules-design-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .config-shell--modules-mobile .modules-design-column,
+    .config-shell--modules-mobile .modules-design-column:nth-child(3) {
+        display: contents;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card {
+        --module-accent: #1677e8;
+        --module-soft: #eaf5ff;
+        min-height: 0;
+        padding: 0;
+        border: 1px solid #cfe5fb;
+        border-radius: 17px;
+        background: linear-gradient(135deg, #f4faff 0%, #e6f3ff 100%);
+        box-shadow: 0 7px 18px rgba(15, 23, 42, 0.12);
+        overflow: hidden;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card::before {
+        display: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card.is-compact-expanded {
+        border-color: #b9daf8;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.13);
+    }
+
+    .config-shell--modules-mobile .modules-design-group-header--compact {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-trigger {
+        width: 100%;
+        min-height: 72px;
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) 28px;
+        align-items: center;
+        gap: 13px;
+        padding: 12px 16px;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-trigger:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, 0.22);
+        outline-offset: -3px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-header--compact > .gapp-switch {
+        margin-right: 14px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        color: #126bd5;
+        background: rgba(255, 255, 255, 0.78);
+        border-color: rgba(22, 119, 232, 0.2);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    }
+
+    .config-shell--modules-mobile .modules-design-group-icon svg {
+        width: 23px;
+        height: 23px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-title {
+        gap: 0;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-title strong {
+        color: #14213d;
+        font-size: 18px;
+        font-weight: 850;
+        line-height: 1.15;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-title > span {
+        display: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-accordion-chevron {
+        width: 28px;
+        height: 28px;
+        color: #526b8f;
+    }
+
+    .config-shell--modules-mobile .modules-design-settings-panel {
+        margin: 0 12px 12px;
+        border: 1px solid rgba(185, 218, 248, 0.92);
+        border-radius: 13px;
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-line,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter.has-children,
+    .config-shell--modules-mobile .modules-design-setting-line.is-value-row,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter.is-value-row {
+        min-height: 50px;
+        padding: 8px 10px;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-copy strong {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        font-size: 13px;
+        line-height: 1.22;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-copy > span {
+        display: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-icon {
+        width: 27px;
+        height: 27px;
+        border-radius: 8px;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-icon svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .config-shell--modules-mobile .modules-design-card .gapp-switch {
+        width: 54px;
+        height: 30px;
+        padding: 0;
+    }
+
+    .config-shell--modules-mobile .modules-design-card .gapp-switch-label {
+        display: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-card .gapp-switch-knob {
+        left: 3px;
+        width: 24px;
+        height: 24px;
+    }
+
+    .config-shell--modules-mobile .modules-design-card .gapp-switch.active .gapp-switch-knob {
+        transform: translateX(24px);
+    }
+
+    .config-shell--modules-mobile .modules-design-row-control {
+        min-width: 102px;
+    }
+
+    .config-shell--modules-mobile .modules-design-inline-control {
+        width: 102px;
+        min-height: 34px;
+        font-size: 13px;
+    }
+
+    .config-shell--modules-mobile .modules-design-visibility-row,
+    .config-shell--modules-mobile .modules-design-visibility-row.is-subparameter {
+        padding: 0 10px 10px;
+    }
+
+    .config-shell--modules-mobile .modules-design-visibility-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .config-shell--modules-mobile .modules-design-visibility-controls label {
+        min-width: 0;
+        flex: 1 1 130px;
+    }
+
+    .config-shell--modules-mobile .modules-design-visibility-controls select {
+        width: 100%;
+    }
+
+    .config-shell--modules-mobile .modules-design-card .gapp-savebar {
+        margin-top: 2px;
+    }
+
+    .config-shell--modules-mobile .modules-design-card .gapp-savebar .gapp-primary-button {
+        width: 100%;
+        min-height: 54px;
+        border-radius: 15px;
+        font-size: 16px;
+        box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+    }
+}
+
+@media (min-width: 640px) and (max-width: 920px) {
+    .config-shell--modules-mobile .modules-design-settings-panel {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .config-shell--modules-mobile .modules-design-settings-panel > .modules-design-tree:nth-child(odd) {
+        border-right: 1px solid #e8edf5;
+    }
+
+    .config-shell--modules-mobile .modules-design-settings-panel > .modules-design-tree:nth-last-child(-n + 2) > .modules-design-setting-line {
+        border-bottom: 0;
+    }
+}
+
+@media (max-width: 520px) {
+    .config-shell--modules-mobile {
+        padding: 12px;
+    }
+
+    .config-shell--modules-mobile .modules-design-mobile-title {
+        margin-top: 2px;
+        font-size: 25px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-trigger {
+        min-height: 66px;
+        grid-template-columns: 38px minmax(0, 1fr) 24px;
+        gap: 11px;
+        padding: 10px 13px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-icon {
+        width: 37px;
+        height: 37px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-title strong {
+        font-size: 17px;
+    }
+
+    .config-shell--modules-mobile .modules-design-settings-panel {
+        margin: 0 8px 8px;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-line,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter.has-children,
+    .config-shell--modules-mobile .modules-design-setting-line.is-value-row,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter.is-value-row {
+        grid-template-columns: 25px minmax(0, 1fr) auto 20px;
+        gap: 7px;
+        padding: 8px;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-line.is-value-row,
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter.is-value-row {
+        grid-template-columns: 25px minmax(0, 1fr) auto;
+    }
+
+    .config-shell--modules-mobile .modules-design-setting-line.is-subparameter:not(.has-children) {
+        grid-template-columns: 22px minmax(0, 1fr) auto;
+    }
+
+    .config-shell--modules-mobile .modules-design-row-control {
+        min-width: 88px;
+    }
+
+    .config-shell--modules-mobile .modules-design-inline-control {
+        width: 88px;
+        font-size: 12.5px;
+    }
+}
+
 
 /* General app settings */
 .general-settings-shell {
