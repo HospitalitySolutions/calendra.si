@@ -12,6 +12,125 @@ import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices }
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
+const BILLING_ADVANCE_MOBILE_KEYBOARD_CLASS = 'billing-advance-mobile-keyboard-open'
+
+function isBillingTextEntryElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false
+  if (element.isContentEditable) return true
+  if (element instanceof HTMLTextAreaElement) return !element.disabled && !element.readOnly
+  if (!(element instanceof HTMLInputElement) || element.disabled || element.readOnly) return false
+
+  const nonTextInputTypes = new Set([
+    'button',
+    'checkbox',
+    'color',
+    'file',
+    'hidden',
+    'image',
+    'radio',
+    'range',
+    'reset',
+    'submit',
+  ])
+  return !nonTextInputTypes.has((element.type || 'text').toLowerCase())
+}
+
+/**
+ * Android can leave an input focused after the software keyboard has closed,
+ * so focus alone cannot be used to hide the mobile advance footer. Measure the
+ * visual viewport instead and expose the result as a root class for CSS.
+ */
+function useAdvanceCreateMobileKeyboardVisibility(enabled: boolean) {
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
+    const root = document.documentElement
+    const visualViewport = window.visualViewport
+    root.classList.remove(BILLING_ADVANCE_MOBILE_KEYBOARD_CLASS)
+    if (!enabled || !visualViewport) return
+
+    let baselineHeight = visualViewport.height
+    let baselineWidth = visualViewport.width
+    let frameId = 0
+    let orientationTimer: number | undefined
+
+    const setKeyboardClass = (open: boolean) => {
+      root.classList.toggle(BILLING_ADVANCE_MOBILE_KEYBOARD_CLASS, open)
+    }
+
+    const updateKeyboardState = () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(() => {
+        const viewport = window.visualViewport
+        if (!viewport) {
+          setKeyboardClass(false)
+          return
+        }
+
+        const activeElement = document.activeElement
+        const advancePanel = document.querySelector('.billing-create-panel--advance')
+        const textEntryFocused = isBillingTextEntryElement(activeElement)
+          && Boolean(activeElement && advancePanel?.contains(activeElement))
+        const mobileResolution = window.matchMedia('(max-width: 820px)').matches
+        const currentHeight = viewport.height
+        const currentWidth = viewport.width
+
+        // A substantial width change is a rotation/layout change, not a keyboard.
+        if (Math.abs(currentWidth - baselineWidth) > 80) {
+          baselineWidth = currentWidth
+          baselineHeight = currentHeight
+        }
+
+        // Retain the largest keyboard-free height seen in the current orientation.
+        if (!textEntryFocused || currentHeight > baselineHeight) {
+          baselineHeight = Math.max(baselineHeight, currentHeight)
+        }
+
+        const coveredHeight = baselineHeight - currentHeight
+        const keyboardThreshold = Math.max(120, baselineHeight * 0.16)
+        const keyboardOpen = mobileResolution
+          && textEntryFocused
+          && viewport.scale <= 1.05
+          && coveredHeight > keyboardThreshold
+
+        setKeyboardClass(keyboardOpen)
+      })
+    }
+
+    const resetAfterOrientationChange = () => {
+      setKeyboardClass(false)
+      if (orientationTimer) window.clearTimeout(orientationTimer)
+      orientationTimer = window.setTimeout(() => {
+        const viewport = window.visualViewport
+        if (viewport) {
+          baselineHeight = viewport.height
+          baselineWidth = viewport.width
+        }
+        updateKeyboardState()
+      }, 300)
+    }
+
+    document.addEventListener('focusin', updateKeyboardState)
+    document.addEventListener('focusout', updateKeyboardState)
+    visualViewport.addEventListener('resize', updateKeyboardState)
+    visualViewport.addEventListener('scroll', updateKeyboardState)
+    window.addEventListener('resize', updateKeyboardState)
+    window.addEventListener('orientationchange', resetAfterOrientationChange)
+    updateKeyboardState()
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      if (orientationTimer) window.clearTimeout(orientationTimer)
+      document.removeEventListener('focusin', updateKeyboardState)
+      document.removeEventListener('focusout', updateKeyboardState)
+      visualViewport.removeEventListener('resize', updateKeyboardState)
+      visualViewport.removeEventListener('scroll', updateKeyboardState)
+      window.removeEventListener('resize', updateKeyboardState)
+      window.removeEventListener('orientationchange', resetAfterOrientationChange)
+      root.classList.remove(BILLING_ADVANCE_MOBILE_KEYBOARD_CLASS)
+    }
+  }, [enabled])
+}
 
 function cashRegisterDigitsFromRaw(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, MAX_CASH_REGISTER_DIGITS)
@@ -1065,6 +1184,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [users, setUsers] = useState<User[]>([])
   const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', wholeBillDiscountPercent: '0', itemDiscounts: {} })
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
+  useAdvanceCreateMobileKeyboardVisibility(showCreateBillModal && billForm.billType === 'ADVANCE')
   const [editingCreateBillPayee, setEditingCreateBillPayee] = useState(false)
   const [creatingBill, setCreatingBill] = useState(false)
   const [bankTransferQrMissingModal, setBankTransferQrMissingModal] = useState<BankTransferQrMissingModal | null>(null)
@@ -1155,6 +1275,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     status: 'all',
   })
   const [billingTab, setBillingTab] = useState<BillingTab>('open')
+  const createBillOriginTabRef = useRef<BillingTab | null>(null)
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
   const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
   const [applyAmountNet, setApplyAmountNet] = useState('')
@@ -1358,6 +1479,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       recipientCompanyId: normalizedBillingTarget === 'COMPANY' ? (embeddedCreateBill.recipientCompanyId ?? undefined) : undefined,
     })
     setBillingTab(embeddedCreateBill.billType === 'ADVANCE' && advanceBillingEnabled ? 'unusedAdvances' : 'open')
+    createBillOriginTabRef.current = null
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
   }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, canIssueAdvanceInvoice, canIssueOpenInvoice, locale, me.id, onEmbeddedClose, services, servicesLoaded, showToast])
@@ -3399,6 +3521,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       wholeBillDiscountPercent: '0',
       itemDiscounts: {},
     })
+    createBillOriginTabRef.current = billingTab
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
   }
@@ -3419,18 +3542,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       wholeBillDiscountPercent: '0',
       itemDiscounts: {},
     })
+    createBillOriginTabRef.current = billingTab
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
   }
 
   const closeCreateBillModal = () => {
+    const originTab = createBillOriginTabRef.current
+    createBillOriginTabRef.current = null
     setShowCreateBillModal(false)
     setEditingCreateBillPayee(false)
     setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
     setRecipientCompanySearch('')
     setRecipientCompanyPickerOpen(false)
     setEditingRecipientCompanySearch(false)
-    if (embeddedCreateBill && onEmbeddedClose) onEmbeddedClose()
+    if (embeddedCreateMode && onEmbeddedClose) {
+      onEmbeddedClose()
+      return
+    }
+    // Standalone creation is an overlay. Return to the exact Billing tab from
+    // which it was opened instead of forcing the default Open bills tab.
+    if (originTab) setBillingTab(originTab)
   }
 
   /** Close only when press starts on the dimmed overlay (not after selecting/dragging from inside the panel — same as transaction-services modal). */
@@ -6415,6 +6547,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         </div>
         <div className="billing-bill-modal-field billing-bill-modal-field--qty">
           <input
+            className="billing-create-advance-number-input billing-create-advance-number-input--quantity"
             type="number"
             min="1"
             value={item.quantity || ''}
@@ -6427,6 +6560,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         </div>
         <div className="billing-bill-modal-field billing-bill-modal-field--price">
           <input
+            className="billing-create-advance-number-input billing-create-advance-number-input--price"
             type="text"
             inputMode="numeric"
             autoComplete="off"
@@ -6519,7 +6653,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   ))}
                 </select>
                 <input
-                  className="billing-invoice-payment-amount-input"
+                  className={`billing-invoice-payment-amount-input${billForm.billType === 'ADVANCE' ? ' billing-invoice-payment-amount-input--advance' : ''}`}
                   type="text"
                   inputMode="decimal"
                   value={displayedAmountGross}

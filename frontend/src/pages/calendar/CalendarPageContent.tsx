@@ -658,6 +658,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const sessionPopupAnchorRectRef = useRef<{ left: number; right: number; top: number; bottom: number } | null>(null)
   const bookedSessionBeforeClientDetailRef = useRef<any>(null)
   const bookedSessionBeforeAdvanceEditorRef = useRef<any>(null)
+  const advanceEditorPushedHistoryRef = useRef(false)
   const sessionPopupDragRef = useRef<{ pointerId: number; startX: number; startY: number; originLeft: number; originTop: number } | null>(null)
   const [sessionsSheetState, setSessionsSheetState] = useState<'closed' | 'collapsed' | 'expanded'>('closed')
   const [sessionsSheetTab, setSessionsSheetTab] = useState<'today' | 'unassigned'>('today')
@@ -1649,6 +1650,23 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [location.pathname, location.search, navigate])
 
   const closeCalendarAdvanceEditor = useCallback(() => {
+    const shouldReturnThroughHistory = advanceEditorPushedHistoryRef.current
+    advanceEditorPushedHistoryRef.current = false
+    const savedSession = bookedSessionBeforeAdvanceEditorRef.current
+    bookedSessionBeforeAdvanceEditorRef.current = null
+    if (savedSession) {
+      setSelectedBookedSession((current: any) => current ?? savedSession)
+    }
+
+    // The advance editor was opened with a new history entry from Uredi termin.
+    // Pop that entry so Back returns to the exact calendar/session context.
+    if (shouldReturnThroughHistory && window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+
+    // Fallback for a refreshed/deep-linked editor URL where no local history
+    // marker is available.
     const params = new URLSearchParams(location.search)
     params.delete('createAdvance')
     params.delete('advanceSessionId')
@@ -1659,11 +1677,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     params.delete('advanceCompanyId')
     const nextSearch = params.toString()
     navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: true })
-    const savedSession = bookedSessionBeforeAdvanceEditorRef.current
-    bookedSessionBeforeAdvanceEditorRef.current = null
-    if (savedSession) {
-      setSelectedBookedSession((current: any) => current ?? savedSession)
-    }
   }, [location.pathname, location.search, navigate])
 
   const openCalendarClientDetail = useCallback((clientId: number) => {
@@ -8120,6 +8133,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     params.set('advanceBillingTarget', billingTarget)
     if (billingTarget === 'COMPANY' && Number.isInteger(companyIdRaw) && companyIdRaw > 0) params.set('advanceCompanyId', String(companyIdRaw))
     bookedSessionBeforeAdvanceEditorRef.current = selectedBookedSession || null
+    advanceEditorPushedHistoryRef.current = true
     setBookedPaymentMenuOpen(false)
     setBookedStatusMenuOpen(false)
     const nextSearch = params.toString()

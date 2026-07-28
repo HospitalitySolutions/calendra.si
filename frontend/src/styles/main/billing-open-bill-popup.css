@@ -8626,3 +8626,46 @@
     font-size: 0.44rem !important;
   }
 }
+
+/* Mobile Novo predplačilo: keyboard-aware footer and compact numeric entry. */
+@media (max-width: 820px) {
+  .billing-create-panel--advance {
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+  }
+
+  html.billing-advance-mobile-keyboard-open .billing-create-panel--advance .billing-bill-modal-footer {
+    display: none !important;
+  }
+
+  html.billing-advance-mobile-keyboard-open .billing-create-panel--advance .billing-invoice-modern-body--advance-create {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field .billing-create-advance-number-input,
+  .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-payment-amount-input--advance {
+    font-size: 9px !important;
+    line-height: 1 !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em !important;
+  }
+
+  .billing-create-panel--advance .billing-create-advance-number-input {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    text-align: center !important;
+  }
+
+  .billing-create-panel--advance .billing-invoice-payment-amount-input--advance {
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+    text-align: right !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field .billing-create-advance-number-input,
+  .billing-create-panel--advance .billing-invoice-payment-row .billing-invoice-payment-amount-input--advance {
+    font-size: 8px !important;
+  }
+}
