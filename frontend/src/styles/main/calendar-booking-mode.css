@@ -9030,6 +9030,7 @@
 
 .calendar-service-chain__reorder-btn,
 .calendar-service-chain__more-btn,
+.calendar-service-chain__mobile-edit-btn,
 .calendar-service-chain__remove {
     width: 40px;
     min-width: 40px;
@@ -9185,6 +9186,7 @@
 
     .calendar-service-chain__reorder-btn,
     .calendar-service-chain__more-btn,
+    .calendar-service-chain__mobile-edit-btn,
     .calendar-service-chain__remove {
         width: 36px;
         min-width: 36px;
@@ -9410,6 +9412,251 @@
     }
 }
 
+/* Mobile/tablet service selector price and the dedicated Uredi storitev page. */
+.calendar-service-chain__single-select-wrap {
+    position: relative;
+    display: block;
+    width: 100%;
+    min-width: 0;
+}
+
+.calendar-service-chain__single-price {
+    display: none;
+}
+
+.calendar-service-chain__mobile-edit-btn {
+    display: none;
+    color: #1769e8;
+}
+
+.calendar-service-chain__desktop-service-menu {
+    display: block;
+}
+
+.calendar-service-edit-modal__header {
+    grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.calendar-service-edit-modal__heading {
+    min-width: 0;
+}
+
+.calendar-service-edit-modal__header-spacer {
+    display: none;
+    width: 44px;
+    height: 44px;
+}
+
+.calendar-service-edit-modal__duration-stepper {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .calendar-service-chain__mobile-edit-btn {
+        display: inline-flex;
+    }
+
+    .calendar-service-chain__desktop-service-menu {
+        display: none;
+    }
+
+    .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only,
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only {
+        grid-template-columns: minmax(0, 1fr) 48px !important;
+    }
+
+    .calendar-service-chain__single-select-wrap--with-price .calendar-service-chain__single-select,
+    .calendar-edit-session-panel .calendar-service-chain__single-select-wrap--with-price .calendar-service-chain__single-select {
+        padding-right: 118px !important;
+    }
+
+    .calendar-service-chain__single-price {
+        position: absolute;
+        top: 50%;
+        right: 34px;
+        z-index: 1;
+        display: block;
+        max-width: 86px;
+        padding-left: 18px;
+        overflow: hidden;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0), #ffffff 18px);
+        color: #111827;
+        font-size: 0.86rem;
+        font-weight: 800;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        pointer-events: none;
+        transform: translateY(-50%);
+    }
+
+    .calendar-service-edit-modal {
+        grid-template-rows: auto minmax(0, 1fr) auto !important;
+        background: #f4f6f9 !important;
+    }
+
+    .calendar-service-edit-modal__header {
+        grid-template-columns: 48px minmax(0, 1fr) 48px !important;
+        gap: 0 !important;
+        min-height: 72px !important;
+        padding: max(10px, env(safe-area-inset-top)) 10px 10px !important;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%) !important;
+    }
+
+    .calendar-service-edit-modal__heading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .calendar-service-edit-modal__heading h3 {
+        width: 100%;
+        color: #ffffff !important;
+        font-size: 1.25rem !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.015em !important;
+        text-align: center;
+    }
+
+    .calendar-service-edit-modal__close {
+        width: 48px !important;
+        min-width: 48px !important;
+        height: 48px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-service-edit-modal__close svg {
+        width: 27px;
+        height: 27px;
+    }
+
+    .calendar-service-edit-modal__header-spacer {
+        display: block;
+        width: 48px;
+        height: 48px;
+    }
+
+    .calendar-service-edit-modal__body {
+        align-content: start;
+        gap: 22px !important;
+        padding: 28px 18px 24px !important;
+        background: #f4f6f9 !important;
+    }
+
+    .calendar-service-edit-modal__field {
+        gap: 9px;
+    }
+
+    .calendar-service-edit-modal__field > span {
+        color: #263244;
+        font-size: 1rem;
+        font-weight: 720;
+    }
+
+    .calendar-service-edit-modal__field > input,
+    .calendar-service-edit-modal__price-wrap,
+    .calendar-service-edit-modal__duration-stepper {
+        min-height: 62px !important;
+        border: 1px solid #d6dde7 !important;
+        border-radius: 12px !important;
+        background: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12) !important;
+        color: #111827 !important;
+        font-size: 1rem !important;
+        font-weight: 650 !important;
+    }
+
+    .calendar-service-edit-modal__field > input {
+        padding: 0 16px !important;
+    }
+
+    .calendar-service-edit-modal__field > input[readonly] {
+        background: #ffffff !important;
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
+
+    .calendar-service-edit-modal__duration-select {
+        display: none !important;
+    }
+
+    .calendar-service-edit-modal__duration-stepper {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) 44px;
+        align-items: center;
+        padding: 0 14px;
+    }
+
+    .calendar-service-edit-modal__duration-stepper button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        padding: 0;
+        border: 2px solid #64748b;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #475569;
+        cursor: pointer;
+    }
+
+    .calendar-service-edit-modal__duration-stepper button:last-child {
+        justify-self: end;
+    }
+
+    .calendar-service-edit-modal__duration-stepper button:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    .calendar-service-edit-modal__duration-stepper strong {
+        color: #111827;
+        font-size: 1.05rem;
+        font-weight: 760;
+        text-align: center;
+    }
+
+    .calendar-service-edit-modal__price-wrap {
+        padding: 0 16px !important;
+    }
+
+    .calendar-service-edit-modal__price-wrap input {
+        font-size: 1rem;
+        font-weight: 650;
+    }
+
+    .calendar-service-edit-modal__price-wrap span {
+        color: #475569;
+        font-size: 1.08rem;
+        font-weight: 700;
+    }
+
+    .calendar-service-edit-modal__footer {
+        padding: 14px 18px calc(18px + env(safe-area-inset-bottom)) !important;
+        border-top: 0 !important;
+        background: #f4f6f9 !important;
+    }
+
+    .calendar-service-edit-modal__footer .primary {
+        width: 100% !important;
+        min-height: 58px !important;
+        border-radius: 10px !important;
+        background: linear-gradient(135deg, #0b71ee 0%, #095ecf 100%) !important;
+        border-color: #095ecf !important;
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        box-shadow: 0 5px 14px rgba(9, 94, 207, 0.24) !important;
+    }
+}
+
+
 /* --------------------------------------------------------------------------
    Desktop Uredi termin header actions.
    Close stays on the left; billing/scanner actions live in the top-right menu.
@@ -9553,4 +9800,8 @@
 /* Keep Add service directly beside Edit service whenever both actions exist. */
 .calendar-service-chain__single-row--with-edit {
     grid-template-columns: minmax(0, 1fr) 48px 48px;
+}
+
+.calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only {
+    grid-template-columns: minmax(0, 1fr) 48px;
 }

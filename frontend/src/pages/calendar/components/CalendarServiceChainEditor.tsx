@@ -31,6 +31,8 @@ function labels(locale: string) {
       space: 'Prostor',
       noSpace: 'Brez lokacije',
       duration: 'Trajanje',
+      decreaseDuration: 'Skrajšaj trajanje',
+      increaseDuration: 'Podaljšaj trajanje',
       price: 'Cena',
       totalDuration: 'Skupno trajanje',
       total: 'Skupaj',
@@ -63,6 +65,8 @@ function labels(locale: string) {
       space: 'Prostor',
       noSpace: 'Bez lokacije',
       duration: 'Trajanje',
+      decreaseDuration: 'Smanji trajanje',
+      increaseDuration: 'Povećaj trajanje',
       price: 'Cena',
       totalDuration: 'Ukupno trajanje',
       total: 'Ukupno',
@@ -94,6 +98,8 @@ function labels(locale: string) {
     space: 'Space',
     noSpace: 'No location',
     duration: 'Duration',
+    decreaseDuration: 'Decrease duration',
+    increaseDuration: 'Increase duration',
     price: 'Price',
     totalDuration: 'Total duration',
     total: 'Total',
@@ -131,6 +137,14 @@ function PlusIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MinusIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
     </svg>
   )
 }
@@ -240,6 +254,9 @@ export function CalendarServiceChainEditor({
   const isMultiMode = count > 1
   const canAddServices = multipleServicesEnabled === true
   const showSingleEditButton = count === 1 && services[0]?.typeId != null && allowServiceEdit
+  const singleServiceGross = count === 1 && services[0]?.typeId != null
+    ? segments[0]?.grossPrice ?? services[0]?.grossPriceOverride ?? null
+    : null
 
   const countLabel = (() => {
     if (locale === 'sl') {
@@ -388,6 +405,14 @@ export function CalendarServiceChainEditor({
     setEditingServiceIndex(null)
   }
 
+  const changeEditingServiceDuration = (delta: number) => {
+    setEditingServiceDuration((current) => {
+      const parsed = Number(current)
+      const base = Number.isFinite(parsed) ? parsed : 60
+      return String(Math.min(720, Math.max(5, base + delta)))
+    })
+  }
+
   return (
     <>
       <section className={`calendar-service-chain ${isMultiMode ? 'calendar-service-chain--multi' : 'calendar-service-chain--single'}`} aria-label={isMultiMode ? copy.services : copy.service}>
@@ -444,7 +469,18 @@ export function CalendarServiceChainEditor({
                               </div>
                             ) : null}
                           </div>
-                          <div className="calendar-service-chain__menu-wrap">
+                          {allowServiceEdit ? (
+                            <button
+                              type="button"
+                              className="calendar-service-chain__icon-btn calendar-service-chain__mobile-edit-btn"
+                              aria-label={copy.edit}
+                              title={copy.edit}
+                              onClick={() => openEditService(index)}
+                            >
+                              <PencilIcon />
+                            </button>
+                          ) : null}
+                          <div className="calendar-service-chain__menu-wrap calendar-service-chain__desktop-service-menu">
                             <button
                               type="button"
                               className="calendar-service-chain__icon-btn calendar-service-chain__more-btn"
@@ -504,17 +540,22 @@ export function CalendarServiceChainEditor({
           <label className="calendar-service-chain__single-field">
             <span className="calendar-service-chain__single-label">{copy.service}</span>
             <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}`}>
-              <select
-                className="calendar-service-chain__single-select"
-                value={services[0]?.typeId ?? ''}
-                aria-label={copy.service}
-                onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
-              >
-                <option value="">{copy.choose}</option>
-                {sortedSessionTypes.map((entry) => (
-                  <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
-                ))}
-              </select>
+              <div className={`calendar-service-chain__single-select-wrap${singleServiceGross != null ? ' calendar-service-chain__single-select-wrap--with-price' : ''}`}>
+                <select
+                  className="calendar-service-chain__single-select"
+                  value={services[0]?.typeId ?? ''}
+                  aria-label={copy.service}
+                  onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
+                >
+                  <option value="">{copy.choose}</option>
+                  {sortedSessionTypes.map((entry) => (
+                    <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
+                  ))}
+                </select>
+                {singleServiceGross != null ? (
+                  <span className="calendar-service-chain__single-price" aria-hidden>{currency(singleServiceGross)}</span>
+                ) : null}
+              </div>
               {showSingleEditButton ? (
                 <button
                   type="button"
@@ -612,6 +653,7 @@ export function CalendarServiceChainEditor({
               <div className="calendar-service-edit-modal__heading">
                 <h3>{copy.editServiceTitle}</h3>
               </div>
+              <span className="calendar-service-edit-modal__header-spacer" aria-hidden />
             </div>
             <div className="calendar-service-edit-modal__body">
               <label className="calendar-service-edit-modal__field">
@@ -624,9 +666,28 @@ export function CalendarServiceChainEditor({
               </label>
               <label className="calendar-service-edit-modal__field">
                 <span>{copy.duration}</span>
-                <select value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
+                <select className="calendar-service-edit-modal__duration-select" value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
                   {durationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
+                <div className="calendar-service-edit-modal__duration-stepper" role="group" aria-label={copy.duration}>
+                  <button
+                    type="button"
+                    aria-label={copy.decreaseDuration}
+                    disabled={Number(editingServiceDuration) <= 5}
+                    onClick={() => changeEditingServiceDuration(-5)}
+                  >
+                    <MinusIcon />
+                  </button>
+                  <strong>{formatMinutes(Number(editingServiceDuration) || 0, locale)}</strong>
+                  <button
+                    type="button"
+                    aria-label={copy.increaseDuration}
+                    disabled={Number(editingServiceDuration) >= 720}
+                    onClick={() => changeEditingServiceDuration(5)}
+                  >
+                    <PlusIcon />
+                  </button>
+                </div>
               </label>
               <label className="calendar-service-edit-modal__field">
                 <span>{copy.price}</span>
