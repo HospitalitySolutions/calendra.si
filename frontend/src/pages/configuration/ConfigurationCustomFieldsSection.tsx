@@ -52,7 +52,7 @@ function optionsText(options: string[] | undefined): string {
 
 function parseOptionsText(text: string): string[] {
   return text
-    .split(/\r?\n|,/)
+    .split(/\r?\n|,/) 
     .map((item) => item.trim())
     .filter(Boolean)
     .filter((item, index, arr) => arr.indexOf(item) === index)
@@ -63,6 +63,20 @@ function typeLabel(type: CustomFieldType, locale: string): string {
   return locale === 'sl' ? (row?.sl ?? type) : (row?.en ?? type)
 }
 
+function normalizeDraft(draft: CustomFieldDraft) {
+  return JSON.stringify({
+    id: draft.id ?? null,
+    name: draft.name.trim(),
+    appliesTo: draft.appliesTo,
+    fieldType: draft.fieldType,
+    required: draft.required,
+    showInList: draft.showInList,
+    sortOrder: Number.isFinite(Number(draft.sortOrder)) ? Number(draft.sortOrder) : 0,
+    active: draft.active,
+    optionsText: draft.optionsText.trim(),
+  })
+}
+
 export function ConfigurationCustomFieldsSection() {
   const { locale } = useLocale()
   const [activeTab, setActiveTab] = useState<CustomFieldAppliesTo>('CLIENT')
@@ -71,12 +85,14 @@ export function ConfigurationCustomFieldsSection() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState<CustomFieldDraft>(() => emptyDraft('CLIENT'))
+  const [baselineDraft, setBaselineDraft] = useState<CustomFieldDraft>(() => emptyDraft('CLIENT'))
 
   const copy = locale === 'sl'
     ? {
         title: 'Polja po meri',
         newField: 'Novo polje',
         fieldName: 'Ime polja',
+        fieldNamePlaceholder: 'Vnesite ime',
         fieldType: 'Tip polja',
         required: 'Obvezno',
         showInList: 'Prikaži v seznamu',
@@ -92,6 +108,7 @@ export function ConfigurationCustomFieldsSection() {
         inactive: 'Neaktivno',
         delete: 'Izbriši',
         edit: 'Uredi',
+        loading: 'Nalaganje…',
         confirmDelete: 'Izbrišem to polje po meri in njegove shranjene vrednosti?',
         loadError: 'Nalaganje polj po meri ni uspelo.',
         saveError: 'Shranjevanje polja po meri ni uspelo.',
@@ -101,6 +118,7 @@ export function ConfigurationCustomFieldsSection() {
         title: 'Custom fields',
         newField: 'New field',
         fieldName: 'Field name',
+        fieldNamePlaceholder: 'Enter name',
         fieldType: 'Field type',
         required: 'Required',
         showInList: 'Show in list',
@@ -116,6 +134,7 @@ export function ConfigurationCustomFieldsSection() {
         inactive: 'Inactive',
         delete: 'Delete',
         edit: 'Edit',
+        loading: 'Loading…',
         confirmDelete: 'Delete this custom field and its saved values?',
         loadError: 'Failed to load custom fields.',
         saveError: 'Failed to save custom field.',
@@ -145,11 +164,14 @@ export function ConfigurationCustomFieldsSection() {
   }, [])
 
   useEffect(() => {
-    setDraft((prev) => prev.id ? prev : emptyDraft(activeTab))
+    if (draft.id) return
+    const next = emptyDraft(activeTab)
+    setDraft(next)
+    setBaselineDraft(next)
   }, [activeTab])
 
   const startEdit = (field: CustomFieldDefinition) => {
-    setDraft({
+    const nextDraft: CustomFieldDraft = {
       id: field.id,
       name: field.name ?? '',
       appliesTo: field.appliesTo,
@@ -159,11 +181,17 @@ export function ConfigurationCustomFieldsSection() {
       sortOrder: field.sortOrder ?? 0,
       active: field.active !== false,
       optionsText: optionsText(field.options),
-    })
+    }
+    setDraft(nextDraft)
+    setBaselineDraft(nextDraft)
     setActiveTab(field.appliesTo)
   }
 
-  const resetDraft = () => setDraft(emptyDraft(activeTab))
+  const resetDraft = () => {
+    const next = emptyDraft(activeTab)
+    setDraft(next)
+    setBaselineDraft(next)
+  }
 
   const submit = async () => {
     if (saving || !draft.name.trim()) return
@@ -207,41 +235,405 @@ export function ConfigurationCustomFieldsSection() {
   }
 
   const needsOptions = draft.fieldType === 'DROPDOWN' || draft.fieldType === 'MULTI_SELECT'
+  const isDirty = useMemo(() => normalizeDraft(draft) !== normalizeDraft(baselineDraft), [draft, baselineDraft])
 
   return (
     <section className="custom-fields-settings">
       <style>{`
-        .custom-fields-settings { width: min(100%, 1120px); display: grid; gap: 16px; }
-        .custom-fields-card { background: #fff; border: 1px solid #dbe5f2; border-radius: 24px; box-shadow: 0 18px 50px rgba(18, 38, 63, .08); overflow: hidden; }
-        .custom-fields-tabs { display: flex; gap: 8px; padding: 14px 16px 0; }
-        .custom-fields-tab { border: 1px solid #dbe5f2; background: #f8fafc; color: #475569; border-radius: 12px; padding: 10px 14px; font-weight: 800; cursor: pointer; }
-        .custom-fields-tab.active { background: #eaf2ff; border-color: #b8d2ff; color: #2167ff; box-shadow: 0 6px 16px rgba(33, 103, 255, .16); }
-        .custom-fields-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); gap: 18px; padding: 16px; }
-        .custom-fields-list, .custom-fields-form { border: 1px solid #e2e8f0; border-radius: 18px; background: #fbfdff; padding: 14px; }
-        .custom-fields-list-inner { display: grid; gap: 10px; }
-        .custom-fields-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; background: #fff; border: 1px solid #dbe5f2; border-radius: 16px; padding: 14px; }
-        .custom-fields-row-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 900; color: #14213d; }
-        .custom-fields-row-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; color: #64748b; font-size: 13px; }
-        .custom-fields-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; background: #eef4ff; color: #2167ff; font-weight: 800; font-size: 12px; }
-        .custom-fields-pill--off { background: #f1f5f9; color: #64748b; }
-        .custom-fields-actions { display: flex; gap: 8px; }
-        .custom-fields-actions button, .custom-fields-form-actions button { border: 1px solid #dbe5f2; border-radius: 12px; background: #fff; color: #1f2a44; padding: 9px 12px; font-weight: 800; cursor: pointer; }
-        .custom-fields-actions button.danger { color: #dc2626; border-color: #fecaca; background: #fff7f7; }
-        .custom-fields-form h3 { margin: 0 0 14px; color: #14213d; }
-        .custom-fields-grid { display: grid; gap: 12px; }
-        .custom-fields-field { display: grid; gap: 6px; color: #334155; font-weight: 800; font-size: 13px; }
-        .custom-fields-field input, .custom-fields-field select, .custom-fields-field textarea { width: 100%; border: 1px solid #d6e1f0; border-radius: 12px; background: #fff; min-height: 42px; padding: 10px 12px; color: #14213d; font: inherit; }
-        .custom-fields-field textarea { min-height: 112px; resize: vertical; }
-        .custom-fields-switches { display: grid; gap: 8px; }
-        .custom-fields-check { display: flex; gap: 10px; align-items: center; color: #334155; font-weight: 800; }
-        .custom-fields-check input { width: 18px; height: 18px; }
-        .custom-fields-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
-        .custom-fields-form-actions button.primary { background: #2167ff; color: white; border-color: #2167ff; box-shadow: 0 10px 22px rgba(33, 103, 255, .25); }
-        .custom-fields-empty { border: 1px dashed #cbd5e1; border-radius: 16px; padding: 28px; color: #64748b; text-align: center; background: #fff; }
-        .custom-fields-empty strong { display: block; color: #14213d; margin-bottom: 6px; }
-        .custom-fields-error { border-radius: 14px; background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; padding: 12px 14px; font-weight: 800; }
-        @media (max-width: 880px) { .custom-fields-layout { grid-template-columns: 1fr; } .custom-fields-tabs { overflow-x: auto; } }
+        .custom-fields-settings {
+          --cf-blue: #2167ff;
+          --cf-blue-dark: #1d4ed8;
+          --cf-blue-soft: #eaf2ff;
+          --cf-border: #dbe5f2;
+          --cf-border-strong: #cbd8ea;
+          --cf-text: #14213d;
+          --cf-muted: #64748b;
+          --cf-surface: #ffffff;
+          width: min(100%, 1120px);
+          display: grid;
+          gap: 18px;
+        }
+        .custom-fields-mobile-tabs-wrap {
+          display: none;
+        }
+        .custom-fields-card {
+          background: #fff;
+          border: 1px solid var(--cf-border);
+          border-radius: 24px;
+          box-shadow: 0 18px 50px rgba(18, 38, 63, .08);
+          overflow: hidden;
+        }
+        .custom-fields-tabs {
+          display: flex;
+          gap: 8px;
+          padding: 14px 16px 0;
+        }
+        .custom-fields-tab {
+          border: 1px solid var(--cf-border);
+          background: #f8fafc;
+          color: #475569;
+          border-radius: 12px;
+          padding: 10px 14px;
+          font-weight: 800;
+          cursor: pointer;
+          font: inherit;
+        }
+        .custom-fields-tab.active {
+          background: var(--cf-blue-soft);
+          border-color: #b8d2ff;
+          color: var(--cf-blue);
+          box-shadow: 0 6px 16px rgba(33, 103, 255, .16);
+        }
+        .custom-fields-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
+          gap: 18px;
+          padding: 16px;
+        }
+        .custom-fields-list,
+        .custom-fields-form {
+          border: 1px solid #e2e8f0;
+          border-radius: 22px;
+          background: #fbfdff;
+          padding: 18px;
+          min-width: 0;
+        }
+        .custom-fields-list-inner {
+          display: grid;
+          gap: 10px;
+        }
+        .custom-fields-row {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 12px;
+          align-items: center;
+          background: #fff;
+          border: 1px solid var(--cf-border);
+          border-radius: 16px;
+          padding: 14px;
+        }
+        .custom-fields-row-title {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          font-weight: 900;
+          color: var(--cf-text);
+        }
+        .custom-fields-row-meta {
+          margin-top: 6px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          color: var(--cf-muted);
+          font-size: 13px;
+        }
+        .custom-fields-pill {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          padding: 4px 8px;
+          background: #eef4ff;
+          color: var(--cf-blue);
+          font-weight: 800;
+          font-size: 12px;
+        }
+        .custom-fields-pill--off {
+          background: #f1f5f9;
+          color: var(--cf-muted);
+        }
+        .custom-fields-actions {
+          display: flex;
+          gap: 8px;
+        }
+        .custom-fields-actions button,
+        .custom-fields-form-actions button,
+        .custom-fields-form-heading button {
+          border: 1px solid var(--cf-border);
+          border-radius: 12px;
+          background: #fff;
+          color: #1f2a44;
+          padding: 9px 12px;
+          font-weight: 800;
+          font: inherit;
+          cursor: pointer;
+        }
+        .custom-fields-actions button.danger {
+          color: #dc2626;
+          border-color: #fecaca;
+          background: #fff7f7;
+        }
+        .custom-fields-form-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 14px;
+        }
+        .custom-fields-form h3 {
+          margin: 0;
+          color: var(--cf-text);
+          font-size: clamp(26px, 2.4vw, 34px);
+          line-height: 1.12;
+          font-weight: 900;
+        }
+        .custom-fields-grid {
+          display: grid;
+          gap: 14px;
+        }
+        .custom-fields-field {
+          display: grid;
+          gap: 8px;
+          color: var(--cf-text);
+          font-weight: 800;
+          font-size: 13px;
+        }
+        .custom-fields-field input,
+        .custom-fields-field select,
+        .custom-fields-field textarea {
+          width: 100%;
+          border: 1px solid var(--cf-border-strong);
+          border-radius: 18px;
+          background: #fff;
+          min-height: 56px;
+          padding: 14px 16px;
+          color: var(--cf-text);
+          font: inherit;
+          font-size: 18px;
+          line-height: 1.25;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
+          appearance: none;
+          -webkit-appearance: none;
+        }
+        .custom-fields-field select {
+          background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
+          background-position: calc(100% - 24px) calc(50% - 4px), calc(100% - 16px) calc(50% - 4px);
+          background-size: 8px 8px, 8px 8px;
+          background-repeat: no-repeat;
+          padding-right: 46px;
+        }
+        .custom-fields-field textarea {
+          min-height: 120px;
+          resize: vertical;
+        }
+        .custom-fields-switches {
+          display: grid;
+          gap: 14px;
+          padding-top: 2px;
+        }
+        .custom-fields-check {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          color: var(--cf-text);
+          font-weight: 500;
+          font-size: 18px;
+          line-height: 1.35;
+        }
+        .custom-fields-check input {
+          width: 18px;
+          height: 18px;
+          accent-color: var(--cf-blue);
+          flex: 0 0 auto;
+        }
+        .custom-fields-form-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          margin-top: 18px;
+        }
+        .custom-fields-form-actions button.primary,
+        .custom-fields-mobile-savebar button {
+          background: var(--cf-blue);
+          color: white;
+          border-color: var(--cf-blue);
+          box-shadow: 0 10px 22px rgba(33, 103, 255, .25);
+        }
+        .custom-fields-empty {
+          border: 1px dashed var(--cf-border-strong);
+          border-radius: 20px;
+          padding: 32px 24px;
+          color: var(--cf-muted);
+          text-align: center;
+          background: #fff;
+        }
+        .custom-fields-empty strong {
+          display: block;
+          color: var(--cf-text);
+          margin-bottom: 6px;
+          font-size: 18px;
+        }
+        .custom-fields-error {
+          border-radius: 14px;
+          background: #fff1f2;
+          border: 1px solid #fecdd3;
+          color: #be123c;
+          padding: 12px 14px;
+          font-weight: 800;
+        }
+        .custom-fields-mobile-savebar {
+          display: none;
+        }
+        @media (max-width: 1024px) {
+          .custom-fields-settings {
+            width: 100%;
+            gap: 16px;
+            padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+          }
+          .custom-fields-mobile-tabs-wrap {
+            display: block;
+            width: 100vw;
+            margin-left: calc(50% - 50vw);
+            margin-right: calc(50% - 50vw);
+            margin-top: -16px;
+            background: linear-gradient(180deg, #1f79ff 0%, #1565ee 100%);
+            box-shadow: 0 2px 0 rgba(255,255,255,.12) inset;
+          }
+          .custom-fields-tabs {
+            display: none;
+          }
+          .custom-fields-mobile-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
+            align-items: stretch;
+            min-height: 66px;
+          }
+          .custom-fields-mobile-tab {
+            position: relative;
+            border: 0;
+            background: transparent;
+            color: rgba(255,255,255,.82);
+            font: inherit;
+            font-weight: 800;
+            font-size: 18px;
+            padding: 18px 10px 16px;
+            cursor: pointer;
+          }
+          .custom-fields-mobile-tab.active {
+            color: #ffffff;
+          }
+          .custom-fields-mobile-tab.active::after {
+            content: '';
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            bottom: 0;
+            height: 5px;
+            border-radius: 999px 999px 0 0;
+            background: rgba(255,255,255,.96);
+          }
+          .custom-fields-card {
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            overflow: visible;
+          }
+          .custom-fields-layout {
+            grid-template-columns: 1fr;
+            gap: 16px;
+            padding: 0;
+          }
+          .custom-fields-list,
+          .custom-fields-form {
+            border-radius: 28px;
+            padding: 18px 16px;
+            background: rgba(255,255,255,.98);
+            box-shadow: 0 16px 36px rgba(15, 23, 42, .08);
+          }
+          .custom-fields-row {
+            grid-template-columns: 1fr;
+          }
+          .custom-fields-actions {
+            justify-content: flex-end;
+          }
+          .custom-fields-form-heading {
+            align-items: flex-start;
+            gap: 10px;
+          }
+          .custom-fields-form h3 {
+            font-size: 28px;
+          }
+          .custom-fields-field {
+            font-size: 16px;
+            gap: 10px;
+          }
+          .custom-fields-field input,
+          .custom-fields-field select,
+          .custom-fields-field textarea {
+            min-height: 52px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            font-size: 16px;
+          }
+          .custom-fields-switches {
+            gap: 12px;
+          }
+          .custom-fields-check {
+            font-size: 17px;
+          }
+          .custom-fields-form-actions {
+            display: none;
+          }
+          .custom-fields-mobile-savebar {
+            display: flex;
+            position: fixed;
+            left: max(12px, env(safe-area-inset-left, 0px) + 12px);
+            right: max(12px, env(safe-area-inset-right, 0px) + 12px);
+            bottom: max(12px, env(safe-area-inset-bottom, 0px) + 8px);
+            z-index: 80;
+            pointer-events: none;
+          }
+          .custom-fields-mobile-savebar button {
+            width: 100%;
+            min-height: 58px;
+            border-radius: 18px;
+            border: 1px solid var(--cf-blue);
+            font: inherit;
+            font-size: 18px;
+            font-weight: 900;
+            pointer-events: auto;
+          }
+        }
+        @media (max-width: 680px) {
+          .custom-fields-mobile-tabs {
+            min-height: 60px;
+          }
+          .custom-fields-mobile-tab {
+            font-size: 16px;
+            padding: 16px 8px 14px;
+          }
+          .custom-fields-list,
+          .custom-fields-form {
+            border-radius: 24px;
+          }
+          .custom-fields-empty {
+            padding: 24px 18px;
+          }
+          .custom-fields-actions {
+            width: 100%;
+          }
+          .custom-fields-actions button {
+            flex: 1 1 0;
+          }
+        }
       `}</style>
+
+      <div className="custom-fields-mobile-tabs-wrap" role="tablist" aria-label={copy.title}>
+        <div className="custom-fields-mobile-tabs">
+          {appliesTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={activeTab === tab.id ? 'custom-fields-mobile-tab active' : 'custom-fields-mobile-tab'}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {locale === 'sl' ? tab.sl : tab.en}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="custom-fields-card">
         <div className="custom-fields-tabs" role="tablist" aria-label={copy.title}>
           {appliesTabs.map((tab) => (
@@ -255,11 +647,13 @@ export function ConfigurationCustomFieldsSection() {
             </button>
           ))}
         </div>
+
         {error ? <div className="custom-fields-error" style={{ margin: '16px 16px 0' }}>{error}</div> : null}
+
         <div className="custom-fields-layout">
           <div className="custom-fields-list">
             {loading ? (
-              <div className="custom-fields-empty">{locale === 'sl' ? 'Nalaganje…' : 'Loading…'}</div>
+              <div className="custom-fields-empty">{copy.loading}</div>
             ) : visibleFields.length === 0 ? (
               <div className="custom-fields-empty"><strong>{copy.emptyTitle}</strong>{copy.emptyText}</div>
             ) : (
@@ -289,12 +683,20 @@ export function ConfigurationCustomFieldsSection() {
               </div>
             )}
           </div>
+
           <div className="custom-fields-form">
-            <h3>{draft.id ? copy.update : copy.newField}</h3>
+            <div className="custom-fields-form-heading">
+              <h3>{draft.id ? copy.update : copy.newField}</h3>
+              {draft.id ? <button type="button" onClick={resetDraft}>{copy.cancel}</button> : null}
+            </div>
             <div className="custom-fields-grid">
               <label className="custom-fields-field">
                 {copy.fieldName}
-                <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                <input
+                  value={draft.name}
+                  placeholder={copy.fieldNamePlaceholder}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
               </label>
               <label className="custom-fields-field">
                 {copy.fieldType}
@@ -327,6 +729,14 @@ export function ConfigurationCustomFieldsSection() {
           </div>
         </div>
       </div>
+
+      {isDirty ? (
+        <div className="custom-fields-mobile-savebar">
+          <button type="button" disabled={saving || !draft.name.trim()} onClick={() => void submit()}>
+            {saving ? (locale === 'sl' ? 'Shranjevanje…' : 'Saving…') : (draft.id ? copy.update : copy.save)}
+          </button>
+        </div>
+      ) : null}
     </section>
   )
 }
