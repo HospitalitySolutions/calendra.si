@@ -6240,6 +6240,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             .map((id) => (id === data.id ? data : metaClients.find((c: any) => c.id === id) || prev.clients?.find((c: any) => c.id === id) || null))
             .filter(Boolean),
         } : prev)
+        // The add-client modal is prefilled from the current search query. Clear that
+        // query after a successful create so updateBookedSession does not interpret the
+        // old partial name as another client and create/assign it on save.
+        setBookedClientSearch('')
         setBookedClientDropdownOpen(false)
         setEditingBookedClientSearch(false)
       } else {
@@ -6247,6 +6251,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           ? Array.from(new Set([...(selectedFormClientIds || []), data.id]))
           : [data.id]
         setForm((f: any) => ({ ...f, clientId: data.id, clientIds: nextIds }))
+        // Clear the partial search text used to prefill the modal. Otherwise saveBooking
+        // sees it as a new typed client and replaces the newly selected full-name client.
+        setClientSearch('')
         setClientDropdownOpen(false)
         setEditingClientSearch(false)
       }
