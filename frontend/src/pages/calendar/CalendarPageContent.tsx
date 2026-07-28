@@ -11775,7 +11775,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }}
           slotDuration="00:15:00"
           snapDuration="00:15:00"
-          slotLabelInterval="00:30:00"
+          slotLabelInterval="01:00:00"
           slotMinTime={slotMinTime}
           slotMaxTime={slotMaxTime}
           height={isNativeAndroid ? '100%' : 'auto'}
