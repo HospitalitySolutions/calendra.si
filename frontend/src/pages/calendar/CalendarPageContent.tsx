@@ -3853,6 +3853,26 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     ? t('calendarSpaceFilterAllLocations')
     : ((metaSpaces).find((s: any) => s.id === spaceFilterId)?.name || t('calendarSpaceFilterAllLocations'))
 
+  const splitBottomBarLabel = useCallback((label: string) => {
+    const normalized = String(label || '').trim()
+    if (!normalized) return ['', ''] as const
+    const words = normalized.split(/\s+/).filter(Boolean)
+    if (words.length <= 1) return [normalized, ''] as const
+    if (words.length === 2) return [words[0], words[1]] as const
+    const midpoint = Math.ceil(words.length / 2)
+    return [words.slice(0, midpoint).join(' '), words.slice(midpoint).join(' ')] as const
+  }, [])
+
+  const renderBottomBarStackLabel = useCallback((label: string, className: string) => {
+    const [firstLine, secondLine] = splitBottomBarLabel(label)
+    return (
+      <span className={className}>
+        <span>{firstLine}</span>
+        {secondLine ? <span>{secondLine}</span> : null}
+      </span>
+    )
+  }, [splitBottomBarLabel])
+
   const SLOT_MS = 15 * 60 * 1000
 
   const events = useMemo(() => {
@@ -12912,8 +12932,16 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               ) : null}
             </div>
             <div className="calendar-bottom-panel__center" style={{ gap: 12 }}>
-              <button type="button" className="calendar-bottom-panel-pill calendar-bottom-panel-pill--button" onClick={openSessionsSheet}>
-                {sessionCountLabel}
+              <button
+                type="button"
+                className="calendar-bottom-panel-pill calendar-bottom-panel-pill--button"
+                aria-label={`${t('calendarToday')}: ${sessionCountLabel}`}
+                onClick={openSessionsSheet}
+              >
+                <span className="calendar-bottom-panel-pill__stack">
+                  <span className="calendar-bottom-panel-pill__eyebrow">{t('calendarToday')}</span>
+                  <span className="calendar-bottom-panel-pill__value">{sessionCountLabel}</span>
+                </span>
               </button>
             </div>
             <div className="calendar-bottom-panel__end">
@@ -13321,13 +13349,21 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     <circle cx="9" cy="7" r="4" />
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
-                  <span>{selectedConsultantLabel}</span>
+                  {renderBottomBarStackLabel(selectedConsultantLabel, 'calendar-android-filter-chip__label')}
                 </button>
               )}
             </div>
             <div className="calendar-android-filter-footer-center">
-              <button type="button" className="calendar-bottom-panel-pill calendar-bottom-panel-pill--button calendar-bottom-panel-pill--android" onClick={openSessionsSheet}>
-                {sessionCountLabel}
+              <button
+                type="button"
+                className="calendar-bottom-panel-pill calendar-bottom-panel-pill--button calendar-bottom-panel-pill--android"
+                aria-label={`${t('calendarToday')}: ${sessionCountLabel}`}
+                onClick={openSessionsSheet}
+              >
+                <span className="calendar-bottom-panel-pill__stack">
+                  <span className="calendar-bottom-panel-pill__eyebrow">{t('calendarToday')}</span>
+                  <span className="calendar-bottom-panel-pill__value">{sessionCountLabel}</span>
+                </span>
               </button>
             </div>
             <div className="calendar-android-filter-footer-right">
@@ -13342,7 +13378,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                     <polyline points="9 22 9 12 15 12 15 22" />
                   </svg>
-                  <span>{selectedSpaceLabel}</span>
+                  {renderBottomBarStackLabel(selectedSpaceLabel, 'calendar-android-filter-chip__label')}
                 </button>
               )}
             </div>

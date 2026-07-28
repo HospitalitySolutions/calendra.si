@@ -422,6 +422,26 @@ export function CalendarRailIconFilters({
       ? t('calendarSpaceFilterAllLocations')
       : spaces.find((s) => s.id === spaceFilterId)?.name ?? t('calendarSpaceFilterAllLocations')
 
+  const splitFooterLabel = (label: string) => {
+    const normalized = String(label || '').trim()
+    if (!normalized) return ['', ''] as const
+    const words = normalized.split(/\s+/).filter(Boolean)
+    if (words.length <= 1) return [normalized, ''] as const
+    if (words.length === 2) return [words[0], words[1]] as const
+    const midpoint = Math.ceil(words.length / 2)
+    return [words.slice(0, midpoint).join(' '), words.slice(midpoint).join(' ')] as const
+  }
+
+  const renderFooterLabel = (label: string) => {
+    const [firstLine, secondLine] = splitFooterLabel(label)
+    return (
+      <span className="calendar-rail-filter-popup-trigger__label calendar-rail-filter-popup-trigger__label--stack">
+        <span>{firstLine}</span>
+        {secondLine ? <span>{secondLine}</span> : null}
+      </span>
+    )
+  }
+
   const portalPanel = open
     ? createPortal(
         <div
@@ -532,7 +552,7 @@ export function CalendarRailIconFilters({
             <IconFilterConsultant />
             {layout === 'footer' ? (
               <>
-                <span className="calendar-rail-filter-popup-trigger__label">{consultantValueLabel}</span>
+                {renderFooterLabel(consultantValueLabel)}
                 <svg className="calendar-rail-filter-popup-trigger__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
@@ -556,7 +576,7 @@ export function CalendarRailIconFilters({
             <IconFilterSpace />
             {layout === 'footer' ? (
               <>
-                <span className="calendar-rail-filter-popup-trigger__label">{spaceValueLabel}</span>
+                {renderFooterLabel(spaceValueLabel)}
                 <svg className="calendar-rail-filter-popup-trigger__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
