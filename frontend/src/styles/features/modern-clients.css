@@ -6322,3 +6322,53 @@
         padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
     }
 }
+
+/* Mobile/tablet client detail refinements: separate fields from the blue header
+   and remove the leading appointment icon so session details use that space. */
+@media (max-width: 1024px) {
+    .clients-client-detail-modal .clients-action-workspace-body {
+        margin-top: 0 !important;
+        padding-top: 22px !important;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-icon {
+        display: none !important;
+    }
+}
+
+/* Tablet landscape / wider tablet session rows keep the desktop-style columns,
+   but start directly with the appointment title instead of an icon column. */
+@media (min-width: 901px) and (max-width: 1024px) {
+    .clients-client-detail-modal .clients-modern-session-row {
+        grid-template-columns: minmax(130px, 1.1fr) minmax(104px, 0.85fr) minmax(112px, 0.95fr) minmax(112px, 0.95fr) auto;
+    }
+}
+
+/* Compact tablets shift all appointment content into the space previously used
+   by the icon while retaining the status column on the right. */
+@media (min-width: 761px) and (max-width: 900px) {
+    .clients-client-detail-modal .clients-modern-session-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-info {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Phones use a left-aligned detail column and a dedicated chevron column. */
+@media (max-width: 760px) {
+    .clients-client-detail-modal .clients-modern-session-row {
+        grid-template-columns: minmax(0, 1fr) 24px;
+        column-gap: 12px;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-row::after {
+        grid-column: 2;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-title,
+    .clients-client-detail-modal .clients-modern-session-row > .clients-modern-session-info {
+        grid-column: 1;
+    }
+}
