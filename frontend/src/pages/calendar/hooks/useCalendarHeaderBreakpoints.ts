@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 const CALENDAR_COMPACT_HEADER_MAX_PX = 1749
 /** ≤939px: Consultant/Space as icon popups in bottom strip; mic centered (labeled selects stay in header above 940px). */
 export const CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX = 939
+/** Appointment create/edit forms use dedicated full-screen pages on phones and tablets. */
+export const CALENDAR_FORM_PAGE_MAX_PX = 1024
 /** Prev/next move from header to the right rail (narrow phones). */
 const CALENDAR_DATE_NAV_RAIL_MAX_PX = 419
 /** ≤780px: keep arrows + view selector grouped on the right side in the header. */
@@ -25,6 +27,23 @@ export function useCalendarCompactHeader() {
     return () => mq.removeEventListener('change', apply)
   }, [])
   return compact
+}
+
+
+export function useCalendarFormPageLayout() {
+  const [fullPage, setFullPage] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia(`(max-width: ${CALENDAR_FORM_PAGE_MAX_PX}px)`).matches
+      : false,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${CALENDAR_FORM_PAGE_MAX_PX}px)`)
+    const apply = () => setFullPage(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+  return fullPage
 }
 
 export function useCalendarFiltersBottomBar() {

@@ -9255,3 +9255,157 @@
         border-radius: 16px;
     }
 }
+
+
+/* Dedicated appointment pages for phone and tablet layouts. */
+@media (max-width: 1024px) {
+    .calendar-form-page-backdrop.modal-backdrop,
+    .layout-android .calendar-form-page-backdrop.modal-backdrop {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 1150 !important;
+        padding: 0 !important;
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        background: #ffffff !important;
+        overflow: hidden !important;
+    }
+
+    .calendar-form-page.booking-side-panel.modal.large-modal,
+    .layout-android .calendar-form-page.booking-side-panel.modal.large-modal {
+        align-self: stretch !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    @supports (height: 100dvh) {
+        .calendar-form-page.booking-side-panel.modal.large-modal,
+        .layout-android .calendar-form-page.booking-side-panel.modal.large-modal {
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+        }
+    }
+
+    .calendar-form-page .booking-side-panel-footer.booking-side-panel-footer--mobile-save {
+        display: flex !important;
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 12 !important;
+        width: 100% !important;
+        padding: 14px 16px max(18px, env(safe-area-inset-bottom)) !important;
+        border-top: 1px solid #e2e8f0 !important;
+        background: #ffffff !important;
+    }
+
+    .calendar-form-page .booking-side-panel-footer--mobile-save .calendar-session-footer-tags,
+    .calendar-form-page .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--footer-delete {
+        display: none !important;
+    }
+
+    .calendar-form-page .booking-side-panel-footer--mobile-save .calendar-session-footer-actions,
+    .calendar-form-page .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-form-page .booking-side-panel-footer--mobile-save .calendar-form-footer-btn--save-mobile-bottom {
+        display: inline-flex !important;
+        min-height: 56px !important;
+        justify-content: center !important;
+        border-radius: 16px !important;
+        background: #2f6fed !important;
+        border-color: #2b61d1 !important;
+        color: #ffffff !important;
+    }
+
+    .calendar-form-page .booking-side-panel-footer--mobile-save .calendar-form-footer-btn__label {
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+        overflow: visible !important;
+        clip: auto !important;
+        color: #ffffff !important;
+        font-size: 1.05rem !important;
+        font-weight: 800 !important;
+        white-space: nowrap !important;
+    }
+
+    .calendar-service-chain__single-row--with-edit,
+    .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit {
+        grid-template-columns: minmax(0, 1fr) 48px 48px !important;
+    }
+
+    .calendar-service-chain__single-edit {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 48px !important;
+        min-width: 48px !important;
+        height: 48px !important;
+        min-height: 48px !important;
+    }
+
+    .calendar-service-edit-backdrop {
+        padding: 0 !important;
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        background: #ffffff !important;
+    }
+
+    .calendar-service-edit-modal {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #f8fafc !important;
+    }
+
+    @supports (height: 100dvh) {
+        .calendar-service-edit-modal {
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+        }
+    }
+
+    .calendar-service-edit-modal__header {
+        min-height: 58px !important;
+        padding: max(8px, env(safe-area-inset-top)) 14px 8px !important;
+        border-bottom: 0 !important;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%) !important;
+    }
+
+    .calendar-service-edit-modal__heading h3,
+    .calendar-service-edit-modal__close {
+        color: #ffffff !important;
+    }
+
+    .calendar-service-edit-modal__close {
+        border-color: rgba(255, 255, 255, 0.28) !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .calendar-service-edit-modal__body {
+        padding: 16px !important;
+        background: #f8fafc !important;
+    }
+
+    .calendar-service-edit-modal__footer {
+        padding: 0 16px calc(16px + env(safe-area-inset-bottom)) !important;
+        background: #f8fafc !important;
+    }
+
+    .calendar-service-edit-modal__footer .primary {
+        width: 100% !important;
+        min-height: 52px !important;
+        border-radius: 16px !important;
+    }
+}

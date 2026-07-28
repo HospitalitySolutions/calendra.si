@@ -4702,7 +4702,7 @@
     color: #172033;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .clients-simple-create-form {
         position: relative;
         padding-bottom: calc(88px + env(safe-area-inset-bottom));
@@ -6306,5 +6306,19 @@
     /* Keep the file picker/dropzone, but remove the separate upload button. */
     .clients-company-detail-modal .clients-file-manager-toolbar .clients-file-upload-button {
         display: none !important;
+    }
+}
+
+
+/* Keep the full-page create form flush with the software keyboard. */
+@media (max-width: 1024px) {
+    .clients-simple-create-form--keyboard-open,
+    html.clients-mobile-keyboard-open .clients-simple-create-form {
+        padding-bottom: env(safe-area-inset-bottom) !important;
+    }
+
+    .clients-simple-create-form--keyboard-open .clients-simple-create-body,
+    html.clients-mobile-keyboard-open .clients-simple-create-form .clients-simple-create-body {
+        padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
     }
 }

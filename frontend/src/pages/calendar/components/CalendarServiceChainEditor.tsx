@@ -239,6 +239,7 @@ export function CalendarServiceChainEditor({
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
   const canAddServices = multipleServicesEnabled === true
+  const showSingleEditButton = count === 1 && services[0]?.typeId != null && allowServiceEdit
 
   const countLabel = (() => {
     if (locale === 'sl') {
@@ -502,7 +503,7 @@ export function CalendarServiceChainEditor({
         ) : (
           <label className="calendar-service-chain__single-field">
             <span className="calendar-service-chain__single-label">{copy.service}</span>
-            <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}`}>
+            <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}`}>
               <select
                 className="calendar-service-chain__single-select"
                 value={services[0]?.typeId ?? ''}
@@ -514,6 +515,17 @@ export function CalendarServiceChainEditor({
                   <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
                 ))}
               </select>
+              {showSingleEditButton ? (
+                <button
+                  type="button"
+                  className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add calendar-service-chain__single-edit"
+                  aria-label={copy.edit}
+                  title={copy.edit}
+                  onClick={() => openEditService(0)}
+                >
+                  <span aria-hidden><PencilIcon /></span>
+                </button>
+              ) : null}
               {canAddServices ? (
                 <button
                   type="button"

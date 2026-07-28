@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
+import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
@@ -819,7 +820,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const canIssueRefundInvoice = canIssueRefundInvoices(me)
   const { showToast } = useToast()
   const { t, locale } = useLocale()
-  const mobileKeyboardOpen = useMobileKeyboardOpen(820)
+  const mobileKeyboardOpen = useMobileKeyboardOpen(1024)
   const routeParams = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -9814,45 +9815,39 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             className="modal large-modal billing-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal clients-simple-create-modal"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <form
-              className="clients-create-modal-form clients-simple-create-form"
-              autoComplete="off"
+            <SimpleClientCreatePage
+              title={billingCopy.newClientTitle}
+              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+              submitLabel={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
+              savingLabel={locale === 'sl' ? 'Shranjujem…' : 'Saving…'}
+              draft={{
+                firstName: newClientFirstName,
+                lastName: newClientLastName,
+                email: newClientEmail,
+                phone: newClientPhone,
+              }}
+              labels={{
+                firstName: billingCopy.clientFirstName,
+                lastName: billingCopy.clientLastName,
+                email: billingCopy.email,
+                phone: billingCopy.telephone,
+              }}
+              saving={creatingClientInline}
+              submitDisabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
+              keyboardOpen={mobileKeyboardOpen}
+              inputNamePrefix="calendra-billing-new-client"
+              onClose={closeAddClientModal}
+              onChange={(field, value) => {
+                if (field === 'firstName') setNewClientFirstName(value)
+                else if (field === 'lastName') setNewClientLastName(value)
+                else if (field === 'email') setNewClientEmail(value)
+                else setNewClientPhone(value)
+              }}
               onSubmit={(event) => {
                 event.preventDefault()
                 if (!creatingClientInline && newClientFirstName.trim() && newClientLastName.trim()) void createClientInline()
               }}
-            >
-              <div className="clients-simple-create-header">
-                <button
-                  type="button"
-                  className="clients-simple-create-close"
-                  onClick={closeAddClientModal}
-                  aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
-                >
-                  ×
-                </button>
-                <h2>{billingCopy.newClientTitle}</h2>
-              </div>
-              <div className="clients-simple-create-body">
-                <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                  <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                    {renderBillingNewClientEditableField('firstName', billingCopy.clientFirstName)}
-                    {renderBillingNewClientEditableField('lastName', billingCopy.clientLastName)}
-                    {renderBillingNewClientEditableField('email', billingCopy.email, true, 'email')}
-                    {renderBillingNewClientEditableField('phone', billingCopy.telephone, true, 'tel')}
-                  </div>
-                  <button
-                    type="submit"
-                    className="clients-gapp-save-button clients-simple-create-submit"
-                    disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
-                  >
-                    {creatingClientInline
-                      ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…')
-                      : (locale === 'sl' ? 'Ustvari stranko' : 'Create client')}
-                  </button>
-                </div>
-              </div>
-            </form>
+            />
           </div>
         </div>
       ) : (

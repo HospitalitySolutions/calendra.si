@@ -8,6 +8,7 @@ import { useLocale } from '../locale'
 import { useCalendarFiltersBottomBar, useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
 import type { Client, ClientGroup, Company, CompanySummary, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Role, StoredFile, User } from '../lib/types'
 import { Card, EmptyState, PageHeader } from '../components/ui'
+import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -831,6 +832,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const compactCreateModalHeader = useCalendarFiltersBottomBar()
   /** Match `clients-tab-client-detail-modal` header CSS (title hidden, close left). */
   const clientDetailCompactHeader = useMediaMaxWidth(768)
+  const isClientCreatePage = useMediaMaxWidth(1024)
   const clientsCopy = locale === 'sl' ? {
     details: 'Podrobnosti',
     editClientTitle: 'Uredi stranko',
@@ -2061,7 +2063,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [detailCompany, companyDetailEditDraft, detailCompanyCustomValues])
 
   const pushMobileCreateHistoryEntry = (entity: EntityTab) => {
-    if (!isClientsMobile || embeddedDetailMode || mobileCreateHistoryEntityRef.current) return
+    if (!isClientCreatePage || embeddedDetailMode || mobileCreateHistoryEntityRef.current) return
     const currentState = typeof location.state === 'object' && location.state !== null
       ? location.state
       : {}
@@ -4860,46 +4862,35 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
       {!embeddedDetailMode && showModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isClientsMobile ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${isClientCreatePage ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeModal)}
           role="presentation"
         >
           <div
-            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal${isClientsMobile ? ' clients-simple-create-modal' : ''}`}
+            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal${isClientCreatePage ? ' clients-simple-create-modal' : ''}`}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {isClientsMobile ? (
-              <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={handleSubmit}>
-                <div className="clients-simple-create-header">
-                  <button
-                    type="button"
-                    className="clients-simple-create-close"
-                    onClick={closeModal}
-                    aria-label={t('mobileNavClose')}
-                  >
-                    ×
-                  </button>
-                  <h2>{clientsCopy.newClientTitle}</h2>
-                </div>
-                <div className="clients-simple-create-body">
-                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                      {renderNewClientEditableField('firstName', clientsCopy.firstName)}
-                      {renderNewClientEditableField('lastName', clientsCopy.lastName)}
-                      {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
-                      {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
-                    </div>
-                    {errorMessage && <div className="error">{errorMessage}</div>}
-                    <button
-                      type="submit"
-                      className="clients-gapp-save-button clients-simple-create-submit"
-                      disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
-                    >
-                      {saving ? clientsCopy.saving : clientsCopy.createClient}
-                    </button>
-                  </div>
-                </div>
-              </form>
+            {isClientCreatePage ? (
+              <SimpleClientCreatePage
+                title={clientsCopy.newClientTitle}
+                closeLabel={t('mobileNavClose')}
+                submitLabel={clientsCopy.createClient}
+                savingLabel={clientsCopy.saving}
+                draft={form}
+                labels={{
+                  firstName: clientsCopy.firstName,
+                  lastName: clientsCopy.lastName,
+                  email: clientsCopy.email,
+                  phone: clientsCopy.phone,
+                }}
+                saving={saving}
+                submitDisabled={saving || !form.firstName.trim() || !form.lastName.trim()}
+                error={errorMessage}
+                inputNamePrefix="calendra-new-client"
+                onClose={closeModal}
+                onChange={(field, value) => setForm((current) => ({ ...current, [field]: value }))}
+                onSubmit={handleSubmit}
+              />
             ) : (
               <form className="clients-create-modal-form" autoComplete="off" onSubmit={handleSubmit}>
                 <div className="clients-action-workspace-header">
