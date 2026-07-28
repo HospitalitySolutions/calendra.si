@@ -2191,6 +2191,43 @@ a.config-nav-item {
     }
 }
 
+/* Obračun / Billing: full-bleed compact layout so the blue subtab row can sit directly under the header. */
+@media (max-width: 1024px) {
+    .main-area--configuration-billing {
+        background: #ffffff;
+    }
+
+    .main-area--configuration-billing > .content.content--configuration-billing {
+        width: 100%;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .main-area--configuration-billing .stack.gap-lg {
+        width: 100%;
+        gap: 0;
+    }
+
+    .config-shell--detail.config-shell--billing-mobile {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .config-shell--billing-mobile .config-content {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+    }
+}
+
 /* Obvestila: compact full-bleed layout. The blue channel tabs touch the blue app header. */
 @media (max-width: 1024px) {
     .main-area--configuration-notifications {

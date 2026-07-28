@@ -238,6 +238,68 @@ const BILLING_MOBILE_HIDDEN_SUBTABS: BillingSubtab[] = [
 const isBillingSubtabHiddenOnMobile = (subtab: BillingSubtab) =>
   BILLING_MOBILE_HIDDEN_SUBTABS.includes(subtab);
 
+function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
+  if (subtab === "settings") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+      </svg>
+    );
+  }
+
+  if (subtab === "paymentMethods") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="2.5" y="5" width="19" height="14" rx="3" />
+        <path d="M2.5 9.5h19" />
+        <path d="M7 14.25h2.5" />
+      </svg>
+    );
+  }
+
+  if (subtab === "stripe") {
+    return <span className="billing-top-tab-stripe-badge" aria-hidden>S</span>;
+  }
+
+  if (subtab === "paypal") {
+    return <BillingPaypalIcon />;
+  }
+
+  if (subtab === "fiscal") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M9 3h6" />
+        <path d="M10 8h4" />
+        <rect x="5" y="3" width="14" height="18" rx="2.5" />
+        <path d="M9 13h6" />
+        <path d="M9 17h6" />
+      </svg>
+    );
+  }
+
+  if (subtab === "giftCard") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3" y="8" width="18" height="12" rx="2" />
+        <path d="M12 8v12" />
+        <path d="M3 12h18" />
+        <path d="M7.5 8A2.5 2.5 0 1 1 10 5.5V8" />
+        <path d="M16.5 8A2.5 2.5 0 1 0 14 5.5V8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 7h8" />
+      <path d="M8 11h8" />
+      <path d="M8 15h5" />
+    </svg>
+  );
+}
+
 type ConfigNavIcon =
   | "general"
   | "company"
@@ -5605,7 +5667,7 @@ export function ConfigurationPage() {
   const usesMobileTabletDetailLayout =
     isCompactConfigViewport ||
     (isTabletConfigViewport &&
-      ["booking", "website", "notifications", "customFields", "modules"].includes(
+      ["booking", "billing", "website", "notifications", "customFields", "modules"].includes(
         tab,
       ));
   const showCompactConfigOverview =
@@ -5626,7 +5688,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : usesMobileTabletDetailLayout
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5689,6 +5751,7 @@ export function ConfigurationPage() {
               tab === "integrations" ||
               tab === "company" ||
               tab === "booking" ||
+              tab === "billing" ||
               tab === "website" ||
               tab === "notifications" ||
               tab === "customFields" ||
@@ -10462,6 +10525,7 @@ export function ConfigurationPage() {
               flex-wrap: wrap;
             }
             .billing-subtab {
+              position: relative;
               appearance: none;
               border: 1px solid transparent;
               background: transparent;
@@ -10484,6 +10548,37 @@ export function ConfigurationPage() {
               background: #eaf2ff;
               border-color: rgba(37, 99, 235, 0.16);
               box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1), 0 3px 10px rgba(37, 99, 235, 0.18);
+            }
+            .billing-subtab-content {
+              display: inline-flex;
+              align-items: center;
+              gap: 10px;
+              min-width: 0;
+            }
+            .billing-subtab-icon {
+              width: 22px;
+              height: 22px;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              flex: 0 0 auto;
+            }
+            .billing-subtab-icon svg {
+              width: 22px;
+              height: 22px;
+              display: block;
+            }
+            .billing-top-tab-stripe-badge {
+              width: 22px;
+              height: 22px;
+              border-radius: 6px;
+              border: 1.5px solid currentColor;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 14px;
+              line-height: 1;
+              font-weight: 900;
             }
             .billing-main-panel { padding: 22px; }
             .billing-page-head {
@@ -11066,10 +11161,76 @@ export function ConfigurationPage() {
               .billing-method-row { grid-template-columns: 1fr; gap: 12px; align-items: start; }
               .billing-row-actions { justify-content: flex-start; }
             }
+            @media (max-width: 1024px) {
+              .billing-modern-shell {
+                width: 100%;
+                max-width: none;
+              }
+              .billing-card.billing-main-panel {
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+                background: transparent;
+                overflow: visible;
+                padding: 0 0 18px;
+              }
+              .billing-tabs-card {
+                margin: 0;
+                padding: 0;
+                border-bottom: 0;
+                background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+              }
+              .billing-subtabs {
+                flex-wrap: nowrap;
+                gap: 0;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding: 0 16px;
+              }
+              .billing-subtabs::-webkit-scrollbar { display: none; }
+              .billing-subtab {
+                flex: 0 0 auto;
+                border: 0;
+                border-radius: 0;
+                padding: 15px 14px 18px;
+                color: rgba(255,255,255,0.78);
+                background: transparent;
+              }
+              .billing-subtab:hover {
+                color: #ffffff;
+                background: transparent;
+              }
+              .billing-subtab.active {
+                color: #ffffff;
+                background: transparent;
+                border-color: transparent;
+                box-shadow: none;
+              }
+              .billing-subtab.active::after {
+                content: "";
+                position: absolute;
+                left: 14px;
+                right: 14px;
+                bottom: 0;
+                height: 4px;
+                border-radius: 999px 999px 0 0;
+                background: #ffffff;
+              }
+              .billing-subtab-content { gap: 10px; }
+              .billing-subtab-icon,
+              .billing-subtab-icon svg,
+              .billing-top-tab-stripe-badge {
+                width: 20px;
+                height: 20px;
+              }
+              .billing-main-panel {
+                padding: 0 16px 16px;
+              }
+            }
             @media (max-width: 780px) {
-              .billing-main-panel { padding: 14px; }
-              .billing-subtabs { gap: 8px; }
-              .billing-subtab { flex: 1 1 150px; min-width: 0; }
+              .billing-main-panel { padding: 0 14px 14px; }
               .billing-settings-grid,
               .billing-form-grid,
               .billing-fiscal-fields { grid-template-columns: 1fr; }
@@ -11107,7 +11268,12 @@ export function ConfigurationPage() {
                             }
                             onClick={() => setBillingSubtab(entry.id)}
                           >
-                            {entry.label}
+                            <span className="billing-subtab-content">
+                              <span className="billing-subtab-icon" aria-hidden>
+                                <BillingTopTabIcon subtab={entry.id} />
+                              </span>
+                              <span>{entry.label}</span>
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -13867,7 +14033,12 @@ export function ConfigurationPage() {
                             }
                             onClick={() => setIntegrationSubtabAndUrl(entry.id)}
                           >
-                            {entry.label}
+                            <span className="billing-subtab-content">
+                              <span className="billing-subtab-icon" aria-hidden>
+                                <BillingTopTabIcon subtab={entry.id} />
+                              </span>
+                              <span>{entry.label}</span>
+                            </span>
                           </button>
                         ))}
                       </div>
