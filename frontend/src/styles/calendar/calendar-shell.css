@@ -538,8 +538,16 @@
     box-sizing: border-box;
 }
 
-.calendar-fc-shell:has(.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header .fc-day-header-stack) .calendar-resource-day-header-fallback {
-    display: none !important;
+/*
+ * Desktop can use FullCalendar's native day row when it is present. On mobile, Scheduler can place
+ * that native row below the resource labels in the one-day resource view, which reverses the header
+ * order compared with the 3-day view. Mobile therefore always uses the fallback row above the
+ * FullCalendar table and hides only the misplaced native day row below.
+ */
+@media (min-width: 781px) {
+    .calendar-fc-shell:has(.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header .fc-day-header-stack) .calendar-resource-day-header-fallback {
+        display: none !important;
+    }
 }
 
 .calendar-resource-day-header-fallback-inner {
@@ -566,6 +574,15 @@
 }
 
 @media (max-width: 780px) {
+    /*
+     * Match resource 3-day header order on phones: date/day first, employee or space labels second.
+     * The React fallback already sits before FullCalendar in the DOM, so keep it visible and remove
+     * only FullCalendar's duplicate date row when Scheduler renders that row below the resources.
+     */
+    .calendar-fc-shell--resource-day-fallback-layout .fc.fc-resourceTimeGridDay-view .fc-col-header tr:has(.fc-day-header-stack) {
+        display: none;
+    }
+
     .calendar-resource-day-header-fallback.is-mobile-fixed {
         min-height: var(--calendar-resource-day-fallback-height, 0px);
     }
