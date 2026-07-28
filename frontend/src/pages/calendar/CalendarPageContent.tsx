@@ -2526,8 +2526,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }
   const slotMinTime = toCalendarTimeValue(settings.WORKING_HOURS_START, '05:00')
   const slotMaxTime = toCalendarTimeValue(settings.WORKING_HOURS_END, '23:00')
-  const calendarGridInterval =
-    settings.CALENDAR_GRID_INTERVAL_MINUTES === '60' ? '01:00:00' : '00:30:00'
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const
   const calendarSlotDurationMinutes = 15
 
@@ -11777,7 +11775,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }}
           slotDuration="00:15:00"
           snapDuration="00:15:00"
-          slotLabelInterval={calendarGridInterval}
+          slotLabelInterval="00:30:00"
           slotMinTime={slotMinTime}
           slotMaxTime={slotMaxTime}
           height={isNativeAndroid ? '100%' : 'auto'}

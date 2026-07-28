@@ -1263,11 +1263,6 @@ a.config-nav-item {
 .modules-design-time-control {
     padding: 0 9px;
 }
-.modules-design-select-control {
-    appearance: auto;
-    padding: 0 28px 0 10px;
-    cursor: pointer;
-}
 .modules-design-row-chevron {
     display: grid;
     place-items: center;
