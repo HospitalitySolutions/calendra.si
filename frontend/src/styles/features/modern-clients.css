@@ -6219,3 +6219,92 @@
         outline: none;
     }
 }
+
+/* Requested compact mobile edit screens and appointment typography. */
+@media (max-width: 760px) {
+    .clients-client-detail-modal .clients-action-workspace-profile-fields,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields {
+        gap: 8px;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card {
+        min-height: 62px;
+        padding: 10px 14px !important;
+        border-radius: 13px;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > span,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > span,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > span {
+        font-size: 0.66rem;
+        line-height: 1.1;
+        letter-spacing: 0.065em;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > strong,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > strong,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-field-card > strong {
+        margin-top: 5px;
+        font-size: 0.9rem;
+        line-height: 1.15;
+    }
+
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit input,
+    .clients-client-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit select,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit input,
+    .clients-company-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit select,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit input,
+    .clients-group-detail-modal .clients-action-workspace-profile-fields .clients-detail-inline-edit select {
+        min-height: 28px;
+        padding: 2px 0;
+        font-size: 0.9rem;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-subtabs.clients-session-tabs {
+        min-height: 48px;
+        border-radius: 15px;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-subtabs .clients-session-tab {
+        min-height: 40px;
+        padding: 0 4px;
+        border-radius: 11px;
+        font-size: 0.72rem;
+    }
+
+    .clients-client-detail-modal .clients-modern-sessions-count {
+        min-height: 34px;
+        padding: 0 11px;
+        font-size: 0.78rem;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-row {
+        min-height: 158px;
+        padding: 15px 13px;
+        row-gap: 6px;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-title strong {
+        font-size: 0.96rem;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-title span {
+        font-size: 0.8rem;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-info span {
+        font-size: 0.72rem;
+    }
+
+    .clients-client-detail-modal .clients-modern-session-info strong {
+        font-size: 0.8rem;
+    }
+
+    /* Keep the file picker/dropzone, but remove the separate upload button. */
+    .clients-company-detail-modal .clients-file-manager-toolbar .clients-file-upload-button {
+        display: none !important;
+    }
+}

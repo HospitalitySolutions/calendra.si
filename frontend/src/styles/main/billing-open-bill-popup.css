@@ -8817,3 +8817,18 @@
   }
 }
 
+
+/* Mobile Novo predplačilo: align editable numeric text and hide the fixed footer under the keyboard. */
+@media (max-width: 820px) {
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-bill-modal-field--price input,
+  .billing-create-panel--advance .billing-invoice-item-row--advance .billing-invoice-row-amount,
+  .billing-create-panel--advance .billing-invoice-payment-amount-input {
+    font-size: .54rem !important;
+    letter-spacing: -.01em !important;
+  }
+
+  .billing-create-panel--advance .billing-bill-modal-footer--keyboard-hidden {
+    display: none !important;
+  }
+}

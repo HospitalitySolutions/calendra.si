@@ -9,6 +9,7 @@ import { Card, EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
+import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
@@ -818,6 +819,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const canIssueRefundInvoice = canIssueRefundInvoices(me)
   const { showToast } = useToast()
   const { t, locale } = useLocale()
+  const mobileKeyboardOpen = useMobileKeyboardOpen(820)
   const routeParams = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -9602,7 +9604,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 {renderCreateBillPayeeDialog()}
               </div>
 
-              <div className="billing-bill-modal-footer">
+              <div className={`billing-bill-modal-footer${isCreateAdvanceBill && mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
                 {isCreateAdvanceBill && (
                   <section className="billing-invoice-totals-card billing-invoice-totals-card--advance-footer" aria-label={locale === 'sl' ? 'Povzetek predplačila' : 'Advance summary'}>
                     <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
