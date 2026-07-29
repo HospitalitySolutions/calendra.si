@@ -2610,17 +2610,34 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <div className="calendar-client-picker__search-row">
                     <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookedClientDropdownOpen && bookedSessionSelectedClients.length > 0 && !bookedSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
                       {bookedSessionClientFieldCompact ? (
-                        <button
-                          type="button"
-                          className="client-selected-display"
-                          onClick={() => {
-                            setEditingBookedClientSearch(true)
-                            setBookedClientSearch('')
-                            setBookedClientDropdownOpen(true)
-                          }}
-                        >
-                          {fullName(bookedSessionSelectedClient!)}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="client-selected-display"
+                            onClick={() => {
+                              setEditingBookedClientSearch(true)
+                              setBookedClientSearch('')
+                              setBookedClientDropdownOpen(true)
+                            }}
+                          >
+                            {fullName(bookedSessionSelectedClient!)}
+                          </button>
+                          <button
+                            type="button"
+                            className="calendar-client-picker__single-clear"
+                            title={clearSingleClientTitle}
+                            aria-label={clearSingleClientTitle}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              applyBookedSessionClientIds([])
+                              setBookedClientSearch('')
+                              setEditingBookedClientSearch(false)
+                              setBookedClientDropdownOpen(false)
+                            }}
+                          >
+                            <span aria-hidden>×</span>
+                          </button>
+                        </>
                       ) : (
                         <input
                           ref={bookedClientSearchInputRef}
