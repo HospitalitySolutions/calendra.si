@@ -259,11 +259,11 @@ public class PublicBookingManageService {
             starts.addAll(bookableStarts(company, booking, date, consultantId, duration));
             if (starts.isEmpty()) {
                 resolveConsultantWorkingWindow(booking.getConsultant(), date)
-                        .ifPresent(window -> addWindowStarts(starts, window.start(), window.end(), duration));
+                        .ifPresent(window -> addWindowStarts(starts, date, window.start(), window.end(), duration));
             }
         } else {
             WidgetConfig cfg = loadConfig(company.getId());
-            addWindowStarts(starts, cfg.workingHoursStart(), cfg.workingHoursEnd(), duration);
+            addWindowStarts(starts, date, cfg.workingHoursStart(), cfg.workingHoursEnd(), duration);
         }
 
         Map<LocalDateTime, PublicBookingManageController.AvailabilitySlotResponse> out = new LinkedHashMap<>();
@@ -313,11 +313,21 @@ public class PublicBookingManageService {
                 .filter(slot -> consultantSupportsType(slot.getConsultant(), booking.getType()))
                 .toList();
         for (BookableSlot window : windows) {
-            AvailabilityWindowGrid.starts(date, window.getStartTime(), window.getEndTime(), duration, 30).stream()
-                    .map(LocalDateTime::toLocalTime)
-                    .forEach(starts::add);
+            addWindowStarts(starts, date, window.getStartTime(), window.getEndTime(), duration);
         }
         return starts;
+    }
+
+    private void addWindowStarts(
+            List<LocalTime> starts,
+            LocalDate date,
+            LocalTime from,
+            LocalTime to,
+            int duration
+    ) {
+        AvailabilityWindowGrid.starts(date, from, to, duration, 30).stream()
+                .map(LocalDateTime::toLocalTime)
+                .forEach(starts::add);
     }
 
     private boolean canModify(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {
