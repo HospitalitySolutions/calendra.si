@@ -5,7 +5,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import resourcePlugin from '@fullcalendar/resource'
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid'
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import {
   useCallback,
   useEffect,
@@ -930,6 +930,21 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       document.querySelectorAll('.fc-event-dragging, .fc-event-selected').forEach((n) => n.classList.remove('fc-event-dragging', 'fc-event-selected'))
     }, 120)
   }, [])
+
+  /**
+   * FullCalendar can briefly retain the drag/draft event harness after React has
+   * replaced the booking snapshot. When that happens over a blocked-availability
+   * background, the real booking is painted as a one-pixel line until the next
+   * calendar refresh. Rebuild the event DOM after the state mutation has committed.
+   */
+  const rerenderCalendarEventsAfterMutation = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      cleanupDragArtifacts()
+      const api = calendarRef.current?.getApi()
+      api?.rerenderEvents()
+      window.requestAnimationFrame(() => api?.updateSize())
+    })
+  }, [cleanupDragArtifacts])
 
   /** Drop FC’s focus/selected chrome on session tiles after opening edit UI (keeps grid clean). */
   const clearSessionEventClickChrome = useCallback((el: HTMLElement) => {
@@ -3143,126 +3158,146 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     setAvailabilitySaving(true)
     try {
-      const singleDateLimitedBlock =
+      const allDayDateRangeBlock = isLocalBookingAllDay(
+        availabilitySelection.startTime,
+        availabilitySelection.endTime,
+      )
+      const limitedConcreteDateBlock =
         !payload.indefinite &&
         !!payload.startDate &&
-        payload.startDate === payload.endDate
+        !!payload.endDate &&
+        (payload.startDate === payload.endDate || allDayDateRangeBlock)
 
-      if (singleDateLimitedBlock) {
-        // A one-day block should cover only slots that are open right now.
-        // Build the day's real availability first, then subtract appointments, breaks,
-        // waitlist holds, personal blocks and previously blocked availability.
-        // Separate markers mean that cancelling an existing appointment later releases
-        // its original time instead of leaving it inside an all-day block.
-        const requestedStartMs = startDate.getTime()
-        const requestedEndMs = endDate.getTime()
-        const availabilityDate = new Date(`${payload.startDate}T00:00:00`)
-        const baselineRanges: Array<{ startMs: number; endMs: number }> = []
-        const workingWindow = consultantDayWindow(
-          availabilityDate.getFullYear(),
-          availabilityDate.getMonth(),
-          availabilityDate.getDate(),
-          consultantId,
-          metaUsers,
-          whWindowParseHm(slotMinTime),
-          whWindowParseHm(slotMaxTime),
-        )
-        if (workingWindow != null && 'startMin' in workingWindow) {
-          baselineRanges.push(windowToDayMs(
+      if (limitedConcreteDateBlock) {
+        // A finite all-day range blocks every selected calendar date. Process each
+        // day independently so existing appointments, breaks, waitlist holds and
+        // personal sessions remain visible and are not swallowed by one large block.
+        const firstAvailabilityDate = new Date(`${payload.startDate}T00:00:00`)
+        const lastAvailabilityDate = new Date(`${payload.endDate}T00:00:00`)
+        let availabilityDate = new Date(firstAvailabilityDate)
+        let dateGuard = 0
+
+        while (availabilityDate <= lastAvailabilityDate && dateGuard < 3700) {
+          const availabilityYmd = toLocalDateString(availabilityDate)
+          const datePayload = {
+            ...payload,
+            dayOfWeek: dayNames[availabilityDate.getDay()],
+            startDate: availabilityYmd,
+            endDate: availabilityYmd,
+          }
+          const requestedStartMs = allDayDateRangeBlock
+            ? new Date(`${availabilityYmd}T00:00:00`).getTime()
+            : startDate.getTime()
+          const requestedEndMs = allDayDateRangeBlock
+            ? new Date(`${availabilityYmd}T23:59:59`).getTime()
+            : endDate.getTime()
+          const baselineRanges: Array<{ startMs: number; endMs: number }> = []
+          const workingWindow = consultantDayWindow(
             availabilityDate.getFullYear(),
             availabilityDate.getMonth(),
             availabilityDate.getDate(),
-            workingWindow.startMin,
-            workingWindow.endMin,
-          ))
-        }
-        for (const slot of calendarData.bookable || []) {
-          const slotConsultantId = slot.consultant?.id ?? slot.consultantId
-          if (slotConsultantId !== consultantId || slot.dayOfWeek !== payload.dayOfWeek) continue
-          if (!slot.indefinite && ((slot.startDate && payload.startDate! < slot.startDate) || (slot.endDate && payload.startDate! > slot.endDate))) continue
-          const slotStartMs = new Date(`${payload.startDate}T${slot.startTime}`).getTime()
-          const slotEndMs = new Date(`${payload.startDate}T${slot.endTime}`).getTime()
-          if (Number.isFinite(slotStartMs) && Number.isFinite(slotEndMs) && slotEndMs > slotStartMs) {
-            baselineRanges.push({ startMs: slotStartMs, endMs: slotEndMs })
-          }
-        }
-
-        const mergedBaselineRanges: Array<{ startMs: number; endMs: number }> = []
-        for (const range of baselineRanges.sort((a, b) => a.startMs - b.startMs)) {
-          const startMs = Math.max(requestedStartMs, range.startMs)
-          const endMs = Math.min(requestedEndMs, range.endMs)
-          if (endMs <= startMs) continue
-          const previous = mergedBaselineRanges[mergedBaselineRanges.length - 1]
-          if (previous && startMs <= previous.endMs) previous.endMs = Math.max(previous.endMs, endMs)
-          else mergedBaselineRanges.push({ startMs, endMs })
-        }
-
-        const occupiedRanges: Array<{ startMs: number; endMs: number }> = []
-        const addOccupiedRange = (rangeStartMs: number, rangeEndMs: number) => {
-          if (!Number.isFinite(rangeStartMs) || !Number.isFinite(rangeEndMs) || rangeEndMs <= rangeStartMs) return
-          if (rangeEndMs <= requestedStartMs || rangeStartMs >= requestedEndMs) return
-          occupiedRanges.push({ startMs: rangeStartMs, endMs: rangeEndMs })
-        }
-        for (const booking of calendarData.booked || []) {
-          if ((booking.consultant?.id ?? booking.consultantId) !== consultantId) continue
-          addOccupiedRange(new Date(booking.startTime).getTime(), getBookingBusyEndMs(booking))
-        }
-        for (const hold of calendarData.waitlistOffers || []) {
-          if (Number(hold?.employeeId) !== consultantId) continue
-          addOccupiedRange(
-            new Date(hold.startTime).getTime(),
-            new Date(hold.busyEndTime || hold.endTime).getTime(),
+            consultantId,
+            metaUsers,
+            whWindowParseHm(slotMinTime),
+            whWindowParseHm(slotMaxTime),
           )
-        }
-        for (const personalBlock of calendarData.personal || []) {
-          const ownerId = personalBlock.consultant?.id ?? personalBlock.consultantId ?? personalBlock.ownerId
-          if (ownerId !== consultantId) continue
-          addOccupiedRange(
-            new Date(personalBlock.startTime).getTime(),
-            new Date(personalBlock.endTime).getTime(),
-          )
-        }
-        occupiedRanges.sort((a, b) => a.startMs - b.startMs)
-        const openRanges = mergedBaselineRanges
-          .flatMap((range) => splitRequestedRangeByBlocks(range.startMs, range.endMs, occupiedRanges))
-          .sort((a, b) => a.startMs - b.startMs)
-
-        const mergedOpenRanges: Array<{ startMs: number; endMs: number }> = []
-        for (const range of openRanges) {
-          const previous = mergedOpenRanges[mergedOpenRanges.length - 1]
-          if (previous && range.startMs <= previous.endMs) {
-            previous.endMs = Math.max(previous.endMs, range.endMs)
-          } else {
-            mergedOpenRanges.push({ startMs: range.startMs, endMs: range.endMs })
+          if (workingWindow != null && 'startMin' in workingWindow) {
+            baselineRanges.push(windowToDayMs(
+              availabilityDate.getFullYear(),
+              availabilityDate.getMonth(),
+              availabilityDate.getDate(),
+              workingWindow.startMin,
+              workingWindow.endMin,
+            ))
           }
-        }
-
-        for (const range of mergedOpenRanges) {
-          const rangeStart = new Date(range.startMs)
-          const rangeEnd = new Date(range.endMs)
-          const segmentPayload = {
-            ...payload,
-            startTime: rangeStart.toTimeString().slice(0, 8),
-            endTime: rangeEnd.toTimeString().slice(0, 8),
+          for (const slot of calendarData.bookable || []) {
+            const slotConsultantId = slot.consultant?.id ?? slot.consultantId
+            if (slotConsultantId !== consultantId || slot.dayOfWeek !== datePayload.dayOfWeek) continue
+            if (!slot.indefinite && ((slot.startDate && availabilityYmd < slot.startDate) || (slot.endDate && availabilityYmd > slot.endDate))) continue
+            const slotStartMs = new Date(`${availabilityYmd}T${slot.startTime}`).getTime()
+            const slotEndMs = new Date(`${availabilityYmd}T${slot.endTime}`).getTime()
+            if (Number.isFinite(slotStartMs) && Number.isFinite(slotEndMs) && slotEndMs > slotStartMs) {
+              baselineRanges.push({ startMs: slotStartMs, endMs: slotEndMs })
+            }
           }
-          const blockNotes = buildAvailabilityBlockMarkerNotes(
-            segmentPayload,
-            availabilitySelection.startTime.slice(0, 10),
-          )
-          const alreadyExists = (calendarData.personal || []).some((p: any) => {
-            const ownerId = p.consultant?.id ?? p.consultantId ?? p.ownerId
-            return ownerId === consultantId
-              && String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK
-              && String(p.notes || '') === blockNotes
-          })
-          if (alreadyExists) continue
-          await api.post('/bookings/personal-blocks', {
-            startTime: toLocalDateTimeString(rangeStart),
-            endTime: toLocalDateTimeString(rangeEnd),
-            task: AVAILABILITY_BLOCK_TASK,
-            notes: blockNotes,
-            consultantId: isTenantAdmin ? consultantId : undefined,
-          })
+
+          const mergedBaselineRanges: Array<{ startMs: number; endMs: number }> = []
+          for (const range of baselineRanges.sort((a, b) => a.startMs - b.startMs)) {
+            const rangeStartMs = Math.max(requestedStartMs, range.startMs)
+            const rangeEndMs = Math.min(requestedEndMs, range.endMs)
+            if (rangeEndMs <= rangeStartMs) continue
+            const previous = mergedBaselineRanges[mergedBaselineRanges.length - 1]
+            if (previous && rangeStartMs <= previous.endMs) previous.endMs = Math.max(previous.endMs, rangeEndMs)
+            else mergedBaselineRanges.push({ startMs: rangeStartMs, endMs: rangeEndMs })
+          }
+
+          const occupiedRanges: Array<{ startMs: number; endMs: number }> = []
+          const addOccupiedRange = (rangeStartMs: number, rangeEndMs: number) => {
+            if (!Number.isFinite(rangeStartMs) || !Number.isFinite(rangeEndMs) || rangeEndMs <= rangeStartMs) return
+            if (rangeEndMs <= requestedStartMs || rangeStartMs >= requestedEndMs) return
+            occupiedRanges.push({ startMs: rangeStartMs, endMs: rangeEndMs })
+          }
+          for (const booking of calendarData.booked || []) {
+            if ((booking.consultant?.id ?? booking.consultantId) !== consultantId) continue
+            addOccupiedRange(new Date(booking.startTime).getTime(), getBookingBusyEndMs(booking))
+          }
+          for (const hold of calendarData.waitlistOffers || []) {
+            if (Number(hold?.employeeId) !== consultantId) continue
+            addOccupiedRange(
+              new Date(hold.startTime).getTime(),
+              new Date(hold.busyEndTime || hold.endTime).getTime(),
+            )
+          }
+          for (const personalBlock of calendarData.personal || []) {
+            const ownerId = personalBlock.consultant?.id ?? personalBlock.consultantId ?? personalBlock.ownerId
+            if (ownerId !== consultantId) continue
+            addOccupiedRange(
+              new Date(personalBlock.startTime).getTime(),
+              new Date(personalBlock.endTime).getTime(),
+            )
+          }
+          occupiedRanges.sort((a, b) => a.startMs - b.startMs)
+          const openRanges = mergedBaselineRanges
+            .flatMap((range) => splitRequestedRangeByBlocks(range.startMs, range.endMs, occupiedRanges))
+            .sort((a, b) => a.startMs - b.startMs)
+
+          const mergedOpenRanges: Array<{ startMs: number; endMs: number }> = []
+          for (const range of openRanges) {
+            const previous = mergedOpenRanges[mergedOpenRanges.length - 1]
+            if (previous && range.startMs <= previous.endMs) {
+              previous.endMs = Math.max(previous.endMs, range.endMs)
+            } else {
+              mergedOpenRanges.push({ startMs: range.startMs, endMs: range.endMs })
+            }
+          }
+
+          for (const range of mergedOpenRanges) {
+            const rangeStart = new Date(range.startMs)
+            const rangeEnd = new Date(range.endMs)
+            const segmentPayload = {
+              ...datePayload,
+              startTime: rangeStart.toTimeString().slice(0, 8),
+              endTime: rangeEnd.toTimeString().slice(0, 8),
+            }
+            const blockNotes = buildAvailabilityBlockMarkerNotes(segmentPayload, availabilityYmd)
+            const alreadyExists = (calendarData.personal || []).some((p: any) => {
+              const ownerId = p.consultant?.id ?? p.consultantId ?? p.ownerId
+              return ownerId === consultantId
+                && String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK
+                && String(p.notes || '') === blockNotes
+            })
+            if (alreadyExists) continue
+            await api.post('/bookings/personal-blocks', {
+              startTime: toLocalDateTimeString(rangeStart),
+              endTime: toLocalDateTimeString(rangeEnd),
+              task: AVAILABILITY_BLOCK_TASK,
+              notes: blockNotes,
+              consultantId: isTenantAdmin ? consultantId : undefined,
+            })
+          }
+
+          availabilityDate.setDate(availabilityDate.getDate() + 1)
+          dateGuard += 1
         }
 
         await load()
@@ -8030,6 +8065,18 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }
         }
       }
+      // Remove the draft selection before inserting the real event. Keeping both
+      // mounted for one render lets FullCalendar reuse the preview harness and can
+      // collapse the newly created booking over a blocked background.
+      flushSync(() => {
+        setSelection(null)
+        setConfirmNonBookable(null)
+        setEditingClientSearch(false)
+        setEditingGroupSearch(false)
+        setDragSelection(null)
+      })
+      calendarRef.current?.getApi()?.unselect()
+
       if (createdBookingSnapshots.length > 0) {
         // Use the complete POST response immediately. Waiting for another calendar request
         // while the draft preview is still mounted briefly paints the new booking as a thin
@@ -8048,17 +8095,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           })
           return { ...prev, booked: Array.from(byId.values()) }
         })
+        rerenderCalendarEventsAfterMutation()
       }
 
       if (createdBookingSnapshots.length === 0) {
         await load()
       }
 
-      setSelection(null)
-      setConfirmNonBookable(null)
-      setEditingClientSearch(false)
-      setEditingGroupSearch(false)
-      calendarRef.current?.getApi()?.unselect()
       notifyBookingAndClientRecordsChanged()
       window.dispatchEvent(new Event('todos-updated'))
       leaveCompactFormRouteIfNeeded()
@@ -9854,6 +9897,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : [...existing, bookingSnapshot],
       }
     })
+    rerenderCalendarEventsAfterMutation()
   }
 
   const performMove = async (
@@ -10089,7 +10133,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : booking,
       ),
     }))
-    cleanupDragArtifacts()
+    rerenderCalendarEventsAfterMutation()
     try {
       const normalizedBooking = await performMove(props, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
@@ -10200,6 +10244,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : booking,
       ),
     }))
+    rerenderCalendarEventsAfterMutation()
     try {
       const normalizedBooking = await performMove(props, newStartStr, newEndStr)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
@@ -10253,6 +10298,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             : booking,
         ),
       }))
+      rerenderCalendarEventsAfterMutation()
       const normalizedBooking = await performMove(
         c.booking,
         c.newStartStr,
@@ -10402,6 +10448,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             : booking,
         ),
       }))
+      rerenderCalendarEventsAfterMutation()
       const normalizedBooking = await performMove(c.booking, c.newStartStr, c.newEndStr, true, moveSpaceId, moveCid)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
       void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
@@ -10584,6 +10631,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     setSelectedBookedSession((prev: any) => prev?.id === booking.id
       ? buildOptimisticMovedBooking(prev, newStartStr, newEndStr)
       : prev)
+    rerenderCalendarEventsAfterMutation()
     try {
       const normalizedBooking = await performMove(booking, newStartStr, newEndStr)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
@@ -10731,6 +10779,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : current,
       ),
     }))
+    rerenderCalendarEventsAfterMutation()
 
     try {
       const normalizedBooking = await performMove(booking, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
@@ -10745,7 +10794,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }))
       if (isHttpConflict(e)) await loadCalendarRangeOnly(true)
     }
-  }, [bookingsUseResourceColumns, findOverlappingBooked, findOverlappingPersonalBlocksForBooking, getTypeBreakMinutes, isBookedMoveIntervalBookable, load, loadCalendarRangeOnly, metaSpaces, metaUsers, normalizeToLocalDateTime, performMove, performMovePersonal, performMoveTodo, setOverlapSessionAsMain, spacesUseResourceColumns, toLocalDateTimeString])
+  }, [bookingsUseResourceColumns, findOverlappingBooked, findOverlappingPersonalBlocksForBooking, getTypeBreakMinutes, isBookedMoveIntervalBookable, load, loadCalendarRangeOnly, metaSpaces, metaUsers, normalizeToLocalDateTime, performMove, performMovePersonal, performMoveTodo, rerenderCalendarEventsAfterMutation, setOverlapSessionAsMain, spacesUseResourceColumns, toLocalDateTimeString])
 
   const handleOverlapSidebarDragStart = useCallback((item: any, e: ReactDragEvent<HTMLElement>) => {
     overlapSidebarDragRef.current = item

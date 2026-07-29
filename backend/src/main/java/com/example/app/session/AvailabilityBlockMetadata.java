@@ -156,11 +156,23 @@ public final class AvailabilityBlockMetadata {
     }
 
     private static boolean occursOn(Metadata meta, LocalDate date) {
-        if (date == null || meta.dayOfWeek() == null || date.getDayOfWeek() != meta.dayOfWeek()) {
+        if (date == null || meta.dayOfWeek() == null) {
             return false;
         }
         if (meta.startDate() != null && date.isBefore(meta.startDate())) return false;
         if (!meta.indefinite() && meta.endDate() != null && date.isAfter(meta.endDate())) return false;
+        // Older frontend versions stored a finite multi-day all-day selection as a
+        // weekly marker anchored to the first date. Such a selection semantically
+        // covers every date in the chosen range, so expand it daily. Keep indefinite
+        // all-day markers weekly, matching the recurrence control's original meaning.
+        boolean finiteMultiDayAllDayRange =
+                !meta.indefinite()
+                && meta.startDate() != null
+                && meta.endDate() != null
+                && meta.endDate().isAfter(meta.startDate())
+                && LocalTime.MIDNIGHT.equals(meta.startTime())
+                && LocalTime.of(23, 59, 59).equals(meta.endTime());
+        if (!finiteMultiDayAllDayRange && date.getDayOfWeek() != meta.dayOfWeek()) return false;
         return true;
     }
 
