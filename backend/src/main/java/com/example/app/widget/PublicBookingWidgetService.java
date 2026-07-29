@@ -52,12 +52,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
@@ -1542,6 +1544,9 @@ public class PublicBookingWidgetService {
             }
         }
 
+        bookingsByConsultant.replaceAll((ownerId, intervals) -> mergeBusyIntervals(intervals));
+        physicalBookings = new ArrayList<>(mergeBusyIntervals(physicalBookings));
+
         Map<Long, List<WidgetBusyInterval>> personalBusyByOwner = new HashMap<>();
         for (PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock row :
                 personalBlocks.findWidgetOverlappingRegularBlocks(companyId, consultantId, rangeStart, rangeEnd)) {
@@ -1551,10 +1556,20 @@ public class PublicBookingWidgetService {
             }
             addPersonalBusyInterval(personalBusyByOwner, row.getOwnerId(), row.getStartTime(), row.getEndTime(), rangeStart, rangeEnd);
         }
+        Set<WidgetAvailabilityMarkerKey> seenAvailabilityMarkers = new HashSet<>();
         for (PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock marker :
                 personalBlocks.findWidgetAvailabilityMarkers(companyId, consultantId)) {
             if (marker == null || marker.getOwnerId() == null || marker.getStartTime() == null || marker.getEndTime() == null
                     || !supportedConsultantIds.contains(marker.getOwnerId())) {
+                continue;
+            }
+            WidgetAvailabilityMarkerKey markerKey = new WidgetAvailabilityMarkerKey(
+                    marker.getOwnerId(),
+                    marker.getStartTime(),
+                    marker.getEndTime(),
+                    marker.getNotes()
+            );
+            if (!seenAvailabilityMarkers.add(markerKey)) {
                 continue;
             }
             expandAvailabilityMarker(
@@ -1592,14 +1607,17 @@ public class PublicBookingWidgetService {
             }
         }
 
+        waitlistHoldsByEmployee.replaceAll((employeeId, holds) -> mergeWaitlistHolds(holds));
+        roomWaitlistHolds = new ArrayList<>(mergeWaitlistHolds(roomWaitlistHolds));
+
         WidgetAvailabilitySnapshot snapshot = new WidgetAvailabilitySnapshot(
                 supportedConsultants,
                 bookableWindows,
                 bookingsByConsultant,
-                physicalBookings,
+                List.copyOf(physicalBookings),
                 personalBusyByOwner,
                 waitlistHoldsByEmployee,
-                roomWaitlistHolds,
+                List.copyOf(roomWaitlistHolds),
                 enforcePhysicalSpace
         );
         long elapsedMillis = (System.nanoTime() - snapshotStartedNanos) / 1_000_000L;
@@ -1668,6 +1686,13 @@ public class PublicBookingWidgetService {
             Long roomId,
             LocalDateTime start,
             LocalDateTime end
+    ) {}
+
+    private record WidgetAvailabilityMarkerKey(
+            Long ownerId,
+            LocalDateTime start,
+            LocalDateTime end,
+            String notes
     ) {}
 
     private record WidgetAvailabilitySnapshot(
@@ -1780,6 +1805,31 @@ public class PublicBookingWidgetService {
             if (!next.start().isAfter(current.end())) {
                 LocalDateTime mergedEnd = next.end().isAfter(current.end()) ? next.end() : current.end();
                 current = new WidgetBusyInterval(current.consultantId(), current.spaceId(), current.start(), mergedEnd, current.physical() || next.physical());
+            } else {
+                merged.add(current);
+                current = next;
+            }
+        }
+        merged.add(current);
+        return List.copyOf(merged);
+    }
+
+    private static List<WidgetWaitlistHold> mergeWaitlistHolds(List<WidgetWaitlistHold> holds) {
+        if (holds == null || holds.isEmpty()) return List.of();
+        List<WidgetWaitlistHold> sorted = holds.stream()
+                .filter(Objects::nonNull)
+                .filter(hold -> hold.start() != null && hold.end() != null && hold.end().isAfter(hold.start()))
+                .sorted(Comparator.comparing(WidgetWaitlistHold::start).thenComparing(WidgetWaitlistHold::end))
+                .toList();
+        if (sorted.isEmpty()) return List.of();
+
+        List<WidgetWaitlistHold> merged = new ArrayList<>();
+        WidgetWaitlistHold current = sorted.get(0);
+        for (int index = 1; index < sorted.size(); index++) {
+            WidgetWaitlistHold next = sorted.get(index);
+            if (!next.start().isAfter(current.end())) {
+                LocalDateTime mergedEnd = next.end().isAfter(current.end()) ? next.end() : current.end();
+                current = new WidgetWaitlistHold(current.employeeId(), current.roomId(), current.start(), mergedEnd);
             } else {
                 merged.add(current);
                 current = next;

@@ -1,5 +1,6 @@
 package com.example.app.session;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -14,6 +15,9 @@ import java.util.List;
  * all-day window ending at 23:59:59 into an endless loop once the cursor reaches 23:30.</p>
  */
 public final class AvailabilityWindowGrid {
+    private static final long NANOS_PER_MINUTE = Duration.ofMinutes(1).toNanos();
+    private static final int MINUTES_PER_DAY = 24 * 60;
+
     private AvailabilityWindowGrid() {}
 
     public static List<LocalDateTime> starts(
@@ -28,10 +32,29 @@ public final class AvailabilityWindowGrid {
             return List.of();
         }
 
-        LocalDateTime cursor = date.atTime(windowStart);
+        LocalDateTime first = date.atTime(windowStart);
         LocalDateTime end = date.atTime(windowEnd);
-        List<LocalDateTime> starts = new ArrayList<>();
-        while (!cursor.plusMinutes(requiredMinutes).isAfter(end)) {
+        long windowNanos = Duration.between(first, end).toNanos();
+        if (requiredMinutes > MINUTES_PER_DAY) {
+            return List.of();
+        }
+
+        long requiredNanos = requiredMinutes * NANOS_PER_MINUTE;
+        if (windowNanos < requiredNanos) {
+            return List.of();
+        }
+
+        // The window is always shorter than one day. If the step itself is longer than a day,
+        // only the first start can fit. Avoid converting an arbitrary integer step to nanos.
+        int count = 1;
+        if (stepMinutes <= MINUTES_PER_DAY) {
+            long stepNanos = stepMinutes * NANOS_PER_MINUTE;
+            count += Math.toIntExact((windowNanos - requiredNanos) / stepNanos);
+        }
+
+        List<LocalDateTime> starts = new ArrayList<>(count);
+        LocalDateTime cursor = first;
+        for (int index = 0; index < count; index++) {
             starts.add(cursor);
             cursor = cursor.plusMinutes(stepMinutes);
         }

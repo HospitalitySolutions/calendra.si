@@ -495,6 +495,11 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarFcShellRef = useRef<HTMLDivElement>(null)
   const calendarResourceDayHeaderFallbackRef = useRef<HTMLDivElement>(null)
   const realtimeCalendarReloadTimerRef = useRef<number | null>(null)
+  const calendarRefreshInFlightRef = useRef<Promise<void> | null>(null)
+  const calendarRefreshQueuedRef = useRef(false)
+  const metaRefreshInFlightRef = useRef<Promise<void> | null>(null)
+  const metaRefreshQueuedRef = useRef(false)
+  const calendarPollingActiveRef = useRef(true)
   const loadRef = useRef<() => Promise<void>>(async () => {})
   const speechRecognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null)
   const voiceStopRequestedRef = useRef(false)
@@ -1602,19 +1607,61 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     await loadCalendarWithRetry()
   }
 
-  const refreshCalendarSafely = async () => {
+  const refreshCalendarSafely = async (queueIfBusy = false): Promise<void> => {
+    const current = calendarRefreshInFlightRef.current
+    if (current) {
+      if (queueIfBusy) calendarRefreshQueuedRef.current = true
+      return current
+    }
+
+    const request = (async () => {
+      try {
+        await loadCalendarRangeOnly(true)
+      } catch {
+        if (!hasLoadedCalendarRef.current) setCalendarLoadState('error')
+      }
+    })()
+    calendarRefreshInFlightRef.current = request
+
     try {
-      await loadCalendarRangeOnly(true)
-    } catch {
-      if (!hasLoadedCalendarRef.current) setCalendarLoadState('error')
+      await request
+    } finally {
+      if (calendarRefreshInFlightRef.current === request) {
+        calendarRefreshInFlightRef.current = null
+      }
+      if (calendarRefreshQueuedRef.current && calendarPollingActiveRef.current) {
+        calendarRefreshQueuedRef.current = false
+        void refreshCalendarSafely()
+      }
     }
   }
 
-  const refreshMetaSafely = async () => {
+  const refreshMetaSafely = async (queueIfBusy = false): Promise<void> => {
+    const current = metaRefreshInFlightRef.current
+    if (current) {
+      if (queueIfBusy) metaRefreshQueuedRef.current = true
+      return current
+    }
+
+    const request = (async () => {
+      try {
+        await loadMetaOnly()
+      } catch {
+        // Keep the last successfully loaded metadata and retry on the next poll/focus event.
+      }
+    })()
+    metaRefreshInFlightRef.current = request
+
     try {
-      await loadMetaOnly()
-    } catch {
-      // Keep the last successfully loaded metadata and retry on the next poll/focus event.
+      await request
+    } finally {
+      if (metaRefreshInFlightRef.current === request) {
+        metaRefreshInFlightRef.current = null
+      }
+      if (metaRefreshQueuedRef.current && calendarPollingActiveRef.current) {
+        metaRefreshQueuedRef.current = false
+        void refreshMetaSafely()
+      }
     }
   }
 
@@ -1883,12 +1930,17 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [visibleRange])
 
   useEffect(() => {
+    calendarPollingActiveRef.current = true
     void loadCalendarWithRetry()
     void api.get('/zoom/status').then((r) => setZoomConnected(r.data.connected)).catch(() => setZoomConnected(false))
     void api.get('/google/status').then((r) => setGoogleConnected(r.data.connected)).catch(() => setGoogleConnected(false))
     void api.get('/ai/voice-booking/status').then((r) => setVoiceBookingConfigured(!!r.data?.configured)).catch(() => setVoiceBookingConfigured(false))
-    const calendarInterval = window.setInterval(() => void refreshCalendarSafely(), CALENDAR_POLL_MS)
-    const metaInterval = window.setInterval(() => void refreshMetaSafely(), CALENDAR_META_POLL_MS)
+    const calendarInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshCalendarSafely()
+    }, CALENDAR_POLL_MS)
+    const metaInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshMetaSafely()
+    }, CALENDAR_META_POLL_MS)
     const refreshClients = () => api.get('/clients').then((r) => {
       const updated: any[] = r.data ?? []
       setMeta((prev: any) => ({ ...prev, clients: updated }))
@@ -1899,20 +1951,20 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         return { ...f, clientId: undefined }
       })
     }).catch(() => {})
-    const onTodosUpdated = () => void refreshCalendarSafely()
-    const onSettingsUpdated = () => void refreshMetaSafely()
+    const onTodosUpdated = () => void refreshCalendarSafely(true)
+    const onSettingsUpdated = () => void refreshMetaSafely(true)
     const onBookingUpdated = () => {
       if (realtimeCalendarReloadTimerRef.current != null) {
         window.clearTimeout(realtimeCalendarReloadTimerRef.current)
       }
       realtimeCalendarReloadTimerRef.current = window.setTimeout(() => {
         realtimeCalendarReloadTimerRef.current = null
-        void refreshCalendarSafely()
+        void refreshCalendarSafely(true)
       }, 250)
     }
     const refreshAfterResume = () => {
-      void refreshMetaSafely()
-      if (hasLoadedCalendarRef.current) void refreshCalendarSafely()
+      void refreshMetaSafely(true)
+      if (hasLoadedCalendarRef.current) void refreshCalendarSafely(true)
       else void loadCalendarWithRetry()
     }
     const onVisibility = () => {
@@ -1928,6 +1980,9 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const unsubscribeBookingRealtime = subscribeBookingUpdates(onBookingUpdated)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
+      calendarPollingActiveRef.current = false
+      calendarRefreshQueuedRef.current = false
+      metaRefreshQueuedRef.current = false
       window.clearInterval(calendarInterval)
       window.clearInterval(metaInterval)
       window.removeEventListener('todos-updated', onTodosUpdated)

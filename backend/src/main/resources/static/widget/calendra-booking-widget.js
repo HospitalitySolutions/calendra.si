@@ -482,6 +482,7 @@
       this.turnstileRendering = false;
       this.submitInFlight = false;
       this.availabilityAbortController = null;
+      this.availabilityInFlightKey = null;
       this.availabilityRequestSequence = 0;
       this.availabilityCache = new Map();
       this.monthAvailabilityAbortController = null;
@@ -540,6 +541,7 @@
         this.availabilityAbortController.abort();
         this.availabilityAbortController = null;
       }
+      this.availabilityInFlightKey = null;
       if (this.monthAvailabilityAbortController) {
         this.monthAvailabilityAbortController.abort();
         this.monthAvailabilityAbortController = null;
@@ -893,10 +895,14 @@
       const consultantRequiredForRegularSlots = !supportsGroupSessions && this.shouldShowConsultantStep() && config?.availabilityEnabled && !selectedConsultantId;
       if (!config?.availabilityEnabled && !supportsGroupSessions) {
         if (this.availabilityAbortController) { this.availabilityAbortController.abort(); this.availabilityAbortController = null; }
+        this.availabilityInFlightKey = null;
         this.setState({ slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: false, error: '' });
         return;
       }
       const requestKey = `${serviceIds.join(',')}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
+      // Coalesce identical requests. Aborting and immediately restarting the same availability
+      // calculation still leaves the backend doing duplicate work after the browser disconnects.
+      if (this.availabilityAbortController && this.availabilityInFlightKey === requestKey) return;
       const cachedEntry = this.availabilityCache.get(requestKey);
       if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
         const data = cachedEntry.data || {};
@@ -922,6 +928,7 @@
         controller.abort();
       }, 20000);
       this.availabilityAbortController = controller;
+      this.availabilityInFlightKey = requestKey;
       this.setState({ error: '', slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: true });
       try {
         const params = this.appendSelectedServiceParams(new URLSearchParams({ date: selectedDate }));
@@ -950,7 +957,10 @@
         }
       } finally {
         window.clearTimeout(requestTimeout);
-        if (requestSequence === this.availabilityRequestSequence && this.availabilityAbortController === controller) this.availabilityAbortController = null;
+        if (requestSequence === this.availabilityRequestSequence && this.availabilityAbortController === controller) {
+          this.availabilityAbortController = null;
+          this.availabilityInFlightKey = null;
+        }
       }
     }
 

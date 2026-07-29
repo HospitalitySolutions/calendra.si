@@ -157,6 +157,8 @@ export function NotificationCenter({
   const { locale } = useLocale()
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
+  const backgroundLoadInFlightRef = useRef<Promise<void> | null>(null)
+  const realtimeRefreshTimerRef = useRef<number | null>(null)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<NotificationPanelTab>('NOTIFICATIONS')
   const [feed, setFeed] = useState<NotificationFeed>({ items: [], unreadCount: 0 })
@@ -190,15 +192,45 @@ export function NotificationCenter({
   }, [])
 
   useEffect(() => {
-    void load()
-    const interval = window.setInterval(() => void load(), 60_000)
-    const unsubscribe = subscribeBookingUpdates(() => window.setTimeout(() => void load(), 250))
-    const onFocus = () => void load()
+    const refreshInBackground = (): Promise<void> => {
+      const current = backgroundLoadInFlightRef.current
+      if (current) return current
+      const request = load()
+      backgroundLoadInFlightRef.current = request
+      const clear = () => {
+        if (backgroundLoadInFlightRef.current === request) backgroundLoadInFlightRef.current = null
+      }
+      void request.then(clear, clear)
+      return request
+    }
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimerRef.current != null) window.clearTimeout(realtimeRefreshTimerRef.current)
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        realtimeRefreshTimerRef.current = null
+        if (document.visibilityState === 'visible') void refreshInBackground()
+      }, 250)
+    }
+
+    void refreshInBackground()
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshInBackground()
+    }, 60_000)
+    const unsubscribe = subscribeBookingUpdates(scheduleRealtimeRefresh)
+    const onFocus = () => void refreshInBackground()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshInBackground()
+    }
     window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.clearInterval(interval)
+      if (realtimeRefreshTimerRef.current != null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = null
+      }
       unsubscribe()
       window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [load])
 

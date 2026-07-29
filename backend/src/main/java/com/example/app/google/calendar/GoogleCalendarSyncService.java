@@ -203,14 +203,15 @@ public class GoogleCalendarSyncService {
         GoogleTaskMirrorIndex taskMirrorIndex = taskPull.taskMirrorIndex();
         String syncToken = forceFullSync ? null : c.getSyncToken();
         String pageToken = null;
+        GooglePageTokenGuard pageTokenGuard = new GooglePageTokenGuard();
         String nextSyncToken = null;
         try {
             do {
                 var page = apiClient.listEvents(token, c.getCalendarId(), syncToken, pageToken);
                 for (JsonNode event : page.events()) consumeGoogleEvent(c, event, taskMirrorIndex);
-                pageToken = page.nextPageToken();
+                pageToken = pageTokenGuard.next(pageToken, page.nextPageToken());
                 if (page.nextSyncToken() != null && !page.nextSyncToken().isBlank()) nextSyncToken = page.nextSyncToken();
-            } while (pageToken != null && !pageToken.isBlank());
+            } while (pageToken != null);
         } catch (GoogleCalendarSyncTokenExpiredException expired) {
             if (!forceFullSync) {
                 c.setSyncToken(null);
@@ -319,14 +320,15 @@ public class GoogleCalendarSyncService {
         }
         for (GoogleCalendarApiClient.TaskListSummary taskList : apiClient.listTaskLists(token)) {
             String pageToken = null;
+            GooglePageTokenGuard pageTokenGuard = new GooglePageTokenGuard();
             do {
                 GoogleCalendarApiClient.TasksPage page = apiClient.listTasks(token, taskList.id(), pageToken, googlePullWindowStartInstant());
                 for (JsonNode task : page.tasks()) {
                     taskMirrorIndex.add(task);
                     consumeGoogleTask(c, page.taskListId(), task);
                 }
-                pageToken = page.nextPageToken();
-            } while (pageToken != null && !pageToken.isBlank());
+                pageToken = pageTokenGuard.next(pageToken, page.nextPageToken());
+            } while (pageToken != null);
         }
         return new GoogleTaskPullResult(null, taskMirrorIndex);
     }

@@ -398,6 +398,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   /** ≤939px: same band as calendar bottom strip; non-calendar still uses sticky header with todo. */
   const narrowWebHeaderForVoice = appHeaderMobileRow || calendarFiltersBottomBar
   const calendarFormUsesRoutes = calendarFiltersBottomBar || isNativeAndroid
+  const overdueLoadInFlightRef = useRef<Promise<void> | null>(null)
 
   const localDateStr = (d: Date) => {
     const y = d.getFullYear()
@@ -407,9 +408,12 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   }
 
   /** Bell list: overdue todos + today's todos (narrow calendar range, not full month). */
-  const loadOverdue = () => {
+  const loadOverdue = (): Promise<void> => {
+    const current = overdueLoadInFlightRef.current
+    if (current) return current
+
     const todayStr = localDateStr(new Date())
-    Promise.all([
+    const request = Promise.all([
       api.get('/bookings/todos/overdue').catch(() => ({ data: [] as any[] })),
       api.get('/bookings/calendar', { params: { from: todayStr, to: todayStr } }).catch(() => ({ data: { todos: [] as any[] } })),
     ])
@@ -422,6 +426,12 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         setTodos(Array.from(byId.values()))
       })
       .catch(() => setTodos([]))
+    overdueLoadInFlightRef.current = request
+    const clear = () => {
+      if (overdueLoadInFlightRef.current === request) overdueLoadInFlightRef.current = null
+    }
+    void request.then(clear, clear)
+    return request
   }
 
   useEffect(() => {
@@ -429,12 +439,17 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       setTodos([])
       return
     }
-    loadOverdue()
-    const interval = window.setInterval(loadOverdue, 60000)
-    window.addEventListener('todos-updated', loadOverdue)
+    void loadOverdue()
+    const poll = () => {
+      if (document.visibilityState === 'visible') void loadOverdue()
+    }
+    const interval = window.setInterval(poll, 60000)
+    window.addEventListener('todos-updated', poll)
+    document.addEventListener('visibilitychange', poll)
     return () => {
       window.clearInterval(interval)
-      window.removeEventListener('todos-updated', loadOverdue)
+      window.removeEventListener('todos-updated', poll)
+      document.removeEventListener('visibilitychange', poll)
     }
   }, [todosModuleEnabled])
 

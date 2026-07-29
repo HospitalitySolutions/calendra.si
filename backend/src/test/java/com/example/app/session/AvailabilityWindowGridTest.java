@@ -47,4 +47,35 @@ class AvailabilityWindowGridTest {
                 LocalDateTime.of(2026, 8, 22, 10, 30)
         ), starts);
     }
+
+    @Test
+    void subMinuteWindowBoundaryMatchesThePreviousLoopSemantics() {
+        List<LocalDateTime> starts = AvailabilityWindowGrid.starts(
+                LocalDate.of(2026, 8, 22),
+                LocalTime.of(9, 0, 30),
+                LocalTime.of(11, 0, 20),
+                30,
+                30
+        );
+
+        assertEquals(List.of(
+                LocalDateTime.of(2026, 8, 22, 9, 0, 30),
+                LocalDateTime.of(2026, 8, 22, 9, 30, 30),
+                LocalDateTime.of(2026, 8, 22, 10, 0, 30)
+        ), starts);
+    }
+
+    @Test
+    void oversizedStepStillReturnsTheFirstValidStartOnly() {
+        List<LocalDateTime> starts = AvailabilityWindowGrid.starts(
+                LocalDate.of(2026, 8, 22),
+                LocalTime.of(9, 0),
+                LocalTime.of(11, 0),
+                30,
+                Integer.MAX_VALUE
+        );
+
+        assertEquals(List.of(LocalDateTime.of(2026, 8, 22, 9, 0)), starts);
+    }
+
 }

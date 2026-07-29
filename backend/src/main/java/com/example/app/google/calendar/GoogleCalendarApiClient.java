@@ -96,6 +96,7 @@ public class GoogleCalendarApiClient {
 
     public List<TaskListSummary> listTaskLists(String accessToken) throws Exception {
         String pageToken = null;
+        GooglePageTokenGuard pageTokenGuard = new GooglePageTokenGuard();
         List<TaskListSummary> out = new ArrayList<>();
         do {
             UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(TASKS_API + "/users/@me/lists")
@@ -105,8 +106,8 @@ public class GoogleCalendarApiClient {
             for (JsonNode item : root.path("items")) {
                 out.add(new TaskListSummary(item.path("id").asText(), item.path("title").asText("My Tasks")));
             }
-            pageToken = root.path("nextPageToken").asText(null);
-        } while (pageToken != null && !pageToken.isBlank());
+            pageToken = pageTokenGuard.next(pageToken, root.path("nextPageToken").asText(null));
+        } while (pageToken != null);
         return out;
     }
 

@@ -1228,6 +1228,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [expandedBatchSessionId, setExpandedBatchSessionId] = useState<number | null>(null)
   const batchInvoicesRef = useRef<HTMLDivElement | null>(null)
   const billingTabsRef = useRef<HTMLDivElement | null>(null)
+  const billingPollInFlightRef = useRef<Promise<unknown> | null>(null)
   const [creatingManualOpenBill, setCreatingManualOpenBill] = useState(false)
   const [isOpenBillsMobile, setIsOpenBillsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false,
@@ -1266,10 +1267,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       openBills: (openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)) as OpenBill[],
     }
   }
-  useEffect(() => { load() }, [])
   useEffect(() => {
-    const interval = window.setInterval(() => { void load() }, 30000)
-    return () => window.clearInterval(interval)
+    const request = load()
+    billingPollInFlightRef.current = request
+    const clear = () => {
+      if (billingPollInFlightRef.current === request) billingPollInFlightRef.current = null
+    }
+    void request.then(clear, clear)
+  }, [])
+  useEffect(() => {
+    const poll = () => {
+      if (document.visibilityState !== 'visible' || billingPollInFlightRef.current) return
+      const request = load()
+      billingPollInFlightRef.current = request
+      const clear = () => {
+        if (billingPollInFlightRef.current === request) billingPollInFlightRef.current = null
+      }
+      void request.then(clear, clear)
+    }
+    const interval = window.setInterval(poll, 30000)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', poll)
+    }
   }, [])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
