@@ -7904,6 +7904,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     setSaveBookingLoading(true)
     try {
       let firstCreatedBookingId: number | null = null
+      const createdBookingSnapshots: any[] = []
       if (form.todo) {
         await api.post('/bookings/todos', {
           startTime: form.startTime,
@@ -7997,7 +7998,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
         for (const dt of bookingDates) {
           const useWaitlistHoldExclusion: boolean = hasWaitlistRequest && firstCreatedBookingId == null
-          const createdResponse: { data?: { id?: unknown } } = await api.post('/bookings', {
+          const createdResponse: { data?: any } = await api.post('/bookings', {
             ...bookingPayloadBase,
             startTime: dt.startTime,
             endTime: dt.endTime,
@@ -8008,6 +8009,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             },
           })
           const createdId: number = Number(createdResponse.data?.id)
+          if (Number.isInteger(createdId) && createdId > 0 && createdResponse.data) {
+            createdBookingSnapshots.push(createdResponse.data)
+          }
           if (firstCreatedBookingId == null && Number.isInteger(createdId) && createdId > 0) {
             firstCreatedBookingId = createdId
           }
@@ -8026,9 +8030,30 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }
         }
       }
-      // Keep the booking form open (with saving state) until calendar data refreshes,
-      // so users see the new booking immediately after the modal closes.
-      await load()
+      if (createdBookingSnapshots.length > 0) {
+        // Use the complete POST response immediately. Waiting for another calendar request
+        // while the draft preview is still mounted briefly paints the new booking as a thin
+        // line inside the blocked background. The returned booking already contains the
+        // normalized service and availability timestamps needed for a full-height event.
+        setCalendarData((prev: any) => {
+          const existing = Array.isArray(prev?.booked) ? prev.booked : []
+          const byId = new Map<number, any>()
+          existing.forEach((booking: any) => {
+            const id = Number(booking?.id)
+            if (Number.isInteger(id) && id > 0) byId.set(id, booking)
+          })
+          createdBookingSnapshots.forEach((booking: any) => {
+            const id = Number(booking?.id)
+            if (Number.isInteger(id) && id > 0) byId.set(id, booking)
+          })
+          return { ...prev, booked: Array.from(byId.values()) }
+        })
+      }
+
+      if (createdBookingSnapshots.length === 0) {
+        await load()
+      }
+
       setSelection(null)
       setConfirmNonBookable(null)
       setEditingClientSearch(false)
@@ -9752,6 +9777,85 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     })
   }
 
+  const buildOptimisticMovedBooking = (
+    booking: any,
+    newStartStr: string,
+    newEndStr: string,
+    spaceIdOverride?: number | null,
+    consultantIdOverride?: number | null,
+  ) => {
+    const originalStartMs = new Date(booking?.startTime).getTime()
+    const nextStartMs = new Date(newStartStr).getTime()
+    const nextEndMs = new Date(newEndStr).getTime()
+    const deltaMs = Number.isFinite(originalStartMs) && Number.isFinite(nextStartMs)
+      ? nextStartMs - originalStartMs
+      : 0
+    const shiftTimestamp = (value: unknown) => {
+      if (typeof value !== 'string' || !value) return value
+      const valueMs = new Date(value).getTime()
+      if (!Number.isFinite(valueMs)) return value
+      return toLocalDateTimeString(new Date(valueMs + deltaMs))
+    }
+
+    let next: any = {
+      ...booking,
+      startTime: newStartStr,
+      endTime: newEndStr,
+      services: Array.isArray(booking?.services)
+        ? booking.services.map((service: any) => ({
+            ...service,
+            startTime: shiftTimestamp(service?.startTime),
+            endTime: shiftTimestamp(service?.endTime),
+            availabilityEndTime: shiftTimestamp(service?.availabilityEndTime),
+          }))
+        : booking?.services,
+      availabilityEndTime: shiftTimestamp(booking?.availabilityEndTime),
+    }
+
+    // A stale availabilityEndTime from the previous position makes the blocked
+    // background cover the moved booking until the next calendar reload. Keep the
+    // optimistic busy range valid while the server update is in flight.
+    const optimisticBusyEndMs = new Date(next.availabilityEndTime).getTime()
+    if (Number.isFinite(nextEndMs) && (!Number.isFinite(optimisticBusyEndMs) || optimisticBusyEndMs < nextEndMs)) {
+      const breakMinutes = Math.max(0, getBookingBreakMinutes(booking))
+      next.availabilityEndTime = toLocalDateTimeString(new Date(nextEndMs + breakMinutes * 60_000))
+    }
+
+    if (spaceIdOverride !== undefined) {
+      next = {
+        ...next,
+        space: spaceIdOverride == null
+          ? null
+          : metaSpaces.find((space: any) => space.id === spaceIdOverride) ?? { id: spaceIdOverride, name: '' },
+      }
+    }
+    if (consultantIdOverride !== undefined) {
+      next = {
+        ...next,
+        consultant: consultantIdOverride == null
+          ? null
+          : metaUsers.find((consultant: any) => consultant.id === consultantIdOverride)
+            ?? { id: consultantIdOverride, firstName: '', lastName: '' },
+      }
+    }
+    return next
+  }
+
+  const replaceCalendarBookingSnapshot = (bookingSnapshot: any) => {
+    const bookingId = Number(bookingSnapshot?.id)
+    if (!Number.isInteger(bookingId) || bookingId <= 0) return
+    setCalendarData((prev: any) => {
+      const existing = Array.isArray(prev?.booked) ? prev.booked : []
+      const found = existing.some((booking: any) => Number(booking?.id) === bookingId)
+      return {
+        ...prev,
+        booked: found
+          ? existing.map((booking: any) => Number(booking?.id) === bookingId ? bookingSnapshot : booking)
+          : [...existing, bookingSnapshot],
+      }
+    })
+  }
+
   const performMove = async (
     booking: any,
     newStartStr: string,
@@ -9781,7 +9885,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     if (typeof resolvedConsultantId === 'number' && !Number.isFinite(resolvedConsultantId)) {
       resolvedConsultantId = booking.consultant?.id ?? null
     }
-    await api.put(`/bookings/${booking.id}`, {
+    const response = await api.put(`/bookings/${booking.id}`, {
       clientId: (booking.clients?.[0]?.id ?? booking.client?.id),
       clientIds: (booking.clients || []).map((c: any) => c.id),
       consultantId: resolvedConsultantId,
@@ -9797,6 +9901,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       groupBillingCompanyIdOverride: null,
       ...(allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
     })
+    return response.data
   }
 
   const performMovePersonal = async (block: any, newStartStr: string, newEndStr: string) => {
@@ -9976,35 +10081,21 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       return
     }
 
-    const mapBookingAfterDrop = (b: any) => {
-      if (b.id !== props.id) return b
-      let next = { ...b, startTime: newStartStr, endTime: newEndStr }
-      if (spaceIdOverride !== undefined) {
-        const sid = spaceIdOverride
-        const spaceObj =
-          sid == null ? null : (metaSpaces).find((s: any) => s.id === sid) ?? { id: sid, name: '' }
-        next = { ...next, space: spaceObj }
-      }
-      if (consultantIdOverride !== undefined) {
-        const consultantObj = consultantIdOverride == null
-          ? null
-          : metaUsers.find((u: any) => u.id === consultantIdOverride) ?? { id: consultantIdOverride, firstName: '', lastName: '' }
-        next = { ...next, consultant: consultantObj }
-      }
-      return next
-    }
-
     setCalendarData((prev: any) => ({
       ...prev,
-      booked: (prev.booked || []).map((b: any) => mapBookingAfterDrop(b)),
+      booked: (prev.booked || []).map((booking: any) =>
+        booking.id === props.id
+          ? buildOptimisticMovedBooking(booking, newStartStr, newEndStr, spaceIdOverride, consultantIdOverride)
+          : booking,
+      ),
     }))
     cleanupDragArtifacts()
     try {
-      await performMove(props, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
-      // Reload the server-normalized booking, including service segment and break
-      // timestamps. Keeping the old nested timestamps after multiple moves can make
-      // the returned session render as thin continuation bars over blocked availability.
-      await loadCalendarRangeOnly(true)
+      const normalizedBooking = await performMove(props, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
+      if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
+      // Refresh in the background only after the normalized PUT response has replaced
+      // the optimistic event. This avoids a visible stale-service or blocked-hatch frame.
+      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
     } catch (e) {
       setCalendarData((prev: any) => ({
         ...prev,
@@ -10100,13 +10191,19 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       return
     }
 
-    // Optimistic update before await so the re-render has correct times immediately (no flash)
-    setCalendarData((prev: any) => ({ ...prev, booked: (prev.booked || []).map((b: any) => b.id === props.id ? { ...b, startTime: newStartStr, endTime: newEndStr } : b) }))
+    // Keep the full booking timeline coherent while the resize request is in flight.
+    setCalendarData((prev: any) => ({
+      ...prev,
+      booked: (prev.booked || []).map((booking: any) =>
+        booking.id === props.id
+          ? buildOptimisticMovedBooking(booking, newStartStr, newEndStr)
+          : booking,
+      ),
+    }))
     try {
-      await performMove(props, newStartStr, newEndStr)
-      // Resizing also changes service/break timing on the server. Refresh the complete
-      // booking so availability hatching and foreground event height stay in sync.
-      await loadCalendarRangeOnly(true)
+      const normalizedBooking = await performMove(props, newStartStr, newEndStr)
+      if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
+      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
     } catch (e) {
       setCalendarData((prev: any) => ({ ...prev, booked: (prev.booked || []).map((b: any) => b.id === props.id ? { ...b, startTime: props.startTime, endTime: props.endTime } : b) }))
       info.revert()
@@ -10150,20 +10247,22 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     try {
       setCalendarData((prev: any) => ({
         ...prev,
-        booked: (prev.booked || []).map((b: any) => {
-          if (b.id !== c.booking.id) return b
-          let next = { ...b, startTime: c.newStartStr, endTime: c.newEndStr }
-          if (c.consultantIdOverride !== undefined) {
-            next = { ...next, consultant: c.consultantIdOverride == null ? null : metaUsers.find((u: any) => u.id === c.consultantIdOverride) ?? { id: c.consultantIdOverride, firstName: '', lastName: '' } }
-          }
-          if (c.spaceIdOverride !== undefined) {
-            next = { ...next, space: c.spaceIdOverride == null ? null : metaSpaces.find((s: any) => s.id === c.spaceIdOverride) ?? { id: c.spaceIdOverride, name: '' } }
-          }
-          return next
-        }),
+        booked: (prev.booked || []).map((booking: any) =>
+          booking.id === c.booking.id
+            ? buildOptimisticMovedBooking(booking, c.newStartStr, c.newEndStr, c.spaceIdOverride, c.consultantIdOverride)
+            : booking,
+        ),
       }))
-      await performMove(c.booking, c.newStartStr, c.newEndStr, !!c.allowPersonalBlockOverlap, c.spaceIdOverride, c.consultantIdOverride)
-      load()
+      const normalizedBooking = await performMove(
+        c.booking,
+        c.newStartStr,
+        c.newEndStr,
+        !!c.allowPersonalBlockOverlap,
+        c.spaceIdOverride,
+        c.consultantIdOverride,
+      )
+      if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
+      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
     } catch (e) {
       if (!isHttpConflict(e)) {
         console.error(e)
@@ -10297,20 +10396,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }
       setCalendarData((prev: any) => ({
         ...prev,
-        booked: (prev.booked || []).map((b: any) => {
-          if (b.id !== c.booking.id) return b
-          let next = { ...b, startTime: c.newStartStr, endTime: c.newEndStr }
-          if (moveCid !== undefined) {
-            next = { ...next, consultant: moveCid == null ? null : metaUsers.find((u: any) => u.id === moveCid) ?? { id: moveCid, firstName: '', lastName: '' } }
-          }
-          if (moveSpaceId !== undefined) {
-            next = { ...next, space: moveSpaceId == null ? null : metaSpaces.find((s: any) => s.id === moveSpaceId) ?? { id: moveSpaceId, name: '' } }
-          }
-          return next
-        }),
+        booked: (prev.booked || []).map((booking: any) =>
+          booking.id === c.booking.id
+            ? buildOptimisticMovedBooking(booking, c.newStartStr, c.newEndStr, moveSpaceId, moveCid)
+            : booking,
+        ),
       }))
-      await performMove(c.booking, c.newStartStr, c.newEndStr, true, moveSpaceId, moveCid)
-      load()
+      const normalizedBooking = await performMove(c.booking, c.newStartStr, c.newEndStr, true, moveSpaceId, moveCid)
+      if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
+      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
     } catch (e) {
       if (!isHttpConflict(e)) {
         console.error(e)
@@ -10483,13 +10577,19 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     setCalendarData((prev: any) => ({
       ...prev,
-      booked: (prev.booked || []).map((b: any) => b.id === booking.id ? { ...b, startTime: newStartStr, endTime: newEndStr } : b),
+      booked: (prev.booked || []).map((current: any) =>
+        current.id === booking.id ? buildOptimisticMovedBooking(current, newStartStr, newEndStr) : current,
+      ),
     }))
-    setSelectedBookedSession((prev: any) => prev?.id === booking.id ? { ...prev, startTime: newStartStr, endTime: newEndStr } : prev)
+    setSelectedBookedSession((prev: any) => prev?.id === booking.id
+      ? buildOptimisticMovedBooking(prev, newStartStr, newEndStr)
+      : prev)
     try {
-      await performMove(booking, newStartStr, newEndStr)
+      const normalizedBooking = await performMove(booking, newStartStr, newEndStr)
+      if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
+      setSelectedBookedSession((prev: any) => prev?.id === booking.id && normalizedBooking ? normalizedBooking : prev)
       setOverlapInlineTimeEdit(null)
-      load()
+      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
     } catch (e) {
       setCalendarData((prev: any) => ({
         ...prev,
@@ -10625,23 +10725,18 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     setCalendarData((prev: any) => ({
       ...prev,
-      booked: (prev.booked || []).map((b: any) => {
-        if (b.id !== booking.id) return b
-        let next = { ...b, startTime: newStartStr, endTime: newEndStr }
-        if (spaceIdOverride !== undefined) {
-          next = { ...next, space: spaceIdOverride == null ? null : metaSpaces.find((s: any) => s.id === spaceIdOverride) ?? { id: spaceIdOverride, name: '' } }
-        }
-        if (consultantIdOverride !== undefined) {
-          next = { ...next, consultant: consultantIdOverride == null ? null : metaUsers.find((u: any) => u.id === consultantIdOverride) ?? { id: consultantIdOverride, firstName: '', lastName: '' } }
-        }
-        return next
-      }),
+      booked: (prev.booked || []).map((current: any) =>
+        current.id === booking.id
+          ? buildOptimisticMovedBooking(current, newStartStr, newEndStr, spaceIdOverride, consultantIdOverride)
+          : current,
+      ),
     }))
 
     try {
-      await performMove(booking, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
+      const normalizedBooking = await performMove(booking, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
+      if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
       setOverlapDrawerGroupId(null)
-      load()
+      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
     } catch (e) {
       if (!isHttpConflict(e)) console.error(e)
       setCalendarData((prev: any) => ({
