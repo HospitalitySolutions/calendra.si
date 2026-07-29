@@ -3725,7 +3725,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const serviceChainValidationWarnings = (
     chain: CalendarServiceChain,
     services: CalendarServiceDraft[],
-    consultantId: number | null | undefined,
     selectedClientCount: number,
     groupMode: boolean,
     excludeBookingId?: number | null,
@@ -3759,32 +3758,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         : locale === 'sr'
           ? `Kombinacija usluga dozvoljava najviše ${maxParticipants} klijenata.`
           : `This service combination allows at most ${maxParticipants} clients.`)
-    }
-
-    const startMs = new Date(chain.segments[0]?.startTime || '').getTime()
-    const busyEndMs = new Date(chain.availabilityEndTime).getTime()
-    if (consultantId != null && Number.isFinite(startMs) && Number.isFinite(busyEndMs)) {
-      const consultantConflict = (calendarData.booked || []).some((booking: any) => {
-        if (excludeBookingId != null && Number(booking?.id) === Number(excludeBookingId)) return false
-        if (Number(booking?.consultant?.id ?? booking?.consultantId) !== Number(consultantId)) return false
-        const otherStart = new Date(booking?.startTime).getTime()
-        const otherEnd = getBookingBusyEndMs(booking)
-        return Number.isFinite(otherStart) && Number.isFinite(otherEnd) && startMs < otherEnd && busyEndMs > otherStart
-      })
-      const personalConflict = personalModuleEnabled && (calendarData.personal || []).some((block: any) => {
-        if (String(block?.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK) return false
-        if (Number(block?.consultant?.id ?? block?.consultantId ?? block?.ownerId) !== Number(consultantId)) return false
-        const otherStart = new Date(block?.startTime).getTime()
-        const otherEnd = new Date(block?.endTime).getTime()
-        return Number.isFinite(otherStart) && Number.isFinite(otherEnd) && startMs < otherEnd && busyEndMs > otherStart
-      })
-      if (consultantConflict || personalConflict) {
-        warnings.push(locale === 'sl'
-          ? 'Celotna veriga storitev se časovno prekriva z drugim terminom ali osebnim blokom zaposlenega.'
-          : locale === 'sr'
-            ? 'Ceo niz usluga se vremenski preklapa sa drugim terminom ili ličnim blokom zaposlenog.'
-            : 'The complete service chain overlaps another session or personal block for this employee.')
-      }
     }
 
     const existingServiceSegments = (booking: any) => {
@@ -3832,7 +3805,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         ...serviceChainValidationWarnings(
           formServiceChain,
           formServiceDrafts,
-          form?.consultantId,
           Array.from(new Set([...(Array.isArray(form?.clientIds) ? form.clientIds : []), form?.clientId]
             .map((value) => Number(value))
             .filter((value) => Number.isInteger(value) && value > 0))).length,
@@ -3848,7 +3820,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         ...serviceChainValidationWarnings(
           bookedServiceChain,
           bookedServiceDrafts,
-          selectedBookedSession?.consultant?.id ?? selectedBookedSession?.consultantId,
           Array.from(new Set([...(Array.isArray(selectedBookedSession?.clientIds) ? selectedBookedSession.clientIds : []),
             ...(Array.isArray(selectedBookedSession?.clients) ? selectedBookedSession.clients.map((client: any) => client?.id) : []),
             selectedBookedSession?.client?.id]

@@ -452,7 +452,7 @@ export function CalendarServiceChainEditor({
                     <div className="calendar-service-chain__body">
                       <div className="calendar-service-chain__card-top">
                         <div className="calendar-service-chain__title-block">
-                          <strong className="calendar-service-chain__title">{serviceName(type, locale)}</strong>
+                          <strong className="calendar-service-chain__title">{serviceDescription(type, locale)}</strong>
                         </div>
                         <div className="calendar-service-chain__item-actions">
                           <div className="calendar-service-chain__menu-wrap">
@@ -555,7 +555,7 @@ export function CalendarServiceChainEditor({
                 >
                   <option value="">{copy.choose}</option>
                   {sortedSessionTypes.map((entry) => (
-                    <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
+                    <option key={entry.id} value={entry.id}>{serviceDescription(entry, locale)}</option>
                   ))}
                 </select>
                 <select
@@ -678,7 +678,7 @@ export function CalendarServiceChainEditor({
                 <input
                   type="text"
                   readOnly
-                  value={serviceName(sessionTypes.find((entry) => Number(entry?.id) === Number(services[editingServiceIndex]?.typeId)), locale)}
+                  value={serviceDescription(sessionTypes.find((entry) => Number(entry?.id) === Number(services[editingServiceIndex]?.typeId)), locale)}
                 />
               </label>
               <label className="calendar-service-edit-modal__field">

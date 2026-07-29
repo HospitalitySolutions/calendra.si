@@ -9420,8 +9420,29 @@
     min-width: 0;
 }
 
+.calendar-service-chain__single-select-wrap--with-price .calendar-service-chain__single-select,
+.calendar-edit-session-panel .calendar-service-chain__single-select-wrap--with-price .calendar-service-chain__single-select {
+    padding-right: 118px !important;
+}
+
 .calendar-service-chain__single-price {
-    display: none;
+    position: absolute;
+    top: 50%;
+    right: 34px;
+    z-index: 1;
+    display: block;
+    max-width: 86px;
+    padding-left: 18px;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0), #ffffff 18px);
+    color: #111827;
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translateY(-50%);
 }
 
 .calendar-service-chain__mobile-edit-btn {
