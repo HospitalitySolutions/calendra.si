@@ -4142,6 +4142,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               && overlaps(breakRange.startMs, breakRange.endMs, otherStartMs, otherEndMs)
           }) ||
           (personalModuleEnabled ? (calendarData.personal || []) : []).some((other: any) => {
+            // Availability blocks intentionally remain in place when staff manually
+            // create a booking over them. They must not be treated as a conflicting
+            // personal session for the booking's configured break.
+            if (String(other?.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK) return false
             const otherOwnerId = personalOwnerId(other)
             if (bookedOwnerId == null || otherOwnerId !== bookedOwnerId) return false
             const otherStartMs = new Date(other?.startTime).getTime()
@@ -8078,27 +8082,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       calendarRef.current?.getApi()?.unselect()
 
       if (createdBookingSnapshots.length > 0) {
-        // Use the complete POST response immediately. Waiting for another calendar request
-        // while the draft preview is still mounted briefly paints the new booking as a thin
-        // line inside the blocked background. The returned booking already contains the
-        // normalized service and availability timestamps needed for a full-height event.
-        setCalendarData((prev: any) => {
-          const existing = Array.isArray(prev?.booked) ? prev.booked : []
-          const byId = new Map<number, any>()
-          existing.forEach((booking: any) => {
-            const id = Number(booking?.id)
-            if (Number.isInteger(id) && id > 0) byId.set(id, booking)
-          })
-          createdBookingSnapshots.forEach((booking: any) => {
-            const id = Number(booking?.id)
-            if (Number.isInteger(id) && id > 0) byId.set(id, booking)
-          })
-          return { ...prev, booked: Array.from(byId.values()) }
-        })
+        // Re-read the complete calendar payload after the draft selection has been
+        // removed. Updating the POST snapshot and the blocked background in separate
+        // React renders can leave FullCalendar with a stale event harness whose height
+        // is only a few pixels. Loading both layers together gives the booking its
+        // canonical start/end/service data and a normal full-height event immediately.
+        await loadCalendarRangeOnly(true)
         rerenderCalendarEventsAfterMutation()
-      }
-
-      if (createdBookingSnapshots.length === 0) {
+      } else {
         await load()
       }
 
@@ -10137,9 +10128,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     try {
       const normalizedBooking = await performMove(props, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
-      // Refresh in the background only after the normalized PUT response has replaced
-      // the optimistic event. This avoids a visible stale-service or blocked-hatch frame.
-      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
+      // Refresh the canonical calendar only after the normalized PUT response has
+      // replaced the optimistic event. Awaiting both layers prevents a stale-service
+      // or blocked-hatch frame from remaining on screen.
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       setCalendarData((prev: any) => ({
         ...prev,
@@ -10248,7 +10240,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     try {
       const normalizedBooking = await performMove(props, newStartStr, newEndStr)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
-      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       setCalendarData((prev: any) => ({ ...prev, booked: (prev.booked || []).map((b: any) => b.id === props.id ? { ...b, startTime: props.startTime, endTime: props.endTime } : b) }))
       info.revert()
@@ -10308,7 +10300,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         c.consultantIdOverride,
       )
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
-      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       if (!isHttpConflict(e)) {
         console.error(e)
@@ -10451,7 +10443,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       rerenderCalendarEventsAfterMutation()
       const normalizedBooking = await performMove(c.booking, c.newStartStr, c.newEndStr, true, moveSpaceId, moveCid)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
-      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       if (!isHttpConflict(e)) {
         console.error(e)
@@ -10637,7 +10629,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
       setSelectedBookedSession((prev: any) => prev?.id === booking.id && normalizedBooking ? normalizedBooking : prev)
       setOverlapInlineTimeEdit(null)
-      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       setCalendarData((prev: any) => ({
         ...prev,
@@ -10785,7 +10777,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const normalizedBooking = await performMove(booking, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
       setOverlapDrawerGroupId(null)
-      void loadCalendarRangeOnly(true).catch((refreshError) => console.error(refreshError))
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       if (!isHttpConflict(e)) console.error(e)
       setCalendarData((prev: any) => ({

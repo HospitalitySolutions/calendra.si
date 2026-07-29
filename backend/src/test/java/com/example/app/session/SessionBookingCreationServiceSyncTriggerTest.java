@@ -176,6 +176,62 @@ class SessionBookingCreationServiceSyncTriggerTest {
     }
 
     @Test
+    void update_overAvailabilityBlock_allowsStaffCalendarOverride() {
+        LocalDateTime originalStart = LocalDateTime.now().plusDays(1);
+        LocalDateTime targetStart = LocalDateTime.now().plusDays(2);
+        LocalDateTime targetEnd = targetStart.plusMinutes(45);
+
+        SessionBooking existing = new SessionBooking();
+        existing.setId(50L);
+        existing.setCompany(company);
+        existing.setClient(client);
+        existing.setBookingGroupKey("g-1");
+        existing.setStartTime(originalStart);
+        existing.setEndTime(originalStart.plusMinutes(45));
+        existing.setBookingStatus(SessionBookingStatus.RESERVED);
+        existing.setConsultant(admin);
+
+        var request = new SessionBookingController.BookingRequest(
+                10L,
+                null,
+                20L,
+                targetStart.toString(),
+                targetEnd.toString(),
+                null,
+                null,
+                "manual override",
+                null,
+                false,
+                null,
+                false,
+                null,
+                null,
+                null,
+                SessionBookingStatus.RESERVED,
+                null,
+                null
+        );
+
+        when(repo.findByIdAndCompanyId(50L, 1L)).thenReturn(Optional.of(existing));
+        when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("g-1", 1L)).thenReturn(List.of(existing));
+        when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
+        when(clients.findByIdAndCompanyId(10L, 1L)).thenReturn(Optional.of(client));
+        when(users.findByIdAndCompanyId(20L, 1L)).thenReturn(Optional.of(admin));
+        when(repo.save(any(SessionBooking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = service.update(50L, request, admin);
+
+        assertEquals(50L, response.id());
+        verify(personalBlocks).existsOverlappingRegularPersonalSessionForOwner(
+                org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(targetStart),
+                org.mockito.ArgumentMatchers.eq(targetEnd)
+        );
+        verify(personalBlocks, never()).findAvailabilityBlockMarkersForOwner(any(), any());
+    }
+
+    @Test
     void update_whenTransitionedToCancelledAndUnbilled_removesOpenBillRows() {
         SessionBooking existing = new SessionBooking();
         existing.setId(50L);

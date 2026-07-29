@@ -211,6 +211,7 @@ public class SessionBookingCreationService {
                 clientGroup != null || multipleClientsPerSessionEnabled,
                 isOnlineRequest(req),
                 Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
+                true,
                 excludedWaitlistOfferId
         );
         var meetingLink = req.meetingLink();
@@ -338,6 +339,7 @@ public class SessionBookingCreationService {
                 allowMultipleClientsForRequest,
                 isOnlineRequest(req),
                 Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
+                true,
                 null
         );
         var meetingLink = req.meetingLink();
@@ -635,6 +637,7 @@ public class SessionBookingCreationService {
                 false,
                 Boolean.TRUE.equals(request.online()) || (meetingLink != null && !meetingLink.isBlank()),
                 request.allowPersonalBlockOverlap(),
+                false,
                 null
         );
 
@@ -739,6 +742,7 @@ public class SessionBookingCreationService {
                 true,
                 representative.isOnlineSession(),
                 false,
+                true,
                 null
         );
 
@@ -837,6 +841,7 @@ public class SessionBookingCreationService {
                 multipleClientsPerSessionEnabled,
                 online,
                 allowPersonalBlockOverlap,
+                false,
                 null
         );
     }
@@ -888,6 +893,7 @@ public class SessionBookingCreationService {
                 isMultipleClientsPerSessionEnabled(companyId),
                 false,
                 false,
+                false,
                 null
         );
         return plan;
@@ -908,6 +914,7 @@ public class SessionBookingCreationService {
                 multipleClientsPerSessionEnabled,
                 online,
                 allowPersonalBlockOverlap,
+                false,
                 null
         );
     }
@@ -923,6 +930,7 @@ public class SessionBookingCreationService {
             boolean multipleClientsPerSessionEnabled,
             boolean online,
             boolean allowPersonalBlockOverlap,
+            boolean allowAvailabilityBlockOverlap,
             Long excludedWaitlistOfferId
     ) {
         if (servicePlan == null) {
@@ -1022,8 +1030,12 @@ public class SessionBookingCreationService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
             }
             if (!allowPersonalBlockOverlap
-                    && hasOverlappingPersonalOrAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
+                    && personalBlocks.existsOverlappingRegularPersonalSessionForOwner(consultantId, companyId, start, requestedBusyEnd)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a personal session at that time.");
+            }
+            if (!allowAvailabilityBlockOverlap
+                    && hasOverlappingAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant is unavailable at that time.");
             }
         }
 
@@ -1139,10 +1151,7 @@ public class SessionBookingCreationService {
         }
     }
 
-    private boolean hasOverlappingPersonalOrAvailabilityBlock(Long consultantId, Long companyId, LocalDateTime start, LocalDateTime end) {
-        if (personalBlocks.existsOverlappingPersonalSessionForOwner(consultantId, companyId, start, end)) {
-            return true;
-        }
+    private boolean hasOverlappingAvailabilityBlock(Long consultantId, Long companyId, LocalDateTime start, LocalDateTime end) {
         return personalBlocks.findAvailabilityBlockMarkersForOwner(consultantId, companyId).stream()
                 .anyMatch(block -> AvailabilityBlockMetadata.overlaps(block, start, end));
     }

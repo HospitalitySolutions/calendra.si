@@ -41,6 +41,19 @@ public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalC
     boolean existsOverlappingPersonalSessionForOwner(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId,
                                                      @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    /**
+     * Same overlap check for staff calendar mutations, but excludes the hidden
+     * __availability_block__ marker. Staff may intentionally place or move a
+     * booking over blocked availability after confirming the override; ordinary
+     * personal sessions must still conflict unless explicitly allowed.
+     */
+    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM PersonalCalendarBlock p " +
+           "WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
+           "AND (p.task IS NULL OR LOWER(p.task) <> '__availability_block__') " +
+           "AND p.startTime < :end AND p.endTime > :start")
+    boolean existsOverlappingRegularPersonalSessionForOwner(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId,
+                                                            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
            "AND LOWER(p.task) = '__availability_block__'")
     List<PersonalCalendarBlock> findAvailabilityBlockMarkersForOwner(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId);
