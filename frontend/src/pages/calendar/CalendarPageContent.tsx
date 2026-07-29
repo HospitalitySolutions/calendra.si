@@ -283,7 +283,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     () => metaTypes.filter((type: any) => type?.active !== false && (!bookingGroupMode || type?.groupBookingEnabled === true)),
     [metaTypes, bookingGroupMode],
   )
-  const metaConsultants = useMemo(() => metaUsers.filter((u: any) => u.consultant), [metaUsers])
+  const metaConsultants = useMemo(
+    () => metaUsers.filter((u: any) => u.consultant && u.active !== false),
+    [metaUsers],
+  )
   /** Hide Zaposleni when admin has no real choice (0–1 consultants). */
   const showBookingConsultantRow = isTenantAdmin && metaConsultants.length > 1
   /** Hide Prostor when there is no real choice (0–1 spaces). */
@@ -332,6 +335,32 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [androidFilterPicker, setAndroidFilterPicker] = useState<null | 'consultant' | 'space'>(null)
   const [view, setView] = useState('timeGridWeek')
   const [calendarMode, setCalendarMode] = useState<'bookings' | 'availability' | 'spaces'>('bookings')
+
+  useEffect(() => {
+    if (!isTenantAdmin || calendarMode === 'spaces' || metaConsultants.length === 0) return
+
+    setConsultantFilterId((current) => {
+      const currentIsActiveConsultant =
+        current != null
+        && current !== CONSULTANT_FILTER_ALL_SESSION
+        && metaConsultants.some((consultant: any) => Number(consultant.id) === Number(current))
+
+      if (metaConsultants.length === 1) {
+        const onlyConsultantId = Number(metaConsultants[0].id)
+        return Number(current) === onlyConsultantId ? current : onlyConsultantId
+      }
+
+      if (current == null || current === CONSULTANT_FILTER_ALL_SESSION || currentIsActiveConsultant) {
+        return current
+      }
+
+      const ownActiveConsultant = metaConsultants.find(
+        (consultant: any) => Number(consultant.id) === Number(user.id),
+      )
+      return Number(ownActiveConsultant?.id ?? metaConsultants[0].id)
+    })
+  }, [calendarMode, isTenantAdmin, metaConsultants, user.id])
+
   const [confirmNonBookable, setConfirmNonBookable] = useState<ConfirmNonBookableState | null>(null)
   const [confirmOverlap, setConfirmOverlap] = useState<{ overlapping: any[]; start: string; end: string } | null>(null)
   const [confirmBookedPersonalOverlap, setConfirmBookedPersonalOverlap] = useState<
@@ -3254,8 +3283,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }, [])
 
   const showAdminConsultantFilter = useMemo(
-    () => isTenantAdmin && calendarMode !== 'spaces' && metaUsers.length > 1,
-    [user.role, calendarMode, metaUsers.length],
+    () => isTenantAdmin && calendarMode !== 'spaces' && metaConsultants.length > 1,
+    [isTenantAdmin, calendarMode, metaConsultants.length],
   )
 
   const shellCalendarFilters = useMemo(
@@ -3267,7 +3296,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         onConsultantFilterChange={setConsultantFilterId}
         spaceFilterId={spaceFilterId}
         onSpaceFilterChange={setSpaceFilterId}
-        consultantUsers={metaUsers.filter((u: any) => u.consultant)}
+        consultantUsers={metaConsultants}
         spaces={metaSpaces}
       />
     ),
@@ -3277,7 +3306,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       calendarSpacesFeatureActive,
       consultantFilterId,
       spaceFilterId,
-      metaUsers,
+      metaConsultants,
       metaSpaces,
     ],
   )
@@ -12937,7 +12966,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   onConsultantFilterChange={setConsultantFilterId}
                   spaceFilterId={spaceFilterId}
                   onSpaceFilterChange={setSpaceFilterId}
-                  consultantUsers={metaUsers.filter((u: any) => u.consultant)}
+                  consultantUsers={metaConsultants}
                   spaces={metaSpaces}
                 />
               ) : null}
@@ -12965,7 +12994,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   onConsultantFilterChange={setConsultantFilterId}
                   spaceFilterId={spaceFilterId}
                   onSpaceFilterChange={setSpaceFilterId}
-                  consultantUsers={metaUsers.filter((u: any) => u.consultant)}
+                  consultantUsers={metaConsultants}
                   spaces={metaSpaces}
                 />
               ) : null}
@@ -13424,7 +13453,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   </button>
                 )}
                 {androidFilterPicker === 'consultant'
-                  ? metaUsers.filter((u: any) => u.consultant).map((u: any) => (
+                  ? metaConsultants.map((u: any) => (
                       <button
                         key={u.id}
                         type="button"
