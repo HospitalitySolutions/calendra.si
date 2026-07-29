@@ -55,8 +55,10 @@ public class PublicWidgetBookingSlotHoldController {
     }
 
     private Company requireCompany(String tenantCode) {
-        return companies.findByTenantCodeIgnoreCase(tenantCode)
-                .filter(Company::isActive)
+        if (tenantCode == null || tenantCode.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking page not found.");
+        }
+        return companies.findByTenantCodeIgnoreCase(tenantCode.trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking page not found."));
     }
 }
