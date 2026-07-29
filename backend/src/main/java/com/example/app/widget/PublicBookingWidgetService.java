@@ -1470,11 +1470,11 @@ public class PublicBookingWidgetService {
             return false;
         }
 
-        boolean personalConflict = availabilitySnapshot.personalBlocksByOwner()
-                .getOrDefault(consultantId, List.of())
-                .stream()
-                .anyMatch(block -> availabilityBlockOverlaps(block, start, requestedBusyEnd));
-        if (personalConflict) {
+        if (overlapsAny(
+                availabilitySnapshot.personalBusyByOwner().getOrDefault(consultantId, List.of()),
+                start,
+                requestedBusyEnd
+        )) {
             return false;
         }
 
@@ -1528,10 +1528,16 @@ public class PublicBookingWidgetService {
                         .thenComparing(BookableSlot::getStartTime))
                 .toList();
 
+        boolean enforcePhysicalSpace = bookingCreationService.shouldEnforceSpaceOverlapProtection(
+                companyId,
+                bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
+                false,
+                null
+        );
         Map<Long, List<WidgetBusyInterval>> bookingsByConsultant = new HashMap<>();
         List<WidgetBusyInterval> physicalBookings = new ArrayList<>();
         for (SessionBookingRepository.WidgetAvailabilityBusyInterval row :
-                bookings.findWidgetAvailabilityBusyIntervals(companyId, rangeStart, rangeEnd)) {
+                bookings.findWidgetAvailabilityBusyIntervals(companyId, consultantId, enforcePhysicalSpace, rangeStart, rangeEnd)) {
             if (row == null || row.getStartTime() == null || row.getBusyEndTime() == null) {
                 continue;
             }
@@ -1542,38 +1548,46 @@ public class PublicBookingWidgetService {
                     row.getBusyEndTime(),
                     Boolean.TRUE.equals(row.getPhysical())
             );
-            if (interval.consultantId() != null) {
+            if (interval.consultantId() != null && supportedConsultantIds.contains(interval.consultantId())) {
                 bookingsByConsultant.computeIfAbsent(interval.consultantId(), ignored -> new ArrayList<>())
                         .add(interval);
             }
-            if (interval.physical()) {
+            if (enforcePhysicalSpace && interval.physical()) {
                 physicalBookings.add(interval);
             }
         }
 
-        Map<Long, List<WidgetPersonalBlock>> personalBlocksByOwner = new HashMap<>();
+        Map<Long, List<WidgetBusyInterval>> personalBusyByOwner = new HashMap<>();
         for (PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock row :
-                personalBlocks.findWidgetAvailabilityBlocks(companyId, rangeStart, rangeEnd)) {
-            if (row == null || row.getOwnerId() == null || row.getStartTime() == null || row.getEndTime() == null) {
+                personalBlocks.findWidgetOverlappingRegularBlocks(companyId, consultantId, rangeStart, rangeEnd)) {
+            if (row == null || row.getOwnerId() == null || row.getStartTime() == null || row.getEndTime() == null
+                    || !supportedConsultantIds.contains(row.getOwnerId())) {
                 continue;
             }
-            WidgetPersonalBlock block = new WidgetPersonalBlock(
-                    row.getId(),
-                    row.getOwnerId(),
-                    row.getStartTime(),
-                    row.getEndTime(),
-                    row.getTask(),
-                    row.getNotes()
-            );
-            personalBlocksByOwner.computeIfAbsent(block.ownerId(), ignored -> new ArrayList<>())
-                    .add(block);
+            addPersonalBusyInterval(personalBusyByOwner, row.getOwnerId(), row.getStartTime(), row.getEndTime(), rangeStart, rangeEnd);
         }
+        for (PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock marker :
+                personalBlocks.findWidgetAvailabilityMarkers(companyId, consultantId)) {
+            if (marker == null || marker.getOwnerId() == null || marker.getStartTime() == null || marker.getEndTime() == null
+                    || !supportedConsultantIds.contains(marker.getOwnerId())) {
+                continue;
+            }
+            expandAvailabilityMarker(
+                    personalBusyByOwner,
+                    marker,
+                    fromDate,
+                    toDate,
+                    rangeStart,
+                    rangeEnd
+            );
+        }
+        personalBusyByOwner.replaceAll((ownerId, intervals) -> mergeBusyIntervals(intervals));
 
         Map<Long, List<WidgetWaitlistHold>> waitlistHoldsByEmployee = new HashMap<>();
         List<WidgetWaitlistHold> roomWaitlistHolds = new ArrayList<>();
         if (waitlistHolds != null) {
             for (WaitlistBookingHoldRepository.WidgetAvailabilityHold row :
-                    waitlistHolds.findWidgetAvailabilityHolds(companyId, rangeStart, rangeEnd, Instant.now())) {
+                    waitlistHolds.findWidgetAvailabilityHolds(companyId, consultantId, enforcePhysicalSpace, rangeStart, rangeEnd, Instant.now())) {
                 if (row == null || row.getSlotStart() == null || row.getSlotEnd() == null) {
                     continue;
                 }
@@ -1583,28 +1597,22 @@ public class PublicBookingWidgetService {
                         row.getSlotStart(),
                         row.getSlotEnd()
                 );
-                if (hold.employeeId() != null) {
+                if (hold.employeeId() != null && supportedConsultantIds.contains(hold.employeeId())) {
                     waitlistHoldsByEmployee.computeIfAbsent(hold.employeeId(), ignored -> new ArrayList<>())
                             .add(hold);
                 }
-                if (hold.roomId() != null) {
+                if (enforcePhysicalSpace && hold.roomId() != null) {
                     roomWaitlistHolds.add(hold);
                 }
             }
         }
 
-        boolean enforcePhysicalSpace = bookingCreationService.shouldEnforceSpaceOverlapProtection(
-                companyId,
-                bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
-                false,
-                null
-        );
         WidgetAvailabilitySnapshot snapshot = new WidgetAvailabilitySnapshot(
                 supportedConsultants,
                 bookableWindows,
                 bookingsByConsultant,
                 physicalBookings,
-                personalBlocksByOwner,
+                personalBusyByOwner,
                 waitlistHoldsByEmployee,
                 roomWaitlistHolds,
                 enforcePhysicalSpace
@@ -1620,7 +1628,7 @@ public class PublicBookingWidgetService {
                     supportedConsultants.size(),
                     bookableWindows.size(),
                     bookingsByConsultant.values().stream().mapToInt(List::size).sum(),
-                    personalBlocksByOwner.values().stream().mapToInt(List::size).sum(),
+                    personalBusyByOwner.values().stream().mapToInt(List::size).sum(),
                     waitlistHoldsByEmployee.values().stream().mapToInt(List::size).sum(),
                     elapsedMillis
             );
@@ -1633,8 +1641,17 @@ public class PublicBookingWidgetService {
             LocalDateTime start,
             LocalDateTime end
     ) {
-        return intervals != null && intervals.stream().anyMatch(interval ->
-                interval.start().isBefore(end) && interval.end().isAfter(start));
+        if (intervals == null || intervals.isEmpty() || start == null || end == null) {
+            return false;
+        }
+        // Snapshot lists are sorted by start time. Stop as soon as later intervals can no
+        // longer overlap instead of scanning the consultant's complete month for every slot.
+        for (WidgetBusyInterval interval : intervals) {
+            if (interval == null || interval.start() == null || interval.end() == null) continue;
+            if (!interval.start().isBefore(end)) break;
+            if (interval.end().isAfter(start)) return true;
+        }
+        return false;
     }
 
     private static boolean overlapsAnyHold(
@@ -1642,9 +1659,15 @@ public class PublicBookingWidgetService {
             LocalDateTime start,
             LocalDateTime end
     ) {
-        return holds != null && holds.stream().anyMatch(hold ->
-                hold.start() != null && hold.end() != null
-                        && hold.start().isBefore(end) && hold.end().isAfter(start));
+        if (holds == null || holds.isEmpty() || start == null || end == null) {
+            return false;
+        }
+        for (WidgetWaitlistHold hold : holds) {
+            if (hold == null || hold.start() == null || hold.end() == null) continue;
+            if (!hold.start().isBefore(end)) break;
+            if (hold.end().isAfter(start)) return true;
+        }
+        return false;
     }
 
     private record WidgetBusyInterval(
@@ -1653,15 +1676,6 @@ public class PublicBookingWidgetService {
             LocalDateTime start,
             LocalDateTime end,
             boolean physical
-    ) {}
-
-    private record WidgetPersonalBlock(
-            Long id,
-            Long ownerId,
-            LocalDateTime start,
-            LocalDateTime end,
-            String task,
-            String notes
     ) {}
 
     private record WidgetWaitlistHold(
@@ -1676,7 +1690,7 @@ public class PublicBookingWidgetService {
             List<BookableSlot> bookableWindows,
             Map<Long, List<WidgetBusyInterval>> bookingsByConsultant,
             List<WidgetBusyInterval> physicalBookings,
-            Map<Long, List<WidgetPersonalBlock>> personalBlocksByOwner,
+            Map<Long, List<WidgetBusyInterval>> personalBusyByOwner,
             Map<Long, List<WidgetWaitlistHold>> waitlistHoldsByEmployee,
             List<WidgetWaitlistHold> roomWaitlistHolds,
             boolean enforcePhysicalSpace
@@ -1695,24 +1709,99 @@ public class PublicBookingWidgetService {
         }
     }
 
-    private boolean availabilityBlockOverlaps(
-            WidgetPersonalBlock block,
+    private static void addPersonalBusyInterval(
+            Map<Long, List<WidgetBusyInterval>> personalBusyByOwner,
+            Long ownerId,
+            LocalDateTime start,
+            LocalDateTime end,
             LocalDateTime rangeStart,
             LocalDateTime rangeEnd
     ) {
-        if (block == null || rangeStart == null || rangeEnd == null || !rangeEnd.isAfter(rangeStart)) {
-            return false;
+        if (personalBusyByOwner == null || ownerId == null || start == null || end == null
+                || !end.isAfter(start) || !start.isBefore(rangeEnd) || !end.isAfter(rangeStart)) {
+            return;
         }
-        if (block.start() != null && block.end() != null
-                && block.start().isBefore(rangeEnd) && block.end().isAfter(rangeStart)) {
-            return true;
+        personalBusyByOwner.computeIfAbsent(ownerId, ignored -> new ArrayList<>())
+                .add(new WidgetBusyInterval(ownerId, null, start, end, false));
+    }
+
+    private static void expandAvailabilityMarker(
+            Map<Long, List<WidgetBusyInterval>> personalBusyByOwner,
+            PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock marker,
+            LocalDate fromDate,
+            LocalDate toDate,
+            LocalDateTime rangeStart,
+            LocalDateTime rangeEnd
+    ) {
+        Optional<AvailabilityBlockMetadata.Metadata> parsed = AvailabilityBlockMetadata.parse(
+                marker.getNotes(), marker.getStartTime(), marker.getEndTime());
+        if (parsed.isEmpty()) {
+            addPersonalBusyInterval(
+                    personalBusyByOwner,
+                    marker.getOwnerId(),
+                    marker.getStartTime(),
+                    marker.getEndTime(),
+                    rangeStart,
+                    rangeEnd
+            );
+            return;
         }
-        if (!AvailabilityBlockMetadata.TASK.equalsIgnoreCase(block.task() == null ? "" : block.task().trim())) {
-            return false;
+
+        AvailabilityBlockMetadata.Metadata metadata = parsed.get();
+        LocalDate cursor = fromDate;
+        if (metadata.startDate() != null && cursor.isBefore(metadata.startDate())) {
+            cursor = metadata.startDate();
         }
-        return AvailabilityBlockMetadata.parse(block.notes(), block.start(), block.end())
-                .map(metadata -> AvailabilityBlockMetadata.overlaps(metadata, rangeStart, rangeEnd))
-                .orElse(false);
+        LocalDate last = toDate;
+        if (!metadata.indefinite() && metadata.endDate() != null && last.isAfter(metadata.endDate())) {
+            last = metadata.endDate();
+        }
+        long guard = 0;
+        while (!cursor.isAfter(last) && guard++ < 3700) {
+            boolean afterStart = metadata.startDate() == null || !cursor.isBefore(metadata.startDate());
+            boolean beforeEnd = metadata.indefinite() || metadata.endDate() == null || !cursor.isAfter(metadata.endDate());
+            if (afterStart && beforeEnd && cursor.getDayOfWeek() == metadata.dayOfWeek()) {
+                LocalDateTime occurrenceStart = cursor.atTime(metadata.startTime());
+                LocalDateTime occurrenceEnd = cursor.atTime(metadata.endTime());
+                if (!occurrenceEnd.isAfter(occurrenceStart)) {
+                    occurrenceEnd = occurrenceEnd.plusDays(1);
+                }
+                addPersonalBusyInterval(
+                        personalBusyByOwner,
+                        marker.getOwnerId(),
+                        occurrenceStart,
+                        occurrenceEnd,
+                        rangeStart,
+                        rangeEnd
+                );
+            }
+            cursor = cursor.plusDays(1);
+        }
+    }
+
+    private static List<WidgetBusyInterval> mergeBusyIntervals(List<WidgetBusyInterval> intervals) {
+        if (intervals == null || intervals.isEmpty()) return List.of();
+        List<WidgetBusyInterval> sorted = intervals.stream()
+                .filter(Objects::nonNull)
+                .filter(interval -> interval.start() != null && interval.end() != null && interval.end().isAfter(interval.start()))
+                .sorted(Comparator.comparing(WidgetBusyInterval::start).thenComparing(WidgetBusyInterval::end))
+                .toList();
+        if (sorted.isEmpty()) return List.of();
+
+        List<WidgetBusyInterval> merged = new ArrayList<>();
+        WidgetBusyInterval current = sorted.get(0);
+        for (int index = 1; index < sorted.size(); index++) {
+            WidgetBusyInterval next = sorted.get(index);
+            if (!next.start().isAfter(current.end())) {
+                LocalDateTime mergedEnd = next.end().isAfter(current.end()) ? next.end() : current.end();
+                current = new WidgetBusyInterval(current.consultantId(), current.spaceId(), current.start(), mergedEnd, current.physical() || next.physical());
+            } else {
+                merged.add(current);
+                current = next;
+            }
+        }
+        merged.add(current);
+        return List.copyOf(merged);
     }
 
     private void lockTenantForClientMatch(Company company) {

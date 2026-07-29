@@ -31,10 +31,17 @@ public interface WaitlistBookingHoldRepository extends JpaRepository<WaitlistBoo
               and h.expires_at > :now
               and h.slot_start < :rangeEnd
               and h.slot_end > :rangeStart
+              and (
+                    :employeeId is null
+                    or h.employee_id = :employeeId
+                    or (:includeRoomHolds = true and h.room_id is not null)
+                  )
             order by h.slot_start asc, h.id asc
             """, nativeQuery = true)
     List<WidgetAvailabilityHold> findWidgetAvailabilityHolds(
             @Param("companyId") Long companyId,
+            @Param("employeeId") Long employeeId,
+            @Param("includeRoomHolds") boolean includeRoomHolds,
             @Param("rangeStart") LocalDateTime rangeStart,
             @Param("rangeEnd") LocalDateTime rangeEnd,
             @Param("now") Instant now);

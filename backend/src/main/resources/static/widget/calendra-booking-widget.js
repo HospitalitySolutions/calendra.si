@@ -1004,7 +1004,14 @@
       const controller = new AbortController();
       const requestSequence = ++this.monthAvailabilityRequestSequence;
       this.monthAvailabilityAbortController = controller;
-      this.setState({ loadingMonthAvailability: true, monthAvailabilityKey: cacheKey });
+      // Never keep a previous month's availability array active while the new month is loading.
+      // A stale array would make every date in the newly opened month look unavailable and unclickable.
+      this.setState({ loadingMonthAvailability: true, monthAvailabilityKey: cacheKey, availableDates: null });
+      let requestTimedOut = false;
+      const requestTimeout = window.setTimeout(() => {
+        requestTimedOut = true;
+        controller.abort();
+      }, 12000);
       try {
         const params = this.appendSelectedServiceParams(new URLSearchParams({ month: monthKey }));
         if (selectedConsultantId != null) params.set('consultantId', String(selectedConsultantId));
@@ -1016,11 +1023,17 @@
         this.monthAvailabilityCache.set(cacheKey, availableDates);
         this.setState({ availableDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
       } catch (error) {
-        if (error?.name === 'AbortError') return;
         const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
         const currentCacheKey = `${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
-        if (requestSequence === this.monthAvailabilityRequestSequence && currentCacheKey === cacheKey) this.setState({ availableDates: null, monthAvailabilityKey: '', loadingMonthAvailability: false });
+        if (requestSequence === this.monthAvailabilityRequestSequence && currentCacheKey === cacheKey) {
+          // Month availability is an optimisation only. Fail open so the guest can still select
+          // a date and let the authoritative daily availability request decide whether slots exist.
+          this.setState({ availableDates: null, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
+          if (requestTimedOut) console.warn('Calendra month availability request timed out; using daily availability fallback.');
+          else if (error?.name !== 'AbortError') console.warn('Calendra month availability request failed; using daily availability fallback.', error);
+        }
       } finally {
+        window.clearTimeout(requestTimeout);
         if (requestSequence === this.monthAvailabilityRequestSequence && this.monthAvailabilityAbortController === controller) this.monthAvailabilityAbortController = null;
       }
     }
@@ -2109,7 +2122,13 @@
       const todayIso = formatIsoDate(today);
       const selectedDate = this.state.selectedDate;
       const availableDates = this.state.availableDates;
-      const availabilityKnown = Array.isArray(availableDates);
+      const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
+      const expectedAvailabilityKey = `${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+      // Only disable dates from a month result that belongs to the currently displayed
+      // service/employee/month. Stale results must never lock the next month.
+      const availabilityKnown = Array.isArray(availableDates)
+        && this.state.monthAvailabilityKey === expectedAvailabilityKey
+        && !this.state.loadingMonthAvailability;
       const cells = [];
 
       for (let index = 0; index < totalCells; index += 1) {
@@ -3820,7 +3839,6 @@
             error: '',
           });
           await this.loadAvailability();
-          await this.loadMonthAvailability();
         });
       });
 
@@ -3830,7 +3848,7 @@
           const previous = addMonths(current, -1);
           const minMonth = parseIsoDate(this.monthKeyForDate(this.todayInWidgetTimezone())) || firstOfMonth(new Date());
           if (previous < minMonth) return;
-          this.setState({ calendarMonth: formatIsoDate(previous) });
+          this.setState({ calendarMonth: formatIsoDate(previous), availableDates: null, monthAvailabilityKey: '' });
           void this.loadMonthAvailability();
         });
       });
@@ -3838,7 +3856,7 @@
       this.shadowRoot.querySelectorAll('[data-action="month-next"]').forEach((button) => {
         button.addEventListener('click', () => {
           const current = parseIsoDate(this.state.calendarMonth) || firstOfMonth(new Date());
-          this.setState({ calendarMonth: formatIsoDate(addMonths(current, 1)) });
+          this.setState({ calendarMonth: formatIsoDate(addMonths(current, 1)), availableDates: null, monthAvailabilityKey: '' });
           void this.loadMonthAvailability();
         });
       });
@@ -3944,7 +3962,11 @@
       this.shadowRoot.querySelectorAll('[data-action="refresh"]').forEach((button) => {
         button.addEventListener('click', () => {
           if (this.state.config?.availabilityEnabled) {
+            this.availabilityCache.clear();
+            this.monthAvailabilityCache.clear();
+            this.setState({ availableDates: null, monthAvailabilityKey: '' });
             void this.loadAvailability();
+            void this.loadMonthAvailability();
           }
         });
       });

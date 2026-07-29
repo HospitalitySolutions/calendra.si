@@ -47,10 +47,21 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
                     sb.availability_end_time,
                     sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')
                   ) > :rangeStart
+              and (
+                    :consultantId is null
+                    or sb.consultant_id = :consultantId
+                    or (
+                        :includePhysical = true
+                        and (sb.meeting_link is null or sb.meeting_link = '')
+                        and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
+                    )
+                  )
             order by sb.start_time asc, sb.id asc
             """, nativeQuery = true)
     List<WidgetAvailabilityBusyInterval> findWidgetAvailabilityBusyIntervals(
             @Param("companyId") Long companyId,
+            @Param("consultantId") Long consultantId,
+            @Param("includePhysical") boolean includePhysical,
             @Param("rangeStart") LocalDateTime rangeStart,
             @Param("rangeEnd") LocalDateTime rangeEnd);
 

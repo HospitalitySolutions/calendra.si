@@ -21,6 +21,12 @@ public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalC
         String getNotes();
     }
 
+    /**
+     * Ordinary personal sessions that overlap the requested range. Availability markers are
+     * deliberately excluded and loaded by a separate index-friendly query below. Splitting the
+     * former OR query prevents PostgreSQL from scanning every personal block whenever a month is
+     * opened in the public widget.
+     */
     @Query(value = """
             select p.id as "id",
                    p.owner_id as "ownerId",
@@ -30,16 +36,39 @@ public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalC
                    p.notes as "notes"
             from personal_calendar_block p
             where p.company_id = :companyId
-              and (
-                    (p.start_time < :rangeEnd and p.end_time > :rangeStart)
-                    or lower(p.task) = '__availability_block__'
-                  )
+              and (:ownerId is null or p.owner_id = :ownerId)
+              and lower(p.task) <> '__availability_block__'
+              and p.start_time < :rangeEnd
+              and p.end_time > :rangeStart
             order by p.start_time asc, p.id asc
             """, nativeQuery = true)
-    List<WidgetAvailabilityPersonalBlock> findWidgetAvailabilityBlocks(
+    List<WidgetAvailabilityPersonalBlock> findWidgetOverlappingRegularBlocks(
             @Param("companyId") Long companyId,
+            @Param("ownerId") Long ownerId,
             @Param("rangeStart") LocalDateTime rangeStart,
             @Param("rangeEnd") LocalDateTime rangeEnd);
+
+    /**
+     * Availability markers may be recurring or indefinite, so they cannot be filtered only by
+     * their stored anchor timestamp. The partial marker index keeps this lookup small, and the
+     * widget service expands each marker once into concrete occurrences for the requested range.
+     */
+    @Query(value = """
+            select p.id as "id",
+                   p.owner_id as "ownerId",
+                   p.start_time as "startTime",
+                   p.end_time as "endTime",
+                   p.task as "task",
+                   p.notes as "notes"
+            from personal_calendar_block p
+            where p.company_id = :companyId
+              and (:ownerId is null or p.owner_id = :ownerId)
+              and lower(p.task) = '__availability_block__'
+            order by p.start_time asc, p.id asc
+            """, nativeQuery = true)
+    List<WidgetAvailabilityPersonalBlock> findWidgetAvailabilityMarkers(
+            @Param("companyId") Long companyId,
+            @Param("ownerId") Long ownerId);
 
     @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
            "AND p.startTime < :rangeEnd AND p.endTime > :rangeStart")
