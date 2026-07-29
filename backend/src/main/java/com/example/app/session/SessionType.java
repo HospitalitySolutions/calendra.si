@@ -50,6 +50,13 @@ public class SessionType extends BaseEntity {
     private Integer breakMinutes;
 
     /**
+     * False means {@link #breakMinutes} follows the tenant-wide default. True means the
+     * service keeps its own explicit value, including an explicit zero-minute break.
+     */
+    @Column(name = "break_minutes_overridden", nullable = false)
+    private boolean breakMinutesOverridden = false;
+
+    /**
      * Optional cap for how many participants can attend one session of this type.
      * When null, no explicit capacity rule is enforced.
      */

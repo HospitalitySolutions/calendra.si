@@ -144,12 +144,16 @@ public class SessionServicePlanService {
                 );
             }
             int durationMinutes = Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes());
-            int breakMinutes = Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes());
+            // A combined appointment is continuous. Only the final service contributes its
+            // configured cleanup/buffer time after the visible booked block.
+            int breakMinutes = position == ordered.size() - 1
+                    ? Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes())
+                    : 0;
             Long requestedSpaceId = serviceRequest.spaceId() != null ? serviceRequest.spaceId() : request.spaceId();
             Space space = resolveSpace(requestedSpaceId, companyId);
             LocalDateTime serviceEnd = cursor.plusMinutes(durationMinutes);
             segments.add(new Segment(position, type, space, cursor, serviceEnd, durationMinutes, breakMinutes));
-            cursor = serviceEnd.plusMinutes(breakMinutes);
+            cursor = serviceEnd;
         }
         Segment last = segments.get(segments.size() - 1);
         return new Plan(List.copyOf(segments), start, last.endTime(), last.availabilityEndTime(), true);
@@ -259,22 +263,31 @@ public class SessionServicePlanService {
                     booking.getEndTime()
             );
         }
-        List<Segment> segments = sourceServices.stream()
-                .map(service -> new Segment(
-                        service.getPosition(),
-                        service.getSessionType(),
-                        service.getSpace(),
-                        service.getStartTime(),
-                        service.getEndTime(),
-                        service.getDurationMinutesSnapshot(),
-                        service.getBreakMinutesSnapshot(),
-                        service.getServiceNameSnapshot(),
-                        service.getColorSnapshot(),
-                        service.getPriceCalculationModeSnapshot(),
-                        service.getServiceGroupIdSnapshot(),
-                        service.getServiceGroupNameSnapshot()
-                ))
-                .toList();
+        List<Segment> segments = new ArrayList<>();
+        LocalDateTime cursor = booking.getStartTime();
+        for (int index = 0; index < sourceServices.size(); index++) {
+            SessionService service = sourceServices.get(index);
+            int duration = Math.max(1, service.getDurationMinutesSnapshot());
+            int breakMinutes = index == sourceServices.size() - 1
+                    ? Math.max(0, service.getBreakMinutesSnapshot())
+                    : 0;
+            LocalDateTime serviceEnd = cursor.plusMinutes(duration);
+            segments.add(new Segment(
+                    service.getPosition(),
+                    service.getSessionType(),
+                    service.getSpace(),
+                    cursor,
+                    serviceEnd,
+                    duration,
+                    breakMinutes,
+                    service.getServiceNameSnapshot(),
+                    service.getColorSnapshot(),
+                    service.getPriceCalculationModeSnapshot(),
+                    service.getServiceGroupIdSnapshot(),
+                    service.getServiceGroupNameSnapshot()
+            ));
+            cursor = serviceEnd;
+        }
         Segment first = segments.get(0);
         Segment last = segments.get(segments.size() - 1);
         return new Plan(

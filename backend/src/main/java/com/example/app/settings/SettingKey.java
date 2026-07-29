@@ -48,6 +48,8 @@ public enum SettingKey {
     SECURITY_PASSKEYS_ENABLED,
     SECURITY_API_INTEGRATIONS_ENABLED,
     SESSION_LENGTH_MINUTES,
+    /** Default cleanup/buffer time applied to services that do not define a specific break. */
+    DEFAULT_SERVICE_BREAK_MINUTES,
     WORKING_HOURS_START,
     WORKING_HOURS_END,
     PERSONAL_TASK_PRESETS_JSON,

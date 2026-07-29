@@ -212,6 +212,7 @@ type AccountPlanCard = {
 };
 
 const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 800;
+const SERVICE_BREAK_MINUTE_OPTIONS = Array.from({ length: 37 }, (_, index) => index * 5);
 
 function billingPaymentTypeLabel(
   paymentType: PaymentType | string | null | undefined,
@@ -3319,6 +3320,7 @@ export function ConfigurationPage() {
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           TYPES_ENABLED: modulesDraftForSave.TYPES_ENABLED,
+          DEFAULT_SERVICE_BREAK_MINUTES: modulesDraftForSave.DEFAULT_SERVICE_BREAK_MINUTES,
           COURSES_ENABLED: modulesDraftForSave.COURSES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
@@ -5383,6 +5385,36 @@ export function ConfigurationPage() {
           onChange: (checked) =>
             setModuleStringSetting("TYPES_ENABLED", checked),
           children: [
+            {
+              id: "services-default-break",
+              icon: "calendar",
+              title: locale === "sl" ? "Privzeta pavza" : "Default break",
+              subtitle:
+                locale === "sl"
+                  ? "Uporabi se pri vseh storitvah brez posebej določene pavze."
+                  : "Applied to every service that does not define its own break.",
+              valueControl: (
+                <span className="modules-design-inline-control modules-design-inline-control--with-suffix">
+                  <select
+                    value={moduleDraftForDesign.DEFAULT_SERVICE_BREAK_MINUTES}
+                    onChange={(event) =>
+                      setModulesDraft((previous) => ({
+                        ...(previous ?? buildModulesDraftFromCommitted(settings, guestAppSettings)),
+                        DEFAULT_SERVICE_BREAK_MINUTES: event.target.value,
+                      }))
+                    }
+                    aria-label={locale === "sl" ? "Privzeta pavza" : "Default break"}
+                  >
+                    {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {minutes}
+                      </option>
+                    ))}
+                  </select>
+                  <span>min</span>
+                </span>
+              ),
+            },
             {
               id: "services-service-groups",
               ...moduleVisibilityProps("SERVICE_GROUPS_ENABLED"),

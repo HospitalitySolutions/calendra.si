@@ -35,6 +35,7 @@ public class SessionTypeController {
     private final SessionBookingRepository bookingRepo;
     private final ServiceGroupRepository groupRepo;
     private final TenantFeatureAccessService featureAccess;
+    private final SessionTypeBreakSettingsService breakSettings;
 
     @Autowired
     public SessionTypeController(
@@ -42,13 +43,15 @@ public class SessionTypeController {
             TransactionServiceRepository txRepo,
             SessionBookingRepository bookingRepo,
             ServiceGroupRepository groupRepo,
-            TenantFeatureAccessService featureAccess
+            TenantFeatureAccessService featureAccess,
+            SessionTypeBreakSettingsService breakSettings
     ) {
         this.repo = repo;
         this.txRepo = txRepo;
         this.bookingRepo = bookingRepo;
         this.groupRepo = groupRepo;
         this.featureAccess = featureAccess;
+        this.breakSettings = breakSettings;
     }
 
     /** Backwards-compatible constructor used by existing controller unit tests. */
@@ -58,7 +61,7 @@ public class SessionTypeController {
             SessionBookingRepository bookingRepo,
             ServiceGroupRepository groupRepo
     ) {
-        this(repo, txRepo, bookingRepo, groupRepo, null);
+        this(repo, txRepo, bookingRepo, groupRepo, null, null);
     }
 
     public record TypeServiceItem(Long transactionServiceId, BigDecimal price) {}
@@ -68,6 +71,7 @@ public class SessionTypeController {
             String color,
             Integer durationMinutes,
             Integer breakMinutes,
+            Boolean breakMinutesOverridden,
             Integer maxParticipantsPerSession,
             Boolean groupBookingEnabled,
             Boolean widgetGroupBookingEnabled,
@@ -99,6 +103,7 @@ public class SessionTypeController {
                     null,
                     durationMinutes,
                     breakMinutes,
+                    breakMinutes != null,
                     maxParticipantsPerSession,
                     groupBookingEnabled,
                     widgetGroupBookingEnabled,
@@ -128,6 +133,7 @@ public class SessionTypeController {
             String color,
             Integer durationMinutes,
             Integer breakMinutes,
+            boolean breakMinutesOverridden,
             Integer maxParticipantsPerSession,
             boolean groupBookingEnabled,
             boolean widgetGroupBookingEnabled,
@@ -171,7 +177,7 @@ public class SessionTypeController {
         type.setDescription(req.description());
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
-        type.setBreakMinutes(req.breakMinutes() != null ? req.breakMinutes() : 0);
+        applyBreakSettings(type, req, companyId);
         type.setMaxParticipantsPerSession(normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession()));
         type.setGroupBookingEnabled(Boolean.TRUE.equals(req.groupBookingEnabled()));
         type.setWidgetGroupBookingEnabled(Boolean.TRUE.equals(req.widgetGroupBookingEnabled()));
@@ -209,7 +215,7 @@ public class SessionTypeController {
         type.setDescription(req.description());
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
-        type.setBreakMinutes(req.breakMinutes() != null ? req.breakMinutes() : 0);
+        applyBreakSettings(type, req, companyId);
         type.setMaxParticipantsPerSession(normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession()));
         type.setGroupBookingEnabled(Boolean.TRUE.equals(req.groupBookingEnabled()));
         type.setWidgetGroupBookingEnabled(Boolean.TRUE.equals(req.widgetGroupBookingEnabled()));
@@ -349,6 +355,19 @@ public class SessionTypeController {
         return normalized;
     }
 
+    private void applyBreakSettings(SessionType type, TypeRequest req, Long companyId) {
+        boolean overridden = req.breakMinutesOverridden() != null
+                ? Boolean.TRUE.equals(req.breakMinutesOverridden())
+                : req.breakMinutes() != null;
+        type.setBreakMinutesOverridden(overridden);
+        if (overridden) {
+            type.setBreakMinutes(SessionTypeBreakSettingsService.normalizeSpecific(req.breakMinutes()));
+        } else {
+            int tenantDefault = breakSettings == null ? 0 : breakSettings.defaultBreakMinutes(companyId);
+            type.setBreakMinutes(tenantDefault);
+        }
+    }
+
     private void ensureSessionTypeCodeUnique(Long companyId, String code, Long currentId) {
         var existing = repo.findByCompanyIdAndNameIgnoreCase(companyId, code);
         if (existing.isPresent() && !existing.get().getId().equals(currentId)) {
@@ -373,6 +392,8 @@ public class SessionTypeController {
                 })
                 .collect(Collectors.toList());
         Integer duration = t.getDurationMinutes() != null ? t.getDurationMinutes() : 60;
+        // Inherited service rows are synchronized whenever the tenant default changes,
+        // so the effective value can be returned without an extra settings query per row.
         Integer breakMinutes = t.getBreakMinutes() != null ? t.getBreakMinutes() : 0;
         return new TypeResponse(
                 t.getId(),
@@ -381,6 +402,7 @@ public class SessionTypeController {
                 normalizeSessionTypeColor(t.getColor()),
                 duration,
                 breakMinutes,
+                t.isBreakMinutesOverridden(),
                 t.getMaxParticipantsPerSession(),
                 t.isGroupBookingEnabled(),
                 t.isWidgetGroupBookingEnabled(),

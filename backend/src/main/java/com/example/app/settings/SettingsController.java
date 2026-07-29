@@ -1,6 +1,7 @@
 package com.example.app.settings;
 
 import com.example.app.company.PlatformTenantAccountLinkService;
+import com.example.app.session.SessionTypeBreakSettingsService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.billing.PaymentMethodRepository;
@@ -100,6 +101,7 @@ public class SettingsController {
     private final TenantSmsQuotaService tenantSmsQuotaService;
     private final TenantReservationRulesService tenantReservationRulesService;
     private final PaymentMethodRepository paymentMethodRepository;
+    private final SessionTypeBreakSettingsService sessionTypeBreakSettingsService;
 
     @Autowired
     public SettingsController(
@@ -112,7 +114,8 @@ public class SettingsController {
             CourseModuleAccessService courseModuleAccessService,
             TenantSmsQuotaService tenantSmsQuotaService,
             TenantReservationRulesService tenantReservationRulesService,
-            PaymentMethodRepository paymentMethodRepository
+            PaymentMethodRepository paymentMethodRepository,
+            SessionTypeBreakSettingsService sessionTypeBreakSettingsService
     ) {
         this.repository = repository;
         this.crypto = crypto;
@@ -124,6 +127,7 @@ public class SettingsController {
         this.tenantSmsQuotaService = tenantSmsQuotaService;
         this.tenantReservationRulesService = tenantReservationRulesService;
         this.paymentMethodRepository = paymentMethodRepository;
+        this.sessionTypeBreakSettingsService = sessionTypeBreakSettingsService;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -135,7 +139,7 @@ public class SettingsController {
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
-        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null, null);
+        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null, null, null);
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
@@ -198,6 +202,7 @@ public class SettingsController {
             applyPlatformModuleVisibilityRules(values);
         }
         applyModuleSettingDependencies(values);
+        values.putIfAbsent(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name(), "0");
         return values;
     }
 
@@ -238,6 +243,12 @@ public class SettingsController {
                 repository.save(s);
             }
         });
+        if (sessionTypeBreakSettingsService != null
+                && normalizedPayload.containsKey(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name())) {
+            int normalizedDefault = sessionTypeBreakSettingsService.applyDefaultToInheritedServices(
+                    companyId, normalizedPayload.get(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name()));
+            persistSetting(me, companyId, SettingKey.DEFAULT_SERVICE_BREAK_MINUTES, String.valueOf(normalizedDefault));
+        }
         disablePaymentMethodFiscalizationIfNeeded(companyId, normalizedPayload);
         synchronizeReservationRuleSettings(me, companyId, normalizedPayload);
         platformTenantAccountLinkService.syncFromTenantSettings(me.getCompany(), normalizedPayload);

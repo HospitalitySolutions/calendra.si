@@ -10,6 +10,7 @@ export type ModulesDraft = {
   MODULE_CONFIG_TYPE: TenantConfigType;
   SPACES_ENABLED: string;
   TYPES_ENABLED: string;
+  DEFAULT_SERVICE_BREAK_MINUTES: string;
   SERVICE_GROUPS_ENABLED: string;
   COURSES_ENABLED: string;
   BOOKABLE_ENABLED: string;
@@ -266,6 +267,9 @@ export const buildModulesDraftFromCommitted = (
   ),
   SPACES_ENABLED: s.SPACES_ENABLED === "true" ? "true" : "false",
   TYPES_ENABLED: modulesStringSetting(s, "TYPES_ENABLED", true),
+  DEFAULT_SERVICE_BREAK_MINUTES: String(
+    Math.max(0, Math.min(180, Math.round((Number(s.DEFAULT_SERVICE_BREAK_MINUTES || 0) || 0) / 5) * 5)),
+  ),
   SERVICE_GROUPS_ENABLED: modulesStringSetting(
     s,
     "SERVICE_GROUPS_ENABLED",
@@ -574,6 +578,7 @@ export const modulesDraftToSettingsPatch = (
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(draft.MODULE_CONFIG_TYPE),
   SPACES_ENABLED: draft.SPACES_ENABLED,
   TYPES_ENABLED: draft.TYPES_ENABLED,
+  DEFAULT_SERVICE_BREAK_MINUTES: draft.DEFAULT_SERVICE_BREAK_MINUTES,
   SERVICE_GROUPS_ENABLED: draft.SERVICE_GROUPS_ENABLED,
   COURSES_ENABLED: draft.COURSES_ENABLED,
   BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,

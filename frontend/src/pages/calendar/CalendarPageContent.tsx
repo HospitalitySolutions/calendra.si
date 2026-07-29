@@ -3642,17 +3642,23 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     let totalBreakMinutes = 0
     let totalGross = 0
     let hasGross = false
+    const lastTypedPosition = drafts.reduce(
+      (lastPosition, draft, position) => (draft.typeId == null ? lastPosition : position),
+      -1,
+    )
     const segments = drafts.map((draft, position) => {
       const durationMinutes = draft.typeId == null
         ? 0
         : Math.max(1, Number(draft.durationMinutesOverride ?? getTypeDurationMinutes(draft.typeId)) || getTypeDurationMinutes(draft.typeId))
-      const breakMinutes = draft.typeId == null ? 0 : getTypeBreakMinutes(draft.typeId)
+      const breakMinutes = draft.typeId == null || position !== lastTypedPosition
+        ? 0
+        : getTypeBreakMinutes(draft.typeId)
       const defaultGrossPrice = getTypeGrossPrice(draft.typeId)
       const grossPrice = Number.isFinite(Number(draft.grossPriceOverride)) ? Number(draft.grossPriceOverride) : defaultGrossPrice
       const segmentStartMs = cursorMs
       const segmentEndMs = segmentStartMs + durationMinutes * 60_000
       const availabilityEndMs = segmentEndMs + breakMinutes * 60_000
-      cursorMs = availabilityEndMs
+      cursorMs = segmentEndMs
       totalServiceMinutes += durationMinutes
       totalBreakMinutes += breakMinutes
       if (grossPrice != null) {

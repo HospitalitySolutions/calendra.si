@@ -1150,10 +1150,9 @@
     selectedServicesDurationMinutes() {
       const services = this.selectedServices();
       if (!services.length) return 0;
-      return services.reduce((total, service, index) => {
+      return services.reduce((total, service) => {
         const duration = Number(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60);
-        const breakMinutes = index < services.length - 1 ? Number(service?.breakMinutes || 0) : 0;
-        return total + Math.max(1, duration) + Math.max(0, breakMinutes);
+        return total + Math.max(1, duration);
       }, 0);
     }
 
@@ -1738,7 +1737,13 @@
           body: {
             companyId: session.companyId || '',
             productId,
-            serviceIds: selectedServiceIds.map(String),
+            services: selectedServiceIds.map((id, position) => ({
+              productId: `session-${id}`,
+              sessionTypeId: String(id),
+              position,
+              entitlementId: null,
+              spaceId: null,
+            })),
             slotId,
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',

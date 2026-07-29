@@ -1244,7 +1244,8 @@ a.config-nav-item {
     gap: 6px;
     padding: 0 9px;
 }
-.modules-design-inline-control--with-suffix input {
+.modules-design-inline-control--with-suffix input,
+.modules-design-inline-control--with-suffix select {
     width: 100%;
     min-width: 0;
     border: 0;
@@ -1254,6 +1255,10 @@ a.config-nav-item {
     font-size: inherit;
     font-weight: inherit;
     outline: none;
+}
+
+.modules-design-inline-control--with-suffix select {
+    cursor: pointer;
 }
 .modules-design-inline-control--with-suffix span {
     color: #64748b;

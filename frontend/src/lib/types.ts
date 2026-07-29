@@ -152,6 +152,7 @@ export type SessionType = {
   active?: boolean
   durationMinutes?: number
   breakMinutes?: number
+  breakMinutesOverridden?: boolean
   maxParticipantsPerSession?: number | null
   groupBookingEnabled?: boolean
   widgetGroupBookingEnabled?: boolean

@@ -238,23 +238,39 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group services cannot be combined in one public booking.");
         }
 
-        GuestDtos.AvailabilityResponse firstServiceAvailability = availability(
-                companyId, first.getId(), dateText, consultantId, guestUser
-        );
+        SimulatedTimeContext.set(companyId);
+        LocalDate date = LocalDate.parse(dateText);
+        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+        int totalDuration = chain.stream()
+                .mapToInt(service -> Math.max(1, service.getDurationMinutes() == null ? 60 : service.getDurationMinutes()))
+                .sum();
+        if (!dateAllowedByReservationRules(companyId, date, rules)) {
+            return new GuestDtos.AvailabilityResponse(
+                    String.valueOf(first.getId()),
+                    date.toString(),
+                    List.of(),
+                    chain.stream().map(type -> String.valueOf(type.getId())).toList(),
+                    totalDuration,
+                    chain.stream().map(GuestCatalogService::sessionTypePriceGross)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue(),
+                    tenantCurrency(companyId)
+            );
+        }
+        Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
         List<SessionBookingController.BookingServiceRequest> requests = new ArrayList<>();
         for (int i = 0; i < chain.size(); i++) {
             requests.add(new SessionBookingController.BookingServiceRequest(chain.get(i).getId(), i, null));
         }
-        List<GuestDtos.AvailabilitySlotResponse> slots = new ArrayList<>();
-        int totalDuration = 0;
-        for (int i = 0; i < chain.size(); i++) {
-            SessionType service = chain.get(i);
-            totalDuration += Math.max(1, service.getDurationMinutes() == null ? 60 : service.getDurationMinutes());
-            if (i < chain.size() - 1) {
-                totalDuration += Math.max(0, service.getBreakMinutes() == null ? 0 : service.getBreakMinutes());
-            }
-        }
-        for (GuestDtos.AvailabilitySlotResponse candidate : firstServiceAvailability.slots()) {
+        Map<String, GuestDtos.AvailabilitySlotResponse> slots = new LinkedHashMap<>();
+        List<GuestDtos.AvailabilitySlotResponse> candidates = multiServiceCandidateSlots(
+                companyId,
+                chain,
+                date,
+                totalDuration,
+                requestedConsultantId,
+                rules
+        );
+        for (GuestDtos.AvailabilitySlotResponse candidate : candidates) {
             try {
                 String[] parts = candidate.slotId().split("\\|");
                 if (parts.length < 3) continue;
@@ -265,12 +281,15 @@ public class GuestCatalogService {
                         companyId, List.of(), candidateConsultantId, startsAt, requests,
                         SessionBookingCreationService.bookingExcludeIds((Long) null)
                 );
-                slots.add(new GuestDtos.AvailabilitySlotResponse(
-                        slotToken(candidateConsultantId, plan.startTime(), plan.endTime()),
-                        plan.startTime().toString(),
-                        plan.endTime().toString(),
-                        true
-                ));
+                slots.putIfAbsent(
+                        availabilityMergeKey(plan.startTime(), plan.endTime()),
+                        new GuestDtos.AvailabilitySlotResponse(
+                                slotToken(candidateConsultantId, plan.startTime(), plan.endTime()),
+                                plan.startTime().toString(),
+                                plan.endTime().toString(),
+                                true
+                        )
+                );
             } catch (RuntimeException ignored) {
                 // Candidate is omitted unless the complete ordered chain fits.
             }
@@ -280,7 +299,7 @@ public class GuestCatalogService {
         return new GuestDtos.AvailabilityResponse(
                 String.valueOf(first.getId()),
                 dateText,
-                slots.stream().sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt)).toList(),
+                slots.values().stream().sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt)).toList(),
                 chain.stream().map(type -> String.valueOf(type.getId())).toList(),
                 totalDuration,
                 totalPrice,
@@ -318,6 +337,92 @@ public class GuestCatalogService {
             chain.add(type);
         }
         return List.copyOf(chain);
+    }
+
+    private List<GuestDtos.AvailabilitySlotResponse> multiServiceCandidateSlots(
+            Long companyId,
+            List<SessionType> chain,
+            LocalDate date,
+            int totalDurationMinutes,
+            Long requiredConsultantId,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
+        Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+
+        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
+                .filter(slot -> slot.getConsultant() != null)
+                .filter(slot -> slot.getConsultant().isActive())
+                .filter(slot -> slot.getConsultant().isConsultant())
+                .filter(slot -> requiredConsultantId == null
+                        || Objects.equals(slot.getConsultant().getId(), requiredConsultantId))
+                .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
+                .filter(slot -> slot.isIndefinite() || withinBookableDateRange(slot, date))
+                .filter(slot -> chain.stream().allMatch(type -> consultantSupportsSessionType(slot.getConsultant(), type)))
+                .sorted(Comparator.comparing((BookableSlot slot) -> slot.getConsultant().getId())
+                        .thenComparing(BookableSlot::getStartTime))
+                .toList();
+        for (BookableSlot window : windows) {
+            addMultiServiceCandidateStarts(
+                    merged,
+                    window.getConsultant().getId(),
+                    date,
+                    window.getStartTime(),
+                    window.getEndTime(),
+                    totalDurationMinutes,
+                    companyId,
+                    rules
+            );
+        }
+
+        for (User consultant : supportedGuestConsultants(companyId, chain.get(0))) {
+            if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) continue;
+            if (!chain.stream().allMatch(type -> consultantSupportsSessionType(consultant, type))) continue;
+            Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date);
+            if (workingWindow.isEmpty()) continue;
+            addMultiServiceCandidateStarts(
+                    merged,
+                    consultant.getId(),
+                    date,
+                    workingWindow.get().start(),
+                    workingWindow.get().end(),
+                    totalDurationMinutes,
+                    companyId,
+                    rules
+            );
+        }
+
+        return merged.values().stream()
+                .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt)
+                        .thenComparing(GuestDtos.AvailabilitySlotResponse::endsAt))
+                .toList();
+    }
+
+    private void addMultiServiceCandidateStarts(
+            Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+            Long consultantId,
+            LocalDate date,
+            LocalTime windowStart,
+            LocalTime windowEnd,
+            int totalDurationMinutes,
+            Long companyId,
+            GuestSettingsService.GuestBookingRules rules
+    ) {
+        for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                date,
+                windowStart,
+                windowEnd,
+                totalDurationMinutes,
+                SLOT_GRID_MINUTES
+        )) {
+            if (!slotAllowedByReservationRules(companyId, start, rules)) continue;
+            LocalDateTime end = start.plusMinutes(totalDurationMinutes);
+            String id = slotToken(consultantId, start, end);
+            merged.putIfAbsent(
+                    consultantId + "|" + availabilityMergeKey(start, end),
+                    new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true)
+            );
+        }
     }
 
     private boolean consultantSupportsAll(Long consultantId, List<SessionType> chain, Long companyId) {

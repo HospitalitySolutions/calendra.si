@@ -1,5 +1,7 @@
 package com.example.app.guest.common;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public final class GuestDtos {
@@ -236,6 +238,40 @@ public final class GuestDtos {
             /** Explicit employee selected by the guest. The slot token remains authoritative. */
             String consultantId
     ) {
+        /**
+         * Accepts both the canonical ordered service objects and the legacy widget's
+         * serviceIds array. This keeps already-cached widget versions from silently
+         * falling back to the first product only after a deployment.
+         */
+        @JsonCreator
+        public static CreateOrderRequest fromJson(
+                @JsonProperty("companyId") String companyId,
+                @JsonProperty("productId") String productId,
+                @JsonProperty("slotId") String slotId,
+                @JsonProperty("paymentMethodType") String paymentMethodType,
+                @JsonProperty("entitlementId") String entitlementId,
+                @JsonProperty("locale") String locale,
+                @JsonProperty("language") String language,
+                @JsonProperty("services") List<SelectedServiceRequest> services,
+                @JsonProperty("serviceIds") List<String> serviceIds,
+                @JsonProperty("consultantId") String consultantId
+        ) {
+            List<SelectedServiceRequest> selected = services == null || services.isEmpty()
+                    ? toSelectedServices(serviceIds)
+                    : services;
+            return new CreateOrderRequest(
+                    companyId,
+                    productId,
+                    slotId,
+                    paymentMethodType,
+                    entitlementId,
+                    locale,
+                    language,
+                    selected,
+                    consultantId
+            );
+        }
+
         public CreateOrderRequest(
                 String companyId,
                 String productId,

@@ -1476,7 +1476,6 @@ public class WaitlistService {
         for (int i = 0; i < chain.size(); i++) {
             SessionType service = chain.get(i);
             cursor = cursor.plusMinutes(Math.max(1, service.getDurationMinutes() == null ? 60 : service.getDurationMinutes()));
-            if (i < chain.size() - 1) cursor = cursor.plusMinutes(Math.max(0, service.getBreakMinutes() == null ? 0 : service.getBreakMinutes()));
         }
         return cursor;
     }

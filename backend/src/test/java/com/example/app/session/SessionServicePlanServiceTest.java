@@ -44,7 +44,7 @@ class SessionServicePlanServiceTest {
     }
 
     @Test
-    void resolve_buildsSequentialChainAndSynchronizesCompatibilityAliases() {
+    void resolve_buildsContinuousChainAndUsesOnlyFinalServiceBreak() {
         LocalDateTime start = LocalDateTime.of(2026, 8, 3, 10, 0);
         var request = request(start, List.of(
                 new SessionBookingController.BookingServiceRequest(12L, 2, 22L),
@@ -54,11 +54,11 @@ class SessionServicePlanServiceTest {
         SessionServicePlanService.Plan plan = service.resolve(request, 1L, start, start.plusMinutes(1));
 
         assertEquals(start, plan.startTime());
-        assertEquals(LocalDateTime.of(2026, 8, 3, 11, 25), plan.endTime());
-        assertEquals(LocalDateTime.of(2026, 8, 3, 11, 30), plan.availabilityEndTime());
+        assertEquals(LocalDateTime.of(2026, 8, 3, 11, 15), plan.endTime());
+        assertEquals(LocalDateTime.of(2026, 8, 3, 11, 20), plan.availabilityEndTime());
         assertEquals(2, plan.segments().size());
         assertSame(firstType, plan.segments().get(0).type());
-        assertEquals(LocalDateTime.of(2026, 8, 3, 10, 40), plan.segments().get(1).startTime());
+        assertEquals(LocalDateTime.of(2026, 8, 3, 10, 30), plan.segments().get(1).startTime());
 
         SessionBooking booking = new SessionBooking();
         booking.setCompany(company);
@@ -95,9 +95,9 @@ class SessionServicePlanServiceTest {
 
         assertEquals(originalNameSnapshot, booking.getServices().get(0).getServiceNameSnapshot());
         assertEquals(movedStart, moved.segments().get(0).startTime());
-        assertEquals(LocalDateTime.of(2026, 8, 3, 14, 40), moved.segments().get(1).startTime());
-        assertEquals(LocalDateTime.of(2026, 8, 3, 15, 25), moved.endTime());
-        assertEquals(LocalDateTime.of(2026, 8, 3, 15, 30), moved.availabilityEndTime());
+        assertEquals(LocalDateTime.of(2026, 8, 3, 14, 30), moved.segments().get(1).startTime());
+        assertEquals(LocalDateTime.of(2026, 8, 3, 15, 15), moved.endTime());
+        assertEquals(LocalDateTime.of(2026, 8, 3, 15, 20), moved.availabilityEndTime());
     }
 
     private SessionBookingController.BookingRequest request(

@@ -22,6 +22,8 @@ public interface SessionTypeRepository extends JpaRepository<SessionType, Long> 
 
     Optional<SessionType> findByCompanyIdAndNameIgnoreCase(Long companyId, String name);
 
+    List<SessionType> findAllByCompanyId(Long companyId);
+
     List<SessionType> findAllByCompanyIdAndServiceGroupId(Long companyId, Long serviceGroupId);
 
     long countByCompanyIdAndServiceGroupId(Long companyId, Long serviceGroupId);

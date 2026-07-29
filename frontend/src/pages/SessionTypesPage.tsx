@@ -59,6 +59,7 @@ const SERVICE_TYPE_COLOR_PALETTE = [
   "#D9F24D",
 ] as const;
 const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+const SERVICE_BREAK_MINUTE_OPTIONS = Array.from({ length: 37 }, (_, index) => index * 5);
 
 function normalizeServiceTypeColorForUi(raw?: string | null): string {
   const value = String(raw || "").trim();
@@ -256,6 +257,7 @@ type TypeFormState = {
   color: string;
   durationMinutes: number;
   breakMinutes: number;
+  breakMinutesOverridden: boolean;
   maxParticipantsPerSession: string;
   groupBookingEnabled: boolean;
   guestBookingMode: GuestBookingMode;
@@ -275,6 +277,7 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
     return false;
   if (a.durationMinutes !== b.durationMinutes) return false;
   if (a.breakMinutes !== b.breakMinutes) return false;
+  if (a.breakMinutesOverridden !== b.breakMinutesOverridden) return false;
   if (a.groupBookingEnabled !== b.groupBookingEnabled) return false;
   if (a.groupBookingEnabled || b.groupBookingEnabled) {
     if (
@@ -768,6 +771,13 @@ export function SessionTypesPage() {
 
   const [boot, setBoot] = useState(true);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const defaultServiceBreakMinutes = Math.max(
+    0,
+    Math.min(
+      180,
+      Math.round((Number(settings.DEFAULT_SERVICE_BREAK_MINUTES || 0) || 0) / 5) * 5,
+    ),
+  );
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
   const serviceGroupsModuleEnabled =
     settings.SERVICE_GROUPS_ENABLED !== "false";
@@ -812,6 +822,7 @@ export function SessionTypesPage() {
     color: SERVICE_TYPE_DEFAULT_COLOR,
     durationMinutes: 60,
     breakMinutes: 0,
+    breakMinutesOverridden: false,
     maxParticipantsPerSession: "",
     groupBookingEnabled: false,
     guestBookingMode: normalizeGuestBookingModeForModules(
@@ -1412,7 +1423,10 @@ export function SessionTypesPage() {
       description: typeForm.description,
       color: normalizeServiceTypeColorForUi(typeForm.color),
       durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
-      breakMinutes: clampSessionTypeInt0to999(typeForm.breakMinutes),
+      breakMinutes: typeForm.breakMinutesOverridden
+        ? clampSessionTypeInt0to999(typeForm.breakMinutes)
+        : null,
+      breakMinutesOverridden: typeForm.breakMinutesOverridden,
       maxParticipantsPerSession: effectiveGroupBookingEnabled
         ? maxParticipantsParsed
         : null,
@@ -1460,7 +1474,8 @@ export function SessionTypesPage() {
         description: "",
         color: SERVICE_TYPE_DEFAULT_COLOR,
         durationMinutes: 60,
-        breakMinutes: 0,
+        breakMinutes: defaultServiceBreakMinutes,
+        breakMinutesOverridden: false,
         maxParticipantsPerSession: "",
         groupBookingEnabled: false,
         guestBookingMode: normalizeGuestBookingModeForModules(
@@ -1609,7 +1624,10 @@ export function SessionTypesPage() {
         color: normalizeServiceTypeColorForUi(type.color),
         active: nextActive,
         durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
-        breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
+        breakMinutes: type.breakMinutesOverridden === true
+          ? clampSessionTypeInt0to999(type.breakMinutes ?? 0)
+          : null,
+        breakMinutesOverridden: type.breakMinutesOverridden === true,
         maxParticipantsPerSession:
           groupBookingModuleEnabled && type.groupBookingEnabled === true
             ? type.maxParticipantsPerSession ?? null
@@ -1848,6 +1866,7 @@ export function SessionTypesPage() {
       color: normalizeServiceTypeColorForUi(type.color),
       durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
       breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
+      breakMinutesOverridden: type.breakMinutesOverridden === true,
       maxParticipantsPerSession:
         groupBookingModuleEnabled &&
         type.maxParticipantsPerSession != null &&
@@ -2530,7 +2549,8 @@ export function SessionTypesPage() {
       description: "",
       color: SERVICE_TYPE_DEFAULT_COLOR,
       durationMinutes: 60,
-      breakMinutes: 0,
+      breakMinutes: defaultServiceBreakMinutes,
+      breakMinutesOverridden: false,
       maxParticipantsPerSession: "",
       groupBookingEnabled: false,
       guestBookingMode: normalizeGuestBookingModeForModules(
@@ -3277,26 +3297,57 @@ export function SessionTypesPage() {
                     />
                   </Field>
                   <Field
-                    label={
-                      locale === "sl" ? "Pavza (minute)" : "Break (minutes)"
-                    }
+                    label={locale === "sl" ? "Pavza" : "Break"}
                   >
-                    <input
-                      type="number"
-                      min={0}
-                      max={999}
-                      step={1}
-                      inputMode="numeric"
-                      value={typeForm.breakMinutes}
-                      onChange={(e) =>
-                        setTypeForm({
-                          ...typeForm,
-                          breakMinutes: clampSessionTypeInt0to999(
-                            Number(e.target.value),
-                          ),
-                        })
-                      }
-                    />
+                    <div className="session-type-break-control">
+                      <label className="session-type-break-override">
+                        <input
+                          type="checkbox"
+                          checked={typeForm.breakMinutesOverridden}
+                          onChange={(event) =>
+                            setTypeForm({
+                              ...typeForm,
+                              breakMinutesOverridden: event.target.checked,
+                            })
+                          }
+                        />
+                        <span>
+                          {locale === "sl"
+                            ? "Določi posebno pavzo"
+                            : "Set a specific break"}
+                        </span>
+                      </label>
+                      <select
+                        value={typeForm.breakMinutes}
+                        disabled={!typeForm.breakMinutesOverridden}
+                        onChange={(event) =>
+                          setTypeForm({
+                            ...typeForm,
+                            breakMinutes: clampSessionTypeInt0to999(
+                              Number(event.target.value),
+                            ),
+                          })
+                        }
+                      >
+                        {!SERVICE_BREAK_MINUTE_OPTIONS.includes(typeForm.breakMinutes) ? (
+                          <option value={typeForm.breakMinutes}>
+                            {typeForm.breakMinutes} min
+                          </option>
+                        ) : null}
+                        {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
+                          <option key={minutes} value={minutes}>
+                            {minutes} min
+                          </option>
+                        ))}
+                      </select>
+                      {!typeForm.breakMinutesOverridden ? (
+                        <small>
+                          {locale === "sl"
+                            ? `Uporabljena bo privzeta pavza: ${settings.DEFAULT_SERVICE_BREAK_MINUTES || "0"} min.`
+                            : `The default break will be used: ${settings.DEFAULT_SERVICE_BREAK_MINUTES || "0"} min.`}
+                        </small>
+                      ) : null}
+                    </div>
                   </Field>
                 </div>
 

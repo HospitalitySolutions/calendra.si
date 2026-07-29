@@ -891,3 +891,32 @@
         box-shadow: none;
     }
 }
+
+.session-type-break-control {
+    display: grid;
+    gap: 8px;
+}
+
+.session-type-break-override {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.session-type-break-override input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--color-primary);
+}
+
+.session-type-break-control small {
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
