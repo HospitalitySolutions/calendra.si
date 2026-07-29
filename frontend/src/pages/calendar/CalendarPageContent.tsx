@@ -2076,6 +2076,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
               groupEmailOverride: null,
               groupBillingCompanyIdOverride: null,
               payees: Array.isArray(pending.payees) ? pending.payees : [],
+              ...(pending.allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
             }
           : {
               clientId: pendingClientIds[0],
@@ -2093,6 +2094,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
               groupEmailOverride: null,
               groupBillingCompanyIdOverride: null,
               payees: Array.isArray(pending.payees) ? pending.payees : [],
+              ...(pending.allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
             }
         const waitlistRequestId = Number(pending.waitlistRequestId)
         const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
@@ -7854,6 +7856,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           meetingProvider: provider,
           waitlistRequestId: form.waitlistRequestId ?? null,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
+          allowPersonalBlockOverlap: skipPersonalOverlapConfirm || skipNonBookableConfirm,
         }))
         if (provider === 'google') connectGoogle()
         else connectZoom()
@@ -7943,7 +7946,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           groupBillingCompanyIdOverride: null,
           recurrenceSeriesKey,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
-          ...(skipPersonalOverlapConfirm ? { allowPersonalBlockOverlap: true } : {}),
+          // Confirming a manual booking outside open availability must also bypass
+          // the hidden availability-block marker. Normal personal sessions are still
+          // handled by the dedicated overlap confirmation above.
+          ...(skipPersonalOverlapConfirm || skipNonBookableConfirm ? { allowPersonalBlockOverlap: true } : {}),
         }
         const bookingDates: Array<{ startTime: string; endTime: string }> = []
         if (form.repeats) {
@@ -9995,6 +10001,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     cleanupDragArtifacts()
     try {
       await performMove(props, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
+      // Reload the server-normalized booking, including service segment and break
+      // timestamps. Keeping the old nested timestamps after multiple moves can make
+      // the returned session render as thin continuation bars over blocked availability.
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       setCalendarData((prev: any) => ({
         ...prev,
@@ -10094,6 +10104,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     setCalendarData((prev: any) => ({ ...prev, booked: (prev.booked || []).map((b: any) => b.id === props.id ? { ...b, startTime: newStartStr, endTime: newEndStr } : b) }))
     try {
       await performMove(props, newStartStr, newEndStr)
+      // Resizing also changes service/break timing on the server. Refresh the complete
+      // booking so availability hatching and foreground event height stay in sync.
+      await loadCalendarRangeOnly(true)
     } catch (e) {
       setCalendarData((prev: any) => ({ ...prev, booked: (prev.booked || []).map((b: any) => b.id === props.id ? { ...b, startTime: props.startTime, endTime: props.endTime } : b) }))
       info.revert()
