@@ -941,7 +941,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     window.requestAnimationFrame(() => {
       cleanupDragArtifacts()
       const api = calendarRef.current?.getApi()
-      api?.rerenderEvents()
+      api?.refetchEvents()
       window.requestAnimationFrame(() => api?.updateSize())
     })
   }, [cleanupDragArtifacts])
