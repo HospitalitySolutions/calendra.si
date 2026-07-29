@@ -9,6 +9,7 @@ import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.ProductType;
+import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
@@ -553,19 +554,16 @@ public class GuestCatalogService {
                 .toList();
 
         for (BookableSlot window : windows) {
-            LocalTime cursor = window.getStartTime();
-            while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
-                LocalDateTime start = date.atTime(cursor);
+            for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                    date, window.getStartTime(), window.getEndTime(), durationMinutes, SLOT_GRID_MINUTES)) {
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (!slotAllowedByReservationRules(companyId, start, rules)) {
-                    cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
                     continue;
                 }
                 if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId())) {
                     String id = slotToken(window.getConsultant().getId(), start, end);
                     merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
-                cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
             }
         }
     }
@@ -582,20 +580,16 @@ public class GuestCatalogService {
             if (dayWindow.isEmpty()) {
                 continue;
             }
-            LocalTime rangeEnd = dayWindow.get().end();
-            LocalTime cursor = dayWindow.get().start();
-            while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
-                LocalDateTime start = date.atTime(cursor);
+            for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                    date, dayWindow.get().start(), dayWindow.get().end(), durationMinutes, SLOT_GRID_MINUTES)) {
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (!slotAllowedByReservationRules(companyId, start, rules)) {
-                    cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
                     continue;
                 }
                 if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId())) {
                     String id = slotToken(consultant.getId(), start, end);
                     merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
-                cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
             }
         }
     }
@@ -642,14 +636,12 @@ public class GuestCatalogService {
         if (windowStart == null || windowEnd == null || !windowEnd.isAfter(windowStart)) {
             return false;
         }
-        LocalTime cursor = windowStart;
-        while (!cursor.plusMinutes(durationMinutes).isAfter(windowEnd)) {
-            LocalDateTime candidateStart = slot.startsAt().toLocalDate().atTime(cursor);
+        for (LocalDateTime candidateStart : AvailabilityWindowGrid.starts(
+                slot.startsAt().toLocalDate(), windowStart, windowEnd, durationMinutes, SLOT_GRID_MINUTES)) {
             LocalDateTime candidateEnd = candidateStart.plusMinutes(durationMinutes);
             if (candidateStart.equals(slot.startsAt()) && candidateEnd.equals(slot.endsAt())) {
                 return true;
             }
-            cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
         }
         return false;
     }

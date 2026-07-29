@@ -11,6 +11,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.session.AvailabilityBlockMetadata;
+import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookingSource;
 import com.example.app.session.BookableSlotRepository;
@@ -540,15 +541,13 @@ public class PublicBookingWidgetService {
         List<BookableSlot> windows = bookableWindowsForDate(availabilitySnapshot, date);
 
         for (BookableSlot window : windows) {
-            LocalTime cursor = window.getStartTime();
-            while (!cursor.plusMinutes(availabilityMinutes).isAfter(window.getEndTime())) {
-                LocalDateTime start = date.atTime(cursor);
+            for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                    date, window.getStartTime(), window.getEndTime(), availabilityMinutes, 30)) {
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
                         && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilitySnapshot)) {
                     return true;
                 }
-                cursor = cursor.plusMinutes(30);
             }
         }
         return false;
@@ -572,16 +571,13 @@ public class PublicBookingWidgetService {
             if (dayWindow.isEmpty()) {
                 continue;
             }
-            LocalTime cursor = dayWindow.get().start();
-            LocalTime rangeEnd = dayWindow.get().end();
-            while (!cursor.plusMinutes(availabilityMinutes).isAfter(rangeEnd)) {
-                LocalDateTime start = date.atTime(cursor);
+            for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                    date, dayWindow.get().start(), dayWindow.get().end(), availabilityMinutes, 30)) {
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
                         && isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilitySnapshot)) {
                     return true;
                 }
-                cursor = cursor.plusMinutes(30);
             }
         }
         return false;
@@ -614,12 +610,11 @@ public class PublicBookingWidgetService {
             rangeEnd = cfg.workingHoursEnd();
         }
 
-        LocalTime cursor = rangeStart;
-        while (!cursor.plusMinutes(availabilityMinutes).isAfter(rangeEnd)) {
-            if (slotAllowedByReservationRules(date.atTime(cursor), cfg, rules)) {
+        for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                date, rangeStart, rangeEnd, availabilityMinutes, 30)) {
+            if (slotAllowedByReservationRules(start, cfg, rules)) {
                 return true;
             }
-            cursor = cursor.plusMinutes(30);
         }
         return false;
     }
@@ -1181,30 +1176,27 @@ public class PublicBookingWidgetService {
         List<BookableSlot> windows = bookableWindowsForDate(availabilitySnapshot, date);
 
         for (BookableSlot window : windows) {
-            LocalTime cursor = window.getStartTime();
-            while (!cursor.plusMinutes(availabilityMinutes).isAfter(window.getEndTime())) {
-                LocalDateTime start = date.atTime(cursor);
+            for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                    date, window.getStartTime(), window.getEndTime(), availabilityMinutes, 30)) {
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (!slotAllowedByReservationRules(
                         start,
                         cfg,
                         rules
                 )) {
-                    cursor = cursor.plusMinutes(30);
                     continue;
                 }
                 if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilitySnapshot)) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             window.getConsultant().getId() + "|" + start + "|" + end,
-                            cursor.format(SLOT_LABEL_FORMAT),
+                            start.toLocalTime().format(SLOT_LABEL_FORMAT),
                             iso,
                             DATE_TIME_FORMAT.format(end),
                             window.getConsultant().getId(),
                             consultantFullName(window.getConsultant())
                     ));
                 }
-                cursor = cursor.plusMinutes(30);
             }
         }
 
@@ -1238,31 +1230,27 @@ public class PublicBookingWidgetService {
             if (dayWindow.isEmpty()) {
                 continue;
             }
-            LocalTime rangeEnd = dayWindow.get().end();
-            LocalTime cursor = dayWindow.get().start();
-            while (!cursor.plusMinutes(availabilityMinutes).isAfter(rangeEnd)) {
-                LocalDateTime start = date.atTime(cursor);
+            for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                    date, dayWindow.get().start(), dayWindow.get().end(), availabilityMinutes, 30)) {
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (!slotAllowedByReservationRules(
                         start,
                         cfg,
                         rules
                 )) {
-                    cursor = cursor.plusMinutes(30);
                     continue;
                 }
                 if (isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilitySnapshot)) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             consultant.getId() + "|" + start + "|" + end,
-                            cursor.format(SLOT_LABEL_FORMAT),
+                            start.toLocalTime().format(SLOT_LABEL_FORMAT),
                             iso,
                             DATE_TIME_FORMAT.format(end),
                             consultant.getId(),
                             consultantFullName(consultant)
                     ));
                 }
-                cursor = cursor.plusMinutes(30);
             }
         }
 
@@ -1384,29 +1372,26 @@ public class PublicBookingWidgetService {
         }
 
         List<PublicBookingWidgetController.AvailabilitySlotResponse> items = new ArrayList<>();
-        LocalTime cursor = rangeStart;
-        while (!cursor.plusMinutes(availabilityMinutes).isAfter(rangeEnd)) {
-            LocalDateTime start = date.atTime(cursor);
+        for (LocalDateTime start : AvailabilityWindowGrid.starts(
+                date, rangeStart, rangeEnd, availabilityMinutes, 30)) {
             if (!slotAllowedByReservationRules(
                     start,
                     cfg,
                     rules
             )) {
-                cursor = cursor.plusMinutes(30);
                 continue;
             }
             LocalDateTime end = start.plusMinutes(bookingMinutes);
             if (consultantId == null || isActuallyBookable(company.getId(), consultantId, start, end, chain, availabilitySnapshot)) {
                 items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
                         (consultantId != null ? consultantId : 0L) + "|" + start + "|" + end,
-                        cursor.format(SLOT_LABEL_FORMAT),
+                        start.toLocalTime().format(SLOT_LABEL_FORMAT),
                         DATE_TIME_FORMAT.format(start),
                         DATE_TIME_FORMAT.format(end),
                         consultantId,
                         null
                 ));
             }
-            cursor = cursor.plusMinutes(30);
         }
         return items;
     }

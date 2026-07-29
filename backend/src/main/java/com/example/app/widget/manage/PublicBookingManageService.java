@@ -6,6 +6,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.reminder.ReminderService;
+import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.BookingChangePublisher;
@@ -312,18 +313,11 @@ public class PublicBookingManageService {
                 .filter(slot -> consultantSupportsType(slot.getConsultant(), booking.getType()))
                 .toList();
         for (BookableSlot window : windows) {
-            addWindowStarts(starts, window.getStartTime(), window.getEndTime(), duration);
+            AvailabilityWindowGrid.starts(date, window.getStartTime(), window.getEndTime(), duration, 30).stream()
+                    .map(LocalDateTime::toLocalTime)
+                    .forEach(starts::add);
         }
         return starts;
-    }
-
-    private void addWindowStarts(List<LocalTime> starts, LocalTime from, LocalTime to, int duration) {
-        if (from == null || to == null || !to.isAfter(from)) return;
-        LocalTime cursor = from;
-        while (!cursor.plusMinutes(duration).isAfter(to)) {
-            starts.add(cursor);
-            cursor = cursor.plusMinutes(30);
-        }
     }
 
     private boolean canModify(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {

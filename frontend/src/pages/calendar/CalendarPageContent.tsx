@@ -2947,71 +2947,17 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       return (Number(hh) || 0) * 60 + (Number(mm) || 0)
     }
     const releaseAvailabilityBlockMarkers = async () => {
-      const reqStartMs = startDate.getTime()
-      const reqEndMs = endDate.getTime()
-      const availabilityBlocks = (calendarData.personal || []).filter((p: any) => {
-        if (String(p?.task || '').trim().toLowerCase() !== AVAILABILITY_BLOCK_TASK) return false
-        const ownerId = p.consultant?.id ?? p.consultantId ?? p.ownerId
-        if (ownerId !== consultantId) return false
-        const blockStartMs = new Date(p.startTime).getTime()
-        const blockEndMs = new Date(p.endTime).getTime()
-        return Number.isFinite(blockStartMs)
-          && Number.isFinite(blockEndMs)
-          && blockEndMs > blockStartMs
-          && blockStartMs < reqEndMs
-          && blockEndMs > reqStartMs
+      await api.post('/bookings/personal-blocks/availability/release', {
+        startTime: availabilitySelection.startTime,
+        endTime: availabilitySelection.endTime,
+        consultantId: isTenantAdmin ? consultantId : undefined,
+        indefinite: payload.indefinite,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
       })
-
-      for (const block of availabilityBlocks) {
-        if (!block.id) continue
-        const blockStartMs = new Date(block.startTime).getTime()
-        const blockEndMs = new Date(block.endTime).getTime()
-        const blockOwnerId = block.consultant?.id ?? block.consultantId ?? block.ownerId ?? consultantId
-        const task = String(block.task || AVAILABILITY_BLOCK_TASK)
-        const notes = block.notes || 'Availability blocked'
-        const updateBlock = async (nextStartMs: number, nextEndMs: number) => {
-          if (!Number.isFinite(nextStartMs) || !Number.isFinite(nextEndMs) || nextEndMs <= nextStartMs) {
-            await api.delete(`/bookings/personal-blocks/${block.id}`)
-            return
-          }
-          await api.put(`/bookings/personal-blocks/${block.id}`, {
-            startTime: toLocalDateTimeString(new Date(nextStartMs)),
-            endTime: toLocalDateTimeString(new Date(nextEndMs)),
-            task,
-            notes,
-          })
-        }
-
-        if (reqStartMs <= blockStartMs && reqEndMs >= blockEndMs) {
-          await api.delete(`/bookings/personal-blocks/${block.id}`)
-          continue
-        }
-
-        if (reqStartMs <= blockStartMs && reqEndMs < blockEndMs) {
-          await updateBlock(reqEndMs, blockEndMs)
-          continue
-        }
-
-        if (reqStartMs > blockStartMs && reqEndMs >= blockEndMs) {
-          await updateBlock(blockStartMs, reqStartMs)
-          continue
-        }
-
-        if (reqStartMs > blockStartMs && reqEndMs < blockEndMs) {
-          await updateBlock(blockStartMs, reqStartMs)
-          await api.post('/bookings/personal-blocks', {
-            startTime: toLocalDateTimeString(new Date(reqEndMs)),
-            endTime: toLocalDateTimeString(new Date(blockEndMs)),
-            task,
-            notes,
-            consultantId: blockOwnerId,
-          })
-        }
-      }
     }
     setAvailabilitySaving(true)
     try {
-      await releaseAvailabilityBlockMarkers()
       if (availabilitySelection.slotId) {
         await api.put(`/bookable-slots/${availabilitySelection.slotId}`, payload)
       } else {
@@ -3052,7 +2998,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           if (coverageCursor >= payloadEndMin) break
         }
         if (coverageCursor >= payloadEndMin) {
-          // Already fully available for this consultant/day/date window -> no-op.
+          // The bookable slot is already present, but an older block marker may still cover it.
+          await releaseAvailabilityBlockMarkers()
           await load()
           closeAvailabilityModal()
           return
@@ -3086,6 +3033,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           await api.post('/bookable-slots', payload)
         }
       }
+      // Release hidden block markers only after the bookable-slot write succeeds. If marker
+      // release fails, the new slot remains safely blocked and a retry can complete the cleanup.
+      await releaseAvailabilityBlockMarkers()
       await load()
       closeAvailabilityModal()
     } catch (e: any) {
