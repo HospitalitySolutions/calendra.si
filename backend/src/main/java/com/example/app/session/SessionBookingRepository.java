@@ -14,6 +14,46 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SessionBookingRepository extends JpaRepository<SessionBooking, Long> {
+    /**
+     * Lightweight interval projection used by the public booking widget. Loading all conflicts
+     * for a day/month in one query is substantially faster than executing an overlap query for
+     * every candidate 30-minute slot.
+     */
+    interface WidgetAvailabilityBusyInterval {
+        Long getConsultantId();
+        Long getSpaceId();
+        LocalDateTime getStartTime();
+        LocalDateTime getBusyEndTime();
+        Boolean getPhysical();
+    }
+
+    @Query(value = """
+            select sb.consultant_id as "consultantId",
+                   sb.space_id as "spaceId",
+                   sb.start_time as "startTime",
+                   coalesce(
+                       sb.availability_end_time,
+                       sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')
+                   ) as "busyEndTime",
+                   case when (sb.meeting_link is null or sb.meeting_link = '')
+                              and upper(coalesce(sb.meeting_provisioning_status, 'NONE')) = 'NONE'
+                        then true else false end as "physical"
+            from session_booking sb
+            left join session_type st on st.id = sb.type_id
+            where sb.company_id = :companyId
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+              and sb.start_time < :rangeEnd
+              and coalesce(
+                    sb.availability_end_time,
+                    sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')
+                  ) > :rangeStart
+            order by sb.start_time asc, sb.id asc
+            """, nativeQuery = true)
+    List<WidgetAvailabilityBusyInterval> findWidgetAvailabilityBusyIntervals(
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd);
+
 
     @Query("SELECT CASE WHEN COUNT(sb) > 0 THEN true ELSE false END FROM SessionBooking sb WHERE sb.company.id = :companyId " +
            "AND sb.startTime < :end AND sb.endTime > :start AND sb.id NOT IN :excludeIds " +

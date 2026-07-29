@@ -14,7 +14,6 @@ import com.example.app.session.AvailabilityBlockMetadata;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookingSource;
 import com.example.app.session.BookableSlotRepository;
-import com.example.app.session.PersonalCalendarBlock;
 import com.example.app.session.PersonalCalendarBlockRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -30,6 +29,7 @@ import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.waitlist.WaitlistBookingHoldRepository;
 import com.example.app.waitlist.WaitlistEmployeePreferenceType;
 import com.example.app.waitlist.WaitlistService;
 import com.example.app.waitlist.WaitlistServiceScope;
@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -96,6 +97,7 @@ public class PublicBookingWidgetService {
     private final GuestSettingsService guestSettingsService;
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final WaitlistService waitlistService;
+    private final WaitlistBookingHoldRepository waitlistHolds;
     private final WaitlistSettingsService waitlistSettingsService;
     private final TenantFeatureAccessService featureAccess;
     private final PaymentMethodRepository paymentMethods;
@@ -120,6 +122,7 @@ public class PublicBookingWidgetService {
             GuestSettingsService guestSettingsService,
             WebsiteWidgetSettingsService websiteWidgetSettingsService,
             WaitlistService waitlistService,
+            WaitlistBookingHoldRepository waitlistHolds,
             WaitlistSettingsService waitlistSettingsService,
             TenantFeatureAccessService featureAccess,
             PaymentMethodRepository paymentMethods,
@@ -144,6 +147,7 @@ public class PublicBookingWidgetService {
         this.guestSettingsService = guestSettingsService;
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
         this.waitlistService = waitlistService;
+        this.waitlistHolds = waitlistHolds;
         this.waitlistSettingsService = waitlistSettingsService;
         this.featureAccess = featureAccess;
         this.paymentMethods = paymentMethods;
@@ -358,7 +362,17 @@ public class PublicBookingWidgetService {
             );
         }
 
-        Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache = new HashMap<>();
+        boolean needsAvailabilitySnapshot = !groupOnlyWebsiteBooking
+                && (cfg.availabilityEnabled() || resolvedConsultantId != null);
+        WidgetAvailabilitySnapshot availabilitySnapshot = needsAvailabilitySnapshot
+                ? loadWidgetAvailabilitySnapshot(
+                        company.getId(),
+                        date.atStartOfDay(),
+                        date.plusDays(1).atStartOfDay().plusMinutes(chainAvailabilityMinutes(chain)),
+                        chain,
+                        resolvedConsultantId
+                )
+                : WidgetAvailabilitySnapshot.empty();
         List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
         List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions =
                 groupOnlyWebsiteBooking
@@ -369,16 +383,16 @@ public class PublicBookingWidgetService {
         } else if (cfg.availabilityEnabled()) {
             Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
             for (PublicBookingWidgetController.AvailabilitySlotResponse slot :
-                    buildBookableSlots(company, cfg, chain, date, resolvedConsultantId, availabilityBlockCache)) {
+                    buildBookableSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules)) {
                 merged.put(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             for (PublicBookingWidgetController.AvailabilitySlotResponse slot :
-                    buildWorkingHoursSlots(company, cfg, chain, date, resolvedConsultantId, availabilityBlockCache)) {
+                    buildWorkingHoursSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules)) {
                 merged.putIfAbsent(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             slots = sortAvailabilitySlots(merged);
         } else {
-            slots = buildFallbackSlots(company, cfg, chain, date, resolvedConsultantId, availabilityBlockCache);
+            slots = buildFallbackSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules);
         }
 
         return new PublicBookingWidgetController.AvailabilityResponse(
@@ -440,9 +454,20 @@ public class PublicBookingWidgetService {
             cursor = today;
         }
         LocalDate monthEnd = month.atEndOfMonth();
+        if (cursor.isAfter(monthEnd)) {
+            return new PublicBookingWidgetController.AvailabilityMonthResponse(month.toString(), List.of());
+        }
 
         List<String> availableDates = new ArrayList<>();
-        Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache = new HashMap<>();
+        WidgetAvailabilitySnapshot availabilitySnapshot = cfg.availabilityEnabled() && !groupOnlyWebsiteBooking
+                ? loadWidgetAvailabilitySnapshot(
+                        company.getId(),
+                        cursor.atStartOfDay(),
+                        monthEnd.plusDays(1).atStartOfDay().plusMinutes(chainAvailabilityMinutes(chain)),
+                        chain,
+                        resolvedConsultantId
+                )
+                : WidgetAvailabilitySnapshot.empty();
         try {
             for (LocalDate date = cursor; !date.isAfter(monthEnd); date = date.plusDays(1)) {
                 if (dateAllowedByReservationRules(date, cfg, rules)
@@ -454,7 +479,7 @@ public class PublicBookingWidgetService {
                                 resolvedConsultantId,
                                 groupOnlyWebsiteBooking,
                                 rules,
-                                availabilityBlockCache
+                                availabilitySnapshot
                         )) {
                     availableDates.add(DATE_FORMAT.format(date));
                 }
@@ -483,16 +508,16 @@ public class PublicBookingWidgetService {
             Long consultantId,
             boolean groupOnlyWebsiteBooking,
             GuestSettingsService.GuestBookingRules rules,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot
     ) {
         if (groupOnlyWebsiteBooking) {
             return !buildGroupSessions(company, cfg, chain.get(0), date, consultantId).isEmpty();
         }
         if (cfg.availabilityEnabled()) {
-            if (hasAnyBookableSlot(company, cfg, chain, date, consultantId, rules, availabilityBlockCache)) {
+            if (hasAnyBookableSlot(company, cfg, chain, date, consultantId, rules, availabilitySnapshot)) {
                 return true;
             }
-            return hasAnyWorkingHoursSlot(company, cfg, chain, date, consultantId, rules, availabilityBlockCache);
+            return hasAnyWorkingHoursSlot(company, cfg, chain, date, consultantId, rules, availabilitySnapshot);
         }
         return hasAnyFallbackSlot(company, cfg, chain, date, consultantId, rules);
     }
@@ -508,18 +533,11 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId,
             GuestSettingsService.GuestBookingRules rules,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot
     ) {
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(
-                        company.getId(), date.getDayOfWeek(), date, consultantId
-                ).stream()
-                .filter(slot -> slot.getConsultant() != null)
-                .filter(slot -> consultantSupportsChain(slot.getConsultant(), chain))
-                .sorted(Comparator.comparing((BookableSlot slot) -> slot.getConsultant().getId())
-                        .thenComparing(BookableSlot::getStartTime))
-                .toList();
+        List<BookableSlot> windows = bookableWindowsForDate(availabilitySnapshot, date);
 
         for (BookableSlot window : windows) {
             LocalTime cursor = window.getStartTime();
@@ -527,7 +545,7 @@ public class PublicBookingWidgetService {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
-                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilityBlockCache)) {
+                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilitySnapshot)) {
                     return true;
                 }
                 cursor = cursor.plusMinutes(30);
@@ -543,13 +561,11 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId,
             GuestSettingsService.GuestBookingRules rules,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot
     ) {
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
-        List<User> consultants = supportedConsultants(company.getId(), chain).stream()
-                .filter(candidate -> consultantId == null || candidate.getId().equals(consultantId))
-                .toList();
+        List<User> consultants = availabilitySnapshot.supportedConsultants();
 
         for (User consultant : consultants) {
             Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
@@ -562,7 +578,7 @@ public class PublicBookingWidgetService {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
-                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilityBlockCache)) {
+                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilitySnapshot)) {
                     return true;
                 }
                 cursor = cursor.plusMinutes(30);
@@ -1057,6 +1073,7 @@ public class PublicBookingWidgetService {
         if (candidates.isEmpty()) {
             return List.of();
         }
+        var rules = websiteWidgetSettingsService.bookingRules(company.getId());
 
         Map<String, List<SessionBooking>> grouped = new LinkedHashMap<>();
         for (SessionBooking booking : candidates) {
@@ -1066,7 +1083,7 @@ public class PublicBookingWidgetService {
                     continue;
                 }
             }
-            if (!slotAllowedByReservationRules(booking.getStartTime(), cfg, websiteWidgetSettingsService.bookingRules(company.getId()))) {
+            if (!slotAllowedByReservationRules(booking.getStartTime(), cfg, rules)) {
                 continue;
             }
             grouped.computeIfAbsent(groupKeyOf(booking), ignored -> new ArrayList<>()).add(booking);
@@ -1150,7 +1167,8 @@ public class PublicBookingWidgetService {
             List<SessionType> chain,
             LocalDate date,
             Long consultantId,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot,
+            GuestSettingsService.GuestBookingRules rules
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1159,20 +1177,8 @@ public class PublicBookingWidgetService {
 
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(
-                        company.getId(),
-                        dayOfWeek,
-                        date,
-                        consultantId
-                ).stream()
-                .filter(slot -> slot.getConsultant() != null)
-                .filter(slot -> consultantSupportsChain(slot.getConsultant(), chain))
-                .sorted(Comparator.comparing((BookableSlot slot) -> slot.getConsultant().getId())
-                        .thenComparing(BookableSlot::getStartTime))
-                .toList();
+        List<BookableSlot> windows = bookableWindowsForDate(availabilitySnapshot, date);
 
         for (BookableSlot window : windows) {
             LocalTime cursor = window.getStartTime();
@@ -1182,12 +1188,12 @@ public class PublicBookingWidgetService {
                 if (!slotAllowedByReservationRules(
                         start,
                         cfg,
-                        websiteWidgetSettingsService.bookingRules(company.getId())
+                        rules
                 )) {
                     cursor = cursor.plusMinutes(30);
                     continue;
                 }
-                if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilityBlockCache)) {
+                if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilitySnapshot)) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             window.getConsultant().getId() + "|" + start + "|" + end,
@@ -1214,7 +1220,8 @@ public class PublicBookingWidgetService {
             List<SessionType> chain,
             LocalDate date,
             Long consultantId,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot,
+            GuestSettingsService.GuestBookingRules rules
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1223,9 +1230,7 @@ public class PublicBookingWidgetService {
 
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
-        List<User> consultants = supportedConsultants(company.getId(), chain).stream()
-                .filter(candidate -> consultantId == null || candidate.getId().equals(consultantId))
-                .toList();
+        List<User> consultants = availabilitySnapshot.supportedConsultants();
 
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
         for (User consultant : consultants) {
@@ -1241,12 +1246,12 @@ public class PublicBookingWidgetService {
                 if (!slotAllowedByReservationRules(
                         start,
                         cfg,
-                        websiteWidgetSettingsService.bookingRules(company.getId())
+                        rules
                 )) {
                     cursor = cursor.plusMinutes(30);
                     continue;
                 }
-                if (isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilityBlockCache)) {
+                if (isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilitySnapshot)) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             consultant.getId() + "|" + start + "|" + end,
@@ -1347,7 +1352,8 @@ public class PublicBookingWidgetService {
             List<SessionType> chain,
             LocalDate date,
             Long consultantId,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot,
+            GuestSettingsService.GuestBookingRules rules
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1359,7 +1365,9 @@ public class PublicBookingWidgetService {
         LocalTime rangeStart;
         LocalTime rangeEnd;
         if (consultantId != null) {
-            User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, company.getId())
+            User consultant = availabilitySnapshot.supportedConsultants().stream()
+                    .filter(candidate -> Objects.equals(candidate.getId(), consultantId))
+                    .findFirst()
                     .orElse(null);
             if (consultant == null || !consultantSupportsChain(consultant, chain)) {
                 return new ArrayList<>();
@@ -1382,13 +1390,13 @@ public class PublicBookingWidgetService {
             if (!slotAllowedByReservationRules(
                     start,
                     cfg,
-                    websiteWidgetSettingsService.bookingRules(company.getId())
+                    rules
             )) {
                 cursor = cursor.plusMinutes(30);
                 continue;
             }
             LocalDateTime end = start.plusMinutes(bookingMinutes);
-            if (consultantId == null || isActuallyBookable(company.getId(), consultantId, start, end, chain, availabilityBlockCache)) {
+            if (consultantId == null || isActuallyBookable(company.getId(), consultantId, start, end, chain, availabilitySnapshot)) {
                 items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
                         (consultantId != null ? consultantId : 0L) + "|" + start + "|" + end,
                         cursor.format(SLOT_LABEL_FORMAT),
@@ -1447,49 +1455,265 @@ public class PublicBookingWidgetService {
             LocalDateTime start,
             LocalDateTime end,
             List<SessionType> chain,
-            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
+            WidgetAvailabilitySnapshot availabilitySnapshot
     ) {
-        List<PersonalCalendarBlock> markers = availabilityBlockCache.computeIfAbsent(
-                consultantId,
-                id -> personalBlocks.findAvailabilityBlockMarkersForOwner(id, companyId)
-        );
-        boolean blocked = markers.stream().anyMatch(block -> availabilityBlockOverlaps(block, start, end));
-        if (blocked) {
+        if (consultantId == null || start == null || end == null || availabilitySnapshot == null) {
             return false;
         }
-        try {
-            bookingCreationService.validateServiceChainWindow(
-                    companyId,
-                    List.<Long>of(),
-                    consultantId,
-                    start,
-                    bookingServiceRequests(chain),
-                    SessionBookingCreationService.bookingExcludeIds((Long) null),
-                    true
-            );
-            return true;
-        } catch (ResponseStatusException ex) {
+        LocalDateTime requestedBusyEnd = start.plusMinutes(chainAvailabilityMinutes(chain));
+
+        if (overlapsAny(
+                availabilitySnapshot.bookingsByConsultant().getOrDefault(consultantId, List.of()),
+                start,
+                requestedBusyEnd
+        )) {
             return false;
+        }
+
+        boolean personalConflict = availabilitySnapshot.personalBlocksByOwner()
+                .getOrDefault(consultantId, List.of())
+                .stream()
+                .anyMatch(block -> availabilityBlockOverlaps(block, start, requestedBusyEnd));
+        if (personalConflict) {
+            return false;
+        }
+
+        if (overlapsAnyHold(
+                availabilitySnapshot.waitlistHoldsByEmployee().getOrDefault(consultantId, List.of()),
+                start,
+                requestedBusyEnd
+        )) {
+            return false;
+        }
+
+        if (availabilitySnapshot.enforcePhysicalSpace()) {
+            if (overlapsAny(availabilitySnapshot.physicalBookings(), start, requestedBusyEnd)
+                    || overlapsAnyHold(availabilitySnapshot.roomWaitlistHolds(), start, requestedBusyEnd)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private WidgetAvailabilitySnapshot loadWidgetAvailabilitySnapshot(
+            Long companyId,
+            LocalDateTime rangeStart,
+            LocalDateTime rangeEnd,
+            List<SessionType> chain,
+            Long consultantId
+    ) {
+        long snapshotStartedNanos = System.nanoTime();
+        List<User> supportedConsultants = supportedConsultants(companyId, chain).stream()
+                .filter(candidate -> consultantId == null || Objects.equals(candidate.getId(), consultantId))
+                .toList();
+        java.util.Set<Long> supportedConsultantIds = supportedConsultants.stream()
+                .map(User::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        LocalDate fromDate = rangeStart.toLocalDate();
+        LocalDate toDate = rangeEnd.minusNanos(1).toLocalDate();
+        List<BookableSlot> visibleBookableWindows = consultantId == null
+                ? bookableSlots.findVisibleByCompanyAndDateRange(companyId, fromDate, toDate)
+                : bookableSlots.findVisibleByConsultantAndCompanyAndDateRange(
+                        consultantId,
+                        companyId,
+                        fromDate,
+                        toDate
+                );
+        List<BookableSlot> bookableWindows = visibleBookableWindows.stream()
+                .filter(slot -> slot.getConsultant() != null)
+                .filter(slot -> supportedConsultantIds.contains(slot.getConsultant().getId()))
+                .sorted(Comparator.comparing((BookableSlot slot) -> slot.getConsultant().getId())
+                        .thenComparing(BookableSlot::getDayOfWeek)
+                        .thenComparing(BookableSlot::getStartTime))
+                .toList();
+
+        Map<Long, List<WidgetBusyInterval>> bookingsByConsultant = new HashMap<>();
+        List<WidgetBusyInterval> physicalBookings = new ArrayList<>();
+        for (SessionBookingRepository.WidgetAvailabilityBusyInterval row :
+                bookings.findWidgetAvailabilityBusyIntervals(companyId, rangeStart, rangeEnd)) {
+            if (row == null || row.getStartTime() == null || row.getBusyEndTime() == null) {
+                continue;
+            }
+            WidgetBusyInterval interval = new WidgetBusyInterval(
+                    row.getConsultantId(),
+                    row.getSpaceId(),
+                    row.getStartTime(),
+                    row.getBusyEndTime(),
+                    Boolean.TRUE.equals(row.getPhysical())
+            );
+            if (interval.consultantId() != null) {
+                bookingsByConsultant.computeIfAbsent(interval.consultantId(), ignored -> new ArrayList<>())
+                        .add(interval);
+            }
+            if (interval.physical()) {
+                physicalBookings.add(interval);
+            }
+        }
+
+        Map<Long, List<WidgetPersonalBlock>> personalBlocksByOwner = new HashMap<>();
+        for (PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock row :
+                personalBlocks.findWidgetAvailabilityBlocks(companyId, rangeStart, rangeEnd)) {
+            if (row == null || row.getOwnerId() == null || row.getStartTime() == null || row.getEndTime() == null) {
+                continue;
+            }
+            WidgetPersonalBlock block = new WidgetPersonalBlock(
+                    row.getId(),
+                    row.getOwnerId(),
+                    row.getStartTime(),
+                    row.getEndTime(),
+                    row.getTask(),
+                    row.getNotes()
+            );
+            personalBlocksByOwner.computeIfAbsent(block.ownerId(), ignored -> new ArrayList<>())
+                    .add(block);
+        }
+
+        Map<Long, List<WidgetWaitlistHold>> waitlistHoldsByEmployee = new HashMap<>();
+        List<WidgetWaitlistHold> roomWaitlistHolds = new ArrayList<>();
+        if (waitlistHolds != null) {
+            for (WaitlistBookingHoldRepository.WidgetAvailabilityHold row :
+                    waitlistHolds.findWidgetAvailabilityHolds(companyId, rangeStart, rangeEnd, Instant.now())) {
+                if (row == null || row.getSlotStart() == null || row.getSlotEnd() == null) {
+                    continue;
+                }
+                WidgetWaitlistHold hold = new WidgetWaitlistHold(
+                        row.getEmployeeId(),
+                        row.getRoomId(),
+                        row.getSlotStart(),
+                        row.getSlotEnd()
+                );
+                if (hold.employeeId() != null) {
+                    waitlistHoldsByEmployee.computeIfAbsent(hold.employeeId(), ignored -> new ArrayList<>())
+                            .add(hold);
+                }
+                if (hold.roomId() != null) {
+                    roomWaitlistHolds.add(hold);
+                }
+            }
+        }
+
+        boolean enforcePhysicalSpace = bookingCreationService.shouldEnforceSpaceOverlapProtection(
+                companyId,
+                bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
+                false,
+                null
+        );
+        WidgetAvailabilitySnapshot snapshot = new WidgetAvailabilitySnapshot(
+                supportedConsultants,
+                bookableWindows,
+                bookingsByConsultant,
+                physicalBookings,
+                personalBlocksByOwner,
+                waitlistHoldsByEmployee,
+                roomWaitlistHolds,
+                enforcePhysicalSpace
+        );
+        long elapsedMillis = (System.nanoTime() - snapshotStartedNanos) / 1_000_000L;
+        if (elapsedMillis >= 750L) {
+            LOG.warn(
+                    "Slow widget availability snapshot: companyId={}, consultantId={}, from={}, to={}, consultants={}, windows={}, bookings={}, personalBlocks={}, holds={}, elapsedMs={}",
+                    companyId,
+                    consultantId,
+                    rangeStart,
+                    rangeEnd,
+                    supportedConsultants.size(),
+                    bookableWindows.size(),
+                    bookingsByConsultant.values().stream().mapToInt(List::size).sum(),
+                    personalBlocksByOwner.values().stream().mapToInt(List::size).sum(),
+                    waitlistHoldsByEmployee.values().stream().mapToInt(List::size).sum(),
+                    elapsedMillis
+            );
+        }
+        return snapshot;
+    }
+
+    private static boolean overlapsAny(
+            List<WidgetBusyInterval> intervals,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
+        return intervals != null && intervals.stream().anyMatch(interval ->
+                interval.start().isBefore(end) && interval.end().isAfter(start));
+    }
+
+    private static boolean overlapsAnyHold(
+            List<WidgetWaitlistHold> holds,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
+        return holds != null && holds.stream().anyMatch(hold ->
+                hold.start() != null && hold.end() != null
+                        && hold.start().isBefore(end) && hold.end().isAfter(start));
+    }
+
+    private record WidgetBusyInterval(
+            Long consultantId,
+            Long spaceId,
+            LocalDateTime start,
+            LocalDateTime end,
+            boolean physical
+    ) {}
+
+    private record WidgetPersonalBlock(
+            Long id,
+            Long ownerId,
+            LocalDateTime start,
+            LocalDateTime end,
+            String task,
+            String notes
+    ) {}
+
+    private record WidgetWaitlistHold(
+            Long employeeId,
+            Long roomId,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {}
+
+    private record WidgetAvailabilitySnapshot(
+            List<User> supportedConsultants,
+            List<BookableSlot> bookableWindows,
+            Map<Long, List<WidgetBusyInterval>> bookingsByConsultant,
+            List<WidgetBusyInterval> physicalBookings,
+            Map<Long, List<WidgetPersonalBlock>> personalBlocksByOwner,
+            Map<Long, List<WidgetWaitlistHold>> waitlistHoldsByEmployee,
+            List<WidgetWaitlistHold> roomWaitlistHolds,
+            boolean enforcePhysicalSpace
+    ) {
+        private static WidgetAvailabilitySnapshot empty() {
+            return new WidgetAvailabilitySnapshot(
+                    List.of(),
+                    List.of(),
+                    Map.of(),
+                    List.of(),
+                    Map.of(),
+                    Map.of(),
+                    List.of(),
+                    false
+            );
         }
     }
 
     private boolean availabilityBlockOverlaps(
-            PersonalCalendarBlock block,
+            WidgetPersonalBlock block,
             LocalDateTime rangeStart,
             LocalDateTime rangeEnd
     ) {
         if (block == null || rangeStart == null || rangeEnd == null || !rangeEnd.isAfter(rangeStart)) {
             return false;
         }
-        LocalDateTime storedStart = block.getStartTime();
-        LocalDateTime storedEnd = block.getEndTime();
-        if (storedStart != null && storedEnd != null
-                && storedStart.isBefore(rangeEnd) && storedEnd.isAfter(rangeStart)) {
+        if (block.start() != null && block.end() != null
+                && block.start().isBefore(rangeEnd) && block.end().isAfter(rangeStart)) {
             return true;
         }
-        return AvailabilityBlockMetadata.overlaps(block, rangeStart, rangeEnd);
+        if (!AvailabilityBlockMetadata.TASK.equalsIgnoreCase(block.task() == null ? "" : block.task().trim())) {
+            return false;
+        }
+        return AvailabilityBlockMetadata.parse(block.notes(), block.start(), block.end())
+                .map(metadata -> AvailabilityBlockMetadata.overlaps(metadata, rangeStart, rangeEnd))
+                .orElse(false);
     }
-
 
     private void lockTenantForClientMatch(Company company) {
         companies.findByIdForUpdate(company.getId())
@@ -1703,6 +1927,19 @@ public class PublicBookingWidgetService {
 
     private String consultantFullName(User consultant) {
         return (consultant.getFirstName() + " " + consultant.getLastName()).trim();
+    }
+
+    private List<BookableSlot> bookableWindowsForDate(
+            WidgetAvailabilitySnapshot availabilitySnapshot,
+            LocalDate date
+    ) {
+        if (availabilitySnapshot == null || date == null) {
+            return List.of();
+        }
+        return availabilitySnapshot.bookableWindows().stream()
+                .filter(slot -> slot.getDayOfWeek() == date.getDayOfWeek())
+                .filter(slot -> withinDateRange(slot, date))
+                .toList();
     }
 
     private boolean withinDateRange(BookableSlot slot, LocalDate date) {

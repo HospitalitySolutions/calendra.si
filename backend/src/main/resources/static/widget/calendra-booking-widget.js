@@ -483,6 +483,7 @@
       this.submitInFlight = false;
       this.availabilityAbortController = null;
       this.availabilityRequestSequence = 0;
+      this.availabilityCache = new Map();
       this.monthAvailabilityAbortController = null;
       this.monthAvailabilityRequestSequence = 0;
       this.monthAvailabilityCache = new Map();
@@ -896,6 +897,22 @@
         return;
       }
       const requestKey = `${serviceIds.join(',')}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
+      const cachedEntry = this.availabilityCache.get(requestKey);
+      if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+        const data = cachedEntry.data || {};
+        const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
+        const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
+        this.setState({
+          error: '',
+          slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots),
+          groupSessions: filteredGroupSessions,
+          selectedSlot: null,
+          selectedGroupSession: null,
+          loadingAvailability: false,
+        });
+        return;
+      }
+      if (cachedEntry) this.availabilityCache.delete(requestKey);
       if (this.availabilityAbortController) this.availabilityAbortController.abort();
       const controller = new AbortController();
       const requestSequence = ++this.availabilityRequestSequence;
@@ -914,6 +931,11 @@
         if (requestSequence !== this.availabilityRequestSequence || currentKey !== requestKey) return;
         const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
         const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
+        this.availabilityCache.set(requestKey, { data, expiresAt: Date.now() + 15000 });
+        if (this.availabilityCache.size > 80) {
+          const oldestKey = this.availabilityCache.keys().next().value;
+          if (oldestKey) this.availabilityCache.delete(oldestKey);
+        }
         this.setState({ slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots), groupSessions: filteredGroupSessions, loadingAvailability: false });
       } catch (error) {
         const currentKey = `${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
@@ -1727,6 +1749,8 @@
           return;
         }
 
+        this.availabilityCache.clear();
+        this.monthAvailabilityCache.clear();
         this.setState({
           saving: false,
           bookingSuccess: {
@@ -1744,6 +1768,8 @@
         const status = Number(error?.status || 0);
         const message = this.normalizeError(error, t.bookingFailed);
         if (this.isStaleSlotError(error, message) && bookingSlot) {
+          this.availabilityCache.clear();
+          this.monthAvailabilityCache.clear();
           this.setState({
             saving: false,
             error: message,

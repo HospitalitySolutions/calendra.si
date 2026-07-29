@@ -12,6 +12,33 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface WaitlistBookingHoldRepository extends JpaRepository<WaitlistBookingHold, Long> {
+    /** Lightweight interval projection for public-widget availability checks. */
+    interface WidgetAvailabilityHold {
+        Long getEmployeeId();
+        Long getRoomId();
+        LocalDateTime getSlotStart();
+        LocalDateTime getSlotEnd();
+    }
+
+    @Query(value = """
+            select h.employee_id as "employeeId",
+                   h.room_id as "roomId",
+                   h.slot_start as "slotStart",
+                   h.slot_end as "slotEnd"
+            from waitlist_booking_holds h
+            where h.company_id = :companyId
+              and h.status = 'ACTIVE'
+              and h.expires_at > :now
+              and h.slot_start < :rangeEnd
+              and h.slot_end > :rangeStart
+            order by h.slot_start asc, h.id asc
+            """, nativeQuery = true)
+    List<WidgetAvailabilityHold> findWidgetAvailabilityHolds(
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd,
+            @Param("now") Instant now);
+
     Optional<WaitlistBookingHold> findByOfferId(Long offerId);
 
     @Query("""

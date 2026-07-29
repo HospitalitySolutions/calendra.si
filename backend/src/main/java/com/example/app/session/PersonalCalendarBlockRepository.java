@@ -7,6 +7,40 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalCalendarBlock, Long> {
+    /**
+     * Lightweight public-widget projection. One query returns ordinary overlapping personal
+     * blocks plus every availability marker whose recurrence metadata may affect the requested
+     * range. This avoids loading full entities and lazy owner associations for every slot check.
+     */
+    interface WidgetAvailabilityPersonalBlock {
+        Long getId();
+        Long getOwnerId();
+        LocalDateTime getStartTime();
+        LocalDateTime getEndTime();
+        String getTask();
+        String getNotes();
+    }
+
+    @Query(value = """
+            select p.id as "id",
+                   p.owner_id as "ownerId",
+                   p.start_time as "startTime",
+                   p.end_time as "endTime",
+                   p.task as "task",
+                   p.notes as "notes"
+            from personal_calendar_block p
+            where p.company_id = :companyId
+              and (
+                    (p.start_time < :rangeEnd and p.end_time > :rangeStart)
+                    or lower(p.task) = '__availability_block__'
+                  )
+            order by p.start_time asc, p.id asc
+            """, nativeQuery = true)
+    List<WidgetAvailabilityPersonalBlock> findWidgetAvailabilityBlocks(
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd);
+
     @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
            "AND p.startTime < :rangeEnd AND p.endTime > :rangeStart")
     List<PersonalCalendarBlock> findOverlapping(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId,
