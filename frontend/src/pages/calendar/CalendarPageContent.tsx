@@ -3119,8 +3119,155 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const [hh, mm] = String(timeStr || '00:00:00').split(':')
       return (Number(hh) || 0) * 60 + (Number(mm) || 0)
     }
+    const splitRequestedRangeByBlocks = (
+      rangeStartMs: number,
+      rangeEndMs: number,
+      blocks: Array<{ startMs: number; endMs: number }>,
+    ) => {
+      let segments: Array<{ startMs: number; endMs: number }> = [{ startMs: rangeStartMs, endMs: rangeEndMs }]
+      for (const block of blocks) {
+        segments = segments.flatMap((segment) => {
+          const overlapStart = Math.max(segment.startMs, block.startMs)
+          const overlapEnd = Math.min(segment.endMs, block.endMs)
+          if (overlapEnd <= overlapStart) return [segment]
+          const next: Array<{ startMs: number; endMs: number }> = []
+          if (segment.startMs < overlapStart) next.push({ startMs: segment.startMs, endMs: overlapStart })
+          if (overlapEnd < segment.endMs) next.push({ startMs: overlapEnd, endMs: segment.endMs })
+          return next
+        })
+        if (segments.length === 0) break
+      }
+      return segments
+    }
     setAvailabilitySaving(true)
     try {
+      const singleDateLimitedBlock =
+        !payload.indefinite &&
+        !!payload.startDate &&
+        payload.startDate === payload.endDate
+
+      if (singleDateLimitedBlock) {
+        // A one-day block should cover only slots that are open right now.
+        // Build the day's real availability first, then subtract appointments, breaks,
+        // waitlist holds, personal blocks and previously blocked availability.
+        // Separate markers mean that cancelling an existing appointment later releases
+        // its original time instead of leaving it inside an all-day block.
+        const requestedStartMs = startDate.getTime()
+        const requestedEndMs = endDate.getTime()
+        const availabilityDate = new Date(`${payload.startDate}T00:00:00`)
+        const baselineRanges: Array<{ startMs: number; endMs: number }> = []
+        const workingWindow = consultantDayWindow(
+          availabilityDate.getFullYear(),
+          availabilityDate.getMonth(),
+          availabilityDate.getDate(),
+          consultantId,
+          metaUsers,
+          whWindowParseHm(slotMinTime),
+          whWindowParseHm(slotMaxTime),
+        )
+        if (workingWindow != null && 'startMin' in workingWindow) {
+          baselineRanges.push(windowToDayMs(
+            availabilityDate.getFullYear(),
+            availabilityDate.getMonth(),
+            availabilityDate.getDate(),
+            workingWindow.startMin,
+            workingWindow.endMin,
+          ))
+        }
+        for (const slot of calendarData.bookable || []) {
+          const slotConsultantId = slot.consultant?.id ?? slot.consultantId
+          if (slotConsultantId !== consultantId || slot.dayOfWeek !== payload.dayOfWeek) continue
+          if (!slot.indefinite && ((slot.startDate && payload.startDate! < slot.startDate) || (slot.endDate && payload.startDate! > slot.endDate))) continue
+          const slotStartMs = new Date(`${payload.startDate}T${slot.startTime}`).getTime()
+          const slotEndMs = new Date(`${payload.startDate}T${slot.endTime}`).getTime()
+          if (Number.isFinite(slotStartMs) && Number.isFinite(slotEndMs) && slotEndMs > slotStartMs) {
+            baselineRanges.push({ startMs: slotStartMs, endMs: slotEndMs })
+          }
+        }
+
+        const mergedBaselineRanges: Array<{ startMs: number; endMs: number }> = []
+        for (const range of baselineRanges.sort((a, b) => a.startMs - b.startMs)) {
+          const startMs = Math.max(requestedStartMs, range.startMs)
+          const endMs = Math.min(requestedEndMs, range.endMs)
+          if (endMs <= startMs) continue
+          const previous = mergedBaselineRanges[mergedBaselineRanges.length - 1]
+          if (previous && startMs <= previous.endMs) previous.endMs = Math.max(previous.endMs, endMs)
+          else mergedBaselineRanges.push({ startMs, endMs })
+        }
+
+        const occupiedRanges: Array<{ startMs: number; endMs: number }> = []
+        const addOccupiedRange = (rangeStartMs: number, rangeEndMs: number) => {
+          if (!Number.isFinite(rangeStartMs) || !Number.isFinite(rangeEndMs) || rangeEndMs <= rangeStartMs) return
+          if (rangeEndMs <= requestedStartMs || rangeStartMs >= requestedEndMs) return
+          occupiedRanges.push({ startMs: rangeStartMs, endMs: rangeEndMs })
+        }
+        for (const booking of calendarData.booked || []) {
+          if ((booking.consultant?.id ?? booking.consultantId) !== consultantId) continue
+          addOccupiedRange(new Date(booking.startTime).getTime(), getBookingBusyEndMs(booking))
+        }
+        for (const hold of calendarData.waitlistOffers || []) {
+          if (Number(hold?.employeeId) !== consultantId) continue
+          addOccupiedRange(
+            new Date(hold.startTime).getTime(),
+            new Date(hold.busyEndTime || hold.endTime).getTime(),
+          )
+        }
+        for (const personalBlock of calendarData.personal || []) {
+          const ownerId = personalBlock.consultant?.id ?? personalBlock.consultantId ?? personalBlock.ownerId
+          if (ownerId !== consultantId) continue
+          addOccupiedRange(
+            new Date(personalBlock.startTime).getTime(),
+            new Date(personalBlock.endTime).getTime(),
+          )
+        }
+        occupiedRanges.sort((a, b) => a.startMs - b.startMs)
+        const openRanges = mergedBaselineRanges
+          .flatMap((range) => splitRequestedRangeByBlocks(range.startMs, range.endMs, occupiedRanges))
+          .sort((a, b) => a.startMs - b.startMs)
+
+        const mergedOpenRanges: Array<{ startMs: number; endMs: number }> = []
+        for (const range of openRanges) {
+          const previous = mergedOpenRanges[mergedOpenRanges.length - 1]
+          if (previous && range.startMs <= previous.endMs) {
+            previous.endMs = Math.max(previous.endMs, range.endMs)
+          } else {
+            mergedOpenRanges.push({ startMs: range.startMs, endMs: range.endMs })
+          }
+        }
+
+        for (const range of mergedOpenRanges) {
+          const rangeStart = new Date(range.startMs)
+          const rangeEnd = new Date(range.endMs)
+          const segmentPayload = {
+            ...payload,
+            startTime: rangeStart.toTimeString().slice(0, 8),
+            endTime: rangeEnd.toTimeString().slice(0, 8),
+          }
+          const blockNotes = buildAvailabilityBlockMarkerNotes(
+            segmentPayload,
+            availabilitySelection.startTime.slice(0, 10),
+          )
+          const alreadyExists = (calendarData.personal || []).some((p: any) => {
+            const ownerId = p.consultant?.id ?? p.consultantId ?? p.ownerId
+            return ownerId === consultantId
+              && String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK
+              && String(p.notes || '') === blockNotes
+          })
+          if (alreadyExists) continue
+          await api.post('/bookings/personal-blocks', {
+            startTime: toLocalDateTimeString(rangeStart),
+            endTime: toLocalDateTimeString(rangeEnd),
+            task: AVAILABILITY_BLOCK_TASK,
+            notes: blockNotes,
+            consultantId: isTenantAdmin ? consultantId : undefined,
+          })
+        }
+
+        await load()
+        closeAvailabilityModal()
+        return
+      }
+
       const blockStart = toMinutes(payload.startTime)
       const blockEnd = toMinutes(payload.endTime)
       const candidates = (calendarData.bookable || []).filter((slot: any) => {
@@ -4223,6 +4370,38 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (Number.isFinite(id)) visibleConsultantIds.add(id)
     })
     consultantsForWhVisible.forEach((u: any) => visibleConsultantIds.add(u.id))
+
+    // Ranges that are already occupied by a booking, waitlist hold or personal block.
+    // Keep these separate from availability-block markers so the diagonal non-bookable
+    // hatch can be cut around existing sessions instead of visually covering them.
+    const occupiedRangesByConsultant = new Map<number, Array<{ startMs: number; endMs: number }>>()
+    const addOccupiedRange = (consultantId: number, startMs: number, endMs: number) => {
+      if (!Number.isFinite(consultantId) || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return
+      const ranges = occupiedRangesByConsultant.get(consultantId) || []
+      ranges.push({ startMs, endMs })
+      occupiedRangesByConsultant.set(consultantId, ranges)
+    }
+    for (const b of filterByConsultantRole(calendarData.booked || [])) {
+      const cid = Number(b.consultant?.id)
+      addOccupiedRange(cid, new Date(b.startTime).getTime(), getBookingBusyEndMs(b))
+    }
+    for (const hold of waitlistOfferRows) {
+      const cid = Number(hold?.employeeId)
+      addOccupiedRange(
+        cid,
+        new Date(hold.startTime).getTime(),
+        new Date(hold.busyEndTime || hold.endTime).getTime(),
+      )
+    }
+    if (personalModuleEnabled) {
+      for (const p of calendarData.personal || []) {
+        if (String(p?.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK) continue
+        const cid = Number(personalOwnerId(p))
+        addOccupiedRange(cid, new Date(p.startTime).getTime(), new Date(p.endTime).getTime())
+      }
+    }
+    occupiedRangesByConsultant.forEach((ranges) => ranges.sort((a, b) => a.startMs - b.startMs))
+
     const blockingRangesByConsultant = new Map<number, Array<{ startMs: number; endMs: number }>>()
     for (const b of filterByConsultantRole(calendarData.booked || [])) {
       // Spaces + ALL columns: bookings are subtracted per resource column in bookableSpaceBookings.
@@ -4501,6 +4680,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const buildNonBookableForResource = (
         evs: any[],
         resourceId?: string,
+        occupiedRanges: Array<{ startMs: number; endMs: number }> = [],
       ) => {
         const availableByDate = new Map<string, Array<{ startMs: number; endMs: number }>>()
         for (const ev of evs) {
@@ -4516,6 +4696,28 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const dayEndMinutes = parseHmToMinutes(slotMaxTime)
         const out: any[] = []
         const prefix = resourceId ? `nb-${resourceId}` : 'nb'
+        const pushNonBookableRange = (key: string, rangeStartMs: number, rangeEndMs: number) => {
+          const visibleSegments = splitRangeByBlocks(
+            rangeStartMs,
+            rangeEndMs,
+            occupiedRanges.filter((range) => range.endMs > rangeStartMs && range.startMs < rangeEndMs),
+          )
+          visibleSegments.forEach((segment, segmentIndex) => {
+            const ev: any = {
+              id: `${prefix}-${key}-${rangeStartMs}-${segmentIndex}`,
+              title: '',
+              display: 'background',
+              start: toLocalDateTimeString(new Date(segment.startMs)),
+              end: toLocalDateTimeString(new Date(segment.endMs)),
+              editable: false,
+              startEditable: false,
+              durationEditable: false,
+              extendedProps: { kind: 'non-bookable', date: key },
+            }
+            if (resourceId) ev.resourceId = resourceId
+            out.push(ev)
+          })
+        }
         for (const availabilityDate of availabilityDates) {
           const day = new Date(availabilityDate)
           const key = toIsoDateKey(day)
@@ -4535,36 +4737,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           let cursor = windowStartMs
           for (const r of ranges) {
             if (r.startMs > cursor) {
-              const ev: any = {
-                id: `${prefix}-${key}-${cursor}`,
-                title: '',
-                display: 'background',
-                start: toLocalDateTimeString(new Date(cursor)),
-                end: toLocalDateTimeString(new Date(r.startMs)),
-                editable: false,
-                startEditable: false,
-                durationEditable: false,
-                extendedProps: { kind: 'non-bookable', date: key },
-              }
-              if (resourceId) ev.resourceId = resourceId
-              out.push(ev)
+              pushNonBookableRange(key, cursor, r.startMs)
             }
             cursor = Math.max(cursor, r.endMs)
           }
           if (cursor < windowEndMs) {
-            const ev: any = {
-              id: `${prefix}-${key}-${cursor}`,
-              title: '',
-              display: 'background',
-              start: toLocalDateTimeString(new Date(cursor)),
-              end: toLocalDateTimeString(new Date(windowEndMs)),
-              editable: false,
-              startEditable: false,
-              durationEditable: false,
-              extendedProps: { kind: 'non-bookable', date: key },
-            }
-            if (resourceId) ev.resourceId = resourceId
-            out.push(ev)
+            pushNonBookableRange(key, cursor, windowEndMs)
           }
         }
         return out
@@ -4576,7 +4754,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         for (const cu of consultants) {
           const rid = String(cu.id)
           const cuBookable = bookableBookings.filter((ev: any) => ev.resourceId === rid)
-          out.push(...buildNonBookableForResource(cuBookable, rid))
+          out.push(...buildNonBookableForResource(cuBookable, rid, occupiedRangesByConsultant.get(cu.id) || []))
         }
         return out
       }
@@ -4591,7 +4769,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         return out
       }
 
-      return buildNonBookableForResource(bookableBookings)
+      const selectedConsultantId =
+        effectiveConsultantFilterId != null && effectiveConsultantFilterId !== CONSULTANT_FILTER_ALL_SESSION
+          ? Number(effectiveConsultantFilterId)
+          : Number(user.id)
+      return buildNonBookableForResource(
+        bookableBookings,
+        undefined,
+        calendarMode === 'bookings' ? occupiedRangesByConsultant.get(selectedConsultantId) || [] : [],
+      )
     })()
     const bookable =
       calendarMode === 'bookings'
@@ -4688,23 +4874,26 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (!bookingsUseResourceColumns) return []
       return (calendarData.personal || []).flatMap((p: any) => {
         if (String(p.task || '').trim().toLowerCase() !== AVAILABILITY_BLOCK_TASK) return []
-        const cid = personalOwnerId(p)
+        const cid = Number(personalOwnerId(p))
         if (!Number.isFinite(cid)) return []
+        const startMs = new Date(p.startTime).getTime()
+        const endMs = new Date(p.endTime).getTime()
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return []
         const startStr = String(p.startTime || '')
-        return [
-          {
-            id: `avail-block-${p.id}-${String(p.startTime || '').replace(/[^0-9A-Za-z]/g, '')}`,
-            title: '',
-            display: 'background',
-            start: p.startTime,
-            end: p.endTime,
-            resourceId: String(cid),
-            editable: false,
-            startEditable: false,
-            durationEditable: false,
-            extendedProps: { kind: 'non-bookable', date: startStr.slice(0, 10) },
-          },
-        ]
+        const occupiedRanges = (occupiedRangesByConsultant.get(cid) || [])
+          .filter((range) => range.endMs > startMs && range.startMs < endMs)
+        return splitRangeByBlocks(startMs, endMs, occupiedRanges).map((segment, segmentIndex) => ({
+          id: `avail-block-${p.id}-${String(p.startTime || '').replace(/[^0-9A-Za-z]/g, '')}-${segmentIndex}`,
+          title: '',
+          display: 'background',
+          start: toLocalDateTimeString(new Date(segment.startMs)),
+          end: toLocalDateTimeString(new Date(segment.endMs)),
+          resourceId: String(cid),
+          editable: false,
+          startEditable: false,
+          durationEditable: false,
+          extendedProps: { kind: 'non-bookable', date: startStr.slice(0, 10) },
+        }))
       })
     })()
 
