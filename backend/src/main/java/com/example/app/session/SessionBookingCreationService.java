@@ -73,6 +73,9 @@ public class SessionBookingCreationService {
     @Autowired(required = false)
     private WaitlistBookingHoldRepository waitlistHolds;
 
+    @Autowired(required = false)
+    private BookingSlotHoldRepository bookingSlotHolds;
+
     @Autowired
     public SessionBookingCreationService(
             SessionBookingRepository repo,
@@ -212,7 +215,8 @@ public class SessionBookingCreationService {
                 isOnlineRequest(req),
                 Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
                 true,
-                excludedWaitlistOfferId
+                excludedWaitlistOfferId,
+                null
         );
         var meetingLink = req.meetingLink();
         if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
@@ -340,6 +344,7 @@ public class SessionBookingCreationService {
                 isOnlineRequest(req),
                 Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
                 true,
+                null,
                 null
         );
         var meetingLink = req.meetingLink();
@@ -490,7 +495,8 @@ public class SessionBookingCreationService {
             String bookingStatus,
             boolean sendConfirmation,
             BookingSource bookingSource,
-            List<SessionBookingController.BookingServiceRequest> services
+            List<SessionBookingController.BookingServiceRequest> services,
+            String bookingHoldToken
     ) {
         public ChannelBookingRequest(
                 Long companyId,
@@ -514,7 +520,7 @@ public class SessionBookingCreationService {
         ) {
             this(companyId, clientId, consultantId, start, end, spaceId, typeId, notes, meetingLink,
                     online, meetingProvider, allowPersonalBlockOverlap, sourceChannel, sourceOrderId,
-                    guestUserId, bookingStatus, sendConfirmation, bookingSource, null);
+                    guestUserId, bookingStatus, sendConfirmation, bookingSource, null, null);
         }
 
         public ChannelBookingRequest(
@@ -538,7 +544,7 @@ public class SessionBookingCreationService {
         ) {
             this(companyId, clientId, consultantId, start, end, spaceId, typeId, notes, meetingLink,
                     online, meetingProvider, allowPersonalBlockOverlap, sourceChannel, sourceOrderId,
-                    guestUserId, bookingStatus, sendConfirmation, null, null);
+                    guestUserId, bookingStatus, sendConfirmation, null, null, null);
         }
     }
 
@@ -551,8 +557,24 @@ public class SessionBookingCreationService {
             String guestUserId,
             String bookingStatus,
             boolean sendConfirmation,
-            BookingSource bookingSource
+            BookingSource bookingSource,
+            String bookingHoldToken
     ) {
+        public GroupJoinRequest(
+                Long companyId,
+                Long representativeBookingId,
+                Long clientId,
+                String sourceChannel,
+                String sourceOrderId,
+                String guestUserId,
+                String bookingStatus,
+                boolean sendConfirmation,
+                BookingSource bookingSource
+        ) {
+            this(companyId, representativeBookingId, clientId, sourceChannel, sourceOrderId,
+                    guestUserId, bookingStatus, sendConfirmation, bookingSource, null);
+        }
+
         public GroupJoinRequest(
                 Long companyId,
                 Long representativeBookingId,
@@ -564,7 +586,7 @@ public class SessionBookingCreationService {
                 boolean sendConfirmation
         ) {
             this(companyId, representativeBookingId, clientId, sourceChannel, sourceOrderId,
-                    guestUserId, bookingStatus, sendConfirmation, null);
+                    guestUserId, bookingStatus, sendConfirmation, null, null);
         }
     }
 
@@ -638,7 +660,8 @@ public class SessionBookingCreationService {
                 Boolean.TRUE.equals(request.online()) || (meetingLink != null && !meetingLink.isBlank()),
                 request.allowPersonalBlockOverlap(),
                 false,
-                null
+                null,
+                request.bookingHoldToken()
         );
 
         User actor = resolveAdminActor(companyId);
@@ -743,7 +766,8 @@ public class SessionBookingCreationService {
                 representative.isOnlineSession(),
                 false,
                 true,
-                null
+                null,
+                request.bookingHoldToken()
         );
 
         SessionBooking joined = new SessionBooking();
@@ -842,6 +866,7 @@ public class SessionBookingCreationService {
                 online,
                 allowPersonalBlockOverlap,
                 false,
+                null,
                 null
         );
     }
@@ -880,7 +905,8 @@ public class SessionBookingCreationService {
                 start,
                 services,
                 excludeIds,
-                false
+                false,
+                null
         );
     }
 
@@ -897,6 +923,20 @@ public class SessionBookingCreationService {
             List<SessionBookingController.BookingServiceRequest> services,
             List<Long> excludeIds,
             boolean allowAvailabilityBlockOverlap
+    ) {
+        return validateServiceChainWindow(companyId, clientIds, consultantId, start, services, excludeIds,
+                allowAvailabilityBlockOverlap, null);
+    }
+
+    public SessionServicePlanService.Plan validateServiceChainWindow(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services,
+            List<Long> excludeIds,
+            boolean allowAvailabilityBlockOverlap,
+            String excludedBookingHoldToken
     ) {
         if (services == null || services.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
@@ -919,7 +959,8 @@ public class SessionBookingCreationService {
                 false,
                 false,
                 allowAvailabilityBlockOverlap,
-                null
+                null,
+                excludedBookingHoldToken
         );
         return plan;
     }
@@ -940,6 +981,7 @@ public class SessionBookingCreationService {
                 online,
                 allowPersonalBlockOverlap,
                 false,
+                null,
                 null
         );
     }
@@ -956,7 +998,8 @@ public class SessionBookingCreationService {
             boolean online,
             boolean allowPersonalBlockOverlap,
             boolean allowAvailabilityBlockOverlap,
-            Long excludedWaitlistOfferId
+            Long excludedWaitlistOfferId,
+            String excludedBookingHoldToken
     ) {
         if (servicePlan == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service plan is required.");
@@ -981,6 +1024,23 @@ public class SessionBookingCreationService {
                         false,
                         primarySpaceId
                 ));
+
+        if (bookingSlotHolds != null) {
+            Instant now = Instant.now();
+            String excludedToken = excludedBookingHoldToken == null ? "" : excludedBookingHoldToken.trim();
+            boolean heldByEmployee = consultantId != null
+                    && bookingSlotHolds.existsActiveConsultantOverlap(
+                            companyId, consultantId, start, requestedBusyEnd, now, excludedToken
+                    );
+            boolean heldWithoutEmployee = consultantId == null
+                    && bookingSlotHolds.existsActiveUnassignedOverlap(
+                            companyId, start, requestedBusyEnd, now, excludedToken
+                    );
+            if (heldByEmployee || heldWithoutEmployee) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "This slot is temporarily reserved by another guest.");
+            }
+        }
 
         if (waitlistHolds != null) {
             java.time.Instant now = java.time.Instant.now();

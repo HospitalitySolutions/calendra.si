@@ -37,6 +37,8 @@ class RemoteGuestRepository(
     override suspend fun products(companyId: String): List<ProductSummary> = api.products(companyId)
     override suspend fun availability(companyId: String, sessionTypeIds: List<String>, date: String, consultantId: String?): AvailabilityResponse = api.availability(companyId, sessionTypeIds, date, consultantId)
     override suspend fun consultants(companyId: String, sessionTypeIds: List<String>): List<ConsultantSummary> = api.consultants(companyId, sessionTypeIds)
+    override suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse = api.createBookingSlotHold(request)
+    override suspend fun releaseBookingSlotHold(companyId: String, holdToken: String) = api.releaseBookingSlotHold(companyId, holdToken)
     override suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse = api.createOrder(request)
     override suspend fun rescheduleBooking(companyId: String, bookingId: String, newSlotId: String): BookingActionResult =
         api.rescheduleBooking(bookingId, newSlotId)

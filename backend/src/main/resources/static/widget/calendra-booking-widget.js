@@ -178,6 +178,8 @@
       waitlistNotes: 'Notes (optional)',
       waitlistNotesPlaceholder: 'Add preferences or other useful information…',
       waitlistGuestDetails: 'Your contact details',
+      slotHoldExpired: 'Your 15-minute reservation expired. Please choose the time again.',
+      slotHoldFailed: 'This time is no longer available. Please choose another time.',
       waitlistCancel: 'Cancel',
       waitlistSubmit: 'Send request',
       waitlistSubmitting: 'Sending…',
@@ -357,6 +359,8 @@
       waitlistNotes: 'Opombe (neobvezno)',
       waitlistNotesPlaceholder: 'Napišite svoje želje ali dodatne informacije …',
       waitlistGuestDetails: 'Vaši kontaktni podatki',
+      slotHoldExpired: 'Vaša 15-minutna rezervacija termina je potekla. Ponovno izberite termin.',
+      slotHoldFailed: 'Ta termin ni več na voljo. Izberite drug termin.',
       waitlistCancel: 'Prekliči',
       waitlistSubmit: 'Pošlji zahtevo',
       waitlistSubmitting: 'Pošiljam…',
@@ -443,6 +447,9 @@
         groupSessions: [],
         selectedSlot: null,
         selectedGroupSession: null,
+        slotHoldToken: '',
+        slotHoldExpiresAt: '',
+        creatingSlotHold: false,
         manualTime: '',
         activeStep: 'service',
         form: { firstName: '', lastName: '', email: '', phone: '', companyName: '' },
@@ -488,6 +495,7 @@
       this.monthAvailabilityAbortController = null;
       this.monthAvailabilityRequestSequence = 0;
       this.monthAvailabilityCache = new Map();
+      this.slotHoldExpiryTimer = null;
       this.ensureTurnstileScript = this.ensureTurnstileScript.bind(this);
     }
 
@@ -546,6 +554,11 @@
         this.monthAvailabilityAbortController.abort();
         this.monthAvailabilityAbortController = null;
       }
+      if (this.slotHoldExpiryTimer) {
+        window.clearTimeout(this.slotHoldExpiryTimer);
+        this.slotHoldExpiryTimer = null;
+      }
+      void this.releaseSlotHold(false);
     }
 
     attributeChangedCallback() {
@@ -802,17 +815,113 @@
       return Math.max(0, steps.findIndex((step) => step.id === this.state.activeStep));
     }
 
-    goToNextStep() {
+    selectedBookingSlotId() {
+      if (this.state.selectedSlot?.slotId) return this.state.selectedSlot.slotId;
+      const group = this.state.selectedGroupSession;
+      return group?.id ? `group|${group.id}|${group.startTime}|${group.endTime}` : '';
+    }
+
+    scheduleSlotHoldExpiry(expiresAt) {
+      if (this.slotHoldExpiryTimer) window.clearTimeout(this.slotHoldExpiryTimer);
+      this.slotHoldExpiryTimer = null;
+      const expiresMs = Date.parse(expiresAt || '');
+      if (!Number.isFinite(expiresMs)) return;
+      const delay = Math.max(0, expiresMs - Date.now());
+      this.slotHoldExpiryTimer = window.setTimeout(() => {
+        this.slotHoldExpiryTimer = null;
+        const t = this.text();
+        this.state.slotHoldToken = '';
+        this.state.slotHoldExpiresAt = '';
+        this.availabilityCache.clear();
+        this.monthAvailabilityCache.clear();
+        this.setState({
+          activeStep: 'datetime',
+          selectedSlot: null,
+          selectedGroupSession: null,
+          slots: [],
+          groupSessions: [],
+          availableDates: null,
+          monthAvailabilityKey: '',
+          error: t.slotHoldExpired || 'Your 15-minute reservation expired. Please choose the time again.',
+        });
+        void this.loadAvailability();
+        void this.loadMonthAvailability();
+      }, Math.min(delay + 250, 2147483647));
+    }
+
+    async createSlotHold() {
+      const slotId = this.selectedBookingSlotId();
+      const serviceTypeIds = this.selectedServiceIdsForRequest();
+      if (!slotId || serviceTypeIds.length === 0) return false;
+      const tenant = encodeURIComponent(this.options.tenant);
+      this.setState({ creatingSlotHold: true, error: '' });
+      try {
+        const response = await this.fetchJson(`/api/public/widget/${tenant}/booking-holds`, {
+          method: 'POST',
+          body: {
+            slotId,
+            serviceTypeIds,
+            previousHoldToken: this.state.slotHoldToken || null,
+          },
+        });
+        this.state.slotHoldToken = response?.holdToken || '';
+        this.state.slotHoldExpiresAt = response?.expiresAt || '';
+        this.state.creatingSlotHold = false;
+        if (!this.state.slotHoldToken) throw new Error(this.text().slotHoldFailed || 'This time is no longer available.');
+        this.scheduleSlotHoldExpiry(this.state.slotHoldExpiresAt);
+        return true;
+      } catch (error) {
+        this.state.slotHoldToken = '';
+        this.state.slotHoldExpiresAt = '';
+        this.setState({
+          creatingSlotHold: false,
+          error: this.normalizeError(error, this.text().slotHoldFailed || 'This time is no longer available.'),
+          activeStep: 'datetime',
+          selectedSlot: null,
+          selectedGroupSession: null,
+        });
+        this.availabilityCache.clear();
+        this.monthAvailabilityCache.clear();
+        void this.loadAvailability();
+        void this.loadMonthAvailability();
+        return false;
+      }
+    }
+
+    clearSlotHoldLocally() {
+      if (this.slotHoldExpiryTimer) window.clearTimeout(this.slotHoldExpiryTimer);
+      this.slotHoldExpiryTimer = null;
+      this.state.slotHoldToken = '';
+      this.state.slotHoldExpiresAt = '';
+    }
+
+    async releaseSlotHold(updateState = true) {
+      const token = this.state.slotHoldToken;
+      this.clearSlotHoldLocally();
+      if (updateState) this.render();
+      if (!token || !this.options?.tenant) return;
+      try {
+        const tenant = encodeURIComponent(this.options.tenant);
+        await this.fetchJson(`/api/public/widget/${tenant}/booking-holds/${encodeURIComponent(token)}`, { method: 'DELETE' });
+      } catch (_) {
+        // The server also removes expired holds automatically.
+      }
+    }
+
+    async goToNextStep() {
       const steps = this.stepDefinitions();
       const index = this.activeStepIndex();
       const next = steps[index + 1];
-      if (!next) return;
+      if (!next || this.state.creatingSlotHold) return;
+
+      if (next.id === 'details') {
+        const held = await this.createSlotHold();
+        if (!held) return;
+      }
 
       this.setState({ activeStep: next.id, error: '' });
 
-      if (next.id === 'details') {
-        this.scheduleTurnstileMount();
-      }
+      if (next.id === 'details') this.scheduleTurnstileMount();
     }
 
     goToPreviousStep() {
@@ -823,6 +932,7 @@
 
       if (this.state.activeStep === 'details') {
         this.resetTurnstile();
+        void this.releaseSlotHold(false);
       }
 
       this.setState({ activeStep: previous.id, error: '' });
@@ -1747,6 +1857,7 @@
             slotId,
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',
+            holdToken: this.state.slotHoldToken || null,
           },
         });
 
@@ -1769,6 +1880,10 @@
             giftCardCodes: this.giftCardCodesForCheckout(),
           },
         });
+
+        // Checkout accepted the held slot. Instant methods already consumed the hold;
+        // external methods keep it server-side until payment succeeds or the 15 minutes expire.
+        this.clearSlotHoldLocally();
 
         // External payment methods redirect the guest to the provider approval/checkout URL.
         if ((effectivePaymentMethod === 'PAYPAL' || effectivePaymentMethod === 'CARD') && checkout?.checkoutUrl) {
@@ -1824,6 +1939,7 @@
 
     resetForAnotherBooking() {
       this.resetTurnstile();
+      void this.releaseSlotHold(false);
       this.submitInFlight = false;
 
       const selectedDate = this.todayInWidgetTimezone();
@@ -1839,6 +1955,8 @@
         calendarMonth: this.monthKeyForDate(selectedDate),
         selectedSlot: null,
         selectedGroupSession: null,
+        slotHoldToken: '',
+        slotHoldExpiresAt: '',
         slots: [],
         groupSessions: [],
         manualTime: '',
@@ -3824,6 +3942,7 @@
       this.shadowRoot.querySelectorAll('[data-action="consultant"]').forEach((button) => {
         button.addEventListener('click', async () => {
           this.resetTurnstile();
+          void this.releaseSlotHold(false);
 
           this.setState({
             selectedConsultantId: Number(button.dataset.id),
@@ -3843,6 +3962,7 @@
       this.shadowRoot.querySelectorAll('[data-action="calendar-date"]').forEach((button) => {
         button.addEventListener('click', async () => {
           this.resetTurnstile();
+          void this.releaseSlotHold(false);
 
           this.setState({
             selectedDate: button.dataset.date,
@@ -3878,6 +3998,7 @@
 
       this.shadowRoot.querySelectorAll('[data-action="slot"]').forEach((button) => {
         button.addEventListener('click', () => {
+          void this.releaseSlotHold(false);
           this.setState({
             selectedSlot: {
               slotId: button.dataset.slotId || '',
@@ -3895,6 +4016,7 @@
 
       this.shadowRoot.querySelectorAll('[data-action="group-session"]').forEach((button) => {
         button.addEventListener('click', () => {
+          void this.releaseSlotHold(false);
           this.setState({
             selectedGroupSession: {
               id: parseOptionalNumber(button.dataset.id),

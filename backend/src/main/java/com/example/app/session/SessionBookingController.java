@@ -650,7 +650,8 @@ public class SessionBookingController {
     }
 
     public record PersonalBlockSummary(Long id, Long ownerId, LocalDateTime startTime, LocalDateTime endTime, String task, String notes, boolean visibleToAdmins, boolean masked) {}
-    public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes) {}
+    public record TodoSummary(Long id, Long ownerId, LocalDateTime startTime, String task, String notes,
+                              boolean completed, Instant completedAt) {}
     public record WaitlistOfferHoldSummary(
             Long id,
             Long offerId,
@@ -711,7 +712,8 @@ public class SessionBookingController {
         var todos = (SecurityUtils.isAdmin(me)
                 ? calendarTodos.findByCompanyAndDateRange(companyId, rangeStart, rangeEnd)
                 : calendarTodos.findByOwnerAndDateRange(me.getId(), companyId, rangeStart, rangeEnd)).stream()
-                .map(t -> new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes()))
+                .map(t -> new TodoSummary(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes(),
+                        t.isCompleted(), t.getCompletedAt()))
                 .toList();
         var waitlistOffers = featureAccess.isWaitlistEnabled(companyId)
                 ? (SecurityUtils.isAdmin(me)

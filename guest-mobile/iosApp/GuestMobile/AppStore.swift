@@ -998,7 +998,35 @@ final class AppStore: ObservableObject {
         return try await api.consultants(companyId: companyId, sessionTypeIds: sessionTypeIds)
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil) async throws -> CheckoutResponseModel {
+    func createBookingSlotHold(companyId: String, slotId: String, serviceTypeIds: [String], previousHoldToken: String? = nil) async throws -> BookingSlotHoldResponseModel {
+        if usePreviewData {
+            return BookingSlotHoldResponseModel(
+                holdToken: "preview-hold-\(slotId)",
+                expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(15 * 60)),
+                slotId: slotId
+            )
+        }
+        let numericServiceIds = try serviceTypeIds.map { id -> Int64 in
+            guard let value = Int64(id) else {
+                throw NSError(domain: "AppStore", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid service identifier."])
+            }
+            return value
+        }
+        return try await api.createBookingSlotHold(
+            companyId: companyId,
+            slotId: slotId,
+            serviceTypeIds: numericServiceIds,
+            previousHoldToken: previousHoldToken
+        )
+    }
+
+    func releaseBookingSlotHold(companyId: String, holdToken: String) async {
+        guard !holdToken.isEmpty else { return }
+        if usePreviewData { return }
+        try? await api.releaseBookingSlotHold(companyId: companyId, holdToken: holdToken)
+    }
+
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil) async throws -> CheckoutResponseModel {
         let response: CheckoutResponseModel
         if usePreviewData {
             let completeImmediately = paymentMethod == "ENTITLEMENT" || paymentMethod == "PAY_AT_VENUE"
@@ -1015,7 +1043,7 @@ final class AppStore: ObservableObject {
                 merchantDisplayName: nil
             )
         } else {
-            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId, services: services)
+            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId, services: services, holdToken: holdToken)
         }
         try await refreshTenant(companyId: companyId)
         return response

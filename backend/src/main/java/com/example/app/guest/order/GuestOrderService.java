@@ -20,6 +20,7 @@ import com.example.app.widget.WebsiteWidgetSettingsService;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.BookingSource;
+import com.example.app.session.BookingSlotHoldService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingCreationService;
@@ -71,6 +72,9 @@ public class GuestOrderService {
     private final GuestEntitlementService entitlementService;
     private final GuestBankTransferBillingService bankTransferBillingService;
     private final GuestProductBillingService productBillingService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private BookingSlotHoldService bookingSlotHolds;
     private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
     private final GlobalPaymentProviderService globalPaymentProviders;
@@ -213,6 +217,9 @@ public class GuestOrderService {
         GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
         if (request.slotId() != null && !request.slotId().isBlank() && isSessionLikeProductType(product.productType())) {
             catalogService.assertSlotWithinReservationWindow(companyId, request.slotId(), rules);
+            if (bookingSlotHolds != null) {
+                bookingSlotHolds.requireValid(companyId, request.holdToken(), request.slotId());
+            }
         }
         for (OrderServiceLine line : serviceLines) {
             assertPaymentMethodAllowed(companyId, paymentMethodType, line.product().productType(), channel);
@@ -228,6 +235,7 @@ public class GuestOrderService {
                 normalizedBookingSource
         );
         if (reusableOrder != null) {
+            reusableOrder = refreshBookingHoldToken(reusableOrder, request.holdToken());
             GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null
                     ? null
                     : new GuestDtos.BookingSummaryResponse(String.valueOf(reusableOrder.getId()), bookingSummaryStatus(reusableOrder));
@@ -256,12 +264,27 @@ public class GuestOrderService {
                 channel,
                 normalizedBookingSource,
                 serviceLines,
-                request.consultantId()
+                request.consultantId(),
+                request.holdToken()
         ));
         order = orders.save(order);
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
         return new GuestDtos.CreateOrderResponse(toOrder(order), bookingSummary, "CHECKOUT");
+    }
+
+    private GuestOrder refreshBookingHoldToken(GuestOrder order, String holdToken) {
+        if (order == null || holdToken == null || holdToken.isBlank()) return order;
+        try {
+            Map<String, Object> metadata = order.getMetadataJson() == null || order.getMetadataJson().isBlank()
+                    ? new LinkedHashMap<>()
+                    : JSON.readValue(order.getMetadataJson(), new com.fasterxml.jackson.core.type.TypeReference<LinkedHashMap<String, Object>>() {});
+            metadata.put("bookingHoldToken", holdToken.trim());
+            order.setMetadataJson(JSON.writeValueAsString(metadata));
+            return orders.save(order);
+        } catch (Exception ignored) {
+            return order;
+        }
     }
 
     private GuestOrder findReusableOrderForSameSlot(
@@ -951,7 +974,8 @@ public class GuestOrderService {
             PaymentChannel channel,
             BookingSource bookingSource,
             List<OrderServiceLine> serviceLines,
-            String consultantId
+            String consultantId,
+            String holdToken
     ) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
@@ -978,6 +1002,7 @@ public class GuestOrderService {
             map.put("sourceChannel", sourceChannelForChannel(channel));
             map.put("bookingSource", bookingSource == null ? null : bookingSource.name());
             map.put("consultantId", normalizeId(consultantId));
+            map.put("bookingHoldToken", holdToken == null || holdToken.isBlank() ? null : holdToken.trim());
             List<Map<String, Object>> lines = new ArrayList<>();
             for (OrderServiceLine line : serviceLines == null ? List.<OrderServiceLine>of() : serviceLines) {
                 Map<String, Object> service = new LinkedHashMap<>();
@@ -1617,10 +1642,21 @@ public class GuestOrderService {
         return value == null ? fallback : value.intValue();
     }
 
+    private String extractBookingHoldToken(GuestOrder order) {
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return null;
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object raw = map.get("bookingHoldToken");
+            return raw == null || String.valueOf(raw).isBlank() ? null : String.valueOf(raw).trim();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {
         try {
             if (slotContext.groupSessionId() != null) {
-                return bookingCreationService.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
+                SessionBooking joined = bookingCreationService.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
                         order.getCompany().getId(),
                         slotContext.groupSessionId(),
                         order.getClient().getId(),
@@ -1629,11 +1665,16 @@ public class GuestOrderService {
                         String.valueOf(order.getGuestUser().getId()),
                         status,
                         "CONFIRMED".equalsIgnoreCase(status),
-                        bookingSourceForOrder(order)
+                        bookingSourceForOrder(order),
+                        extractBookingHoldToken(order)
                 ));
+                if (bookingSlotHolds != null) {
+                    bookingSlotHolds.consume(order.getCompany().getId(), extractBookingHoldToken(order));
+                }
+                return joined;
             }
             User consultant = resolveBookingConsultant(order, slotContext);
-            return bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
+            SessionBooking created = bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
                     order.getCompany().getId(),
                     order.getClient().getId(),
                     consultant != null ? consultant.getId() : null,
@@ -1652,8 +1693,13 @@ public class GuestOrderService {
                     status,
                     "CONFIRMED".equalsIgnoreCase(status),
                     bookingSourceForOrder(order),
-                    extractBookingServices(order)
+                    extractBookingServices(order),
+                    extractBookingHoldToken(order)
             ));
+            if (bookingSlotHolds != null) {
+                bookingSlotHolds.consume(order.getCompany().getId(), extractBookingHoldToken(order));
+            }
+            return created;
         } catch (ResponseStatusException ex) {
             if (HttpStatus.CONFLICT.equals(ex.getStatusCode())) {
                 SessionBooking existing = findBookingForOrder(order);

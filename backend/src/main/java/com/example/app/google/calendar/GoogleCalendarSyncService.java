@@ -339,8 +339,13 @@ public class GoogleCalendarSyncService {
         GoogleCalendarEventLink link = links.findByConnection_IdAndCalendarIdAndGoogleEventId(c.getId(), taskListId, taskId).orElse(null);
         LocalDateTime due = startFromGoogleTask(task);
         if (due == null || isBeforeGooglePullWindow(due)) return;
-        if (isGoogleTaskDeletedOrCompleted(task)) {
+        if (task.path("deleted").asBoolean(false)) {
             if (link != null) handleGoogleDeletedTask(link);
+            return;
+        }
+        boolean completed = "completed".equalsIgnoreCase(task.path("status").asText(null));
+        if (completed && link != null) {
+            markGoogleTaskCompleted(link, task);
             return;
         }
         if (link != null) {
@@ -356,6 +361,8 @@ public class GoogleCalendarSyncService {
         todo.setStartTime(due);
         todo.setTask(limit(task.path("title").asText("Google Task"), 200));
         todo.setNotes(limit(task.path("notes").asText(null), 1000));
+        todo.setCompleted(completed);
+        todo.setCompletedAt(completed ? java.time.Instant.now() : null);
         todo = todos.save(todo);
 
         GoogleCalendarEventLink imported = new GoogleCalendarEventLink();
@@ -378,9 +385,28 @@ public class GoogleCalendarSyncService {
             String title = task.path("title").asText(null);
             if (title != null && !title.isBlank()) todo.setTask(limit(title, 200));
             todo.setNotes(limit(task.path("notes").asText(null), 1000));
+            todo.setCompleted(false);
+            todo.setCompletedAt(null);
             todos.save(todo);
             clearConflict(link);
         }, () -> markConflict(link, "CONFLICT_ENTITY_MISSING", "Mapped ToDo no longer exists."));
+    }
+
+    private void markGoogleTaskCompleted(GoogleCalendarEventLink link, JsonNode task) {
+        if (link.getAppEntityType() != GoogleCalendarEntityType.TODO) return;
+        todos.findById(link.getAppEntityId()).ifPresent(todo -> {
+            LocalDateTime due = startFromGoogleTask(task, todo);
+            if (due != null) todo.setStartTime(due);
+            String title = task.path("title").asText(null);
+            if (title != null && !title.isBlank()) todo.setTask(limit(title, 200));
+            todo.setNotes(limit(task.path("notes").asText(null), 1000));
+            todo.setCompleted(true);
+            todo.setCompletedAt(java.time.Instant.now());
+            todos.save(todo);
+            clearConflict(link);
+        });
+        applyGoogleTaskFields(link, task, link.getCalendarId(), link.getLastSyncedHash());
+        links.save(link);
     }
 
     private void handleGoogleDeletedTask(GoogleCalendarEventLink link) {

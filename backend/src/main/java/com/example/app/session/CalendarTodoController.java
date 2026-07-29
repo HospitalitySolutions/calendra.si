@@ -5,6 +5,7 @@ import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
@@ -33,9 +34,11 @@ public class CalendarTodoController {
         this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
     }
 
-    public record TodoRequest(String startTime, String task, String notes, String visibilityScope, List<Long> visibleUserIds) {}
+    public record TodoRequest(String startTime, String task, String notes, String visibilityScope,
+                              List<Long> visibleUserIds, Boolean completed) {}
     public record TodoResponse(Long id, Long ownerId, LocalDateTime startTime, String task, String notes,
-                               String visibilityScope, List<Long> visibleUserIds) {}
+                               String visibilityScope, List<Long> visibleUserIds,
+                               boolean completed, Instant completedAt) {}
 
     @PostMapping
     @Transactional
@@ -51,6 +54,7 @@ public class CalendarTodoController {
         todo.setStartTime(start);
         todo.setTask(req.task().trim());
         todo.setNotes(req.notes() != null ? req.notes().trim() : null);
+        applyCompletion(todo, req.completed());
         applyVisibility(todo, req, me, companyId, SecurityUtils.isAdmin(me), true);
         todo = repo.save(todo);
         googleCalendarSyncQueueService.enqueueUpsert(todo.getCompany(), todo.getOwner().getId(), GoogleCalendarEntityType.TODO, todo.getId());
@@ -72,7 +76,20 @@ public class CalendarTodoController {
         todo.setStartTime(start);
         todo.setTask(req.task().trim());
         todo.setNotes(req.notes() != null ? req.notes().trim() : null);
+        applyCompletion(todo, req.completed());
         applyVisibility(todo, req, me, companyId, SecurityUtils.isAdmin(me), false);
+        todo = repo.save(todo);
+        googleCalendarSyncQueueService.enqueueUpsert(todo.getCompany(), todo.getOwner().getId(), GoogleCalendarEntityType.TODO, todo.getId());
+        return toResponse(todo);
+    }
+
+    @PatchMapping("/{id}/completion")
+    @Transactional
+    public TodoResponse setCompletion(@PathVariable Long id, @RequestBody Map<String, Boolean> payload,
+                                      @AuthenticationPrincipal User me) {
+        var todo = repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!canAccess(todo, me)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        applyCompletion(todo, payload == null ? Boolean.TRUE : payload.getOrDefault("completed", Boolean.TRUE));
         todo = repo.save(todo);
         googleCalendarSyncQueueService.enqueueUpsert(todo.getCompany(), todo.getOwner().getId(), GoogleCalendarEntityType.TODO, todo.getId());
         return toResponse(todo);
@@ -111,6 +128,13 @@ public class CalendarTodoController {
         return rows.stream()
                 .map(CalendarTodoController::toResponse)
                 .toList();
+    }
+
+    private static void applyCompletion(CalendarTodo todo, Boolean completed) {
+        if (completed == null) return;
+        boolean next = Boolean.TRUE.equals(completed);
+        todo.setCompleted(next);
+        todo.setCompletedAt(next ? (todo.getCompletedAt() == null ? Instant.now() : todo.getCompletedAt()) : null);
     }
 
     private void applyVisibility(CalendarTodo todo, TodoRequest req, User me, Long companyId, boolean allowCustom, boolean isCreate) {
@@ -180,7 +204,8 @@ public class CalendarTodoController {
         if (scope == TodoVisibilityScope.SELECTED && visibleUserIds.isEmpty() && t.getOwner() != null) {
             visibleUserIds = List.of(t.getOwner().getId());
         }
-        return new TodoResponse(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes(), scope.name(), visibleUserIds);
+        return new TodoResponse(t.getId(), t.getOwner().getId(), t.getStartTime(), t.getTask(), t.getNotes(),
+                scope.name(), visibleUserIds, t.isCompleted(), t.getCompletedAt());
     }
 
     private static LocalDateTime parseToLocalDateTime(String value) {

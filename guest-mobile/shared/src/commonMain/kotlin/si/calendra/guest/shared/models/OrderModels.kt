@@ -23,7 +23,24 @@ data class CreateOrderRequest(
     /** UI language/locale selected in the app when the order is created. */
     val locale: String? = null,
     /** Ordered service lines; omitted for tenants using the legacy single-service flow. */
-    val services: List<SelectedServiceRequest>? = null
+    val services: List<SelectedServiceRequest>? = null,
+    /** Temporary 15-minute hold created when the guest enters payment and review. */
+    val holdToken: String? = null
+)
+
+@Serializable
+data class BookingSlotHoldRequest(
+    val companyId: String,
+    val slotId: String,
+    val serviceTypeIds: List<Long>,
+    val previousHoldToken: String? = null
+)
+
+@Serializable
+data class BookingSlotHoldResponse(
+    val holdToken: String,
+    val expiresAt: String,
+    val slotId: String
 )
 
 @Serializable

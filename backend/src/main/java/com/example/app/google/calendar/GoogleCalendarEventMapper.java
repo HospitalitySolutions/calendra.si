@@ -84,7 +84,12 @@ public class GoogleCalendarEventMapper {
             task.putNull("notes");
         }
         putTaskDue(task, todo.getStartTime());
-        task.put("status", "needsAction");
+        task.put("status", todo.isCompleted() ? "completed" : "needsAction");
+        if (todo.isCompleted()) {
+            task.put("completed", (todo.getCompletedAt() == null ? java.time.Instant.now() : todo.getCompletedAt()).toString());
+        } else {
+            task.putNull("completed");
+        }
         return task;
     }
 

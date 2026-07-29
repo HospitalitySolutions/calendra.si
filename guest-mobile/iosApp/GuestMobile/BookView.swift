@@ -54,6 +54,8 @@ struct BookView: View {
     @State private var slots: [AvailabilitySlotModel] = []
     @State private var dateAvailability: [String: Bool] = [:]
     @State private var selectedSlotId: String?
+    @State private var slotHoldToken: String?
+    @State private var slotHoldExpiresAt: Date?
     @State private var selectedPaymentMethod: GuestBookingPaymentChoice = .card
     @State private var selectedEntitlementId: String?
     @State private var isLoadingSlots = false
@@ -278,7 +280,7 @@ struct BookView: View {
         case .employee:
             return selectedConsultant == nil
         case .dateTime:
-            return selectedSlot == nil
+            return selectedSlot == nil || isSubmitting
         case .paymentReview:
             if isSubmitting { return true }
             if skipsOnlinePaymentMethods && !usesEntitlementPayment { return false }
@@ -365,6 +367,14 @@ struct BookView: View {
             applyRescheduleContextIfNeeded()
             applyLaunchRequestIfNeeded()
             ensurePaymentMethodAllowed()
+        }
+        .onChange(of: currentStep) { newStep in
+            if newStep != .paymentReview {
+                releaseCurrentSlotHold()
+            }
+        }
+        .onDisappear {
+            releaseCurrentSlotHold()
         }
         .onChange(of: store.user.id) { _ in
             storedProfile = LocalProfileStore.shared.load(from: store.user)
@@ -1328,6 +1338,11 @@ struct BookView: View {
             Task { await confirmBooking(services: selectedServices, slot: selectedSlot) }
             return
         }
+        if currentStep == .dateTime {
+            guard !selectedServices.isEmpty, let selectedSlot else { return }
+            Task { await reserveSlotAndContinue(services: selectedServices, slot: selectedSlot) }
+            return
+        }
         let nextIdx = idx + 1
         if nextIdx < steps.count {
             currentStep = steps[nextIdx]
@@ -1476,6 +1491,67 @@ struct BookView: View {
         isLoadingConsultants = false
     }
 
+    private func reserveSlotAndContinue(services: [ServiceOptionModel], slot: AvailabilitySlotModel) async {
+        guard let primary = services.first else { return }
+        do {
+            isSubmitting = true
+            notice = nil
+            let hold = try await store.createBookingSlotHold(
+                companyId: primary.companyId,
+                slotId: slot.id,
+                serviceTypeIds: services.map(\.sessionTypeId),
+                previousHoldToken: slotHoldToken
+            )
+            slotHoldToken = hold.holdToken
+            slotHoldExpiresAt = Self.parseIsoDate(hold.expiresAt)
+            currentStep = .paymentReview
+            isSubmitting = false
+            scheduleSlotHoldExpiry(token: hold.holdToken, expiresAt: slotHoldExpiresAt)
+        } catch {
+            isSubmitting = false
+            selectedSlotId = nil
+            notice = error.localizedDescription.isEmpty
+                ? tr("This time could not be reserved. Please choose another available time.", "Tega termina ni bilo mogoče začasno rezervirati. Izberite drug razpoložljiv termin.")
+                : error.localizedDescription
+            await loadAvailability(for: services)
+        }
+    }
+
+    private func scheduleSlotHoldExpiry(token: String, expiresAt: Date?) {
+        guard let expiresAt else { return }
+        let delaySeconds = max(0, expiresAt.timeIntervalSinceNow)
+        Task {
+            try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+            guard slotHoldToken == token else { return }
+            slotHoldToken = nil
+            slotHoldExpiresAt = nil
+            if currentStep == .paymentReview {
+                selectedSlotId = nil
+                currentStep = .dateTime
+                notice = tr(
+                    "Your 15-minute reservation hold expired. Please choose an available time again.",
+                    "15-minutna rezervacija termina je potekla. Prosimo, ponovno izberite razpoložljiv termin."
+                )
+                await loadAvailability(for: selectedServices)
+            }
+        }
+    }
+
+    private func releaseCurrentSlotHold() {
+        guard let token = slotHoldToken,
+              let companyId = selectedServices.first?.companyId else { return }
+        slotHoldToken = nil
+        slotHoldExpiresAt = nil
+        Task { await store.releaseBookingSlotHold(companyId: companyId, holdToken: token) }
+    }
+
+    private static func parseIsoDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: value) { return date }
+        return ISO8601DateFormatter().date(from: value)
+    }
+
     private func confirmReschedule(slot: AvailabilitySlotModel) async {
         guard let context = rescheduleContext else { return }
         do {
@@ -1507,8 +1583,12 @@ struct BookView: View {
                         ? matchingEntitlements.first(where: { $0.sessionTypeId == nil || $0.sessionTypeId == service.sessionTypeId })?.entitlementId
                         : nil
                     return SelectedServicePayload(productId: service.productId, sessionTypeId: service.sessionTypeId, position: index, entitlementId: entitlement, spaceId: nil)
-                }
+                },
+                holdToken: slotHoldToken
             )
+            // The backend consumed the hold together with the successful order.
+            slotHoldToken = nil
+            slotHoldExpiresAt = nil
             isSubmitting = false
 
             if let checkoutUrl = checkout.checkoutUrl, let url = URL(string: checkoutUrl) {

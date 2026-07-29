@@ -43,7 +43,7 @@ public interface CalendarTodoRepository extends JpaRepository<CalendarTodo, Long
             @Param("allScope") TodoVisibilityScope allScope);
 
     @Query("SELECT t FROM CalendarTodo t WHERE t.owner.id = :ownerId AND t.company.id = :companyId " +
-            "AND t.startTime < :now ORDER BY t.startTime")
+            "AND t.completed = false AND t.startTime < :now ORDER BY t.startTime")
     List<CalendarTodo> findOverdueByOwner(
             @Param("ownerId") Long ownerId,
             @Param("companyId") Long companyId,
@@ -53,6 +53,7 @@ public interface CalendarTodoRepository extends JpaRepository<CalendarTodo, Long
             SELECT DISTINCT t FROM CalendarTodo t
             LEFT JOIN t.visibleUsers vu
             WHERE t.company.id = :companyId
+              AND t.completed = false
               AND t.startTime < :now
               AND (
                     t.owner.id = :userId

@@ -14,6 +14,7 @@ import com.example.app.session.AvailabilityBlockMetadata;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookingSource;
+import com.example.app.session.BookingSlotHoldRepository;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.PersonalCalendarBlockRepository;
 import com.example.app.session.SessionBooking;
@@ -101,6 +102,7 @@ public class PublicBookingWidgetService {
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final WaitlistService waitlistService;
     private final WaitlistBookingHoldRepository waitlistHolds;
+    private final BookingSlotHoldRepository bookingSlotHolds;
     private final WaitlistSettingsService waitlistSettingsService;
     private final TenantFeatureAccessService featureAccess;
     private final PaymentMethodRepository paymentMethods;
@@ -126,6 +128,7 @@ public class PublicBookingWidgetService {
             WebsiteWidgetSettingsService websiteWidgetSettingsService,
             WaitlistService waitlistService,
             WaitlistBookingHoldRepository waitlistHolds,
+            BookingSlotHoldRepository bookingSlotHolds,
             WaitlistSettingsService waitlistSettingsService,
             TenantFeatureAccessService featureAccess,
             PaymentMethodRepository paymentMethods,
@@ -151,6 +154,7 @@ public class PublicBookingWidgetService {
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
         this.waitlistService = waitlistService;
         this.waitlistHolds = waitlistHolds;
+        this.bookingSlotHolds = bookingSlotHolds;
         this.waitlistSettingsService = waitlistSettingsService;
         this.featureAccess = featureAccess;
         this.paymentMethods = paymentMethods;
@@ -759,7 +763,8 @@ public class PublicBookingWidgetService {
                                         "CONFIRMED",
                                         true,
                                         bookingSource,
-                                        bookingServices
+                                        bookingServices,
+                                        null
                                 )
                         );
                         String consultantName = booking.getConsultant() == null
@@ -1032,7 +1037,7 @@ public class PublicBookingWidgetService {
                 consultantName
         );
     }
-    private void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
+    void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
         try {
             if (!websiteWidgetSettingsService.widgetEnabled(company.getId())) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Website widget is disabled.");
@@ -1450,6 +1455,14 @@ public class PublicBookingWidgetService {
         }
 
         if (overlapsAny(
+                availabilitySnapshot.bookingHoldsByConsultant().getOrDefault(consultantId, List.of()),
+                start,
+                requestedBusyEnd
+        )) {
+            return false;
+        }
+
+        if (overlapsAny(
                 availabilitySnapshot.personalBusyByOwner().getOrDefault(consultantId, List.of()),
                 start,
                 requestedBusyEnd
@@ -1539,6 +1552,30 @@ public class PublicBookingWidgetService {
         bookingsByConsultant.replaceAll((ownerId, intervals) -> mergeBusyIntervals(intervals));
         physicalBookings = new ArrayList<>(mergeBusyIntervals(physicalBookings));
 
+        Map<Long, List<WidgetBusyInterval>> bookingHoldsByConsultant = new HashMap<>();
+        if (bookingSlotHolds != null) {
+            Instant now = Instant.now();
+            for (BookingSlotHoldRepository.WidgetAvailabilityHold row :
+                    bookingSlotHolds.findWidgetAvailabilityHolds(
+                            companyId, consultantId, rangeStart, rangeEnd, now)) {
+                if (row == null || row.getConsultantId() == null || row.getSlotStart() == null
+                        || row.getBusyEnd() == null
+                        || !supportedConsultantIds.contains(row.getConsultantId())) {
+                    continue;
+                }
+                bookingHoldsByConsultant
+                        .computeIfAbsent(row.getConsultantId(), ignored -> new ArrayList<>())
+                        .add(new WidgetBusyInterval(
+                                row.getConsultantId(),
+                                null,
+                                row.getSlotStart(),
+                                row.getBusyEnd(),
+                                false
+                        ));
+            }
+        }
+        bookingHoldsByConsultant.replaceAll((ownerId, intervals) -> mergeBusyIntervals(intervals));
+
         Map<Long, List<WidgetBusyInterval>> personalBusyByOwner = new HashMap<>();
         for (PersonalCalendarBlockRepository.WidgetAvailabilityPersonalBlock row :
                 personalBlocks.findWidgetOverlappingRegularBlocks(companyId, consultantId, rangeStart, rangeEnd)) {
@@ -1606,6 +1643,7 @@ public class PublicBookingWidgetService {
                 supportedConsultants,
                 bookableWindows,
                 bookingsByConsultant,
+                bookingHoldsByConsultant,
                 List.copyOf(physicalBookings),
                 personalBusyByOwner,
                 waitlistHoldsByEmployee,
@@ -1615,7 +1653,7 @@ public class PublicBookingWidgetService {
         long elapsedMillis = (System.nanoTime() - snapshotStartedNanos) / 1_000_000L;
         if (elapsedMillis >= 750L) {
             LOG.warn(
-                    "Slow widget availability snapshot: companyId={}, consultantId={}, from={}, to={}, consultants={}, windows={}, bookings={}, personalBlocks={}, holds={}, elapsedMs={}",
+                    "Slow widget availability snapshot: companyId={}, consultantId={}, from={}, to={}, consultants={}, windows={}, bookings={}, bookingHolds={}, personalBlocks={}, waitlistHolds={}, elapsedMs={}",
                     companyId,
                     consultantId,
                     rangeStart,
@@ -1623,6 +1661,7 @@ public class PublicBookingWidgetService {
                     supportedConsultants.size(),
                     bookableWindows.size(),
                     bookingsByConsultant.values().stream().mapToInt(List::size).sum(),
+                    bookingHoldsByConsultant.values().stream().mapToInt(List::size).sum(),
                     personalBusyByOwner.values().stream().mapToInt(List::size).sum(),
                     waitlistHoldsByEmployee.values().stream().mapToInt(List::size).sum(),
                     elapsedMillis
@@ -1691,6 +1730,7 @@ public class PublicBookingWidgetService {
             List<User> supportedConsultants,
             List<BookableSlot> bookableWindows,
             Map<Long, List<WidgetBusyInterval>> bookingsByConsultant,
+            Map<Long, List<WidgetBusyInterval>> bookingHoldsByConsultant,
             List<WidgetBusyInterval> physicalBookings,
             Map<Long, List<WidgetBusyInterval>> personalBusyByOwner,
             Map<Long, List<WidgetWaitlistHold>> waitlistHoldsByEmployee,
@@ -1701,6 +1741,7 @@ public class PublicBookingWidgetService {
             return new WidgetAvailabilitySnapshot(
                     List.of(),
                     List.of(),
+                    Map.of(),
                     Map.of(),
                     List.of(),
                     Map.of(),

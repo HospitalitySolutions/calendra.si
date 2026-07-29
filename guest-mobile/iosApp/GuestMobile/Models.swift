@@ -1040,6 +1040,19 @@ struct SelectedServicePayload: Codable {
     let spaceId: String?
 }
 
+struct BookingSlotHoldPayload: Codable {
+    let companyId: String
+    let slotId: String
+    let serviceTypeIds: [Int64]
+    let previousHoldToken: String?
+}
+
+struct BookingSlotHoldResponseModel: Codable {
+    let holdToken: String
+    let expiresAt: String
+    let slotId: String
+}
+
 struct CreateOrderPayload: Codable {
     let companyId: String
     let productId: String
@@ -1048,8 +1061,9 @@ struct CreateOrderPayload: Codable {
     let consultantId: String?
     let entitlementId: String?
     let services: [SelectedServicePayload]?
+    let holdToken: String?
 
-    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil) {
+    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil) {
         self.companyId = companyId
         self.productId = productId
         self.slotId = slotId
@@ -1057,6 +1071,7 @@ struct CreateOrderPayload: Codable {
         self.consultantId = consultantId
         self.entitlementId = entitlementId
         self.services = services
+        self.holdToken = holdToken
     }
 }
 

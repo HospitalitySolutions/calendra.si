@@ -3,6 +3,7 @@ package si.calendra.guest.shared.network
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -58,7 +59,8 @@ class RemoteGuestApi(
         request.paymentMethodType,
         request.consultantId.orEmpty(),
         request.entitlementId.orEmpty(),
-        request.locale.orEmpty()
+        request.locale.orEmpty(),
+        request.holdToken.orEmpty()
     ).joinToString("|")
 
     private fun checkoutScope(orderId: String, request: CheckoutRequest): String = listOf(
@@ -283,6 +285,22 @@ class RemoteGuestApi(
             parameter("companyId", companyId)
             sessionTypeIds.forEach { parameter("sessionTypeIds", it) }
         })
+
+    suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse =
+        parse(client.post("${config.baseUrl}/api/guest/booking-holds") {
+            jsonRequest()
+            setBody(request)
+        })
+
+    suspend fun releaseBookingSlotHold(companyId: String, holdToken: String) {
+        val response = client.delete("${config.baseUrl}/api/guest/booking-holds/$companyId/$holdToken") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+        }
+        if (!response.status.isSuccess()) {
+            val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
+        }
+    }
 
     suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse {
         val scope = createOrderScope(request)

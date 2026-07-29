@@ -94,11 +94,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.R
 import si.calendra.guest.shared.models.AvailabilitySlot
+import si.calendra.guest.shared.models.BookingSlotHoldResponse
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -290,7 +293,9 @@ fun BookScreen(
     onLoadAvailability: suspend (List<ServiceOption>, LocalDate, String?) -> List<AvailabilitySlot>,
     onLoadConsultants: suspend (List<ServiceOption>) -> List<ConsultantOption> = { _ -> emptyList() },
     employeeSelectionStepEnabled: (String) -> Boolean = { false },
-    onCheckout: suspend (List<ServiceOption>, String, String, String?, Map<String, String?>) -> Unit,
+    onCreateSlotHold: suspend (List<ServiceOption>, String, String?) -> BookingSlotHoldResponse? = { _, _, _ -> null },
+    onReleaseSlotHold: suspend (String, String) -> Unit = { _, _ -> },
+    onCheckout: suspend (List<ServiceOption>, String, String, String?, Map<String, String?>, String?) -> Unit,
     rescheduleContext: BookingRescheduleContext? = null,
     launchRequest: BookLaunchRequest? = null,
     onLaunchRequestConsumed: () -> Unit = {},
@@ -310,6 +315,8 @@ fun BookScreen(
     var slots by remember { mutableStateOf<List<AvailabilitySlot>>(emptyList()) }
     var dateAvailability by remember { mutableStateOf<Map<LocalDate, Boolean>>(emptyMap()) }
     var selectedSlotId by remember { mutableStateOf<String?>(null) }
+    var slotHoldToken by remember { mutableStateOf<String?>(null) }
+    var slotHoldExpiresAt by remember { mutableStateOf<String?>(null) }
     var selectedPaymentMethod by remember { mutableStateOf(PaymentMethodUi.CARD) }
     var loadingSlots by remember { mutableStateOf(false) }
     var availabilityLoadError by remember { mutableStateOf<String?>(null) }
@@ -450,6 +457,40 @@ fun BookScreen(
     }
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
     val selectedConsultant = consultants.firstOrNull { it.id == selectedConsultantId }
+
+    LaunchedEffect(currentStep, slotHoldToken) {
+        val token = slotHoldToken ?: return@LaunchedEffect
+        if (currentStep != BookingFlowStep.PAYMENT_REVIEW) {
+            val companyId = selectedServices.firstOrNull()?.companyId
+            if (!companyId.isNullOrBlank()) {
+                runCatching { onReleaseSlotHold(companyId, token) }
+            }
+            if (slotHoldToken == token) {
+                slotHoldToken = null
+                slotHoldExpiresAt = null
+            }
+        }
+    }
+
+    LaunchedEffect(slotHoldToken, slotHoldExpiresAt) {
+        val token = slotHoldToken ?: return@LaunchedEffect
+        val expiry = slotHoldExpiresAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return@LaunchedEffect
+        val waitMillis = (expiry.toEpochMilli() - System.currentTimeMillis()).coerceAtLeast(0L)
+        delay(waitMillis)
+        if (slotHoldToken == token) {
+            slotHoldToken = null
+            slotHoldExpiresAt = null
+            if (currentStep == BookingFlowStep.PAYMENT_REVIEW) {
+                selectedSlotId = null
+                currentStep = BookingFlowStep.DATE_TIME
+                availabilityLoadError = bookTr(
+                    languageCode,
+                    "Your 15-minute reservation hold expired. Please choose an available time again.",
+                    "15-minutna rezervacija termina je potekla. Prosimo, ponovno izberite razpoložljiv termin."
+                )
+            }
+        }
+    }
     val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
         selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
                 && !entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
@@ -995,8 +1036,31 @@ fun BookScreen(
                 } else {
                     ContinueButton(
                         label = bookTr(languageCode, "Continue", "Nadaljuj"),
-                        enabled = selectedSlot != null,
-                        onClick = advanceStep
+                        enabled = selectedSlot != null && !submitting,
+                        loading = submitting,
+                        onClick = {
+                            val slot = selectedSlot ?: return@ContinueButton
+                            scope.launch {
+                                submitting = true
+                                availabilityLoadError = null
+                                runCatching {
+                                    onCreateSlotHold(selectedServices, slot.slotId, slotHoldToken)
+                                }.onSuccess { hold ->
+                                    slotHoldToken = hold?.holdToken
+                                    slotHoldExpiresAt = hold?.expiresAt
+                                    advanceStep()
+                                }.onFailure { ex ->
+                                    availabilityLoadError = ex.message?.takeIf { it.isNotBlank() }
+                                        ?: bookTr(
+                                            languageCode,
+                                            "This time could not be reserved. Please choose another available time.",
+                                            "Tega termina ni bilo mogoče začasno rezervirati. Izberite drug razpoložljiv termin."
+                                        )
+                                    selectedSlotId = null
+                                }
+                                submitting = false
+                            }
+                        }
                     )
                 }
                 BookingFlowStep.PAYMENT_REVIEW -> {
@@ -1051,7 +1115,23 @@ fun BookScreen(
                                     } else null
                                     selected.id to matching
                                 }
-                                runCatching { onCheckout(selectedServices, slot.slotId, method, consultantIdForOrder, entitlementByService) }
+                                runCatching {
+                                    onCheckout(
+                                        selectedServices,
+                                        slot.slotId,
+                                        method,
+                                        consultantIdForOrder,
+                                        entitlementByService,
+                                        slotHoldToken
+                                    )
+                                }.onSuccess {
+                                    // The backend consumes the hold together with the successful order.
+                                    slotHoldToken = null
+                                    slotHoldExpiresAt = null
+                                }.onFailure { ex ->
+                                    availabilityLoadError = ex.message?.takeIf { it.isNotBlank() }
+                                        ?: bookTr(languageCode, "Booking failed. Please try again.", "Rezervacija ni uspela. Poskusite znova.")
+                                }
                                 submitting = false
                             }
                         }

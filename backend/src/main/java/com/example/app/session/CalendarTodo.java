@@ -4,6 +4,7 @@ import com.example.app.company.Company;
 import com.example.app.common.BaseEntity;
 import com.example.app.user.User;
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -34,6 +35,11 @@ public class CalendarTodo extends BaseEntity {
 
     @Column(length = 1000)
     private String notes;
+
+    @Column(nullable = false)
+    private boolean completed = false;
+
+    private Instant completedAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility_scope", nullable = false, length = 20)

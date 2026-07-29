@@ -4220,3 +4220,28 @@
         margin-top: 1px;
     }
 }
+
+
+/* Completed ToDos stay visible in the calendar, but recede into the background. */
+.calendar-fc-shell .fc-event.calendar-event-todo-visual.calendar-event-todo-completed,
+.fc .calendar-event-todo-visual.calendar-event-todo-completed {
+    opacity: 0.56 !important;
+    filter: saturate(0.42);
+    --calendar-session-bg: #f1f5f9;
+    --calendar-session-bg-strong: #e2e8f0;
+    --calendar-session-border: #cbd5e1;
+    --calendar-session-accent: #64748b;
+    --calendar-session-muted: #64748b;
+}
+
+.calendar-fc-shell .fc-event.calendar-event-todo-visual.calendar-event-todo-completed .calendar-event-todo-title,
+.fc .calendar-event-todo-visual.calendar-event-todo-completed .calendar-event-todo-title {
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+}
+
+.calendar-fc-shell .fc-event.calendar-event-todo-visual.calendar-event-todo-completed .calendar-event-todo-check rect,
+.fc .calendar-event-todo-visual.calendar-event-todo-completed .calendar-event-todo-check rect {
+    fill: currentColor;
+    opacity: 0.16;
+}

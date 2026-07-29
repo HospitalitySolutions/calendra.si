@@ -261,6 +261,22 @@ final class GuestApiClient {
         return try await get(path: "api/guest/consultants", query: query)
     }
 
+    func createBookingSlotHold(companyId: String, slotId: String, serviceTypeIds: [Int64], previousHoldToken: String? = nil) async throws -> BookingSlotHoldResponseModel {
+        try await post(
+            path: "api/guest/booking-holds",
+            body: BookingSlotHoldPayload(
+                companyId: companyId,
+                slotId: slotId,
+                serviceTypeIds: serviceTypeIds,
+                previousHoldToken: previousHoldToken
+            )
+        )
+    }
+
+    func releaseBookingSlotHold(companyId: String, holdToken: String) async throws {
+        try await deleteEmpty(path: "api/guest/booking-holds/\(companyId)/\(holdToken)")
+    }
+
     func wallet(companyId: String) async throws -> WalletPayloadModel {
         try await get(path: "api/guest/wallet", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
@@ -468,11 +484,11 @@ final class GuestApiClient {
         )
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil) async throws -> CheckoutResponseModel {
         let flowKey = newIdempotencyKey(prefix: "ios-guest-order")
         let order: CreateOrderEnvelope = try await post(
             path: "api/guest/orders",
-            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId, services: services),
+            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId, services: services, holdToken: holdToken),
             idempotencyKey: "\(flowKey):create"
         )
         return try await post(
@@ -530,6 +546,14 @@ final class GuestApiClient {
         let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return data
+    }
+
+    private func deleteEmpty(path: String) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        request.httpMethod = "DELETE"
+        applyHeaders(to: &request)
+        let (data, response) = try await performDataRequest(request)
+        try validate(response: response, data: data)
     }
 
     private func put<T: Decodable, Body: Encodable>(path: String, body: Body) async throws -> T {

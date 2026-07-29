@@ -236,7 +236,9 @@ public final class GuestDtos {
             /** Ordered service lines. Null/empty preserves the legacy single-service request. */
             List<SelectedServiceRequest> services,
             /** Explicit employee selected by the guest. The slot token remains authoritative. */
-            String consultantId
+            String consultantId,
+            /** 15-minute slot hold created when the guest enters payment/review. */
+            String holdToken
     ) {
         /**
          * Accepts both the canonical ordered service objects and the legacy widget's
@@ -254,7 +256,8 @@ public final class GuestDtos {
                 @JsonProperty("language") String language,
                 @JsonProperty("services") List<SelectedServiceRequest> services,
                 @JsonProperty("serviceIds") List<String> serviceIds,
-                @JsonProperty("consultantId") String consultantId
+                @JsonProperty("consultantId") String consultantId,
+                @JsonProperty("holdToken") String holdToken
         ) {
             List<SelectedServiceRequest> selected = services == null || services.isEmpty()
                     ? toSelectedServices(serviceIds)
@@ -268,7 +271,8 @@ public final class GuestDtos {
                     locale,
                     language,
                     selected,
-                    consultantId
+                    consultantId,
+                    holdToken
             );
         }
 
@@ -281,7 +285,7 @@ public final class GuestDtos {
                 String locale,
                 String language
         ) {
-            this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language, null, null);
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language, null, null, null);
         }
 
         /**
@@ -308,12 +312,13 @@ public final class GuestDtos {
                     locale,
                     language,
                     toSelectedServices(serviceIds),
+                    null,
                     null
             );
         }
 
         public CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {
-            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null, null);
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null, null, null, null);
         }
 
         /** Legacy accessor retained for integrations that still read serviceIds. */

@@ -29,6 +29,8 @@ interface GuestRepository {
     suspend fun products(companyId: String): List<ProductSummary>
     suspend fun availability(companyId: String, sessionTypeIds: List<String>, date: String, consultantId: String? = null): AvailabilityResponse
     suspend fun consultants(companyId: String, sessionTypeIds: List<String>): List<ConsultantSummary>
+    suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse
+    suspend fun releaseBookingSlotHold(companyId: String, holdToken: String)
     suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse
     suspend fun rescheduleBooking(companyId: String, bookingId: String, newSlotId: String): BookingActionResult
     suspend fun cancelBooking(companyId: String, bookingId: String): BookingActionResult

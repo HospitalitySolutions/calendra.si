@@ -1195,7 +1195,21 @@ fun GuestMobileRoot() {
                         },
                         launchRequest = bookLaunchRequest,
                         onLaunchRequestConsumed = { bookLaunchRequest = null },
-                        onCheckout = onCheckout@{ selectedServices, slotId, paymentMethodType, consultantId, entitlementByService ->
+                        onCreateSlotHold = { selectedServices, slotId, previousHoldToken ->
+                            val primary = selectedServices.first()
+                            repo.createBookingSlotHold(
+                                BookingSlotHoldRequest(
+                                    companyId = primary.companyId,
+                                    slotId = slotId,
+                                    serviceTypeIds = selectedServices.map { service -> service.sessionTypeId.toLong() },
+                                    previousHoldToken = previousHoldToken
+                                )
+                            )
+                        },
+                        onReleaseSlotHold = { companyId, holdToken ->
+                            repo.releaseBookingSlotHold(companyId, holdToken)
+                        },
+                        onCheckout = onCheckout@{ selectedServices, slotId, paymentMethodType, consultantId, entitlementByService, holdToken ->
                             val primary = selectedServices.first()
                             val checkout = runCatching {
                                 val order = repo.createOrder(
@@ -1214,13 +1228,14 @@ fun GuestMobileRoot() {
                                                 position = index,
                                                 entitlementId = entitlementByService[service.id]
                                             )
-                                        }
+                                        },
+                                        holdToken = holdToken
                                     )
                                 )
                                 repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = false, locale = appUiLocale))
                             }.getOrElse {
                                 statusMessage = it.message ?: "Checkout failed"
-                                return@onCheckout
+                                throw it
                             }
 
                             if ((paymentMethodType == "CARD" || paymentMethodType == "PAYPAL") && !checkout.checkoutUrl.isNullOrBlank()) {
@@ -1315,7 +1330,7 @@ fun GuestMobileRoot() {
                             employeeSelectionStepEnabled = { companyId ->
                                 state.uiState.linkedTenants.firstOrNull { it.companyId == companyId }?.employeeSelectionStep == true
                             },
-                            onCheckout = { _, _, _, _, _ -> },
+                            onCheckout = { _, _, _, _, _, _ -> },
                             rescheduleContext = context,
                             onReschedule = { ctx, slotId, _ ->
                                 repo.rescheduleBooking(ctx.companyId, ctx.bookingId, slotId)

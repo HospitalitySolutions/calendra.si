@@ -105,6 +105,15 @@ class PreviewGuestRepository : GuestRepository {
         sessionTypeIds: List<String>
     ): List<ConsultantSummary> = emptyList()
 
+    override suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse =
+        BookingSlotHoldResponse(
+            holdToken = "preview-hold-${request.slotId}",
+            expiresAt = "2099-01-01T00:00:00Z",
+            slotId = request.slotId
+        )
+
+    override suspend fun releaseBookingSlotHold(companyId: String, holdToken: String) = Unit
+
     override suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse =
         preview.createOrder(request)
 
