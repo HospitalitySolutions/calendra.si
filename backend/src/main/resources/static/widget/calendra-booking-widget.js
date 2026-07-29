@@ -899,6 +899,11 @@
       if (this.availabilityAbortController) this.availabilityAbortController.abort();
       const controller = new AbortController();
       const requestSequence = ++this.availabilityRequestSequence;
+      let requestTimedOut = false;
+      const requestTimeout = window.setTimeout(() => {
+        requestTimedOut = true;
+        controller.abort();
+      }, 20000);
       this.availabilityAbortController = controller;
       this.setState({ error: '', slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: true });
       try {
@@ -911,12 +916,18 @@
         const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
         this.setState({ slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots), groupSessions: filteredGroupSessions, loadingAvailability: false });
       } catch (error) {
-        if (error?.name === 'AbortError') return;
         const currentKey = `${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        if (error?.name === 'AbortError') {
+          if (requestTimedOut && requestSequence === this.availabilityRequestSequence && currentKey === requestKey) {
+            this.setState({ loadingAvailability: false, error: this.text().failedToLoadAvailability });
+          }
+          return;
+        }
         if (requestSequence === this.availabilityRequestSequence && currentKey === requestKey) {
           this.setState({ loadingAvailability: false, error: this.normalizeError(error, this.text().failedToLoadAvailability) });
         }
       } finally {
+        window.clearTimeout(requestTimeout);
         if (requestSequence === this.availabilityRequestSequence && this.availabilityAbortController === controller) this.availabilityAbortController = null;
       }
     }

@@ -10,9 +10,12 @@ import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
+import com.example.app.session.AvailabilityBlockMetadata;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookingSource;
 import com.example.app.session.BookableSlotRepository;
+import com.example.app.session.PersonalCalendarBlock;
+import com.example.app.session.PersonalCalendarBlockRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingCreationService;
@@ -46,6 +49,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -78,6 +82,7 @@ public class PublicBookingWidgetService {
     private final AppSettingRepository settings;
     private final SessionTypeRepository types;
     private final BookableSlotRepository bookableSlots;
+    private final PersonalCalendarBlockRepository personalBlocks;
     private final SessionBookingRepository bookings;
     private final UserRepository users;
     private final ClientRepository clients;
@@ -102,6 +107,7 @@ public class PublicBookingWidgetService {
             AppSettingRepository settings,
             SessionTypeRepository types,
             BookableSlotRepository bookableSlots,
+            PersonalCalendarBlockRepository personalBlocks,
             SessionBookingRepository bookings,
             UserRepository users,
             ClientRepository clients,
@@ -125,6 +131,7 @@ public class PublicBookingWidgetService {
         this.settings = settings;
         this.types = types;
         this.bookableSlots = bookableSlots;
+        this.personalBlocks = personalBlocks;
         this.bookings = bookings;
         this.users = users;
         this.clients = clients;
@@ -351,6 +358,7 @@ public class PublicBookingWidgetService {
             );
         }
 
+        Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache = new HashMap<>();
         List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
         List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions =
                 groupOnlyWebsiteBooking
@@ -361,16 +369,16 @@ public class PublicBookingWidgetService {
         } else if (cfg.availabilityEnabled()) {
             Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
             for (PublicBookingWidgetController.AvailabilitySlotResponse slot :
-                    buildBookableSlots(company, cfg, chain, date, resolvedConsultantId)) {
+                    buildBookableSlots(company, cfg, chain, date, resolvedConsultantId, availabilityBlockCache)) {
                 merged.put(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             for (PublicBookingWidgetController.AvailabilitySlotResponse slot :
-                    buildWorkingHoursSlots(company, cfg, chain, date, resolvedConsultantId)) {
+                    buildWorkingHoursSlots(company, cfg, chain, date, resolvedConsultantId, availabilityBlockCache)) {
                 merged.putIfAbsent(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             slots = sortAvailabilitySlots(merged);
         } else {
-            slots = buildFallbackSlots(company, cfg, chain, date, resolvedConsultantId);
+            slots = buildFallbackSlots(company, cfg, chain, date, resolvedConsultantId, availabilityBlockCache);
         }
 
         return new PublicBookingWidgetController.AvailabilityResponse(
@@ -434,6 +442,7 @@ public class PublicBookingWidgetService {
         LocalDate monthEnd = month.atEndOfMonth();
 
         List<String> availableDates = new ArrayList<>();
+        Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache = new HashMap<>();
         try {
             for (LocalDate date = cursor; !date.isAfter(monthEnd); date = date.plusDays(1)) {
                 if (dateAllowedByReservationRules(date, cfg, rules)
@@ -444,7 +453,8 @@ public class PublicBookingWidgetService {
                                 date,
                                 resolvedConsultantId,
                                 groupOnlyWebsiteBooking,
-                                rules
+                                rules,
+                                availabilityBlockCache
                         )) {
                     availableDates.add(DATE_FORMAT.format(date));
                 }
@@ -472,16 +482,17 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId,
             boolean groupOnlyWebsiteBooking,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
         if (groupOnlyWebsiteBooking) {
             return !buildGroupSessions(company, cfg, chain.get(0), date, consultantId).isEmpty();
         }
         if (cfg.availabilityEnabled()) {
-            if (hasAnyBookableSlot(company, cfg, chain, date, consultantId, rules)) {
+            if (hasAnyBookableSlot(company, cfg, chain, date, consultantId, rules, availabilityBlockCache)) {
                 return true;
             }
-            return hasAnyWorkingHoursSlot(company, cfg, chain, date, consultantId, rules);
+            return hasAnyWorkingHoursSlot(company, cfg, chain, date, consultantId, rules, availabilityBlockCache);
         }
         return hasAnyFallbackSlot(company, cfg, chain, date, consultantId, rules);
     }
@@ -496,7 +507,8 @@ public class PublicBookingWidgetService {
             List<SessionType> chain,
             LocalDate date,
             Long consultantId,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
@@ -515,7 +527,7 @@ public class PublicBookingWidgetService {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
-                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain)) {
+                        && isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilityBlockCache)) {
                     return true;
                 }
                 cursor = cursor.plusMinutes(30);
@@ -530,7 +542,8 @@ public class PublicBookingWidgetService {
             List<SessionType> chain,
             LocalDate date,
             Long consultantId,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
@@ -549,7 +562,7 @@ public class PublicBookingWidgetService {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(bookingMinutes);
                 if (slotAllowedByReservationRules(start, cfg, rules)
-                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, chain)) {
+                        && isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilityBlockCache)) {
                     return true;
                 }
                 cursor = cursor.plusMinutes(30);
@@ -1136,7 +1149,8 @@ public class PublicBookingWidgetService {
             WidgetConfig cfg,
             List<SessionType> chain,
             LocalDate date,
-            Long consultantId
+            Long consultantId,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1173,7 +1187,7 @@ public class PublicBookingWidgetService {
                     cursor = cursor.plusMinutes(30);
                     continue;
                 }
-                if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain)) {
+                if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, chain, availabilityBlockCache)) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             window.getConsultant().getId() + "|" + start + "|" + end,
@@ -1199,7 +1213,8 @@ public class PublicBookingWidgetService {
             WidgetConfig cfg,
             List<SessionType> chain,
             LocalDate date,
-            Long consultantId
+            Long consultantId,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1231,7 +1246,7 @@ public class PublicBookingWidgetService {
                     cursor = cursor.plusMinutes(30);
                     continue;
                 }
-                if (isActuallyBookable(company.getId(), consultant.getId(), start, end, chain)) {
+                if (isActuallyBookable(company.getId(), consultant.getId(), start, end, chain, availabilityBlockCache)) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             consultant.getId() + "|" + start + "|" + end,
@@ -1331,7 +1346,8 @@ public class PublicBookingWidgetService {
             WidgetConfig cfg,
             List<SessionType> chain,
             LocalDate date,
-            Long consultantId
+            Long consultantId,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1372,7 +1388,7 @@ public class PublicBookingWidgetService {
                 continue;
             }
             LocalDateTime end = start.plusMinutes(bookingMinutes);
-            if (consultantId == null || isActuallyBookable(company.getId(), consultantId, start, end, chain)) {
+            if (consultantId == null || isActuallyBookable(company.getId(), consultantId, start, end, chain, availabilityBlockCache)) {
                 items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
                         (consultantId != null ? consultantId : 0L) + "|" + start + "|" + end,
                         cursor.format(SLOT_LABEL_FORMAT),
@@ -1430,8 +1446,17 @@ public class PublicBookingWidgetService {
             Long consultantId,
             LocalDateTime start,
             LocalDateTime end,
-            List<SessionType> chain
+            List<SessionType> chain,
+            Map<Long, List<PersonalCalendarBlock>> availabilityBlockCache
     ) {
+        List<PersonalCalendarBlock> markers = availabilityBlockCache.computeIfAbsent(
+                consultantId,
+                id -> personalBlocks.findAvailabilityBlockMarkersForOwner(id, companyId)
+        );
+        boolean blocked = markers.stream().anyMatch(block -> availabilityBlockOverlaps(block, start, end));
+        if (blocked) {
+            return false;
+        }
         try {
             bookingCreationService.validateServiceChainWindow(
                     companyId,
@@ -1439,12 +1464,30 @@ public class PublicBookingWidgetService {
                     consultantId,
                     start,
                     bookingServiceRequests(chain),
-                    SessionBookingCreationService.bookingExcludeIds((Long) null)
+                    SessionBookingCreationService.bookingExcludeIds((Long) null),
+                    true
             );
             return true;
         } catch (ResponseStatusException ex) {
             return false;
         }
+    }
+
+    private boolean availabilityBlockOverlaps(
+            PersonalCalendarBlock block,
+            LocalDateTime rangeStart,
+            LocalDateTime rangeEnd
+    ) {
+        if (block == null || rangeStart == null || rangeEnd == null || !rangeEnd.isAfter(rangeStart)) {
+            return false;
+        }
+        LocalDateTime storedStart = block.getStartTime();
+        LocalDateTime storedEnd = block.getEndTime();
+        if (storedStart != null && storedEnd != null
+                && storedStart.isBefore(rangeEnd) && storedEnd.isAfter(rangeStart)) {
+            return true;
+        }
+        return AvailabilityBlockMetadata.overlaps(block, rangeStart, rangeEnd);
     }
 
 

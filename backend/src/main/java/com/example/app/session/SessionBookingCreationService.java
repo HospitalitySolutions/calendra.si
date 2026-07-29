@@ -873,6 +873,31 @@ public class SessionBookingCreationService {
             List<SessionBookingController.BookingServiceRequest> services,
             List<Long> excludeIds
     ) {
+        return validateServiceChainWindow(
+                companyId,
+                clientIds,
+                consultantId,
+                start,
+                services,
+                excludeIds,
+                false
+        );
+    }
+
+    /**
+     * Availability previews can pre-load availability-block markers once per request and
+     * ask the shared booking validator to skip only that duplicate marker lookup. The final
+     * booking validation keeps the default value ({@code false}) and always re-checks blocks.
+     */
+    public SessionServicePlanService.Plan validateServiceChainWindow(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services,
+            List<Long> excludeIds,
+            boolean allowAvailabilityBlockOverlap
+    ) {
         if (services == null || services.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
         }
@@ -893,7 +918,7 @@ public class SessionBookingCreationService {
                 isMultipleClientsPerSessionEnabled(companyId),
                 false,
                 false,
-                false,
+                allowAvailabilityBlockOverlap,
                 null
         );
         return plan;
