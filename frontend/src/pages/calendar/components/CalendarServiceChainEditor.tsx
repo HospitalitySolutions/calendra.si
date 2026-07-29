@@ -50,7 +50,6 @@ function labels(locale: string) {
       one: '1 storitev',
       many: '{count} storitve',
       choose: 'Izberite storitev',
-      conflict: 'Preverite kombinacijo storitev',
       pickerTitle: 'Dodaj storitev',
       pickerDescription: 'Izberite storitev, ki jo želite dodati v termin.',
       pickerEmpty: 'Ni razpoložljivih storitev.',
@@ -84,7 +83,6 @@ function labels(locale: string) {
       one: '1 usluga',
       many: '{count} usluge',
       choose: 'Izaberite uslugu',
-      conflict: 'Proverite kombinaciju usluga',
       pickerTitle: 'Dodaj uslugu',
       pickerDescription: 'Izaberite uslugu koju želite da dodate u termin.',
       pickerEmpty: 'Nema dostupnih usluga.',
@@ -117,7 +115,6 @@ function labels(locale: string) {
     one: '1 service',
     many: '{count} services',
     choose: 'Select service',
-    conflict: 'Check the service combination',
     pickerTitle: 'Add service',
     pickerDescription: 'Choose a service to add to this appointment.',
     pickerEmpty: 'No services available.',
@@ -601,7 +598,6 @@ export function CalendarServiceChainEditor({
 
         {warnings && warnings.length > 0 ? (
           <div className="calendar-service-chain__warning" role="alert">
-            <strong>{copy.conflict}</strong>
             {warnings.map((warning) => <span key={warning}>{warning}</span>)}
           </div>
         ) : null}

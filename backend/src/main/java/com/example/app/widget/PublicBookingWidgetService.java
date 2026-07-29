@@ -748,7 +748,7 @@ public class PublicBookingWidgetService {
                                         end,
                                         null,
                                         type.getId(),
-                                        bookingNotes(bookingSource),
+                                        null,
                                         null,
                                         false,
                                         null,
@@ -1032,14 +1032,6 @@ public class PublicBookingWidgetService {
                 consultantName
         );
     }
-
-
-    private String bookingNotes(BookingSource bookingSource) {
-        return bookingSource == BookingSource.PUBLIC_BOOKING_PAGE
-                ? "Booked via Calendra public booking page"
-                : "Booked via website widget";
-    }
-
     private void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
         try {
             if (!websiteWidgetSettingsService.widgetEnabled(company.getId())) {

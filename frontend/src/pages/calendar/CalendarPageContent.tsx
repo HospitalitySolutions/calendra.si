@@ -3785,8 +3785,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }
 
   const getBookingBreakRange = (booking: any) => {
-    const startMs = new Date(booking?.endTime).getTime()
-    const directEndMs = new Date(booking?.availabilityEndTime).getTime()
+    const startMs = new Date(booking?.calendarDisplayEndTime ?? booking?.endTime).getTime()
+    const directEndMs = new Date(booking?.calendarDisplayAvailabilityEndTime ?? booking?.availabilityEndTime).getTime()
     const endMs = Number.isFinite(directEndMs) ? directEndMs : startMs + getBookingBreakMinutes(booking) * 60000
     const breakMinutes = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.round((endMs - startMs) / 60_000) : 0
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || breakMinutes <= 0 || endMs <= startMs) return null
@@ -3912,11 +3912,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     : buildCalendarServiceChain(form?.startTime, [{ typeId: null, spaceId: null }], form?.endTime)
 
   const serviceChainValidationWarnings = (
-    chain: CalendarServiceChain,
     services: CalendarServiceDraft[],
     selectedClientCount: number,
     groupMode: boolean,
-    excludeBookingId?: number | null,
   ) => {
     const warnings: string[] = []
     const typedServices = normalizeCalendarServiceDrafts(services).filter((service) => service.typeId != null)
@@ -3949,38 +3947,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : `This service combination allows at most ${maxParticipants} clients.`)
     }
 
-    const existingServiceSegments = (booking: any) => {
-      const persisted = Array.isArray(booking?.services) ? [...booking.services] : []
-      const mapped = persisted.map((entry: any) => ({
-        spaceId: Number(entry?.space?.id ?? entry?.spaceId) || null,
-        startMs: new Date(entry?.startTime || booking?.startTime).getTime(),
-        endMs: new Date(entry?.availabilityEndTime || entry?.endTime || booking?.availabilityEndTime || booking?.endTime).getTime(),
-      })).filter((entry: any) => entry.spaceId != null && Number.isFinite(entry.startMs) && Number.isFinite(entry.endMs))
-      if (mapped.length > 0) return mapped
-      const legacySpaceId = Number(booking?.space?.id ?? booking?.spaceId) || null
-      if (legacySpaceId == null) return []
-      return [{ spaceId: legacySpaceId, startMs: new Date(booking?.startTime).getTime(), endMs: getBookingBusyEndMs(booking) }]
-    }
-    const roomConflict = chain.segments.some((segment) => {
-      if (segment.spaceId == null || segment.typeId == null) return false
-      const segmentStart = new Date(segment.startTime).getTime()
-      const segmentEnd = new Date(segment.availabilityEndTime).getTime()
-      if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd)) return false
-      return (calendarData.booked || []).some((booking: any) => {
-        if (excludeBookingId != null && Number(booking?.id) === Number(excludeBookingId)) return false
-        return existingServiceSegments(booking).some((existing: any) =>
-          Number(existing.spaceId) === Number(segment.spaceId)
-          && segmentStart < existing.endMs
-          && segmentEnd > existing.startMs)
-      })
-    })
-    if (roomConflict) {
-      warnings.push(locale === 'sl'
-        ? 'Vsaj eden od izbranih prostorov je zaseden v času svoje storitve.'
-        : locale === 'sr'
-          ? 'Najmanje jedan izabrani prostor je zauzet tokom svoje usluge.'
-          : 'At least one selected space is occupied during its service segment.')
-    }
     return Array.from(new Set(warnings))
   }
 
@@ -3992,7 +3958,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const formServiceWarnings = selection && !form?.personal && !form?.todo && !availabilitySelection
     ? Array.from(new Set([
         ...serviceChainValidationWarnings(
-          formServiceChain,
           formServiceDrafts,
           Array.from(new Set([...(Array.isArray(form?.clientIds) ? form.clientIds : []), form?.clientId]
             .map((value) => Number(value))
@@ -4007,7 +3972,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const bookedServiceWarnings = selectedBookedSession
     ? Array.from(new Set([
         ...serviceChainValidationWarnings(
-          bookedServiceChain,
           bookedServiceDrafts,
           Array.from(new Set([...(Array.isArray(selectedBookedSession?.clientIds) ? selectedBookedSession.clientIds : []),
             ...(Array.isArray(selectedBookedSession?.clients) ? selectedBookedSession.clients.map((client: any) => client?.id) : []),
@@ -4015,7 +3979,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             .map((value) => Number(value))
             .filter((value) => Number.isInteger(value) && value > 0))).length,
           Boolean(groupBookingEnabled && selectedBookedSession?.groupId != null && Number(selectedBookedSession.groupId) > 0),
-          selectedBookedSession?.id,
         ),
         ...(isLocalBookingAllDay(selectedBookedSession?.startTime, selectedBookedSession?.endTime) && bookingServicesPayload(bookedServiceDrafts).length > 1
           ? [multiServiceAllDayWarning]
@@ -4110,41 +4073,97 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       return sa != null && so != null && sa === so
     }
 
+    const bookingSpaceDisplaySegments = (booking: any) => {
+      const online = Boolean(booking?.meetingLink && String(booking.meetingLink).trim())
+      const fallbackSpaceId = online ? null : (Number(booking?.space?.id ?? booking?.spaceId) || null)
+      const fallback = {
+        key: 'booking',
+        servicePosition: null as number | null,
+        serviceType: booking?.type ?? null,
+        startTime: booking?.startTime,
+        endTime: booking?.endTime,
+        availabilityEndTime: booking?.availabilityEndTime ?? booking?.endTime,
+        spaceId: fallbackSpaceId,
+        space: fallbackSpaceId == null ? null : (booking?.space ?? { id: fallbackSpaceId, name: '' }),
+        wholeBooking: true,
+      }
+      if (calendarMode !== 'spaces' || online) return [fallback]
+
+      const persisted = Array.isArray(booking?.services)
+        ? [...booking.services].sort((left: any, right: any) => Number(left?.position ?? 0) - Number(right?.position ?? 0))
+        : []
+      const segments = persisted.flatMap((service: any, index: number) => {
+        const startTime = service?.startTime || booking?.startTime
+        const endTime = service?.endTime || booking?.endTime
+        const startMs = new Date(startTime || '').getTime()
+        const endMs = new Date(endTime || '').getTime()
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return []
+        const availabilityEndTime = service?.availabilityEndTime || endTime
+        const rawSpaceId = Number(service?.space?.id ?? service?.spaceId)
+        const spaceId = Number.isFinite(rawSpaceId) && rawSpaceId > 0 ? rawSpaceId : null
+        const position = Number.isFinite(Number(service?.position)) ? Number(service.position) : index
+        const serviceType = service?.type ?? null
+        return [{
+          key: String(service?.id ?? `position-${position}`),
+          servicePosition: position,
+          serviceType,
+          startTime,
+          endTime,
+          availabilityEndTime,
+          spaceId,
+          space: spaceId == null ? null : (service?.space ?? { id: spaceId, name: '' }),
+          wholeBooking: false,
+        }]
+      })
+      if (segments.length === 0) return [fallback]
+      const resourceKeys = new Set(segments.map((segment) => segment.spaceId == null ? SPACE_RESOURCE_UNASSIGNED_ID : String(segment.spaceId)))
+      if (resourceKeys.size <= 1) {
+        const only = segments[0]
+        return [{
+          ...fallback,
+          spaceId: only.spaceId,
+          space: only.space,
+        }]
+      }
+      return segments
+    }
+
     const bookedBase = (
       isTenantAdmin
         ? filterByConsultantRole(calendarData.booked)
         : (calendarData.booked || [])
     )
-    const bookedAll = bookedBase
-      .filter((b: any) => {
+    const bookedAll = bookedBase.flatMap((b: any) => {
+      const displaySegments = bookingSpaceDisplaySegments(b).filter((segment) => {
         if (calendarMode === 'spaces') {
-          const isOnline = !!(b.meetingLink && String(b.meetingLink).trim())
-          const resolvedSpaceId = isOnline ? null : (b.space?.id ?? null)
-          if (spaceFilterId != null) return resolvedSpaceId === spaceFilterId
+          if (spaceFilterId != null) return Number(segment.spaceId) === Number(spaceFilterId)
           return true
         }
-        if (!spacesEnabled) return true
-        if (spaceFilterId == null) return true
-        return b.space?.id === spaceFilterId
+        if (!spacesEnabled || spaceFilterId == null) return true
+        return Number(b.space?.id) === Number(spaceFilterId)
       })
-      .map((b: any) => {
-        const typeDurationMinutes = getTypeDurationMinutes(b.type?.id)
-        const typeBreakMinutes = getTypeBreakMinutes(b.type?.id)
+
+      return displaySegments.map((displaySegment, displayIndex) => {
+        const displayType = displaySegment.serviceType || b.type
         const bookedOwnerId = b.consultant?.id ?? null
         const maskedBooked = !isTenantAdmin && bookedOwnerId !== user.id
-        const breakRange = getBookingBreakRange({ ...b, type: { ...b.type, breakMinutes: typeBreakMinutes } })
-        const serviceColor = normalizeCalendarHexColor(b.type?.color) || CALENDAR_DEFAULT_BOOKED_COLOR
+        const displayBreakRange = getBookingBreakRange({
+          ...b,
+          calendarDisplayEndTime: displaySegment.endTime,
+          calendarDisplayAvailabilityEndTime: displaySegment.availabilityEndTime,
+        })
+        const serviceColor = normalizeCalendarHexColor(displayType?.color) || CALENDAR_DEFAULT_BOOKED_COLOR
         const servicePalette = buildCalendarSessionPalette(serviceColor)
-        const breakConflict = !!breakRange && (
+        const breakConflict = !!displayBreakRange && (
           bookedBase.some((other: any) => {
             if (other?.id === b.id) return false
-            if (ignoreSameSpaceBreakOverlap(b, other)) return false
+            if (ignoreSameSpaceBreakOverlap({ ...b, space: displaySegment.space }, other)) return false
             const otherStartMs = new Date(other?.startTime).getTime()
             const otherEndMs = new Date(other?.endTime).getTime()
             return Number.isFinite(otherStartMs)
               && Number.isFinite(otherEndMs)
               && otherEndMs > otherStartMs
-              && overlaps(breakRange.startMs, breakRange.endMs, otherStartMs, otherEndMs)
+              && overlaps(displayBreakRange.startMs, displayBreakRange.endMs, otherStartMs, otherEndMs)
           }) ||
           (personalModuleEnabled ? (calendarData.personal || []) : []).some((other: any) => {
             // Availability blocks intentionally remain in place when staff manually
@@ -4158,15 +4177,25 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             return Number.isFinite(otherStartMs)
               && Number.isFinite(otherEndMs)
               && otherEndMs > otherStartMs
-              && overlaps(breakRange.startMs, breakRange.endMs, otherStartMs, otherEndMs)
+              && overlaps(displayBreakRange.startMs, displayBreakRange.endMs, otherStartMs, otherEndMs)
           })
         )
-        const allDayRange = getContinuousAllDayCalendarRange(b.startTime, b.endTime)
+        const allDayRange = displaySegment.wholeBooking
+          ? getContinuousAllDayCalendarRange(b.startTime, b.endTime)
+          : null
+        const bookingStartMs = new Date(b.startTime).getTime()
+        const displayStartMs = new Date(displaySegment.startTime).getTime()
+        const displayOffsetMinutes = Number.isFinite(bookingStartMs) && Number.isFinite(displayStartMs)
+          ? Math.round((displayStartMs - bookingStartMs) / 60_000)
+          : 0
+        const segmentedSpaceEvent = calendarMode === 'spaces' && !displaySegment.wholeBooking
         const ev: any = {
-          id: `b-${b.id}`,
+          id: segmentedSpaceEvent
+            ? `b-${b.id}-service-${displaySegment.key}-${displayIndex}`
+            : `b-${b.id}`,
           title: maskedBooked ? '' : formatBookingClientsLabel(b),
-          start: allDayRange?.start ?? b.startTime,
-          end: allDayRange?.end ?? b.endTime,
+          start: allDayRange?.start ?? displaySegment.startTime,
+          end: allDayRange?.end ?? displaySegment.endTime,
           ...(allDayRange ? { allDay: true } : {}),
           color: servicePalette.bg,
           backgroundColor: servicePalette.bg,
@@ -4174,23 +4203,33 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           textColor: '#0F172A',
           order: 1,
           editable: !maskedBooked && !isViewOnly,
+          startEditable: !maskedBooked && !isViewOnly,
+          durationEditable: !segmentedSpaceEvent && !maskedBooked && !isViewOnly,
+          resourceEditable: !segmentedSpaceEvent && !maskedBooked && !isViewOnly,
           extendedProps: {
             ...b,
             kind: 'booked',
-            type: b.type ? { ...b.type, durationMinutes: typeDurationMinutes, breakMinutes: typeBreakMinutes } : b.type,
+            type: b.type ? { ...b.type, durationMinutes: getTypeDurationMinutes(b.type?.id), breakMinutes: getTypeBreakMinutes(b.type?.id) } : b.type,
             color: serviceColor,
             softColor: servicePalette.bg,
             colorBorder: servicePalette.border,
             masked: maskedBooked,
             breakConflict,
-            breakMinutes: typeBreakMinutes,
+            breakMinutes: getTypeBreakMinutes(b.type?.id),
             continuousAllDay: Boolean(allDayRange),
+            calendarDisplaySegment: segmentedSpaceEvent,
+            calendarDisplaySegmentKey: displaySegment.key,
+            calendarDisplayServicePosition: displaySegment.servicePosition,
+            calendarDisplayServiceType: displaySegment.serviceType,
+            calendarDisplayStartTime: displaySegment.startTime,
+            calendarDisplayEndTime: displaySegment.endTime,
+            calendarDisplayAvailabilityEndTime: displaySegment.availabilityEndTime,
+            calendarDisplaySpaceId: displaySegment.spaceId,
+            calendarDisplayOffsetMinutes: displayOffsetMinutes,
           },
         }
         if (spacesUseResourceColumns) {
-          const isOnline = !!(b.meetingLink && String(b.meetingLink).trim())
-          ev.resourceId = !isOnline && b.space?.id != null ? String(b.space.id) : SPACE_RESOURCE_UNASSIGNED_ID
-          ev.resourceEditable = !maskedBooked && !isViewOnly
+          ev.resourceId = displaySegment.spaceId != null ? String(displaySegment.spaceId) : SPACE_RESOURCE_UNASSIGNED_ID
         }
         if (bookingsUseResourceColumns) {
           ev.resourceId = bookedOwnerId != null ? String(bookedOwnerId) : CONSULTANT_RESOURCE_UNASSIGNED_ID
@@ -4198,6 +4237,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         }
         return ev
       })
+    })
     const booked = useUnassignedDrawer
       ? bookedAll.filter((ev: any) => ev.resourceId !== (spacesUseResourceColumns ? SPACE_RESOURCE_UNASSIGNED_ID : CONSULTANT_RESOURCE_UNASSIGNED_ID))
       : bookedAll
@@ -6262,6 +6302,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }
 
   function bookedServiceLabels(bookingOrType: any) {
+    if (bookingOrType?.calendarDisplayServiceType) {
+      const displayLabel = singleBookedServiceLabel(bookingOrType.calendarDisplayServiceType)
+      return displayLabel ? [displayLabel] : []
+    }
     const ordered = Array.isArray(bookingOrType?.services)
       ? [...bookingOrType.services].sort((left: any, right: any) => Number(left?.position ?? 0) - Number(right?.position ?? 0))
       : []
@@ -9494,7 +9538,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         persistedBooked.startTime &&
         persistedBooked.endTime
       )
-        ? { start: persistedBooked.startTime, end: persistedBooked.endTime }
+        ? { start: persistedBooked.startTime, end: persistedBooked.availabilityEndTime || persistedBooked.endTime }
         : undefined
       if (!isBookedMoveIntervalBookable(
         selectedBookedSession.startTime,
@@ -10068,14 +10112,34 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     if (props.kind !== 'booked') return
 
+    const displayOffsetMinutes = props.calendarDisplaySegment
+      ? Number(props.calendarDisplayOffsetMinutes || 0)
+      : 0
+    const displayOffsetMs = Number.isFinite(displayOffsetMinutes) ? displayOffsetMinutes * 60_000 : 0
+    const bookingNewStart = displayOffsetMs !== 0
+      ? new Date(newStart.getTime() - displayOffsetMs)
+      : newStart
+    const bookingNewStartStr = isContinuousAllDayMove
+      ? toAllDayStartString(bookingNewStart)
+      : toLocalDateTimeString(bookingNewStart)
+    const originalBookingStartMs = new Date(props.startTime || '').getTime()
+    const originalBookingEndMs = new Date(props.endTime || '').getTime()
+    const originalBookingDurationMs = Number.isFinite(originalBookingStartMs)
+      && Number.isFinite(originalBookingEndMs)
+      && originalBookingEndMs > originalBookingStartMs
+        ? originalBookingEndMs - originalBookingStartMs
+        : NaN
     const typeDuration = props.type?.durationMinutes ?? fallbackSessionLengthMinutes ?? 60
-    const newEnd = Number.isFinite(partialOriginalDurationMs)
-      ? new Date(newStart.getTime() + partialOriginalDurationMs)
-      : (info.event.end || new Date(newStart.getTime() + Number(typeDuration) * 60000))
+    const newEnd = props.calendarDisplaySegment && Number.isFinite(originalBookingDurationMs)
+      ? new Date(bookingNewStart.getTime() + originalBookingDurationMs)
+      : Number.isFinite(partialOriginalDurationMs)
+        ? new Date(bookingNewStart.getTime() + partialOriginalDurationMs)
+        : (info.event.end || new Date(bookingNewStart.getTime() + Number(typeDuration) * 60000))
     const newEndStr = isContinuousAllDayMove ? toInclusiveAllDayEndString(newEnd) : toLocalDateTimeString(newEnd)
 
-    const typeBreakMinutes = props.type?.breakMinutes ?? getTypeBreakMinutes(props.type?.id)
-    const overlapping = findOverlappingBooked(newStart, newEnd, props.id, consultantIdOverride, typeBreakMinutes)
+    const effectiveSpaceIdOverride = props.calendarDisplaySegment ? undefined : spaceIdOverride
+    const typeBreakMinutes = getBookingBreakMinutes(props)
+    const overlapping = findOverlappingBooked(bookingNewStart, newEnd, props.id, consultantIdOverride, typeBreakMinutes)
     if (overlapping) {
       cleanupDragArtifacts()
       setConfirmSwap({ dragged: props, target: overlapping, revert: info.revert })
@@ -10087,23 +10151,23 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     if (
       targetConsultantId != null &&
       Number.isFinite(targetConsultantId) &&
-      findOverlappingPersonalBlocksForBooking(newStartStr, newEndStr, targetConsultantId, typeBreakMinutes).length > 0
+      findOverlappingPersonalBlocksForBooking(bookingNewStartStr, newEndStr, targetConsultantId, typeBreakMinutes).length > 0
     ) {
       cleanupDragArtifacts()
       info.revert()
-      setConfirmBookedPersonalOverlap({ type: 'move', booking: props, newStartStr, newEndStr, spaceIdOverride, consultantIdOverride })
+      setConfirmBookedPersonalOverlap({ type: 'move', booking: props, newStartStr: bookingNewStartStr, newEndStr, spaceIdOverride: effectiveSpaceIdOverride, consultantIdOverride })
       return
     }
 
     if (
       targetConsultantId != null &&
       !isBookedMoveIntervalBookable(
-        newStartStr,
+        bookingNewStartStr,
         newEndStr,
         targetConsultantId,
         typeBreakMinutes,
         (targetConsultantId === (props.consultant?.id ?? null))
-          ? { start: props.startTime, end: props.endTime }
+          ? { start: props.startTime, end: props.availabilityEndTime || props.endTime }
           : undefined,
       )
     ) {
@@ -10111,12 +10175,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       info.revert()
       setConfirmNonBookableMove({
         booking: props,
-        newStartStr,
+        newStartStr: bookingNewStartStr,
         newEndStr,
-        spaceIdOverride,
+        spaceIdOverride: effectiveSpaceIdOverride,
         consultantIdOverride,
         allowPersonalBlockOverlap: true,
-        pastTime: isBookingStartInPast(newStartStr),
+        pastTime: isBookingStartInPast(bookingNewStartStr),
       })
       return
     }
@@ -10125,13 +10189,13 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       ...prev,
       booked: (prev.booked || []).map((booking: any) =>
         booking.id === props.id
-          ? buildOptimisticMovedBooking(booking, newStartStr, newEndStr, spaceIdOverride, consultantIdOverride)
+          ? buildOptimisticMovedBooking(booking, bookingNewStartStr, newEndStr, effectiveSpaceIdOverride, consultantIdOverride)
           : booking,
       ),
     }))
     rerenderCalendarEventsAfterMutation()
     try {
-      const normalizedBooking = await performMove(props, newStartStr, newEndStr, false, spaceIdOverride, consultantIdOverride)
+      const normalizedBooking = await performMove(props, bookingNewStartStr, newEndStr, false, effectiveSpaceIdOverride, consultantIdOverride)
       if (normalizedBooking) replaceCalendarBookingSnapshot(normalizedBooking)
       // Refresh the canonical calendar only after the normalized PUT response has
       // replaced the optimistic event. Awaiting both layers prevents a stale-service
@@ -10201,7 +10265,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const newStartStr = isContinuousAllDayResize ? toAllDayStartString(newStart) : toLocalDateTimeString(newStart)
     const newEndStr = isContinuousAllDayResize ? toInclusiveAllDayEndString(newEnd) : toLocalDateTimeString(newEnd)
 
-    const typeBreakMinutes = props.type?.breakMinutes ?? getTypeBreakMinutes(props.type?.id)
+    const typeBreakMinutes = getBookingBreakMinutes(props)
     const overlapping = findOverlappingBooked(newStart, newEnd, props.id, undefined, typeBreakMinutes)
     if (overlapping) {
       setConfirmSwap({ dragged: props, target: overlapping, revert: info.revert })
@@ -10224,7 +10288,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         newEndStr,
         consultantId,
         typeBreakMinutes,
-        { start: props.startTime, end: props.endTime },
+        { start: props.startTime, end: props.availabilityEndTime || props.endTime },
       )
     ) {
       info.revert()

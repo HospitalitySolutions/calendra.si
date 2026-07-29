@@ -1551,15 +1551,6 @@ public class GuestOrderService {
         return BookingSource.fromSourceChannel(sourceChannelForOrder(order));
     }
 
-    private String bookingNotesForOrder(GuestOrder order) {
-        return switch (bookingSourceForOrder(order)) {
-            case PUBLIC_BOOKING_PAGE -> "Booked via Calendra public booking page";
-            case WEBSITE_WIDGET -> "Booked via website widget";
-            case MOBILE_APP -> "Booked via guest mobile app";
-            case MANUAL -> "Created manually";
-        };
-    }
-
     /** Applies only the entitlement assigned to each selected service line. */
     private boolean consumeSelectedServiceEntitlements(GuestOrder order, SessionBooking booking) {
         if (order == null || booking == null) return false;
@@ -1650,7 +1641,7 @@ public class GuestOrderService {
                     slotContext.endsAt(),
                     null,
                     slotContext.sessionTypeId(),
-                    bookingNotesForOrder(order),
+                    null,
                     null,
                     false,
                     null,
