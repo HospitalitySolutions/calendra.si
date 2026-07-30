@@ -1947,6 +1947,47 @@ export function SessionTypesPage() {
 
   const activeStatusLabel = locale === "sl" ? "Aktivna" : "Active";
   const inactiveStatusLabel = locale === "sl" ? "Neaktivna" : "Inactive";
+  const activeFilterLabel = locale === "sl" ? "Aktivno" : "Active";
+  const inactiveFilterLabel = locale === "sl" ? "Neaktivno" : "Inactive";
+  const serviceConfigActiveFilter = showCourses
+    ? coursesActiveFilter
+    : showCardsMemberships
+      ? cardsActiveFilter
+      : showServiceGroups
+        ? groupActiveFilter
+        : showTransactionServices
+          ? serviceActiveFilter
+          : typeActiveFilter;
+
+  const toggleServiceConfigActiveFilter = () => {
+    if (showCourses) {
+      setCoursesActiveFilter((previous) =>
+        previous === "active" ? "inactive" : "active",
+      );
+      return;
+    }
+    if (showCardsMemberships) {
+      setCardsActiveFilter((previous) =>
+        previous === "active" ? "inactive" : "active",
+      );
+      return;
+    }
+    if (showServiceGroups) {
+      setGroupActiveFilter((previous) =>
+        previous === "active" ? "inactive" : "active",
+      );
+      return;
+    }
+    if (showTransactionServices) {
+      setServiceActiveFilter((previous) =>
+        previous === "active" ? "inactive" : "active",
+      );
+      return;
+    }
+    setTypeActiveFilter((previous) =>
+      previous === "active" ? "inactive" : "active",
+    );
+  };
 
   const groupsPanelBody =
     groups.length === 0 ? (
@@ -2015,7 +2056,6 @@ export function SessionTypesPage() {
                   <td><button type="button" className={`clients-status-pill clients-status-pill-btn${group.active === false ? " clients-status-pill--inactive" : ""}`} onClick={(e) => { e.stopPropagation(); void toggleGroupActive(group, group.active === false); }}><span />{group.active === false ? inactiveStatusLabel : activeStatusLabel}</button></td>
                   <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
                     <button type="button" onClick={() => openGroupEdit(group)}>{locale === "sl" ? "Uredi" : "Edit"}</button>
-                    <button type="button" onClick={() => void toggleGroupActive(group, group.active === false)}>{group.active === false ? (locale === "sl" ? "Aktiviraj" : "Activate") : (locale === "sl" ? "Deaktiviraj" : "Deactivate")}</button>
                     <button type="button" className="account-table-action-danger" onClick={() => void removeGroup(group)}>{t("formDelete")}</button>
                   </td>
                 </tr>
@@ -2087,20 +2127,6 @@ export function SessionTypesPage() {
                         role="dialog"
                         aria-label="Session type actions"
                       >
-                        <button
-                          type="button"
-                          disabled={activatingSessionTypeId === type.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void toggleTypeActive(type, type.active === false);
-                          }}
-                        >
-                          {type.active === false
-                            ? "Activate"
-                            : locale === "sl"
-                              ? "Deaktiviraj"
-                              : "Deactivate"}
-                        </button>
                         <button
                           type="button"
                           className="danger"
@@ -2267,18 +2293,6 @@ export function SessionTypesPage() {
                       </span>
                       <button
                         type="button"
-                        disabled={activatingSessionTypeId === type.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void toggleTypeActive(type, type.active === false);
-                        }}
-                      >
-                        {type.active === false
-                          ? (locale === "sl" ? "Aktiviraj" : "Activate")
-                          : (locale === "sl" ? "Deaktiviraj" : "Deactivate")}
-                      </button>
-                      <button
-                        type="button"
                         className="account-table-action-danger"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -2357,20 +2371,6 @@ export function SessionTypesPage() {
                         role="dialog"
                         aria-label="Transaction service actions"
                       >
-                        <button
-                          type="button"
-                          disabled={activatingServiceId === s.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void toggleServiceActive(s, s.active === false);
-                          }}
-                        >
-                          {s.active === false
-                            ? "Activate"
-                            : locale === "sl"
-                              ? "Deaktiviraj"
-                              : "Deactivate"}
-                        </button>
                         <button
                           type="button"
                           className="danger"
@@ -2510,18 +2510,6 @@ export function SessionTypesPage() {
                       </button>
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        disabled={activatingServiceId === s.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void toggleServiceActive(s, s.active === false);
-                        }}
-                      >
-                        {s.active === false
-                          ? (locale === "sl" ? "Aktiviraj" : "Activate")
-                          : (locale === "sl" ? "Deaktiviraj" : "Deactivate")}
-                      </button>
                       <button
                         type="button"
                         className="account-table-action-danger"
@@ -2788,15 +2776,36 @@ export function SessionTypesPage() {
               </span>
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
-              <button
-                type="button"
-                className="service-config-filter-btn"
-                onClick={openServiceConfigFilters}
+              <div
+                className="clients-session-tabs clients-filter-tabs"
+                style={{ marginBottom: 0 }}
               >
-                <ServiceConfigTabIcon name="filter" />
-                <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
-                <span className="service-config-filter-btn__count">{serviceConfigFilterCount}</span>
-              </button>
+                <button
+                  type="button"
+                  className="clients-session-tab active"
+                  onClick={toggleServiceConfigActiveFilter}
+                  aria-label={
+                    serviceConfigActiveFilter === "active"
+                      ? (locale === "sl"
+                          ? "Prikaži neaktivne storitve"
+                          : "Show inactive services")
+                      : (locale === "sl"
+                          ? "Prikaži aktivne storitve"
+                          : "Show active services")
+                  }
+                >
+                  <span
+                    className={
+                      serviceConfigActiveFilter === "active"
+                        ? "clients-filter-dot clients-filter-dot--active"
+                        : "clients-filter-dot clients-filter-dot--inactive"
+                    }
+                  />
+                  {serviceConfigActiveFilter === "active"
+                    ? activeFilterLabel
+                    : inactiveFilterLabel}
+                </button>
+              </div>
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
@@ -2926,15 +2935,36 @@ export function SessionTypesPage() {
               </span>
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
-              <button
-                type="button"
-                className="service-config-filter-btn"
-                onClick={openServiceConfigFilters}
+              <div
+                className="clients-session-tabs clients-filter-tabs"
+                style={{ marginBottom: 0 }}
               >
-                <ServiceConfigTabIcon name="filter" />
-                <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
-                <span className="service-config-filter-btn__count">{serviceConfigFilterCount}</span>
-              </button>
+                <button
+                  type="button"
+                  className="clients-session-tab active"
+                  onClick={toggleServiceConfigActiveFilter}
+                  aria-label={
+                    serviceConfigActiveFilter === "active"
+                      ? (locale === "sl"
+                          ? "Prikaži neaktivne storitve"
+                          : "Show inactive services")
+                      : (locale === "sl"
+                          ? "Prikaži aktivne storitve"
+                          : "Show active services")
+                  }
+                >
+                  <span
+                    className={
+                      serviceConfigActiveFilter === "active"
+                        ? "clients-filter-dot clients-filter-dot--active"
+                        : "clients-filter-dot clients-filter-dot--inactive"
+                    }
+                  />
+                  {serviceConfigActiveFilter === "active"
+                    ? activeFilterLabel
+                    : inactiveFilterLabel}
+                </button>
+              </div>
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"

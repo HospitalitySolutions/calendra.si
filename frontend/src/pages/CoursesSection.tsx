@@ -491,16 +491,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                         <div className="clients-card-menu-popover" role="dialog" aria-label="Course actions">
                           <button
                             type="button"
-                            disabled={deletingId === course.id}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              void archiveToggle(course)
-                            }}
-                          >
-                            {course.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
-                          </button>
-                          <button
-                            type="button"
                             className="danger"
                             disabled={deletingId === course.id}
                             onClick={(e) => {
@@ -589,16 +579,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                       </button>
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        disabled={deletingId === course.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void archiveToggle(course)
-                        }}
-                      >
-                        {course.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
-                      </button>
                       <button
                         type="button"
                         className="account-table-action-danger"

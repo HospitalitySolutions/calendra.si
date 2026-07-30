@@ -913,47 +913,6 @@ export const CardsMembershipsSection = forwardRef<
                         ? "Izbriši kartico"
                         : "Delete entitlement"}
                     </button>
-                    <div className="clients-card-menu-wrap">
-                      <button
-                        type="button"
-                        className="secondary clients-card-menu-trigger service-config-menu-trigger"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenProductMenuId((prev) =>
-                            prev === product.id ? null : product.id,
-                          );
-                        }}
-                        aria-label="Card actions"
-                        aria-expanded={openProductMenuId === product.id}
-                      >
-                        ⋮
-                      </button>
-                      {openProductMenuId === product.id && (
-                        <div
-                          className="clients-card-menu-popover"
-                          role="dialog"
-                          aria-label="Card actions"
-                        >
-                          <button
-                            type="button"
-                            disabled={activatingGuestProductId === product.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void toggleGuestProductActive(
-                                product,
-                                !product.active,
-                              );
-                            }}
-                          >
-                            {product.active
-                              ? locale === "sl"
-                                ? "Deaktiviraj"
-                                : "Deactivate"
-                              : "Activate"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
                 <div className="clients-mobile-meta">
@@ -1090,25 +1049,6 @@ export const CardsMembershipsSection = forwardRef<
                       className="clients-actions service-config-actions account-table-actions"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        disabled={activatingGuestProductId === product.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void toggleGuestProductActive(
-                            product,
-                            !product.active,
-                          );
-                        }}
-                      >
-                        {product.active
-                          ? locale === "sl"
-                            ? "Deaktiviraj"
-                            : "Deactivate"
-                          : locale === "sl"
-                            ? "Aktiviraj"
-                            : "Activate"}
-                      </button>
                       <button
                         type="button"
                         className="account-table-action-danger"
