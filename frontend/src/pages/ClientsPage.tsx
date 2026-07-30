@@ -14,6 +14,13 @@ import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
 type EntityTab = 'clients' | 'companies' | 'groups'
+type SortDirection = 'asc' | 'desc'
+type SortState<K extends string> = { key: K | null; direction: SortDirection }
+type ClientSortKey = 'name' | 'email' | 'phone' | 'assignedOwner' | 'status' | 'createdAt' | `custom:${number}`
+type CompanySortKey = 'name' | 'vatId' | 'email' | 'telephone' | 'city' | 'status' | 'createdAt' | `custom:${number}`
+type GroupSortKey = 'name' | 'description' | 'members' | 'status' | 'createdAt' | `custom:${number}`
+type AssignedOwnerFilter = 'all' | 'unassigned' | number
+type SortableValue = string | number | boolean | null | undefined
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
 
 
@@ -574,6 +581,65 @@ function assignedUsersForClient(client: Pick<Client, 'assignedUsers' | 'assigned
   return Array.from(unique.values())
 }
 
+function nextSortState<K extends string>(current: SortState<K>, key: K): SortState<K> {
+  if (current.key !== key) return { key, direction: 'asc' }
+  return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+}
+
+function isSortableValueEmpty(value: SortableValue): boolean {
+  return value == null || value === ''
+}
+
+function compareSortableValues(left: SortableValue, right: SortableValue, locale: string): number {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  if (typeof left === 'boolean' && typeof right === 'boolean') return Number(left) - Number(right)
+  const compareLocale = locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-Latn' : 'en'
+  return String(left).localeCompare(String(right), compareLocale, { sensitivity: 'base', numeric: true })
+}
+
+function customFieldSortableValue(field: CustomFieldDefinition | undefined, rawValue: string | undefined): SortableValue {
+  const value = rawValue?.trim() ?? ''
+  if (!value) return null
+  if (field?.fieldType === 'NUMBER') {
+    const parsed = Number(value.replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : value
+  }
+  if (field?.fieldType === 'DATE') {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : value
+  }
+  if (field?.fieldType === 'CHECKBOX') {
+    return ['true', '1', 'yes', 'da'].includes(value.toLowerCase())
+  }
+  return value
+}
+
+function sortRows<T, K extends string>(
+  rows: T[],
+  sortState: SortState<K>,
+  getValue: (row: T, key: K) => SortableValue,
+  locale: string,
+): T[] {
+  if (!sortState.key) return rows
+  const sortKey = sortState.key
+  const direction = sortState.direction === 'asc' ? 1 : -1
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((left, right) => {
+      const leftValue = getValue(left.row, sortKey)
+      const rightValue = getValue(right.row, sortKey)
+      const leftEmpty = isSortableValueEmpty(leftValue)
+      const rightEmpty = isSortableValueEmpty(rightValue)
+      if (leftEmpty || rightEmpty) {
+        if (leftEmpty && rightEmpty) return left.index - right.index
+        return leftEmpty ? 1 : -1
+      }
+      const compared = compareSortableValues(leftValue, rightValue, locale)
+      return compared === 0 ? left.index - right.index : compared * direction
+    })
+    .map(({ row }) => row)
+}
+
 function sortedNumberValues(values: Array<number | null | undefined>) {
   return values
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0)
@@ -710,6 +776,40 @@ function ClientsModernIcon({ name }: { name: ClientsModernIconName }) {
 }
 
 
+function SortableTableHeader<K extends string>({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  sortAriaPrefix,
+}: {
+  label: string
+  sortKey: K
+  sortState: SortState<K>
+  onSort: (key: K) => void
+  sortAriaPrefix: string
+}) {
+  const active = sortState.key === sortKey
+  const direction = active ? sortState.direction : null
+  return (
+    <th aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        className={`clients-sort-header${active ? ' clients-sort-header--active' : ''}`}
+        onClick={() => onSort(sortKey)}
+        aria-label={`${sortAriaPrefix} ${label}`}
+        title={`${sortAriaPrefix} ${label}`}
+      >
+        <span>{label}</span>
+        <svg className={`clients-sort-icon${direction ? ` clients-sort-icon--${direction}` : ''}`} width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path className="clients-sort-icon__up" d="m4.5 6 3.5-3.5L11.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path className="clients-sort-icon__down" d="m4.5 10 3.5 3.5 3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </th>
+  )
+}
+
 function ClientsMobileCardActionIcon({
   kind,
   label,
@@ -833,6 +933,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   /** Match `clients-tab-client-detail-modal` header CSS (title hidden, close left). */
   const clientDetailCompactHeader = useMediaMaxWidth(768)
   const isClientCreatePage = useMediaMaxWidth(1024)
+  const isClientsDesktop = !useMediaMaxWidth(1100)
   const clientsCopy = locale === 'sl' ? {
     details: 'Podrobnosti',
     editClientTitle: 'Uredi stranko',
@@ -1225,6 +1326,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [activatingCompanyId, setActivatingCompanyId] = useState<number | null>(null)
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive'>('active')
   const [companyActiveFilter, setCompanyActiveFilter] = useState<'active' | 'inactive'>('active')
+  const [clientSort, setClientSort] = useState<SortState<ClientSortKey>>({ key: null, direction: 'asc' })
+  const [companySort, setCompanySort] = useState<SortState<CompanySortKey>>({ key: null, direction: 'asc' })
+  const [groupSort, setGroupSort] = useState<SortState<GroupSortKey>>({ key: null, direction: 'asc' })
+  const [assignedOwnerFilter, setAssignedOwnerFilter] = useState<AssignedOwnerFilter>('all')
+  const [assignedOwnerFilterOpen, setAssignedOwnerFilterOpen] = useState(false)
+  const assignedOwnerFilterRef = useRef<HTMLDivElement | null>(null)
   const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId' | null>(null)
   const [assignedEmployeeSearch, setAssignedEmployeeSearch] = useState('')
   const [detailEditDraft, setDetailEditDraft] = useState<{
@@ -1946,41 +2053,144 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
   }, [clientsCopy.walletDeleteEntitlementConfirm, clientsCopy.walletDeleteEntitlementError, deletingWalletEntitlementId, detailClient, loadDetailWallet])
 
-  const filteredClients = useMemo(() => {
-    const byStatus = clients.filter((c) => activeFilter === 'inactive' ? c.active === false : c.active !== false)
-    const q = search.trim().toLowerCase()
-    if (!q) return byStatus
+  const assignedOwnerOptions = useMemo(() => {
+    const byId = new Map<number, UserSummary>()
+    consultants.forEach((user) => byId.set(user.id, user))
+    clients.forEach((client) => assignedUsersForClient(client).forEach((user) => byId.set(user.id, user)))
+    return Array.from(byId.values()).sort((left, right) => fullName(left).localeCompare(fullName(right), locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-Latn' : 'en', { sensitivity: 'base' }))
+  }, [clients, consultants, locale])
 
-    return byStatus.filter((client) => {
-      const fullName = `${client.firstName} ${client.lastName}`.toLowerCase()
-      return (
-          fullName.includes(q) ||
-          (client.email ?? '').toLowerCase().includes(q) ||
-          (client.phone ?? '').toLowerCase().includes(q) ||
-          (client.billingCompany?.name ?? '').toLowerCase().includes(q)
-      )
-    })
-  }, [clients, search, activeFilter])
+  useEffect(() => {
+    if (typeof assignedOwnerFilter !== 'number') return
+    if (!assignedOwnerOptions.some((owner) => owner.id === assignedOwnerFilter)) {
+      setAssignedOwnerFilter('all')
+    }
+  }, [assignedOwnerFilter, assignedOwnerOptions])
+
+  useEffect(() => {
+    if (!assignedOwnerFilterOpen) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!assignedOwnerFilterRef.current?.contains(event.target as Node)) setAssignedOwnerFilterOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAssignedOwnerFilterOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [assignedOwnerFilterOpen])
+
+  useEffect(() => {
+    if (!isClientsDesktop) setAssignedOwnerFilterOpen(false)
+  }, [isClientsDesktop])
+
+  const filteredClients = useMemo(() => {
+    let result = clients.filter((client) => activeFilter === 'inactive' ? client.active === false : client.active !== false)
+
+    if (isClientsDesktop && isAdmin && assignedOwnerFilter !== 'all') {
+      result = result.filter((client) => {
+        const owners = assignedUsersForClient(client)
+        if (assignedOwnerFilter === 'unassigned') return owners.length === 0
+        return owners.some((owner) => owner.id === assignedOwnerFilter)
+      })
+    }
+
+    const query = search.trim().toLowerCase()
+    if (query) {
+      result = result.filter((client) => {
+        const clientFullName = `${client.firstName} ${client.lastName}`.toLowerCase()
+        return (
+          clientFullName.includes(query)
+          || (client.email ?? '').toLowerCase().includes(query)
+          || (client.phone ?? '').toLowerCase().includes(query)
+          || (client.billingCompany?.name ?? '').toLowerCase().includes(query)
+        )
+      })
+    }
+
+    if (!isClientsDesktop || !clientSort.key) return result
+    const customFieldsById = new Map(clientListCustomFieldDefs.map((field) => [field.id, field]))
+    return sortRows(result, clientSort, (client, key) => {
+      if (key.startsWith('custom:')) {
+        const fieldId = Number(key.slice('custom:'.length))
+        return customFieldSortableValue(customFieldsById.get(fieldId), client.customFieldValues?.[String(fieldId)])
+      }
+      if (key === 'name') return `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()
+      if (key === 'email') return client.email
+      if (key === 'phone') return client.phone
+      if (key === 'assignedOwner') {
+        const ownerNames = assignedUsersForClient(client).map((owner) => fullName(owner)).sort()
+        return ownerNames.length > 0 ? ownerNames.join(', ') : null
+      }
+      if (key === 'status') return client.active !== false
+      if (key === 'createdAt') {
+        const timestamp = Date.parse(client.createdAt ?? '')
+        return Number.isFinite(timestamp) ? timestamp : null
+      }
+      return null
+    }, locale)
+  }, [activeFilter, assignedOwnerFilter, clientListCustomFieldDefs, clientSort, clients, isAdmin, isClientsDesktop, locale, search])
 
   const filteredCompanies = useMemo(() => {
-    const byStatus = companies.filter((c) => companyActiveFilter === 'inactive' ? c.active === false : c.active !== false)
-    const q = companySearch.trim().toLowerCase()
-    if (!q) return byStatus
-    return byStatus.filter((company) => (
-      (company.name || '').toLowerCase().includes(q)
-      || (company.email || '').toLowerCase().includes(q)
-      || (company.telephone || '').toLowerCase().includes(q)
-      || (company.city || '').toLowerCase().includes(q)
-      || (company.vatId || '').toLowerCase().includes(q)
-    ))
-  }, [companies, companySearch, companyActiveFilter])
+    let result = companies.filter((company) => companyActiveFilter === 'inactive' ? company.active === false : company.active !== false)
+    const query = companySearch.trim().toLowerCase()
+    if (query) {
+      result = result.filter((company) => (
+        (company.name || '').toLowerCase().includes(query)
+        || (company.email || '').toLowerCase().includes(query)
+        || (company.telephone || '').toLowerCase().includes(query)
+        || (company.city || '').toLowerCase().includes(query)
+        || (company.vatId || '').toLowerCase().includes(query)
+      ))
+    }
+
+    if (!isClientsDesktop || !companySort.key) return result
+    const customFieldsById = new Map(companyListCustomFieldDefs.map((field) => [field.id, field]))
+    return sortRows(result, companySort, (company, key) => {
+      if (key.startsWith('custom:')) {
+        const fieldId = Number(key.slice('custom:'.length))
+        return customFieldSortableValue(customFieldsById.get(fieldId), company.customFieldValues?.[String(fieldId)])
+      }
+      if (key === 'name') return company.name
+      if (key === 'vatId') return company.vatId
+      if (key === 'email') return company.email
+      if (key === 'telephone') return company.telephone
+      if (key === 'city') return company.city
+      if (key === 'status') return company.active !== false
+      if (key === 'createdAt') {
+        const timestamp = Date.parse(company.createdAt ?? '')
+        return Number.isFinite(timestamp) ? timestamp : null
+      }
+      return null
+    }, locale)
+  }, [companies, companyActiveFilter, companyListCustomFieldDefs, companySearch, companySort, isClientsDesktop, locale])
 
   const filteredGroups = useMemo(() => {
-    const byStatus = groups.filter((g) => groupActiveFilter === 'inactive' ? g.active === false : g.active !== false)
-    const q = groupSearch.trim().toLowerCase()
-    if (!q) return byStatus
-    return byStatus.filter((g) => (g.name || '').toLowerCase().includes(q))
-  }, [groups, groupSearch, groupActiveFilter])
+    let result = groups.filter((group) => groupActiveFilter === 'inactive' ? group.active === false : group.active !== false)
+    const query = groupSearch.trim().toLowerCase()
+    if (query) result = result.filter((group) => (group.name || '').toLowerCase().includes(query))
+
+    if (!isClientsDesktop || !groupSort.key) return result
+    const customFieldsById = new Map(groupListCustomFieldDefs.map((field) => [field.id, field]))
+    return sortRows(result, groupSort, (group, key) => {
+      if (key.startsWith('custom:')) {
+        const fieldId = Number(key.slice('custom:'.length))
+        return customFieldSortableValue(customFieldsById.get(fieldId), group.customFieldValues?.[String(fieldId)])
+      }
+      if (key === 'name') return group.name
+      if (key === 'description') return group.email
+      if (key === 'members') return (group.members ?? []).length
+      if (key === 'status') return group.active !== false
+      if (key === 'createdAt') {
+        const timestamp = Date.parse(group.createdAt ?? '')
+        return Number.isFinite(timestamp) ? timestamp : null
+      }
+      return null
+    }, locale)
+  }, [groupActiveFilter, groupListCustomFieldDefs, groupSearch, groupSort, groups, isClientsDesktop, locale])
 
   const activeCompaniesForNewClient = useMemo(
     () => companies.filter((c) => c.active !== false),
@@ -3479,9 +3689,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const companyIdHeader = locale === 'sl' ? 'Davčna številka / ID' : 'Tax ID / ID'
   const groupMembersHeader = locale === 'sl' ? 'Št. članov' : 'Members'
   const groupDescriptionHeader = locale === 'sl' ? 'Opis' : 'Description'
-  const assignedOwnerHeader = locale === 'sl' ? 'Dodeljen skrbnik' : 'Assigned owner'
-  const activeStatusLabel = locale === 'sl' ? 'Aktivna' : 'Active'
+  const assignedOwnerHeader = locale === 'sl' ? 'Dodeljen skrbnik' : locale === 'sr' ? 'Dodeljeni zaposleni' : 'Assigned owner'
+  const activeStatusLabel = locale === 'sl' ? 'Aktivna' : locale === 'sr' ? 'Aktivna' : 'Active'
   const inactiveStatusLabel = clientsCopy.inactive
+  const sortAriaPrefix = locale === 'sl' ? 'Razvrsti po' : locale === 'sr' ? 'Sortiraj po' : 'Sort by'
+  const allAssignedOwnersLabel = locale === 'sl' ? 'Vsi skrbniki' : locale === 'sr' ? 'Svi zaposleni' : 'All owners'
+  const unassignedOwnerLabel = locale === 'sl' ? 'Brez skrbnika' : locale === 'sr' ? 'Bez zaposlenog' : 'Unassigned'
+  const assignedOwnerFilterButtonLabel = locale === 'sl' ? 'Skrbnik' : locale === 'sr' ? 'Zaposleni' : 'Owner'
+  const selectedAssignedOwner = typeof assignedOwnerFilter === 'number'
+    ? assignedOwnerOptions.find((owner) => owner.id === assignedOwnerFilter) ?? null
+    : null
+  const selectedAssignedOwnerLabel = assignedOwnerFilter === 'all'
+    ? allAssignedOwnersLabel
+    : assignedOwnerFilter === 'unassigned'
+      ? unassignedOwnerLabel
+      : selectedAssignedOwner ? fullName(selectedAssignedOwner) : allAssignedOwnersLabel
   const tableEmptyLoadingText = locale === 'sl' ? 'Nalagam…' : 'Loading…'
   const createCurrentEntity = () => {
     if (entityTab === 'clients') return openNewModal()
@@ -3521,31 +3743,103 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </div>
 
           <div className="clients-toolbar clients-modern-toolbar">
-            <div className="clients-search-wrap">
-              <ClientsModernIcon name="search" />
-              {entityTab === 'clients' && (
-                <input
-                  className="clients-search-input"
-                  placeholder={currentSearchPlaceholder}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              )}
-              {entityTab === 'companies' && (
-                <input
-                  className="clients-search-input"
-                  placeholder={currentSearchPlaceholder}
-                  value={companySearch}
-                  onChange={(e) => setCompanySearch(e.target.value)}
-                />
-              )}
-              {entityTab === 'groups' && groupBookingEnabled && (
-                <input
-                  className="clients-search-input"
-                  placeholder={currentSearchPlaceholder}
-                  value={groupSearch}
-                  onChange={(e) => setGroupSearch(e.target.value)}
-                />
+            <div className="clients-toolbar-primary">
+              <div className="clients-search-wrap">
+                <ClientsModernIcon name="search" />
+                {entityTab === 'clients' && (
+                  <input
+                    className="clients-search-input"
+                    placeholder={currentSearchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                )}
+                {entityTab === 'companies' && (
+                  <input
+                    className="clients-search-input"
+                    placeholder={currentSearchPlaceholder}
+                    value={companySearch}
+                    onChange={(e) => setCompanySearch(e.target.value)}
+                  />
+                )}
+                {entityTab === 'groups' && groupBookingEnabled && (
+                  <input
+                    className="clients-search-input"
+                    placeholder={currentSearchPlaceholder}
+                    value={groupSearch}
+                    onChange={(e) => setGroupSearch(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {isClientsDesktop && entityTab === 'clients' && isAdmin && (
+                <div className="clients-owner-filter" ref={assignedOwnerFilterRef}>
+                  <button
+                    type="button"
+                    className={`clients-owner-filter__button${assignedOwnerFilter !== 'all' ? ' clients-owner-filter__button--active' : ''}`}
+                    aria-haspopup="listbox"
+                    aria-expanded={assignedOwnerFilterOpen}
+                    onClick={() => setAssignedOwnerFilterOpen((open) => !open)}
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M4 5h16l-6.3 7.2V18l-3.4 1.8v-7.6L4 5Z" />
+                    </svg>
+                    <span className="clients-owner-filter__label">{assignedOwnerFilterButtonLabel}:</span>
+                    <strong>{selectedAssignedOwnerLabel}</strong>
+                    <svg className={`clients-owner-filter__chevron${assignedOwnerFilterOpen ? ' clients-owner-filter__chevron--open' : ''}`} width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m5 7.5 5 5 5-5" />
+                    </svg>
+                  </button>
+                  {assignedOwnerFilterOpen && (
+                    <div className="clients-owner-filter__menu" role="listbox" aria-label={assignedOwnerHeader}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={assignedOwnerFilter === 'all'}
+                        className={assignedOwnerFilter === 'all' ? 'clients-owner-filter__option active' : 'clients-owner-filter__option'}
+                        onClick={() => {
+                          setAssignedOwnerFilter('all')
+                          setAssignedOwnerFilterOpen(false)
+                        }}
+                      >
+                        <span>{allAssignedOwnersLabel}</span>
+                        {assignedOwnerFilter === 'all' && <span className="clients-owner-filter__check">✓</span>}
+                      </button>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={assignedOwnerFilter === 'unassigned'}
+                        className={assignedOwnerFilter === 'unassigned' ? 'clients-owner-filter__option active' : 'clients-owner-filter__option'}
+                        onClick={() => {
+                          setAssignedOwnerFilter('unassigned')
+                          setAssignedOwnerFilterOpen(false)
+                        }}
+                      >
+                        <span>{unassignedOwnerLabel}</span>
+                        {assignedOwnerFilter === 'unassigned' && <span className="clients-owner-filter__check">✓</span>}
+                      </button>
+                      {assignedOwnerOptions.map((owner) => (
+                        <button
+                          key={owner.id}
+                          type="button"
+                          role="option"
+                          aria-selected={assignedOwnerFilter === owner.id}
+                          className={assignedOwnerFilter === owner.id ? 'clients-owner-filter__option active' : 'clients-owner-filter__option'}
+                          onClick={() => {
+                            setAssignedOwnerFilter(owner.id)
+                            setAssignedOwnerFilterOpen(false)
+                          }}
+                        >
+                          <span className="clients-owner-filter__owner">
+                            <span className="clients-owner-filter__avatar" aria-hidden>{initials(owner.firstName, owner.lastName)}</span>
+                            <span>{fullName(owner)}</span>
+                          </span>
+                          {assignedOwnerFilter === owner.id && <span className="clients-owner-filter__check">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div className="clients-toolbar-actions">
@@ -3647,13 +3941,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   <table className="clients-table">
                     <thead>
                       <tr>
-                        <th>{clientNameHeader}</th>
-                        <th>{clientsCopy.email}</th>
-                        <th>{clientsCopy.tableHeaderPhone}</th>
-                        {clientListCustomFieldDefs.map((field) => <th key={field.id}>{field.name}</th>)}
-                        {isAdmin && <th>{assignedOwnerHeader}</th>}
-                        <th>{statusHeader}</th>
-                        <th>{clientsCopy.tableHeaderCreated}</th>
+                        {isClientsDesktop ? <SortableTableHeader label={clientNameHeader} sortKey="name" sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientNameHeader}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.email} sortKey="email" sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.email}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.tableHeaderPhone} sortKey="phone" sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.tableHeaderPhone}</th>}
+                        {clientListCustomFieldDefs.map((field) => isClientsDesktop
+                          ? <SortableTableHeader key={field.id} label={field.name} sortKey={`custom:${field.id}`} sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} />
+                          : <th key={field.id}>{field.name}</th>)}
+                        {isAdmin && (isClientsDesktop ? <SortableTableHeader label={assignedOwnerHeader} sortKey="assignedOwner" sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{assignedOwnerHeader}</th>)}
+                        {isClientsDesktop ? <SortableTableHeader label={statusHeader} sortKey="status" sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{statusHeader}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.tableHeaderCreated} sortKey="createdAt" sortState={clientSort} onSort={(key) => setClientSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.tableHeaderCreated}</th>}
                         <th>{actionsHeader}</th>
                       </tr>
                     </thead>
@@ -3764,14 +4060,16 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   <table className="clients-table clients-table--companies">
                     <thead>
                       <tr>
-                        <th>{clientsCopy.companyName}</th>
-                        <th>{companyIdHeader}</th>
-                        <th>{clientsCopy.email}</th>
-                        <th>{clientsCopy.telephone}</th>
-                        <th>{clientsCopy.city}</th>
-                        {companyListCustomFieldDefs.map((field) => <th key={field.id}>{field.name}</th>)}
-                        <th>{statusHeader}</th>
-                        <th>{clientsCopy.tableHeaderCreated}</th>
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.companyName} sortKey="name" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.companyName}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={companyIdHeader} sortKey="vatId" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{companyIdHeader}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.email} sortKey="email" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.email}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.telephone} sortKey="telephone" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.telephone}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.city} sortKey="city" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.city}</th>}
+                        {companyListCustomFieldDefs.map((field) => isClientsDesktop
+                          ? <SortableTableHeader key={field.id} label={field.name} sortKey={`custom:${field.id}`} sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} />
+                          : <th key={field.id}>{field.name}</th>)}
+                        {isClientsDesktop ? <SortableTableHeader label={statusHeader} sortKey="status" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{statusHeader}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.tableHeaderCreated} sortKey="createdAt" sortState={companySort} onSort={(key) => setCompanySort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.tableHeaderCreated}</th>}
                         <th>{actionsHeader}</th>
                       </tr>
                     </thead>
@@ -3881,12 +4179,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   <table className="clients-table clients-table--groups">
                     <thead>
                       <tr>
-                        <th>{clientsCopy.groupName}</th>
-                        <th>{groupDescriptionHeader}</th>
-                        <th>{groupMembersHeader}</th>
-                        {groupListCustomFieldDefs.map((field) => <th key={field.id}>{field.name}</th>)}
-                        <th>{statusHeader}</th>
-                        <th>{clientsCopy.tableHeaderCreated}</th>
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.groupName} sortKey="name" sortState={groupSort} onSort={(key) => setGroupSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.groupName}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={groupDescriptionHeader} sortKey="description" sortState={groupSort} onSort={(key) => setGroupSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{groupDescriptionHeader}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={groupMembersHeader} sortKey="members" sortState={groupSort} onSort={(key) => setGroupSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{groupMembersHeader}</th>}
+                        {groupListCustomFieldDefs.map((field) => isClientsDesktop
+                          ? <SortableTableHeader key={field.id} label={field.name} sortKey={`custom:${field.id}`} sortState={groupSort} onSort={(key) => setGroupSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} />
+                          : <th key={field.id}>{field.name}</th>)}
+                        {isClientsDesktop ? <SortableTableHeader label={statusHeader} sortKey="status" sortState={groupSort} onSort={(key) => setGroupSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{statusHeader}</th>}
+                        {isClientsDesktop ? <SortableTableHeader label={clientsCopy.tableHeaderCreated} sortKey="createdAt" sortState={groupSort} onSort={(key) => setGroupSort((current) => nextSortState(current, key))} sortAriaPrefix={sortAriaPrefix} /> : <th>{clientsCopy.tableHeaderCreated}</th>}
                         <th>{actionsHeader}</th>
                       </tr>
                     </thead>
