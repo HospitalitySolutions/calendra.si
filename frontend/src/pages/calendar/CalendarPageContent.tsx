@@ -318,6 +318,16 @@ function CalendarPaymentCompanyIcon({ className }: { className?: string }) {
   )
 }
 
+function CalendarDashboardLayoutIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M10 4v16" />
+      <path d="M10 10h11M10 15h11" />
+    </svg>
+  )
+}
+
 type CalendarPageProps = {
   user: User
 }
@@ -334,6 +344,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
   const calendarNavigationKey = useMemo(() => calendarNavigationStorageKey(user), [user.companyId, user.id, user.tenantCode])
+  const calendarDashboardViewStorageKey = useMemo(
+    () => `calendra.calendar.dashboard.view.v1:${String(user.companyId ?? user.tenantCode ?? 'company')}:${String(user.id ?? 'user')}`,
+    [user.companyId, user.id, user.tenantCode],
+  )
   const [restoredCalendarNavigation] = useState(() => readPersistedCalendarNavigationState(calendarNavigationKey))
   const canIssueOpenInvoice = canIssueOpenInvoices(user)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
@@ -427,6 +441,21 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   )
   const [dashboardConsultantIds, setDashboardConsultantIds] = useState<number[]>([])
   const [dashboardSpaceIds, setDashboardSpaceIds] = useState<number[]>([])
+  const [calendarDashboardViewEnabled, setCalendarDashboardViewEnabled] = useState(() => {
+    try {
+      return window.localStorage.getItem(calendarDashboardViewStorageKey) !== 'calendar'
+    } catch {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(calendarDashboardViewStorageKey, calendarDashboardViewEnabled ? 'dashboard' : 'calendar')
+    } catch {
+      // Ignore storage restrictions; the view toggle still works for the current session.
+    }
+  }, [calendarDashboardViewEnabled, calendarDashboardViewStorageKey])
 
   useEffect(() => {
     if (!isTenantAdmin || calendarMode === 'spaces' || metaConsultants.length === 0) return
@@ -2464,9 +2493,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const spacesEnabled = settings.SPACES_ENABLED === 'true'
   /** Spaces setting on and at least one space exists — hide mode + space filters otherwise */
   const calendarSpacesFeatureActive = spacesEnabled && metaSpaces.length > 0
-  /** Right rail shows mode switch (spaces) and/or date arrows; omit grid column when unused so the grid fills width */
-  const showCalendarRightRail =
-    calendarSpacesFeatureActive || (calendarDateNavArrowsInRail && !calendarMobileHeaderNav)
 
   const spacesUseResourceColumns =
     calendarMode === 'spaces' && spaceFilterId == null && !isNativeAndroid && calendarSpacesFeatureActive
@@ -2479,8 +2505,14 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarDashboardDayView = view === 'timeGridDay' || view === 'resourceTimeGridDay'
   const calendarDashboardThreeDayView =
     view === 'timeGridThreeDay' && calendarMode !== 'spaces' && !bookingsUseResourceColumns
-  const calendarDashboardEnabled =
+  const calendarDashboardEligible =
     !isNativeAndroid && !calendarFiltersBottomBar && (calendarDashboardDayView || calendarDashboardThreeDayView)
+  const calendarDashboardEnabled = calendarDashboardEligible && calendarDashboardViewEnabled
+  /** Keep the rail available in supported views so users can switch between dashboard and full-calendar layouts. */
+  const showCalendarRightRail =
+    calendarSpacesFeatureActive
+    || calendarDashboardEligible
+    || (calendarDateNavArrowsInRail && !calendarMobileHeaderNav)
   const calendarDashboardDate = calendarAnchorDate || localTodayYmd()
   const calendarDashboardSelectionOnly =
     calendarDashboardEnabled && !isCalendarFormPath(location.pathname)
@@ -13725,14 +13757,36 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         ) : null}
         {!isNativeAndroid && showCalendarRightRail ? (
           <div className="calendar-rail-stack">
-            {calendarSpacesFeatureActive ? (
+            {calendarDashboardEligible || calendarSpacesFeatureActive ? (
               <div className="calendar-mode-toolbar calendar-mode-toolbar--rail">
-                <CalendarHeaderModeGroup
-                  calendarMode={calendarMode}
-                  onModeChange={setCalendarModeView}
-                  bookableEnabled={bookableEnabled}
-                  spacesEnabled={spacesEnabled}
-                />
+                {calendarDashboardEligible ? (
+                  <button
+                    type="button"
+                    className={`calendar-header-mode-btn calendar-dashboard-view-toggle${calendarDashboardEnabled ? ' active' : ''}`}
+                    onClick={() => setCalendarDashboardViewEnabled((enabled) => !enabled)}
+                    title={
+                      calendarDashboardEnabled
+                        ? locale === 'sl' ? 'Prikaži celoten koledar' : 'Show full calendar'
+                        : locale === 'sl' ? 'Prikaži nadzorno ploščo' : 'Show dashboard'
+                    }
+                    aria-label={
+                      calendarDashboardEnabled
+                        ? locale === 'sl' ? 'Prikaži celoten koledar' : 'Show full calendar'
+                        : locale === 'sl' ? 'Prikaži nadzorno ploščo' : 'Show dashboard'
+                    }
+                    aria-pressed={calendarDashboardEnabled}
+                  >
+                    <CalendarDashboardLayoutIcon />
+                  </button>
+                ) : null}
+                {calendarSpacesFeatureActive ? (
+                  <CalendarHeaderModeGroup
+                    calendarMode={calendarMode}
+                    onModeChange={setCalendarModeView}
+                    bookableEnabled={bookableEnabled}
+                    spacesEnabled={spacesEnabled}
+                  />
+                ) : null}
               </div>
             ) : null}
             {calendarDateNavArrowsInRail && !calendarMobileHeaderNav ? (
