@@ -822,8 +822,7 @@
     }
 
     scheduleSlotHoldExpiry(expiresAt) {
-      if (this.slotHoldExpiryTimer) window.clearTimeout(this.slotHoldExpiryTimer);
-      this.slotHoldExpiryTimer = null;
+      this.cancelSlotHoldExpiryTimer();
       const expiresMs = Date.parse(expiresAt || '');
       if (!Number.isFinite(expiresMs)) return;
       const delay = Math.max(0, expiresMs - Date.now());
@@ -854,6 +853,8 @@
       const serviceTypeIds = this.selectedServiceIdsForRequest();
       if (!slotId || serviceTypeIds.length === 0) return false;
       const tenant = encodeURIComponent(this.options.tenant);
+      const previousHoldToken = this.state.slotHoldToken || '';
+      const previousHoldExpiresAt = this.state.slotHoldExpiresAt || '';
       this.setState({ creatingSlotHold: true, error: '' });
       try {
         const response = await this.fetchJson(`/api/public/widget/${tenant}/booking-holds`, {
@@ -861,18 +862,27 @@
           body: {
             slotId,
             serviceTypeIds,
-            previousHoldToken: this.state.slotHoldToken || null,
+            previousHoldToken: previousHoldToken || null,
           },
         });
-        this.state.slotHoldToken = response?.holdToken || '';
-        this.state.slotHoldExpiresAt = response?.expiresAt || '';
+        const nextHoldToken = response?.holdToken || '';
+        const nextHoldExpiresAt = response?.expiresAt || '';
+        if (!nextHoldToken) throw new Error(this.text().slotHoldFailed || 'This time is no longer available.');
+        this.state.slotHoldToken = nextHoldToken;
+        this.state.slotHoldExpiresAt = nextHoldExpiresAt;
         this.state.creatingSlotHold = false;
-        if (!this.state.slotHoldToken) throw new Error(this.text().slotHoldFailed || 'This time is no longer available.');
-        this.scheduleSlotHoldExpiry(this.state.slotHoldExpiresAt);
+        this.scheduleSlotHoldExpiry(nextHoldExpiresAt);
         return true;
       } catch (error) {
-        this.state.slotHoldToken = '';
-        this.state.slotHoldExpiresAt = '';
+        // A replacement failure must not make the widget forget a still-active previous hold.
+        // releaseSlotHold clears the old token only after DELETE succeeds, so checking identity
+        // here also avoids restoring a token that has already been released concurrently.
+        if (previousHoldToken && this.state.slotHoldToken === previousHoldToken) {
+          this.state.slotHoldExpiresAt = previousHoldExpiresAt;
+          this.scheduleSlotHoldExpiry(previousHoldExpiresAt);
+        } else if (!this.state.slotHoldToken) {
+          this.state.slotHoldExpiresAt = '';
+        }
         this.setState({
           creatingSlotHold: false,
           error: this.normalizeError(error, this.text().slotHoldFailed || 'This time is no longer available.'),
@@ -888,23 +898,44 @@
       }
     }
 
-    clearSlotHoldLocally() {
+    cancelSlotHoldExpiryTimer() {
       if (this.slotHoldExpiryTimer) window.clearTimeout(this.slotHoldExpiryTimer);
       this.slotHoldExpiryTimer = null;
+    }
+
+    clearSlotHoldLocally() {
+      this.cancelSlotHoldExpiryTimer();
       this.state.slotHoldToken = '';
       this.state.slotHoldExpiresAt = '';
     }
 
     async releaseSlotHold(updateState = true) {
       const token = this.state.slotHoldToken;
-      this.clearSlotHoldLocally();
-      if (updateState) this.render();
-      if (!token || !this.options?.tenant) return;
+      const expiresAt = this.state.slotHoldExpiresAt;
+      if (!token) return;
+      this.cancelSlotHoldExpiryTimer();
+      if (!this.options?.tenant) {
+        if (this.state.slotHoldToken === token) {
+          this.clearSlotHoldLocally();
+          if (updateState) this.render();
+        }
+        return;
+      }
       try {
         const tenant = encodeURIComponent(this.options.tenant);
         await this.fetchJson(`/api/public/widget/${tenant}/booking-holds/${encodeURIComponent(token)}`, { method: 'DELETE' });
       } catch (_) {
-        // The server also removes expired holds automatically.
+        // Keep the token when release fails. A subsequent hold request can replace it atomically
+        // through previousHoldToken, and the server still removes it automatically on expiry.
+        if (this.state.slotHoldToken === token) {
+          this.scheduleSlotHoldExpiry(expiresAt);
+        }
+        return;
+      }
+      // Do not clear a newer hold created while this DELETE request was in flight.
+      if (this.state.slotHoldToken === token) {
+        this.clearSlotHoldLocally();
+        if (updateState) this.render();
       }
     }
 

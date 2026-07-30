@@ -177,4 +177,26 @@ class AvailabilityBlockMetadataTest {
         )));
     }
 
+    @Test
+    void expandingLimitedMultiDayAllDayRangeReturnsEverySelectedDate() {
+        AvailabilityBlockMetadata.Metadata metadata = new AvailabilityBlockMetadata.Metadata(
+                DayOfWeek.MONDAY,
+                LocalTime.MIDNIGHT,
+                LocalTime.of(23, 59, 59),
+                false,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 14)
+        );
+
+        var occurrences = AvailabilityBlockMetadata.expand(
+                metadata,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 14)
+        );
+
+        assertEquals(5, occurrences.size());
+        assertEquals(LocalDate.of(2026, 8, 10), occurrences.get(0).startTime().toLocalDate());
+        assertEquals(LocalDate.of(2026, 8, 14), occurrences.get(4).startTime().toLocalDate());
+    }
+
 }

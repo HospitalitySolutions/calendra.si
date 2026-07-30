@@ -357,10 +357,21 @@ public final class AvailabilityBlockMetadata {
 
     public static List<Occurrence> expand(PersonalCalendarBlock block, LocalDate from, LocalDate to) {
         Optional<Metadata> parsed = parse(block);
-        if (parsed.isEmpty() || from == null || to == null || to.isBefore(from)) {
+        if (parsed.isEmpty()) {
             return List.of();
         }
-        Metadata meta = parsed.get();
+        return expand(parsed.get(), from, to);
+    }
+
+    /**
+     * Expands already parsed metadata using the same recurrence semantics as overlap validation.
+     * This overload is used by lightweight availability projections that do not materialize a
+     * {@link PersonalCalendarBlock} entity.
+     */
+    public static List<Occurrence> expand(Metadata meta, LocalDate from, LocalDate to) {
+        if (meta == null || from == null || to == null || to.isBefore(from)) {
+            return List.of();
+        }
         LocalDate cursor = from;
         if (meta.startDate() != null && cursor.isBefore(meta.startDate())) {
             cursor = meta.startDate();

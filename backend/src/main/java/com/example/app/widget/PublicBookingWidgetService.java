@@ -1811,34 +1811,20 @@ public class PublicBookingWidgetService {
         }
 
         AvailabilityBlockMetadata.Metadata metadata = parsed.get();
-        LocalDate cursor = fromDate;
-        if (metadata.startDate() != null && cursor.isBefore(metadata.startDate())) {
-            cursor = metadata.startDate();
-        }
-        LocalDate last = toDate;
-        if (!metadata.indefinite() && metadata.endDate() != null && last.isAfter(metadata.endDate())) {
-            last = metadata.endDate();
-        }
-        long guard = 0;
-        while (!cursor.isAfter(last) && guard++ < 3700) {
-            boolean afterStart = metadata.startDate() == null || !cursor.isBefore(metadata.startDate());
-            boolean beforeEnd = metadata.indefinite() || metadata.endDate() == null || !cursor.isAfter(metadata.endDate());
-            if (afterStart && beforeEnd && cursor.getDayOfWeek() == metadata.dayOfWeek()) {
-                LocalDateTime occurrenceStart = cursor.atTime(metadata.startTime());
-                LocalDateTime occurrenceEnd = cursor.atTime(metadata.endTime());
-                if (!occurrenceEnd.isAfter(occurrenceStart)) {
-                    occurrenceEnd = occurrenceEnd.plusDays(1);
-                }
-                addPersonalBusyInterval(
-                        personalBusyByOwner,
-                        marker.getOwnerId(),
-                        occurrenceStart,
-                        occurrenceEnd,
-                        rangeStart,
-                        rangeEnd
-                );
-            }
-            cursor = cursor.plusDays(1);
+        // Use the same recurrence expansion as final booking validation. In particular, a finite
+        // multi-day all-day block covers every selected date, not only the weekday of its first day.
+        // Keeping preview and final validation aligned prevents slots from being shown and then
+        // rejected by POST /booking-holds with 409 Conflict.
+        for (AvailabilityBlockMetadata.Occurrence occurrence :
+                AvailabilityBlockMetadata.expand(metadata, fromDate, toDate)) {
+            addPersonalBusyInterval(
+                    personalBusyByOwner,
+                    marker.getOwnerId(),
+                    occurrence.startTime(),
+                    occurrence.endTime(),
+                    rangeStart,
+                    rangeEnd
+            );
         }
     }
 

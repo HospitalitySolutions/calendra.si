@@ -53,11 +53,13 @@ public class BookingSlotHoldService {
         String previous = clean(request == null ? null : request.previousHoldToken(), 100);
         Instant now = Instant.now();
         holds.deleteExpired(now);
-        if (!previous.isBlank()) {
-            holds.findByHoldToken(previous)
-                    .filter(row -> Objects.equals(row.getCompany().getId(), companyId))
-                    .ifPresent(holds::delete);
-        }
+        BookingSlotHold previousHold = previous.isBlank()
+                ? null
+                : holds.findByHoldToken(previous)
+                        .filter(row -> row.getCompany() != null
+                                && Objects.equals(row.getCompany().getId(), companyId))
+                        .orElse(null);
+        String excludedPreviousToken = previousHold == null ? "" : previousHold.getHoldToken();
 
         BookingSlotHold hold = new BookingSlotHold();
         hold.setCompany(company);
@@ -101,7 +103,14 @@ public class BookingSlotHoldService {
                 services.add(new SessionBookingController.BookingServiceRequest(serviceTypeIds.get(index), index, null));
             }
             SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindow(
-                    companyId, List.of(), consultant.getId(), slot.startsAt(), services, List.of(), false, previous
+                    companyId,
+                    List.of(),
+                    consultant.getId(),
+                    slot.startsAt(),
+                    services,
+                    List.of(),
+                    false,
+                    excludedPreviousToken
             );
             if (!Objects.equals(plan.endTime(), slot.endsAt())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This time no longer matches the selected services.");
@@ -112,6 +121,12 @@ public class BookingSlotHoldService {
             hold.setBusyEnd(plan.availabilityEndTime());
         }
 
+        // Keep the previous hold active until the replacement has passed all validation. This makes
+        // replacement atomic from the guest's perspective and prevents a failed replacement from
+        // losing the original reservation. The old token is excluded during overlap validation above.
+        if (previousHold != null) {
+            holds.delete(previousHold);
+        }
         holds.saveAndFlush(hold);
         return new HoldResponse(hold.getHoldToken(), hold.getExpiresAt(), hold.getSlotId());
     }
