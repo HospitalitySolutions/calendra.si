@@ -1,7 +1,12 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useMemo } from "react";
-import { useLocale, type AppLocale } from "../../locale";
+import { useLocale } from "../../locale";
 import { GuestSwitch } from "./ConfigurationVisualComponents";
+import {
+  CALENDAR_TIME_SCALE_MINUTES_KEY,
+  normalizeCalendarTimeScaleMinutes,
+  type CalendarTimeScaleMinutes,
+} from "../../lib/calendarTimeScale";
 
 export const TENANT_RESERVATION_RULES_KEY = "TENANT_RESERVATION_RULES_JSON";
 
@@ -35,6 +40,12 @@ type Copy = {
   employeeSubtitle: string;
   noShowTitle: string;
   noShowSubtitle: string;
+  calendarScaleTitle: string;
+  calendarScaleSubtitle: string;
+  calendarScaleLabel: string;
+  calendarScaleHint: string;
+  thirtyMinutes: string;
+  oneHour: string;
   minNotice: string;
   minNoticeHint: string;
   maxAdvance: string;
@@ -73,6 +84,12 @@ const TEXT: Record<'en' | 'sl', Copy> = {
     employeeSubtitle: "Decide whether guests can explicitly choose an employee.",
     noShowTitle: "No-show rule",
     noShowSubtitle: "Keep no-show handling manual or let Calendra mark missed appointments automatically.",
+    calendarScaleTitle: "Calendar time scale",
+    calendarScaleSubtitle: "Choose how densely hours are displayed in the calendar.",
+    calendarScaleLabel: "Time shown between calendar lines",
+    calendarScaleHint: "The 1-hour option keeps the same height currently used by 30 minutes, so the calendar and appointment blocks become twice as compact.",
+    thirtyMinutes: "30 min",
+    oneHour: "1 hour",
     minNotice: "Minimum time before appointment",
     minNoticeHint: "Example: 120 minutes means guests can only book at least 2 hours in advance.",
     maxAdvance: "Maximum days in advance",
@@ -109,6 +126,12 @@ const TEXT: Record<'en' | 'sl', Copy> = {
     employeeSubtitle: "Določite, ali lahko stranka izbere zaposlenega ali ga sistem dodeli samodejno.",
     noShowTitle: "Pravilo za No Show",
     noShowSubtitle: "No-show lahko ostane ročen ali pa ga Calendra samodejno označi po začetku termina.",
+    calendarScaleTitle: "Časovna lestvica koledarja",
+    calendarScaleSubtitle: "Izberite, kako strnjeno so ure prikazane v koledarju.",
+    calendarScaleLabel: "Čas med vodoravnimi črtami koledarja",
+    calendarScaleHint: "Pri možnosti 1 ura ostane razmik enak trenutnemu razmiku za 30 minut, zato so koledar in bloki terminov dvakrat bolj strnjeni.",
+    thirtyMinutes: "30 min",
+    oneHour: "1 ura",
     minNotice: "Najmanj časa pred terminom",
     minNoticeHint: "Primer: 120 minut pomeni, da se lahko stranka naroči najmanj 2 uri vnaprej.",
     maxAdvance: "Največ dni vnaprej",
@@ -202,12 +225,22 @@ export function ReservationRulesSettingsSection({
     () => parseTenantReservationRules(settings[TENANT_RESERVATION_RULES_KEY]),
     [settings],
   );
+  const calendarTimeScaleMinutes = normalizeCalendarTimeScaleMinutes(
+    settings[CALENDAR_TIME_SCALE_MINUTES_KEY],
+  );
 
   const update = (patch: Partial<ReservationRules>) => {
     const next = { ...rules, ...patch };
     setSettings((current) => ({
       ...current,
       [TENANT_RESERVATION_RULES_KEY]: serializeTenantReservationRules(next),
+    }));
+  };
+
+  const updateCalendarTimeScale = (value: CalendarTimeScaleMinutes) => {
+    setSettings((current) => ({
+      ...current,
+      [CALENDAR_TIME_SCALE_MINUTES_KEY]: String(value),
     }));
   };
 
@@ -286,6 +319,36 @@ export function ReservationRulesSettingsSection({
               ) : null}
             </div>
           ) : null}
+        </article>
+
+        <article className="general-settings-card reservation-rules-card--wide">
+          <SectionHeader title={text.calendarScaleTitle} subtitle={text.calendarScaleSubtitle} />
+          <div className="reservation-rules-calendar-scale-row">
+            <div>
+              <strong>{text.calendarScaleLabel}</strong>
+              <p>{text.calendarScaleHint}</p>
+            </div>
+            <div
+              className="reservation-rules-segmented-control"
+              role="group"
+              aria-label={text.calendarScaleLabel}
+            >
+              {([30, 60] as const).map((value) => {
+                const selected = calendarTimeScaleMinutes === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={selected ? "is-selected" : undefined}
+                    aria-pressed={selected}
+                    onClick={() => updateCalendarTimeScale(value)}
+                  >
+                    {value === 30 ? text.thirtyMinutes : text.oneHour}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </article>
 
         <article className="general-settings-card reservation-rules-card--wide">

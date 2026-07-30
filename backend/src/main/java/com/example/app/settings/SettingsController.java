@@ -203,6 +203,7 @@ public class SettingsController {
         }
         applyModuleSettingDependencies(values);
         values.putIfAbsent(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name(), "0");
+        values.putIfAbsent(SettingKey.CALENDAR_TIME_SCALE_MINUTES.name(), "30");
         return values;
     }
 
@@ -211,9 +212,11 @@ public class SettingsController {
     @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        Map<String, String> normalizedPayload = normalizeModuleDependencyPayload(
-                companyId,
-                normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload))
+        Map<String, String> normalizedPayload = normalizeCalendarTimeScalePayload(
+                normalizeModuleDependencyPayload(
+                        companyId,
+                        normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload))
+                )
         );
         if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
@@ -317,6 +320,15 @@ public class SettingsController {
             String json = TenantReservationRulesService.normalizeJson(
                     normalized.get(SettingKey.TENANT_RESERVATION_RULES_JSON.name()));
             normalized.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), json);
+        }
+        return normalized;
+    }
+
+    private Map<String, String> normalizeCalendarTimeScalePayload(Map<String, String> payload) {
+        Map<String, String> normalized = new LinkedHashMap<>(payload == null ? Map.of() : payload);
+        String key = SettingKey.CALENDAR_TIME_SCALE_MINUTES.name();
+        if (normalized.containsKey(key)) {
+            normalized.put(key, "60".equals(String.valueOf(normalized.get(key)).trim()) ? "60" : "30");
         }
         return normalized;
     }

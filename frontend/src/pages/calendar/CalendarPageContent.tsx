@@ -63,6 +63,7 @@ import { useToast } from '../../components/Toast'
 import { subscribeBookingUpdates } from '../../lib/bookingRealtime'
 import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs } from '../../lib/consultantWorkingHours'
 import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, type BookingPaymentStatusValue, type User } from '../../lib/types'
+import { CALENDAR_TIME_SCALE_MINUTES_KEY, normalizeCalendarTimeScaleMinutes } from '../../lib/calendarTimeScale'
 
 import {
   ANDROID_PINCH_ZOOM_MAX,
@@ -2745,7 +2746,17 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const slotMinTime = toCalendarTimeValue(settings.WORKING_HOURS_START, '05:00')
   const slotMaxTime = toCalendarTimeValue(settings.WORKING_HOURS_END, '23:00')
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const
-  const calendarSlotDurationMinutes = 15
+  const calendarTimeScaleMinutes = normalizeCalendarTimeScaleMinutes(
+    settings[CALENDAR_TIME_SCALE_MINUTES_KEY],
+  )
+  // A 60-minute label interval uses 30-minute FullCalendar slats. Because the
+  // existing 30-minute view uses two 15-minute slats, both label intervals keep
+  // exactly the same vertical height while the one-hour view is twice as compact.
+  const calendarSlotDurationMinutes = calendarTimeScaleMinutes === 60 ? 30 : 15
+  const calendarSnapDurationMinutes = 15
+  const calendarSlotDuration = calendarSlotDurationMinutes === 30 ? '00:30:00' : '00:15:00'
+  const calendarSnapDuration = '00:15:00'
+  const calendarSlotLabelInterval = calendarTimeScaleMinutes === 60 ? '01:00:00' : '00:30:00'
 
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX}px)`)
@@ -2808,9 +2819,18 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       }
 
       const idx = rows.indexOf(row)
+      const rowRect = row.getBoundingClientRect()
+      const snapsPerRow = Math.max(1, Math.round(calendarSlotDurationMinutes / calendarSnapDurationMinutes))
+      const rowOffset = Math.min(Math.max(yAnchor - rowRect.top, 0), Math.max(0, rowRect.height - 0.01))
+      const snapIndexWithinRow = Math.min(
+        snapsPerRow - 1,
+        Math.max(0, Math.floor((rowOffset / Math.max(1, rowRect.height)) * snapsPerRow)),
+      )
       const minParts = slotMinTime.split(':').map((v) => Number(v) || 0)
       const startMin = minParts[0] * 60 + (minParts[1] || 0)
-      const tMin = startMin + idx * calendarSlotDurationMinutes
+      const tMin = startMin
+        + idx * calendarSlotDurationMinutes
+        + snapIndexWithinRow * calendarSnapDurationMinutes
       const hh = Math.floor(tMin / 60)
       const mm = tMin % 60
       const labelDate = new Date(2000, 0, 1, hh, mm, 0, 0)
@@ -2834,16 +2854,18 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       }
 
       const lr = labelCell.getBoundingClientRect()
+      const snapHeight = rowRect.height / snapsPerRow
+      const snapTop = rowRect.top + snapIndexWithinRow * snapHeight
       pill.textContent = text
       pill.style.visibility = 'visible'
       pill.style.position = 'fixed'
       pill.style.left = `${lr.left}px`
-      pill.style.top = `${lr.top}px`
+      pill.style.top = `${snapTop}px`
       pill.style.width = `${lr.width}px`
-      pill.style.minHeight = `${lr.height}px`
-      pill.style.height = `${lr.height}px`
+      pill.style.minHeight = `${snapHeight}px`
+      pill.style.height = `${snapHeight}px`
     },
-    [slotMinTime, calendarLocaleTag],
+    [slotMinTime, calendarLocaleTag, calendarSlotDurationMinutes, calendarSnapDurationMinutes],
   )
 
   useEffect(() => () => teardownCalendarDragAxisHint(), [teardownCalendarDragAxisHint])
@@ -12358,9 +12380,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             const rid = (arg as { resource?: { id?: string } }).resource?.id
             handleCalendarSelectionFromUi(toLocalDateTimeString(start), toLocalDateTimeString(end), false, rid)
           }}
-          slotDuration="00:15:00"
-          snapDuration="00:15:00"
-          slotLabelInterval="00:30:00"
+          slotDuration={calendarSlotDuration}
+          snapDuration={calendarSnapDuration}
+          slotLabelInterval={calendarSlotLabelInterval}
           slotMinTime={slotMinTime}
           slotMaxTime={slotMaxTime}
           height={isNativeAndroid ? '100%' : 'auto'}

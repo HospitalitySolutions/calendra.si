@@ -48,6 +48,8 @@ public enum SettingKey {
     SECURITY_PASSKEYS_ENABLED,
     SECURITY_API_INTEGRATIONS_ENABLED,
     SESSION_LENGTH_MINUTES,
+    /** Calendar side scale: 30 shows half-hour labels; 60 shows hourly labels in a compact layout. */
+    CALENDAR_TIME_SCALE_MINUTES,
     /** Default cleanup/buffer time applied to services that do not define a specific break. */
     DEFAULT_SERVICE_BREAK_MINUTES,
     WORKING_HOURS_START,
