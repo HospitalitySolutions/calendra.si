@@ -673,7 +673,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarHeaderCompact = useCalendarCompactHeader()
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   const compactCalendarFormLayout = useCalendarFormPageLayout()
-  /** Appointment create/edit flows are route-backed dedicated pages on every resolution. */
+  /** Appointment create/edit flows are route-backed; desktop presents them as modal pages over the calendar. */
   const calendarFormPageLayout = true
   const calendarDateNavArrowsInRail = useCalendarDateNavArrowsInRail()
   const calendarMobileHeaderNav = useCalendarMobileHeaderNav()
