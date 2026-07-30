@@ -4174,10 +4174,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       )}
 
       {selectedPersonalBlock && (
-        <div className={useBookingSidePanel ? 'modal-backdrop booking-side-panel-backdrop' : 'calendar-session-popup-layer'} onClick={useBookingSidePanel ? closePersonalModal : undefined}>
+        <div
+          className={useBookingSidePanel ? `modal-backdrop booking-side-panel-backdrop${calendarFormPageLayout ? ' calendar-form-page-backdrop' : ''}` : 'calendar-session-popup-layer'}
+          onClick={useBookingSidePanel && !calendarFormPageLayout ? closePersonalModal : undefined}
+        >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--personal-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}` : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--personal-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -4341,12 +4344,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
       {selectedTodo && (
         <div
-          className={useBookingSidePanel ? 'modal-backdrop booking-side-panel-backdrop' : 'calendar-session-popup-layer'}
-          onClick={useBookingSidePanel ? closeTodoModal : undefined}
+          className={useBookingSidePanel ? `modal-backdrop booking-side-panel-backdrop${calendarFormPageLayout ? ' calendar-form-page-backdrop' : ''}` : 'calendar-session-popup-layer'}
+          onClick={useBookingSidePanel && !calendarFormPageLayout ? closeTodoModal : undefined}
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--todo-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
+            className={[useBookingSidePanel ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}` : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--todo-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
             style={getSessionPopupInlineStyle()}
             onClick={(e) => e.stopPropagation()}
           >

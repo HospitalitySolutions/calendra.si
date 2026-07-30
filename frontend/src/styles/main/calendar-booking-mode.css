@@ -9259,6 +9259,39 @@
 }
 
 
+/* Desktop appointment editors are dedicated route pages rather than calendar popups. */
+@media (min-width: 1025px) {
+    .calendar-form-page-backdrop.modal-backdrop {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 1150 !important;
+        padding: 0 !important;
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        background: #ffffff !important;
+        overflow: hidden !important;
+    }
+
+    .calendar-form-page.booking-side-panel.modal.large-modal {
+        align-self: stretch !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    @supports (height: 100dvh) {
+        .calendar-form-page.booking-side-panel.modal.large-modal {
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+        }
+    }
+}
+
 /* Dedicated appointment pages for phone and tablet layouts. */
 @media (max-width: 1024px) {
     .calendar-form-page-backdrop.modal-backdrop,

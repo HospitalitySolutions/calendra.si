@@ -397,7 +397,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const appHeaderMobileRow = useCalendarMobileHeaderNav()
   /** ≤939px: same band as calendar bottom strip; non-calendar still uses sticky header with todo. */
   const narrowWebHeaderForVoice = appHeaderMobileRow || calendarFiltersBottomBar
-  const calendarFormUsesRoutes = calendarFiltersBottomBar || isNativeAndroid
+  const calendarFormUsesRoutes = true
   const overdueLoadInFlightRef = useRef<Promise<void> | null>(null)
 
   const localDateStr = (d: Date) => {
