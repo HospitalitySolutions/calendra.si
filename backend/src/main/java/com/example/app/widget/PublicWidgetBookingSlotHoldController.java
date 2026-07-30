@@ -38,7 +38,7 @@ public class PublicWidgetBookingSlotHoldController {
             HttpServletRequest httpRequest
     ) {
         Company company = requireCompany(tenantCode);
-        widgetService.guardPublicWidgetRequest(company, httpRequest, true, "booking-hold");
+        widgetService.guardPublicWidgetBookingHoldRequest(company, httpRequest, "booking-hold");
         return holds.create(company.getId(), request);
     }
 

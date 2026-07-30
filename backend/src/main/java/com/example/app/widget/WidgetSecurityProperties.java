@@ -19,6 +19,13 @@ public class WidgetSecurityProperties {
     private int bookingsPerMinutePerIp = 10;
     private int bookingsPerMinutePerTenant = 120;
     /**
+     * Slot holds are intentionally isolated from final booking/order attempts. A guest may
+     * legitimately need to retry after another device reserves the same slot, and multiple
+     * guests can share one public IP (office, hotel, mobile carrier NAT, etc.).
+     */
+    private int bookingHoldsPerMinutePerIp = 30;
+    private int bookingHoldsPerMinutePerTenant = 300;
+    /**
      * When true, every tenant must configure at least one allowed origin before the public widget API can be used.
      * Keep false for local testing; enable in staging/production.
      */
@@ -43,6 +50,10 @@ public class WidgetSecurityProperties {
     public void setBookingsPerMinutePerIp(int v) { this.bookingsPerMinutePerIp = v; }
     public int getBookingsPerMinutePerTenant() { return bookingsPerMinutePerTenant; }
     public void setBookingsPerMinutePerTenant(int v) { this.bookingsPerMinutePerTenant = v; }
+    public int getBookingHoldsPerMinutePerIp() { return bookingHoldsPerMinutePerIp; }
+    public void setBookingHoldsPerMinutePerIp(int v) { this.bookingHoldsPerMinutePerIp = v; }
+    public int getBookingHoldsPerMinutePerTenant() { return bookingHoldsPerMinutePerTenant; }
+    public void setBookingHoldsPerMinutePerTenant(int v) { this.bookingHoldsPerMinutePerTenant = v; }
     public boolean isRequireAllowedOrigin() { return requireAllowedOrigin; }
     public void setRequireAllowedOrigin(boolean requireAllowedOrigin) { this.requireAllowedOrigin = requireAllowedOrigin; }
     public boolean isTrustRefererWhenOriginMissing() { return trustRefererWhenOriginMissing; }

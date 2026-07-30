@@ -1038,12 +1038,32 @@ public class PublicBookingWidgetService {
         );
     }
     void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
+        guardPublicWidgetRequest(company, request, action, () -> widgetRateLimiter.check(
+                company.getTenantCode(),
+                widgetPublicAuditLogger.clientIp(request),
+                bookingRequest
+        ));
+    }
+
+    void guardPublicWidgetBookingHoldRequest(Company company, HttpServletRequest request, String action) {
+        guardPublicWidgetRequest(company, request, action, () -> widgetRateLimiter.checkBookingHold(
+                company.getTenantCode(),
+                widgetPublicAuditLogger.clientIp(request)
+        ));
+    }
+
+    private void guardPublicWidgetRequest(
+            Company company,
+            HttpServletRequest request,
+            String action,
+            Runnable rateLimitCheck
+    ) {
         try {
             if (!websiteWidgetSettingsService.widgetEnabled(company.getId())) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Website widget is disabled.");
             }
             widgetOriginValidator.validate(company, request);
-            widgetRateLimiter.check(company.getTenantCode(), widgetPublicAuditLogger.clientIp(request), bookingRequest);
+            rateLimitCheck.run();
             widgetPublicAuditLogger.logAttempt(company, request, action, "allowed", "");
         } catch (RuntimeException ex) {
             widgetPublicAuditLogger.logAttempt(company, request, action, "rejected", ex.getMessage());

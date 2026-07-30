@@ -135,6 +135,8 @@ app:
       general-requests-per-minute-per-tenant: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_TENANT:600}
       bookings-per-minute-per-ip: ${APP_WIDGET_BOOKINGS_PER_MINUTE_PER_IP:10}
       bookings-per-minute-per-tenant: ${APP_WIDGET_BOOKINGS_PER_MINUTE_PER_TENANT:120}
+      booking-holds-per-minute-per-ip: ${APP_WIDGET_BOOKING_HOLDS_PER_MINUTE_PER_IP:30}
+      booking-holds-per-minute-per-tenant: ${APP_WIDGET_BOOKING_HOLDS_PER_MINUTE_PER_TENANT:300}
     turnstile:
       site-key: ${APP_WIDGET_TURNSTILE_SITE_KEY:}
       secret-key: ${APP_WIDGET_TURNSTILE_SECRET_KEY:}

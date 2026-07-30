@@ -36,15 +36,35 @@ public class WidgetRateLimiter {
     }
 
     public void check(String tenantCode, String clientIp, boolean bookingRequest) {
-        long now = Instant.now().toEpochMilli();
-        long windowMs = 60_000L;
         int ipLimit = bookingRequest ? properties.getBookingsPerMinutePerIp() : properties.getGeneralRequestsPerMinutePerIp();
         int tenantLimit = bookingRequest ? properties.getBookingsPerMinutePerTenant() : properties.getGeneralRequestsPerMinutePerTenant();
         String bucketGroup = bookingRequest ? "booking" : "general";
 
+        check(tenantCode, clientIp, bucketGroup, ipLimit, tenantLimit);
+    }
+
+    /**
+     * Limits short-lived slot reservations independently from completed booking/order attempts.
+     * A failed hold caused by another guest taking the slot must not consume the much lower
+     * final-booking allowance and prevent the guest from selecting a replacement time.
+     */
+    public void checkBookingHold(String tenantCode, String clientIp) {
+        check(
+                tenantCode,
+                clientIp,
+                "booking-hold",
+                properties.getBookingHoldsPerMinutePerIp(),
+                properties.getBookingHoldsPerMinutePerTenant()
+        );
+    }
+
+    private void check(String tenantCode, String clientIp, String bucketGroup, int ipLimit, int tenantLimit) {
+        long now = Instant.now().toEpochMilli();
+        long windowMs = 60_000L;
+
         // Keep general widget browsing traffic (config/services/availability) separate from
-        // real booking attempts. Otherwise a normal widget flow can use several general
-        // requests before POST /orders and then trip the much lower booking limit.
+        // slot holds and real booking attempts. Otherwise a normal conflict/retry flow can
+        // exhaust the lower booking limit before the guest can select another available slot.
         consume(bucketGroup + ":ip:" + (clientIp == null ? "unknown" : clientIp), ipLimit, now, windowMs);
         consume(bucketGroup + ":tenant:" + (tenantCode == null ? "unknown" : tenantCode.toLowerCase(Locale.ROOT)), tenantLimit, now, windowMs);
     }
