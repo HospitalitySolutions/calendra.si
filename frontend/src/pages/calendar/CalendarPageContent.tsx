@@ -158,6 +158,82 @@ const MOBILE_SWIPE_CALENDAR_VIEWS = new Set([
   'resourceDayGridMonth',
 ])
 
+const CALENDAR_NAVIGATION_STORAGE_VERSION = 1
+const CALENDAR_NAVIGATION_VIEW_TYPES = new Set([
+  'timeGridDay',
+  'resourceTimeGridDay',
+  'timeGridThreeDay',
+  'resourceTimeGridThreeDay',
+  'timeGridWeek',
+  'resourceTimeGridWeek',
+  'timeGridWorkWeek',
+  'resourceTimeGridWorkWeek',
+  'dayGridMonth',
+  'resourceDayGridMonth',
+])
+
+type PersistedCalendarNavigationState = {
+  version: number
+  view: string
+  calendarMode: 'bookings' | 'availability' | 'spaces'
+  consultantFilterId: number | null
+  spaceFilterId: number | null
+  anchorDate?: string
+}
+
+function calendarNavigationStorageKey(user: User): string {
+  const tenantScope = String(user.tenantCode || user.companyId || 'default')
+  return `calendra:calendar-navigation:v${CALENDAR_NAVIGATION_STORAGE_VERSION}:${tenantScope}:${user.id}`
+}
+
+function readPersistedCalendarNavigationState(storageKey: string): PersistedCalendarNavigationState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return null
+    const value = JSON.parse(raw) as Partial<PersistedCalendarNavigationState>
+    if (value.version !== CALENDAR_NAVIGATION_STORAGE_VERSION) return null
+    if (typeof value.view !== 'string' || !CALENDAR_NAVIGATION_VIEW_TYPES.has(value.view)) return null
+    if (value.calendarMode !== 'bookings' && value.calendarMode !== 'availability' && value.calendarMode !== 'spaces') return null
+
+    const normalizeFilterId = (candidate: unknown): number | null | undefined => {
+      if (candidate === null) return null
+      if (typeof candidate !== 'number' || !Number.isFinite(candidate)) return undefined
+      return candidate
+    }
+    const consultantFilterId = normalizeFilterId(value.consultantFilterId)
+    const spaceFilterId = normalizeFilterId(value.spaceFilterId)
+    if (consultantFilterId === undefined || spaceFilterId === undefined) return null
+
+    const anchorDate = typeof value.anchorDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.anchorDate)
+      ? value.anchorDate
+      : undefined
+
+    return {
+      version: CALENDAR_NAVIGATION_STORAGE_VERSION,
+      view: value.view,
+      calendarMode: value.calendarMode,
+      consultantFilterId,
+      spaceFilterId,
+      ...(anchorDate ? { anchorDate } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
+function writePersistedCalendarNavigationState(
+  storageKey: string,
+  value: PersistedCalendarNavigationState,
+): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(value))
+  } catch {
+    // Calendar navigation persistence is optional; storage can be unavailable in private mode.
+  }
+}
+
 function createRecurrenceSeriesKey(): string {
   const randomUuid = globalThis.crypto?.randomUUID?.()
   if (randomUuid) return randomUuid
@@ -255,6 +331,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
+  const calendarNavigationKey = useMemo(() => calendarNavigationStorageKey(user), [user.companyId, user.id, user.tenantCode])
+  const [restoredCalendarNavigation] = useState(() => readPersistedCalendarNavigationState(calendarNavigationKey))
   const canIssueOpenInvoice = canIssueOpenInvoices(user)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [], waitlistOffers: [] })
@@ -265,6 +343,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== 'false'
   const waitlistModuleEnabled = settings.WAITLIST_ENABLED !== 'false'
   const [meta, setMeta] = useState({ clients: [], users: [], spaces: [], types: [] } as any)
+  const [calendarMetaLoaded, setCalendarMetaLoaded] = useState(false)
   const EMPTY_ARR: any[] = useMemo(() => [], [])
   const metaUsers: any[] = Array.isArray(meta.users) ? meta.users : EMPTY_ARR
   const metaSpaces: any[] = Array.isArray(meta.spaces) ? meta.spaces : EMPTY_ARR
@@ -329,12 +408,21 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [clientError, setClientError] = useState('')
   /** Admin only: null = ALL consultants (resource columns); CONSULTANT_FILTER_ALL_SESSION = all in single column; otherwise filter to specific consultant. */
   const CONSULTANT_FILTER_ALL_SESSION = -1
-  const [consultantFilterId, setConsultantFilterId] = useState<number | null>(user.id ?? null)
-  const [spaceFilterId, setSpaceFilterId] = useState<number | null>(null) // null = ALL
+  const [consultantFilterId, setConsultantFilterId] = useState<number | null>(() =>
+    restoredCalendarNavigation ? restoredCalendarNavigation.consultantFilterId : (user.id ?? null),
+  )
+  const [spaceFilterId, setSpaceFilterId] = useState<number | null>(
+    () => restoredCalendarNavigation?.spaceFilterId ?? null,
+  ) // null = ALL
   const [androidMonthFirstDay, setAndroidMonthFirstDay] = useState(1)
   const [androidFilterPicker, setAndroidFilterPicker] = useState<null | 'consultant' | 'space'>(null)
-  const [view, setView] = useState('timeGridWeek')
-  const [calendarMode, setCalendarMode] = useState<'bookings' | 'availability' | 'spaces'>('bookings')
+  const [view, setView] = useState(() => restoredCalendarNavigation?.view ?? 'timeGridWeek')
+  const [calendarMode, setCalendarMode] = useState<'bookings' | 'availability' | 'spaces'>(
+    () => restoredCalendarNavigation?.calendarMode ?? 'bookings',
+  )
+  const [calendarAnchorDate, setCalendarAnchorDate] = useState<string | undefined>(
+    () => restoredCalendarNavigation?.anchorDate,
+  )
 
   useEffect(() => {
     if (!isTenantAdmin || calendarMode === 'spaces' || metaConsultants.length === 0) return
@@ -360,6 +448,30 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       return Number(ownActiveConsultant?.id ?? metaConsultants[0].id)
     })
   }, [calendarMode, isTenantAdmin, metaConsultants, user.id])
+
+  useEffect(() => {
+    if (!calendarMetaLoaded || spaceFilterId == null) return
+    const selectedSpaceStillExists = metaSpaces.some((space: any) => Number(space.id) === Number(spaceFilterId))
+    if (!selectedSpaceStillExists) setSpaceFilterId(null)
+  }, [calendarMetaLoaded, metaSpaces, spaceFilterId])
+
+  useEffect(() => {
+    writePersistedCalendarNavigationState(calendarNavigationKey, {
+      version: CALENDAR_NAVIGATION_STORAGE_VERSION,
+      view,
+      calendarMode,
+      consultantFilterId,
+      spaceFilterId,
+      ...(calendarAnchorDate ? { anchorDate: calendarAnchorDate } : {}),
+    })
+  }, [
+    calendarAnchorDate,
+    calendarMode,
+    calendarNavigationKey,
+    consultantFilterId,
+    spaceFilterId,
+    view,
+  ])
 
   const [confirmNonBookable, setConfirmNonBookable] = useState<ConfirmNonBookableState | null>(null)
   const [confirmOverlap, setConfirmOverlap] = useState<{ overlapping: any[]; start: string; end: string } | null>(null)
@@ -1519,6 +1631,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     }
     setSettings(settingsData)
     setMeta({ clients: clients.data, users: users.data, spaces: spaces.data, types: types.data, groups: groups?.data ?? [] })
+    setCalendarMetaLoaded(true)
   }
 
   const loadMetaOnly = async () => {
@@ -2736,6 +2849,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   useEffect(() => () => teardownCalendarDragAxisHint(), [teardownCalendarDragAxisHint])
 
   useEffect(() => {
+    if (!calendarMetaLoaded) return
     if (calendarMode === 'availability' && !bookableEnabled) {
       setCalendarMode('bookings')
       return
@@ -2743,7 +2857,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (calendarMode === 'spaces' && !calendarSpacesFeatureActive) {
       setCalendarMode('bookings')
     }
-  }, [calendarMode, bookableEnabled, calendarSpacesFeatureActive])
+  }, [calendarMetaLoaded, calendarMode, bookableEnabled, calendarSpacesFeatureActive])
 
   useEffect(() => {
     if (isNativeAndroid) return
@@ -11892,6 +12006,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               : undefined
           }
           initialView={view}
+          {...(calendarAnchorDate ? { initialDate: calendarAnchorDate } : {})}
           eventOrder="order"
           firstDay={isNativeAndroid && view === 'dayGridMonth' ? androidMonthFirstDay : 1}
           weekends
@@ -12003,6 +12118,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }}
           datesSet={(arg) => {
             setView(arg.view.type)
+            const currentCalendarDate = calendarRef.current?.getApi()?.getDate() ?? arg.view.currentStart
+            if (currentCalendarDate && Number.isFinite(currentCalendarDate.getTime())) {
+              const currentDateKey = toIsoDateKey(currentCalendarDate)
+              setCalendarAnchorDate((previous) => previous === currentDateKey ? previous : currentDateKey)
+            }
             setMonthHoverCard(null)
             setVisibleRange((current) =>
               current?.start === arg.startStr && current?.end === arg.endStr
