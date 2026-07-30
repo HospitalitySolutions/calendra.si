@@ -6,6 +6,10 @@ import { useAuthenticatedUser } from "../authUserContext";
 import type { PaymentMethod, PaymentType } from "../lib/types";
 import { normalizePaymentMethod } from "../lib/types";
 import {
+  CALENDAR_TIME_SCALE_MINUTES_KEY,
+  normalizeCalendarTimeScaleMinutes,
+} from "../lib/calendarTimeScale";
+import {
   Card,
   EmptyState,
   Field,
@@ -5209,6 +5213,50 @@ export function ConfigurationPage() {
                 setModuleStringSetting("GROUP_BOOKING_ENABLED", checked),
             },
           ],
+        },
+        {
+          id: "booking-calendar-time-scale",
+          icon: "calendar",
+          title:
+            locale === "sl"
+              ? "Časovna lestvica koledarja"
+              : locale === "sr"
+                ? "Vremenska skala kalendara"
+                : "Calendar time scale",
+          subtitle:
+            locale === "sl"
+              ? "Pri 1 uri je razmik med urami enak trenutnemu razmiku med 30 minutami."
+              : locale === "sr"
+                ? "Kod prikaza od 1 sata razmak između sati jednak je trenutnom razmaku od 30 minuta."
+                : "In the 1-hour view, hourly spacing matches the current 30-minute spacing.",
+          valueControl: (
+            <select
+              className="modules-design-inline-control modules-design-calendar-scale-select"
+              value={String(
+                normalizeCalendarTimeScaleMinutes(
+                  settings[CALENDAR_TIME_SCALE_MINUTES_KEY],
+                ),
+              )}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  [CALENDAR_TIME_SCALE_MINUTES_KEY]: event.target.value,
+                })
+              }
+              aria-label={
+                locale === "sl"
+                  ? "Časovna lestvica koledarja"
+                  : locale === "sr"
+                    ? "Vremenska skala kalendara"
+                    : "Calendar time scale"
+              }
+            >
+              <option value="30">30 min</option>
+              <option value="60">
+                {locale === "sr" ? "1 sat" : locale === "sl" ? "1 ura" : "1 hour"}
+              </option>
+            </select>
+          ),
         },
         {
           id: "booking-session-length",
