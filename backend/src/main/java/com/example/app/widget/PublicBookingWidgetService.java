@@ -2070,19 +2070,15 @@ public class PublicBookingWidgetService {
     }
 
     /**
-     * Appointment duration shown to the client: all service durations plus breaks between services.
-     * The final service break blocks availability but is not part of the appointment's displayed end time.
+     * Appointment duration shown to the client: the sum of all service durations.
+     * A combined appointment is continuous, so breaks configured on non-final services are ignored.
+     * Only the final service break blocks availability after the visible appointment end.
      */
     private int chainBookingMinutes(List<SessionType> chain) {
-        int minutes = 0;
-        for (int index = 0; index < chain.size(); index++) {
-            SessionType type = chain.get(index);
-            minutes += serviceDurationMinutes(type);
-            if (index < chain.size() - 1) {
-                minutes += serviceBreakMinutes(type);
-            }
+        if (chain == null || chain.isEmpty()) {
+            return 1;
         }
-        return Math.max(1, minutes);
+        return Math.max(1, chain.stream().mapToInt(this::serviceDurationMinutes).sum());
     }
 
     private int chainAvailabilityMinutes(List<SessionType> chain) {
