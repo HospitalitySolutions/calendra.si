@@ -4584,7 +4584,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     try {
       const res = await api.post(`/billing/open-bills/${target.id}/preview-pdf?locale=${locale}`, payload, { responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'application/pdf' })
-      const didPrint = printPdfBlob(blob, `${locale === 'sl' ? 'predracun' : 'proforma'}-${target.id}.pdf`, printWindow)
+      const didPrint = await printPdfBlob(blob, `${locale === 'sl' ? 'predracun' : 'proforma'}-${target.id}.pdf`, printWindow)
       if (didPrint) setOpenBillPreviewChoice(null)
     } catch (error) {
       closePdfActionWindow(printWindow)
