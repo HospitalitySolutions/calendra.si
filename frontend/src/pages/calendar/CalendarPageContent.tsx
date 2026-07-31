@@ -3221,117 +3221,253 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setAvailabilityError('Please select a consultant.')
       return
     }
-    const indefinite = !!availabilitySelection.indefinite
-    const payload = {
-      dayOfWeek: dayNames[startDate.getDay()],
-      startTime: startDate.toTimeString().slice(0, 8),
-      endTime: endDate.toTimeString().slice(0, 8),
-      consultantId,
-      indefinite,
-      startDate: indefinite ? null : (availabilitySelection.rangeStartDate || availabilitySelection.startTime.slice(0, 10)),
-      endDate: indefinite ? null : (availabilitySelection.rangeEndDate || availabilitySelection.endTime.slice(0, 10)),
+
+    type AvailabilityPayload = {
+      dayOfWeek: string
+      startTime: string
+      endTime: string
+      consultantId: number
+      indefinite: boolean
+      startDate: string | null
+      endDate: string | null
     }
-    const overlapsDateWindow = (slot: any) => {
+
+    const indefinite = !!availabilitySelection.indefinite
+    const allDayRequested = isLocalBookingAllDay(
+      availabilitySelection.startTime,
+      availabilitySelection.endTime,
+    )
+    const selectedRangeStart = availabilitySelection.rangeStartDate || availabilitySelection.startTime.slice(0, 10)
+    const selectedRangeEnd = availabilitySelection.rangeEndDate || availabilitySelection.endTime.slice(0, 10)
+    const toMinutes = (timeStr: string) => {
+      const [hh, mm] = String(timeStr || '00:00:00').split(':')
+      return (Number(hh) || 0) * 60 + (Number(mm) || 0)
+    }
+    const toHms = (timeValue: unknown, fallback: string) => {
+      const raw = String(timeValue || '').trim()
+      const match = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+      if (!match) return fallback
+      const hours = Number(match[1])
+      const minutes = Number(match[2])
+      const seconds = Number(match[3] || 0)
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) return fallback
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    }
+    const dateFromYmd = (ymd: string) => {
+      const match = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (!match) return null
+      const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0)
+      return Number.isFinite(date.getTime()) ? date : null
+    }
+    const ymdFromDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const enumerateDates = (startYmd: string, endYmd: string) => {
+      const first = dateFromYmd(startYmd)
+      const last = dateFromYmd(endYmd)
+      if (!first || !last || last.getTime() < first.getTime()) return [] as string[]
+      const dates: string[] = []
+      const cursor = new Date(first)
+      let guard = 0
+      while (cursor.getTime() <= last.getTime() && guard < 3660) {
+        dates.push(ymdFromDate(cursor))
+        cursor.setDate(cursor.getDate() + 1)
+        guard += 1
+      }
+      return dates
+    }
+    const workingHoursWindowForDate = (ymd: string) => {
+      const date = dateFromYmd(ymd)
+      const consultant = metaUsers.find((candidate: any) => Number(candidate?.id) === Number(consultantId))
+      const workingHours = consultant?.workingHours
+      let configuredWindow: any = null
+      if (date && workingHours && typeof workingHours === 'object') {
+        const dayOfWeek = dayNames[date.getDay()]
+        configuredWindow = workingHours.sameForAllDays
+          ? workingHours.allDays
+          : workingHours.byDay?.[dayOfWeek]
+      }
+      if (!configuredWindow?.start || !configuredWindow?.end) {
+        return { startTime: '00:00:00', endTime: '23:59:59' }
+      }
+      const configuredStart = toHms(configuredWindow.start, '00:00:00')
+      const configuredEnd = toHms(configuredWindow.end, '23:59:59')
+      if (toMinutes(configuredEnd) <= toMinutes(configuredStart)) {
+        return { startTime: '00:00:00', endTime: '23:59:59' }
+      }
+      return { startTime: configuredStart, endTime: configuredEnd }
+    }
+    const buildPayloads = (): AvailabilityPayload[] => {
+      if (!allDayRequested) {
+        return [{
+          dayOfWeek: dayNames[startDate.getDay()],
+          startTime: startDate.toTimeString().slice(0, 8),
+          endTime: endDate.toTimeString().slice(0, 8),
+          consultantId,
+          indefinite,
+          startDate: indefinite ? null : selectedRangeStart,
+          endDate: indefinite ? null : selectedRangeEnd,
+        }]
+      }
+
+      const rangeDates = indefinite
+        ? [selectedRangeStart]
+        : enumerateDates(selectedRangeStart, selectedRangeEnd)
+      if (rangeDates.length === 0) return []
+
+      // Bookable slots repeat by weekday. Group selected calendar dates by weekday and
+      // working-hours window so a multi-day all-day action needs at most seven writes.
+      const grouped = new Map<string, AvailabilityPayload>()
+      for (const ymd of rangeDates) {
+        const date = dateFromYmd(ymd)
+        if (!date) continue
+        const dayOfWeek = dayNames[date.getDay()]
+        const window = workingHoursWindowForDate(ymd)
+        const key = `${dayOfWeek}|${window.startTime}|${window.endTime}`
+        const existing = grouped.get(key)
+        if (existing) {
+          if (!existing.startDate || ymd < existing.startDate) existing.startDate = ymd
+          if (!existing.endDate || ymd > existing.endDate) existing.endDate = ymd
+          continue
+        }
+        grouped.set(key, {
+          dayOfWeek,
+          startTime: window.startTime,
+          endTime: window.endTime,
+          consultantId,
+          indefinite,
+          startDate: indefinite ? null : ymd,
+          endDate: indefinite ? null : ymd,
+        })
+      }
+      return Array.from(grouped.values()).sort((a, b) => {
+        const ad = a.startDate || selectedRangeStart
+        const bd = b.startDate || selectedRangeStart
+        return ad.localeCompare(bd)
+      })
+    }
+
+    const payloads = buildPayloads()
+    if (payloads.length === 0) {
+      setAvailabilityError('Please provide a valid availability date range.')
+      return
+    }
+
+    let knownBookableSlots = [...(calendarData.bookable || [])]
+    const overlapsDateWindow = (slot: any, payload: AvailabilityPayload) => {
       const slotStart = slot.indefinite ? '1970-01-01' : String(slot.startDate || '1970-01-01')
       const slotEnd = slot.indefinite ? '2999-12-31' : String(slot.endDate || '2999-12-31')
       const payloadStart = payload.indefinite ? '1970-01-01' : String(payload.startDate || '1970-01-01')
       const payloadEnd = payload.indefinite ? '2999-12-31' : String(payload.endDate || '2999-12-31')
       return slotStart <= payloadEnd && slotEnd >= payloadStart
     }
-    const toMinutes = (timeStr: string) => {
-      const [hh, mm] = String(timeStr || '00:00:00').split(':')
-      return (Number(hh) || 0) * 60 + (Number(mm) || 0)
+    const cacheSavedSlot = (saved: any, replacedIds: any[] = []) => {
+      const removed = new Set(replacedIds.map((id) => Number(id)))
+      knownBookableSlots = knownBookableSlots.filter((slot: any) => !removed.has(Number(slot?.id)))
+      if (saved) knownBookableSlots.push(saved)
     }
-    const releaseAvailabilityBlockMarkers = async () => {
+    const releaseAvailabilityBlockMarkers = async (payload: AvailabilityPayload) => {
+      const anchorDate = payload.startDate || selectedRangeStart
       await api.post('/bookings/personal-blocks/availability/release', {
-        startTime: availabilitySelection.startTime,
-        endTime: availabilitySelection.endTime,
+        startTime: `${anchorDate}T${payload.startTime}`,
+        endTime: `${anchorDate}T${payload.endTime}`,
         consultantId: isTenantAdmin ? consultantId : undefined,
         indefinite: payload.indefinite,
         startDate: payload.startDate,
         endDate: payload.endDate,
       })
     }
-    setAvailabilitySaving(true)
-    try {
-      if (availabilitySelection.slotId) {
-        await api.put(`/bookable-slots/${availabilitySelection.slotId}`, payload)
-      } else {
-        // Upsert behavior for Bookings-mode creation:
-        // if an overlapping slot exists for same consultant/day/date-window,
-        // expand/update it to the union instead of creating a second row.
-        const sameConsultantDaySlots = (calendarData.bookable || []).filter((slot: any) => {
-          const slotConsultantId = slot.consultant?.id ?? slot.consultantId
-          if (slotConsultantId !== payload.consultantId) return false
-          if (slot.dayOfWeek !== payload.dayOfWeek) return false
-          return overlapsDateWindow(slot)
-        })
-        const touchingOrOverlapping = sameConsultantDaySlots.filter((slot: any) => {
-          const slotStartMin = toMinutes(String(slot.startTime || '00:00:00'))
-          const slotEndMin = toMinutes(String(slot.endTime || '00:00:00'))
-          const payloadStartMin = toMinutes(payload.startTime)
-          const payloadEndMin = toMinutes(payload.endTime)
-          return slotStartMin <= payloadEndMin && slotEndMin >= payloadStartMin
-        })
+    const writeAvailabilityPayload = async (payload: AvailabilityPayload, slotId?: number | null) => {
+      if (slotId) {
+        const response = await api.put(`/bookable-slots/${slotId}`, payload)
+        cacheSavedSlot(response.data, [slotId])
+        return
+      }
+
+      // Upsert behavior for Bookings-mode creation: if an overlapping slot exists for
+      // the same consultant/day/date-window, expand it to the union instead of creating
+      // a duplicate row.
+      const sameConsultantDaySlots = knownBookableSlots.filter((slot: any) => {
+        const slotConsultantId = Number(slot.consultant?.id ?? slot.consultantId)
+        if (slotConsultantId !== payload.consultantId) return false
+        if (slot.dayOfWeek !== payload.dayOfWeek) return false
+        return overlapsDateWindow(slot, payload)
+      })
+      const touchingOrOverlapping = sameConsultantDaySlots.filter((slot: any) => {
+        const slotStartMin = toMinutes(String(slot.startTime || '00:00:00'))
+        const slotEndMin = toMinutes(String(slot.endTime || '00:00:00'))
         const payloadStartMin = toMinutes(payload.startTime)
         const payloadEndMin = toMinutes(payload.endTime)
-        const coveredRanges = touchingOrOverlapping
-          .map((slot: any) => {
-            const slotStartMin = toMinutes(String(slot.startTime || '00:00:00'))
-            const slotEndMin = toMinutes(String(slot.endTime || '00:00:00'))
-            return {
-              startMin: Math.max(payloadStartMin, slotStartMin),
-              endMin: Math.min(payloadEndMin, slotEndMin),
-            }
-          })
-          .filter((r: any) => r.endMin > r.startMin)
-          .sort((a: any, b: any) => a.startMin - b.startMin)
-        let coverageCursor = payloadStartMin
-        for (const r of coveredRanges) {
-          if (r.endMin <= coverageCursor) continue
-          if (r.startMin > coverageCursor) break
-          coverageCursor = Math.max(coverageCursor, r.endMin)
-          if (coverageCursor >= payloadEndMin) break
-        }
-        if (coverageCursor >= payloadEndMin) {
-          // The bookable slot is already present, but an older block marker may still cover it.
-          await releaseAvailabilityBlockMarkers()
-          await load()
-          closeAvailabilityModal()
-          return
-        }
-
-        if (touchingOrOverlapping.length > 0) {
-          const mergedStart = [payload.startTime, ...touchingOrOverlapping.map((s: any) => String(s.startTime || payload.startTime))].sort()[0]
-          const mergedEnd = [payload.endTime, ...touchingOrOverlapping.map((s: any) => String(s.endTime || payload.endTime))].sort().slice(-1)[0]
-          const mergedIndefinite = payload.indefinite || touchingOrOverlapping.some((s: any) => !!s.indefinite)
-          const mergedStartDate = mergedIndefinite
-            ? null
-            : [String(payload.startDate), ...touchingOrOverlapping.map((s: any) => String(s.startDate || payload.startDate))].sort()[0]
-          const mergedEndDate = mergedIndefinite
-            ? null
-            : [String(payload.endDate), ...touchingOrOverlapping.map((s: any) => String(s.endDate || payload.endDate))].sort().slice(-1)[0]
-
-          const mergedPayload = {
-            ...payload,
-            startTime: mergedStart,
-            endTime: mergedEnd,
-            indefinite: mergedIndefinite,
-            startDate: mergedStartDate,
-            endDate: mergedEndDate,
+        return slotStartMin <= payloadEndMin && slotEndMin >= payloadStartMin
+      })
+      const payloadStartMin = toMinutes(payload.startTime)
+      const payloadEndMin = toMinutes(payload.endTime)
+      const coveredRanges = touchingOrOverlapping
+        .map((slot: any) => {
+          const slotStartMin = toMinutes(String(slot.startTime || '00:00:00'))
+          const slotEndMin = toMinutes(String(slot.endTime || '00:00:00'))
+          return {
+            startMin: Math.max(payloadStartMin, slotStartMin),
+            endMin: Math.min(payloadEndMin, slotEndMin),
           }
-          const idsToReplace = touchingOrOverlapping.map((s: any) => s.id).filter((id: any) => id != null)
-          if (idsToReplace.length > 0) {
-            await Promise.all(idsToReplace.map((id: any) => api.delete(`/bookable-slots/${id}`)))
-          }
-          await api.post('/bookable-slots', mergedPayload)
-        } else {
-          await api.post('/bookable-slots', payload)
-        }
+        })
+        .filter((range: any) => range.endMin > range.startMin)
+        .sort((a: any, b: any) => a.startMin - b.startMin)
+      let coverageCursor = payloadStartMin
+      for (const range of coveredRanges) {
+        if (range.endMin <= coverageCursor) continue
+        if (range.startMin > coverageCursor) break
+        coverageCursor = Math.max(coverageCursor, range.endMin)
+        if (coverageCursor >= payloadEndMin) break
       }
-      // Release hidden block markers only after the bookable-slot write succeeds. If marker
-      // release fails, the new slot remains safely blocked and a retry can complete the cleanup.
-      await releaseAvailabilityBlockMarkers()
+      if (coverageCursor >= payloadEndMin) return
+
+      if (touchingOrOverlapping.length > 0) {
+        const mergedStart = [payload.startTime, ...touchingOrOverlapping.map((slot: any) => String(slot.startTime || payload.startTime))].sort()[0]
+        const mergedEnd = [payload.endTime, ...touchingOrOverlapping.map((slot: any) => String(slot.endTime || payload.endTime))].sort().slice(-1)[0]
+        const mergedIndefinite = payload.indefinite || touchingOrOverlapping.some((slot: any) => !!slot.indefinite)
+        const mergedStartDate = mergedIndefinite
+          ? null
+          : [payload.startDate, ...touchingOrOverlapping.map((slot: any) => slot.startDate || payload.startDate)]
+              .filter(Boolean)
+              .map(String)
+              .sort()[0]
+        const mergedEndDate = mergedIndefinite
+          ? null
+          : [payload.endDate, ...touchingOrOverlapping.map((slot: any) => slot.endDate || payload.endDate)]
+              .filter(Boolean)
+              .map(String)
+              .sort()
+              .slice(-1)[0]
+        const mergedPayload: AvailabilityPayload = {
+          ...payload,
+          startTime: mergedStart,
+          endTime: mergedEnd,
+          indefinite: mergedIndefinite,
+          startDate: mergedStartDate || null,
+          endDate: mergedEndDate || null,
+        }
+        const idsToReplace = touchingOrOverlapping.map((slot: any) => slot.id).filter((id: any) => id != null)
+        if (idsToReplace.length > 0) {
+          await Promise.all(idsToReplace.map((id: any) => api.delete(`/bookable-slots/${id}`)))
+          cacheSavedSlot(null, idsToReplace)
+        }
+        const response = await api.post('/bookable-slots', mergedPayload)
+        cacheSavedSlot(response.data)
+      } else {
+        const response = await api.post('/bookable-slots', payload)
+        cacheSavedSlot(response.data)
+      }
+    }
+
+    setAvailabilitySaving(true)
+    try {
+      for (let index = 0; index < payloads.length; index += 1) {
+        const payload = payloads[index]
+        await writeAvailabilityPayload(payload, index === 0 ? availabilitySelection.slotId : null)
+        // Release only the interval that was actually opened. For an all-day action this
+        // means the employee's configured working-hours window, not midnight to midnight.
+        await releaseAvailabilityBlockMarkers(payload)
+      }
       await load()
       closeAvailabilityModal()
     } catch (e: any) {
