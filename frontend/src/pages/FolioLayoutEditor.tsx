@@ -17,6 +17,9 @@ type LocalizedText = {
   sr?: string
 }
 
+type A4TemplateId = 'COMPACT' | 'CLASSIC' | 'MINIMAL' | 'CUSTOM'
+type A4FontSizePreset = 'COMPACT' | 'STANDARD' | 'LARGE'
+
 type DateFormat = 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'DD.MM.YYYY' | 'YYYY-MM-DD HH:mm' | 'DD-MM-YYYY HH:mm' | 'DD.MM.YYYY HH:mm'
 
 type PageSectionsConfig = {
@@ -57,6 +60,7 @@ type LogoConfig = {
 type ColumnConfig = {
   key: string
   label: string
+  visible?: boolean
   labelI18n?: LocalizedText
   /** Optional display format for table date column values. */
   dateFormat?: DateFormat
@@ -80,6 +84,7 @@ type TableConfig = {
 type FooterItem = {
   key: string
   label: string
+  visible?: boolean
   labelI18n?: LocalizedText
   fontSize: number
   bold: boolean
@@ -126,6 +131,9 @@ type VatBreakdownTableConfig = {
 type LayoutConfig = {
   pageWidth: number
   pageHeight: number
+  templateId?: A4TemplateId
+  accentColor?: string
+  fontSizePreset?: A4FontSizePreset
   pageSections: PageSectionsConfig
   fields: FieldConfig[]
   table: TableConfig
@@ -196,6 +204,239 @@ const FIELD_SAMPLE_VALUES: Record<string, string> = {
   dateOfService: '2026-05-26',
   dueDate: '2026-05-26',
   recipientVatId: 'SI12345678',
+}
+
+
+const A4_TEMPLATE_META: Array<{ id: Exclude<A4TemplateId, 'CUSTOM'>; name: Record<AppLocale, string>; description: Record<AppLocale, string> }> = [
+  {
+    id: 'COMPACT',
+    name: { en: 'Compact', sl: 'Kompaktna', sr: 'Kompaktna' },
+    description: { en: 'Dense, receipt-inspired layout that keeps all key information together.', sl: 'Zgoščena postavitev po vzoru POS računa z vsemi ključnimi podatki.', sr: 'Sažet raspored po uzoru na POS račun sa svim ključnim podacima.' },
+  },
+  {
+    id: 'CLASSIC',
+    name: { en: 'Classic', sl: 'Klasična', sr: 'Klasična' },
+    description: { en: 'Balanced business invoice with clearly separated sections.', sl: 'Uravnotežena poslovna postavitev z jasno ločenimi razdelki.', sr: 'Uravnotežen poslovni raspored sa jasno odvojenim odeljcima.' },
+  },
+  {
+    id: 'MINIMAL',
+    name: { en: 'Minimal', sl: 'Minimalna', sr: 'Minimalna' },
+    description: { en: 'Clean, spacious layout with only the most important elements.', sl: 'Čista in zračna postavitev samo z najpomembnejšimi elementi.', sr: 'Čist i prozračan raspored samo sa najvažnijim elementima.' },
+  },
+]
+
+function cloneLayout(layout: LayoutConfig): LayoutConfig {
+  return JSON.parse(JSON.stringify(layout)) as LayoutConfig
+}
+
+function fieldFor(layout: LayoutConfig, key: string) {
+  return layout.fields.find((field) => field.key === key)
+}
+
+function footerFor(layout: LayoutConfig, key: string) {
+  return layout.footer.items.find((item) => item.key === key)
+}
+
+function columnFor(layout: LayoutConfig, key: string) {
+  return layout.table.columns.find((column) => column.key === key)
+}
+
+function setField(layout: LayoutConfig, key: string, values: Partial<FieldConfig>) {
+  const field = fieldFor(layout, key)
+  if (field) Object.assign(field, values)
+}
+
+function setFooter(layout: LayoutConfig, key: string, values: Partial<FooterItem>) {
+  const item = footerFor(layout, key)
+  if (item) Object.assign(item, values)
+}
+
+function setColumn(layout: LayoutConfig, key: string, values: Partial<ColumnConfig>) {
+  const column = columnFor(layout, key)
+  if (column) Object.assign(column, values)
+}
+
+function ensureTemplateFooterField(layout: LayoutConfig) {
+  let field = fieldFor(layout, 'templateFooterText')
+  if (!field) {
+    field = {
+      key: 'templateFooterText', group: 'custom', label: 'Footer text',
+      labelI18n: { en: 'Footer text', sl: 'Besedilo v nogi', sr: 'Tekst u podnožju' },
+      x: 50, y: 802, width: 495, height: 16, fontSize: 8, bold: false, alignment: 'center', visible: false,
+      type: 'custom', text: '', textI18n: { en: '', sl: '', sr: '' },
+    }
+    layout.fields.push(field)
+  }
+  field.type = 'custom'
+  field.textI18n = ensureLocalizedText(field.textI18n, field.text || '')
+  return field
+}
+
+function applyFontPreset(layout: LayoutConfig, preset: A4FontSizePreset) {
+  layout.fontSizePreset = preset
+  const sizes = preset === 'COMPACT'
+    ? { company: 11, title: 13, normal: 8, table: 8, total: 9, footer: 8 }
+    : preset === 'LARGE'
+      ? { company: 15, title: 19, normal: 11, table: 10, total: 13, footer: 10 }
+      : { company: 13, title: 16, normal: 9, table: 9, total: 11, footer: 9 }
+  for (const field of layout.fields) {
+    if (field.key === 'companyName') field.fontSize = sizes.company
+    else if (field.key === 'folioNumber') field.fontSize = sizes.title
+    else if (field.key === 'templateFooterText') field.fontSize = sizes.footer
+    else field.fontSize = sizes.normal
+  }
+  layout.table.headerFontSize = sizes.table
+  layout.table.bodyFontSize = sizes.table
+  for (const item of layout.footer.items) {
+    item.fontSize = ['totalNett', 'discount', 'totalGross', 'usedAdvances', 'toBePaid'].includes(item.key) ? sizes.total : sizes.footer
+  }
+  layout.vatBreakdownTable.headerFontSize = Math.max(7, sizes.table - 1)
+  layout.vatBreakdownTable.bodyFontSize = Math.max(7, sizes.table - 1)
+}
+
+function applyTemplateColumns(layout: LayoutConfig, compact = false) {
+  setColumn(layout, 'date', { visible: false, relX: 0, width: 0 })
+  setColumn(layout, 'description', { visible: true, relX: 0, width: compact ? 250 : 255, alignment: 'left' })
+  setColumn(layout, 'qty', { visible: true, relX: compact ? 250 : 255, width: 45, alignment: 'right' })
+  setColumn(layout, 'nett', { visible: false })
+  setColumn(layout, 'gross', { visible: true, relX: compact ? 295 : 300, width: 70, alignment: 'right' })
+  setColumn(layout, 'taxPercent', { visible: false })
+  setColumn(layout, 'taxAmount', { visible: false })
+  setColumn(layout, 'total', { visible: true, relX: compact ? 365 : 370, width: compact ? 80 : 125, alignment: 'right' })
+}
+
+function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId, 'CUSTOM'>): LayoutConfig {
+  const layout = cloneLayout(current)
+  layout.templateId = templateId
+  layout.accentColor = '#1677FF'
+  layout.pageWidth = 595.28
+  layout.pageHeight = 841.89
+  const footerText = ensureTemplateFooterField(layout)
+  footerText.visible = Boolean(resolveLocalizedText(footerText.textI18n, footerText.text, 'en') || resolveLocalizedText(footerText.textI18n, footerText.text, 'sl'))
+
+  for (const field of layout.fields) field.visible = field.key === 'templateFooterText' ? field.visible : true
+  for (const item of layout.footer.items) item.visible = true
+  for (const column of layout.table.columns) column.visible = true
+  layout.logo.visible = true
+  layout.signature.visible = true
+  layout.paymentQr.visible = true
+  layout.fiscalQr.visible = true
+  layout.vatBreakdownTable.visible = true
+
+  if (templateId === 'COMPACT') {
+    layout.pageSections = { headerHeight: 270, footerHeight: 58 }
+    Object.assign(layout.logo, { x: 240, y: 24, width: 115, height: 38 })
+    setField(layout, 'companyName', { x: 145, y: 70, width: 305, height: 18, alignment: 'center', bold: true })
+    setField(layout, 'companyAddress', { x: 145, y: 90, width: 305, height: 14, alignment: 'center' })
+    setField(layout, 'companyPostalCodeCity', { x: 145, y: 105, width: 305, height: 14, alignment: 'center' })
+    setField(layout, 'companyTaxId', { x: 145, y: 120, width: 305, height: 14, alignment: 'center' })
+    setField(layout, 'folioNumber', { x: 145, y: 150, width: 305, height: 18, alignment: 'center', bold: true })
+    setField(layout, 'folioDate', { x: 145, y: 178, width: 305, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 145, y: 193, width: 305, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 145, y: 208, width: 305, height: 14, alignment: 'right' })
+    setField(layout, 'recipientName', { x: 50, y: 238, width: 260, height: 15, alignment: 'left', bold: true })
+    setField(layout, 'recipientAddress', { x: 50, y: 255, width: 260, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 270, width: 260, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 315, y: 255, width: 230, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 305, width: 495, rowHeight: 21, headerHeight: 21, footerSpacing: 4 })
+    applyTemplateColumns(layout, true)
+    Object.assign(layout.vatBreakdownTable, { x: 50, y: 388, width: 285, headerHeight: 15, rowHeight: 15 })
+    setFooter(layout, 'totalNett', { x: 380, y: 386, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 380, y: 404, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 380, y: 422, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'usedAdvances', { x: 380, y: 440, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 380, y: 460, width: 165, height: 18, alignment: 'right', bold: true })
+    setFooter(layout, 'payment', { x: 50, y: 470, width: 285, height: 16, alignment: 'left' })
+    setFooter(layout, 'iban', { x: 50, y: 492, width: 285, height: 16, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 50, y: 520, width: 250, height: 16, alignment: 'left' })
+    setFooter(layout, 'notes', { x: 50, y: 680, width: 495, height: 38, alignment: 'left' })
+    setFooter(layout, 'fiscalZoi', { x: 50, y: 735, width: 240, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 305, y: 735, width: 240, height: 14, alignment: 'right' })
+    Object.assign(layout.paymentQr, { x: 238, y: 545, width: 118, height: 132 })
+    Object.assign(layout.fiscalQr, { x: 398, y: 545, width: 90, height: 90, visible: false })
+    Object.assign(layout.signature, { x: 50, y: 548, width: 125, height: 55 })
+    Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
+    applyFontPreset(layout, 'COMPACT')
+  } else if (templateId === 'CLASSIC') {
+    layout.pageSections = { headerHeight: 200, footerHeight: 58 }
+    Object.assign(layout.logo, { x: 50, y: 38, width: 95, height: 55 })
+    setField(layout, 'companyName', { x: 165, y: 42, width: 205, height: 18, alignment: 'left', bold: true })
+    setField(layout, 'companyAddress', { x: 165, y: 63, width: 205, height: 14, alignment: 'left' })
+    setField(layout, 'companyPostalCodeCity', { x: 165, y: 78, width: 205, height: 14, alignment: 'left' })
+    setField(layout, 'companyTaxId', { x: 165, y: 93, width: 205, height: 14, alignment: 'left' })
+    setField(layout, 'folioNumber', { x: 385, y: 38, width: 160, height: 22, alignment: 'right', bold: true })
+    setField(layout, 'folioDate', { x: 365, y: 68, width: 180, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 365, y: 84, width: 180, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 365, y: 100, width: 180, height: 14, alignment: 'right' })
+    setField(layout, 'recipientName', { x: 50, y: 138, width: 250, height: 16, alignment: 'left', bold: true })
+    setField(layout, 'recipientAddress', { x: 50, y: 156, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 171, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 315, y: 156, width: 230, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 220, width: 495, rowHeight: 24, headerHeight: 22, footerSpacing: 4 })
+    applyTemplateColumns(layout)
+    Object.assign(layout.vatBreakdownTable, { x: 50, y: 328, width: 290, headerHeight: 16, rowHeight: 16 })
+    setFooter(layout, 'totalNett', { x: 380, y: 326, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 380, y: 344, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 380, y: 362, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'usedAdvances', { x: 380, y: 380, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 380, y: 402, width: 165, height: 18, alignment: 'right', bold: true })
+    setFooter(layout, 'payment', { x: 50, y: 430, width: 290, height: 16, alignment: 'left' })
+    setFooter(layout, 'iban', { x: 50, y: 452, width: 290, height: 16, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 380, y: 565, width: 165, height: 16, alignment: 'right' })
+    setFooter(layout, 'notes', { x: 50, y: 610, width: 495, height: 44, alignment: 'left' })
+    setFooter(layout, 'fiscalZoi', { x: 50, y: 690, width: 240, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 305, y: 690, width: 240, height: 14, alignment: 'right' })
+    Object.assign(layout.paymentQr, { x: 50, y: 485, width: 112, height: 126 })
+    Object.assign(layout.fiscalQr, { x: 190, y: 485, width: 96, height: 96 })
+    Object.assign(layout.signature, { x: 390, y: 490, width: 130, height: 55 })
+    Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
+    applyFontPreset(layout, 'STANDARD')
+  } else {
+    layout.pageSections = { headerHeight: 190, footerHeight: 58 }
+    Object.assign(layout.logo, { x: 50, y: 40, width: 125, height: 40 })
+    setField(layout, 'companyName', { x: 50, y: 96, width: 250, height: 18, alignment: 'left', bold: true })
+    setField(layout, 'companyAddress', { x: 50, y: 117, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'companyPostalCodeCity', { x: 50, y: 132, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'companyTaxId', { x: 50, y: 147, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'folioNumber', { x: 385, y: 42, width: 160, height: 22, alignment: 'right', bold: true })
+    setField(layout, 'folioDate', { x: 350, y: 88, width: 195, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 350, y: 106, width: 195, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 350, y: 124, width: 195, height: 14, alignment: 'right' })
+    setField(layout, 'recipientName', { x: 50, y: 185, width: 260, height: 16, alignment: 'left', bold: true })
+    setField(layout, 'recipientAddress', { x: 50, y: 203, width: 260, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 218, width: 260, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 315, y: 203, width: 230, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 260, width: 495, rowHeight: 27, headerHeight: 23, footerSpacing: 5 })
+    applyTemplateColumns(layout)
+    Object.assign(layout.vatBreakdownTable, { x: 50, y: 370, width: 290, headerHeight: 17, rowHeight: 17 })
+    setFooter(layout, 'totalNett', { x: 380, y: 370, width: 165, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 380, y: 390, width: 165, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 380, y: 410, width: 165, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'usedAdvances', { x: 380, y: 430, width: 165, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 380, y: 454, width: 165, height: 20, alignment: 'right', bold: true })
+    setFooter(layout, 'payment', { x: 50, y: 495, width: 290, height: 18, alignment: 'left' })
+    setFooter(layout, 'iban', { x: 50, y: 520, width: 290, height: 18, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 390, y: 650, width: 155, height: 18, alignment: 'right' })
+    setFooter(layout, 'notes', { x: 50, y: 650, width: 300, height: 50, alignment: 'left' })
+    setFooter(layout, 'fiscalZoi', { x: 50, y: 725, width: 240, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 305, y: 725, width: 240, height: 14, alignment: 'right' })
+    Object.assign(layout.paymentQr, { x: 365, y: 505, width: 132, height: 146 })
+    Object.assign(layout.fiscalQr, { x: 215, y: 540, width: 92, height: 92, visible: false })
+    Object.assign(layout.signature, { x: 50, y: 565, width: 135, height: 58 })
+    Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
+    applyFontPreset(layout, 'LARGE')
+  }
+
+  return layout
+}
+
+function QuickSwitch({ checked, onChange, label, hint }: { checked: boolean; onChange: (checked: boolean) => void; label: string; hint?: string }) {
+  return (
+    <label className="fle-quick-option">
+      <span><strong>{label}</strong>{hint ? <small>{hint}</small> : null}</span>
+      <button type="button" className={`fle-quick-switch${checked ? ' is-on' : ''}`} role="switch" aria-checked={checked} onClick={() => onChange(!checked)}><span /></button>
+    </label>
+  )
 }
 
 function isDateField(field: FieldConfig) {
@@ -440,6 +681,13 @@ function addMissingFooterItemFront(data: LayoutConfig, key: string) {
 
 function isValidLayout(data: any): data is LayoutConfig {
   if (!data || Array.isArray(data) || !Array.isArray(data.fields) || !data.table || !data.footer) return false
+  data.templateId = ['COMPACT', 'CLASSIC', 'MINIMAL', 'CUSTOM'].includes(String(data.templateId || '').toUpperCase())
+    ? String(data.templateId).toUpperCase()
+    : 'CLASSIC'
+  data.accentColor = /^#[0-9A-Fa-f]{6}$/.test(String(data.accentColor || '')) ? data.accentColor : '#1677FF'
+  data.fontSizePreset = ['COMPACT', 'STANDARD', 'LARGE'].includes(String(data.fontSizePreset || '').toUpperCase())
+    ? String(data.fontSizePreset).toUpperCase()
+    : 'STANDARD'
   if (!data.pageSections) data.pageSections = { ...DEFAULT_PAGE_SECTIONS }
   normalizePageSections(data)
   if (!data.logo) data.logo = { ...DEFAULT_LOGO }
@@ -477,6 +725,7 @@ function isValidLayout(data: any): data is LayoutConfig {
     }
   }
   for (const col of data.table?.columns ?? []) {
+    if (col.visible == null) col.visible = true
     col.labelI18n = ensureLocalizedText(col.labelI18n, col.label)
     col.label = resolveLocalizedText(col.labelI18n, col.label, 'en')
     if (col.key === 'date' && !col.dateFormat) col.dateFormat = 'YYYY-MM-DD'
@@ -491,6 +740,7 @@ function isValidLayout(data: any): data is LayoutConfig {
   addMissingFooterItemFront(data, 'fiscalEor')
   // Migrate footer items without x/y to have default positions
   for (const item of data.footer?.items ?? []) {
+    if (item.visible == null) item.visible = true
     item.labelI18n = ensureLocalizedText(item.labelI18n, item.label)
     item.label = resolveLocalizedText(item.labelI18n, item.label, 'en')
     if (item.x == null || item.x < 0) item.x = -1
@@ -511,7 +761,9 @@ function A4FolioLayoutEditor() {
   const { locale } = useLocale()
   const [layout, setLayout] = useState<LayoutConfig | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(0.78)
+  const [advancedMode, setAdvancedMode] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -616,6 +868,76 @@ function A4FolioLayoutEditor() {
       }
     } catch (err) {
       console.error('Failed to reset folio layout', err)
+    }
+  }
+
+  const selectBuiltInTemplate = (templateId: Exclude<A4TemplateId, 'CUSTOM'>) => {
+    if (!layout) return
+    setLayout(applyA4Template(layout, templateId))
+    setSelection(null)
+    setAdvancedMode(false)
+    setDirty(true)
+    setStyleNotice(locale === 'sl'
+      ? `Predloga »${A4_TEMPLATE_META.find((template) => template.id === templateId)?.name.sl || templateId}« je izbrana. Kliknite Shrani, da jo uporabite.`
+      : `Template “${A4_TEMPLATE_META.find((template) => template.id === templateId)?.name[locale] || templateId}” selected. Click Save to apply it.`)
+  }
+
+  const setRecipientVisible = (visible: boolean) => mutateLayout((next) => {
+    next.fields.filter((field) => field.group === 'recipient').forEach((field) => { field.visible = visible })
+  })
+
+  const setColumnsVisible = (visible: boolean) => mutateLayout((next) => {
+    for (const key of ['qty', 'gross']) {
+      const column = columnFor(next, key)
+      if (column) column.visible = visible
+    }
+  })
+
+  const setFooterItemVisible = (keys: string[], visible: boolean) => mutateLayout((next) => {
+    for (const key of keys) {
+      const item = footerFor(next, key)
+      if (item) item.visible = visible
+    }
+  })
+
+  const setFooterText = (value: string) => mutateLayout((next) => {
+    const field = ensureTemplateFooterField(next)
+    field.textI18n = ensureLocalizedText(field.textI18n, field.text || '')
+    field.textI18n[locale] = value
+    field.text = resolveLocalizedText(field.textI18n, value, 'en')
+    field.visible = value.trim().length > 0
+  })
+
+  const testPrint = async () => {
+    setTesting(true)
+    const prepared = window.open('', '_blank')
+    try {
+      if (layout && dirty) await api.put('/billing/folio-layout', layout)
+      const sample = {
+        companyName: 'Calendra Studio d.o.o.', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', companyTaxId: 'SI12345678',
+        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '2026-07-31 12:45', dateOfService: '2026-07-31', dueDate: '2026-08-14',
+        recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: 'SI98765432',
+        services: [
+          { date: '2026-07-31', description: locale === 'sl' ? 'Masaža hrbta in vratu' : 'Back and neck massage', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+          { date: '2026-07-31', description: locale === 'sl' ? 'Individualno svetovanje' : 'Individual counselling', qty: 2, nettPrice: 20.49, grossPrice: 25, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+        ],
+        paymentMethods: [{ name: locale === 'sl' ? 'Bančno nakazilo' : 'Bank transfer', amountGross: 100 }],
+        paymentMethod: locale === 'sl' ? 'Bančno nakazilo' : 'Bank transfer', issuedBy: 'David Mirc', iban: 'SI56 5678 1234 5678 901', toBePaidGross: 100,
+        paymentQrPayload: 'https://calendra.si/placilo/test', fiscalQr: 'https://calendra.si/fiscal/test', fiscalZoi: '1234567890', fiscalEor: 'EOR-2026-42',
+        notes: locale === 'sl' ? 'Hvala za vaš obisk. V primeru vprašanj smo vam na voljo.' : 'Thank you for your visit. Please contact us if you have any questions.', locale,
+      }
+      const response = await api.post(`/billing/folio/pdf?format=A4&locale=${locale}`, sample, { responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      if (prepared) prepared.location.href = url
+      else window.open(url, '_blank', 'noopener,noreferrer')
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000)
+      if (layout && dirty) setDirty(false)
+    } catch (err) {
+      prepared?.close()
+      console.error('A4 test print failed', err)
+      setStyleNotice(locale === 'sl' ? 'Testnega A4 računa ni bilo mogoče pripraviti.' : 'Unable to prepare the A4 test invoice.')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -860,7 +1182,7 @@ function A4FolioLayoutEditor() {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent, sel: NonNullable<Selection>, kind: 'move' | 'resize') => {
-      if (!layout) return
+      if (!layout || !advancedMode) return
       e.preventDefault()
       e.stopPropagation()
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -893,7 +1215,7 @@ function A4FolioLayoutEditor() {
       dragRef.current = { kind, sel, startMx: e.clientX, startMy: e.clientY, origX, origY, origW, origH }
       setSelection(sel)
     },
-    [layout],
+    [layout, advancedMode],
   )
 
   const onPointerMove = useCallback(
@@ -1008,86 +1330,120 @@ function A4FolioLayoutEditor() {
       ? 'Kliknite polje, prostor strani, tabelo storitev, tabelo predplačil, tabelo razčlenitve DDV, logotip, plačilni QR, davčni QR, podpis ali element noge, da uredite njegove lastnosti.'
       : 'Click a field, page space, services table, advance payments table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.',
     editPageSpaces: locale === 'sl' ? 'Uredi razmike strani' : 'Edit page spaces',
+    templatesTitle: locale === 'sl' ? 'Izberite predlogo' : locale === 'sr' ? 'Izaberite predložak' : 'Choose a template',
+    templatesSubtitle: locale === 'sl' ? 'Predloge so optimizirane za tisk na A4 in jih lahko kadar koli zamenjate.' : locale === 'sr' ? 'Predlošci su optimizovani za A4 štampu i možete ih promeniti u bilo kom trenutku.' : 'Templates are optimized for A4 printing and can be changed at any time.',
+    content: locale === 'sl' ? 'Vsebina računa' : locale === 'sr' ? 'Sadržaj računa' : 'Invoice content',
+    textSize: locale === 'sl' ? 'Velikost besedila' : locale === 'sr' ? 'Veličina teksta' : 'Text size',
+    footerText: locale === 'sl' ? 'Besedilo v nogi' : locale === 'sr' ? 'Tekst u podnožju' : 'Footer text',
+    footerHint: locale === 'sl' ? 'Neobvezno sporočilo, na primer zahvala ali povezava do spletne strani.' : locale === 'sr' ? 'Opciono, na primer zahvalnica ili adresa sajta.' : 'Optional message such as a thank-you note or website address.',
+    test: locale === 'sl' ? 'Testno tiskanje' : locale === 'sr' ? 'Probna štampa' : 'Test print',
+    advanced: locale === 'sl' ? 'Napredno urejanje' : locale === 'sr' ? 'Napredno uređivanje' : 'Advanced editing',
+    closeAdvanced: locale === 'sl' ? 'Zapri napredno urejanje' : locale === 'sr' ? 'Zatvori napredno uređivanje' : 'Close advanced editing',
   }
+
+  const activeTemplate = (layout.templateId || 'CUSTOM') as A4TemplateId
+  const footerTextField = fieldFor(layout, 'templateFooterText')
+  const currentFooterText = footerTextField ? resolveLocalizedText(footerTextField.textI18n, footerTextField.text || '', locale) : ''
+  const recipientVisible = layout.fields.filter((field) => field.group === 'recipient').some((field) => field.visible)
+  const unitColumnsVisible = ['qty', 'gross'].some((key) => columnFor(layout, key)?.visible !== false)
+  const paymentVisible = ['payment', 'iban'].some((key) => footerFor(layout, key)?.visible !== false)
+  const fiscalVisible = layout.fiscalQr.visible || ['fiscalZoi', 'fiscalEor'].some((key) => footerFor(layout, key)?.visible !== false)
+  const notesVisible = footerFor(layout, 'notes')?.visible !== false
+  const issuedByVisible = footerFor(layout, 'issuedBy')?.visible !== false
 
   /* ── Render ── */
 
   return (
-    <div className="fle-root">
-      {/* Toolbar */}
-      <div className="fle-toolbar">
-        <label className="fle-toolbar-item fle-style-picker">
-          {copy.styleLabel}
-          <select className="fle-style-select" value={selectedStyleId} onChange={(e) => selectFolioStyle(e.target.value)}>
-            <option value="">{copy.selectStyle}</option>
-            {folioStyles.map((style) => (
-              <option key={style.id} value={style.id}>{style.name}</option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="fle-btn" onClick={loadSelectedFolioStyle} disabled={!selectedStyleId}>{copy.loadStyle}</button>
-        {isPlatformAdmin && (
-          <div className="fle-platform-style-tools">
-            <input
-              className="fle-style-input"
-              type="text"
-              value={styleName}
-              onChange={(e) => setStyleName(e.target.value)}
-              placeholder="Style name"
-            />
-            <input
-              className="fle-style-input fle-style-input--wide"
-              type="text"
-              value={styleDescription}
-              onChange={(e) => setStyleDescription(e.target.value)}
-              placeholder="Description"
-            />
-            <button type="button" className="fle-btn fle-btn-add" onClick={() => savePlatformFolioStyle('create')} disabled={styleSaving || !layout}>Save as style</button>
-            <button type="button" className="fle-btn" onClick={() => savePlatformFolioStyle('update')} disabled={styleSaving || !selectedStyleId || !layout}>Update style</button>
-            <button type="button" className="fle-btn fle-btn-secondary" onClick={deleteSelectedPlatformFolioStyle} disabled={styleSaving || !selectedStyleId}>Delete style</button>
+    <div className={`fle-root${advancedMode ? ' fle-root--advanced' : ' fle-root--preview'}`}>
+      <section className="fle-template-selector">
+        <div className="fle-template-selector-heading">
+          <div>
+            <h3>{copy.templatesTitle}</h3>
+            <p>{copy.templatesSubtitle}</p>
           </div>
+          {activeTemplate === 'CUSTOM' && <span className="fle-custom-badge">{locale === 'sl' ? 'Prilagojeno' : locale === 'sr' ? 'Prilagođeno' : 'Customized'}</span>}
+        </div>
+        <div className="fle-template-grid">
+          {A4_TEMPLATE_META.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              className={`fle-template-card${activeTemplate === template.id ? ' is-selected' : ''}`}
+              onClick={() => selectBuiltInTemplate(template.id)}
+              aria-pressed={activeTemplate === template.id}
+            >
+              <span className={`fle-template-thumb fle-template-thumb--${template.id.toLowerCase()}`} aria-hidden="true">
+                <span className="fle-template-thumb-logo" />
+                <span className="fle-template-thumb-title" />
+                <span className="fle-template-thumb-meta" />
+                <span className="fle-template-thumb-recipient" />
+                <span className="fle-template-thumb-table" />
+                <span className="fle-template-thumb-total" />
+                <span className="fle-template-thumb-qr" />
+              </span>
+              <span className="fle-template-card-copy">
+                <strong>{template.name[locale]}</strong>
+                <small>{template.description[locale]}</small>
+              </span>
+              <span className="fle-template-radio"><span /></span>
+            </button>
+          ))}
+        </div>
+        <div className="fle-template-info">
+          <span>i</span>
+          <p>{locale === 'sl' ? 'Predloge so prednastavljene in optimizirane za izpis na A4. Vse elemente lahko dodatno prilagodite v naprednem urejanju.' : locale === 'sr' ? 'Predlošci su unapred podešeni i optimizovani za A4 štampu. Sve elemente možete dodatno prilagoditi u naprednom uređivanju.' : 'Templates are preconfigured and optimized for A4 printing. Every element can still be adjusted in advanced editing.'}</p>
+        </div>
+      </section>
+
+      <div className="fle-toolbar">
+        {advancedMode && (
+          <>
+            <label className="fle-toolbar-item fle-style-picker">
+              {copy.styleLabel}
+              <select className="fle-style-select" value={selectedStyleId} onChange={(e) => selectFolioStyle(e.target.value)}>
+                <option value="">{copy.selectStyle}</option>
+                {folioStyles.map((style) => <option key={style.id} value={style.id}>{style.name}</option>)}
+              </select>
+            </label>
+            <button type="button" className="fle-btn" onClick={loadSelectedFolioStyle} disabled={!selectedStyleId}>{copy.loadStyle}</button>
+            {isPlatformAdmin && (
+              <div className="fle-platform-style-tools">
+                <input className="fle-style-input" type="text" value={styleName} onChange={(e) => setStyleName(e.target.value)} placeholder="Style name" />
+                <input className="fle-style-input fle-style-input--wide" type="text" value={styleDescription} onChange={(e) => setStyleDescription(e.target.value)} placeholder="Description" />
+                <button type="button" className="fle-btn fle-btn-add" onClick={() => savePlatformFolioStyle('create')} disabled={styleSaving || !layout}>Save as style</button>
+                <button type="button" className="fle-btn" onClick={() => savePlatformFolioStyle('update')} disabled={styleSaving || !selectedStyleId || !layout}>Update style</button>
+                <button type="button" className="fle-btn fle-btn-secondary" onClick={deleteSelectedPlatformFolioStyle} disabled={styleSaving || !selectedStyleId}>Delete style</button>
+              </div>
+            )}
+            <label className="fle-toolbar-item">
+              {copy.zoom}
+              <input type="range" min={0.4} max={1.5} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+              <span>{Math.round(zoom * 100)}%</span>
+            </label>
+            <label className="fle-toolbar-item fle-snap-toggle">
+              <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
+              {copy.snap}
+            </label>
+            <label className="fle-toolbar-item">
+              {copy.header}
+              <input className="fle-toolbar-number" type="number" min={0} max={Math.max(0, layout.pageHeight - layout.pageSections.footerHeight - 180)} value={Math.round(layout.pageSections.headerHeight)} onChange={(e) => mutateLayout((next) => { next.pageSections.headerHeight = Number(e.target.value); normalizePageSections(next) })} /> pt
+            </label>
+            <label className="fle-toolbar-item">
+              {copy.footer}
+              <input className="fle-toolbar-number" type="number" min={0} max={Math.max(0, layout.pageHeight - layout.pageSections.headerHeight - 180)} value={Math.round(layout.pageSections.footerHeight)} onChange={(e) => mutateLayout((next) => { next.pageSections.footerHeight = Number(e.target.value); normalizePageSections(next) })} /> pt
+            </label>
+            <button type="button" className="fle-btn fle-btn-add" onClick={addCustomField}>+ {copy.textField}</button>
+            <button type="button" className="fle-btn" onClick={importJson}>{copy.import}</button>
+            <button type="button" className="fle-btn" onClick={exportJson}>{copy.export}</button>
+          </>
         )}
-        <label className="fle-toolbar-item">
-          {copy.zoom}
-          <input type="range" min={0.4} max={1.5} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
-          <span>{Math.round(zoom * 100)}%</span>
-        </label>
-        <label className="fle-toolbar-item fle-snap-toggle">
-          <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
-          {copy.snap}
-        </label>
-        <label className="fle-toolbar-item">
-          {copy.header}
-          <input
-            className="fle-toolbar-number"
-            type="number"
-            min={0}
-            max={Math.max(0, layout.pageHeight - layout.pageSections.footerHeight - 180)}
-            value={Math.round(layout.pageSections.headerHeight)}
-            onChange={(e) => mutateLayout((l) => { l.pageSections.headerHeight = Number(e.target.value); normalizePageSections(l) })}
-          />
-          pt
-        </label>
-        <label className="fle-toolbar-item">
-          {copy.footer}
-          <input
-            className="fle-toolbar-number"
-            type="number"
-            min={0}
-            max={Math.max(0, layout.pageHeight - layout.pageSections.headerHeight - 180)}
-            value={Math.round(layout.pageSections.footerHeight)}
-            onChange={(e) => mutateLayout((l) => { l.pageSections.footerHeight = Number(e.target.value); normalizePageSections(l) })}
-          />
-          pt
-        </label>
         <div className="fle-toolbar-spacer" />
-        <button type="button" className="fle-btn fle-btn-add" onClick={addCustomField}>+ {copy.textField}</button>
-        <button type="button" className="fle-btn" onClick={importJson}>{copy.import}</button>
-        <button type="button" className="fle-btn" onClick={exportJson}>{copy.export}</button>
-        <button type="button" className="fle-btn fle-btn-secondary" onClick={reset}>{copy.reset}</button>
-        <button type="button" className="fle-btn fle-btn-primary" onClick={save} disabled={saving || !dirty}>
-          {saving ? copy.saving : copy.save}
+        <button type="button" className="fle-btn fle-btn-advanced" onClick={() => { setAdvancedMode((value) => !value); setSelection(null) }}>
+          {advancedMode ? copy.closeAdvanced : copy.advanced}
         </button>
+        <button type="button" className="fle-btn" onClick={() => void testPrint()} disabled={testing}>{testing ? '…' : copy.test}</button>
+        <button type="button" className="fle-btn fle-btn-secondary" onClick={reset}>{copy.reset}</button>
+        <button type="button" className="fle-btn fle-btn-primary" onClick={save} disabled={saving || !dirty}>{saving ? copy.saving : copy.save}</button>
       </div>
       {styleNotice && (
         <div className="fle-style-notice">
@@ -1100,14 +1456,15 @@ function A4FolioLayoutEditor() {
         {/* A4 preview */}
         <div className="fle-canvas-wrap" ref={containerRef}>
           <div
-            className="fle-canvas"
-            style={{ width: pw, height: ph }}
+            className={`fle-canvas${advancedMode ? '' : ' fle-canvas--preview'}`}
+            data-template={activeTemplate}
+            style={{ width: pw, height: ph, '--fle-accent': layout.accentColor || '#1677FF' } as React.CSSProperties}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onClick={() => setSelection(null)}
           >
             {/* Grid dots */}
-            {snapEnabled && (
+            {advancedMode && snapEnabled && (
               <svg className="fle-grid" width={pw} height={ph}>
                 {Array.from({ length: Math.floor(layout.pageWidth / 25) + 1 }, (_, i) =>
                   Array.from({ length: Math.floor(layout.pageHeight / 25) + 1 }, (_, j) => (
@@ -1118,19 +1475,21 @@ function A4FolioLayoutEditor() {
             )}
 
             {/* Ruler marks */}
-            <div className="fle-ruler-top">
-              {Array.from({ length: Math.floor(layout.pageWidth / 50) + 1 }, (_, i) => (
-                <span key={i} className="fle-ruler-mark" style={{ left: i * 50 * scale }}>{i * 50}</span>
-              ))}
-            </div>
-            <div className="fle-ruler-left">
-              {Array.from({ length: Math.floor(layout.pageHeight / 50) + 1 }, (_, i) => (
-                <span key={i} className="fle-ruler-mark" style={{ top: i * 50 * scale }}>{i * 50}</span>
-              ))}
-            </div>
+            {advancedMode && (<>
+              <div className="fle-ruler-top">
+                {Array.from({ length: Math.floor(layout.pageWidth / 50) + 1 }, (_, i) => (
+                  <span key={i} className="fle-ruler-mark" style={{ left: i * 50 * scale }}>{i * 50}</span>
+                ))}
+              </div>
+              <div className="fle-ruler-left">
+                {Array.from({ length: Math.floor(layout.pageHeight / 50) + 1 }, (_, i) => (
+                  <span key={i} className="fle-ruler-mark" style={{ top: i * 50 * scale }}>{i * 50}</span>
+                ))}
+              </div>
+            </>)}
 
             {/* Header / main / footer page spaces */}
-            {(() => {
+            {advancedMode && (() => {
               const headerH = layout.pageSections.headerHeight
               const footerH = layout.pageSections.footerHeight
               const footerTop = layout.pageHeight - footerH
@@ -1249,7 +1608,7 @@ function A4FolioLayoutEditor() {
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                   </div>
                   <div className="fle-table-header" style={{ height: t.headerHeight * scale, paddingTop: 7 * scale, boxSizing: 'border-box' }}>
-                    {t.columns.map((col) => (
+                    {t.columns.filter((col) => advancedMode || col.visible !== false).map((col) => (
                       <span key={col.key} className="fle-table-col-label" style={{
                         left: col.relX * scale,
                         width: col.width * scale,
@@ -1262,7 +1621,7 @@ function A4FolioLayoutEditor() {
                   </div>
                   {Array.from({ length: sampleRows }, (_, r) => (
                     <div key={r} className="fle-table-row" style={{ height: t.rowHeight * scale, top: (t.headerHeight + t.rowHeight * r) * scale }}>
-                      {t.columns.map((col) => (
+                      {t.columns.filter((col) => advancedMode || col.visible !== false).map((col) => (
                         <span key={col.key} className="fle-table-col-cell" style={{
                           left: col.relX * scale,
                           width: col.width * scale,
@@ -1427,6 +1786,7 @@ function A4FolioLayoutEditor() {
 
             {/* Footer items preview — positioned absolutely when x/y are set */}
             {layout.footer.items.map((item, idx) => {
+              if (!advancedMode && item.visible === false) return null
               const t = layout.table
               const sampleRows = SERVICE_TABLE_PREVIEW_ROWS
               const tableBottom = t.startY + t.headerHeight + t.rowHeight * sampleRows + t.footerSpacing
@@ -1439,7 +1799,7 @@ function A4FolioLayoutEditor() {
               return (
                 <div
                   key={item.key}
-                  className={`fle-footer-item ${isSel ? 'fle-footer-item--selected' : ''}`}
+                  className={`fle-footer-item ${isSel ? 'fle-footer-item--selected' : ''} ${item.visible === false ? 'fle-field--hidden' : ''}`}
                   style={{
                     left: posX * scale,
                     top: posY * scale,
@@ -1564,6 +1924,44 @@ function A4FolioLayoutEditor() {
 
         {/* Property panel */}
         <div className="fle-panel">
+          <div className="fle-quick-settings">
+            <section className="fle-quick-card">
+              <h4>{copy.content}</h4>
+              <QuickSwitch checked={layout.logo.visible} onChange={(visible) => mutateLayout((next) => { next.logo.visible = visible })} label={locale === 'sl' ? 'Prikaži logotip' : locale === 'sr' ? 'Prikaži logo' : 'Show logo'} />
+              <QuickSwitch checked={recipientVisible} onChange={setRecipientVisible} label={locale === 'sl' ? 'Prejemnik' : locale === 'sr' ? 'Primalac' : 'Recipient'} />
+              <QuickSwitch checked={unitColumnsVisible} onChange={setColumnsVisible} label={locale === 'sl' ? 'Količina in cena na enoto' : locale === 'sr' ? 'Količina i cena po jedinici' : 'Quantity and unit price'} />
+              <QuickSwitch checked={layout.vatBreakdownTable.visible} onChange={(visible) => mutateLayout((next) => { next.vatBreakdownTable.visible = visible })} label={locale === 'sl' ? 'Razčlenitev DDV' : locale === 'sr' ? 'Pregled PDV-a' : 'VAT breakdown'} />
+              <QuickSwitch checked={paymentVisible} onChange={(visible) => setFooterItemVisible(['payment', 'iban'], visible)} label={locale === 'sl' ? 'Plačilo' : locale === 'sr' ? 'Plaćanje' : 'Payment details'} />
+              <QuickSwitch checked={layout.paymentQr.visible} onChange={(visible) => mutateLayout((next) => { next.paymentQr.visible = visible })} label="UPN QR" hint={locale === 'sl' ? 'Prikaže se samo, ko so podatki za QR popolni.' : 'Shown only when QR details are complete.'} />
+              <QuickSwitch checked={fiscalVisible} onChange={(visible) => mutateLayout((next) => { next.fiscalQr.visible = visible; for (const key of ['fiscalZoi', 'fiscalEor']) { const item = footerFor(next, key); if (item) item.visible = visible } })} label={locale === 'sl' ? 'Fiskalni podatki' : locale === 'sr' ? 'Fiskalni podaci' : 'Fiscal details'} />
+              <QuickSwitch checked={notesVisible} onChange={(visible) => setFooterItemVisible(['notes'], visible)} label={locale === 'sl' ? 'Opombe' : locale === 'sr' ? 'Napomene' : 'Notes'} />
+              <QuickSwitch checked={issuedByVisible} onChange={(visible) => setFooterItemVisible(['issuedBy'], visible)} label={locale === 'sl' ? 'Prikaži zaposlenega, ki je izdal račun' : locale === 'sr' ? 'Prikaži zaposlenog koji je izdao račun' : 'Show employee who issued the invoice'} />
+              <QuickSwitch checked={layout.signature.visible} onChange={(visible) => mutateLayout((next) => { next.signature.visible = visible })} label={locale === 'sl' ? 'Podpis' : locale === 'sr' ? 'Potpis' : 'Signature'} />
+            </section>
+
+            <section className="fle-quick-card fle-quick-form">
+              <label>
+                <span>{copy.textSize}</span>
+                <select value={layout.fontSizePreset || 'STANDARD'} onChange={(e) => mutateLayout((next) => { applyFontPreset(next, e.target.value as A4FontSizePreset) })}>
+                  <option value="COMPACT">{locale === 'sl' ? 'Kompaktno' : locale === 'sr' ? 'Kompaktno' : 'Compact'}</option>
+                  <option value="STANDARD">{locale === 'sl' ? 'Standardno' : locale === 'sr' ? 'Standardno' : 'Standard'}</option>
+                  <option value="LARGE">{locale === 'sl' ? 'Večje' : locale === 'sr' ? 'Veće' : 'Larger'}</option>
+                </select>
+              </label>
+              <label>
+                <span>{locale === 'sl' ? 'Poudarjena barva' : locale === 'sr' ? 'Akcentna boja' : 'Accent color'}</span>
+                <div className="fle-accent-control">
+                  <input type="color" value={layout.accentColor || '#1677FF'} onChange={(e) => mutateLayout((next) => { next.accentColor = e.target.value })} />
+                  <input type="text" value={layout.accentColor || '#1677FF'} onChange={(e) => { const value = e.target.value; if (/^#[0-9A-Fa-f]{6}$/.test(value)) mutateLayout((next) => { next.accentColor = value }) }} />
+                </div>
+              </label>
+              <label>
+                <span>{copy.footerText}</span>
+                <textarea rows={3} value={currentFooterText} onChange={(e) => setFooterText(e.target.value)} placeholder={locale === 'sl' ? 'Hvala za vaše zaupanje.' : 'Thank you for your trust.'} />
+                <small>{copy.footerHint}</small>
+              </label>
+            </section>
+          </div>
           {selection === null && (
             <div className="fle-panel-empty">
               <p className="muted">{copy.emptyText}</p>
@@ -1909,6 +2307,9 @@ function A4FolioLayoutEditor() {
                         <option value="right">Right</option>
                       </select>
                     </Field>
+                    <Field label="Visible">
+                      <input type="checkbox" checked={col.visible !== false} onChange={(e) => mutateLayout((l) => { l.table.columns[ci].visible = e.target.checked })} />
+                    </Field>
                     {col.key === 'date' ? (
                       <Field label="Date format">
                         <select
@@ -2036,6 +2437,9 @@ function A4FolioLayoutEditor() {
                     <option value="right">Right</option>
                   </select>
                 </Field>
+                <Field label="Visible">
+                  <input type="checkbox" checked={selectedFooterItem.visible !== false} onChange={(e) => mutateLayout((l) => { l.footer.items[selection.index].visible = e.target.checked })} />
+                </Field>
               </div>
               <div className="fle-panel-coords">
                 Position: {Math.round(selectedFooterItem.x)}, {Math.round(selectedFooterItem.y)} pt
@@ -2105,12 +2509,12 @@ export function FolioLayoutEditor() {
     <div className="fle-format-shell">
       <div className="fle-format-header">
         <div>
-          <strong>{locale === 'sl' ? 'Oblika računa' : locale === 'sr' ? 'Format računa' : 'Invoice format'}</strong>
-          <span>{locale === 'sl' ? 'A4 ostane namenjen e-pošti in arhivu, POS 58 mm pa termičnemu tiskanju.' : locale === 'sr' ? 'A4 ostaje za e-poštu i arhivu, a POS 58 mm za termalnu štampu.' : 'A4 remains the email/archive document; POS 58 mm is optimized for thermal printing.'}</span>
+          <strong>{locale === 'sl' ? 'Predloge računov' : locale === 'sr' ? 'Predlošci računa' : 'Invoice templates'}</strong>
+          <span>{locale === 'sl' ? 'Izberite obliko računa in prilagodite postavitev za A4 ali termični tisk 58 mm.' : locale === 'sr' ? 'Izaberite format računa i prilagodite raspored za A4 ili termalnu štampu od 58 mm.' : 'Choose an invoice format and customize the layout for A4 or 58 mm thermal printing.'}</span>
         </div>
         <div className="fle-format-toggle" role="tablist">
+          <button type="button" className={format === 'POS_58' ? 'active' : ''} onClick={() => setFormat('POS_58')} role="tab" aria-selected={format === 'POS_58'}>58 mm</button>
           <button type="button" className={format === 'A4' ? 'active' : ''} onClick={() => setFormat('A4')} role="tab" aria-selected={format === 'A4'}>A4</button>
-          <button type="button" className={format === 'POS_58' ? 'active' : ''} onClick={() => setFormat('POS_58')} role="tab" aria-selected={format === 'POS_58'}>POS 58 mm</button>
         </div>
       </div>
       {format === 'A4' ? <A4FolioLayoutEditor /> : <PosReceiptLayoutEditor />}

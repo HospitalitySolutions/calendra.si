@@ -169,6 +169,7 @@ public class FolioPdfService {
             byte[] signatureBytes,
             InvoiceTotals totals
     ) throws IOException {
+        drawTemplateDecorations(ctx, layout);
         drawLogo(ctx, layout, logoBytes, true);
         drawFields(ctx, layout, req, locale, fonts, true);
         drawFixedFooterItems(ctx, layout, totals.net(), totals.gross(), req, locale, fonts);
@@ -273,6 +274,8 @@ public class FolioPdfService {
 
             PDFont font = field.isBold() ? fonts.bold() : fonts.regular();
             float pdfY = pageH - field.getY() - field.getFontSize();
+            boolean accentField = "folioNumber".equals(field.getKey()) || "templateFooterText".equals(field.getKey());
+            if (accentField) setTextColor(ctx, accentColor(layout));
             String prefix = safe(resolveLocalized(field.getPrefixI18n(), "", locale));
             if ("folioNumber".equals(field.getKey())) {
                 String dynamicPrefix = safe(req.getFolioNumberLabel());
@@ -299,6 +302,7 @@ public class FolioPdfService {
             } else {
                 drawText(ctx, font, field.getFontSize(), field.getX(), pdfY, text);
             }
+            if (accentField) setTextColor(ctx, Color.BLACK);
         }
     }
 
@@ -310,12 +314,15 @@ public class FolioPdfService {
         float left = tbl.getStartX();
         float right = tbl.getStartX() + tbl.getWidth();
 
-        // Top rule above the column labels, rendered as a double line like the reference invoice style.
-        // Raise it slightly so it sits clearly above the header text instead of touching it.
-        drawDoubleHLine(ctx, left, right, y + 6, 0.5f);
+        // Predefined A4 templates use their configured accent for the header rules and labels.
+        Color accent = accentColor(layout);
+        setStrokeColor(ctx, accent);
+        setTextColor(ctx, accent);
+        drawDoubleHLine(ctx, left, right, y + 6, 0.65f);
         y -= 6;
 
         for (var col : tbl.getColumns()) {
+            if (col == null || !col.isVisible()) continue;
             float colX = tbl.getStartX() + col.getRelX();
             String label = resolveLocalized(col.getLabelI18n(), col.getLabel(), locale);
             if ("right".equals(col.getAlignment())) {
@@ -328,6 +335,8 @@ public class FolioPdfService {
         // Keep a thin separator between the column labels and body rows for readability.
         y -= 4;
         drawHLine(ctx, left, right, y, 0.5f);
+        setStrokeColor(ctx, Color.BLACK);
+        setTextColor(ctx, Color.BLACK);
         y -= tbl.getRowHeight() * 0.6f;
         return y;
     }
@@ -354,6 +363,7 @@ public class FolioPdfService {
         cellValues.put("total", fmt(line.getTotalPrice()));
 
         for (var col : tbl.getColumns()) {
+            if (col == null || !col.isVisible()) continue;
             String text = cellValues.getOrDefault(col.getKey(), "");
             if ("date".equals(col.getKey())) {
                 text = formatDateValue(text, col.getDateFormat());
@@ -473,7 +483,7 @@ public class FolioPdfService {
 
         if (layout.getFooter() != null && layout.getFooter().getItems() != null) {
             for (var item : layout.getFooter().getItems()) {
-                if (item == null || !isSummaryBlockKey(item.getKey())) continue;
+                if (item == null || !item.isVisible() || !isSummaryBlockKey(item.getKey())) continue;
                 firstY = minAdvanceAwareY(layout, firstY, item.getY(), footerItemHeight(layout, item), baselineTableBottom);
             }
         }
@@ -544,6 +554,7 @@ public class FolioPdfService {
         drawSummaryBlock(ctx, layout, footerValues, false, tableFlowOffset);
 
         for (var item : ftr.getItems()) {
+            if (item == null || !item.isVisible()) continue;
             if (item.getX() >= 0 && item.getY() >= 0
                     && isFixedPageSectionBlock(layout, item.getY(), item.getHeight() > 0 ? item.getHeight() : ftr.getLineSpacing())) {
                 continue;
@@ -598,7 +609,10 @@ public class FolioPdfService {
                 float absY = pageH - itemY - drawFontSize;
                 float itemRight = item.getWidth() > 0 ? item.getX() + item.getWidth() : rightEdge;
                 if (isSummaryBlockKey(item.getKey())) {
+                    boolean accentSummary = "toBePaid".equals(item.getKey());
+                    if (accentSummary) setTextColor(ctx, accentColor(layout));
                     drawFooterLabelAndValue(ctx, font, drawFontSize, item.getX(), itemRight, absY, label, value);
+                    if (accentSummary) setTextColor(ctx, Color.BLACK);
                 } else if ("right".equals(item.getAlignment())) {
                     drawTextRight(ctx, font, item.getFontSize(), itemRight, absY, text);
                 } else {
@@ -634,6 +648,7 @@ public class FolioPdfService {
         drawSummaryBlock(ctx, layout, footerValues, true, 0f);
 
         for (var item : ftr.getItems()) {
+            if (item == null || !item.isVisible()) continue;
             if (item.getX() < 0 || item.getY() < 0) continue;
             float itemHeight = item.getHeight() > 0 ? item.getHeight() : ftr.getLineSpacing();
             if (!isFixedPageSectionBlock(layout, item.getY(), itemHeight)) continue;
@@ -667,7 +682,10 @@ public class FolioPdfService {
             int drawFontSize = isSummaryBlockKey(item.getKey()) ? summaryFontSize(layout) : item.getFontSize();
             float absY = pageH - shiftedItemY - drawFontSize;
             if (isSummaryBlockKey(item.getKey())) {
+                boolean accentSummary = "toBePaid".equals(item.getKey());
+                if (accentSummary) setTextColor(ctx, accentColor(layout));
                 drawFooterLabelAndValue(ctx, font, drawFontSize, item.getX(), itemRight, absY, label, value);
+                if (accentSummary) setTextColor(ctx, Color.BLACK);
             } else if ("right".equals(item.getAlignment())) {
                 drawTextRight(ctx, font, item.getFontSize(), itemRight, absY, text);
             } else {
@@ -876,7 +894,9 @@ public class FolioPdfService {
             if (item == null || !"toBePaid".equals(item.getKey())) continue;
             float itemY = effectiveSummaryItemY(layout, footerValues, fixedOnly, tableFlowOffset, item);
             float doubleLineY = pageH - Math.max(0f, itemY - 2.5f);
-            drawDoubleHLine(ctx, metrics.leftX() + 4f, metrics.rightX() - 4f, doubleLineY, 0.6f);
+            setStrokeColor(ctx, accentColor(layout));
+            drawDoubleHLine(ctx, metrics.leftX() + 4f, metrics.rightX() - 4f, doubleLineY, 0.7f);
+            setStrokeColor(ctx, Color.BLACK);
             break;
         }
     }
@@ -894,7 +914,7 @@ public class FolioPdfService {
         float top = Float.MAX_VALUE;
         float bottom = Float.MIN_VALUE;
         for (var item : layout.getFooter().getItems()) {
-            if (item == null || !isSummaryBlockKey(item.getKey())) continue;
+            if (item == null || !item.isVisible() || !isSummaryBlockKey(item.getKey())) continue;
             if (item.getX() < 0 || item.getY() < 0) continue;
             float itemHeight = footerItemHeight(layout, item);
             if (isFixedPageSectionBlock(layout, item.getY(), itemHeight) != fixedOnly) continue;
@@ -938,7 +958,7 @@ public class FolioPdfService {
         if (layout == null || layout.getFooter() == null || layout.getFooter().getItems() == null) return 0f;
         float shift = 0f;
         for (var footerItem : layout.getFooter().getItems()) {
-            if (footerItem == null || !isSummaryBlockKey(footerItem.getKey()) || footerItem.getX() < 0 || footerItem.getY() < 0) continue;
+            if (footerItem == null || !footerItem.isVisible() || !isSummaryBlockKey(footerItem.getKey()) || footerItem.getX() < 0 || footerItem.getY() < 0) continue;
             float itemHeight = footerItemHeight(layout, footerItem);
             if (isFixedPageSectionBlock(layout, footerItem.getY(), itemHeight) != fixedOnly) continue;
             if (footerItem.getY() >= itemY - 0.1f) continue;
@@ -954,7 +974,7 @@ public class FolioPdfService {
         Float currentY = null;
         Float nextY = null;
         for (var item : layout.getFooter().getItems()) {
-            if (item == null || !isSummaryBlockKey(item.getKey()) || item.getX() < 0 || item.getY() < 0) continue;
+            if (item == null || !item.isVisible() || !isSummaryBlockKey(item.getKey()) || item.getX() < 0 || item.getY() < 0) continue;
             float itemHeight = footerItemHeight(layout, item);
             if (isFixedPageSectionBlock(layout, item.getY(), itemHeight) != fixedOnly) continue;
             if (key.equals(item.getKey())) {
@@ -964,7 +984,7 @@ public class FolioPdfService {
         }
         if (currentY == null) return layout.getFooter().getLineSpacing();
         for (var item : layout.getFooter().getItems()) {
-            if (item == null || !isSummaryBlockKey(item.getKey()) || item.getX() < 0 || item.getY() < 0) continue;
+            if (item == null || !item.isVisible() || !isSummaryBlockKey(item.getKey()) || item.getX() < 0 || item.getY() < 0) continue;
             float itemHeight = footerItemHeight(layout, item);
             if (isFixedPageSectionBlock(layout, item.getY(), itemHeight) != fixedOnly) continue;
             if (item.getY() > currentY + 0.1f && (nextY == null || item.getY() < nextY)) {
@@ -990,7 +1010,7 @@ public class FolioPdfService {
         if (layout == null || layout.getFooter() == null || layout.getFooter().getItems() == null) return 0f;
         float bottom = 0f;
         for (var item : layout.getFooter().getItems()) {
-            if (item == null || !isSummaryBlockKey(item.getKey()) || item.getX() < 0 || item.getY() < 0) continue;
+            if (item == null || !item.isVisible() || !isSummaryBlockKey(item.getKey()) || item.getX() < 0 || item.getY() < 0) continue;
             float itemHeight = footerItemHeight(layout, item);
             if (isFixedPageSectionBlock(layout, item.getY(), itemHeight) != fixedOnly) continue;
             bottom = Math.max(bottom, item.getY() + itemHeight);
@@ -1025,7 +1045,7 @@ public class FolioPdfService {
         List<String> paymentLines = paymentFooterLines(req);
         if (paymentLines.size() <= 1) return null;
         for (var item : layout.getFooter().getItems()) {
-            if (item == null || !"payment".equals(item.getKey())) continue;
+            if (item == null || !item.isVisible() || !"payment".equals(item.getKey())) continue;
             if (item.getX() < 0 || item.getY() < 0) return null;
             float itemHeight = item.getHeight() > 0 ? item.getHeight() : layout.getFooter().getLineSpacing();
             if (isFixedPageSectionBlock(layout, item.getY(), itemHeight) != fixedOnly) return null;
@@ -1154,6 +1174,41 @@ public class FolioPdfService {
         s.moveTo(x, yTop);
         s.lineTo(x, yBottom);
         s.stroke();
+    }
+
+    private void drawTemplateDecorations(PageContext ctx, FolioLayoutConfig layout) throws IOException {
+        if (layout == null) return;
+        String template = layout.getTemplateId() == null ? "CLASSIC" : layout.getTemplateId().toUpperCase(Locale.ROOT);
+        Color accent = accentColor(layout);
+        float pageH = layout.getPageHeight();
+        setStrokeColor(ctx, accent);
+        if ("MINIMAL".equals(template)) {
+            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 118f, 1.1f);
+            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, 40f, 1.1f);
+        } else if ("CLASSIC".equals(template)) {
+            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 116f, 1.2f);
+        } else if ("COMPACT".equals(template)) {
+            drawHLine(ctx, 115f, layout.getPageWidth() - 115f, pageH - 132f, 0.8f);
+        }
+        setStrokeColor(ctx, Color.BLACK);
+    }
+
+    private Color accentColor(FolioLayoutConfig layout) {
+        String value = layout == null ? null : layout.getAccentColor();
+        if (value == null || !value.matches("^#[0-9A-Fa-f]{6}$")) return new Color(22, 119, 255);
+        try {
+            return Color.decode(value);
+        } catch (NumberFormatException ignored) {
+            return new Color(22, 119, 255);
+        }
+    }
+
+    private void setTextColor(PageContext ctx, Color color) throws IOException {
+        ctx.stream.setNonStrokingColor(color == null ? Color.BLACK : color);
+    }
+
+    private void setStrokeColor(PageContext ctx, Color color) throws IOException {
+        ctx.stream.setStrokingColor(color == null ? Color.BLACK : color);
     }
 
     /* ────────────────────────── formatting helpers ────────────────────────── */
