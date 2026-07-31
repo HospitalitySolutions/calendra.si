@@ -572,34 +572,120 @@ public class ReminderService {
 
     private void sendBookingTemplateNotificationsAfterCommit(SessionBooking booking, NotificationKind kind,
             LocalDateTime originalStart, LocalDateTime originalEnd) {
-        if (booking == null) {
+        PreparedBookingNotification prepared = prepareBookingNotification(
+                booking,
+                kind,
+                originalStart,
+                originalEnd
+        );
+        if (prepared == null) {
             return;
         }
+
+        Runnable task = () -> safelySendPreparedBookingNotification(prepared);
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    sendBookingTemplateNotifications(booking, kind, originalStart, originalEnd);
+                    task.run();
                 }
             });
             return;
         }
-        sendBookingTemplateNotifications(booking, kind, originalStart, originalEnd);
+        task.run();
     }
 
-    private void sendBookingTemplateNotifications(SessionBooking booking, NotificationKind kind,
-            LocalDateTime originalStart, LocalDateTime originalEnd) {
-        Client client = booking.getClient();
-        if (client == null || client.isAnonymized()) {
-            return;
+    /**
+     * Builds every token that depends on the managed booking while the transaction and
+     * Hibernate session are still active. This is especially important for deletion:
+     * after the booking row has committed as deleted, lazy service/client associations
+     * must no longer be traversed by an after-commit callback.
+     */
+    private PreparedBookingNotification prepareBookingNotification(
+            SessionBooking booking,
+            NotificationKind kind,
+            LocalDateTime originalStart,
+            LocalDateTime originalEnd
+    ) {
+        if (booking == null) {
+            return null;
         }
-
-        Long companyId = booking.getCompany().getId();
-        Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
-        sendImmediateTemplateEmail(booking, client, companyId, kind, tokens);
-        sendImmediateTemplateSms(booking, client, companyId, kind, tokens);
-        sendImmediateTemplateGuestApp(booking, client, companyId, kind, tokens);
+        try {
+            Client client = booking.getClient();
+            if (client == null || client.isAnonymized()) {
+                return null;
+            }
+            Company company = booking.getCompany();
+            if (company == null || company.getId() == null) {
+                return null;
+            }
+            Map<String, String> tokens = new LinkedHashMap<>(
+                    buildTemplateTokens(booking, originalStart, originalEnd)
+            );
+            return new PreparedBookingNotification(booking, client, company.getId(), kind, tokens);
+        } catch (Exception ex) {
+            log.warn(
+                    "Failed preparing {} booking notification before transaction completion for bookingId={}: {}",
+                    kind,
+                    booking.getId(),
+                    ex.getMessage(),
+                    ex
+            );
+            return null;
+        }
     }
+
+    /**
+     * Notification delivery is a post-commit side effect and must never turn an already
+     * committed booking create/update/delete request into HTTP 500. Spring propagates an
+     * exception thrown from TransactionSynchronization.afterCommit() to the controller,
+     * even though the database transaction has already committed.
+     */
+    private void safelySendPreparedBookingNotification(PreparedBookingNotification prepared) {
+        try {
+            sendPreparedBookingNotification(prepared);
+        } catch (Exception ex) {
+            log.warn(
+                    "Booking notification side effect failed after commit for bookingId={} kind={}: {}",
+                    prepared.booking().getId(),
+                    prepared.kind(),
+                    ex.getMessage(),
+                    ex
+            );
+        }
+    }
+
+    private void sendPreparedBookingNotification(PreparedBookingNotification prepared) {
+        sendImmediateTemplateEmail(
+                prepared.booking(),
+                prepared.client(),
+                prepared.companyId(),
+                prepared.kind(),
+                prepared.tokens()
+        );
+        sendImmediateTemplateSms(
+                prepared.booking(),
+                prepared.client(),
+                prepared.companyId(),
+                prepared.kind(),
+                prepared.tokens()
+        );
+        sendImmediateTemplateGuestApp(
+                prepared.booking(),
+                prepared.client(),
+                prepared.companyId(),
+                prepared.kind(),
+                prepared.tokens()
+        );
+    }
+
+    private record PreparedBookingNotification(
+            SessionBooking booking,
+            Client client,
+            Long companyId,
+            NotificationKind kind,
+            Map<String, String> tokens
+    ) {}
 
     private static boolean isStaffWebBookingSource(SessionBooking booking) {
         if (booking == null) return false;
