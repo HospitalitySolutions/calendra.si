@@ -298,13 +298,15 @@ public class PublicWidgetOrderService {
 
     private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone, String companyName) {
         GuestTenantLink existing = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
+        String normalizedEmail = normalizeEmail(email);
+        Client linkedClient = existing == null ? null : existing.getClient();
         Client client;
-        if (existing != null && existing.getClient() != null) {
-            client = existing.getClient();
+        if (linkedClient != null && normalizedEmailMatches(linkedClient, normalizedEmail)) {
+            client = linkedClient;
         } else {
             companies.findByIdForUpdate(company.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
-            client = matchOrCreateClient(company, firstName, lastName, email, phone);
+            client = matchOrCreateClient(company, firstName, lastName, normalizedEmail, phone);
         }
         // When the widget includes a company name, resolve (or create) a ClientCompany for the
         // tenant and attach it as the client's linked/billing company. We only set it when the
@@ -328,20 +330,17 @@ public class PublicWidgetOrderService {
     }
 
     private Client matchOrCreateClient(Company company, String firstName, String lastName, String email, String phone) {
-        Client match = email == null
-                ? null
-                : clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), email).stream()
-                        .findFirst()
-                        .orElse(null);
-        if (match == null && phone != null) {
-            match = clients.findFirstCandidatesByCompanyIdAndNormalizedPhone(company.getId(), phone).stream()
-                    .findFirst()
-                    .orElse(null);
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email is required.");
         }
+        // Keep the online-payment widget on the same identity rule as direct widget bookings:
+        // tenant + normalized email. Phone is contact data, not a client matching key.
+        Client match = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail)
+                .stream()
+                .findFirst()
+                .orElse(null);
         if (match != null) {
-            if (match.getEmail() == null || match.getEmail().isBlank()) {
-                match.setEmail(email);
-            }
             if ((match.getPhone() == null || match.getPhone().isBlank()) && phone != null) {
                 match.setPhone(phone);
             }
@@ -354,10 +353,15 @@ public class PublicWidgetOrderService {
         client.setAssignedTo(assigned);
         client.setFirstName(firstName);
         client.setLastName(lastName);
-        client.setEmail(email);
+        client.setEmail(normalizedEmail);
         client.setPhone(phone);
         client.setActive(true);
         return clients.save(client);
+    }
+
+    private static boolean normalizedEmailMatches(Client client, String normalizedEmail) {
+        return normalizedEmail != null
+                && normalizedEmail.equals(Client.normalizeEmailStorage(client == null ? null : client.getEmail()));
     }
 
     private GuestUser requireGuest(HttpServletRequest request) {

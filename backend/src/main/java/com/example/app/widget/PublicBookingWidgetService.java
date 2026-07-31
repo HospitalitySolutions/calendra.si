@@ -1902,26 +1902,27 @@ public class PublicBookingWidgetService {
             String email,
             String phone
     ) {
-        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
-        String normalizedPhone = phone.trim();
+        String normalizedEmail = Client.normalizeEmailStorage(email);
+        if (normalizedEmail == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email is required.");
+        }
+        String normalizedPhone = phone == null ? null : phone.trim();
 
-        Optional<Client> existing = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail)
+        // Website-widget identity is tenant + normalized email. A matching phone number alone
+        // must not attach a booking to a different client profile.
+        Optional<Client> existing = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(
+                        company.getId(),
+                        normalizedEmail
+                )
                 .stream()
                 .findFirst();
-        if (existing.isEmpty()) {
-            existing = clients.findFirstCandidatesByCompanyIdAndNormalizedPhone(company.getId(), normalizedPhone)
-                    .stream()
-                    .findFirst();
-        }
         if (existing.isPresent()) {
             Client client = existing.get();
             if (client.getAssignedTo() == null) {
                 client.setAssignedTo(actor);
             }
-            if (client.getEmail() == null || client.getEmail().isBlank()) {
-                client.setEmail(normalizedEmail);
-            }
-            if (client.getPhone() == null || client.getPhone().isBlank()) {
+            if ((client.getPhone() == null || client.getPhone().isBlank())
+                    && normalizedPhone != null && !normalizedPhone.isBlank()) {
                 client.setPhone(normalizedPhone);
                 client.setWhatsappPhone(normalizedPhone);
             }
