@@ -132,6 +132,7 @@ public class FolioPdfService {
             drawSignature(ctx, layout, signatureBytes, tableFlowOffset, false);
             drawPaymentQr(ctx, layout, req, selectedLocale, fonts, tableFlowOffset, false);
             drawFiscalQr(ctx, layout, req, tableFlowOffset, false);
+            drawTaxClauses(ctx, layout, selectedLocale, fonts);
 
             ctx.closeStream();
             doc.save(out);
@@ -1174,6 +1175,91 @@ public class FolioPdfService {
         s.moveTo(x, yTop);
         s.lineTo(x, yBottom);
         s.stroke();
+    }
+
+    private record TaxClausePlacement(float x, float y, float width, float minHeight, boolean boxed) {}
+
+    private void drawTaxClauses(PageContext ctx, FolioLayoutConfig layout, String locale, FontSet fonts) throws IOException {
+        List<String> clauses = normalizedTaxClauses(layout);
+        if (clauses.isEmpty()) return;
+        TaxClausePlacement placement = taxClausePlacement(layout);
+        if (placement == null) return;
+
+        float pageH = layout.getPageHeight();
+        int titleSize = 9;
+        int bodySize = 7;
+        float lineHeight = 10f;
+        String title = "sl".equalsIgnoreCase(locale) ? "Davčne klavzule" : "sr".equalsIgnoreCase(locale) ? "Poreske klauzule" : "Tax clauses";
+
+        List<String> wrapped = new ArrayList<>();
+        for (String clause : clauses) {
+            List<String> parts = wrapText(fonts.regular(), bodySize, Math.max(40f, placement.width() - 14f), clause);
+            if (parts.isEmpty()) continue;
+            for (int i = 0; i < parts.size(); i++) {
+                wrapped.add((i == 0 ? "• " : "  ") + parts.get(i));
+            }
+        }
+        if (wrapped.isEmpty()) return;
+
+        float blockHeight = Math.max(placement.minHeight(), 18f + wrapped.size() * lineHeight + 8f);
+        float topY = placement.y();
+        if (placement.boxed()) {
+            setStrokeColor(ctx, new Color(215, 228, 244));
+            ctx.stream.addRect(placement.x(), pageH - topY - blockHeight, placement.width(), blockHeight);
+            ctx.stream.stroke();
+            setStrokeColor(ctx, Color.BLACK);
+        }
+
+        setTextColor(ctx, accentColor(layout));
+        drawText(ctx, fonts.bold(), titleSize, placement.x() + 8f, pageH - topY - titleSize - 6f, title);
+        setTextColor(ctx, Color.BLACK);
+        float y = pageH - topY - titleSize - 20f;
+        for (String line : wrapped) {
+            drawText(ctx, fonts.regular(), bodySize, placement.x() + 8f, y, line);
+            y -= lineHeight;
+        }
+    }
+
+    private TaxClausePlacement taxClausePlacement(FolioLayoutConfig layout) {
+        String template = layout == null || layout.getTemplateId() == null ? "CLASSIC" : layout.getTemplateId().toUpperCase(Locale.ROOT);
+        return switch (template) {
+            case "COMPACT" -> new TaxClausePlacement(50f, 610f, 150f, 78f, true);
+            case "MINIMAL" -> new TaxClausePlacement(50f, 662f, 235f, 74f, false);
+            case "CLASSIC" -> new TaxClausePlacement(50f, 620f, 240f, 78f, true);
+            default -> new TaxClausePlacement(50f, 620f, 240f, 78f, true);
+        };
+    }
+
+    private List<String> normalizedTaxClauses(FolioLayoutConfig layout) {
+        List<String> clauses = new ArrayList<>();
+        if (layout == null || layout.getTaxClauses() == null) return clauses;
+        for (String clause : layout.getTaxClauses()) {
+            if (clause == null) continue;
+            String trimmed = clause.trim();
+            if (!trimmed.isBlank() && !clauses.contains(trimmed)) clauses.add(trimmed);
+        }
+        return clauses;
+    }
+
+    private List<String> wrapText(PDFont font, int fontSize, float maxWidth, String text) throws IOException {
+        List<String> lines = new ArrayList<>();
+        if (text == null || text.isBlank()) return lines;
+        String[] words = text.trim().split("\\s+");
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            String candidate = current.length() == 0 ? word : current + " " + word;
+            float candidateWidth = font.getStringWidth(candidate) / 1000f * fontSize;
+            if (candidateWidth <= maxWidth || current.length() == 0) {
+                current.setLength(0);
+                current.append(candidate);
+            } else {
+                lines.add(current.toString());
+                current.setLength(0);
+                current.append(word);
+            }
+        }
+        if (current.length() > 0) lines.add(current.toString());
+        return lines;
     }
 
     private void drawTemplateDecorations(PageContext ctx, FolioLayoutConfig layout) throws IOException {

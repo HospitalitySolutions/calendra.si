@@ -134,6 +134,7 @@ type LayoutConfig = {
   templateId?: A4TemplateId
   accentColor?: string
   fontSizePreset?: A4FontSizePreset
+  taxClauses?: string[]
   pageSections: PageSectionsConfig
   fields: FieldConfig[]
   table: TableConfig
@@ -204,6 +205,44 @@ const FIELD_SAMPLE_VALUES: Record<string, string> = {
   dateOfService: '2026-05-26',
   dueDate: '2026-05-26',
   recipientVatId: 'SI12345678',
+}
+
+const TAX_CLAUSE_OPTIONS = [
+  'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
+  'Oprostitev DDV po 42. členu ZDDV-1.',
+  'Oprostitev DDV po 44. členu ZDDV-1.',
+  'Dobava blaga v drugo državo članico EU je oproščena DDV po 46. členu ZDDV-1.',
+  'Izvoz blaga je oproščen DDV po 52. členu ZDDV-1.',
+  'Obrnjena davčna obveznost po 76.a členu ZDDV-1.',
+  'Posebna ureditev za potovalne agencije po 97. členu ZDDV-1.',
+  'Posebna ureditev za rabljeno blago, umetniške predmete, zbirke in starine po 102. členu ZDDV-1.',
+] as const
+
+function normalizeTaxClauses(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const unique = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const trimmed = item.trim()
+    if (trimmed) unique.add(trimmed)
+  }
+  return Array.from(unique)
+}
+
+function taxClausesTitle(locale: AppLocale) {
+  return locale === 'sl' ? 'Davčne klavzule' : locale === 'sr' ? 'Poreske klauzule' : 'Tax clauses'
+}
+
+function taxClausePreviewPlacement(templateId: A4TemplateId) {
+  switch (templateId) {
+    case 'COMPACT':
+      return { x: 50, y: 610, width: 150, minHeight: 78 }
+    case 'MINIMAL':
+      return { x: 50, y: 662, width: 235, minHeight: 74 }
+    case 'CLASSIC':
+    default:
+      return { x: 50, y: 620, width: 240, minHeight: 78 }
+  }
 }
 
 
@@ -312,6 +351,7 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
   layout.pageWidth = 595.28
   layout.pageHeight = 841.89
   const footerText = ensureTemplateFooterField(layout)
+  layout.taxClauses = normalizeTaxClauses(layout.taxClauses)
   footerText.visible = Boolean(resolveLocalizedText(footerText.textI18n, footerText.text, 'en') || resolveLocalizedText(footerText.textI18n, footerText.text, 'sl'))
 
   for (const field of layout.fields) field.visible = field.key === 'templateFooterText' ? field.visible : true
@@ -1346,7 +1386,6 @@ function A4FolioLayoutEditor() {
   const currentFooterText = footerTextField ? resolveLocalizedText(footerTextField.textI18n, footerTextField.text || '', locale) : ''
   const recipientVisible = layout.fields.filter((field) => field.group === 'recipient').some((field) => field.visible)
   const unitColumnsVisible = ['qty', 'gross'].some((key) => columnFor(layout, key)?.visible !== false)
-  const paymentVisible = ['payment', 'iban'].some((key) => footerFor(layout, key)?.visible !== false)
   const fiscalVisible = layout.fiscalQr.visible || ['fiscalZoi', 'fiscalEor'].some((key) => footerFor(layout, key)?.visible !== false)
   const notesVisible = footerFor(layout, 'notes')?.visible !== false
   const issuedByVisible = footerFor(layout, 'issuedBy')?.visible !== false
@@ -1391,7 +1430,7 @@ function A4FolioLayoutEditor() {
         </div>
         <div className="fle-template-info">
           <span>i</span>
-          <p>{locale === 'sl' ? 'Predloge so prednastavljene in optimizirane za izpis na A4. Vse elemente lahko dodatno prilagodite v naprednem urejanju.' : locale === 'sr' ? 'Predlošci su unapred podešeni i optimizovani za A4 štampu. Sve elemente možete dodatno prilagoditi u naprednom uređivanju.' : 'Templates are preconfigured and optimized for A4 printing. Every element can still be adjusted in advanced editing.'}</p>
+          <p>{locale === 'sl' ? 'Predloge so prednastavljene in optimizirane za izpis na A4.' : locale === 'sr' ? 'Predlošci su unapred podešeni i optimizovani za A4 štampu.' : 'Templates are preconfigured and optimized for A4 printing.'}</p>
         </div>
       </section>
 
@@ -1438,9 +1477,6 @@ function A4FolioLayoutEditor() {
           </>
         )}
         <div className="fle-toolbar-spacer" />
-        <button type="button" className="fle-btn fle-btn-advanced" onClick={() => { setAdvancedMode((value) => !value); setSelection(null) }}>
-          {advancedMode ? copy.closeAdvanced : copy.advanced}
-        </button>
         <button type="button" className="fle-btn" onClick={() => void testPrint()} disabled={testing}>{testing ? '…' : copy.test}</button>
         <button type="button" className="fle-btn fle-btn-secondary" onClick={reset}>{copy.reset}</button>
         <button type="button" className="fle-btn fle-btn-primary" onClick={save} disabled={saving || !dirty}>{saving ? copy.saving : copy.save}</button>
@@ -1784,6 +1820,32 @@ function A4FolioLayoutEditor() {
               )
             })()}
 
+            {/* Tax clauses preview */}
+            {!advancedMode && (layout.taxClauses || []).length > 0 && (() => {
+              const placement = taxClausePreviewPlacement(activeTemplate)
+              const lineHeight = 12 * scale
+              const titleHeight = 14 * scale
+              const bodyHeight = Math.max(placement.minHeight * scale, (layout.taxClauses || []).length * lineHeight + 12 * scale)
+              return (
+                <div
+                  className={`fle-tax-clauses-preview fle-tax-clauses-preview--${activeTemplate.toLowerCase()}`}
+                  style={{
+                    left: placement.x * scale,
+                    top: placement.y * scale,
+                    width: placement.width * scale,
+                    minHeight: bodyHeight,
+                  }}
+                >
+                  <strong style={{ fontSize: Math.max(7, 9 * scale * 0.72) }}>{taxClausesTitle(locale)}</strong>
+                  <div className="fle-tax-clauses-preview-lines" style={{ marginTop: 4 * scale, gap: 3 * scale, fontSize: Math.max(6, 8 * scale * 0.72), lineHeight: 1.35 }}>
+                    {(layout.taxClauses || []).map((clause) => (
+                      <div key={clause} className="fle-tax-clauses-preview-line">{clause}</div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Footer items preview — positioned absolutely when x/y are set */}
             {layout.footer.items.map((item, idx) => {
               if (!advancedMode && item.visible === false) return null
@@ -1930,8 +1992,40 @@ function A4FolioLayoutEditor() {
               <QuickSwitch checked={layout.logo.visible} onChange={(visible) => mutateLayout((next) => { next.logo.visible = visible })} label={locale === 'sl' ? 'Prikaži logotip' : locale === 'sr' ? 'Prikaži logo' : 'Show logo'} />
               <QuickSwitch checked={recipientVisible} onChange={setRecipientVisible} label={locale === 'sl' ? 'Prejemnik' : locale === 'sr' ? 'Primalac' : 'Recipient'} />
               <QuickSwitch checked={unitColumnsVisible} onChange={setColumnsVisible} label={locale === 'sl' ? 'Količina in cena na enoto' : locale === 'sr' ? 'Količina i cena po jedinici' : 'Quantity and unit price'} />
-              <QuickSwitch checked={layout.vatBreakdownTable.visible} onChange={(visible) => mutateLayout((next) => { next.vatBreakdownTable.visible = visible })} label={locale === 'sl' ? 'Razčlenitev DDV' : locale === 'sr' ? 'Pregled PDV-a' : 'VAT breakdown'} />
-              <QuickSwitch checked={paymentVisible} onChange={(visible) => setFooterItemVisible(['payment', 'iban'], visible)} label={locale === 'sl' ? 'Plačilo' : locale === 'sr' ? 'Plaćanje' : 'Payment details'} />
+              <div className="fle-quick-form">
+                <label>
+                  <span>{taxClausesTitle(locale)}</span>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const clause = e.target.value
+                      if (!clause) return
+                      mutateLayout((next) => {
+                        const current = new Set(normalizeTaxClauses(next.taxClauses))
+                        current.add(clause)
+                        next.taxClauses = Array.from(current)
+                      })
+                      e.currentTarget.value = ''
+                    }}
+                  >
+                    <option value="">{locale === 'sl' ? 'Dodaj davčno klavzulo…' : locale === 'sr' ? 'Dodaj poresku klauzulu…' : 'Add tax clause…'}</option>
+                    {TAX_CLAUSE_OPTIONS.filter((clause) => !(layout.taxClauses || []).includes(clause)).map((clause) => (
+                      <option key={clause} value={clause}>{clause}</option>
+                    ))}
+                  </select>
+                </label>
+                <small>{locale === 'sl' ? 'Izberete lahko eno ali več klavzul, ki bodo prikazane na računu.' : locale === 'sr' ? 'Možete izabrati jednu ili više klauzula koje će biti prikazane na računu.' : 'You can select one or multiple clauses that will be shown on the invoice.'}</small>
+                <div className="fle-tax-clause-list">
+                  {(layout.taxClauses || []).length === 0 ? (
+                    <div className="fle-tax-clause-empty">{locale === 'sl' ? 'Ni izbranih davčnih klavzul.' : locale === 'sr' ? 'Nema izabranih poreskih klauzula.' : 'No tax clauses selected.'}</div>
+                  ) : (layout.taxClauses || []).map((clause) => (
+                    <div key={clause} className="fle-tax-clause-chip">
+                      <span>{clause}</span>
+                      <button type="button" onClick={() => mutateLayout((next) => { next.taxClauses = normalizeTaxClauses(next.taxClauses).filter((item) => item !== clause) })} aria-label="Remove tax clause">×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <QuickSwitch checked={layout.paymentQr.visible} onChange={(visible) => mutateLayout((next) => { next.paymentQr.visible = visible })} label="UPN QR" hint={locale === 'sl' ? 'Prikaže se samo, ko so podatki za QR popolni.' : 'Shown only when QR details are complete.'} />
               <QuickSwitch checked={fiscalVisible} onChange={(visible) => mutateLayout((next) => { next.fiscalQr.visible = visible; for (const key of ['fiscalZoi', 'fiscalEor']) { const item = footerFor(next, key); if (item) item.visible = visible } })} label={locale === 'sl' ? 'Fiskalni podatki' : locale === 'sr' ? 'Fiskalni podaci' : 'Fiscal details'} />
               <QuickSwitch checked={notesVisible} onChange={(visible) => setFooterItemVisible(['notes'], visible)} label={locale === 'sl' ? 'Opombe' : locale === 'sr' ? 'Napomene' : 'Notes'} />

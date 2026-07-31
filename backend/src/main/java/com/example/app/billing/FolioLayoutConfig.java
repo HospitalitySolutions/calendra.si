@@ -26,6 +26,8 @@ public class FolioLayoutConfig {
     private String accentColor = "#1677FF";
     /** Global text-size preset used by the simplified A4 editor. */
     private String fontSizePreset = "STANDARD";
+    /** Selected Slovenian tax clauses shown on A4 invoice templates. */
+    private List<String> taxClauses = new ArrayList<>();
     private PageSectionsConfig pageSections = new PageSectionsConfig();
     private List<FieldConfig> fields = new ArrayList<>();
     private TableConfig table = new TableConfig();
@@ -491,6 +493,8 @@ public class FolioLayoutConfig {
         setFieldLayout(cfg, "recipientPostalCodeCity", 50, 171, 250, 14, 9, false, "left");
         setFieldLayout(cfg, "recipientVatId", 315, 156, 230, 14, 9, false, "right");
 
+        cfg.setTaxClauses(normalizeTaxClauses(cfg.getTaxClauses()));
+
         FieldConfig templateFooter = findField(cfg, "templateFooterText");
         if (templateFooter == null) {
             templateFooter = new FieldConfig("templateFooterText", "custom", "Footer text", 50, 802, 495, 16, 9, false, "center");
@@ -538,6 +542,17 @@ public class FolioLayoutConfig {
         fiscalQr.setX(190); fiscalQr.setY(485); fiscalQr.setWidth(96); fiscalQr.setHeight(96); fiscalQr.setVisible(true);
         SignatureConfig signature = cfg.getSignature();
         signature.setX(390); signature.setY(490); signature.setWidth(130); signature.setHeight(55); signature.setVisible(true);
+    }
+
+    private static List<String> normalizeTaxClauses(List<String> taxClauses) {
+        List<String> normalized = new ArrayList<>();
+        if (taxClauses == null) return normalized;
+        for (String clause : taxClauses) {
+            if (clause == null) continue;
+            String trimmed = clause.trim();
+            if (!trimmed.isEmpty() && !normalized.contains(trimmed)) normalized.add(trimmed);
+        }
+        return normalized;
     }
 
     private static FieldConfig findField(FolioLayoutConfig cfg, String key) {
@@ -956,6 +971,8 @@ public class FolioLayoutConfig {
     public void setAccentColor(String accentColor) { this.accentColor = accentColor; }
     public String getFontSizePreset() { return fontSizePreset; }
     public void setFontSizePreset(String fontSizePreset) { this.fontSizePreset = fontSizePreset; }
+    public List<String> getTaxClauses() { return taxClauses; }
+    public void setTaxClauses(List<String> taxClauses) { this.taxClauses = taxClauses == null ? new ArrayList<>() : taxClauses; }
     public PageSectionsConfig getPageSections() { return pageSections; }
     public void setPageSections(PageSectionsConfig pageSections) { this.pageSections = pageSections; }
     public List<FieldConfig> getFields() { return fields; }
