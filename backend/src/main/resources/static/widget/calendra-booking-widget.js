@@ -767,6 +767,8 @@
         screen: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H4zM9 20h6M12 16v4"/></svg>',
         card: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M3 7h18v10H3zM3 10h18M7 15h4"/></svg>',
         clock: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>',
+        duration: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M7 3h10M7 21h10M8 3c0 4 1.6 6.2 4 9-2.4 2.8-4 5-4 9M16 3c0 4-1.6 6.2-4 9 2.4 2.8 4 5 4 9"/></svg>',
+        send: '<svg class="line-icon" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4 20-7zM11 13 22 2"/></svg>',
         tag: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M20 13 13 20 4 11V4h7l9 9zM8 8h.01"/></svg>',
         user: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/></svg>',
         shield: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 2.8 8.5 7 10 4.2-1.5 7-5.5 7-10V6l-7-3zM9 12l2 2 4-5"/></svg>',
@@ -1355,6 +1357,35 @@
       return this.state.manualTime || '';
     }
 
+    bookingStartTimeLabel(slot) {
+      const label = String(slot?.label || '').trim();
+      const labelTime = label.match(/(?:^|\s)([01]\d|2[0-3]):[0-5]\d/);
+      if (labelTime) return labelTime[0].trim();
+      const rawStart = String(slot?.startTime || '').trim();
+      const startTime = rawStart.match(/T([01]\d|2[0-3]):[0-5]\d/);
+      if (startTime) return startTime[0].slice(1);
+      return label;
+    }
+
+    bookingDurationMinutes(slot) {
+      const start = Date.parse(String(slot?.startTime || ''));
+      const end = Date.parse(String(slot?.endTime || ''));
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        return Math.max(1, Math.round((end - start) / 60000));
+      }
+      return this.selectedServicesDurationMinutes();
+    }
+
+    formatDurationLabel(minutes) {
+      const total = Math.max(0, Math.round(Number(minutes) || 0));
+      if (!total) return '';
+      const hours = Math.floor(total / 60);
+      const remainder = total % 60;
+      if (!hours) return `${remainder} min`;
+      if (!remainder) return `${hours} h`;
+      return `${hours} h ${remainder} min`;
+    }
+
     isStepComplete(stepId) {
       const { form } = this.state;
       if (stepId === 'service') return this.selectedServiceIdsForRequest().length > 0;
@@ -1923,6 +1954,10 @@
           return;
         }
 
+        const summaryConsultant = this.currentSummaryConsultant();
+        const consultantName = summaryConsultant?.name || bookingSlot.consultantName || '';
+        const durationMinutes = this.bookingDurationMinutes(bookingSlot);
+
         this.availabilityCache.clear();
         this.monthAvailabilityCache.clear();
         this.setState({
@@ -1932,6 +1967,11 @@
             serviceName: this.selectedServiceDisplayName(),
             startsAtLabel: bookingSlot.label,
             startTime: bookingSlot.startTime,
+            dateLabel: this.displaySelectedDate(),
+            timeLabel: this.bookingStartTimeLabel(bookingSlot),
+            durationMinutes,
+            durationLabel: this.formatDurationLabel(durationMinutes),
+            consultantName,
             email: form.email.trim(),
           },
           paymentResult: checkout ? { type: effectivePaymentMethod, ...checkout } : null,
@@ -1982,6 +2022,9 @@
         bookingSuccess: null,
         error: '',
         saving: false,
+        selectedServiceId: null,
+        selectedServiceIds: [],
+        selectedConsultantId: null,
         selectedDate,
         calendarMonth: this.monthKeyForDate(selectedDate),
         selectedSlot: null,
@@ -1998,13 +2041,10 @@
         giftCardCodes: [],
         termsAccepted: true,
         paymentResult: null,
-        activeStep: 'datetime',
+        activeStep: 'service',
         availableDates: null,
         monthAvailabilityKey: '',
       });
-
-      void this.loadAvailability();
-      void this.loadMonthAvailability();
     }
 
     waitlistAvailable() {
@@ -2634,15 +2674,33 @@
       const showConsultantPicker = this.shouldShowConsultantStep();
 
       if (this.state.bookingSuccess) {
+        const success = this.state.bookingSuccess;
         const bt = this.state.paymentResult?.type === 'BANK_TRANSFER' ? this.state.paymentResult.bankTransfer : null;
+        const detailCard = (icon, label, value) => value ? `
+          <div class="success-detail-card">
+            <span class="success-detail-icon">${this.uiIcon(icon)}</span>
+            <span class="success-detail-copy">
+              <span class="success-detail-label">${escapeHtml(label)}</span>
+              <strong class="success-detail-value">${escapeHtml(value)}</strong>
+            </span>
+          </div>
+        ` : '';
+        const successDetails = [
+          detailCard('calendar', t.summaryDateTime || t.labelDate, success.dateLabel || this.displaySelectedDate()),
+          detailCard('clock', t.summaryTime || t.labelTime, success.timeLabel || this.bookingStartTimeLabel(success)),
+          detailCard('duration', t.summaryDuration, success.durationLabel || this.formatDurationLabel(success.durationMinutes)),
+          detailCard('user', t.summaryConsultant || t.summaryEmployee, success.consultantName),
+        ].filter(Boolean).join('');
         return `
           <div class="success-screen">
-            <div class="success-icon">${this.uiIcon('check')}</div>
+            <div class="success-icon" aria-hidden="true">${this.uiIcon('check')}</div>
             <div class="success-title">${escapeHtml(t.confirmed)}</div>
-            <p class="success-copy">
-              ${escapeHtml(this.state.bookingSuccess.serviceName || this.selectedServiceDisplayName() || t.sessionFallback)} · ${escapeHtml(this.state.bookingSuccess.startsAtLabel || this.state.bookingSuccess.startTime || '')}
+            <p class="success-services">${escapeHtml(success.serviceName || this.selectedServiceDisplayName() || t.sessionFallback)}</p>
+            <div class="success-details-grid">${successDetails}</div>
+            <p class="success-email">
+              <span class="success-email-icon" aria-hidden="true">${this.uiIcon('send')}</span>
+              <span>${escapeHtml(t.confirmationSent)} ${escapeHtml(success.email || this.state.form.email)}.</span>
             </p>
-            <p class="success-copy">${escapeHtml(t.confirmationSent)} ${escapeHtml(this.state.bookingSuccess.email || this.state.form.email)}.</p>
             ${bt ? `
               <div class="bank-transfer-box">
                 <div class="bank-transfer-title">${escapeHtml(t.bankTransferTitle)}</div>
@@ -2651,7 +2709,7 @@
                 ${bt.instructions ? `<p class="bank-transfer-instructions">${escapeHtml(bt.instructions)}</p>` : ''}
               </div>
             ` : ''}
-            <button class="primary" type="button" data-action="restart">${escapeHtml(t.bookAnother)}</button>
+            <button class="primary success-restart-button" type="button" data-action="restart">${escapeHtml(t.bookAnother)}</button>
           </div>
         `;
       }
@@ -3669,11 +3727,50 @@
         .error { padding: 14px 16px; border-radius: 14px; background: rgba(239,68,68,.09); color: #b42318; border: 1px solid rgba(239,68,68,.15); margin-bottom: 18px; }
         .empty, .loading, .loading-inline { padding: 18px; color: var(--calendra-muted); border: 1px dashed var(--calendra-border); border-radius: 14px; background: #fbfdff; text-align: center; }
         .empty--left { text-align: left; }
-        .success-screen { min-height: 420px; display: grid; place-items: center; text-align: center; gap: 14px; padding: 30px; }
-        .success-icon { width: 74px; height: 74px; border-radius: 999px; display: grid; place-items: center; background: rgba(34,197,94,.12); color: #15803d; font-size: 34px; }
-        .success-title { font-size: 30px; font-weight: 900; }
-        .success-copy { margin: 0; color: var(--calendra-muted); line-height: 1.6; }
-        .bank-transfer-box { margin-top: 14px; text-align: left; padding: 16px; border-radius: 14px; border: 1px solid var(--calendra-border); background: #fbfdff; display: grid; gap: 6px; }
+        .success-screen { min-height: 420px; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 38px 24px 34px; }
+        .success-icon {
+          position: relative;
+          width: 92px;
+          height: 92px;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          background: linear-gradient(145deg, rgba(34,197,94,.08), rgba(34,197,94,.18));
+          color: #15803d;
+          box-shadow: inset 0 0 0 1px rgba(34,197,94,.08);
+          margin-bottom: 26px;
+        }
+        .success-icon::before, .success-icon::after { content: ''; position: absolute; width: 7px; height: 7px; border: 2px solid rgba(34,197,94,.28); transform: rotate(45deg); }
+        .success-icon::before { left: -27px; top: 32px; }
+        .success-icon::after { right: -25px; top: 15px; width: 6px; height: 6px; }
+        .success-icon svg { width: 43px; height: 43px; stroke-width: 2.2; }
+        .success-title { font-size: clamp(30px, 3vw, 42px); line-height: 1.12; font-weight: 900; letter-spacing: -.035em; color: var(--calendra-text); }
+        .success-services { margin: 20px 0 0; color: var(--calendra-muted); font-size: clamp(17px, 1.6vw, 21px); line-height: 1.5; }
+        .success-details-grid { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 34px 0 28px; }
+        .success-detail-card {
+          min-width: 0;
+          min-height: 106px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          text-align: left;
+          padding: 18px;
+          border-radius: 16px;
+          border: 1px solid var(--calendra-border);
+          background: linear-gradient(145deg, #fff, #fbfdff);
+          box-shadow: 0 10px 28px rgba(31, 50, 81, .045);
+        }
+        .success-detail-icon, .success-email-icon { flex: 0 0 auto; display: grid; place-items: center; border-radius: 999px; background: rgba(15,107,255,.08); color: var(--calendra-primary); }
+        .success-detail-icon { width: 48px; height: 48px; }
+        .success-detail-icon svg { width: 24px; height: 24px; }
+        .success-detail-copy { min-width: 0; display: grid; gap: 5px; }
+        .success-detail-label { color: var(--calendra-muted); font-size: 13px; font-weight: 750; }
+        .success-detail-value { min-width: 0; color: var(--calendra-text); font-size: 16px; line-height: 1.3; font-weight: 900; overflow-wrap: anywhere; }
+        .success-email { margin: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; gap: 12px; color: var(--calendra-muted); font-size: 16px; line-height: 1.5; }
+        .success-email-icon { width: 42px; height: 42px; }
+        .success-email-icon svg { width: 21px; height: 21px; }
+        .success-restart-button { min-width: 290px; }
+        .bank-transfer-box { width: min(100%, 680px); margin: 0 0 24px; text-align: left; padding: 16px; border-radius: 14px; border: 1px solid var(--calendra-border); background: #fbfdff; display: grid; gap: 6px; }
         .bank-transfer-title { font-weight: 850; color: var(--calendra-text); margin-bottom: 4px; }
         .bank-transfer-row { color: var(--calendra-text); font-size: 14px; }
         .bank-transfer-row span { color: var(--calendra-muted); margin-right: 6px; }
@@ -3691,6 +3788,17 @@
         :host([data-layout="compact"]) .service-grid,
         :host([data-layout="narrow"]) .service-grid,
         :host([data-layout="micro"]) .service-grid { grid-template-columns: 1fr; }
+        :host([data-layout="compact"]) .success-details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        :host([data-layout="narrow"]) .success-details-grid,
+        :host([data-layout="micro"]) .success-details-grid { grid-template-columns: 1fr; gap: 10px; margin: 26px 0 22px; }
+        :host([data-layout="narrow"]) .success-screen,
+        :host([data-layout="micro"]) .success-screen { padding: 28px 0 18px; }
+        :host([data-layout="narrow"]) .success-detail-card,
+        :host([data-layout="micro"]) .success-detail-card { min-height: 88px; padding: 14px; }
+        :host([data-layout="narrow"]) .success-email,
+        :host([data-layout="micro"]) .success-email { align-items: flex-start; text-align: left; font-size: 15px; }
+        :host([data-layout="narrow"]) .success-restart-button,
+        :host([data-layout="micro"]) .success-restart-button { width: 100%; min-width: 0; }
         :host([data-layout="compact"]) .slot-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
         :host([data-layout="narrow"]) .slot-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
         :host([data-layout="micro"]) .slot-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }

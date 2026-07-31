@@ -274,7 +274,7 @@ public class WaitlistService {
             String otherSlotsUrl
     ) {}
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<RequestView> list(
             User me,
             String view,
@@ -289,6 +289,7 @@ public class WaitlistService {
             String search
     ) {
         Long companyId = companyId(me);
+        expirePastRequestsForCompany(companyId, Instant.now());
         String normalizedView = normalize(view);
         String normalizedSearch = normalize(search);
         List<WaitlistRequest> rows = requests.findAllDetailedByCompanyId(companyId);
@@ -838,6 +839,56 @@ public class WaitlistService {
         guestNotifications.publish(request, null, WaitlistGuestNotificationService.EventKind.CANCELLED);
     }
 
+    /**
+     * Clears waitlist references before one or more session-booking rows are deleted.
+     * This keeps historical waitlist data while preventing foreign-key failures on
+     * bookings that were created from, or targeted by, a waitlist request.
+     */
+    @Transactional
+    public void prepareForBookingDeletion(Long companyId, Collection<Long> bookingIds, User actor) {
+        if (companyId == null || bookingIds == null || bookingIds.isEmpty()) return;
+        List<Long> ids = bookingIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return;
+
+        Map<Long, WaitlistRequest> changed = new LinkedHashMap<>();
+        java.util.Set<Long> eventRecorded = new java.util.HashSet<>();
+
+        for (WaitlistRequest request : requests.findByBookedBookingIdsForUpdate(companyId, ids)) {
+            request.setBookedBooking(null);
+            if (request.getStatus() == WaitlistRequestStatus.BOOKED) {
+                request.setStatus(WaitlistRequestStatus.REMOVED);
+                addEvent(request, null, actor, WaitlistEventType.LINKED_BOOKING_DELETED,
+                        "Povezana rezervacija je bila izbrisana. Zahteva je bila premaknjena med odstranjene.");
+                eventRecorded.add(request.getId());
+            }
+            changed.put(request.getId(), request);
+        }
+
+        for (WaitlistRequest request : requests.findByTargetSessionIdsForUpdate(companyId, ids)) {
+            request.setTargetSession(null);
+            if (DUPLICATE_BLOCKING_STATUSES.contains(request.getStatus())) {
+                revokePendingOffer(request);
+                request.setStatus(WaitlistRequestStatus.REMOVED);
+                if (eventRecorded.add(request.getId())) {
+                    addEvent(request, null, actor, WaitlistEventType.LINKED_BOOKING_DELETED,
+                            "Ciljna rezervacija je bila izbrisana. Zahteva je bila premaknjena med odstranjene.");
+                }
+            }
+            changed.put(request.getId(), request);
+        }
+
+        if (!changed.isEmpty()) {
+            requests.saveAll(changed.values());
+            requests.flush();
+        }
+
+        // Clear offer/hold references explicitly as well. The matching database
+        // constraints are ON DELETE SET NULL, but doing this in the application
+        // also protects installations with older constraint definitions.
+        offers.clearSessionReferences(companyId, ids);
+        holds.clearSessionReferences(companyId, ids);
+    }
+
     /** Invoked after a booking cancellation/deletion/reschedule commits. */
     @Transactional
     public void handleReleasedSlot(Long companyId, Long bookingId, LocalDateTime slotStart, LocalDateTime slotEnd, String kind, LocalDateTime previousStart) {
@@ -886,10 +937,14 @@ public class WaitlistService {
             offers.save(offer);
             releaseHold(offer, WaitlistHoldStatus.EXPIRED);
             WaitlistRequest request = offer.getRequest();
+            boolean noRequestedSlotRemaining = !hasRemainingRequestedSlot(request, now);
             if (request.getStatus() == WaitlistRequestStatus.OFFERED) {
-                request.setStatus(request.getExpiresAt() != null && !request.getExpiresAt().isAfter(now)
-                        ? WaitlistRequestStatus.EXPIRED : WaitlistRequestStatus.ACTIVE);
+                request.setStatus(noRequestedSlotRemaining ? WaitlistRequestStatus.REMOVED : WaitlistRequestStatus.ACTIVE);
                 requests.save(request);
+                if (noRequestedSlotRemaining) {
+                    addEvent(request, offer, null, WaitlistEventType.REMOVED_PAST_SLOTS,
+                            "Vsi zahtevani termini so že v preteklosti. Zahteva je bila samodejno odstranjena.");
+                }
             }
             addEvent(request, offer, null, WaitlistEventType.OFFER_EXPIRED, "Ponudba termina je potekla.");
             tenantNotifications.createWaitlistNotification(request.getCompany().getId(), request.getId(), "WAITLIST_OFFER_EXPIRED", "Ponudba termina je potekla",
@@ -906,7 +961,57 @@ public class WaitlistService {
             publishCalendarRefreshAfterCommit(hold, "WAITLIST_OFFER_EXPIRED");
             processed++;
         }
+        processed += expirePastRequests(
+                requests.findActiveEndingOnOrBefore(LocalDateTime.ofInstant(now, ZONE).toLocalDate(), page),
+                now);
         return processed;
+    }
+
+    private int expirePastRequestsForCompany(Long companyId, Instant now) {
+        if (companyId == null) return 0;
+        LocalDate today = LocalDateTime.ofInstant(now, ZONE).toLocalDate();
+        return expirePastRequests(
+                requests.findActiveEndingOnOrBeforeByCompanyId(companyId, today, PageRequest.of(0, expiryBatchSize)),
+                now);
+    }
+
+    private int expirePastRequests(List<WaitlistRequest> candidates, Instant now) {
+        int processed = 0;
+        for (WaitlistRequest request : candidates) {
+            if (request.getStatus() != WaitlistRequestStatus.ACTIVE || hasRemainingRequestedSlot(request, now)) continue;
+            request.setStatus(WaitlistRequestStatus.REMOVED);
+            requests.save(request);
+            addEvent(request, null, null, WaitlistEventType.REMOVED_PAST_SLOTS,
+                    "Vsi zahtevani termini so že v preteklosti. Zahteva je bila samodejno odstranjena.");
+            processed++;
+        }
+        return processed;
+    }
+
+    private boolean hasRemainingRequestedSlot(WaitlistRequest request, Instant now) {
+        if (request == null || request.getDateFrom() == null || request.getDateTo() == null) return false;
+        LocalDateTime localNow = LocalDateTime.ofInstant(now, ZONE);
+        LocalDate today = localNow.toLocalDate();
+        if (request.getDateTo().isBefore(today)) return false;
+
+        List<WaitlistRequestWindow> requestWindows =
+                windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(request.getId());
+        if (requestWindows.isEmpty()) {
+            return !request.getDateTo().isBefore(today);
+        }
+
+        LocalDate cursor = request.getDateFrom().isAfter(today) ? request.getDateFrom() : today;
+        while (!cursor.isAfter(request.getDateTo())) {
+            for (WaitlistRequestWindow window : requestWindows) {
+                if (window.getDate() != null && !window.getDate().equals(cursor)) continue;
+                if (window.getDayOfWeek() != null && window.getDayOfWeek() != cursor.getDayOfWeek()) continue;
+                if (cursor.isAfter(today)) return true;
+                if (window.isAllDay() || window.getTimeTo() == null) return true;
+                if (!window.getTimeTo().isBefore(localNow.toLocalTime())) return true;
+            }
+            cursor = cursor.plusDays(1);
+        }
+        return false;
     }
 
     public boolean hasActiveHold(Long companyId, Long employeeId, Long roomId, LocalDateTime start, LocalDateTime end, Long excludeOfferId) {
@@ -1610,8 +1715,13 @@ public class WaitlistService {
             offers.save(offer);
             releaseHold(offer, WaitlistHoldStatus.EXPIRED);
             WaitlistRequest request = offer.getRequest();
-            request.setStatus(WaitlistRequestStatus.ACTIVE);
+            boolean noRequestedSlotRemaining = !hasRemainingRequestedSlot(request, Instant.now());
+            request.setStatus(noRequestedSlotRemaining ? WaitlistRequestStatus.REMOVED : WaitlistRequestStatus.ACTIVE);
             requests.save(request);
+            if (noRequestedSlotRemaining) {
+                addEvent(request, offer, null, WaitlistEventType.REMOVED_PAST_SLOTS,
+                        "Vsi zahtevani termini so že v preteklosti. Zahteva je bila samodejno odstranjena.");
+            }
             addEvent(request, offer, null, WaitlistEventType.OFFER_EXPIRED, "Ponudba termina je potekla.");
             guestNotifications.publish(request, offer, WaitlistGuestNotificationService.EventKind.OFFER_EXPIRED);
         }

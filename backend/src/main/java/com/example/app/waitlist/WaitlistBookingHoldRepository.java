@@ -2,11 +2,13 @@ package com.example.app.waitlist;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -209,6 +211,18 @@ public interface WaitlistBookingHoldRepository extends JpaRepository<WaitlistBoo
             @Param("rangeStart") LocalDateTime rangeStart,
             @Param("rangeEnd") LocalDateTime rangeEnd,
             @Param("now") Instant now);
+
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update WaitlistBookingHold h
+               set h.session = null
+             where h.company.id = :companyId
+               and h.session.id in :bookingIds
+            """)
+    int clearSessionReferences(
+            @Param("companyId") Long companyId,
+            @Param("bookingIds") Collection<Long> bookingIds);
 
     @Query("select h from WaitlistBookingHold h where h.status = com.example.app.waitlist.WaitlistHoldStatus.ACTIVE and h.expiresAt <= :now")
     @Lock(LockModeType.PESSIMISTIC_WRITE)

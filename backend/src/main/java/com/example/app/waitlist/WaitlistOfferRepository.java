@@ -2,12 +2,14 @@ package com.example.app.waitlist;
 
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -54,6 +56,18 @@ public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer, Lo
             @Param("companyId") Long companyId,
             @Param("from") Instant from,
             @Param("to") Instant to);
+
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update WaitlistOffer o
+               set o.session = null
+             where o.company.id = :companyId
+               and o.session.id in :bookingIds
+            """)
+    int clearSessionReferences(
+            @Param("companyId") Long companyId,
+            @Param("bookingIds") Collection<Long> bookingIds);
 
     @Query("select o from WaitlistOffer o where o.status = com.example.app.waitlist.WaitlistOfferStatus.PENDING and o.expiresAt <= :now order by o.expiresAt asc, o.id asc")
     @Lock(LockModeType.PESSIMISTIC_WRITE)

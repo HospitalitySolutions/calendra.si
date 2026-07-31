@@ -241,13 +241,13 @@ function eventLabel(type: string, locale: string) {
     JOINED: 'Dodano na čakalno vrsto', UPDATED: 'Zahteva posodobljena', OFFER_SENT: 'Ponudba poslana',
     OFFER_ACCEPTED: 'Ponudba sprejeta', OFFER_DECLINED: 'Ponudba zavrnjena', OFFER_EXPIRED: 'Ponudba potekla',
     OFFER_REVOKED: 'Ponudba preklicana', CONVERTED_TO_BOOKING: 'Rezervacija ustvarjena', CANCELLED_BY_STAFF: 'Zahteva preklicana',
-    REMOVED_BY_STAFF: 'Odstranjeno s čakalne vrste', SKIPPED_FOR_SLOT: 'Preskočeno za termin', MATCH_REJECTED: 'Termin ni ustrezal',
+    REMOVED_BY_STAFF: 'Odstranjeno s čakalne vrste', REMOVED_PAST_SLOTS: 'Želeni termini so potekli', LINKED_BOOKING_DELETED: 'Povezana rezervacija izbrisana', SKIPPED_FOR_SLOT: 'Preskočeno za termin', MATCH_REJECTED: 'Termin ni ustrezal',
   }
   const en: Record<string, string> = {
     JOINED: 'Added to waitlist', UPDATED: 'Request updated', OFFER_SENT: 'Offer sent',
     OFFER_ACCEPTED: 'Offer accepted', OFFER_DECLINED: 'Offer declined', OFFER_EXPIRED: 'Offer expired',
     OFFER_REVOKED: 'Offer revoked', CONVERTED_TO_BOOKING: 'Booking created', CANCELLED_BY_STAFF: 'Request cancelled',
-    REMOVED_BY_STAFF: 'Removed from waitlist', SKIPPED_FOR_SLOT: 'Skipped for slot', MATCH_REJECTED: 'Slot did not match',
+    REMOVED_BY_STAFF: 'Removed from waitlist', REMOVED_PAST_SLOTS: 'Requested slots passed', LINKED_BOOKING_DELETED: 'Linked booking deleted', SKIPPED_FOR_SLOT: 'Skipped for slot', MATCH_REJECTED: 'Slot did not match',
   }
   return (locale === 'sl' ? sl : en)[type] ?? type.split('_').join(' ').toLowerCase()
 }

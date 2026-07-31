@@ -24,6 +24,7 @@ import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
+import com.example.app.waitlist.WaitlistService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -41,6 +42,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,6 +77,9 @@ public class SessionBookingController {
     private final TimeService timeService;
     private final WaitlistBookingHoldRepository waitlistHolds;
     private final TenantFeatureAccessService featureAccess;
+
+    @Autowired(required = false)
+    private ObjectProvider<WaitlistService> waitlistServiceProvider;
 
     @Autowired
     public SessionBookingController(SessionBookingRepository repo,
@@ -628,6 +633,16 @@ public class SessionBookingController {
             }
         }
 
+        List<Long> bookingIds = rowsToDelete.stream()
+                .map(SessionBooking::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        WaitlistService waitlistService = waitlistServiceProvider == null ? null : waitlistServiceProvider.getIfAvailable();
+        if (waitlistService != null && !bookingIds.isEmpty()) {
+            waitlistService.prepareForBookingDeletion(companyId, bookingIds, me);
+        }
+
         for (var row : rowsToDelete) {
             reminderService.sendSessionCancelled(row);
         }
@@ -641,10 +656,7 @@ public class SessionBookingController {
             );
         }
         bookingCreationService.restoreGuestCreditsForBookings(rowsToDelete);
-        openBillSyncService.removeSessionRowsFromOpenBills(
-                companyId,
-                rowsToDelete.stream().map(SessionBooking::getId).filter(Objects::nonNull).toList()
-        );
+        openBillSyncService.removeSessionRowsFromOpenBills(companyId, bookingIds);
         repo.deleteAll(rowsToDelete);
         repo.flush();
     }

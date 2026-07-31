@@ -3,8 +3,10 @@ package com.example.app.waitlist;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -47,6 +49,51 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
     boolean existsByCompanyIdAndDuplicateKeyAndStatusIn(Long companyId, String duplicateKey, List<WaitlistRequestStatus> statuses);
 
     long countByCompanyIdAndClientIdAndStatusIn(Long companyId, Long clientId, List<WaitlistRequestStatus> statuses);
+
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select r from WaitlistRequest r
+            where r.status = com.example.app.waitlist.WaitlistRequestStatus.ACTIVE
+              and r.dateTo <= :today
+            order by r.dateTo asc, r.id asc
+            """)
+    List<WaitlistRequest> findActiveEndingOnOrBefore(
+            @Param("today") LocalDate today,
+            Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select r from WaitlistRequest r
+            where r.company.id = :companyId
+              and r.status = com.example.app.waitlist.WaitlistRequestStatus.ACTIVE
+              and r.dateTo <= :today
+            order by r.dateTo asc, r.id asc
+            """)
+    List<WaitlistRequest> findActiveEndingOnOrBeforeByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("today") LocalDate today,
+            Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select distinct r from WaitlistRequest r
+            where r.company.id = :companyId
+              and r.bookedBooking.id in :bookingIds
+            """)
+    List<WaitlistRequest> findByBookedBookingIdsForUpdate(
+            @Param("companyId") Long companyId,
+            @Param("bookingIds") Collection<Long> bookingIds);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select distinct r from WaitlistRequest r
+            where r.company.id = :companyId
+              and r.targetSession.id in :bookingIds
+            """)
+    List<WaitlistRequest> findByTargetSessionIdsForUpdate(
+            @Param("companyId") Long companyId,
+            @Param("bookingIds") Collection<Long> bookingIds);
 
     @Query("""
             select r from WaitlistRequest r
