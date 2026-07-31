@@ -679,8 +679,8 @@ public class GuestOrderService {
                     order.getStatus().name(),
                     null,
                     new GuestDtos.BankTransferInstructionsResponse(responseAmount, order.getCurrency(), referenceCode, booking != null
-                            ? "Booking confirmed. We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
-                            : "We emailed your invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."),
+                            ? "Booking confirmed. We emailed your folio/invoice PDF. Use the payment details and reference on the invoice to complete the bank transfer."
+                            : "We emailed your invoice PDF. Use the payment details and reference on the invoice to complete the bank transfer."),
                     "SHOW_INSTRUCTIONS",
                     null,
                     null,
@@ -861,8 +861,8 @@ public class GuestOrderService {
                             order.getCurrency(),
                             bankTransferReferenceForResponse(order, null, null),
                             hasBooking
-                                    ? "Booking confirmed. We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
-                                    : "We emailed your invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
+                                    ? "Booking confirmed. We emailed your folio/invoice PDF. Use the payment details and reference on the invoice to complete the bank transfer."
+                                    : "We emailed your invoice PDF. Use the payment details and reference on the invoice to complete the bank transfer."
                     ),
                     "SHOW_INSTRUCTIONS",
                     null,

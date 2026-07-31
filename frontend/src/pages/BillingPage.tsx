@@ -3333,7 +3333,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const notifyBillCreationResult = (data: any, pendingLabel = 'Bill created') => {
     if (billBankTransferDueAmount(data) > 0) {
-      showToast('success', 'Bank transfer folio with UPN QR has been emailed to the client. Import your bank statement CSV later to mark it paid automatically in folio history.')
+      showToast('success', 'Bank transfer folio has been emailed to the client. When the required company payment data is complete, the PDF also includes a UPN QR code. Import your bank statement CSV later to mark it paid automatically in folio history.')
       return
     }
     if (data?.paymentMethod?.stripeEnabled) {
@@ -7759,7 +7759,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     try {
       await api.post(`/billing/bills/${bill.id}/checkout-session`)
       if (billBankTransferDueAmount(bill) > 0) {
-        showToast('success', 'Bank transfer folio with UPN QR sent to client email.')
+        showToast('success', 'Bank transfer folio sent to client email. A UPN QR code is included only when all required company payment data is complete.')
       } else {
         showToast('success', 'Payment link sent to client email.')
       }

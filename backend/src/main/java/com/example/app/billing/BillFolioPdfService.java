@@ -139,36 +139,44 @@ public class BillFolioPdfService {
         BigDecimal bankTransferDue = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
         req.setToBePaidGross(bankTransferDue.setScale(2, RoundingMode.HALF_UP));
         if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
-            ensureOwnBankTransferSettings(companyId);
-            String companyIban = settingValue(companyId, SettingKey.COMPANY_IBAN);
-            String companyBic = settingValue(companyId, SettingKey.COMPANY_BIC);
-            String recipientNameForQr = firstNonBlank(req.getCompanyName(), bill.getRecipientCompanyNameSnapshot());
-            String recipientStreetForQr = firstNonBlank(req.getCompanyAddress(), settingValue(companyId, SettingKey.COMPANY_ADDRESS));
-            String recipientCityForQr = joinPostalAndCity(req.getCompanyPostalCode(), req.getCompanyCity());
-            String payerName = companyRecipient
-                    ? req.getRecipientName()
-                    : (req.getRecipientName() == null || req.getRecipientName().isBlank() ? "Placnik" : req.getRecipientName());
-            String payerStreet = companyRecipient ? firstNonBlank(req.getRecipientAddress(), "") : "";
-            String payerCity = companyRecipient ? joinPostalAndCity(req.getRecipientPostalCode(), req.getRecipientCity()) : "";
-            String reference = BankStatementReconciliationService.bankReferenceForBill(bill);
-            String purposeCode = firstNonBlank(settingValue(companyId, SettingKey.BANK_QR_PURPOSE_CODE), "OTHR");
-            String purpose = buildUpnPurpose(companyId, bill);
-            req.setIban(companyIban);
             req.setNotes(buildInvoiceNotes(bill));
-            req.setPaymentQrPayload(upnQrPayloadBuilder.build(new UpnQrPayloadBuilder.UpnQrRequest(
-                    payerName,
-                    payerStreet,
-                    payerCity,
-                    bankTransferDue,
-                    purposeCode,
-                    purpose,
-                    null,
-                    companyIban,
-                    reference,
-                    recipientNameForQr,
-                    recipientStreetForQr,
-                    recipientCityForQr
-            )));
+            List<String> missingQrSettings = missingOwnBankTransferSettingKeys(companyId);
+            if (missingQrSettings.isEmpty()) {
+                String companyIban = settingValue(companyId, SettingKey.COMPANY_IBAN);
+                String recipientNameForQr = firstNonBlank(req.getCompanyName(), bill.getRecipientCompanyNameSnapshot());
+                String recipientStreetForQr = firstNonBlank(req.getCompanyAddress(), settingValue(companyId, SettingKey.COMPANY_ADDRESS));
+                String recipientCityForQr = joinPostalAndCity(req.getCompanyPostalCode(), req.getCompanyCity());
+                String payerName = companyRecipient
+                        ? req.getRecipientName()
+                        : (req.getRecipientName() == null || req.getRecipientName().isBlank() ? "Placnik" : req.getRecipientName());
+                String payerStreet = companyRecipient ? firstNonBlank(req.getRecipientAddress(), "") : "";
+                String payerCity = companyRecipient ? joinPostalAndCity(req.getRecipientPostalCode(), req.getRecipientCity()) : "";
+                String reference = BankStatementReconciliationService.bankReferenceForBill(bill);
+                String purposeCode = firstNonBlank(settingValue(companyId, SettingKey.BANK_QR_PURPOSE_CODE), "OTHR");
+                String purpose = buildUpnPurpose(companyId, bill);
+                req.setIban(companyIban);
+                req.setPaymentQrPayload(upnQrPayloadBuilder.build(new UpnQrPayloadBuilder.UpnQrRequest(
+                        payerName,
+                        payerStreet,
+                        payerCity,
+                        bankTransferDue,
+                        purposeCode,
+                        purpose,
+                        null,
+                        companyIban,
+                        reference,
+                        recipientNameForQr,
+                        recipientStreetForQr,
+                        recipientCityForQr
+                )));
+            } else {
+                log.info(
+                        "Skipping UPN payment QR for bill {} in company {} because required settings are missing: {}",
+                        bill.getId(),
+                        companyId,
+                        String.join(",", missingQrSettings)
+                );
+            }
         } else if (bill.getStripeHostedInvoiceUrl() != null && !bill.getStripeHostedInvoiceUrl().isBlank()) {
             req.setPaymentQrPayload(bill.getStripeHostedInvoiceUrl());
         }
