@@ -224,6 +224,30 @@ type OpenBillDetailsDraft = {
   sessionId?: number
 }
 
+type PayeeClientEditDraft = {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+}
+
+type PayeeCompanyEditDraft = {
+  name: string
+  email: string
+  telephone: string
+  address: string
+  postalCode: string
+  city: string
+  vatId: string
+}
+
+type OpenBillPayeeDialogDraft = {
+  openBillId: number
+  details: OpenBillDetailsDraft
+  clientEdits: Record<number, PayeeClientEditDraft>
+  companyEdits: Record<number, PayeeCompanyEditDraft>
+}
+
 type VatBreakdownKey = 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT'
 
 type VatBreakdownRow = {
@@ -1105,6 +1129,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const entitlementWalletRequestRef = useRef(0)
   const [openBillOnePayeeForAll, setOpenBillOnePayeeForAll] = useState<Record<number, boolean>>({})
   const [editingOpenBillPayeeId, setEditingOpenBillPayeeId] = useState<number | null>(null)
+  const [openBillPayeeDialogDraft, setOpenBillPayeeDialogDraft] = useState<OpenBillPayeeDialogDraft | null>(null)
   const [addOpenBillContext, setAddOpenBillContext] = useState<
     | { sessionId: number; billingTarget: 'PERSON' | 'COMPANY'; clientId?: number; recipientCompanyId?: number; consultantId?: number }
     | null
@@ -1181,21 +1206,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [creatingClientInline, setCreatingClientInline] = useState(false)
   const [showAddClientModal, setShowAddClientModal] = useState(false)
   const [addClientTarget, setAddClientTarget] = useState<{ mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number } | null>(null)
-  const [payeeClientEdits, setPayeeClientEdits] = useState<Record<number, {
-    firstName: string
-    lastName: string
-    email: string
-    phone: string
-  }>>({})
-  const [payeeCompanyEdits, setPayeeCompanyEdits] = useState<Record<number, {
-    name: string
-    email: string
-    telephone: string
-    address: string
-    postalCode: string
-    city: string
-    vatId: string
-  }>>({})
+  const [payeeClientEdits, setPayeeClientEdits] = useState<Record<number, PayeeClientEditDraft>>({})
+  const [payeeCompanyEdits, setPayeeCompanyEdits] = useState<Record<number, PayeeCompanyEditDraft>>({})
   const [savingPayeeEditor, setSavingPayeeEditor] = useState(false)
   const [recipientCompanySearch, setRecipientCompanySearch] = useState('')
   const [recipientCompanyPickerOpen, setRecipientCompanyPickerOpen] = useState(false)
@@ -1590,22 +1602,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     openBillDetailsEdits[ob.id] ?? deriveOpenBillDetailsDraft(ob)
   )
 
-  useEffect(() => {
-    if (!activeOpenBillId) return
-    const target = openBills.find((entry) => Number(entry.id) === Number(activeOpenBillId)) || null
-    if (!target) return
-    setBillingTab('open')
-    setOpenBillEditorRootId(target.id)
-    setDetailOpenBill((prev) => (prev?.id === target.id ? prev : normalizeOpenBill(target)))
-    setOpenBillDetailsEdits((prev) => (
-      Object.prototype.hasOwnProperty.call(prev, target.id)
-        ? prev
-        : { ...prev, [target.id]: deriveOpenBillDetailsDraft(target) }
-    ))
-  }, [activeOpenBillId, openBills, clients])
-
-  const updateOpenBillDetailsDraft = (ob: OpenBill, patch: Partial<OpenBillDetailsDraft>) => {
-    const current = getOpenBillDetailsDraft(ob)
+  const mergeOpenBillDetailsDraft = (
+    current: OpenBillDetailsDraft,
+    patch: Partial<OpenBillDetailsDraft>,
+  ): OpenBillDetailsDraft => {
     let next: OpenBillDetailsDraft = { ...current, ...patch }
 
     if (patch.billingTarget === 'PERSON') {
@@ -1627,6 +1627,42 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       next = { ...next, recipientCompanyId: selected?.billingCompany?.id ?? next.recipientCompanyId }
     }
 
+    return next
+  }
+
+  const openOpenBillPayeeEditor = (ob: OpenBill) => {
+    setOpenBillPayeeDialogDraft({
+      openBillId: ob.id,
+      details: { ...getOpenBillDetailsDraft(ob) },
+      clientEdits: {},
+      companyEdits: {},
+    })
+    setEditingOpenBillPayeeId(ob.id)
+  }
+
+  const closeOpenBillPayeeEditor = () => {
+    setEditingOpenBillPayeeId(null)
+    setOpenBillPayeeDialogDraft(null)
+    setRecipientCompanyPickerOpen(false)
+    setEditingRecipientCompanySearch(false)
+  }
+
+  useEffect(() => {
+    if (!activeOpenBillId) return
+    const target = openBills.find((entry) => Number(entry.id) === Number(activeOpenBillId)) || null
+    if (!target) return
+    setBillingTab('open')
+    setOpenBillEditorRootId(target.id)
+    setDetailOpenBill((prev) => (prev?.id === target.id ? prev : normalizeOpenBill(target)))
+    setOpenBillDetailsEdits((prev) => (
+      Object.prototype.hasOwnProperty.call(prev, target.id)
+        ? prev
+        : { ...prev, [target.id]: deriveOpenBillDetailsDraft(target) }
+    ))
+  }, [activeOpenBillId, openBills, clients])
+
+  const updateOpenBillDetailsDraft = (ob: OpenBill, patch: Partial<OpenBillDetailsDraft>) => {
+    const next = mergeOpenBillDetailsDraft(getOpenBillDetailsDraft(ob), patch)
     setOpenBillDetailsEdits((prev) => ({ ...prev, [ob.id]: next }))
   }
 
@@ -3826,12 +3862,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }, [payeeCompanyEdits])
 
-  const updatePayeeClientEdit = useCallback((client: Client | null | undefined, patch: Partial<{
-    firstName: string
-    lastName: string
-    email: string
-    phone: string
-  }>) => {
+  const updatePayeeClientEdit = useCallback((client: Client | null | undefined, patch: Partial<PayeeClientEditDraft>) => {
     if (!client) return
     setPayeeClientEdits((prev) => ({
       ...prev,
@@ -3845,15 +3876,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }))
   }, [])
 
-  const updatePayeeCompanyEdit = useCallback((company: Company | null | undefined, patch: Partial<{
-    name: string
-    email: string
-    telephone: string
-    address: string
-    postalCode: string
-    city: string
-    vatId: string
-  }>) => {
+  const updatePayeeCompanyEdit = useCallback((company: Company | null | undefined, patch: Partial<PayeeCompanyEditDraft>) => {
     if (!company) return
     setPayeeCompanyEdits((prev) => ({
       ...prev,
@@ -3870,11 +3893,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }))
   }, [])
 
-  const persistPayeeClientEdit = useCallback(async (clientId?: number) => {
+  const persistPayeeClientEdit = useCallback(async (clientId?: number, override?: PayeeClientEditDraft) => {
     if (!clientId) return true
     const existingClient = clients.find((client) => client.id === clientId)
     if (!existingClient) return true
-    const payload = getPayeeClientEdit(existingClient)
+    const payload = override ?? getPayeeClientEdit(existingClient)
     const unchanged = payload.firstName === (existingClient.firstName ?? '')
       && payload.lastName === (existingClient.lastName ?? '')
       && payload.email === (existingClient.email ?? '')
@@ -3908,11 +3931,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }, [clients, getPayeeClientEdit, locale, showToast])
 
-  const persistPayeeCompanyEdit = useCallback(async (companyId?: number) => {
+  const persistPayeeCompanyEdit = useCallback(async (companyId?: number, override?: PayeeCompanyEditDraft) => {
     if (!companyId) return true
     const existingCompany = companies.find((company) => company.id === companyId)
     if (!existingCompany) return true
-    const payload = getPayeeCompanyEdit(existingCompany)
+    const payload = override ?? getPayeeCompanyEdit(existingCompany)
     const unchanged = payload.name === (existingCompany.name ?? '')
       && payload.email === (existingCompany.email ?? '')
       && payload.telephone === (existingCompany.telephone ?? '')
@@ -3969,21 +3992,33 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setClients((prev) => [createdClient, ...prev].sort((a, b) => fullName(a).localeCompare(fullName(b))))
       if (addClientTarget?.mode === 'editOpenBill') {
         const targetId = addClientTarget.openBillId
-        const targetOpenBill = detailOpenBill?.id === targetId ? detailOpenBill : openBills.find((entry) => entry.id === targetId)
-        setOpenBillDetailsEdits((prev) => {
-          const current = targetOpenBill
-            ? (prev[targetId] ?? deriveOpenBillDetailsDraft(targetOpenBill))
-            : (prev[targetId] ?? { billingTarget: 'PERSON' as const })
-          return {
-            ...prev,
-            [targetId]: {
-              ...current,
-              billingTarget: 'PERSON',
-              clientId: createdClient.id,
-              recipientCompanyId: undefined,
-            },
-          }
-        })
+        if (editingOpenBillPayeeId === targetId && openBillPayeeDialogDraft?.openBillId === targetId) {
+          setOpenBillPayeeDialogDraft((prev) => prev && prev.openBillId === targetId
+            ? {
+              ...prev,
+              details: mergeOpenBillDetailsDraft(prev.details, {
+                billingTarget: 'PERSON',
+                clientId: createdClient.id,
+                recipientCompanyId: undefined,
+              }),
+            }
+            : prev)
+        } else {
+          const targetOpenBill = detailOpenBill?.id === targetId ? detailOpenBill : openBills.find((entry) => entry.id === targetId)
+          setOpenBillDetailsEdits((prev) => {
+            const current = targetOpenBill
+              ? (prev[targetId] ?? deriveOpenBillDetailsDraft(targetOpenBill))
+              : (prev[targetId] ?? { billingTarget: 'PERSON' as const })
+            return {
+              ...prev,
+              [targetId]: mergeOpenBillDetailsDraft(current, {
+                billingTarget: 'PERSON',
+                clientId: createdClient.id,
+                recipientCompanyId: undefined,
+              }),
+            }
+          })
+        }
       } else {
         setBillForm((prev) => ({ ...prev, billingTarget: 'PERSON', clientId: createdClient.id, recipientCompanyId: undefined }))
       }
@@ -4006,20 +4041,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setCompanies((prev) => [data, ...prev].sort((a, b) => a.name.localeCompare(b.name)))
       if (addCompanyTarget?.mode === 'editOpenBill') {
         const targetId = addCompanyTarget.openBillId
-        const targetOpenBill = detailOpenBill?.id === targetId ? detailOpenBill : openBills.find((entry) => entry.id === targetId)
-        setOpenBillDetailsEdits((prev) => {
-          const current = targetOpenBill
-            ? (prev[targetId] ?? deriveOpenBillDetailsDraft(targetOpenBill))
-            : (prev[targetId] ?? { billingTarget: 'COMPANY' as const })
-          return {
-            ...prev,
-            [targetId]: {
-              ...current,
-              billingTarget: 'COMPANY',
-              recipientCompanyId: data.id,
-            },
-          }
-        })
+        if (editingOpenBillPayeeId === targetId && openBillPayeeDialogDraft?.openBillId === targetId) {
+          setOpenBillPayeeDialogDraft((prev) => prev && prev.openBillId === targetId
+            ? {
+              ...prev,
+              details: mergeOpenBillDetailsDraft(prev.details, {
+                billingTarget: 'COMPANY',
+                recipientCompanyId: data.id,
+              }),
+            }
+            : prev)
+        } else {
+          const targetOpenBill = detailOpenBill?.id === targetId ? detailOpenBill : openBills.find((entry) => entry.id === targetId)
+          setOpenBillDetailsEdits((prev) => {
+            const current = targetOpenBill
+              ? (prev[targetId] ?? deriveOpenBillDetailsDraft(targetOpenBill))
+              : (prev[targetId] ?? { billingTarget: 'COMPANY' as const })
+            return {
+              ...prev,
+              [targetId]: mergeOpenBillDetailsDraft(current, {
+                billingTarget: 'COMPANY',
+                recipientCompanyId: data.id,
+              }),
+            }
+          })
+        }
       } else {
         setBillForm((prev) => ({ ...prev, billingTarget: 'COMPANY', recipientCompanyId: data.id }))
       }
@@ -7078,11 +7124,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (editingOpenBillPayeeId == null) return null
     const targetOpenBill = getOpenBillForEditor(editingOpenBillPayeeId)
     if (!targetOpenBill) return null
-    const draft = getOpenBillDetailsDraft(targetOpenBill)
+    const dialogDraft = openBillPayeeDialogDraft?.openBillId === targetOpenBill.id
+      ? openBillPayeeDialogDraft
+      : null
+    if (!dialogDraft) return null
+    const draft = dialogDraft.details
     const draftClient = clients.find((client) => client.id === draft.clientId) || null
     const draftCompany = companies.find((company) => company.id === draft.recipientCompanyId) || null
-    const draftClientEdit = getPayeeClientEdit(draftClient)
-    const draftCompanyEdit = getPayeeCompanyEdit(draftCompany)
+    const draftClientEdit: PayeeClientEditDraft = draftClient
+      ? (dialogDraft.clientEdits[draftClient.id] ?? {
+        firstName: draftClient.firstName ?? '',
+        lastName: draftClient.lastName ?? '',
+        email: draftClient.email ?? '',
+        phone: draftClient.phone ?? '',
+      })
+      : { firstName: '', lastName: '', email: '', phone: '' }
+    const draftCompanyEdit: PayeeCompanyEditDraft = draftCompany
+      ? (dialogDraft.companyEdits[draftCompany.id] ?? {
+        name: draftCompany.name ?? '',
+        email: draftCompany.email ?? '',
+        telephone: draftCompany.telephone ?? '',
+        address: draftCompany.address ?? '',
+        postalCode: draftCompany.postalCode ?? '',
+        city: draftCompany.city ?? '',
+        vatId: draftCompany.vatId ?? '',
+      })
+      : { name: '', email: '', telephone: '', address: '', postalCode: '', city: '', vatId: '' }
     const companyClients = draft.recipientCompanyId == null ? [] : clients.filter((client) => client.billingCompany?.id === draft.recipientCompanyId)
     const payeeClientOptions = draft.billingTarget === 'COMPANY'
       ? (
@@ -7094,24 +7161,76 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       )
       : clients
 
+    const updateDialogDetails = (patch: Partial<OpenBillDetailsDraft>) => {
+      setOpenBillPayeeDialogDraft((prev) => prev && prev.openBillId === targetOpenBill.id
+        ? { ...prev, details: mergeOpenBillDetailsDraft(prev.details, patch) }
+        : prev)
+    }
+
+    const updateDialogClientEdit = (client: Client | null | undefined, patch: Partial<PayeeClientEditDraft>) => {
+      if (!client) return
+      setOpenBillPayeeDialogDraft((prev) => {
+        if (!prev || prev.openBillId !== targetOpenBill.id) return prev
+        const current = prev.clientEdits[client.id] ?? {
+          firstName: client.firstName ?? '',
+          lastName: client.lastName ?? '',
+          email: client.email ?? '',
+          phone: client.phone ?? '',
+        }
+        return {
+          ...prev,
+          clientEdits: {
+            ...prev.clientEdits,
+            [client.id]: { ...current, ...patch },
+          },
+        }
+      })
+    }
+
+    const updateDialogCompanyEdit = (company: Company | null | undefined, patch: Partial<PayeeCompanyEditDraft>) => {
+      if (!company) return
+      setOpenBillPayeeDialogDraft((prev) => {
+        if (!prev || prev.openBillId !== targetOpenBill.id) return prev
+        const current = prev.companyEdits[company.id] ?? {
+          name: company.name ?? '',
+          email: company.email ?? '',
+          telephone: company.telephone ?? '',
+          address: company.address ?? '',
+          postalCode: company.postalCode ?? '',
+          city: company.city ?? '',
+          vatId: company.vatId ?? '',
+        }
+        return {
+          ...prev,
+          companyEdits: {
+            ...prev.companyEdits,
+            [company.id]: { ...current, ...patch },
+          },
+        }
+      })
+    }
+
     const saveOpenBillPayeeDialog = async () => {
       if (savingPayeeEditor) return
       setSavingPayeeEditor(true)
       try {
         const ok = draft.billingTarget === 'COMPANY'
-          ? await persistPayeeCompanyEdit(draft.recipientCompanyId)
-          : await persistPayeeClientEdit(draft.clientId)
-        if (ok) setEditingOpenBillPayeeId(null)
+          ? await persistPayeeCompanyEdit(draft.recipientCompanyId, draftCompany ? draftCompanyEdit : undefined)
+          : await persistPayeeClientEdit(draft.clientId, draftClient ? draftClientEdit : undefined)
+        if (ok) {
+          setOpenBillDetailsEdits((prev) => ({ ...prev, [targetOpenBill.id]: { ...draft } }))
+          closeOpenBillPayeeEditor()
+        }
       } finally {
         setSavingPayeeEditor(false)
       }
     }
 
     return (
-      <div className="billing-payee-modal-backdrop" onMouseDown={() => setEditingOpenBillPayeeId(null)} role="presentation">
+      <div className="billing-payee-modal-backdrop" onMouseDown={closeOpenBillPayeeEditor} role="presentation">
         <div className="billing-payee-modal billing-payee-modal--editor" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
           <div className="billing-payee-mobile-topbar">
-            <button type="button" className="billing-bill-modal-close" onClick={() => setEditingOpenBillPayeeId(null)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            <button type="button" className="billing-bill-modal-close" onClick={closeOpenBillPayeeEditor} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
             <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
             <button type="button" className="billing-payee-mobile-save" onClick={() => void saveOpenBillPayeeDialog()} disabled={savingPayeeEditor}>{locale === 'sl' ? 'Shrani' : 'Save'}</button>
           </div>
@@ -7120,14 +7239,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <h3>{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit payee for this bill'}</h3>
               <p>{locale === 'sl' ? 'Spremembe veljajo samo za izbrani račun.' : 'Changes apply to this bill only.'}</p>
             </div>
-            <button type="button" className="billing-bill-modal-close" onClick={() => setEditingOpenBillPayeeId(null)} aria-label="Close">×</button>
+            <button type="button" className="billing-bill-modal-close" onClick={closeOpenBillPayeeEditor} aria-label="Close">×</button>
           </div>
           <div className="booking-type-switcher billing-bill-modal-target-switcher billing-payee-type-switcher" role="group" aria-label={locale === 'sl' ? 'Vrsta plačnika' : 'Payee type'}>
             <button
               type="button"
               className={draft.billingTarget === 'PERSON' ? 'booking-type-btn active' : 'booking-type-btn'}
               aria-pressed={draft.billingTarget === 'PERSON'}
-              onClick={() => updateOpenBillDetailsDraft(targetOpenBill, { billingTarget: 'PERSON' })}
+              onClick={() => updateDialogDetails({ billingTarget: 'PERSON' })}
             >
               {billingCopy.targetPerson}
             </button>
@@ -7135,7 +7254,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               type="button"
               className={draft.billingTarget === 'COMPANY' ? 'booking-type-btn active' : 'booking-type-btn'}
               aria-pressed={draft.billingTarget === 'COMPANY'}
-              onClick={() => updateOpenBillDetailsDraft(targetOpenBill, {
+              onClick={() => updateDialogDetails({
                 billingTarget: 'COMPANY',
                 recipientCompanyId: draft.recipientCompanyId ?? draftClient?.billingCompany?.id,
               })}
@@ -7181,7 +7300,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                               type="button"
                               className={`client-list-item ${draft.recipientCompanyId === draftClient.billingCompany.id ? 'selected' : ''}`}
                               onClick={() => {
-                                updateOpenBillDetailsDraft(targetOpenBill, { recipientCompanyId: draftClient.billingCompany?.id })
+                                updateDialogDetails({ recipientCompanyId: draftClient.billingCompany?.id })
                                 setRecipientCompanyPickerOpen(false)
                                 setEditingRecipientCompanySearch(false)
                               }}
@@ -7198,7 +7317,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 type="button"
                                 className={`client-list-item ${draft.recipientCompanyId === company.id ? 'selected' : ''}`}
                                 onClick={() => {
-                                  updateOpenBillDetailsDraft(targetOpenBill, { recipientCompanyId: company.id })
+                                  updateDialogDetails({ recipientCompanyId: company.id })
                                   setRecipientCompanyPickerOpen(false)
                                   setEditingRecipientCompanySearch(false)
                                 }}
@@ -7223,7 +7342,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
                   <select
                     value={draft.consultantId ?? ''}
-                    onChange={(e) => updateOpenBillDetailsDraft(targetOpenBill, {
+                    onChange={(e) => updateDialogDetails({
                       consultantId: e.target.value === '' ? undefined : Number(e.target.value),
                     })}
                   >
@@ -7236,7 +7355,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <Field label={billingCopy.clientOptional}>
                   <select
                     value={draft.clientId ?? ''}
-                    onChange={(e) => updateOpenBillDetailsDraft(targetOpenBill, {
+                    onChange={(e) => updateDialogDetails({
                       clientId: e.target.value === '' ? undefined : Number(e.target.value),
                     })}
                   >
@@ -7247,25 +7366,25 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </select>
                 </Field>
                 <Field label={locale === 'sl' ? 'Podjetje' : 'Company'}>
-                  <input value={draftCompanyEdit.name} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { name: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.name} onChange={(e) => updateDialogCompanyEdit(draftCompany, { name: e.target.value })} disabled={!draftCompany} />
                 </Field>
                 <Field label={locale === 'sl' ? 'E-pošta' : 'Email'}>
-                  <input value={draftCompanyEdit.email} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { email: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.email} onChange={(e) => updateDialogCompanyEdit(draftCompany, { email: e.target.value })} disabled={!draftCompany} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Telefon' : 'Phone'}>
-                  <input value={draftCompanyEdit.telephone} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { telephone: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.telephone} onChange={(e) => updateDialogCompanyEdit(draftCompany, { telephone: e.target.value })} disabled={!draftCompany} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Naslov' : 'Address'}>
-                  <input value={draftCompanyEdit.address} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { address: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.address} onChange={(e) => updateDialogCompanyEdit(draftCompany, { address: e.target.value })} disabled={!draftCompany} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Poštna številka' : 'Postal code'}>
-                  <input value={draftCompanyEdit.postalCode} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { postalCode: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.postalCode} onChange={(e) => updateDialogCompanyEdit(draftCompany, { postalCode: e.target.value })} disabled={!draftCompany} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Mesto' : 'City'}>
-                  <input value={draftCompanyEdit.city} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { city: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.city} onChange={(e) => updateDialogCompanyEdit(draftCompany, { city: e.target.value })} disabled={!draftCompany} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Davčna številka' : 'VAT ID'}>
-                  <input value={draftCompanyEdit.vatId} onChange={(e) => updatePayeeCompanyEdit(draftCompany, { vatId: e.target.value })} disabled={!draftCompany} />
+                  <input value={draftCompanyEdit.vatId} onChange={(e) => updateDialogCompanyEdit(draftCompany, { vatId: e.target.value })} disabled={!draftCompany} />
                 </Field>
               </>
             ) : (
@@ -7274,7 +7393,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <div className="billing-payee-client-picker-row">
                     <select
                       value={draft.clientId ?? ''}
-                      onChange={(e) => updateOpenBillDetailsDraft(targetOpenBill, {
+                      onChange={(e) => updateDialogDetails({
                         clientId: e.target.value === '' ? undefined : Number(e.target.value),
                       })}
                     >
@@ -7296,7 +7415,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
                   <select
                     value={draft.consultantId ?? ''}
-                    onChange={(e) => updateOpenBillDetailsDraft(targetOpenBill, {
+                    onChange={(e) => updateDialogDetails({
                       consultantId: e.target.value === '' ? undefined : Number(e.target.value),
                     })}
                   >
@@ -7307,16 +7426,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </select>
                 </Field>
                 <Field label={locale === 'sl' ? 'Ime' : 'First name'}>
-                  <input value={draftClientEdit.firstName} onChange={(e) => updatePayeeClientEdit(draftClient, { firstName: e.target.value })} disabled={!draftClient} />
+                  <input value={draftClientEdit.firstName} onChange={(e) => updateDialogClientEdit(draftClient, { firstName: e.target.value })} disabled={!draftClient} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Priimek' : 'Last name'}>
-                  <input value={draftClientEdit.lastName} onChange={(e) => updatePayeeClientEdit(draftClient, { lastName: e.target.value })} disabled={!draftClient} />
+                  <input value={draftClientEdit.lastName} onChange={(e) => updateDialogClientEdit(draftClient, { lastName: e.target.value })} disabled={!draftClient} />
                 </Field>
                 <Field label={locale === 'sl' ? 'E-pošta' : 'Email'}>
-                  <input value={draftClientEdit.email} onChange={(e) => updatePayeeClientEdit(draftClient, { email: e.target.value })} disabled={!draftClient} />
+                  <input value={draftClientEdit.email} onChange={(e) => updateDialogClientEdit(draftClient, { email: e.target.value })} disabled={!draftClient} />
                 </Field>
                 <Field label={locale === 'sl' ? 'Telefon' : 'Phone'}>
-                  <input value={draftClientEdit.phone} onChange={(e) => updatePayeeClientEdit(draftClient, { phone: e.target.value })} disabled={!draftClient} />
+                  <input value={draftClientEdit.phone} onChange={(e) => updateDialogClientEdit(draftClient, { phone: e.target.value })} disabled={!draftClient} />
                 </Field>
               </>
             )}
@@ -7510,13 +7629,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       title={locale === 'sl' ? 'Uredi plačnika' : 'Edit payee'}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setEditingOpenBillPayeeId(entry.id)
+                        openOpenBillPayeeEditor(entry)
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
                           e.stopPropagation()
-                          setEditingOpenBillPayeeId(entry.id)
+                          openOpenBillPayeeEditor(entry)
                         }
                       }}
                     >

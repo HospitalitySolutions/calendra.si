@@ -11,6 +11,7 @@ import {
 import { api } from '../api'
 import { EmptyState, Field } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
+import { ServiceConfigDeleteButton, ServiceConfigEditButton, ServiceConfigTableFooter } from '../components/ServiceConfigTableUi'
 import { useToast } from '../components/Toast'
 import { useLocale } from '../locale'
 
@@ -579,23 +580,33 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                       </button>
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="account-table-action-danger"
+                      <ServiceConfigEditButton
+                        label={locale === 'sl' ? 'Uredi' : 'Edit'}
+                        disabled={deletingId === course.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEdit(course)
+                        }}
+                      />
+                      <ServiceConfigDeleteButton
+                        label={deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
                         disabled={deletingId === course.id}
                         onClick={(e) => {
                           e.stopPropagation()
                           void deleteCourse(course)
                         }}
-                      >
-                        {deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
-                      </button>
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <ServiceConfigTableFooter
+            summary={locale === 'sl'
+              ? `Prikazano ${filtered.length} od ${courses.length} tečajev`
+              : `Showing ${filtered.length} of ${courses.length} courses`}
+          />
         </div>
       )}
 

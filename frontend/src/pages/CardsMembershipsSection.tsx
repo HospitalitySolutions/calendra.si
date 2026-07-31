@@ -13,6 +13,7 @@ import { api } from "../api";
 import { getStoredUser } from "../auth";
 import type { BillingService, SessionType as SessionTypeT } from "../lib/types";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
+import { ServiceConfigDeleteButton, ServiceConfigEditButton, ServiceConfigTableFooter } from "../components/ServiceConfigTableUi";
 import { EmptyState, Field } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { currency } from "../lib/format";
@@ -1049,22 +1050,31 @@ export const CardsMembershipsSection = forwardRef<
                       className="clients-actions service-config-actions account-table-actions"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        className="account-table-action-danger"
+                      <ServiceConfigEditButton
+                        label={locale === "sl" ? "Uredi" : "Edit"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditGuestProductModal(product);
+                        }}
+                      />
+                      <ServiceConfigDeleteButton
+                        label={locale === "sl" ? "Izbriši" : "Delete"}
                         onClick={(e) => {
                           e.stopPropagation();
                           void deleteGuestProduct(product);
                         }}
-                      >
-                        {locale === "sl" ? "Izbriši" : "Delete"}
-                      </button>
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <ServiceConfigTableFooter
+            summary={locale === "sl"
+              ? `Prikazano ${filteredGuestProducts.length} od ${guestProducts.length} ugodnosti`
+              : `Showing ${filteredGuestProducts.length} of ${guestProducts.length} entitlements`}
+          />
         </div>
       )}
 

@@ -1,12 +1,15 @@
 /* Configuration → Service type tabs modern Clients-style layout */
 .service-config-card.card {
-    width: min(100%, 1360px);
+    width: 100%;
     max-width: none;
-    padding: 28px 34px 34px;
+    padding: 22px 24px 24px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
     border-radius: 24px;
-    background: #ffffff;
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+    background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.035), transparent 42%),
+        #ffffff;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+    overflow: visible;
 }
 
 .service-config-topbar {
@@ -103,12 +106,12 @@
     justify-content: space-between;
     gap: 10px 18px;
     flex-wrap: wrap;
-    margin-bottom: 18px;
+    margin: 0;
 }
 
 .service-config-card .service-config-toolbar .service-config-search-wrap.clients-search-wrap {
-    flex: 0 1 min(520px, 100%);
-    max-width: 520px;
+    flex: 0 1 min(420px, 100%);
+    max-width: 420px;
     min-width: min(280px, 100%);
     width: auto;
 }
@@ -241,7 +244,7 @@
 }
 
 .service-config-list-shell.clients-list-shell {
-    margin-top: 0;
+    margin-top: 4px;
 }
 
 .service-config-card .empty-state {
@@ -267,41 +270,56 @@
 }
 
 .service-config-table-wrap.clients-table-wrap {
-    overflow: visible;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    background: #ffffff;
+    overflow-x: auto;
+    overflow-y: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 .service-config-table.clients-table {
+    width: 100%;
     min-width: 900px;
     border-collapse: separate;
     border-spacing: 0;
 }
 
 .service-config-table.clients-table th {
-    height: 56px;
-    padding: 0 16px;
-    background: #fbfdff;
+    padding: 16px 14px;
+    background: transparent;
     border-bottom: 1px solid #e5e7eb;
     color: #475569;
-    font-size: 0.84rem;
+    font-size: 0.76rem;
     font-weight: 800;
-    letter-spacing: 0;
-    text-transform: none;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
     white-space: nowrap;
 }
 
 .service-config-table.clients-table td {
-    height: 78px;
-    padding: 14px 16px;
-    border-bottom: 1px solid #e5e7eb;
-    color: #27364f;
+    padding: 17px 14px;
+    border-bottom: 1px solid #edf2f7;
+    color: #1e293b;
     vertical-align: middle;
 }
 
 .service-config-table.clients-table tbody tr:last-child td {
     border-bottom: 0;
+}
+
+.service-config-table.clients-table th:first-child,
+.service-config-table.clients-table td:first-child {
+    min-width: 260px;
+}
+
+.service-config-table.clients-table th:last-child,
+.service-config-table.clients-table td:last-child {
+    min-width: 170px;
+    text-align: center;
+}
+
+.service-config-table .clients-row {
+    transition: background-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .service-config-table .clients-row:hover {
@@ -323,14 +341,14 @@
 .service-config-name-cell {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     min-width: 0;
 }
 
 .service-config-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
+    width: 42px;
+    height: 42px;
+    border-radius: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -369,13 +387,13 @@
 
 .service-config-name-stack {
     display: grid;
-    gap: 6px;
+    gap: 4px;
     min-width: 0;
 }
 
 .service-config-name-stack strong {
-    color: #1e293b;
-    font-size: 0.98rem;
+    color: #0f172a;
+    font-size: 0.95rem;
     font-weight: 800;
     line-height: 1.2;
 }
@@ -384,7 +402,7 @@
     max-width: 360px;
     overflow: hidden;
     color: #64748b;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -536,6 +554,10 @@
         border-radius: 18px;
         box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
     }
+
+    .service-config-table-footer {
+        display: none;
+    }
 }
 
 @media (max-width: 420px) {
@@ -588,6 +610,21 @@
 [data-theme="dark"] .service-config-name-stack span,
 [data-theme="dark"] .service-config-table.clients-table th {
     color: #94a3b8;
+}
+
+
+.service-config-table-footer {
+    padding: 16px 4px 0;
+}
+
+.service-config-table-footer .clients-modern-pagination button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.service-config-actions.account-table-actions svg {
+    width: 16px;
+    height: 16px;
 }
 
 

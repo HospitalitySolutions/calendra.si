@@ -38,6 +38,11 @@ import {
 import { getDefaultAllowedRoute } from "../lib/packageAccess";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import {
+  ServiceConfigDeleteButton,
+  ServiceConfigEditButton,
+  ServiceConfigTableFooter,
+} from "../components/ServiceConfigTableUi";
+import {
   CardsMembershipsSection,
   type CardsMembershipsSectionHandle,
 } from "./CardsMembershipsSection";
@@ -2055,14 +2060,31 @@ export function SessionTypesPage() {
                   <td onClick={(e) => e.stopPropagation()}><span className="service-order-controls"><button type="button" onClick={() => void moveGroup(group, -1)} aria-label="Move up">↑</button><button type="button" onClick={() => void moveGroup(group, 1)} aria-label="Move down">↓</button></span></td>
                   <td><button type="button" className={`clients-status-pill clients-status-pill-btn${group.active === false ? " clients-status-pill--inactive" : ""}`} onClick={(e) => { e.stopPropagation(); void toggleGroupActive(group, group.active === false); }}><span />{group.active === false ? inactiveStatusLabel : activeStatusLabel}</button></td>
                   <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
-                    <button type="button" onClick={() => openGroupEdit(group)}>{locale === "sl" ? "Uredi" : "Edit"}</button>
-                    <button type="button" className="account-table-action-danger" onClick={() => void removeGroup(group)}>{t("formDelete")}</button>
+                    <ServiceConfigEditButton
+                      label={locale === "sl" ? "Uredi" : "Edit"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openGroupEdit(group);
+                      }}
+                    />
+                    <ServiceConfigDeleteButton
+                      label={t("formDelete")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void removeGroup(group);
+                      }}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <ServiceConfigTableFooter
+          summary={locale === "sl"
+            ? `Prikazano ${filteredGroups.length} od ${groups.length} skupin storitev`
+            : `Showing ${filteredGroups.length} of ${groups.length} service groups`}
+        />
       </div>
     );
 
@@ -2287,20 +2309,20 @@ export function SessionTypesPage() {
                       </button>
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
-                      <span className="service-order-controls" aria-label={locale === "sl" ? "Vrstni red" : "Order"}>
-                        <button type="button" onClick={() => void moveTypeWithinGroup(type, -1)} aria-label="Move up">↑</button>
-                        <button type="button" onClick={() => void moveTypeWithinGroup(type, 1)} aria-label="Move down">↓</button>
-                      </span>
-                      <button
-                        type="button"
-                        className="account-table-action-danger"
+                      <ServiceConfigEditButton
+                        label={locale === "sl" ? "Uredi" : "Edit"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTypeEdit(type);
+                        }}
+                      />
+                      <ServiceConfigDeleteButton
+                        label={t("formDelete")}
                         onClick={(e) => {
                           e.stopPropagation();
                           void removeType(type.id);
                         }}
-                      >
-                        {t("formDelete")}
-                      </button>
+                      />
                     </td>
                   </tr>
                 );
@@ -2308,6 +2330,11 @@ export function SessionTypesPage() {
             </tbody>
           </table>
         </div>
+        <ServiceConfigTableFooter
+          summary={locale === "sl"
+            ? `Prikazano ${filteredTypes.length} od ${types.length} storitev`
+            : `Showing ${filteredTypes.length} of ${types.length} services`}
+        />
       </div>
     );
 
@@ -2510,16 +2537,20 @@ export function SessionTypesPage() {
                       </button>
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="account-table-action-danger"
+                      <ServiceConfigEditButton
+                        label={locale === "sl" ? "Uredi" : "Edit"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openServiceEdit(s);
+                        }}
+                      />
+                      <ServiceConfigDeleteButton
+                        label={t("formDelete")}
                         onClick={(e) => {
                           e.stopPropagation();
                           void deleteService(s.id);
                         }}
-                      >
-                        {t("formDelete")}
-                      </button>
+                      />
                     </td>
                   </tr>
                 );
@@ -2527,6 +2558,11 @@ export function SessionTypesPage() {
             </tbody>
           </table>
         </div>
+        <ServiceConfigTableFooter
+          summary={locale === "sl"
+            ? `Prikazano ${filteredServices.length} od ${services.length} obračunskih storitev`
+            : `Showing ${filteredServices.length} of ${services.length} billing services`}
+        />
       </div>
     );
 
