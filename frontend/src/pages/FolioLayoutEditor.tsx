@@ -264,6 +264,60 @@ const A4_TEMPLATE_META: Array<{ id: Exclude<A4TemplateId, 'CUSTOM'>; name: Recor
   },
 ]
 
+const TEMPLATE_FIELD_KEYS = new Set([
+  'companyName', 'companyAddress', 'companyPostalCodeCity', 'companyTaxId',
+  'folioNumber', 'folioDate', 'dateOfService', 'dueDate',
+  'recipientName', 'recipientAddress', 'recipientPostalCodeCity', 'recipientVatId',
+  'templateFooterText',
+])
+
+const TEMPLATE_FOOTER_KEYS = new Set([
+  'totalNett', 'discount', 'totalGross', 'usedAdvances', 'toBePaid',
+  'payment', 'notes', 'iban', 'issuedBy', 'fiscalZoi', 'fiscalEor',
+])
+
+const TEMPLATE_COLUMN_KEYS = new Set(['date', 'description', 'qty', 'nett', 'gross', 'taxPercent', 'taxAmount', 'total'])
+
+type TemplatePreferences = {
+  footerText: string
+  footerTextI18n?: LocalizedText
+  footerTextVisible: boolean
+  taxClauses: string[]
+  logoVisible: boolean
+  recipientVisible: boolean
+  unitColumnsVisible: boolean
+  paymentQrVisible: boolean
+  fiscalVisible: boolean
+  notesVisible: boolean
+  issuedByVisible: boolean
+  signatureVisible: boolean
+}
+
+function extractTemplatePreferences(layout: LayoutConfig): TemplatePreferences {
+  const footerTextField = fieldFor(layout, 'templateFooterText')
+  return {
+    footerText: footerTextField?.text || '',
+    footerTextI18n: footerTextField?.textI18n,
+    footerTextVisible: footerTextField?.visible !== false && Boolean((footerTextField?.text || '').trim() || resolveLocalizedText(footerTextField?.textI18n, footerTextField?.text || '', 'sl')),
+    taxClauses: normalizeTaxClauses(layout.taxClauses),
+    logoVisible: layout.logo?.visible !== false,
+    recipientVisible: layout.fields.filter((field) => field.group === 'recipient').some((field) => field.visible !== false),
+    unitColumnsVisible: ['qty', 'gross'].some((key) => columnFor(layout, key)?.visible !== false),
+    paymentQrVisible: layout.paymentQr?.visible !== false,
+    fiscalVisible: layout.fiscalQr?.visible !== false || ['fiscalZoi', 'fiscalEor'].some((key) => footerFor(layout, key)?.visible !== false),
+    notesVisible: footerFor(layout, 'notes')?.visible !== false,
+    issuedByVisible: footerFor(layout, 'issuedBy')?.visible !== false,
+    signatureVisible: layout.signature?.visible !== false,
+  }
+}
+
+function rebaseToSelectedTemplate(layout: LayoutConfig): LayoutConfig {
+  const templateId = ['COMPACT', 'CLASSIC', 'MINIMAL'].includes(String(layout.templateId || '').toUpperCase())
+    ? String(layout.templateId).toUpperCase() as Exclude<A4TemplateId, 'CUSTOM'>
+    : 'CLASSIC'
+  return applyA4Template(layout, templateId)
+}
+
 function cloneLayout(layout: LayoutConfig): LayoutConfig {
   return JSON.parse(JSON.stringify(layout)) as LayoutConfig
 }
@@ -345,16 +399,22 @@ function applyTemplateColumns(layout: LayoutConfig, compact = false) {
 }
 
 function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId, 'CUSTOM'>): LayoutConfig {
+  const prefs = extractTemplatePreferences(current)
   const layout = cloneLayout(current)
   layout.templateId = templateId
   layout.accentColor = '#1677FF'
   layout.pageWidth = 595.28
   layout.pageHeight = 841.89
+  layout.fields = layout.fields.filter((field) => TEMPLATE_FIELD_KEYS.has(field.key))
+  layout.footer.items = layout.footer.items.filter((item) => TEMPLATE_FOOTER_KEYS.has(item.key))
+  layout.table.columns = layout.table.columns.filter((column) => TEMPLATE_COLUMN_KEYS.has(column.key))
   const footerText = ensureTemplateFooterField(layout)
-  layout.taxClauses = normalizeTaxClauses(layout.taxClauses)
-  footerText.visible = Boolean(resolveLocalizedText(footerText.textI18n, footerText.text, 'en') || resolveLocalizedText(footerText.textI18n, footerText.text, 'sl'))
+  layout.taxClauses = []
+  footerText.text = prefs.footerText
+  footerText.textI18n = prefs.footerTextI18n || ensureLocalizedText(footerText.textI18n, prefs.footerText)
+  footerText.visible = prefs.footerTextVisible
 
-  for (const field of layout.fields) field.visible = field.key === 'templateFooterText' ? field.visible : true
+  for (const field of layout.fields) field.visible = field.key === 'templateFooterText' ? prefs.footerTextVisible : true
   for (const item of layout.footer.items) item.visible = true
   for (const column of layout.table.columns) column.visible = true
   layout.logo.visible = true
@@ -390,45 +450,45 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
     setFooter(layout, 'iban', { x: 50, y: 492, width: 285, height: 16, alignment: 'left' })
     setFooter(layout, 'issuedBy', { x: 50, y: 520, width: 250, height: 16, alignment: 'left' })
     setFooter(layout, 'notes', { x: 50, y: 680, width: 495, height: 38, alignment: 'left' })
-    setFooter(layout, 'fiscalZoi', { x: 50, y: 735, width: 240, height: 14, alignment: 'left' })
-    setFooter(layout, 'fiscalEor', { x: 305, y: 735, width: 240, height: 14, alignment: 'right' })
-    Object.assign(layout.paymentQr, { x: 238, y: 545, width: 118, height: 132 })
-    Object.assign(layout.fiscalQr, { x: 398, y: 545, width: 90, height: 90, visible: false })
-    Object.assign(layout.signature, { x: 50, y: 548, width: 125, height: 55 })
+    setFooter(layout, 'fiscalZoi', { x: 170, y: 574, width: 180, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 170, y: 592, width: 255, height: 14, alignment: 'left' })
+    Object.assign(layout.paymentQr, { x: 432, y: 548, width: 92, height: 104 })
+    Object.assign(layout.fiscalQr, { x: 50, y: 548, width: 96, height: 96, visible: true })
+    Object.assign(layout.signature, { x: 50, y: 670, width: 125, height: 55 })
     Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
     applyFontPreset(layout, 'COMPACT')
   } else if (templateId === 'CLASSIC') {
-    layout.pageSections = { headerHeight: 200, footerHeight: 58 }
-    Object.assign(layout.logo, { x: 50, y: 38, width: 95, height: 55 })
-    setField(layout, 'companyName', { x: 165, y: 42, width: 205, height: 18, alignment: 'left', bold: true })
-    setField(layout, 'companyAddress', { x: 165, y: 63, width: 205, height: 14, alignment: 'left' })
-    setField(layout, 'companyPostalCodeCity', { x: 165, y: 78, width: 205, height: 14, alignment: 'left' })
-    setField(layout, 'companyTaxId', { x: 165, y: 93, width: 205, height: 14, alignment: 'left' })
-    setField(layout, 'folioNumber', { x: 385, y: 38, width: 160, height: 22, alignment: 'right', bold: true })
-    setField(layout, 'folioDate', { x: 365, y: 68, width: 180, height: 14, alignment: 'right' })
-    setField(layout, 'dateOfService', { x: 365, y: 84, width: 180, height: 14, alignment: 'right' })
-    setField(layout, 'dueDate', { x: 365, y: 100, width: 180, height: 14, alignment: 'right' })
-    setField(layout, 'recipientName', { x: 50, y: 138, width: 250, height: 16, alignment: 'left', bold: true })
-    setField(layout, 'recipientAddress', { x: 50, y: 156, width: 250, height: 14, alignment: 'left' })
-    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 171, width: 250, height: 14, alignment: 'left' })
-    setField(layout, 'recipientVatId', { x: 315, y: 156, width: 230, height: 14, alignment: 'right' })
-    Object.assign(layout.table, { startX: 50, startY: 220, width: 495, rowHeight: 24, headerHeight: 22, footerSpacing: 4 })
+    layout.pageSections = { headerHeight: 230, footerHeight: 58 }
+    Object.assign(layout.logo, { x: 252, y: 34, width: 90, height: 66 })
+    setField(layout, 'companyName', { x: 50, y: 120, width: 240, height: 18, alignment: 'left', bold: true })
+    setField(layout, 'companyAddress', { x: 50, y: 140, width: 240, height: 14, alignment: 'left' })
+    setField(layout, 'companyPostalCodeCity', { x: 50, y: 155, width: 240, height: 14, alignment: 'left' })
+    setField(layout, 'companyTaxId', { x: 50, y: 170, width: 240, height: 14, alignment: 'left' })
+    setField(layout, 'folioNumber', { x: 390, y: 120, width: 155, height: 22, alignment: 'right', bold: true })
+    setField(layout, 'folioDate', { x: 365, y: 146, width: 180, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 365, y: 162, width: 180, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 365, y: 178, width: 180, height: 14, alignment: 'right' })
+    setField(layout, 'recipientName', { x: 50, y: 212, width: 250, height: 16, alignment: 'left', bold: true })
+    setField(layout, 'recipientAddress', { x: 50, y: 230, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 245, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 315, y: 230, width: 230, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 290, width: 495, rowHeight: 24, headerHeight: 22, footerSpacing: 4 })
     applyTemplateColumns(layout)
-    Object.assign(layout.vatBreakdownTable, { x: 50, y: 328, width: 290, headerHeight: 16, rowHeight: 16 })
-    setFooter(layout, 'totalNett', { x: 380, y: 326, width: 165, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'discount', { x: 380, y: 344, width: 165, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'totalGross', { x: 380, y: 362, width: 165, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'usedAdvances', { x: 380, y: 380, width: 165, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'toBePaid', { x: 380, y: 402, width: 165, height: 18, alignment: 'right', bold: true })
-    setFooter(layout, 'payment', { x: 50, y: 430, width: 290, height: 16, alignment: 'left' })
-    setFooter(layout, 'iban', { x: 50, y: 452, width: 290, height: 16, alignment: 'left' })
-    setFooter(layout, 'issuedBy', { x: 380, y: 565, width: 165, height: 16, alignment: 'right' })
-    setFooter(layout, 'notes', { x: 50, y: 610, width: 495, height: 44, alignment: 'left' })
-    setFooter(layout, 'fiscalZoi', { x: 50, y: 690, width: 240, height: 14, alignment: 'left' })
-    setFooter(layout, 'fiscalEor', { x: 305, y: 690, width: 240, height: 14, alignment: 'right' })
-    Object.assign(layout.paymentQr, { x: 50, y: 485, width: 112, height: 126 })
-    Object.assign(layout.fiscalQr, { x: 190, y: 485, width: 96, height: 96 })
-    Object.assign(layout.signature, { x: 390, y: 490, width: 130, height: 55 })
+    Object.assign(layout.vatBreakdownTable, { x: 50, y: 398, width: 290, headerHeight: 16, rowHeight: 16 })
+    setFooter(layout, 'totalNett', { x: 380, y: 396, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 380, y: 414, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 380, y: 432, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'usedAdvances', { x: 380, y: 450, width: 165, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 380, y: 472, width: 165, height: 18, alignment: 'right', bold: true })
+    setFooter(layout, 'payment', { x: 405, y: 710, width: 140, height: 16, alignment: 'left' })
+    setFooter(layout, 'iban', { x: 405, y: 728, width: 140, height: 16, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 405, y: 782, width: 140, height: 16, alignment: 'right' })
+    setFooter(layout, 'notes', { x: 50, y: 540, width: 495, height: 44, alignment: 'left' })
+    setFooter(layout, 'fiscalZoi', { x: 165, y: 710, width: 215, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 165, y: 728, width: 215, height: 14, alignment: 'left' })
+    Object.assign(layout.paymentQr, { x: 405, y: 610, width: 96, height: 108 })
+    Object.assign(layout.fiscalQr, { x: 50, y: 610, width: 96, height: 96, visible: true })
+    Object.assign(layout.signature, { x: 405, y: 748, width: 118, height: 40 })
     Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
     applyFontPreset(layout, 'STANDARD')
   } else {
@@ -458,14 +518,30 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
     setFooter(layout, 'iban', { x: 50, y: 520, width: 290, height: 18, alignment: 'left' })
     setFooter(layout, 'issuedBy', { x: 390, y: 650, width: 155, height: 18, alignment: 'right' })
     setFooter(layout, 'notes', { x: 50, y: 650, width: 300, height: 50, alignment: 'left' })
-    setFooter(layout, 'fiscalZoi', { x: 50, y: 725, width: 240, height: 14, alignment: 'left' })
-    setFooter(layout, 'fiscalEor', { x: 305, y: 725, width: 240, height: 14, alignment: 'right' })
-    Object.assign(layout.paymentQr, { x: 365, y: 505, width: 132, height: 146 })
-    Object.assign(layout.fiscalQr, { x: 215, y: 540, width: 92, height: 92, visible: false })
-    Object.assign(layout.signature, { x: 50, y: 565, width: 135, height: 58 })
+    setFooter(layout, 'fiscalZoi', { x: 160, y: 685, width: 175, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 160, y: 703, width: 220, height: 14, alignment: 'left' })
+    Object.assign(layout.paymentQr, { x: 425, y: 660, width: 92, height: 102 })
+    Object.assign(layout.fiscalQr, { x: 50, y: 660, width: 92, height: 92, visible: true })
+    Object.assign(layout.signature, { x: 50, y: 585, width: 135, height: 58 })
     Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
     applyFontPreset(layout, 'LARGE')
   }
+
+  layout.taxClauses = prefs.taxClauses
+  footerText.text = prefs.footerText
+  footerText.textI18n = prefs.footerTextI18n || ensureLocalizedText(footerText.textI18n, prefs.footerText)
+  footerText.visible = prefs.footerTextVisible
+  layout.logo.visible = prefs.logoVisible
+  layout.signature.visible = prefs.signatureVisible
+  layout.paymentQr.visible = prefs.paymentQrVisible
+  layout.fiscalQr.visible = prefs.fiscalVisible
+  layout.fields.filter((field) => field.group === 'recipient').forEach((field) => { field.visible = prefs.recipientVisible })
+  ;['qty', 'gross'].forEach((key) => { const column = columnFor(layout, key); if (column) column.visible = prefs.unitColumnsVisible })
+  ;['fiscalZoi', 'fiscalEor'].forEach((key) => { const item = footerFor(layout, key); if (item) item.visible = prefs.fiscalVisible })
+  const notesItem = footerFor(layout, 'notes')
+  if (notesItem) notesItem.visible = prefs.notesVisible
+  const issuedByItem = footerFor(layout, 'issuedBy')
+  if (issuedByItem) issuedByItem.visible = prefs.issuedByVisible
 
   return layout
 }
@@ -721,7 +797,7 @@ function addMissingFooterItemFront(data: LayoutConfig, key: string) {
 
 function isValidLayout(data: any): data is LayoutConfig {
   if (!data || Array.isArray(data) || !Array.isArray(data.fields) || !data.table || !data.footer) return false
-  data.templateId = ['COMPACT', 'CLASSIC', 'MINIMAL', 'CUSTOM'].includes(String(data.templateId || '').toUpperCase())
+  data.templateId = ['COMPACT', 'CLASSIC', 'MINIMAL'].includes(String(data.templateId || '').toUpperCase())
     ? String(data.templateId).toUpperCase()
     : 'CLASSIC'
   data.accentColor = /^#[0-9A-Fa-f]{6}$/.test(String(data.accentColor || '')) ? data.accentColor : '#1677FF'
@@ -852,7 +928,7 @@ function A4FolioLayoutEditor() {
           try { data = JSON.parse(data) } catch { data = null }
         }
         if (isValidLayout(data)) {
-          setLayout(data)
+          setLayout(rebaseToSelectedTemplate(data))
           return
         }
         // Old/invalid format stored in DB -- reset to default
@@ -863,7 +939,7 @@ function A4FolioLayoutEditor() {
           try { fresh = JSON.parse(fresh) } catch { fresh = null }
         }
         if (isValidLayout(fresh)) {
-          setLayout(fresh)
+          setLayout(rebaseToSelectedTemplate(fresh))
         } else {
           setLoadError('Could not load a valid layout from the server.')
         }
@@ -902,7 +978,7 @@ function A4FolioLayoutEditor() {
       const { data } = await api.delete('/billing/folio-layout')
       const parsed = typeof data === 'string' ? JSON.parse(data) : data
       if (isValidLayout(parsed)) {
-        setLayout(parsed)
+        setLayout(rebaseToSelectedTemplate(parsed))
         setSelection(null)
         setDirty(false)
       }
@@ -1381,7 +1457,7 @@ function A4FolioLayoutEditor() {
     closeAdvanced: locale === 'sl' ? 'Zapri napredno urejanje' : locale === 'sr' ? 'Zatvori napredno uređivanje' : 'Close advanced editing',
   }
 
-  const activeTemplate = (layout.templateId || 'CUSTOM') as A4TemplateId
+  const activeTemplate = (layout.templateId || 'CLASSIC') as A4TemplateId
   const footerTextField = fieldFor(layout, 'templateFooterText')
   const currentFooterText = footerTextField ? resolveLocalizedText(footerTextField.textI18n, footerTextField.text || '', locale) : ''
   const recipientVisible = layout.fields.filter((field) => field.group === 'recipient').some((field) => field.visible)
@@ -1400,7 +1476,6 @@ function A4FolioLayoutEditor() {
             <h3>{copy.templatesTitle}</h3>
             <p>{copy.templatesSubtitle}</p>
           </div>
-          {activeTemplate === 'CUSTOM' && <span className="fle-custom-badge">{locale === 'sl' ? 'Prilagojeno' : locale === 'sr' ? 'Prilagođeno' : 'Customized'}</span>}
         </div>
         <div className="fle-template-grid">
           {A4_TEMPLATE_META.map((template) => (

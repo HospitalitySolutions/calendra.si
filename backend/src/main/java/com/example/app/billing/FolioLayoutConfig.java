@@ -477,21 +477,21 @@ public class FolioLayoutConfig {
         cfg.setTemplateId("CLASSIC");
         cfg.setAccentColor("#1677FF");
         cfg.setFontSizePreset("STANDARD");
-        cfg.getPageSections().setHeaderHeight(200);
+        cfg.getPageSections().setHeaderHeight(230);
         cfg.getPageSections().setFooterHeight(58);
 
-        setFieldLayout(cfg, "companyName", 165, 42, 205, 18, 13, true, "left");
-        setFieldLayout(cfg, "companyAddress", 165, 63, 205, 14, 9, false, "left");
-        setFieldLayout(cfg, "companyPostalCodeCity", 165, 78, 205, 14, 9, false, "left");
-        setFieldLayout(cfg, "companyTaxId", 165, 93, 205, 14, 9, false, "left");
-        setFieldLayout(cfg, "folioNumber", 385, 38, 160, 22, 16, true, "right");
-        setFieldLayout(cfg, "folioDate", 365, 68, 180, 14, 9, false, "right");
-        setFieldLayout(cfg, "dateOfService", 365, 84, 180, 14, 9, false, "right");
-        setFieldLayout(cfg, "dueDate", 365, 100, 180, 14, 9, false, "right");
-        setFieldLayout(cfg, "recipientName", 50, 138, 250, 16, 9, true, "left");
-        setFieldLayout(cfg, "recipientAddress", 50, 156, 250, 14, 9, false, "left");
-        setFieldLayout(cfg, "recipientPostalCodeCity", 50, 171, 250, 14, 9, false, "left");
-        setFieldLayout(cfg, "recipientVatId", 315, 156, 230, 14, 9, false, "right");
+        setFieldLayout(cfg, "companyName", 50, 120, 240, 18, 13, true, "left");
+        setFieldLayout(cfg, "companyAddress", 50, 140, 240, 14, 9, false, "left");
+        setFieldLayout(cfg, "companyPostalCodeCity", 50, 155, 240, 14, 9, false, "left");
+        setFieldLayout(cfg, "companyTaxId", 50, 170, 240, 14, 9, false, "left");
+        setFieldLayout(cfg, "folioNumber", 390, 120, 155, 22, 16, true, "right");
+        setFieldLayout(cfg, "folioDate", 365, 146, 180, 14, 9, false, "right");
+        setFieldLayout(cfg, "dateOfService", 365, 162, 180, 14, 9, false, "right");
+        setFieldLayout(cfg, "dueDate", 365, 178, 180, 14, 9, false, "right");
+        setFieldLayout(cfg, "recipientName", 50, 212, 250, 16, 9, true, "left");
+        setFieldLayout(cfg, "recipientAddress", 50, 230, 250, 14, 9, false, "left");
+        setFieldLayout(cfg, "recipientPostalCodeCity", 50, 245, 250, 14, 9, false, "left");
+        setFieldLayout(cfg, "recipientVatId", 315, 230, 230, 14, 9, false, "right");
 
         cfg.setTaxClauses(normalizeTaxClauses(cfg.getTaxClauses()));
 
@@ -507,10 +507,10 @@ public class FolioLayoutConfig {
         }
 
         LogoConfig logo = cfg.getLogo();
-        logo.setX(50); logo.setY(38); logo.setWidth(95); logo.setHeight(55); logo.setVisible(true);
+        logo.setX(252); logo.setY(34); logo.setWidth(90); logo.setHeight(66); logo.setVisible(true);
 
         TableConfig table = cfg.getTable();
-        table.setStartX(50); table.setStartY(220); table.setWidth(495);
+        table.setStartX(50); table.setStartY(290); table.setWidth(495);
         table.setRowHeight(24); table.setHeaderHeight(22); table.setHeaderFontSize(9); table.setBodyFontSize(9); table.setFooterSpacing(4);
         setColumnLayout(cfg, "date", 0, 0, "left", false);
         setColumnLayout(cfg, "description", 0, 255, "left", true);
@@ -521,27 +521,27 @@ public class FolioLayoutConfig {
         setColumnLayout(cfg, "total", 370, 125, "right", true);
 
         VatBreakdownTableConfig vat = cfg.getVatBreakdownTable();
-        vat.setX(50); vat.setY(328); vat.setWidth(290); vat.setHeaderHeight(16); vat.setRowHeight(16);
+        vat.setX(50); vat.setY(398); vat.setWidth(290); vat.setHeaderHeight(16); vat.setRowHeight(16);
         vat.setHeaderFontSize(8); vat.setBodyFontSize(8); vat.setVisible(true);
 
-        setFooterLayout(cfg, "totalNett", 380, 326, 165, 16, 11, false, "right", true);
-        setFooterLayout(cfg, "discount", 380, 344, 165, 16, 11, false, "right", true);
-        setFooterLayout(cfg, "totalGross", 380, 362, 165, 16, 11, false, "right", true);
-        setFooterLayout(cfg, "usedAdvances", 380, 380, 165, 16, 11, false, "right", true);
-        setFooterLayout(cfg, "toBePaid", 380, 402, 165, 18, 11, true, "right", true);
-        setFooterLayout(cfg, "payment", 50, 430, 290, 16, 9, false, "left", true);
-        setFooterLayout(cfg, "iban", 50, 452, 290, 16, 9, false, "left", true);
-        setFooterLayout(cfg, "issuedBy", 380, 565, 165, 16, 9, false, "right", true);
-        setFooterLayout(cfg, "notes", 50, 610, 495, 44, 9, false, "left", true);
-        setFooterLayout(cfg, "fiscalZoi", 50, 690, 240, 14, 9, false, "left", true);
-        setFooterLayout(cfg, "fiscalEor", 305, 690, 240, 14, 9, false, "right", true);
+        setFooterLayout(cfg, "totalNett", 380, 396, 165, 16, 11, false, "right", true);
+        setFooterLayout(cfg, "discount", 380, 414, 165, 16, 11, false, "right", true);
+        setFooterLayout(cfg, "totalGross", 380, 432, 165, 16, 11, false, "right", true);
+        setFooterLayout(cfg, "usedAdvances", 380, 450, 165, 16, 11, false, "right", true);
+        setFooterLayout(cfg, "toBePaid", 380, 472, 165, 18, 11, true, "right", true);
+        setFooterLayout(cfg, "payment", 405, 710, 140, 16, 9, false, "left", true);
+        setFooterLayout(cfg, "iban", 405, 728, 140, 16, 9, false, "left", true);
+        setFooterLayout(cfg, "issuedBy", 405, 782, 140, 16, 9, false, "right", true);
+        setFooterLayout(cfg, "notes", 50, 540, 495, 44, 9, false, "left", true);
+        setFooterLayout(cfg, "fiscalZoi", 165, 710, 215, 14, 9, false, "left", true);
+        setFooterLayout(cfg, "fiscalEor", 165, 728, 215, 14, 9, false, "left", true);
 
         QrCodeConfig paymentQr = cfg.getPaymentQr();
-        paymentQr.setX(50); paymentQr.setY(485); paymentQr.setWidth(112); paymentQr.setHeight(126); paymentQr.setVisible(true);
+        paymentQr.setX(405); paymentQr.setY(610); paymentQr.setWidth(96); paymentQr.setHeight(108); paymentQr.setVisible(true);
         QrCodeConfig fiscalQr = cfg.getFiscalQr();
-        fiscalQr.setX(190); fiscalQr.setY(485); fiscalQr.setWidth(96); fiscalQr.setHeight(96); fiscalQr.setVisible(true);
+        fiscalQr.setX(50); fiscalQr.setY(610); fiscalQr.setWidth(96); fiscalQr.setHeight(96); fiscalQr.setVisible(true);
         SignatureConfig signature = cfg.getSignature();
-        signature.setX(390); signature.setY(490); signature.setWidth(130); signature.setHeight(55); signature.setVisible(true);
+        signature.setX(405); signature.setY(748); signature.setWidth(118); signature.setHeight(40); signature.setVisible(true);
     }
 
     private static List<String> normalizeTaxClauses(List<String> taxClauses) {
