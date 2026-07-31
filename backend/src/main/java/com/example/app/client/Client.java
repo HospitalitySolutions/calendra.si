@@ -52,6 +52,10 @@ public class Client extends BaseEntity {
     @Column(nullable = false)
     private boolean suppressInvoiceEmails = false;
 
+    /** Blocks client-initiated bookings, reschedules, waitlist requests and purchases in public channels. */
+    @Column(nullable = false)
+    private boolean onlineBookingBlocked = false;
+
     /** Inbox: conversation is starred (folder "Označeno"). */
     @Column(nullable = false)
     private boolean inboxStarred = false;
@@ -119,6 +123,7 @@ public class Client extends BaseEntity {
         this.viberUserId = null;
         this.whatsappOptIn = false;
         this.viberConnected = false;
+        this.onlineBookingBlocked = false;
         clearBillingRecipientData();
         this.anonymized = true;
         this.anonymizedAt = Instant.now();

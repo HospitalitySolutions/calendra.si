@@ -970,6 +970,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     linkedCompany: 'Povezano podjetje',
     batchPayment: 'Paketno plačilo',
     suppressInvoiceEmails: 'Ne pošiljaj računov po e-pošti',
+    onlineBookingBlocked: 'Blokiraj stranko',
+    statusReserved: 'REZERVIRANO',
+    statusOngoing: 'V TEKU',
+    statusCheckedOut: 'ZAKLJUČENO',
+    statusCancelled: 'ODPOVEDANO',
+    statusNoShow: 'NI PRIŠEL',
     sessions: 'Termini',
     future: 'Prihodnji',
     past: 'Pretekli',
@@ -1141,6 +1147,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     linkedCompany: 'Linked company',
     batchPayment: 'Batch payment',
     suppressInvoiceEmails: 'Do not send invoice emails',
+    onlineBookingBlocked: 'Block client',
+    statusReserved: 'RESERVED',
+    statusOngoing: 'ONGOING',
+    statusCheckedOut: 'CHECKED OUT',
+    statusCancelled: 'CANCELLED',
+    statusNoShow: 'NO SHOW',
     sessions: 'Sessions',
     future: 'Future',
     past: 'Past',
@@ -1342,6 +1354,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     whatsappOptIn: boolean
     batchPaymentEnabled: boolean
     suppressInvoiceEmails: boolean
+    onlineBookingBlocked: boolean
     billingCompanyId: number | null
     assignedToId: number | null
     assignedToIds: number[]
@@ -1353,6 +1366,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     whatsappOptIn: false,
     batchPaymentEnabled: false,
     suppressInvoiceEmails: false,
+    onlineBookingBlocked: false,
     billingCompanyId: null,
     assignedToId: null,
     assignedToIds: [],
@@ -2252,6 +2266,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (detailEditDraft.whatsappOptIn ?? false) !== (detailClient.whatsappOptIn ?? false)
       || (detailEditDraft.batchPaymentEnabled ?? false) !== (detailClient.batchPaymentEnabled ?? false)
       || (detailEditDraft.suppressInvoiceEmails ?? false) !== (detailClient.suppressInvoiceEmails ?? false)
+      || (detailEditDraft.onlineBookingBlocked ?? false) !== (detailClient.onlineBookingBlocked ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
       || (isAdmin && !sameNumberSet(detailEditDraft.assignedToIds, assignedUsersForClient(detailClient).map((u) => u.id)))
       || !customFieldMapsEqual(detailClientCustomValues, detailClient.customFieldValues)
@@ -2309,6 +2324,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       whatsappOptIn: c.whatsappOptIn ?? false,
       batchPaymentEnabled: c.batchPaymentEnabled ?? false,
       suppressInvoiceEmails: c.suppressInvoiceEmails ?? false,
+      onlineBookingBlocked: c.onlineBookingBlocked ?? false,
       billingCompanyId: c.billingCompany?.id ?? null,
       assignedToId: c.assignedTo?.id ?? null,
       assignedToIds: assignedUsersForClient(c).map((u) => u.id),
@@ -2587,6 +2603,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         billingCompanyId: detailEditDraft.billingCompanyId,
         batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: detailEditDraft.suppressInvoiceEmails ?? false,
+        onlineBookingBlocked: detailEditDraft.onlineBookingBlocked ?? false,
         ...(isAdmin ? { assignedToIds: detailEditDraft.assignedToIds } : {}),
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
@@ -2601,6 +2618,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         whatsappOptIn: response.data.whatsappOptIn ?? false,
         batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: response.data.suppressInvoiceEmails ?? false,
+        onlineBookingBlocked: response.data.onlineBookingBlocked ?? false,
         billingCompanyId: response.data.billingCompany?.id ?? null,
         assignedToId: response.data.assignedTo?.id ?? null,
         assignedToIds: assignedUsersForClient(response.data).map((u) => u.id),
@@ -3161,6 +3179,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           whatsappOptIn: updated.whatsappOptIn ?? false,
           batchPaymentEnabled: updated.batchPaymentEnabled ?? false,
           suppressInvoiceEmails: updated.suppressInvoiceEmails ?? false,
+          onlineBookingBlocked: updated.onlineBookingBlocked ?? false,
           billingCompanyId: updated.billingCompany?.id ?? null,
           assignedToId: updated.assignedTo?.id ?? null,
           assignedToIds: assignedUsersForClient(updated).map((u) => u.id),
@@ -4715,6 +4734,19 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           </button>
                         </div>
                       )}
+                      <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                        <span>{clientsCopy.onlineBookingBlocked}</span>
+                        <button
+                          type="button"
+                          className={`clients-batch-switch${detailEditDraft.onlineBookingBlocked ? ' clients-batch-switch--on' : ''}`}
+                          onClick={() =>
+                            setDetailEditDraft({ ...detailEditDraft, onlineBookingBlocked: !detailEditDraft.onlineBookingBlocked })
+                          }
+                          aria-pressed={detailEditDraft.onlineBookingBlocked}
+                        >
+                          {detailEditDraft.onlineBookingBlocked ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -4812,14 +4844,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               </div>
                               <span className={`clients-modern-session-status clients-modern-session-status--${sessionStatusTone}`}>
                                 {lifecycleStatus === 'CANCELLED'
-                                  ? 'CANCELLED'
+                                  ? clientsCopy.statusCancelled
                                   : lifecycleStatus === 'NO_SHOW'
-                                    ? 'NO SHOW'
+                                    ? clientsCopy.statusNoShow
                                     : lifecycleStatus === 'ONGOING'
-                                      ? 'ONGOING'
+                                      ? clientsCopy.statusOngoing
                                       : lifecycleStatus === 'CHECKED_OUT'
-                                        ? 'CHECKED OUT'
-                                        : 'RESERVED'}
+                                        ? clientsCopy.statusCheckedOut
+                                        : clientsCopy.statusReserved}
                               </span>
                             </article>
                           )

@@ -5,6 +5,7 @@ import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.client.ClientOnlineAccessGuard;
 import com.example.app.common.SimulatedTimeContext;
 import com.example.app.common.TimeService;
 import com.example.app.company.Company;
@@ -1918,6 +1919,7 @@ public class PublicBookingWidgetService {
                 .findFirst();
         if (existing.isPresent()) {
             Client client = existing.get();
+            ClientOnlineAccessGuard.requireAllowed(client, null);
             if (client.getAssignedTo() == null) {
                 client.setAssignedTo(actor);
             }

@@ -5,6 +5,7 @@ import com.example.app.billing.PaymentMethod;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
+import com.example.app.client.ClientOnlineAccessGuard;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.common.GuestDtos;
@@ -205,6 +206,7 @@ public class GuestOrderService {
                 : bookingSource;
         Long companyId = parseId(request.companyId());
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
+        ClientOnlineAccessGuard.requireAllowed(link.getClient(), guestUser == null ? null : guestUser.getLanguage());
         List<OrderServiceLine> serviceLines = resolveOrderServiceLines(companyId, request, guestUser, link.getClient());
         var product = serviceLines.get(0).product();
         if (serviceLines.size() > 1) {

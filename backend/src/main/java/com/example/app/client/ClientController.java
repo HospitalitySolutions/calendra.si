@@ -136,6 +136,7 @@ public class ClientController {
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
             Boolean suppressInvoiceEmails,
+            Boolean onlineBookingBlocked,
             List<PreferredSlotRequest> preferredSlots,
             Map<Long, String> customFieldValues
     ) {}
@@ -167,6 +168,7 @@ public class ClientController {
             boolean active,
             boolean batchPaymentEnabled,
             boolean suppressInvoiceEmails,
+            boolean onlineBookingBlocked,
             UserSummary assignedTo,
             List<UserSummary> assignedUsers,
             CompanySummary billingCompany,
@@ -586,6 +588,11 @@ public class ClientController {
         } else if (c.getId() == null) {
             c.setSuppressInvoiceEmails(false);
         }
+        if (req.onlineBookingBlocked() != null) {
+            c.setOnlineBookingBlocked(req.onlineBookingBlocked());
+        } else if (c.getId() == null) {
+            c.setOnlineBookingBlocked(false);
+        }
         if (SecurityUtils.isAdmin(me)) {
             List<Long> requestedAssignedIds = normalizedAssignedToIds(req);
             c.getAssignedUsers().clear();
@@ -693,6 +700,7 @@ public class ClientController {
                 c.isActive(),
                 c.isBatchPaymentEnabled(),
                 c.isSuppressInvoiceEmails(),
+                c.isOnlineBookingBlocked(),
                 assignedSummary,
                 assignedUserSummaries,
                 toCompanySummary(c),

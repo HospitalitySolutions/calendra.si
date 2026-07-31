@@ -62,6 +62,7 @@ export type Client = {
   active?: boolean
   batchPaymentEnabled?: boolean
   suppressInvoiceEmails?: boolean
+  onlineBookingBlocked?: boolean
   assignedTo?: User | null
   assignedUsers?: User[] | null
   billingCompany?: CompanySummary | null

@@ -1,0 +1,2 @@
+ALTER TABLE clients
+    ADD COLUMN IF NOT EXISTS online_booking_blocked BOOLEAN NOT NULL DEFAULT FALSE;

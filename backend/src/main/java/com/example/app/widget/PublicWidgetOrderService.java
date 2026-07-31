@@ -2,6 +2,7 @@ package com.example.app.widget;
 
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.client.ClientOnlineAccessGuard;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.Company;
@@ -302,11 +303,13 @@ public class PublicWidgetOrderService {
         Client linkedClient = existing == null ? null : existing.getClient();
         Client client;
         if (linkedClient != null && normalizedEmailMatches(linkedClient, normalizedEmail)) {
+            ClientOnlineAccessGuard.requireAllowed(linkedClient, guestUserLocale(guestUser));
             client = linkedClient;
         } else {
             companies.findByIdForUpdate(company.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
             client = matchOrCreateClient(company, firstName, lastName, normalizedEmail, phone);
+            ClientOnlineAccessGuard.requireAllowed(client, guestUserLocale(guestUser));
         }
         // When the widget includes a company name, resolve (or create) a ClientCompany for the
         // tenant and attach it as the client's linked/billing company. We only set it when the
@@ -362,6 +365,10 @@ public class PublicWidgetOrderService {
     private static boolean normalizedEmailMatches(Client client, String normalizedEmail) {
         return normalizedEmail != null
                 && normalizedEmail.equals(Client.normalizeEmailStorage(client == null ? null : client.getEmail()));
+    }
+
+    private static String guestUserLocale(GuestUser guestUser) {
+        return guestUser == null ? null : guestUser.getLanguage();
     }
 
     private GuestUser requireGuest(HttpServletRequest request) {
