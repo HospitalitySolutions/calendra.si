@@ -65,7 +65,8 @@ class BillFolioPdfServicePaymentQrTest {
         service.generate(bankTransferBill(), COMPANY_ID, "sl");
 
         FolioPdfRequest request = capturedRequest();
-        assertThat(request.getPaymentQrPayload()).isNullOrBlank();
+        String paymentQrPayload = request.getPaymentQrPayload();
+        assertThat(paymentQrPayload == null || paymentQrPayload.isBlank()).isTrue();
         assertThat(request.getToBePaidGross()).isEqualByComparingTo("61.00");
     }
 
