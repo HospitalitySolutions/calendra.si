@@ -750,7 +750,7 @@
     ) !important;
 }
 
-/* Keep an all-day booking visually present through the whole timed day, while its normal chip remains in the all-day lane. */
+/* Keep a multi-day all-day session visible through the timed grid without overpowering bookings. */
 .calendar-mode-bookings .fc-bg-event.calendar-all-day-session-background,
 .calendar-mode-spaces .fc-bg-event.calendar-all-day-session-background {
     border-radius: 0 !important;
@@ -763,20 +763,18 @@
     z-index: 2 !important;
     opacity: 1 !important;
     pointer-events: none !important;
-    background-color: var(--calendar-session-bg-strong, rgba(187, 247, 208, 0.58)) !important;
-    background-image: linear-gradient(
-        to right,
-        var(--calendar-session-accent, #16a34a) 0,
-        var(--calendar-session-accent, #16a34a) 3px,
-        transparent 3px
-    ) !important;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--calendar-session-accent, #16a34a) 18%, transparent) !important;
+    background: color-mix(in srgb, var(--calendar-session-accent, #f97316) 8%, transparent) !important;
+    box-shadow:
+        inset 1px 0 0 color-mix(in srgb, var(--calendar-session-accent, #f97316) 10%, transparent),
+        inset -1px 0 0 color-mix(in srgb, var(--calendar-session-accent, #f97316) 10%, transparent) !important;
 }
 
 [data-theme="dark"] .calendar-mode-bookings .fc-bg-event.calendar-all-day-session-background,
 [data-theme="dark"] .calendar-mode-spaces .fc-bg-event.calendar-all-day-session-background {
-    background-color: color-mix(in srgb, var(--calendar-session-accent, #16a34a) 24%, #0f172a) !important;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--calendar-session-accent, #16a34a) 34%, transparent) !important;
+    background: color-mix(in srgb, var(--calendar-session-accent, #f97316) 13%, transparent) !important;
+    box-shadow:
+        inset 1px 0 0 color-mix(in srgb, var(--calendar-session-accent, #f97316) 18%, transparent),
+        inset -1px 0 0 color-mix(in srgb, var(--calendar-session-accent, #f97316) 18%, transparent) !important;
 }
 
 .calendar-mode-bookings .fc-bg-event.calendar-booking-break-background,
@@ -4244,4 +4242,210 @@
 .fc .calendar-event-todo-visual.calendar-event-todo-completed .calendar-event-todo-check rect {
     fill: currentColor;
     opacity: 0.16;
+}
+
+
+/* Segmented multi-day all-day sessions.
+   The event remains one FullCalendar item for drag, resize and click behavior;
+   only its content is divided into day-aligned visual segments. */
+.calendar-fc-shell .fc .calendar-event-continuous-all-day {
+    box-sizing: border-box;
+    min-height: 30px !important;
+    padding: 0 !important;
+    border: 1px solid var(--calendar-session-border, #fdba74) !important;
+    border-left-width: 1px !important;
+    border-radius: 0 !important;
+    background: linear-gradient(
+        135deg,
+        var(--calendar-session-bg, #fff7ed) 0%,
+        color-mix(in srgb, var(--calendar-session-bg-strong, #ffedd5) 58%, #ffffff) 100%
+    ) !important;
+    color: var(--calendar-session-text, #0f172a) !important;
+    box-shadow: 0 3px 9px rgba(15, 23, 42, 0.07) !important;
+    overflow: hidden !important;
+}
+
+.calendar-fc-shell .fc .calendar-event-continuous-all-day.fc-event-start {
+    border-top-left-radius: 10px !important;
+    border-bottom-left-radius: 10px !important;
+}
+
+.calendar-fc-shell .fc .calendar-event-continuous-all-day.fc-event-end {
+    border-top-right-radius: 10px !important;
+    border-bottom-right-radius: 10px !important;
+}
+
+.calendar-fc-shell .fc .calendar-event-continuous-all-day .fc-event-main,
+.calendar-fc-shell .fc .calendar-event-continuous-all-day .fc-event-main-frame {
+    display: block !important;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    min-height: 28px !important;
+    padding: 0 !important;
+    border-radius: inherit !important;
+    background: transparent !important;
+    color: inherit !important;
+    overflow: hidden !important;
+}
+
+.calendar-fc-shell .fc .fc-timegrid-allday .calendar-event-continuous-all-day {
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+.calendar-multi-day-segments {
+    display: grid;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 28px;
+    height: 100%;
+    align-items: stretch;
+}
+
+.calendar-multi-day-segments--resource {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.calendar-multi-day-segment {
+    position: relative;
+    display: flex;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 4px 10px;
+    border-inline-start: 1px solid color-mix(in srgb, var(--calendar-session-accent, #f97316) 24%, transparent);
+    color: var(--calendar-session-text, #0f172a);
+    font-size: 0.72rem;
+    font-weight: 760;
+    line-height: 1;
+    overflow: hidden;
+}
+
+.calendar-multi-day-segment:first-child {
+    border-inline-start: 0;
+}
+
+.calendar-multi-day-segment--first {
+    justify-content: space-between;
+}
+
+.calendar-multi-day-segment__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 850;
+    letter-spacing: -0.01em;
+}
+
+.calendar-multi-day-segment__endcap {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+}
+
+.calendar-multi-day-segment__badge {
+    display: inline-flex;
+    min-height: 18px;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 7px;
+    border: 1px solid color-mix(in srgb, var(--calendar-session-accent, #f97316) 20%, #ffffff);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--calendar-session-bg-strong, #ffedd5) 76%, #ffffff);
+    color: var(--calendar-session-muted, #c2410c);
+    font-size: 0.64rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.calendar-multi-day-segment__arrow {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    color: color-mix(in srgb, var(--calendar-session-muted, #c2410c) 82%, #0f172a);
+    font-size: 1.12rem;
+    font-weight: 700;
+    line-height: 0.8;
+}
+
+.calendar-multi-day-segment__continuation {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: color-mix(in srgb, var(--calendar-session-muted, #c2410c) 62%, #334155);
+    font-size: 0.68rem;
+    font-weight: 760;
+    text-align: center;
+}
+
+.calendar-multi-day-segment__continuation--end {
+    color: var(--calendar-session-text, #0f172a);
+}
+
+[data-theme="dark"] .calendar-fc-shell .fc .calendar-event-continuous-all-day {
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--calendar-session-accent, #f97316) 14%, #0f172a) 0%,
+        color-mix(in srgb, var(--calendar-session-accent, #f97316) 10%, #111827) 100%
+    ) !important;
+    border-color: color-mix(in srgb, var(--calendar-session-accent, #f97316) 40%, #334155) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="dark"] .calendar-multi-day-segment {
+    color: #f8fafc;
+    border-inline-start-color: color-mix(in srgb, var(--calendar-session-accent, #f97316) 34%, transparent);
+}
+
+[data-theme="dark"] .calendar-multi-day-segment__badge {
+    border-color: color-mix(in srgb, var(--calendar-session-accent, #f97316) 38%, #334155);
+    background: color-mix(in srgb, var(--calendar-session-accent, #f97316) 18%, #0f172a);
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .calendar-multi-day-segment__arrow,
+[data-theme="dark"] .calendar-multi-day-segment__continuation,
+[data-theme="dark"] .calendar-multi-day-segment__continuation--end {
+    color: #e2e8f0;
+}
+
+@media (max-width: 780px) {
+    .calendar-fc-shell .fc .calendar-event-continuous-all-day {
+        min-height: 28px !important;
+    }
+
+    .calendar-multi-day-segments,
+    .calendar-multi-day-segment {
+        min-height: 26px;
+    }
+
+    .calendar-multi-day-segment {
+        gap: 4px;
+        padding: 3px 6px;
+        font-size: 0.66rem;
+    }
+
+    .calendar-multi-day-segment__badge {
+        min-height: 16px;
+        padding: 1px 5px;
+        font-size: 0.58rem;
+    }
+
+    .calendar-multi-day-segment__continuation {
+        font-size: 0.61rem;
+    }
+
+    .calendar-multi-day-segment__arrow {
+        font-size: 0.98rem;
+    }
 }

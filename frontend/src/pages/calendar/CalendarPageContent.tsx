@@ -4705,61 +4705,64 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           if (ev.resourceId != null) breakEv.resourceId = ev.resourceId
           return [breakEv]
         })
-	    const bookedAllDayBackground = (() => {
-	      if (isMonthGridView) return []
-	      const byDayAndResource = new Map<string, any>()
-	      const minMinutes = parseHmToMinutes(slotMinTime)
-	      const maxMinutes = parseHmToMinutes(slotMaxTime)
-	      for (const ev of booked) {
-	        if (!ev?.extendedProps?.continuousAllDay) continue
-	        const startYmd = String(ev.start || '').slice(0, 10)
-	        const endExclusiveYmd = String(ev.end || '').slice(0, 10)
-	        const startDay = new Date(`${startYmd}T00:00:00`)
-	        const endExclusiveDay = new Date(`${endExclusiveYmd}T00:00:00`)
-	        if (!Number.isFinite(startDay.getTime()) || !Number.isFinite(endExclusiveDay.getTime()) || endExclusiveDay <= startDay) continue
+    const buildAllDaySessionBackgrounds = (sessionEvents: any[]) => {
+      if (isMonthGridView) return []
+      const byDayAndResource = new Map<string, any>()
+      const minMinutes = parseHmToMinutes(slotMinTime)
+      const maxMinutes = parseHmToMinutes(slotMaxTime)
+      for (const ev of sessionEvents) {
+        if (!ev?.extendedProps?.continuousAllDay) continue
+        const startYmd = String(ev.start || '').slice(0, 10)
+        const endExclusiveYmd = String(ev.end || '').slice(0, 10)
+        const startDay = new Date(`${startYmd}T00:00:00`)
+        const endExclusiveDay = new Date(`${endExclusiveYmd}T00:00:00`)
+        if (!Number.isFinite(startDay.getTime()) || !Number.isFinite(endExclusiveDay.getTime()) || endExclusiveDay <= startDay) continue
 
-	        const resourceKey = String(ev.resourceId ?? '__single_calendar_column__')
-	        const sessionColor = normalizeCalendarHexColor(ev.extendedProps?.color)
-	          || normalizeCalendarHexColor(ev.extendedProps?.type?.color)
-	          || CALENDAR_DEFAULT_BOOKED_COLOR
-	        let cursor = new Date(startDay)
-	        let guard = 0
-	        while (cursor < endExclusiveDay && guard < 370) {
-	          const dateKey = toLocalDateString(cursor)
-	          const laneKey = `${dateKey}|${resourceKey}`
-	          if (!byDayAndResource.has(laneKey)) {
-	            const backgroundStart = new Date(cursor)
-	            backgroundStart.setHours(0, 0, 0, 0)
-	            backgroundStart.setMinutes(minMinutes)
-	            const backgroundEnd = new Date(cursor)
-	            backgroundEnd.setHours(0, 0, 0, 0)
-	            backgroundEnd.setMinutes(maxMinutes + (maxMinutes <= minMinutes ? 1440 : 0))
-	            const backgroundEvent: any = {
-	              id: `${ev.id}-all-day-background-${dateKey}-${resourceKey}`,
-	              title: '',
-	              display: 'background',
-	              start: toLocalDateTimeString(backgroundStart),
-	              end: toLocalDateTimeString(backgroundEnd),
-	              editable: false,
-	              startEditable: false,
-	              durationEditable: false,
-	              backgroundColor: ev.extendedProps?.softColor || ev.backgroundColor,
-	              extendedProps: {
-	                kind: 'all-day-session-background',
-	                bookingId: ev.extendedProps?.id,
-	                color: sessionColor,
-	                date: dateKey,
-	              },
-	            }
-	            if (ev.resourceId != null) backgroundEvent.resourceId = ev.resourceId
-	            byDayAndResource.set(laneKey, backgroundEvent)
-	          }
-	          cursor.setDate(cursor.getDate() + 1)
-	          guard += 1
-	        }
-	      }
-	      return Array.from(byDayAndResource.values())
-	    })()
+        const resourceKey = String(ev.resourceId ?? '__single_calendar_column__')
+        const sessionColor = normalizeCalendarHexColor(ev.extendedProps?.color)
+          || normalizeCalendarHexColor(ev.extendedProps?.type?.color)
+          || normalizeCalendarHexColor(ev.color)
+          || normalizeCalendarHexColor(ev.backgroundColor)
+          || CALENDAR_DEFAULT_BOOKED_COLOR
+        let cursor = new Date(startDay)
+        let guard = 0
+        while (cursor < endExclusiveDay && guard < 370) {
+          const dateKey = toLocalDateString(cursor)
+          const laneKey = `${dateKey}|${resourceKey}`
+          if (!byDayAndResource.has(laneKey)) {
+            const backgroundStart = new Date(cursor)
+            backgroundStart.setHours(0, 0, 0, 0)
+            backgroundStart.setMinutes(minMinutes)
+            const backgroundEnd = new Date(cursor)
+            backgroundEnd.setHours(0, 0, 0, 0)
+            backgroundEnd.setMinutes(maxMinutes + (maxMinutes <= minMinutes ? 1440 : 0))
+            const backgroundEvent: any = {
+              id: `${ev.id}-all-day-background-${dateKey}-${resourceKey}`,
+              title: '',
+              display: 'background',
+              start: toLocalDateTimeString(backgroundStart),
+              end: toLocalDateTimeString(backgroundEnd),
+              editable: false,
+              startEditable: false,
+              durationEditable: false,
+              backgroundColor: ev.extendedProps?.softColor || ev.backgroundColor || ev.color,
+              extendedProps: {
+                kind: 'all-day-session-background',
+                sessionId: ev.extendedProps?.id,
+                sessionKind: ev.extendedProps?.kind,
+                color: sessionColor,
+                date: dateKey,
+              },
+            }
+            if (ev.resourceId != null) backgroundEvent.resourceId = ev.resourceId
+            byDayAndResource.set(laneKey, backgroundEvent)
+          }
+          cursor.setDate(cursor.getDate() + 1)
+          guard += 1
+        }
+      }
+      return Array.from(byDayAndResource.values())
+    }
     const bookedBreakBackground = isMonthGridView
       ? []
       : booked.flatMap((ev: any) => {
@@ -5293,6 +5296,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         const ownerId = personalOwnerId(p)
         const taskName = String(p.task || '').trim().toLowerCase()
         const presetColor = personalTaskPresetColorByName.get(taskName)
+        const personalColor = presetColor || '#F97316'
         const allDayRange = getContinuousAllDayCalendarRange(p.startTime, p.endTime)
         const ev: any = {
           id: `p-${p.id}`,
@@ -5300,10 +5304,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           start: allDayRange?.start ?? p.startTime,
           end: allDayRange?.end ?? p.endTime,
           ...(allDayRange ? { allDay: true } : {}),
-          color: presetColor || '#F97316',
+          color: personalColor,
           order: 2,
           editable: !isViewOnly,
-          extendedProps: { ...p, ownerId, kind: 'personal', masked: false, continuousAllDay: Boolean(allDayRange) },
+          extendedProps: { ...p, ownerId, kind: 'personal', color: personalColor, masked: false, continuousAllDay: Boolean(allDayRange) },
         }
         if (calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid) {
           ev.resourceId = ownerId != null ? String(ownerId) : String(user.id)
@@ -5371,6 +5375,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     const personalCalendar = hidePersonalAndTodoOnAdminBookingsOverview ? [] : personal
     const todosCalendar = hidePersonalAndTodoOnAdminBookingsOverview ? [] : todosRaw
+    const allDaySessionBackground = buildAllDaySessionBackgrounds(
+      calendarMode === 'spaces' ? booked : [...booked, ...personalCalendar],
+    )
 
     const sessionDraftPreviewEvents: any[] = (() => {
       if (isViewOnly) return []
@@ -5903,14 +5910,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     if (calendarMode === 'spaces') {
       if (spacesUseResourceColumns && bookableEnabled) {
-        return buildOverlapGroupsForCalendar([...nonBookableBackground, ...bookedAllDayBackground, ...bookedBreakBackground, ...waitlistOfferBreakBackground, ...booked, ...waitlistOffers, ...bookable, ...sessionDraftPreviewEvents])
+        return buildOverlapGroupsForCalendar([...nonBookableBackground, ...allDaySessionBackground, ...bookedBreakBackground, ...waitlistOfferBreakBackground, ...booked, ...waitlistOffers, ...bookable, ...sessionDraftPreviewEvents])
       }
-      return buildOverlapGroupsForCalendar([...bookedAllDayBackground, ...bookedBreakBackground, ...waitlistOfferBreakBackground, ...booked, ...waitlistOffers, ...sessionDraftPreviewEvents])
+      return buildOverlapGroupsForCalendar([...allDaySessionBackground, ...bookedBreakBackground, ...waitlistOfferBreakBackground, ...booked, ...waitlistOffers, ...sessionDraftPreviewEvents])
     }
     return buildOverlapGroupsForCalendar([
       ...nonBookableBackground,
       ...adminStaffColumnsAvailabilityBlocks,
-      ...bookedAllDayBackground,
+      ...allDaySessionBackground,
       ...bookedBreakBackground,
       ...waitlistOfferBreakBackground,
       ...booked,
@@ -12868,7 +12875,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             ;(info.el.style as any).webkitUserDrag = 'none'
             ;(info.el.style as any).webkitTouchCallout = 'none'
             const k = info.event.extendedProps?.kind
-            if (k === 'booked') {
+            if (k === 'booked' || k === 'personal') {
               applyCalendarSessionColor(
                 info.el,
                 normalizeCalendarHexColor(info.event.extendedProps?.type?.color)
@@ -13326,6 +13333,128 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             const mainTimeRange = isContinuousAllDayEvent
               ? (locale === 'sl' ? 'Cel dan' : 'All day')
               : mainStartTime && mainEndTime ? `${mainStartTime} – ${mainEndTime}` : (mainStartTime || mainEndTime || '')
+
+            const isTimeGridAllDayView =
+              arg.view.type === 'timeGridDay' ||
+              arg.view.type === 'timeGridThreeDay' ||
+              arg.view.type === 'timeGridWorkWeek' ||
+              arg.view.type === 'timeGridWeek' ||
+              arg.view.type === 'resourceTimeGridDay' ||
+              arg.view.type === 'resourceTimeGridThreeDay' ||
+              arg.view.type === 'resourceTimeGridWorkWeek' ||
+              arg.view.type === 'resourceTimeGridWeek'
+            if (
+              isContinuousAllDayEvent &&
+              isTimeGridAllDayView &&
+              (props.kind === 'booked' || props.kind === 'personal') &&
+              arg.event.start &&
+              arg.event.end
+            ) {
+              const localDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+              const dayOrdinal = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000
+              const eventStartDay = localDay(arg.event.start)
+              const eventEndExclusiveDay = localDay(arg.event.end)
+              const eventStartOrdinal = dayOrdinal(eventStartDay)
+              const eventEndExclusiveOrdinal = dayOrdinal(eventEndExclusiveDay)
+              const totalDays = Math.max(1, Math.round(eventEndExclusiveOrdinal - eventStartOrdinal))
+
+              if (totalDays > 1) {
+                const eventLastDay = new Date(eventEndExclusiveDay)
+                eventLastDay.setDate(eventLastDay.getDate() - 1)
+                const eventLastOrdinal = dayOrdinal(eventLastDay)
+                const continuationLabel = locale === 'sl' ? 'nadaljevanje' : locale === 'sr' ? 'nastavak' : 'continues'
+                const untilPrefix = locale === 'sl' || locale === 'sr' ? 'do' : 'until'
+                const dayUnit = locale === 'sl' ? 'dni' : locale === 'sr' ? 'dana' : 'days'
+                const endDateLabel = eventLastDay
+                  .toLocaleDateString(calendarLocaleTag, { day: 'numeric', month: 'short' })
+                  .replace(/\s+/g, ' ')
+                  .trim()
+                const rangeStartLabel = eventStartDay
+                  .toLocaleDateString(calendarLocaleTag, { day: 'numeric', month: 'short' })
+                  .replace(/\s+/g, ' ')
+                  .trim()
+                const title = String(arg.event.title || props.task || props.serviceName || '').trim() || (locale === 'sl' ? 'Termin' : locale === 'sr' ? 'Termin' : 'Session')
+                const durationBadge = `${totalDays} ${dayUnit}`
+                const fullAriaLabel = `${title}, ${rangeStartLabel} – ${endDateLabel}, ${durationBadge}`
+
+                const renderAllDaySegment = (position: 'first' | 'middle' | 'last', key: string) => (
+                  <span
+                    key={key}
+                    className={`calendar-multi-day-segment calendar-multi-day-segment--${position}`}
+                  >
+                    {position === 'first' ? (
+                      <>
+                        <span className="calendar-multi-day-segment__title">{title}</span>
+                        <span className="calendar-multi-day-segment__endcap">
+                          <span className="calendar-multi-day-segment__badge">{durationBadge}</span>
+                          <span className="calendar-multi-day-segment__arrow" aria-hidden="true">›</span>
+                        </span>
+                      </>
+                    ) : position === 'last' ? (
+                      <>
+                        <span className="calendar-multi-day-segment__arrow" aria-hidden="true">‹</span>
+                        <span className="calendar-multi-day-segment__continuation calendar-multi-day-segment__continuation--end">
+                          {untilPrefix} {endDateLabel}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="calendar-multi-day-segment__arrow" aria-hidden="true">‹</span>
+                        <span className="calendar-multi-day-segment__continuation">{continuationLabel}</span>
+                        <span className="calendar-multi-day-segment__arrow" aria-hidden="true">›</span>
+                      </>
+                    )}
+                  </span>
+                )
+
+                const isResourceTimeGridView = arg.view.type.startsWith('resourceTimeGrid')
+                if (isResourceTimeGridView) {
+                  const resourcePosition: 'first' | 'middle' | 'last' = arg.isStart ? 'first' : arg.isEnd ? 'last' : 'middle'
+                  return (
+                    <div
+                      className="calendar-multi-day-segments calendar-multi-day-segments--resource"
+                      aria-label={fullAriaLabel}
+                    >
+                      {renderAllDaySegment(resourcePosition, `${arg.event.id}-${resourcePosition}`)}
+                    </div>
+                  )
+                }
+
+                const activeStartDay = localDay(arg.view.activeStart || eventStartDay)
+                const activeEndDay = localDay(arg.view.activeEnd || eventEndExclusiveDay)
+                const activeStartOrdinal = dayOrdinal(activeStartDay)
+                const visibleEndExclusiveOrdinal = Math.min(eventEndExclusiveOrdinal, dayOrdinal(activeEndDay))
+                const visibleStartDay = eventStartOrdinal >= activeStartOrdinal ? new Date(eventStartDay) : new Date(activeStartDay)
+                const visibleDates: Date[] = []
+                let cursor = visibleStartDay
+                let guard = 0
+                while (dayOrdinal(cursor) < visibleEndExclusiveOrdinal && guard < 32) {
+                  visibleDates.push(new Date(cursor))
+                  cursor.setDate(cursor.getDate() + 1)
+                  guard += 1
+                }
+                const renderedDates = visibleDates.length > 0 ? visibleDates : [eventStartDay]
+
+                return (
+                  <div
+                    className="calendar-multi-day-segments"
+                    style={{ gridTemplateColumns: `repeat(${renderedDates.length}, minmax(0, 1fr))` }}
+                    aria-label={fullAriaLabel}
+                  >
+                    {renderedDates.map((date) => {
+                      const ordinal = dayOrdinal(date)
+                      const position: 'first' | 'middle' | 'last' = ordinal === eventStartOrdinal
+                        ? 'first'
+                        : ordinal === eventLastOrdinal
+                          ? 'last'
+                          : 'middle'
+                      return renderAllDaySegment(position, `${arg.event.id}-${ordinal}`)
+                    })}
+                  </div>
+                )
+              }
+            }
+
             if (props.kind === 'waitlist-offer') {
               const title = String(props.clientName || props.serviceName || arg.event.title || '').trim()
               const subtitle = String(props.serviceName || '').trim()
