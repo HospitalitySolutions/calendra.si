@@ -133,6 +133,7 @@ public class PublicBookingWidgetController {
             @NotBlank String lastName,
             @NotBlank @Email String email,
             @NotBlank String phone,
+            String locale,
             String turnstileToken
     ) {}
 
@@ -160,7 +161,8 @@ public class PublicBookingWidgetController {
             @NotBlank String firstName,
             @NotBlank String lastName,
             @NotBlank @Email String email,
-            @NotBlank String phone
+            @NotBlank String phone,
+            String locale
     ) {}
 
     public record WaitlistResponse(

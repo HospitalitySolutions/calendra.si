@@ -95,7 +95,8 @@ class PublicWidgetOrderClientMatchingTest {
                 "Person",
                 "RIGHT@example.com",
                 "040111222",
-                null
+                null,
+                "sl"
         );
 
         assertSame(correct, existing.getClient());
@@ -162,7 +163,8 @@ class PublicWidgetOrderClientMatchingTest {
             String lastName,
             String email,
             String phone,
-            String companyName
+            String companyName,
+            String locale
     ) throws Exception {
         Method method = PublicWidgetOrderService.class.getDeclaredMethod(
                 "ensureTenantLink",
@@ -172,9 +174,10 @@ class PublicWidgetOrderClientMatchingTest {
                 String.class,
                 String.class,
                 String.class,
+                String.class,
                 String.class
         );
         method.setAccessible(true);
-        method.invoke(service, guestUser, company, firstName, lastName, email, phone, companyName);
+        method.invoke(service, guestUser, company, firstName, lastName, email, phone, companyName, locale);
     }
 }

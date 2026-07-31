@@ -1879,6 +1879,7 @@
             email: form.email.trim(),
             phone: form.phone.trim(),
             companyName: form.companyName?.trim() || null,
+            locale: this.options.locale || 'sl',
             turnstileToken: this.state.turnstileToken || null,
           },
         });
@@ -2172,6 +2173,7 @@
               lastName: form.lastName.trim(),
               email: form.email.trim(),
               phone: form.phone.trim(),
+              locale: this.options.locale || 'sl',
             },
           }
         );

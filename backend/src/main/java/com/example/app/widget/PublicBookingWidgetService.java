@@ -881,7 +881,8 @@ public class PublicBookingWidgetService {
                                 request.firstName(),
                                 request.lastName(),
                                 request.email(),
-                                request.phone()
+                                request.phone(),
+                                request.locale()
                         );
 
                         List<WaitlistService.WindowInput> requestWindows = buildPublicWaitlistWindows(
@@ -1891,7 +1892,8 @@ public class PublicBookingWidgetService {
                 request.firstName(),
                 request.lastName(),
                 request.email(),
-                request.phone()
+                request.phone(),
+                request.locale()
         );
     }
 
@@ -1901,7 +1903,8 @@ public class PublicBookingWidgetService {
             String firstName,
             String lastName,
             String email,
-            String phone
+            String phone,
+            String locale
     ) {
         String normalizedEmail = Client.normalizeEmailStorage(email);
         if (normalizedEmail == null) {
@@ -1919,7 +1922,7 @@ public class PublicBookingWidgetService {
                 .findFirst();
         if (existing.isPresent()) {
             Client client = existing.get();
-            ClientOnlineAccessGuard.requireAllowed(client, null);
+            ClientOnlineAccessGuard.requireAllowed(client, locale);
             if (client.getAssignedTo() == null) {
                 client.setAssignedTo(actor);
             }

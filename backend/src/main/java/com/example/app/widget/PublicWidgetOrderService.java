@@ -126,7 +126,7 @@ public class PublicWidgetOrderService {
         guestUser.setLastLoginAt(Instant.now());
         guestUser = guestUsers.save(guestUser);
 
-        ensureTenantLink(guestUser, company, firstName, lastName, email, phone, companyName);
+        ensureTenantLink(guestUser, company, firstName, lastName, email, phone, companyName, request.locale());
 
         String token = guestTokenService.issueToken(guestUser.getId());
         return new PublicWidgetOrderController.GuestSessionResponse(
@@ -297,19 +297,20 @@ public class PublicWidgetOrderService {
     }
 
 
-    private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone, String companyName) {
+    private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone, String companyName, String requestedLocale) {
         GuestTenantLink existing = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         String normalizedEmail = normalizeEmail(email);
         Client linkedClient = existing == null ? null : existing.getClient();
+        String publicLocale = preferredLocale(requestedLocale, guestUserLocale(guestUser));
         Client client;
         if (linkedClient != null && normalizedEmailMatches(linkedClient, normalizedEmail)) {
-            ClientOnlineAccessGuard.requireAllowed(linkedClient, guestUserLocale(guestUser));
+            ClientOnlineAccessGuard.requireAllowed(linkedClient, publicLocale);
             client = linkedClient;
         } else {
             companies.findByIdForUpdate(company.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
             client = matchOrCreateClient(company, firstName, lastName, normalizedEmail, phone);
-            ClientOnlineAccessGuard.requireAllowed(client, guestUserLocale(guestUser));
+            ClientOnlineAccessGuard.requireAllowed(client, publicLocale);
         }
         // When the widget includes a company name, resolve (or create) a ClientCompany for the
         // tenant and attach it as the client's linked/billing company. We only set it when the
@@ -369,6 +370,13 @@ public class PublicWidgetOrderService {
 
     private static String guestUserLocale(GuestUser guestUser) {
         return guestUser == null ? null : guestUser.getLanguage();
+    }
+
+    private static String preferredLocale(String requestedLocale, String fallbackLocale) {
+        if (requestedLocale != null && !requestedLocale.isBlank()) {
+            return requestedLocale.trim();
+        }
+        return fallbackLocale;
     }
 
     private GuestUser requireGuest(HttpServletRequest request) {

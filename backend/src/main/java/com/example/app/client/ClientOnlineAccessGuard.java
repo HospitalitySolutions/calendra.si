@@ -1,8 +1,6 @@
 package com.example.app.client;
 
 import java.util.Locale;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Enforces the tenant-controlled restriction for client-initiated online bookings,
@@ -14,7 +12,7 @@ public final class ClientOnlineAccessGuard {
 
     public static void requireAllowed(Client client, String locale) {
         if (client != null && client.isOnlineBookingBlocked()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, publicMessage(locale));
+            throw new ClientOnlineAccessBlockedException(publicMessage(locale));
         }
     }
 

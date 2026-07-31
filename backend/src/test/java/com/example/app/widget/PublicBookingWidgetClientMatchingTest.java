@@ -42,7 +42,8 @@ class PublicBookingWidgetClientMatchingTest {
                 "New",
                 "Name",
                 "  Known@Example.COM ",
-                "+38640111222"
+                "+38640111222",
+                "sl"
         );
 
         assertSame(existing, resolved);
@@ -77,7 +78,8 @@ class PublicBookingWidgetClientMatchingTest {
                 "New",
                 "Client",
                 "NEW@example.com",
-                "+38640111222"
+                "+38640111222",
+                "sl"
         );
 
         assertNotSame(samePhoneDifferentEmail, resolved);
@@ -133,7 +135,8 @@ class PublicBookingWidgetClientMatchingTest {
             String firstName,
             String lastName,
             String email,
-            String phone
+            String phone,
+            String locale
     ) throws Exception {
         Method method = PublicBookingWidgetService.class.getDeclaredMethod(
                 "findOrCreateClient",
@@ -142,9 +145,10 @@ class PublicBookingWidgetClientMatchingTest {
                 String.class,
                 String.class,
                 String.class,
+                String.class,
                 String.class
         );
         method.setAccessible(true);
-        return (Client) method.invoke(service, company, actor, firstName, lastName, email, phone);
+        return (Client) method.invoke(service, company, actor, firstName, lastName, email, phone, locale);
     }
 }
