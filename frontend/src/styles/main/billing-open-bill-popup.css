@@ -10251,3 +10251,164 @@
     --billing-open-payment-columns: 26px minmax(82px, 1.5fr) minmax(61px, .76fr) 22px 22px;
   }
 }
+
+/* Invoice print-format chooser used when App settings → Billing is set to Always ask. */
+.billing-print-format-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(5px);
+}
+
+.billing-print-format-dialog {
+  position: relative;
+  width: min(520px, 100%);
+  padding: 30px;
+  border: 1px solid #dce5f0;
+  border-radius: 22px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.28);
+  text-align: center;
+}
+
+.billing-print-format-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.billing-print-format-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 13px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #eaf3ff;
+  color: var(--color-primary, #1672f3);
+}
+
+.billing-print-format-dialog h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.billing-print-format-dialog > p {
+  max-width: 420px;
+  margin: 9px auto 22px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.billing-print-format-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.billing-print-format-option {
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid #dce5f0;
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.billing-print-format-option:hover {
+  border-color: var(--color-primary, #1672f3);
+  box-shadow: 0 12px 28px rgba(22, 114, 243, 0.14);
+  transform: translateY(-1px);
+}
+
+.billing-print-format-option > span:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.billing-print-format-option strong {
+  font-size: 1rem;
+}
+
+.billing-print-format-option small {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.billing-print-format-paper {
+  flex: 0 0 auto;
+  display: block;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  color: var(--color-primary, #1672f3);
+  background: linear-gradient(#dbeafe 0 0) 50% 28% / 65% 2px no-repeat,
+    linear-gradient(#dbeafe 0 0) 50% 47% / 65% 2px no-repeat,
+    linear-gradient(#dbeafe 0 0) 50% 66% / 65% 2px no-repeat;
+}
+
+.billing-print-format-paper--a4 { width: 31px; height: 43px; }
+.billing-print-format-paper--receipt { width: 26px; height: 50px; border-bottom-style: dashed; }
+
+.billing-print-format-cancel {
+  min-height: 42px;
+  margin-top: 16px;
+  padding: 0 20px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.billing-folio-actions { flex-wrap: wrap; }
+.billing-folio-action-btn--receipt > span[aria-hidden] {
+  min-width: 23px;
+  height: 23px;
+  padding: 0 3px;
+  border: 1.5px solid currentColor;
+  border-bottom-style: dashed;
+  border-radius: 3px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 950;
+}
+
+[data-theme="dark"] .billing-print-format-dialog,
+[data-theme="dark"] .billing-print-format-option {
+  background: #0f172a;
+  border-color: #243247;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .billing-print-format-close { background: #111c31; color: #cbd5e1; }
+[data-theme="dark"] .billing-print-format-dialog > p,
+[data-theme="dark"] .billing-print-format-option small { color: #94a3b8; }
+
+@media (max-width: 560px) {
+  .billing-print-format-backdrop { padding: 0; align-items: end; }
+  .billing-print-format-dialog { width: 100%; border-radius: 22px 22px 0 0; padding: 28px 18px max(20px, env(safe-area-inset-bottom)); }
+  .billing-print-format-options { grid-template-columns: 1fr; }
+  .billing-print-format-option { min-height: 86px; }
+}

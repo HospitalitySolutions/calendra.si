@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
+import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
@@ -1074,6 +1075,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [stripeSetupMissingModal, setStripeSetupMissingModal] = useState<StripeSetupMissingModal | null>(null)
   const [creatingFromOpenId, setCreatingFromOpenId] = useState<number | null>(null)
   const [printingBillId, setPrintingBillId] = useState<number | null>(null)
+  const [printFormatChoice, setPrintFormatChoice] = useState<{ bill: { id: number; billNumber?: string | null }; preparedWindow?: Window | null } | null>(null)
   const [previewingOpenBillId, setPreviewingOpenBillId] = useState<number | null>(null)
   const [printingOpenBillPreviewId, setPrintingOpenBillPreviewId] = useState<number | null>(null)
   const [emailingOpenBillPreviewId, setEmailingOpenBillPreviewId] = useState<number | null>(null)
@@ -4084,7 +4086,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const billPdfFileName = (bill: { id: number; billNumber?: string | null }) => `folio-${bill.billNumber || `bill-${bill.id}`}.pdf`
+  const invoicePrintPreference = normalizeInvoicePrintPreference(settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY])
+
+  const billPdfFileName = (bill: { id: number; billNumber?: string | null }, format: InvoicePrintFormat = 'A4') =>
+    `${format === 'POS_58' ? 'receipt-58mm' : 'folio'}-${bill.billNumber || `bill-${bill.id}`}.pdf`
 
   const openPdfActionWindow = (message: string): Window | null => {
     const actionWindow = window.open('', '_blank')
@@ -4097,13 +4102,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const closePdfActionWindow = (actionWindow?: Window | null) => {
-    if (actionWindow && !actionWindow.closed) {
-      actionWindow.close()
-    }
+    if (actionWindow && !actionWindow.closed) actionWindow.close()
   }
 
-  const fetchBillFolioPdfBlob = async (billId: number): Promise<Blob> => {
-    const res = await api.get(`/billing/bills/${billId}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
+  const fetchBillFolioPdfBlob = async (billId: number, format: InvoicePrintFormat = 'A4'): Promise<Blob> => {
+    const res = await api.get(`/billing/bills/${billId}/folio-pdf?locale=${locale}&format=${format}`, { responseType: 'blob' })
     return new Blob([res.data], { type: 'application/pdf' })
   }
 
@@ -4118,72 +4121,108 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     window.URL.revokeObjectURL(url)
   }
 
-  const printPdfBlob = (blob: Blob, fileName: string, preparedWindow?: Window | null): boolean => {
-    // Do not embed the PDF in an iframe before printing. Chromium/Edge print preview can
-    // block embedded PDF plugin content and show "This content is blocked" instead of the invoice.
-    // Opening the PDF blob directly lets the browser's native PDF viewer handle the print job.
-    const printableBlob = typeof File !== 'undefined'
+  const printPdfBlob = async (blob: Blob, fileName: string, preparedWindow?: Window | null): Promise<boolean> => {
+    const printableFile = typeof File !== 'undefined'
       ? new File([blob], fileName, { type: 'application/pdf' })
-      : blob
+      : null
+    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 800px)').matches)
+    const shareNavigator = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
+
+    if (isMobileDevice && printableFile && navigator.share
+      && (!shareNavigator.canShare || shareNavigator.canShare({ files: [printableFile] }))) {
+      try {
+        closePdfActionWindow(preparedWindow)
+        await navigator.share({
+          files: [printableFile],
+          title: locale === 'sl' ? 'Račun za tiskanje' : locale === 'sr' ? 'Račun za štampu' : 'Invoice for printing',
+        })
+        return true
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return false
+        // Fall through to the native PDF viewer when file sharing is unavailable at runtime.
+      }
+    }
+
+    const printableBlob = printableFile ?? blob
     const url = window.URL.createObjectURL(printableBlob)
     const printWindow = preparedWindow && !preparedWindow.closed ? preparedWindow : window.open('', '_blank')
     if (!printWindow) {
       window.URL.revokeObjectURL(url)
       showToast('error', locale === 'sl'
         ? 'Brskalnik je blokiral okno za tiskanje. Dovolite pojavna okna ali uporabite prenos PDF.'
-        : 'The browser blocked the print window. Allow pop-ups or use PDF download.')
+        : locale === 'sr'
+          ? 'Pregledač je blokirao prozor za štampu. Dozvolite iskačuće prozore ili preuzmite PDF.'
+          : 'The browser blocked the print window. Allow pop-ups or use PDF download.')
       return false
+    }
+
+    if (isMobileDevice) {
+      printWindow.location.href = url
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 120_000)
+      return true
     }
 
     let printAttempted = false
     const tryPrint = () => {
       if (printAttempted || printWindow.closed) return
       printAttempted = true
-      try {
-        printWindow.focus()
-        printWindow.print()
-      } catch (error) {
-        // If automatic printing is blocked by the browser, the PDF remains open so the user
-        // can use the browser/PDF viewer print button.
-      }
+      try { printWindow.focus(); printWindow.print() } catch { /* PDF remains open for manual printing. */ }
     }
-
-    try {
-      printWindow.addEventListener('load', () => window.setTimeout(tryPrint, 300), { once: true })
-    } catch (error) {
-      // Some PDF viewer contexts do not expose addEventListener reliably. The timer below is enough.
-    }
-
+    try { printWindow.addEventListener('load', () => window.setTimeout(tryPrint, 300), { once: true }) } catch { /* timer below is sufficient */ }
     printWindow.location.href = url
     window.setTimeout(tryPrint, 1500)
     window.setTimeout(() => window.URL.revokeObjectURL(url), 120_000)
     return true
   }
 
-  const downloadFolioPdf = async (bill: { id: number; billNumber?: string | null }) => {
+  const downloadFolioPdf = async (bill: { id: number; billNumber?: string | null }, format: InvoicePrintFormat = 'A4') => {
     try {
-      const blob = await fetchBillFolioPdfBlob(bill.id)
-      downloadPdfBlob(blob, billPdfFileName(bill))
-    } catch (error) {
-      showToast('error', locale === 'sl' ? 'PDF računa ni bilo mogoče prenesti.' : 'Unable to download invoice PDF.')
+      const blob = await fetchBillFolioPdfBlob(bill.id, format)
+      downloadPdfBlob(blob, billPdfFileName(bill, format))
+    } catch {
+      showToast('error', locale === 'sl' ? 'PDF računa ni bilo mogoče prenesti.' : locale === 'sr' ? 'PDF računa nije moguće preuzeti.' : 'Unable to download invoice PDF.')
     }
   }
 
-  const printFolioPdf = async (bill: { id: number; billNumber?: string | null }, preparedWindow?: Window | null) => {
-    if (printingBillId) {
-      closePdfActionWindow(preparedWindow)
-      return
-    }
+  const executePrintFolioPdf = async (
+    bill: { id: number; billNumber?: string | null },
+    format: InvoicePrintFormat,
+    preparedWindow?: Window | null,
+  ) => {
+    if (printingBillId) { closePdfActionWindow(preparedWindow); return }
     setPrintingBillId(bill.id)
     try {
-      const blob = await fetchBillFolioPdfBlob(bill.id)
-      printPdfBlob(blob, billPdfFileName(bill), preparedWindow)
-    } catch (error) {
+      const blob = await fetchBillFolioPdfBlob(bill.id, format)
+      await printPdfBlob(blob, billPdfFileName(bill, format), preparedWindow)
+    } catch {
       closePdfActionWindow(preparedWindow)
-      showToast('error', locale === 'sl' ? 'Računa ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare the invoice for printing.')
+      showToast('error', locale === 'sl' ? 'Računa ni bilo mogoče pripraviti za tiskanje.' : locale === 'sr' ? 'Račun nije moguće pripremiti za štampu.' : 'Unable to prepare the invoice for printing.')
     } finally {
       setPrintingBillId(null)
     }
+  }
+
+  const printFolioPdf = async (
+    bill: { id: number; billNumber?: string | null },
+    preparedWindow?: Window | null,
+    requestedFormat?: InvoicePrintFormat,
+  ) => {
+    if (requestedFormat) {
+      const actionWindow = preparedWindow ?? openPdfActionWindow(
+        locale === 'sl' ? 'Pripravljam račun za tiskanje…' : locale === 'sr' ? 'Pripremam račun za štampu…' : 'Preparing invoice for printing…',
+      )
+      await executePrintFolioPdf(bill, requestedFormat, actionWindow)
+      return
+    }
+    if (invoicePrintPreference === 'ASK') {
+      setPrintFormatChoice({ bill, preparedWindow })
+      return
+    }
+    const actionWindow = preparedWindow ?? openPdfActionWindow(
+      locale === 'sl' ? 'Pripravljam račun za tiskanje…' : locale === 'sr' ? 'Pripremam račun za štampu…' : 'Preparing invoice for printing…',
+    )
+    await executePrintFolioPdf(bill, invoicePrintPreference, actionWindow)
   }
 
   const giftCardPdfFileName = (card: BillingGiftCard) => `darilni-bon-${String(card.code || card.giftCardNumber || card.id).replace(/[^A-Za-z0-9._-]/g, '-')}.pdf`
@@ -4210,7 +4249,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setPrintingGiftCardId(card.id)
     try {
       const blob = await fetchGiftCardPdfBlob(card.id)
-      printPdfBlob(blob, giftCardPdfFileName(card), preparedWindow)
+      await printPdfBlob(blob, giftCardPdfFileName(card), preparedWindow)
     } catch (error) {
       closePdfActionWindow(preparedWindow)
       showToast('error', locale === 'sl' ? 'Darilnega bona ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare gift card for printing.')
@@ -9821,6 +9860,98 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         )
       })()}
 
+
+      {printFormatChoice ? (
+        <div
+          className="billing-print-format-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return
+            closePdfActionWindow(printFormatChoice.preparedWindow)
+            setPrintFormatChoice(null)
+          }}
+        >
+          <div
+            className="billing-print-format-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="billing-print-format-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="billing-print-format-close"
+              aria-label={locale === 'sl' ? 'Zapri' : locale === 'sr' ? 'Zatvori' : 'Close'}
+              onClick={() => {
+                closePdfActionWindow(printFormatChoice.preparedWindow)
+                setPrintFormatChoice(null)
+              }}
+            >
+              ×
+            </button>
+            <div className="billing-print-format-icon" aria-hidden>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9V2h12v7" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <path d="M6 14h12v8H6z" />
+              </svg>
+            </div>
+            <h2 id="billing-print-format-title">
+              {locale === 'sl' ? 'Izberite obliko tiskanja' : locale === 'sr' ? 'Izaberite format štampe' : 'Choose print format'}
+            </h2>
+            <p>
+              {locale === 'sl'
+                ? 'A4 je namenjen običajnim tiskalnikom, POS 58 mm pa termičnim tiskalnikom in ročnim POS napravam.'
+                : locale === 'sr'
+                  ? 'A4 je namenjen standardnim štampačima, a POS 58 mm termalnim štampačima i ručnim POS uređajima.'
+                  : 'A4 is for standard printers; POS 58 mm is optimized for thermal printers and handheld POS devices.'}
+            </p>
+            <div className="billing-print-format-options">
+              <button
+                type="button"
+                className="billing-print-format-option"
+                onClick={() => {
+                  const choice = printFormatChoice
+                  const actionWindow = choice.preparedWindow ?? openPdfActionWindow(
+                    locale === 'sl' ? 'Pripravljam A4 račun za tiskanje…' : locale === 'sr' ? 'Pripremam A4 račun za štampu…' : 'Preparing A4 invoice for printing…',
+                  )
+                  setPrintFormatChoice(null)
+                  void executePrintFolioPdf(choice.bill, 'A4', actionWindow)
+                }}
+              >
+                <span className="billing-print-format-paper billing-print-format-paper--a4" aria-hidden />
+                <span><strong>A4</strong><small>{locale === 'sl' ? 'Običajni tiskalnik' : locale === 'sr' ? 'Standardni štampač' : 'Standard printer'}</small></span>
+              </button>
+              <button
+                type="button"
+                className="billing-print-format-option"
+                onClick={() => {
+                  const choice = printFormatChoice
+                  const actionWindow = choice.preparedWindow ?? openPdfActionWindow(
+                    locale === 'sl' ? 'Pripravljam 58 mm račun za tiskanje…' : locale === 'sr' ? 'Pripremam račun od 58 mm za štampu…' : 'Preparing 58 mm invoice for printing…',
+                  )
+                  setPrintFormatChoice(null)
+                  void executePrintFolioPdf(choice.bill, 'POS_58', actionWindow)
+                }}
+              >
+                <span className="billing-print-format-paper billing-print-format-paper--receipt" aria-hidden />
+                <span><strong>POS 58 mm</strong><small>{locale === 'sl' ? 'Termični tiskalnik' : locale === 'sr' ? 'Termalni štampač' : 'Thermal printer'}</small></span>
+              </button>
+            </div>
+            <button
+              type="button"
+              className="billing-print-format-cancel"
+              onClick={() => {
+                closePdfActionWindow(printFormatChoice.preparedWindow)
+                setPrintFormatChoice(null)
+              }}
+            >
+              {locale === 'sl' ? 'Prekliči' : locale === 'sr' ? 'Otkaži' : 'Cancel'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {renderAdvancePaymentModal()}
 
       {renderEntitlementPaymentModal()}
@@ -10208,7 +10339,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <button
                         type="button"
                         className="billing-folio-action-btn billing-folio-action-btn--secondary"
-                        onClick={() => printFolioPdf(detailFolioBill)}
+                        onClick={() => void printFolioPdf(detailFolioBill, undefined, 'A4')}
                         disabled={printingBillId === detailFolioBill.id}
                       >
                         <span aria-hidden>
@@ -10218,9 +10349,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <path d="M6 14h12v8H6z" />
                           </svg>
                         </span>
-                        {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam tiskanje…' : 'Preparing print…') : (locale === 'sl' ? 'Natisni račun' : 'Print invoice')}
+                        {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni A4' : locale === 'sr' ? 'Štampaj A4' : 'Print A4')}
                       </button>
-                      <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary" onClick={() => downloadFolioPdf(detailFolioBill)}>
+                      <button
+                        type="button"
+                        className="billing-folio-action-btn billing-folio-action-btn--secondary billing-folio-action-btn--receipt"
+                        onClick={() => void printFolioPdf(detailFolioBill, undefined, 'POS_58')}
+                        disabled={printingBillId === detailFolioBill.id}
+                      >
+                        <span aria-hidden>58</span>
+                        {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni 58 mm' : locale === 'sr' ? 'Štampaj 58 mm' : 'Print 58 mm')}
+                      </button>
+                      <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary" onClick={() => void downloadFolioPdf(detailFolioBill, 'A4')}>
                         <span aria-hidden>
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -10228,7 +10368,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <path d="M12 15V3" />
                           </svg>
                         </span>
-                        {locale === 'sl' ? 'Prenesi PDF računa' : 'Download invoice PDF'}
+                        {locale === 'sl' ? 'Prenesi A4 PDF' : locale === 'sr' ? 'Preuzmi A4 PDF' : 'Download A4 PDF'}
+                      </button>
+                      <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary billing-folio-action-btn--receipt" onClick={() => void downloadFolioPdf(detailFolioBill, 'POS_58')}>
+                        <span aria-hidden>58</span>
+                        {locale === 'sl' ? 'Prenesi 58 mm PDF' : locale === 'sr' ? 'Preuzmi 58 mm PDF' : 'Download 58 mm PDF'}
                       </button>
                     </div>
                   </div>

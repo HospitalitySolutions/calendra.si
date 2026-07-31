@@ -1,0 +1,103 @@
+package com.example.app.billing;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.Test;
+
+class ReceiptPdfServiceTest {
+    private final ReceiptPdfService service = new ReceiptPdfService();
+
+    @Test
+    void generate_uses58MillimetrePaperAndExtractableInvoiceContent() throws Exception {
+        FolioPdfRequest request = sampleRequest(2);
+        request.setPaymentQrPayload("https://calendra.si/placilo/2026-42");
+        request.setFiscalZoi("12345678901234567890123456789012");
+        request.setFiscalEor("EOR-2026-42");
+        request.setFiscalQr("1234567890123456789012345678901234567890");
+
+        byte[] pdf = service.generate(request, PosReceiptLayoutConfig.defaultLayout(), null);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            assertThat(document.getNumberOfPages()).isEqualTo(1);
+            assertThat(document.getPage(0).getMediaBox().getWidth())
+                    .isCloseTo(ReceiptPdfService.PAPER_WIDTH_PT, within(0.05f));
+            assertThat(document.getPage(0).getMediaBox().getHeight()).isGreaterThan(200f);
+            String text = new PDFTextStripper().getText(document);
+            assertThat(text).contains("Calendra Studio", "RAC-2026-00042", "Masaža hrbta", "100.00 EUR", "EOR-2026-42");
+        }
+    }
+
+    @Test
+    void generate_expandsPaperHeightForLongInvoices() throws Exception {
+        byte[] shortPdf = service.generate(sampleRequest(1), PosReceiptLayoutConfig.defaultLayout(), null);
+        byte[] longPdf = service.generate(sampleRequest(35), PosReceiptLayoutConfig.defaultLayout(), null);
+
+        try (PDDocument shortDocument = Loader.loadPDF(shortPdf);
+             PDDocument longDocument = Loader.loadPDF(longPdf)) {
+            float shortHeight = shortDocument.getPage(0).getMediaBox().getHeight();
+            float longHeight = longDocument.getPage(0).getMediaBox().getHeight();
+            assertThat(longHeight).isGreaterThan(shortHeight + 500f);
+            assertThat(new PDFTextStripper().getText(longDocument)).contains("Storitev številka 35");
+        }
+    }
+
+    @Test
+    void generate_ignoresInvalidOptionalLogoData() {
+        byte[] pdf = service.generate(sampleRequest(1), PosReceiptLayoutConfig.defaultLayout(), new byte[] { 1, 2, 3, 4 });
+        assertThat(pdf).isNotEmpty();
+    }
+
+    private FolioPdfRequest sampleRequest(int lineCount) {
+        FolioPdfRequest request = new FolioPdfRequest();
+        request.setLocale("sl");
+        request.setCompanyName("Calendra Studio");
+        request.setCompanyAddress("Glavna ulica 12");
+        request.setCompanyPostalCode("2000");
+        request.setCompanyCity("Maribor");
+        request.setCompanyTaxId("SI12345678");
+        request.setFolioNumberLabel("Račun:");
+        request.setFolioNumber("RAC-2026-00042");
+        request.setFolioDate("2026-07-31 12:45");
+        request.setDateOfService("2026-07-31");
+        request.setDueDate("2026-08-07");
+        request.setRecipientName("Ana Novak");
+        request.setRecipientAddress("Cesta 5");
+        request.setRecipientPostalCode("1000");
+        request.setRecipientCity("Ljubljana");
+        request.setPaymentMethods(List.of(new FolioPdfRequest.PaymentLine("Bančno nakazilo", new BigDecimal("100.00"))));
+        request.setPaymentMethod("Bančno nakazilo");
+        request.setIban("SI56 1910 0001 2345 678");
+        request.setIssuedBy("David Mirc");
+        request.setToBePaidGross(new BigDecimal("100.00"));
+        request.setNotes("Hvala za vaš obisk.");
+
+        List<FolioPdfRequest.ServiceLine> services = new ArrayList<>();
+        for (int index = 1; index <= lineCount; index++) {
+            String description = index == 1
+                    ? "Masaža hrbta in vratu z daljšim opisom storitve"
+                    : "Storitev številka " + index + " z daljšim opisom za preverjanje preloma vrstice";
+            FolioPdfRequest.ServiceLine line = new FolioPdfRequest.ServiceLine(
+                    description,
+                    1,
+                    new BigDecimal("81.97"),
+                    new BigDecimal("100.00")
+            );
+            line.setTaxPercent("22%");
+            line.setTaxAmount(new BigDecimal("18.03"));
+            line.setTotalPrice(new BigDecimal("100.00"));
+            services.add(line);
+        }
+        request.setServices(services);
+        return request;
+    }
+
+    private static org.assertj.core.data.Offset<Float> within(float value) {
+        return org.assertj.core.data.Offset.offset(value);
+    }
+}

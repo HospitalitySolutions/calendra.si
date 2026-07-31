@@ -10,6 +10,10 @@ import {
   normalizeCalendarTimeScaleMinutes,
 } from "../lib/calendarTimeScale";
 import {
+  DEFAULT_INVOICE_PRINT_FORMAT_KEY,
+  normalizeInvoicePrintPreference,
+} from "../lib/invoicePrintFormat";
+import {
   Card,
   EmptyState,
   Field,
@@ -5401,6 +5405,53 @@ export function ConfigurationPage() {
               disabled: !moduleOn("BILLING_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("BILLING_ADVANCE_ENABLED", checked),
+            },
+            {
+              id: "billing-default-print-format",
+              icon: "invoice",
+              title:
+                locale === "sl"
+                  ? "Privzeta oblika tiskanja"
+                  : locale === "sr"
+                    ? "Podrazumevani format štampe"
+                    : "Default print format",
+              subtitle:
+                locale === "sl"
+                  ? "Uporabi se pri dejanju Zaključi in natisni ter pri običajnem gumbu Natisni."
+                  : locale === "sr"
+                    ? "Koristi se za Završi i odštampaj i za uobičajeno dugme Štampaj."
+                    : "Used by Close and print and the standard Print action.",
+              valueControl: (
+                <select
+                  className="modules-design-inline-control modules-design-calendar-scale-select"
+                  value={normalizeInvoicePrintPreference(
+                    settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY],
+                  )}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: event.target.value,
+                    })
+                  }
+                  aria-label={
+                    locale === "sl"
+                      ? "Privzeta oblika tiskanja"
+                      : locale === "sr"
+                        ? "Podrazumevani format štampe"
+                        : "Default print format"
+                  }
+                >
+                  <option value="A4">A4</option>
+                  <option value="POS_58">POS 58 mm</option>
+                  <option value="ASK">
+                    {locale === "sl"
+                      ? "Vedno vprašaj"
+                      : locale === "sr"
+                        ? "Uvek pitaj"
+                        : "Always ask"}
+                  </option>
+                </select>
+              ),
             },
           ],
         },

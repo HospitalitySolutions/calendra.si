@@ -3,6 +3,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { Field, PageHeader } from '../components/ui'
 import { useLocale, type AppLocale } from '../locale'
+import { PosReceiptLayoutEditor } from './PosReceiptLayoutEditor'
 import '../styles/folio-layout-editor.css'
 
 const FOLIO_IMAGE_MAX_BYTES = 2_000_000
@@ -506,7 +507,7 @@ function snapVal(v: number, enabled: boolean) {
   return enabled ? Math.round(v / SNAP) * SNAP : Math.round(v * 10) / 10
 }
 
-export function FolioLayoutEditor() {
+function A4FolioLayoutEditor() {
   const { locale } = useLocale()
   const [layout, setLayout] = useState<LayoutConfig | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
@@ -2092,6 +2093,27 @@ export function FolioLayoutEditor() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+
+export function FolioLayoutEditor() {
+  const { locale } = useLocale()
+  const [format, setFormat] = useState<'A4' | 'POS_58'>('A4')
+  return (
+    <div className="fle-format-shell">
+      <div className="fle-format-header">
+        <div>
+          <strong>{locale === 'sl' ? 'Oblika računa' : locale === 'sr' ? 'Format računa' : 'Invoice format'}</strong>
+          <span>{locale === 'sl' ? 'A4 ostane namenjen e-pošti in arhivu, POS 58 mm pa termičnemu tiskanju.' : locale === 'sr' ? 'A4 ostaje za e-poštu i arhivu, a POS 58 mm za termalnu štampu.' : 'A4 remains the email/archive document; POS 58 mm is optimized for thermal printing.'}</span>
+        </div>
+        <div className="fle-format-toggle" role="tablist">
+          <button type="button" className={format === 'A4' ? 'active' : ''} onClick={() => setFormat('A4')} role="tab" aria-selected={format === 'A4'}>A4</button>
+          <button type="button" className={format === 'POS_58' ? 'active' : ''} onClick={() => setFormat('POS_58')} role="tab" aria-selected={format === 'POS_58'}>POS 58 mm</button>
+        </div>
+      </div>
+      {format === 'A4' ? <A4FolioLayoutEditor /> : <PosReceiptLayoutEditor />}
     </div>
   )
 }

@@ -3847,16 +3847,24 @@ public class BillingController {
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> billFolioPdf(@PathVariable Long id,
                                                @RequestParam(value = "locale", required = false) String locale,
+                                               @RequestParam(value = "format", required = false) String format,
                                                @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND)));
-        byte[] pdf = billFolioPdfService.generate(bill, companyId, locale);
+        InvoicePrintFormat printFormat = InvoicePrintFormat.from(format);
+        byte[] pdf = billFolioPdfService.generate(bill, companyId, locale, printFormat);
+        String prefix = printFormat == InvoicePrintFormat.POS_58 ? "receipt-58mm-" : "folio-";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"folio-" + bill.getBillNumber() + ".pdf\"")
+                        "inline; filename=\"" + prefix + bill.getBillNumber() + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /** Backwards-compatible direct-call overload used by controller unit tests. */
+    public ResponseEntity<byte[]> billFolioPdf(Long id, String locale, User me) {
+        return billFolioPdf(id, locale, null, me);
     }
 
     private String settingValue(Long companyId, SettingKey key) {
@@ -4875,14 +4883,17 @@ public class BillingController {
     @PostMapping(value = "/folio/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     @TrackLegacyEndpoint(LegacyEndpointDefinition.BILLING_STANDALONE_FOLIO_PDF)
     public ResponseEntity<byte[]> folioPdf(@RequestBody FolioPdfRequest req,
+                                           @RequestParam(value = "format", required = false) String format,
+                                           @RequestParam(value = "locale", required = false) String locale,
                                            @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
-        var layout = loadFolioLayout(companyId);
-        byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+        InvoicePrintFormat printFormat = InvoicePrintFormat.from(format);
+        byte[] pdf = billFolioPdfService.generate(req, companyId, locale, printFormat);
         String filename = req.getFolioNumber() != null ? req.getFolioNumber() : "folio";
+        String prefix = printFormat == InvoicePrintFormat.POS_58 ? "receipt-58mm-" : "folio-";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"folio-" + filename + ".pdf\"")
+                        "inline; filename=\"" + prefix + filename + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }
@@ -4970,6 +4981,47 @@ public class BillingController {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @GetMapping("/folio-layout-pos58")
+    public ResponseEntity<PosReceiptLayoutConfig> getPos58FolioLayout(@AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        String json = settingValue(companyId, SettingKey.FOLIO_POS58_LAYOUT_JSON);
+        if (!json.isBlank()) {
+            try {
+                return ResponseEntity.ok(PosReceiptLayoutConfig.normalize(
+                        LAYOUT_MAPPER.readValue(json, PosReceiptLayoutConfig.class)));
+            } catch (Exception e) {
+                log.warn("Invalid POS 58 mm layout JSON for company={}, returning defaults", companyId, e);
+            }
+        }
+        return ResponseEntity.ok(PosReceiptLayoutConfig.defaultLayout());
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/folio-layout-pos58")
+    public ResponseEntity<PosReceiptLayoutConfig> savePos58FolioLayout(
+            @RequestBody PosReceiptLayoutConfig body,
+            @AuthenticationPrincipal User me
+    ) {
+        Long companyId = me.getCompany().getId();
+        PosReceiptLayoutConfig normalized = PosReceiptLayoutConfig.normalize(body);
+        try {
+            saveSettingValue(companyId, SettingKey.FOLIO_POS58_LAYOUT_JSON,
+                    LAYOUT_MAPPER.writeValueAsString(normalized));
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid POS 58 mm layout.", e);
+        }
+        return ResponseEntity.ok(normalized);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/folio-layout-pos58")
+    public ResponseEntity<PosReceiptLayoutConfig> resetPos58FolioLayout(@AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        settings.findByCompanyIdAndKey(companyId, SettingKey.FOLIO_POS58_LAYOUT_JSON)
+                .ifPresent(settings::delete);
+        return ResponseEntity.ok(PosReceiptLayoutConfig.defaultLayout());
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")

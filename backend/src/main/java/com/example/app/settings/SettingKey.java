@@ -186,6 +186,10 @@ public enum SettingKey {
     INVOICE_DELIVERY_EMAIL_SUBJECT,
     INVOICE_DELIVERY_EMAIL_BODY,
     FOLIO_TEMPLATE_LAYOUT_JSON,
+    /** JSON: flow-based layout options for 58 mm thermal receipt printing. */
+    FOLIO_POS58_LAYOUT_JSON,
+    /** Default invoice print choice: A4, POS_58, or ASK. */
+    DEFAULT_INVOICE_PRINT_FORMAT,
     /** JSON: tenant gift card display labels, preview text and background image configuration. */
     BILLING_GIFT_CARD_SETTINGS_JSON,
     /** JSON array of folio layout styles saved on the platform-admin tenancy and offered to all tenants. */

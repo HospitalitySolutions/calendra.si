@@ -204,6 +204,7 @@ public class SettingsController {
         applyModuleSettingDependencies(values);
         values.putIfAbsent(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name(), "0");
         values.putIfAbsent(SettingKey.CALENDAR_TIME_SCALE_MINUTES.name(), "30");
+        values.putIfAbsent(SettingKey.DEFAULT_INVOICE_PRINT_FORMAT.name(), "A4");
         return values;
     }
 
@@ -212,10 +213,12 @@ public class SettingsController {
     @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        Map<String, String> normalizedPayload = normalizeCalendarTimeScalePayload(
-                normalizeModuleDependencyPayload(
-                        companyId,
-                        normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload))
+        Map<String, String> normalizedPayload = normalizeInvoicePrintFormatPayload(
+                normalizeCalendarTimeScalePayload(
+                        normalizeModuleDependencyPayload(
+                                companyId,
+                                normalizeEmailSenderPayload(companyId, normalizeTenantReservationRulesPayload(payload))
+                        )
                 )
         );
         if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
@@ -320,6 +323,22 @@ public class SettingsController {
             String json = TenantReservationRulesService.normalizeJson(
                     normalized.get(SettingKey.TENANT_RESERVATION_RULES_JSON.name()));
             normalized.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), json);
+        }
+        return normalized;
+    }
+
+    private Map<String, String> normalizeInvoicePrintFormatPayload(Map<String, String> payload) {
+        Map<String, String> normalized = new LinkedHashMap<>(payload == null ? Map.of() : payload);
+        String key = SettingKey.DEFAULT_INVOICE_PRINT_FORMAT.name();
+        if (normalized.containsKey(key)) {
+            String raw = String.valueOf(normalized.get(key)).trim().toUpperCase(Locale.ROOT)
+                    .replace('-', '_').replace(' ', '_');
+            String value = switch (raw) {
+                case "POS58", "POS_58MM", "58MM" -> "POS_58";
+                case "POS_58", "ASK" -> raw;
+                default -> "A4";
+            };
+            normalized.put(key, value);
         }
         return normalized;
     }

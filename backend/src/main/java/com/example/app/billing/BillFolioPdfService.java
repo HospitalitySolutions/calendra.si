@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -29,8 +30,27 @@ public class BillFolioPdfService {
     private final SessionBookingRepository sessionBookings;
     private final GuestOrderRepository guestOrders;
     private final FolioPdfService folioPdfService;
+    private final ReceiptPdfService receiptPdfService;
     private final UpnQrPayloadBuilder upnQrPayloadBuilder;
 
+    @Autowired
+    public BillFolioPdfService(
+            AppSettingRepository settings,
+            SessionBookingRepository sessionBookings,
+            GuestOrderRepository guestOrders,
+            FolioPdfService folioPdfService,
+            ReceiptPdfService receiptPdfService,
+            UpnQrPayloadBuilder upnQrPayloadBuilder
+    ) {
+        this.settings = settings;
+        this.sessionBookings = sessionBookings;
+        this.guestOrders = guestOrders;
+        this.folioPdfService = folioPdfService;
+        this.receiptPdfService = receiptPdfService;
+        this.upnQrPayloadBuilder = upnQrPayloadBuilder;
+    }
+
+    /** Backwards-compatible constructor retained for focused unit tests. */
     public BillFolioPdfService(
             AppSettingRepository settings,
             SessionBookingRepository sessionBookings,
@@ -38,11 +58,7 @@ public class BillFolioPdfService {
             FolioPdfService folioPdfService,
             UpnQrPayloadBuilder upnQrPayloadBuilder
     ) {
-        this.settings = settings;
-        this.sessionBookings = sessionBookings;
-        this.guestOrders = guestOrders;
-        this.folioPdfService = folioPdfService;
-        this.upnQrPayloadBuilder = upnQrPayloadBuilder;
+        this(settings, sessionBookings, guestOrders, folioPdfService, new ReceiptPdfService(), upnQrPayloadBuilder);
     }
 
     public byte[] generate(Bill bill, Long companyId) {
@@ -50,11 +66,25 @@ public class BillFolioPdfService {
     }
 
     public byte[] generate(Bill bill, Long companyId, String locale) {
+        return generate(bill, companyId, locale, InvoicePrintFormat.A4);
+    }
+
+    public byte[] generate(Bill bill, Long companyId, String locale, InvoicePrintFormat format) {
         String effectiveLocale = resolveInvoiceLocale(bill, locale);
         var req = buildFolioPdfRequest(bill, companyId, effectiveLocale);
         req.setLocale(effectiveLocale);
-        var layout = loadFolioLayout(companyId);
-        return folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+        return generate(req, companyId, effectiveLocale, format);
+    }
+
+    public byte[] generate(FolioPdfRequest req, Long companyId, String locale, InvoicePrintFormat format) {
+        if (req == null) throw new IllegalArgumentException("FolioPdfRequest is required");
+        String effectiveLocale = locale == null || locale.isBlank() ? req.getLocale() : locale;
+        req.setLocale(effectiveLocale);
+        InvoicePrintFormat effectiveFormat = format == null ? InvoicePrintFormat.A4 : format;
+        if (effectiveFormat == InvoicePrintFormat.POS_58) {
+            return receiptPdfService.generate(req, loadPosReceiptLayout(companyId), loadLogoBytes(companyId));
+        }
+        return folioPdfService.generate(req, loadFolioLayout(companyId), loadLogoBytes(companyId), loadSignatureBytes(companyId));
     }
 
     public static final String BANK_TRANSFER_QR_SETTINGS_MISSING_CODE = "BANK_TRANSFER_QR_SETTINGS_MISSING";
@@ -553,6 +583,18 @@ public class BillFolioPdfService {
         } catch (Exception e) {
             log.warn("Invalid folio layout JSON for company={}, using defaults", companyId, e);
             return FolioLayoutConfig.defaultLayout();
+        }
+    }
+
+
+    private PosReceiptLayoutConfig loadPosReceiptLayout(Long companyId) {
+        var json = settingValue(companyId, SettingKey.FOLIO_POS58_LAYOUT_JSON);
+        if (json.isBlank()) return PosReceiptLayoutConfig.defaultLayout();
+        try {
+            return PosReceiptLayoutConfig.normalize(LAYOUT_MAPPER.readValue(json, PosReceiptLayoutConfig.class));
+        } catch (Exception e) {
+            log.warn("Invalid POS 58 mm layout JSON for company={}, using defaults", companyId, e);
+            return PosReceiptLayoutConfig.defaultLayout();
         }
     }
 
