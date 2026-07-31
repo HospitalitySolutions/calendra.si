@@ -26,7 +26,6 @@ import {
   ConfigurationViberSection,
   ConfigurationWhatsAppSection,
 } from "./ConfigurationInboxMessagingSections";
-import { ConfigurationDeliveryLogsSection } from "./ConfigurationDeliveryLogsSection";
 import { ConfigurationGiftCardSection } from "./ConfigurationGiftCardSection";
 import {
   ConfigurationNotificationsSection,
@@ -191,7 +190,6 @@ type Tab =
   | "website"
   | "notifications"
   | "reservationRules"
-  | "deliveryLogs"
   | "customFields"
   | "integrations"
   | "whatsapp"
@@ -318,7 +316,6 @@ type ConfigNavIcon =
   | "website"
   | "notifications"
   | "reservationRules"
-  | "deliveryLogs"
   | "customFields"
   | "integrations"
   | "googleCalendar"
@@ -373,7 +370,6 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
   "website",
   "notifications",
   "reservationRules",
-  "deliveryLogs",
   "customFields",
   "integrations",
   "whatsapp",
@@ -389,7 +385,6 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   website: "tabWebsite",
   notifications: "tabNotifications",
   reservationRules: "tabReservationRules",
-  deliveryLogs: "tabDeliveryLogs",
   customFields: "tabCustomFields",
   integrations: "tabIntegrations",
   whatsapp: "tabWhatsapp",
@@ -455,13 +450,6 @@ function ConfigOverviewIcon({ kind }: { kind: ConfigNavIcon }) {
     return (
       <svg {...common}>
         <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9Zm-3.25 2.1 1.5 1.3-5 5.7-3.2-3.05 1.38-1.45 1.7 1.62 3.62-4.12Z" />
-      </svg>
-    );
-  }
-  if (kind === "deliveryLogs") {
-    return (
-      <svg {...common}>
-        <path d="M5 2h9l5 5v15H5V2Zm8 1.8V8h4.2L13 3.8ZM8 11v2h8v-2H8Zm0 4v2h8v-2H8Zm0 4v1h6v-1H8Z" />
       </svg>
     );
   }
@@ -673,27 +661,6 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
       >
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-      </svg>
-    );
-  }
-  if (kind === "deliveryLogs") {
-    return (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M4 4h16v16H4z" />
-        <path d="M8 8h8" />
-        <path d="M8 12h5" />
-        <path d="M8 16h6" />
-        <path d="M17 15l1.5 1.5 2.5-3" />
       </svg>
     );
   }
@@ -1009,7 +976,6 @@ export function ConfigurationPage() {
     'GUEST_MOBILE_APP_VIEW',
     'WEBSITE_WIDGET_VIEW',
     'NOTIFICATIONS_VIEW',
-    'DELIVERY_LOGS_VIEW',
     'INTEGRATIONS_VIEW',
   ]);
   const navigate = useNavigate();
@@ -2564,7 +2530,6 @@ export function ConfigurationPage() {
     if (tabId === "website") return hasEmployeePermission(me, 'WEBSITE_WIDGET_VIEW');
     if (tabId === "notifications") return hasEmployeePermission(me, 'NOTIFICATIONS_VIEW');
     if (tabId === "reservationRules") return hasEmployeePermission(me, 'SETTINGS_VIEW');
-    if (tabId === "deliveryLogs") return hasEmployeePermission(me, 'DELIVERY_LOGS_VIEW');
     if (tabId === "customFields") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "integrations") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
     if (tabId === "whatsapp" || tabId === "viber") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
@@ -2617,6 +2582,10 @@ export function ConfigurationPage() {
     }
     if (q === "services") {
       navigate("/session-types?subtab=transaction-services", { replace: true });
+      return;
+    }
+    if (q === "deliveryLogs") {
+      navigate("/inbox?tab=deliveryLogs", { replace: true });
       return;
     }
     const subtabQuery = query.get("subtab");
@@ -3223,7 +3192,6 @@ export function ConfigurationPage() {
       { id: "website", icon: "website" },
       { id: "notifications", icon: "notifications" },
       { id: "reservationRules", icon: "reservationRules" },
-      { id: "deliveryLogs", icon: "deliveryLogs" },
       { id: "customFields", icon: "customFields" },
       { id: "integrations", icon: "integrations" },
       { id: "whatsapp", icon: "whatsapp" },
@@ -5794,11 +5762,15 @@ export function ConfigurationPage() {
     return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />;
   }
 
+  if (query.get("tab") === "deliveryLogs") {
+    return <Navigate to="/inbox?tab=deliveryLogs" replace />;
+  }
+
   const tabQuery = query.get("tab");
   const usesMobileTabletDetailLayout =
     isCompactConfigViewport ||
     (isTabletConfigViewport &&
-      ["booking", "billing", "website", "notifications", "customFields", "modules", "deliveryLogs"].includes(
+      ["booking", "billing", "website", "notifications", "customFields", "modules"].includes(
         tab,
       ));
   const showCompactConfigOverview =
@@ -5819,7 +5791,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : usesMobileTabletDetailLayout
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}${tab === "deliveryLogs" ? " config-shell--delivery-logs-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -5886,8 +5858,7 @@ export function ConfigurationPage() {
               tab === "website" ||
               tab === "notifications" ||
               tab === "customFields" ||
-              tab === "modules" ||
-              tab === "deliveryLogs" ? null : (
+              tab === "modules" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -14019,12 +13990,6 @@ export function ConfigurationPage() {
                   t={t}
                   locale={locale}
                   waitlistEnabled={waitlistEnabledCommitted}
-                />
-              ) : tab === "deliveryLogs" ? (
-                <ConfigurationDeliveryLogsSection
-                  settings={settings}
-                  messagingProviders={inboxGlobalCapabilities}
-                  messagingProvidersLoaded={inboxCapabilitiesLoaded}
                 />
               ) : tab === "integrations" ? (
                 <div className="integrations-modern-shell">

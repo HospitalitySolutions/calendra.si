@@ -407,11 +407,11 @@ export default function App() {
   const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
   const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
   const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
+  const canViewDeliveryLogs = hasEmployeePermission(user, 'DELIVERY_LOGS_VIEW')
   const canViewConfiguration = hasAnyEmployeePermission(user, [
     'SETTINGS_VIEW',
     'SPACES_VIEW',
     'NOTIFICATIONS_VIEW',
-    'DELIVERY_LOGS_VIEW',
     'INTEGRATIONS_VIEW',
     'WEBSITE_WIDGET_VIEW',
     'GUEST_MOBILE_APP_VIEW',
@@ -419,7 +419,7 @@ export default function App() {
   const billingAllowed = billingModuleEnabled && canViewBilling
   const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
   const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
-  const inboxAllowed = inboxModuleEnabled && canViewInbox
+  const inboxAllowed = (inboxModuleEnabled && canViewInbox) || canViewDeliveryLogs
   const canScanWalletEntitlements = scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
   const preferredFallbackRoute = getDefaultAllowedRoute(user.packageType)
   const routeCandidates = [
@@ -466,7 +466,7 @@ export default function App() {
           <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/inbox" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
             path="/session-types"

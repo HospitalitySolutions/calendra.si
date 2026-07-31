@@ -10,6 +10,7 @@
 
 @import './styles/main/inbox-modern.css';
 @import './styles/main/inbox-preview.css';
+@import './styles/main/inbox-tabs.css';
 @import './styles/main/inbox-workspace.css';
 @import './styles/main/billing-tabs.css';
 @import './styles/main/billing-open-bill-popup.css';

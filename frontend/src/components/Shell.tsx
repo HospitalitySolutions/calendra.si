@@ -328,11 +328,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
   const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
   const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
+  const canViewDeliveryLogs = hasEmployeePermission(user, 'DELIVERY_LOGS_VIEW')
   const canViewConfiguration = hasAnyEmployeePermission(user, [
     'SETTINGS_VIEW',
     'SPACES_VIEW',
     'NOTIFICATIONS_VIEW',
-    'DELIVERY_LOGS_VIEW',
     'INTEGRATIONS_VIEW',
     'WEBSITE_WIDGET_VIEW',
     'GUEST_MOBILE_APP_VIEW',
@@ -340,7 +340,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const billingAllowed = billingModuleEnabled && canViewBilling
   const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
   const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
-  const inboxAllowed = inboxModuleEnabled && canViewInbox
+  const inboxAllowed = (inboxModuleEnabled && canViewInbox) || canViewDeliveryLogs
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const appointmentsNavLabel = locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'
@@ -390,7 +390,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isBillingConfigurationRoute = isConfigurationRoute && configurationTab === 'billing'
   const isWhiteConfigurationDetailRoute =
     isConfigurationRoute &&
-    ['booking', 'website', 'customFields', 'modules', 'deliveryLogs'].includes(configurationTab ?? '')
+    ['booking', 'website', 'customFields', 'modules'].includes(configurationTab ?? '')
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1535,9 +1535,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                                 ? (locale === 'sl' ? 'Polja po meri' : locale === 'sr' ? 'Prilagođena polja' : 'Custom fields')
                                 : configurationTab === 'modules'
                                   ? (locale === 'sl' ? 'App nastavitve' : locale === 'sr' ? 'Podešavanja aplikacije' : 'App settings')
-                                  : configurationTab === 'deliveryLogs'
-                                    ? (locale === 'sl' ? 'Dnevniki pošiljanja' : locale === 'sr' ? 'Dnevnici slanja' : 'Delivery logs')
-                                    : configurationTab === 'billing'
+                                  : configurationTab === 'billing'
                                       ? (locale === 'sl' ? 'Obračun' : locale === 'sr' ? 'Obračun' : 'Billing')
                                       : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}
                     </strong>
