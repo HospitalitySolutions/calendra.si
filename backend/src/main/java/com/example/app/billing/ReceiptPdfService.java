@@ -47,6 +47,7 @@ public class ReceiptPdfService {
     private static final float PAYMENT_QR_SIZE_PT = mmToPt(31f);
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
 
     private enum Align { LEFT, CENTER, RIGHT }
     private enum VatBucket { VAT_22, VAT_9_5, VAT_0, NO_VAT }
@@ -274,7 +275,7 @@ public class ReceiptPdfService {
         sections.put("paymentQr", paymentQrBlocks(request, layout, typography, locale));
         sections.put("fiscal", fiscalBlocks(request, layout, fonts, typography, locale));
         sections.put("issuedBy", issuedByBlocks(request, layout, fonts, typography, locale));
-        sections.put("taxClauses", taxClauseBlocks(layout, fonts, typography, locale));
+        sections.put("taxClauses", taxClauseBlocks(request, layout, fonts, typography, locale));
         sections.put("notes", notesBlocks(request, layout, fonts, typography, locale));
         sections.put("footer", footerBlocks(layout, fonts, typography));
 
@@ -392,7 +393,11 @@ public class ReceiptPdfService {
                 ? configuredSubtotal
                 : totals.gross().add(discount).setScale(2, RoundingMode.HALF_UP);
         List<Block> blocks = new ArrayList<>();
-        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
+
+        // Keep every summary row at the normal body size. Visual hierarchy comes
+        // from weight and divider lines rather than oversized thermal-printer text.
+        blocks.add(new RuleBlock(1f, 4f));
+        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
         }
@@ -402,8 +407,10 @@ public class ReceiptPdfService {
         }
         BigDecimal toBePaid = positive(request.getToBePaidGross());
         if (toBePaid.compareTo(BigDecimal.ZERO) > 0) {
-            blocks.add(pairBlock(word(locale, "Za plačilo", "Za plaćanje", "Amount due"), money(toBePaid), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
+            blocks.add(new RuleBlock(3f, 4f));
+            blocks.add(pairBlock(word(locale, "Za plačilo", "Za plaćanje", "Amount due"), money(toBePaid), fonts.bold(), type.body(), type.lineHeight(), true));
         }
+        blocks.add(new RuleBlock(4f, 1f));
         return blocks;
     }
 
@@ -450,8 +457,11 @@ public class ReceiptPdfService {
         return List.of(pairBlock(word(locale, "Izdal", "Izdao", "Issued by"), request.getIssuedBy(), fonts.regular(), type.small(), type.smallLineHeight(), false));
     }
 
-    private List<Block> taxClauseBlocks(PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
+    private List<Block> taxClauseBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
         List<String> clauses = normalizedTaxClauses(layout);
+        if (allServicesExplicitlyNoVat(request == null ? null : request.getServices()) && !clauses.contains(AUTO_NO_VAT_CLAUSE)) {
+            clauses.add(0, AUTO_NO_VAT_CLAUSE);
+        }
         if (clauses.isEmpty()) return List.of();
         List<Block> blocks = new ArrayList<>();
         for (String clause : clauses) {
@@ -688,6 +698,20 @@ public class ReceiptPdfService {
         if (value.contains("9.5") || value.contains("9,5")) return VatBucket.VAT_9_5;
         if (value.isBlank() || value.contains("NO VAT") || value.contains("BREZ DDV") || value.contains("NEOBDAV")) return VatBucket.NO_VAT;
         return VatBucket.VAT_0;
+    }
+
+    private static boolean allServicesExplicitlyNoVat(List<FolioPdfRequest.ServiceLine> lines) {
+        if (lines == null || lines.isEmpty()) return false;
+        for (FolioPdfRequest.ServiceLine line : lines) {
+            if (line == null || !isExplicitNoVat(line.getTaxPercent())) return false;
+        }
+        return true;
+    }
+
+    private static boolean isExplicitNoVat(String raw) {
+        String value = safe(raw).trim().toUpperCase(Locale.ROOT);
+        return !value.isBlank()
+                && (value.contains("NO VAT") || value.contains("BREZ DDV") || value.contains("NEOBDAV"));
     }
 
     private static String vatLabel(VatBucket bucket, String locale) {

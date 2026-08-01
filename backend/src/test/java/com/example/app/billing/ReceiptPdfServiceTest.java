@@ -89,6 +89,35 @@ class ReceiptPdfServiceTest {
         }
     }
 
+
+    @Test
+    void generate_automaticallyPrintsSmallTaxpayerClauseOnlyWhenEveryServiceIsExplicitlyNoVat() throws Exception {
+        FolioPdfRequest allNoVat = sampleRequest(2);
+        for (FolioPdfRequest.ServiceLine line : allNoVat.getServices()) {
+            line.setTaxPercent("NO VAT");
+            line.setNettPrice(line.getGrossPrice());
+            line.setTaxAmount(BigDecimal.ZERO);
+        }
+
+        byte[] allNoVatPdf = service.generate(allNoVat, PosReceiptLayoutConfig.defaultLayout(), null);
+        try (PDDocument document = Loader.loadPDF(allNoVatPdf)) {
+            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(normalizedText)
+                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("Davčne klavzule");
+        }
+
+        FolioPdfRequest mixedVat = sampleRequest(2);
+        mixedVat.getServices().get(0).setTaxPercent("NO VAT");
+        mixedVat.getServices().get(0).setTaxAmount(BigDecimal.ZERO);
+        byte[] mixedVatPdf = service.generate(mixedVat, PosReceiptLayoutConfig.defaultLayout(), null);
+        try (PDDocument document = Loader.loadPDF(mixedVatPdf)) {
+            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(normalizedText)
+                    .doesNotContain("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.");
+        }
+    }
+
     private FolioPdfRequest sampleRequest(int lineCount) {
         FolioPdfRequest request = new FolioPdfRequest();
         request.setLocale("sl");

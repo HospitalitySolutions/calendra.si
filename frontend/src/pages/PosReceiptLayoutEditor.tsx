@@ -44,8 +44,10 @@ const DEFAULT_ORDER = [
   'footer',
 ]
 
+const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.'
+
 const TAX_CLAUSE_OPTIONS = [
-  'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
+  AUTO_NO_VAT_CLAUSE,
   'Oprostitev DDV po 42. členu ZDDV-1.',
   'Oprostitev DDV po 44. členu ZDDV-1.',
   'Dobava blaga v drugo državo članico EU je oproščena DDV po 46. členu ZDDV-1.',
@@ -145,9 +147,9 @@ export function PosReceiptLayoutEditor() {
         footer: 'Besedilo v nogi',
         footerHint: 'Neobvezno sporočilo, na primer zahvala ali povezava do spletne strani.',
         taxClauses: 'Davčne klavzule',
-        taxClausesHint: 'Izberete lahko eno ali več klavzul, ki bodo prikazane na 58 mm računu.',
+        taxClausesHint: 'Klavzula po 94. členu se doda samodejno, ko imajo vse postavke davčno stopnjo Brez DDV. Tukaj lahko izberete dodatne klavzule.',
         taxClausesPlaceholder: 'Dodaj davčno klavzulo…',
-        noTaxClauses: 'Ni izbranih davčnih klavzul.',
+        noTaxClauses: 'Ni izbranih dodatnih davčnih klavzul.',
         referenceText: 'Besedilo reference',
         referenceTextHint: 'Uporabite oznako {reference-number}, kjer naj se izpiše številka reference.',
         save: 'Shrani postavitev',
@@ -169,9 +171,9 @@ export function PosReceiptLayoutEditor() {
         footer: 'Tekst u podnožju',
         footerHint: 'Opciono, na primer zahvalnica ili adresa sajta.',
         taxClauses: 'Poreske klauzule',
-        taxClausesHint: 'Možete izabrati jednu ili više klauzula koje će biti prikazane na računu od 58 mm.',
+        taxClausesHint: 'Klauzula po članu 94 dodaje se automatski kada sve stavke imaju poresku stopu Bez PDV-a. Ovde možete izabrati dodatne klauzule.',
         taxClausesPlaceholder: 'Dodaj poresku klauzulu…',
-        noTaxClauses: 'Nema izabranih poreskih klauzula.',
+        noTaxClauses: 'Nema izabranih dodatnih poreskih klauzula.',
         referenceText: 'Tekst reference',
         referenceTextHint: 'Koristite oznaku {reference-number} na mestu gde treba prikazati broj reference.',
         save: 'Sačuvaj izgled',
@@ -192,9 +194,9 @@ export function PosReceiptLayoutEditor() {
       footer: 'Footer text',
       footerHint: 'Optional message such as a thank-you note or website address.',
       taxClauses: 'Tax clauses',
-      taxClausesHint: 'You can choose one or multiple clauses that will be shown on the 58 mm invoice.',
+      taxClausesHint: 'The Article 94 clause is added automatically when every item uses the No VAT tax level. Additional clauses can be selected here.',
       taxClausesPlaceholder: 'Add tax clause…',
-      noTaxClauses: 'No tax clauses selected.',
+      noTaxClauses: 'No additional tax clauses selected.',
       referenceText: 'Reference text',
       referenceTextHint: 'Use {reference-number} where the invoice reference number should appear.',
       save: 'Save layout',
@@ -314,7 +316,7 @@ export function PosReceiptLayoutEditor() {
     if (section === 'paymentQr') return layout.showPaymentQr
     if (section === 'fiscal') return layout.showFiscalQr
     if (section === 'issuedBy') return layout.showIssuedBy
-    if (section === 'taxClauses') return layout.taxClauses.length > 0
+    if (section === 'taxClauses') return true
     if (section === 'notes') return layout.showNotes
     if (section === 'footer') return Boolean(layout.footerText.trim())
     return true
@@ -323,6 +325,7 @@ export function PosReceiptLayoutEditor() {
   const receiptLocale: ReceiptLocale = locale === 'sl' || locale === 'sr' ? locale : 'en'
   const referencePreview = (layout.referenceTexts[receiptLocale] || '{reference-number}')
     .split('{reference-number}').join('REF-2026-001')
+  const previewTaxClauses = [AUTO_NO_VAT_CLAUSE, ...layout.taxClauses.filter((clause) => clause !== AUTO_NO_VAT_CLAUSE)]
 
   const previewSections: Record<string, ReactNode> = {
     company: <>{layout.showLogo ? <div className="pos58-preview-logo">LOGO</div> : null}<strong className="pos58-preview-company">Calendra Studio</strong><span>Glavna ulica 12</span><span>2000 Maribor</span><span>SI12345678</span><span>{locale === 'sl' ? 'TRR' : 'IBAN'}: SI56 … 5678</span></>,
@@ -330,12 +333,12 @@ export function PosReceiptLayoutEditor() {
     recipient: <><strong>{labels.recipient}</strong><span>Ana Novak</span><span>Cesta 5, 1000 Ljubljana</span></>,
     items: <><strong>{labels.items}</strong><hr /><b>Masaža hrbta in vratu</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '1 × 50,00 EUR' : ''}</span><b>50,00 EUR</b></div><b>Individualno svetovanje z daljšim opisom</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '2 × 25,00 EUR' : ''}</span><b>50,00 EUR</b></div><hr /></>,
     advancePayments: <></>,
-    totals: <><div className="pos58-preview-total"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>100,00 EUR</b></div><div><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 10,00 EUR</b></div><div className="pos58-preview-total"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>90,00 EUR</b></div></>,
-    vat: <><strong>{locale === 'sl' ? 'DDV' : locale === 'sr' ? 'PDV' : 'VAT'}</strong><div><span>{locale === 'sl' ? 'DDV 22% · osnova 81,96' : locale === 'sr' ? 'PDV 22% · osnovica 81,96' : 'VAT 22% · basis 81.96'}</span><b>18,04</b></div></>,
+    totals: <><hr className="pos58-preview-summary-rule" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>100,00 EUR</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 10,00 EUR</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-rule" /></>,
+    vat: <><strong>{locale === 'sl' ? 'DDV' : locale === 'sr' ? 'PDV' : 'VAT'}</strong><div><span>{locale === 'sl' ? 'Brez DDV · osnova 100,00' : locale === 'sr' ? 'Bez PDV-a · osnovica 100,00' : 'No VAT · basis 100.00'}</span><b>0,00</b></div></>,
     paymentQr: <><div className="pos58-preview-qr" aria-label="UPN QR preview" /><small>{locale === 'sl' ? 'Skeniraj in plačaj' : locale === 'sr' ? 'Skeniraj i plati' : 'Scan and pay'}</small></>,
     fiscal: <><span>ZOI: 1234567890…</span><span>EOR: EOR-2026-42</span><div className="pos58-preview-qr pos58-preview-qr--fiscal" /></>,
     issuedBy: <div><span>{locale === 'sl' ? 'Izdal' : locale === 'sr' ? 'Izdao' : 'Issued by'}</span><b>David Mirc</b></div>,
-    taxClauses: <>{layout.taxClauses.map((clause) => <span key={clause}>• {clause}</span>)}</>,
+    taxClauses: <>{previewTaxClauses.map((clause) => <span key={clause}>• {clause}</span>)}</>,
     notes: <><strong>{labels.notes}</strong><span>{referencePreview}</span></>,
     footer: <><hr /><span className="pos58-preview-footer">{layout.footerText}</span></>,
   }

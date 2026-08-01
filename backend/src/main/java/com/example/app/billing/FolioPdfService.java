@@ -46,6 +46,7 @@ public class FolioPdfService {
     private static final float BOTTOM_MARGIN = 60;
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
     private static final int LAYOUT_PREVIEW_SERVICE_ROWS = 1;
     private static final float DOUBLE_RULE_GAP = 2.0f;
     private static final int PAYMENT_QR_CAPTION_FONT_SIZE = 7;
@@ -132,7 +133,7 @@ public class FolioPdfService {
             drawSignature(ctx, layout, signatureBytes, tableFlowOffset, false);
             drawPaymentQr(ctx, layout, req, selectedLocale, fonts, tableFlowOffset, false);
             drawFiscalQr(ctx, layout, req, tableFlowOffset, false);
-            drawTaxClauses(ctx, layout, selectedLocale, fonts);
+            drawTaxClauses(ctx, layout, req, selectedLocale, fonts);
 
             ctx.closeStream();
             doc.save(out);
@@ -1189,8 +1190,11 @@ public class FolioPdfService {
 
     private record TaxClausePlacement(float x, float y, float width, float minHeight, boolean boxed) {}
 
-    private void drawTaxClauses(PageContext ctx, FolioLayoutConfig layout, String locale, FontSet fonts) throws IOException {
+    private void drawTaxClauses(PageContext ctx, FolioLayoutConfig layout, FolioPdfRequest request, String locale, FontSet fonts) throws IOException {
         List<String> clauses = normalizedTaxClauses(layout);
+        if (allServicesExplicitlyNoVat(request == null ? null : request.getServices()) && !clauses.contains(AUTO_NO_VAT_CLAUSE)) {
+            clauses.add(0, AUTO_NO_VAT_CLAUSE);
+        }
         if (clauses.isEmpty()) return;
         TaxClausePlacement placement = taxClausePlacement(layout);
         if (placement == null) return;
@@ -1244,6 +1248,20 @@ public class FolioPdfService {
             if (!trimmed.isBlank() && !clauses.contains(trimmed)) clauses.add(trimmed);
         }
         return clauses;
+    }
+
+    private static boolean allServicesExplicitlyNoVat(List<FolioPdfRequest.ServiceLine> lines) {
+        if (lines == null || lines.isEmpty()) return false;
+        for (FolioPdfRequest.ServiceLine line : lines) {
+            if (line == null || !isExplicitNoVat(line.getTaxPercent())) return false;
+        }
+        return true;
+    }
+
+    private static boolean isExplicitNoVat(String raw) {
+        String value = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+        return !value.isBlank()
+                && (value.contains("NO VAT") || value.contains("BREZ DDV") || value.contains("NEOBDAV"));
     }
 
     private List<String> wrapText(PDFont font, int fontSize, float maxWidth, String text) throws IOException {
