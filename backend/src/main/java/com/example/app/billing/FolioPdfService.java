@@ -699,8 +699,14 @@ public class FolioPdfService {
         Map<String, String> footerValues = new HashMap<>();
         footerValues.put("totalNett", fmtEurSuffix(totalNett));
         BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
-        BigDecimal displayedSubtotalGross = totalGross == null ? BigDecimal.ZERO : totalGross;
-        if (!isCreditNoteRequest(req) && discountAmountGross != null && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal configuredSubtotalGross = req == null ? null : req.getSubtotalBeforeDiscountGross();
+        BigDecimal displayedSubtotalGross = configuredSubtotalGross != null && configuredSubtotalGross.compareTo(BigDecimal.ZERO) > 0
+                ? configuredSubtotalGross
+                : (totalGross == null ? BigDecimal.ZERO : totalGross);
+        if ((configuredSubtotalGross == null || configuredSubtotalGross.compareTo(BigDecimal.ZERO) <= 0)
+                && !isCreditNoteRequest(req)
+                && discountAmountGross != null
+                && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
             displayedSubtotalGross = displayedSubtotalGross.add(discountAmountGross);
         }
         footerValues.put("totalGross", fmtEurSuffix(displayedSubtotalGross));

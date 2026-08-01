@@ -13,6 +13,7 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.Map;
@@ -81,6 +82,53 @@ class BillFolioPdfServicePaymentQrTest {
         service.generate(bankTransferBill(), COMPANY_ID, "sl");
 
         assertThat(capturedRequest().getPaymentQrPayload()).startsWith("UPNQR\n");
+    }
+
+    @Test
+    void generate_usesConfiguredLocalTimezoneAndPhysicalCompanyCity() {
+        settingValues.put(SettingKey.COMPANY_CITY, "Ljubljana");
+        settingValues.put(SettingKey.COMPANY_PHYSICAL_CITY, "Maribor");
+        Bill bill = bankTransferBill();
+        bill.setCreatedAt(Instant.parse("2026-08-01T17:42:00Z"));
+
+        service.generate(bill, COMPANY_ID, "sl");
+
+        FolioPdfRequest request = capturedRequest();
+        assertThat(request.getFolioDate()).isEqualTo("01.08.2026 19:42");
+        assertThat(request.getIssueCity()).isEqualTo("Maribor");
+    }
+
+    @Test
+    void generate_detectsDiscountFromFinalPaymentSplitWhenStoredLinesAreUndiscounted() {
+        Bill bill = bankTransferBill();
+        bill.setTotalGross(new BigDecimal("157.60"));
+
+        TransactionService transactionService = new TransactionService();
+        transactionService.setDescription("Test");
+        transactionService.setNetPrice(new BigDecimal("129.1803"));
+        transactionService.setTaxRate(TaxRate.VAT_22);
+
+        BillItem item = new BillItem();
+        item.setBill(bill);
+        item.setTransactionService(transactionService);
+        item.setQuantity(1);
+        item.setNetPrice(new BigDecimal("129.1803"));
+        item.setGrossPrice(new BigDecimal("157.60"));
+        bill.getItems().add(item);
+
+        BillPayment payment = new BillPayment();
+        payment.setBill(bill);
+        payment.setPaymentMethod(bill.getPaymentMethod());
+        payment.setAmountGross(new BigDecimal("145.60"));
+        payment.setSortOrder(0);
+        bill.getPaymentSplits().add(payment);
+
+        service.generate(bill, COMPANY_ID, "sl");
+
+        FolioPdfRequest request = capturedRequest();
+        assertThat(request.getDiscountAmountGross()).isEqualByComparingTo("12.00");
+        assertThat(request.getSubtotalBeforeDiscountGross()).isEqualByComparingTo("157.60");
+        assertThat(request.getToBePaidGross()).isEqualByComparingTo("145.60");
     }
 
     private Optional<AppSetting> setting(SettingKey key) {

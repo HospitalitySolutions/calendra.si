@@ -37,6 +37,7 @@ class ReceiptPdfServiceTest {
                     "TRR: SI56 1910 0001 2345 678",
                     "RAC-2026-00042",
                     "31.07.2026",
+                    "Ura in kraj izdaje 12:45, Maribor",
                     "Masaža hrbta",
                     "100.00 EUR",
                     "Popust",
@@ -45,6 +46,7 @@ class ReceiptPdfServiceTest {
                     "Izdal"
             );
             assertThat(normalizedText).doesNotContain("Bančno nakazilo");
+            assertThat(normalizedText).doesNotContain("Fiskalna koda");
         }
     }
 
@@ -72,6 +74,7 @@ class ReceiptPdfServiceTest {
     void generate_showsPreDiscountSubtotalAndPrintsTaxClausesWithoutSectionHeading() throws Exception {
         FolioPdfRequest request = sampleRequest(1);
         request.setToBePaidGross(new BigDecimal("90.00"));
+        request.setSubtotalBeforeDiscountGross(new BigDecimal("100.00"));
         PosReceiptLayoutConfig layout = PosReceiptLayoutConfig.defaultLayout();
         layout.setTaxClauses(List.of("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1."));
 
@@ -80,7 +83,7 @@ class ReceiptPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
             assertThat(normalizedText)
-                    .contains("Skupaj 110.00 EUR", "Popust - 10.00 EUR", "Za plačilo 90.00 EUR")
+                    .contains("Skupaj 100.00 EUR", "Popust - 10.00 EUR", "Za plačilo 90.00 EUR")
                     .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
                     .doesNotContain("Davčne klavzule");
         }
@@ -97,6 +100,7 @@ class ReceiptPdfServiceTest {
         request.setFolioNumberLabel("Račun:");
         request.setFolioNumber("RAC-2026-00042");
         request.setFolioDate("2026-07-31 12:45");
+        request.setIssueCity("Maribor");
         request.setDateOfService("2026-07-31");
         request.setDueDate("2026-08-07");
         request.setRecipientName("Ana Novak");

@@ -482,7 +482,7 @@ public class BillingController {
         return txRepo.findAllByCompanyId(me.getCompany().getId());
     }
 
-    @PreAuthorize("hasRole('ADMIN')") 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/services")
     public TransactionService createService(@RequestBody TransactionService s, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
@@ -494,7 +494,7 @@ public class BillingController {
         return txRepo.save(s);
     }
 
-    @PreAuthorize("hasRole('ADMIN')") 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/services/{id}")
     public TransactionService updateService(@PathVariable Long id, @RequestBody TransactionService s, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
@@ -518,7 +518,7 @@ public class BillingController {
         return txRepo.save(existing);
     }
 
-    @PreAuthorize("hasRole('ADMIN')") 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/services/{id}")
     public void deleteService(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();

@@ -18,6 +18,7 @@ import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,6 +36,7 @@ public class BillFolioPdfService {
     private final FolioPdfService folioPdfService;
     private final ReceiptPdfService receiptPdfService;
     private final UpnQrPayloadBuilder upnQrPayloadBuilder;
+    private final ZoneId invoiceZone;
 
     @Autowired
     public BillFolioPdfService(
@@ -43,7 +45,8 @@ public class BillFolioPdfService {
             GuestOrderRepository guestOrders,
             FolioPdfService folioPdfService,
             ReceiptPdfService receiptPdfService,
-            UpnQrPayloadBuilder upnQrPayloadBuilder
+            UpnQrPayloadBuilder upnQrPayloadBuilder,
+            @Value("${app.reminders.timezone:Europe/Ljubljana}") String invoiceTimezoneId
     ) {
         this.settings = settings;
         this.sessionBookings = sessionBookings;
@@ -51,6 +54,19 @@ public class BillFolioPdfService {
         this.folioPdfService = folioPdfService;
         this.receiptPdfService = receiptPdfService;
         this.upnQrPayloadBuilder = upnQrPayloadBuilder;
+        this.invoiceZone = safeZone(invoiceTimezoneId);
+    }
+
+    /** Backwards-compatible constructor retained for focused unit tests and direct construction. */
+    public BillFolioPdfService(
+            AppSettingRepository settings,
+            SessionBookingRepository sessionBookings,
+            GuestOrderRepository guestOrders,
+            FolioPdfService folioPdfService,
+            ReceiptPdfService receiptPdfService,
+            UpnQrPayloadBuilder upnQrPayloadBuilder
+    ) {
+        this(settings, sessionBookings, guestOrders, folioPdfService, receiptPdfService, upnQrPayloadBuilder, "Europe/Ljubljana");
     }
 
     /** Backwards-compatible constructor retained for focused unit tests. */
@@ -122,9 +138,15 @@ public class BillFolioPdfService {
         req.setCompanyAddress(settingValue(companyId, SettingKey.COMPANY_ADDRESS));
         req.setCompanyPostalCode(settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE));
         req.setCompanyCity(settingValue(companyId, SettingKey.COMPANY_CITY));
+        req.setIssueCity(firstNonBlank(
+                settingValue(companyId, SettingKey.COMPANY_PHYSICAL_CITY),
+                req.getCompanyCity()
+        ));
         req.setCompanyTaxId(settingValue(companyId, SettingKey.COMPANY_VAT_ID));
         req.setIban(settingValue(companyId, SettingKey.COMPANY_IBAN));
-        req.setDiscountAmountGross(resolveBillDiscountGross(bill));
+        BigDecimal discountAmountGross = resolveBillDiscountGross(bill);
+        req.setDiscountAmountGross(discountAmountGross);
+        req.setSubtotalBeforeDiscountGross(resolveSubtotalBeforeDiscountGross(bill, discountAmountGross));
 
         LocalDate serviceDate = null;
         Long srcSessionId = bill.getSourceSessionIdSnapshot();
@@ -243,17 +265,22 @@ public class BillFolioPdfService {
     /**
      * Best-effort discount detection for folio display.
      *
-     * Bills currently persist the final discounted line totals, but not a dedicated
-     * discount footer amount. To support the configurable folio field, we reconstruct
-     * the nominal undiscounted line total from the linked transaction-service price
-     * snapshot that the tenant configured, and compare it with the stored billed total.
-     * If no positive difference exists, the discount field stays hidden.
+     * Bills created by older flows can contain either discounted line totals or the
+     * original line subtotal together with payment splits for the discounted amount.
+     * Detect both representations so the PDF consistently prints Skupaj, Popust and
+     * the final payable amount.
      */
     private BigDecimal resolveBillDiscountGross(Bill bill) {
-        if (bill == null || bill.getItems() == null || bill.getItems().isEmpty()) {
+        if (bill == null || isRefundBill(bill) || bill.getItems() == null || bill.getItems().isEmpty()) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
-        BigDecimal discount = BigDecimal.ZERO;
+        BigDecimal renderedLinesGross = totalItemGross(bill);
+        BigDecimal finalInvoiceGross = resolveFinalInvoiceGross(bill, renderedLinesGross);
+        BigDecimal structuralDiscount = renderedLinesGross.subtract(finalInvoiceGross)
+                .max(BigDecimal.ZERO)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal nominalPriceDiscount = BigDecimal.ZERO;
         for (BillItem item : bill.getItems()) {
             if (item == null) continue;
             TransactionService ts = item.getTransactionService();
@@ -262,10 +289,57 @@ public class BillFolioPdfService {
             BigDecimal billedGross = item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice();
             BigDecimal nominalGross = nominalLineGross(ts, qty);
             if (nominalGross.compareTo(billedGross) > 0) {
-                discount = discount.add(nominalGross.subtract(billedGross));
+                nominalPriceDiscount = nominalPriceDiscount.add(nominalGross.subtract(billedGross));
             }
         }
-        return discount.setScale(2, RoundingMode.HALF_UP);
+        return structuralDiscount.max(nominalPriceDiscount.setScale(2, RoundingMode.HALF_UP))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveSubtotalBeforeDiscountGross(Bill bill, BigDecimal discountAmountGross) {
+        BigDecimal itemGross = totalItemGross(bill);
+        BigDecimal discount = discountAmountGross == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : discountAmountGross.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        if (discount.compareTo(BigDecimal.ZERO) <= 0 || isRefundBill(bill)) {
+            return itemGross;
+        }
+        BigDecimal finalGross = resolveFinalInvoiceGross(bill, itemGross);
+        return itemGross.max(finalGross.add(discount)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal totalItemGross(Bill bill) {
+        if (bill == null || bill.getItems() == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        return bill.getItems().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(item -> item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice())
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .abs()
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveFinalInvoiceGross(Bill bill, BigDecimal fallbackGross) {
+        BigDecimal fallback = fallbackGross == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : fallbackGross.abs().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal persisted = bill == null || bill.getTotalGross() == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : bill.getTotalGross().abs().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal paymentSplitTotal = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (bill != null && bill.getPaymentSplits() != null) {
+            paymentSplitTotal = bill.getPaymentSplits().stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(split -> split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross().abs())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal resolved = persisted.compareTo(BigDecimal.ZERO) > 0 ? persisted : fallback;
+        if (paymentSplitTotal.compareTo(BigDecimal.ZERO) > 0
+                && (resolved.compareTo(BigDecimal.ZERO) <= 0 || paymentSplitTotal.compareTo(resolved) < 0)) {
+            resolved = paymentSplitTotal;
+        }
+        return resolved.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal nominalLineGross(TransactionService ts, int qty) {
@@ -344,12 +418,20 @@ public class BillFolioPdfService {
     private String formatIssueDateTime(Bill bill) {
         if (bill == null) return "";
         if (bill.getCreatedAt() != null) {
-            return ISSUE_DATE_TIME_FORMAT.format(bill.getCreatedAt().atZone(ZoneId.systemDefault()));
+            return ISSUE_DATE_TIME_FORMAT.format(bill.getCreatedAt().atZone(invoiceZone));
         }
         if (bill.getIssueDate() != null) {
             return ISSUE_DATE_TIME_FORMAT.format(bill.getIssueDate().atStartOfDay());
         }
         return "";
+    }
+
+    private static ZoneId safeZone(String raw) {
+        try {
+            return raw == null || raw.isBlank() ? ZoneId.of("Europe/Ljubljana") : ZoneId.of(raw.trim());
+        } catch (Exception ignored) {
+            return ZoneId.of("Europe/Ljubljana");
+        }
     }
 
     private List<FolioPdfRequest.AdvancePaymentLine> buildAdvancePaymentLines(Bill bill) {

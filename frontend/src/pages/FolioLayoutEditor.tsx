@@ -1660,7 +1660,7 @@ function A4FolioLayoutEditor() {
                 : (FIELD_SAMPLE_VALUES[f.key] || resolveLocalizedText(f.labelI18n, f.label, locale))
               const prefixText = f.key === 'folioNumber'
                 ? folioNumberSamplePrefix(locale)
-                : (isPrefixField(f) ? resolveLocalizedText(f.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[f.key]?.en || '', locale) : '') 
+                : (isPrefixField(f) ? resolveLocalizedText(f.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[f.key]?.en || '', locale) : '')
               return (
                 <div
                   key={f.key}

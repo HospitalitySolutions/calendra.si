@@ -21,6 +21,8 @@ public class FolioPdfRequest {
     /** Localized document type label rendered before the folio number (Invoice/Advance/Refund). */
     private String folioNumberLabel;
     private String folioDate;
+    /** City/place where the document was issued, normally the physical company address city. */
+    private String issueCity;
     private String dateOfService;
     private String dueDate;
 
@@ -50,6 +52,8 @@ public class FolioPdfRequest {
     private BigDecimal toBePaidGross;
     /** Total discount amount shown in the folio footer when greater than zero. */
     private BigDecimal discountAmountGross;
+    /** Gross subtotal before discount. When present, PDF renderers must use it for the Skupaj/Total row. */
+    private BigDecimal subtotalBeforeDiscountGross;
     /** Total amount of advance/deposit payments used on this folio. */
     private BigDecimal usedAdvancePaymentsGross;
     /** Advance/deposit payments consumed by this folio, rendered in a dedicated table. */
@@ -155,6 +159,8 @@ public class FolioPdfRequest {
     public void setFolioNumberLabel(String folioNumberLabel) { this.folioNumberLabel = folioNumberLabel; }
     public String getFolioDate() { return folioDate; }
     public void setFolioDate(String folioDate) { this.folioDate = folioDate; }
+    public String getIssueCity() { return issueCity; }
+    public void setIssueCity(String issueCity) { this.issueCity = issueCity; }
     public String getDateOfService() { return dateOfService; }
     public void setDateOfService(String dateOfService) { this.dateOfService = dateOfService; }
     public String getDueDate() { return dueDate; }
@@ -193,6 +199,8 @@ public class FolioPdfRequest {
     public void setToBePaidGross(BigDecimal toBePaidGross) { this.toBePaidGross = toBePaidGross; }
     public BigDecimal getDiscountAmountGross() { return discountAmountGross; }
     public void setDiscountAmountGross(BigDecimal discountAmountGross) { this.discountAmountGross = discountAmountGross; }
+    public BigDecimal getSubtotalBeforeDiscountGross() { return subtotalBeforeDiscountGross; }
+    public void setSubtotalBeforeDiscountGross(BigDecimal subtotalBeforeDiscountGross) { this.subtotalBeforeDiscountGross = subtotalBeforeDiscountGross; }
     public BigDecimal getUsedAdvancePaymentsGross() { return usedAdvancePaymentsGross; }
     public void setUsedAdvancePaymentsGross(BigDecimal usedAdvancePaymentsGross) { this.usedAdvancePaymentsGross = usedAdvancePaymentsGross; }
     public List<AdvancePaymentLine> getAdvancePayments() { return advancePayments; }

@@ -316,7 +316,8 @@ public class ReceiptPdfService {
         addWrapped(blocks, (label + " " + number).trim(), fonts.bold(), type.title(), type.lineHeight() + 1f, true, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         String[] issueParts = splitIssueDateAndTime(request.getFolioDate());
         addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), formatReceiptDate(issueParts[0]), fonts, type, false);
-        addPair(blocks, word(locale, "Ura izdaje", "Vreme izdavanja", "Issue time"), issueParts[1], fonts, type, false);
+        String issueTimeAndPlace = joinNonBlank(Arrays.asList(issueParts[1], request.getIssueCity()), ", ");
+        addPair(blocks, word(locale, "Ura in kraj izdaje", "Vreme i mesto izdavanja", "Issue time and place"), issueTimeAndPlace, fonts, type, false);
         addPair(blocks, word(locale, "Datum opravljene storitve", "Datum izvršene usluge", "Service date"), formatReceiptDate(request.getDateOfService()), fonts, type, false);
         addPair(blocks, word(locale, "Rok plačila", "Rok plaćanja", "Due date"), formatReceiptDate(request.getDueDate()), fonts, type, false);
         blocks.add(new RuleBlock(4f, 1f));
@@ -386,7 +387,10 @@ public class ReceiptPdfService {
     private List<Block> totalBlocks(FolioPdfRequest request, FontSet fonts, Typography type, String locale) {
         Totals totals = totals(request.getServices());
         BigDecimal discount = positive(request.getDiscountAmountGross());
-        BigDecimal subtotalGross = totals.gross().add(discount).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal configuredSubtotal = positive(request.getSubtotalBeforeDiscountGross());
+        BigDecimal subtotalGross = configuredSubtotal.compareTo(BigDecimal.ZERO) > 0
+                ? configuredSubtotal
+                : totals.gross().add(discount).setScale(2, RoundingMode.HALF_UP);
         List<Block> blocks = new ArrayList<>();
         blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
@@ -436,8 +440,7 @@ public class ReceiptPdfService {
         }
         if (hasFiscalQr) {
             blocks.add(new GapBlock(2f));
-            blocks.add(new QrBlock(request.getFiscalQr(), FISCAL_QR_SIZE_PT,
-                    word(locale, "Fiskalna koda", "Fiskalni kod", "Fiscal code"), type.small(), false));
+            blocks.add(new QrBlock(request.getFiscalQr(), FISCAL_QR_SIZE_PT, "", type.small(), false));
         }
         return blocks;
     }
