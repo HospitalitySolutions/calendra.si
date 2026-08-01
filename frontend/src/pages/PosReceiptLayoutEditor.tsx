@@ -335,7 +335,7 @@ export function PosReceiptLayoutEditor() {
     paymentQr: <><div className="pos58-preview-qr" aria-label="UPN QR preview" /><small>{locale === 'sl' ? 'Skeniraj in plačaj' : locale === 'sr' ? 'Skeniraj i plati' : 'Scan and pay'}</small></>,
     fiscal: <><span>ZOI: 1234567890…</span><span>EOR: EOR-2026-42</span><div className="pos58-preview-qr pos58-preview-qr--fiscal" /><small>{locale === 'sl' ? 'Fiskalna koda' : locale === 'sr' ? 'Fiskalni kod' : 'Fiscal code'}</small></>,
     issuedBy: <div><span>{locale === 'sl' ? 'Izdal' : locale === 'sr' ? 'Izdao' : 'Issued by'}</span><b>David Mirc</b></div>,
-    taxClauses: <><strong>{labels.taxClauses}</strong>{layout.taxClauses.map((clause) => <span key={clause}>• {clause}</span>)}</>,
+    taxClauses: <>{layout.taxClauses.map((clause) => <span key={clause}>• {clause}</span>)}</>,
     notes: <><strong>{labels.notes}</strong><span>{referencePreview}</span></>,
     footer: <><hr /><span className="pos58-preview-footer">{layout.footerText}</span></>,
   }

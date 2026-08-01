@@ -68,6 +68,24 @@ class ReceiptPdfServiceTest {
         assertThat(pdf).isNotEmpty();
     }
 
+    @Test
+    void generate_showsPreDiscountSubtotalAndPrintsTaxClausesWithoutSectionHeading() throws Exception {
+        FolioPdfRequest request = sampleRequest(1);
+        request.setToBePaidGross(new BigDecimal("90.00"));
+        PosReceiptLayoutConfig layout = PosReceiptLayoutConfig.defaultLayout();
+        layout.setTaxClauses(List.of("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1."));
+
+        byte[] pdf = service.generate(request, layout, null);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(normalizedText)
+                    .contains("Skupaj 110.00 EUR", "Popust - 10.00 EUR", "Za plačilo 90.00 EUR")
+                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("Davčne klavzule");
+        }
+    }
+
     private FolioPdfRequest sampleRequest(int lineCount) {
         FolioPdfRequest request = new FolioPdfRequest();
         request.setLocale("sl");

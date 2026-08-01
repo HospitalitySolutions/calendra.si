@@ -123,6 +123,31 @@ class FolioPdfServiceTest {
         }
     }
 
+    @Test
+    void generate_printsTaxClauseBodyWithoutTaxClauseHeading() throws Exception {
+        FolioPdfService service = new FolioPdfService();
+        FolioPdfRequest request = new FolioPdfRequest();
+        request.setCompanyName("Test d.o.o.");
+        request.setRecipientName("Prejemnik");
+        request.setFolioNumber("RAC-5");
+        request.setFolioDate("2026-05-08");
+        request.setDateOfService("2026-05-08");
+        request.setDueDate("2026-05-15");
+        request.setLocale("sl");
+        request.setServices(List.of(serviceLine("Storitev", "12.20")));
+        FolioLayoutConfig layout = FolioLayoutConfig.defaultLayout();
+        layout.setTaxClauses(List.of("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1."));
+
+        byte[] pdf = service.generate(request, layout);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(text)
+                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("Davčne klavzule");
+        }
+    }
+
     private static FolioPdfRequest.ServiceLine serviceLine(String description, String totalGross) {
         return serviceLine(description, "10.00", totalGross, "22%", "2.20");
     }

@@ -1899,7 +1899,6 @@ function A4FolioLayoutEditor() {
             {!advancedMode && (layout.taxClauses || []).length > 0 && (() => {
               const placement = taxClausePreviewPlacement(activeTemplate)
               const lineHeight = 12 * scale
-              const titleHeight = 14 * scale
               const bodyHeight = Math.max(placement.minHeight * scale, (layout.taxClauses || []).length * lineHeight + 12 * scale)
               return (
                 <div
@@ -1911,8 +1910,7 @@ function A4FolioLayoutEditor() {
                     minHeight: bodyHeight,
                   }}
                 >
-                  <strong style={{ fontSize: Math.max(7, 9 * scale * 0.72) }}>{taxClausesTitle(locale)}</strong>
-                  <div className="fle-tax-clauses-preview-lines" style={{ marginTop: 4 * scale, gap: 3 * scale, fontSize: Math.max(6, 8 * scale * 0.72), lineHeight: 1.35 }}>
+                  <div className="fle-tax-clauses-preview-lines" style={{ gap: 3 * scale, fontSize: Math.max(6, 8 * scale * 0.72), lineHeight: 1.35 }}>
                     {(layout.taxClauses || []).map((clause) => (
                       <div key={clause} className="fle-tax-clauses-preview-line">{clause}</div>
                     ))}

@@ -698,14 +698,18 @@ public class FolioPdfService {
     private FooterRenderData buildFooterRenderData(BigDecimal totalNett, BigDecimal totalGross, FolioPdfRequest req) {
         Map<String, String> footerValues = new HashMap<>();
         footerValues.put("totalNett", fmtEurSuffix(totalNett));
-        footerValues.put("totalGross", fmtEurSuffix(totalGross));
+        BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
+        BigDecimal displayedSubtotalGross = totalGross == null ? BigDecimal.ZERO : totalGross;
+        if (!isCreditNoteRequest(req) && discountAmountGross != null && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
+            displayedSubtotalGross = displayedSubtotalGross.add(discountAmountGross);
+        }
+        footerValues.put("totalGross", fmtEurSuffix(displayedSubtotalGross));
         BigDecimal usedAdvancePaymentsGross = req == null || req.getUsedAdvancePaymentsGross() == null
                 ? BigDecimal.ZERO
                 : req.getUsedAdvancePaymentsGross().abs().setScale(2, RoundingMode.HALF_UP);
         if (usedAdvancePaymentsGross.compareTo(BigDecimal.ZERO) > 0) {
             footerValues.put("usedAdvances", fmtEurDeductionSuffix(usedAdvancePaymentsGross));
         }
-        BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
         if (!isCreditNoteRequest(req) && discountAmountGross != null && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
             footerValues.put("discount", fmtEurDeductionSuffix(discountAmountGross));
         }
@@ -1186,10 +1190,8 @@ public class FolioPdfService {
         if (placement == null) return;
 
         float pageH = layout.getPageHeight();
-        int titleSize = 9;
         int bodySize = 7;
         float lineHeight = 10f;
-        String title = "sl".equalsIgnoreCase(locale) ? "Davčne klavzule" : "sr".equalsIgnoreCase(locale) ? "Poreske klauzule" : "Tax clauses";
 
         List<String> wrapped = new ArrayList<>();
         for (String clause : clauses) {
@@ -1201,7 +1203,7 @@ public class FolioPdfService {
         }
         if (wrapped.isEmpty()) return;
 
-        float blockHeight = Math.max(placement.minHeight(), 18f + wrapped.size() * lineHeight + 8f);
+        float blockHeight = Math.max(placement.minHeight(), wrapped.size() * lineHeight + 16f);
         float topY = placement.y();
         if (placement.boxed()) {
             setStrokeColor(ctx, new Color(215, 228, 244));
@@ -1210,10 +1212,7 @@ public class FolioPdfService {
             setStrokeColor(ctx, Color.BLACK);
         }
 
-        setTextColor(ctx, accentColor(layout));
-        drawText(ctx, fonts.bold(), titleSize, placement.x() + 8f, pageH - topY - titleSize - 6f, title);
-        setTextColor(ctx, Color.BLACK);
-        float y = pageH - topY - titleSize - 20f;
+        float y = pageH - topY - 10f;
         for (String line : wrapped) {
             drawText(ctx, fonts.regular(), bodySize, placement.x() + 8f, y, line);
             y -= lineHeight;

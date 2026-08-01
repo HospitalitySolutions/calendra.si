@@ -386,8 +386,9 @@ public class ReceiptPdfService {
     private List<Block> totalBlocks(FolioPdfRequest request, FontSet fonts, Typography type, String locale) {
         Totals totals = totals(request.getServices());
         BigDecimal discount = positive(request.getDiscountAmountGross());
+        BigDecimal subtotalGross = totals.gross().add(discount).setScale(2, RoundingMode.HALF_UP);
         List<Block> blocks = new ArrayList<>();
-        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(totals.gross()), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
+        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
         }
@@ -450,7 +451,6 @@ public class ReceiptPdfService {
         List<String> clauses = normalizedTaxClauses(layout);
         if (clauses.isEmpty()) return List.of();
         List<Block> blocks = new ArrayList<>();
-        blocks.add(textBlock(word(locale, "Davčne klavzule", "Poreske klauzule", "Tax clauses"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
         for (String clause : clauses) {
             addWrapped(blocks, "• " + clause, fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
         }

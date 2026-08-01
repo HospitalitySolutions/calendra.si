@@ -1153,7 +1153,7 @@ public class BillingController {
                 req.discountItemIndex(),
                 req.wholeBillDiscountPercent(),
                 req.itemDiscounts(),
-                open.getBillType() == BillType.INVOICE
+                true
         );
         if (req.paymentSplits() != null) {
             replaceOpenBillPaymentSplits(open, req.paymentSplits(), companyId);
@@ -1652,7 +1652,7 @@ public class BillingController {
                 discountItemIndexForSave,
                 wholeBillDiscountPercentForSave,
                 itemDiscountsForSave,
-                open.getBillType() == null || open.getBillType() == BillType.INVOICE
+                true
         );
         openBillRepo.save(open);
         return openBillResponseById(companyId, id);
@@ -2105,7 +2105,7 @@ public class BillingController {
                 open.getDiscountItemIndex(),
                 open.getWholeBillDiscountPercent(),
                 parseOpenBillItemDiscountsOrNull(open),
-                resolvedBillType == BillType.INVOICE
+                true
         );
         totalNet = discountedTotals.net();
         totalGross = discountedTotals.gross();
@@ -2119,7 +2119,7 @@ public class BillingController {
         }
         invoiceOrderIdService.assignIfMissing(bill);
         var saved = billRepo.saveAndFlush(bill);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
+        if (shouldFiscalizeOnBillCreate(saved, companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
         linkSourceGuestOrderToCreatedBill(open, saved, companyId);
@@ -2278,7 +2278,7 @@ public class BillingController {
                 discountItemIndexForPreview,
                 wholeBillDiscountPercentForPreview,
                 itemDiscountsForPreview,
-                bill.getBillType() == null || bill.getBillType() == BillType.INVOICE
+                true
         );
         totalNet = previewTotals.net();
         totalGross = previewTotals.gross();
@@ -3497,7 +3497,7 @@ public class BillingController {
                 request.discountItemIndex(),
                 request.wholeBillDiscountPercent(),
                 request.itemDiscounts(),
-                requestedBillType == BillType.INVOICE
+                true
         );
         totalNet = discountedTotals.net();
         totalGross = discountedTotals.gross();
@@ -3553,7 +3553,7 @@ public class BillingController {
         invoiceOrderIdService.assignIfMissing(bill);
         // Ensure we map within an open session. Items are cascade-persisted.
         var saved = billRepo.save(bill);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
+        if (shouldFiscalizeOnBillCreate(saved, companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
 
@@ -3627,7 +3627,7 @@ public class BillingController {
         invoiceOrderIdService.assignIfMissing(refund);
 
         Bill saved = billRepo.saveAndFlush(refund);
-        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod(), companyId)) {
+        if (shouldFiscalizeOnBillCreate(saved, companyId)) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
@@ -5477,8 +5477,29 @@ public class BillingController {
         }
     }
 
-    private boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod, Long companyId) {
-        return paymentMethod != null && paymentMethod.isFiscalized() && isFiscalCashRegisterEnabled(companyId);
+    private boolean shouldFiscalizeOnBillCreate(Bill bill, Long companyId) {
+        return isFiscalCashRegisterEnabled(companyId) && hasFiscalizedPaymentMethod(bill);
+    }
+
+    static boolean hasFiscalizedPaymentMethod(Bill bill) {
+        if (bill == null) return false;
+        boolean hasPaymentSplits = false;
+        if (bill.getPaymentSplits() != null) {
+            for (BillPayment split : bill.getPaymentSplits()) {
+                if (split == null || split.getPaymentMethod() == null) continue;
+                hasPaymentSplits = true;
+                BigDecimal amount = split.getAmountGross();
+                if (amount != null && amount.compareTo(BigDecimal.ZERO) == 0) continue;
+                if (split.getPaymentMethod().isFiscalized()) {
+                    return true;
+                }
+            }
+        }
+        if (hasPaymentSplits) {
+            return false;
+        }
+        PaymentMethod fallbackMethod = bill.getPaymentMethod();
+        return fallbackMethod != null && fallbackMethod.isFiscalized();
     }
 
     private boolean isFiscalCashRegisterEnabled(Long companyId) {
