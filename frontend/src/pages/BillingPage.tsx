@@ -877,7 +877,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     historyStatusAll: 'Vsi statusi plačila',
     historyStatusPaid: 'Plačano',
     historyStatusPending: 'Delno plačano',
-    historyStatusOpen: 'Odprto',
+    historyStatusOpen: 'Neplačano',
     historyStatusCancelled: 'Arhivirano',
     historyFiscalStatusAll: 'Vsi fiskalni statusi',
     historyFiscalStatusSent: 'Izdano',
@@ -895,7 +895,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     historyBillTypeColumn: 'Vrsta',
     historyEmptyTitle: 'Ni še računov',
     historyEmptyText:
-      'Pod odprtimi računi uporabite gumb Novo za ustvarjanje računa ali pretvorbo odprtega računa. Bančni izpisek uvozite z gumbom Uvozi bančni CSV.',
+      'Pod neizdanimi računi uporabite gumb Novo za ustvarjanje računa ali pretvorbo neizdanega računa. Bančni izpisek uvozite z gumbom Uvozi bančni CSV.',
     historyStatInvoicesThisMonth: 'Računi',
     historyStatInvoicesThisMonthSub: 'Skupaj izdanih računov',
     historyStatPaidInvoices: 'Plačani računi',
@@ -908,7 +908,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     openBillsOutstanding: 'Neporavnano',
     openBillsCount: (n: number) => `${n} ${slovenianRacunCountForm(n)}`,
     sortPrefix: 'Razvrsti:',
-    sortOpenBillsAria: 'Razvrsti odprte račune',
+    sortOpenBillsAria: 'Razvrsti neizdane račune',
     sortHistoryAria: 'Razvrsti zgodovino računov',
     createBillTitle: 'Ustvari račun',
     targetPerson: 'Posameznik',
@@ -935,7 +935,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     estimatedTotal: 'Predvideni znesek',
     lineItemsCount: (n: number) => `${n} ${slovenianPostavkaCountForm(n)}`,
     paymentWithMethod: (name: string) => `Plačilo: ${name}`,
-    createOpenBill: 'Ustvari odprti račun',
+    createOpenBill: 'Ustvari neizdan račun',
     createBill: 'Ustvari račun',
     createBillAria: 'Ustvari račun',
     creatingBill: 'Ustvarjanje računa',
@@ -944,8 +944,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     billTypeAdvance: 'Predplačilo',
     tabUnusedAdvances: 'Neizkoriščena predplačila',
     unusedAdvancesEmpty: 'Ni neizkoriščenih predplačil.',
-    applyToOpenBill: 'Dodaj na odprti račun',
-    selectOpenBillSession: 'Seja odprtega računa',
+    applyToOpenBill: 'Dodaj na neizdan račun',
+    selectOpenBillSession: 'Termin neizdanega računa',
     selectAdvance: 'Predplačilo',
     amountToApply: 'Znesek za porabo',
     applyAdvance: 'Uporabi predplačilo',
@@ -960,14 +960,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     requiredAdvanceSelection: 'Najprej izberite predplačilo.',
     requiredOpenBillSessionSelection: 'Najprej izberite sejo odprtega računa.',
     requiredApplyAmount: 'Vnesite znesek za porabo.',
-    advanceAppliedSuccess: 'Predplačilo je uspešno dodano na odprti račun.',
-    openBillNeedsLinesForCreate: 'Dodajte vsaj eno postavko za odprti račun.',
+    advanceAppliedSuccess: 'Predplačilo je uspešno dodano na neizdan račun.',
+    openBillNeedsLinesForCreate: 'Dodajte vsaj eno postavko za neizdan račun.',
     openBillNeedsConsultantPayment: 'Izberite način plačila.',
     openBillsColSessionId: 'ID seje',
     openBillsColSession: 'Seja',
     openBillsTotalGrossFirst: 'Skupaj',
     openBillsTotalGrossLast: 'bruto',
-    manualOpenBillSessionLabel: 'Ročno ustvarjen odprti račun',
+    manualOpenBillSessionLabel: 'Ročno ustvarjen neizdan račun',
   } : {
     newCompanyTitle: 'New company',
     newCompanySubtitle: 'Required: company name.',
@@ -986,7 +986,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     historyStatusAll: 'All payment statuses',
     historyStatusPaid: 'Paid',
     historyStatusPending: 'Partially paid',
-    historyStatusOpen: 'Open',
+    historyStatusOpen: 'Unpaid',
     historyStatusCancelled: 'Archived',
     historyFiscalStatusAll: 'All fiscal statuses',
     historyFiscalStatusSent: 'Invoiced',
@@ -1003,7 +1003,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     historyInvoiceTypeColumn: 'Invoice type',
     historyBillTypeColumn: 'Type',
     historyEmptyTitle: 'No bills yet',
-    historyEmptyText: 'Use New under Open bills to create a bill, or convert an open bill.',
+    historyEmptyText: 'Use New under Unissued invoices to create an invoice, or convert an unissued invoice.',
     historyStatInvoicesThisMonth: 'Invoices',
     historyStatInvoicesThisMonthSub: 'Total invoices issued',
     historyStatPaidInvoices: 'Paid Invoices',
@@ -1016,7 +1016,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     openBillsOutstanding: 'Outstanding',
     openBillsCount: (n: number) => `${n} invoices`,
     sortPrefix: 'Sort:',
-    sortOpenBillsAria: 'Sort open bills',
+    sortOpenBillsAria: 'Sort unissued invoices',
     sortHistoryAria: 'Sort folio history',
     createBillTitle: 'Create bill',
     targetPerson: 'Individual',
@@ -1043,7 +1043,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     estimatedTotal: 'Estimated total',
     lineItemsCount: (n: number) => `${n} line items`,
     paymentWithMethod: (name: string) => `Payment: ${name}`,
-    createOpenBill: 'Create Open Bill',
+    createOpenBill: 'Create an unissued invoice',
     createBill: 'Create bill',
     createBillAria: 'Create bill',
     creatingBill: 'Creating bill',
@@ -1052,8 +1052,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     billTypeAdvance: 'Advance',
     tabUnusedAdvances: 'Unused advances',
     unusedAdvancesEmpty: 'No unused advances.',
-    applyToOpenBill: 'Add to open bill',
-    selectOpenBillSession: 'Open bill session',
+    applyToOpenBill: 'Add to an unissued invoice',
+    selectOpenBillSession: 'Unissued invoice session',
     selectAdvance: 'Advance',
     amountToApply: 'Amount to apply',
     applyAdvance: 'Apply advance',
@@ -1068,8 +1068,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     requiredAdvanceSelection: 'Select an advance first.',
     requiredOpenBillSessionSelection: 'Select an open-bill session first.',
     requiredApplyAmount: 'Enter amount to apply.',
-    advanceAppliedSuccess: 'Advance has been applied to the open bill.',
-    openBillNeedsLinesForCreate: 'Add at least one line item for the open bill.',
+    advanceAppliedSuccess: 'Advance has been applied to an unissued invoice.',
+    openBillNeedsLinesForCreate: 'Add at least one line item for an unissued invoice.',
     openBillNeedsConsultantPayment: 'Select a payment method.',
     openBillsColSessionId: 'Session ID',
     openBillsColSession: 'Session',
@@ -3309,7 +3309,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (status === 'paid') return locale === 'sl' ? 'Plačano' : 'Paid'
     if (status === 'payment_pending') return locale === 'sl' ? 'Delno plačano' : 'Partially Paid'
     if (status === 'cancelled') return locale === 'sl' ? 'Arhivirano' : 'Archived'
-    return locale === 'sl' ? 'Odprto' : 'Open'
+    return locale === 'sl' ? 'Neplačano' : locale === 'sr' ? 'Neplaćeno' : 'Unpaid'
   }
 
   const paymentStatusClass = (status: Bill['paymentStatus']) => {
@@ -3367,6 +3367,29 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (!isStripeSetupMissingError(error)) return false
     setStripeSetupMissingModal({ rawMessage: cleanStripeSetupMessage(readBillingApiMessage(error)) })
     return true
+  }
+
+  const notifyOpenBillClosedResult = (data: any) => {
+    if (data?.fiscalStatus === 'FAILED') {
+      showToast('error', locale === 'sl'
+        ? `Račun je bil zaključen, vendar davčno potrjevanje ni uspelo: ${data?.fiscalLastError || 'neznana napaka'}`
+        : locale === 'sr'
+          ? `Račun je zaključen, ali poreska potvrda nije uspela: ${data?.fiscalLastError || 'nepoznata greška'}`
+          : `The invoice was closed, but fiscalization failed: ${data?.fiscalLastError || 'unknown error'}`)
+      return
+    }
+    const invoiceEmailDeliveryEnabled = settings.INVOICE_DELIVERY_EMAIL_ENABLED !== 'false'
+    showToast('success', locale === 'sl'
+      ? invoiceEmailDeliveryEnabled
+        ? 'Račun je bil uspešno zaključen in poslan stranki po e-pošti.'
+        : 'Račun je bil uspešno zaključen.'
+      : locale === 'sr'
+        ? invoiceEmailDeliveryEnabled
+          ? 'Račun je uspešno zaključen i poslat klijentu e-poštom.'
+          : 'Račun je uspešno zaključen.'
+        : invoiceEmailDeliveryEnabled
+          ? 'The invoice was successfully closed and emailed to the client.'
+          : 'The invoice was successfully closed.')
   }
 
   const notifyBillCreationResult = (data: any, pendingLabel = 'Bill created') => {
@@ -4772,7 +4795,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (data?.id && shouldCreateCheckoutSession(data)) {
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
-      notifyBillCreationResult(data, 'Bill created')
+      notifyOpenBillClosedResult(data)
       const snapshot = await load()
       await onEmbeddedSaved?.()
       const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, snapshot.openBills)
@@ -7847,7 +7870,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <strong>{currency(row.taxTotal)}</strong>
                 </div>
               ))}
-              <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(detailDiscountGross)}</strong></div>
+              {detailDiscountGross > 0.005 && (
+                <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(detailDiscountGross)}</strong></div>
+              )}
               <div className="billing-bill-modal-summary-divider" />
               <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(detailGross)}</strong></div>
             </section>
@@ -8191,7 +8216,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
                   {billingTabIcon('open')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenBills')}</span>
-                  <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Odprti računi' : 'Open bills'}</span>
+                  <span className="billing-tab-label billing-tab-label--mobile">{t('billingTabOpenBills')}</span>
                   <strong className="billing-tab-count">{billingTabCounts.open}</strong>
                 </button>
                 <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('openPayments')}>
@@ -8239,7 +8264,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
                       className="clients-search-input billing-modern-search"
-                      placeholder={isOpenBillsMobile ? (locale === 'sl' ? 'Išči odprte račune...' : 'Search open bills...') : t('billingOpenBillsSearchPlaceholder')}
+                      placeholder={isOpenBillsMobile ? (locale === 'sl' ? 'Išči neizdane račune...' : locale === 'sr' ? 'Pretraži neizdate račune...' : 'Search unissued invoices...') : t('billingOpenBillsSearchPlaceholder')}
                       value={openBillsSearch}
                       onChange={(e) => setOpenBillsSearch(e.target.value)}
                     />

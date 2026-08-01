@@ -115,9 +115,14 @@ export default function App() {
 
 
   useEffect(() => {
-    registerConflict409Handler((msg) => showToast('error', msg))
+    const genericConflict = locale === 'sl'
+      ? 'Zahtevane spremembe ni mogoče izvesti, ker je v navzkrižju z obstoječimi podatki.'
+      : locale === 'sr'
+        ? 'Traženu izmenu nije moguće izvršiti jer je u konfliktu sa postojećim podacima.'
+        : 'The requested change conflicts with existing data.'
+    registerConflict409Handler((msg) => showToast('error', msg && msg.trim().toLowerCase() !== 'conflict' ? msg : genericConflict))
     return () => registerConflict409Handler(null)
-  }, [showToast])
+  }, [locale, showToast])
 
   useEffect(() => {
     if (!user) {

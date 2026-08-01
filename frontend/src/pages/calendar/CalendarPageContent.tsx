@@ -47,7 +47,7 @@ import {
   type AvailabilityFormQuery,
   type NewSlotQuery,
 } from '../calendarFormRoutes'
-import { api } from '../../api'
+import { api, getApiErrorMessage } from '../../api'
 import { nowMs } from '../../lib/clock'
 import { setPostZoomReturnPath } from '../../lib/session'
 import { Card, Field, PageHeader } from '../../components/ui'
@@ -2342,8 +2342,15 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           setSelection(null)
           setEditingClientSearch(false)
         }).catch((e: any) => {
-          const msg = e?.response?.data?.message || e?.message || 'Failed to book session.'
-          setSaveBookingError(String(msg))
+          if (Number(e?.response?.status) === 409) {
+            setSaveBookingError(t('calendarErrorBookingConflict'))
+          } else {
+            setSaveBookingError(getApiErrorMessage(e, locale === 'sl'
+              ? 'Termina ni bilo mogoče rezervirati.'
+              : locale === 'sr'
+                ? 'Termin nije bilo moguće rezervisati.'
+                : 'Failed to book session.'))
+          }
         })
       })
     } catch {
@@ -2433,7 +2440,13 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const connectZoom = async () => {
     const returnTo = `${location.pathname}${location.search}` || '/calendar'
     setPostZoomReturnPath(returnTo)
-    navigate(`/zoom/install?next=${encodeURIComponent(returnTo)}`)
+    const installPath = `/zoom/install?next=${encodeURIComponent(returnTo)}`
+    const zoomWindow = window.open(installPath, '_blank')
+    if (!zoomWindow) {
+      navigate(installPath)
+      return
+    }
+    zoomWindow.focus()
   }
   const connectGoogle = async () => {
     const { data } = await api.get('/google/authorize')
@@ -8543,9 +8556,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       window.dispatchEvent(new Event('todos-updated'))
       leaveCompactFormRouteIfNeeded()
     } catch (e: any) {
-      const data = e?.response?.data
-      const msg = (data?.message ?? data?.error ?? e?.message) || 'Failed to book session.'
-      setSaveBookingError(String(msg))
+      if (Number(e?.response?.status) === 409) {
+        setSaveBookingError(t('calendarErrorBookingConflict'))
+      } else {
+        setSaveBookingError(getApiErrorMessage(e, locale === 'sl'
+          ? 'Termina ni bilo mogoče rezervirati.'
+          : locale === 'sr'
+            ? 'Termin nije bilo moguće rezervisati.'
+            : 'Failed to book session.'))
+      }
     } finally {
       setSaveBookingLoading(false)
     }
@@ -9432,7 +9451,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const canCreateOpenBill = status?.status === 'UNPAID' && !status?.openBillId
     const canUseInvoiceActions = !!invoiceAllocation?.billId && (status?.status === 'PARTIALLY_PAID' || status?.status === 'PAYMENT_PENDING' || status?.status === 'PAID')
     const detailSourceLabel = invoiceAllocation
-      ? (locale === 'sl' ? 'Odprti računi' : 'Open invoices')
+      ? (locale === 'sl' ? 'Neizdani računi' : locale === 'sr' ? 'Neizdati računi' : 'Unissued invoices')
       : advanceAllocation
         ? (locale === 'sl' ? 'Predplačilo' : 'Advance')
         : entitlementAllocation

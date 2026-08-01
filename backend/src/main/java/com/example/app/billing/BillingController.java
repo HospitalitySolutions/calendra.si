@@ -3762,7 +3762,7 @@ public class BillingController {
                 bill.setBankTransferReference(BankStatementReconciliationService.bankReferenceForBill(bill));
             }
             if (!BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
-                bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
+                bill.setPaymentStatus(BillPaymentSplitSupport.resolveInitialPaymentStatus(bill));
             }
             bill = billRepo.save(bill);
             byte[] folioPdf = billFolioPdfService.generate(bill, companyId);
@@ -5470,12 +5470,7 @@ public class BillingController {
     }
 
     private static String resolveInitialPaymentStatus(Bill bill) {
-        if (BillPaymentSplitSupport.resolveBankTransferDueGross(bill).compareTo(BigDecimal.ZERO) > 0) {
-            return BillPaymentStatus.PAYMENT_PENDING;
-        }
-        PaymentMethod paymentMethod = bill == null ? null : bill.getPaymentMethod();
-        if (paymentMethod != null && paymentMethod.isStripeEnabled()) return BillPaymentStatus.OPEN;
-        return BillPaymentStatus.PAID;
+        return BillPaymentSplitSupport.resolveInitialPaymentStatus(bill);
     }
 
 }

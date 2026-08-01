@@ -2021,7 +2021,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               subtitle={warningCopy.overlappingSubtitle(confirmOverlap.overlapping.length)}
             />
             <div className="row gap">
-              <button onClick={() => saveBooking(true, false, true)} disabled={saveBookingLoading}>{warningCopy.overlappingConfirm}</button>
+              <button onClick={() => saveBooking(true, true, true)} disabled={saveBookingLoading}>{warningCopy.overlappingConfirm}</button>
               <button className="secondary" onClick={() => { setConfirmOverlap(null) }}>{warningCopy.overlappingCancel}</button>
             </div>
           </div>
@@ -2819,7 +2819,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               )}
               <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               {showBookingTypeRow && (
-                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain">
+                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain calendar-booking-service-with-online">
                   <div className="calendar-booking-service-infield-head calendar-booking-service-infield-head--chain">
                     <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
                     {onlineSessionBookingEnabled && selectedBookedSession.online ? (
@@ -5265,7 +5265,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               )}
               {!form.todo && !form.personal && !availabilitySelection && showBookingTypeRow && (
-                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain">
+                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain calendar-booking-service-with-online">
                   <div className="calendar-booking-service-infield-head calendar-booking-service-infield-head--chain">
                     <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
                     {onlineSessionBookingEnabled && form.online ? (

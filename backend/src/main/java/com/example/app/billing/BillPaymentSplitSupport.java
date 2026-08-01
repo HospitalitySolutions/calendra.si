@@ -34,6 +34,24 @@ public final class BillPaymentSplitSupport {
         return total.setScale(2, RoundingMode.HALF_UP);
     }
 
+    public static String resolveInitialPaymentStatus(Bill bill) {
+        BigDecimal bankTransferDue = resolveBankTransferDueGross(bill);
+        if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal totalGross = money(bill == null ? null : bill.getTotalGross());
+            // A bill paid entirely by bank transfer has not received any money yet.
+            // Only a smaller bank-transfer remainder represents a partially paid bill.
+            return totalGross.compareTo(BigDecimal.ZERO) > 0
+                    && bankTransferDue.compareTo(totalGross) >= 0
+                    ? BillPaymentStatus.OPEN
+                    : BillPaymentStatus.PAYMENT_PENDING;
+        }
+        PaymentMethod paymentMethod = bill == null ? null : bill.getPaymentMethod();
+        if (paymentMethod != null && paymentMethod.isStripeEnabled()) {
+            return BillPaymentStatus.OPEN;
+        }
+        return BillPaymentStatus.PAID;
+    }
+
     public static BigDecimal resolvePendingPaymentGross(Bill bill) {
         BigDecimal bankTransferDue = resolveBankTransferDueGross(bill);
         if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {

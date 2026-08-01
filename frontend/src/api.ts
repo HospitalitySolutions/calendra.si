@@ -113,6 +113,7 @@ function isUsefulApiMessage(value: unknown): value is string {
     'forbidden',
     'not found',
     'internal server error',
+    'conflict',
   ])
   return !generic.has(normalized.toLowerCase())
 }
