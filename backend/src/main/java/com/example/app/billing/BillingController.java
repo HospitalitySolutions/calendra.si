@@ -35,7 +35,9 @@ import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.PageRequest;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -5173,7 +5175,12 @@ public class BillingController {
 
     @GetMapping("/folio-logo")
     public ResponseEntity<String> getFolioLogo(@AuthenticationPrincipal User me) {
-        var dataUri = settingValue(me.getCompany().getId(), SettingKey.COMPANY_LOGO_BASE64);
+        Long companyId = me.getCompany().getId();
+        var publicLogoUrl = settingValue(companyId, SettingKey.COMPANY_LOGO_URL);
+        if (!publicLogoUrl.isBlank()) {
+            return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(publicLogoUrl);
+        }
+        var dataUri = settingValue(companyId, SettingKey.COMPANY_LOGO_BASE64);
         if (dataUri.isBlank()) {
             return ResponseEntity.noContent().build();
         }
@@ -5223,6 +5230,9 @@ public class BillingController {
     }
 
     private byte[] loadLogoBytes(Long companyId) {
+        var publicLogoUrl = settingValue(companyId, SettingKey.COMPANY_LOGO_URL);
+        byte[] publicLogoBytes = downloadLogoBytesFromUrl(publicLogoUrl);
+        if (publicLogoBytes != null && publicLogoBytes.length > 0) return publicLogoBytes;
         var dataUri = settingValue(companyId, SettingKey.COMPANY_LOGO_BASE64);
         if (dataUri.isBlank()) return null;
         int commaIdx = dataUri.indexOf(',');
@@ -5231,6 +5241,16 @@ public class BillingController {
             return java.util.Base64.getDecoder().decode(dataUri.substring(commaIdx + 1));
         } catch (IllegalArgumentException e) {
             log.warn("Invalid base64 logo for company, ignoring", e);
+            return null;
+        }
+    }
+
+    private byte[] downloadLogoBytesFromUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) return null;
+        try (InputStream input = URI.create(rawUrl.trim()).toURL().openStream()) {
+            return input.readAllBytes();
+        } catch (Exception e) {
+            log.warn("Failed to download public company logo from {}", rawUrl, e);
             return null;
         }
     }

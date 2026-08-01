@@ -270,6 +270,7 @@ public class ReceiptPdfService {
         sections.put("payment", paymentBlocks(request, layout, fonts, typography, locale));
         sections.put("paymentQr", paymentQrBlocks(request, layout, typography, locale));
         sections.put("fiscal", fiscalBlocks(request, layout, fonts, typography, locale));
+        sections.put("taxClauses", taxClauseBlocks(layout, fonts, typography, locale));
         sections.put("notes", notesBlocks(request, layout, fonts, typography, locale));
         sections.put("footer", footerBlocks(layout, fonts, typography));
 
@@ -305,8 +306,10 @@ public class ReceiptPdfService {
         String label = firstNonBlank(request.getFolioNumberLabel(), word(locale, "Račun", "Račun", "Invoice"));
         String number = safe(request.getFolioNumber());
         addWrapped(blocks, (label + " " + number).trim(), fonts.bold(), type.title(), type.lineHeight() + 1f, true, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
-        addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), request.getFolioDate(), fonts, type, false);
-        addPair(blocks, word(locale, "Datum storitve", "Datum usluge", "Service date"), request.getDateOfService(), fonts, type, false);
+        String[] issueParts = splitIssueDateAndTime(request.getFolioDate());
+        addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), issueParts[0], fonts, type, false);
+        addPair(blocks, word(locale, "Ura izdaje", "Vreme izdavanja", "Issue time"), issueParts[1], fonts, type, false);
+        addPair(blocks, word(locale, "Datum opravljene storitve", "Datum izvršene usluge", "Service date"), request.getDateOfService(), fonts, type, false);
         addPair(blocks, word(locale, "Rok plačila", "Rok plaćanja", "Due date"), request.getDueDate(), fonts, type, false);
         blocks.add(new RuleBlock(4f, 1f));
         return blocks;
@@ -454,10 +457,21 @@ public class ReceiptPdfService {
         return blocks;
     }
 
+    private List<Block> taxClauseBlocks(PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
+        List<String> clauses = normalizedTaxClauses(layout);
+        if (clauses.isEmpty()) return List.of();
+        List<Block> blocks = new ArrayList<>();
+        blocks.add(textBlock(word(locale, "Davčne klavzule", "Poreske klauzule", "Tax clauses"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
+        for (String clause : clauses) {
+            addWrapped(blocks, "• " + clause, fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
+        }
+        return blocks;
+    }
+
     private List<Block> notesBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
         if (!layout.isShowNotes() || blank(request.getNotes())) return List.of();
         List<Block> blocks = new ArrayList<>();
-        blocks.add(textBlock(word(locale, "Opombe", "Napomene", "Notes"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
+        blocks.add(textBlock(word(locale, "Referenca", "Referenca", "Reference"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
         addWrapped(blocks, request.getNotes(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
         return blocks;
     }
@@ -468,6 +482,31 @@ public class ReceiptPdfService {
         blocks.add(new RuleBlock(1f, 5f));
         addWrapped(blocks, layout.getFooterText(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         return blocks;
+    }
+
+    private List<String> normalizedTaxClauses(PosReceiptLayoutConfig layout) {
+        List<String> clauses = new ArrayList<>();
+        if (layout == null || layout.getTaxClauses() == null) return clauses;
+        for (String clause : layout.getTaxClauses()) {
+            if (clause == null) continue;
+            String trimmed = clause.trim();
+            if (!trimmed.isBlank() && !clauses.contains(trimmed)) clauses.add(trimmed);
+        }
+        return clauses;
+    }
+
+    private String[] splitIssueDateAndTime(String value) {
+        String raw = safe(value).trim();
+        if (raw.isBlank()) return new String[] {"", ""};
+        String normalized = raw.replace('T', ' ');
+        int lastSpace = normalized.lastIndexOf(' ');
+        if (lastSpace > 0 && lastSpace < normalized.length() - 1) {
+            String timeCandidate = normalized.substring(lastSpace + 1).trim();
+            if (timeCandidate.matches("\\d{1,2}:\\d{2}(:\\d{2})?")) {
+                return new String[] { normalized.substring(0, lastSpace).trim(), timeCandidate };
+            }
+        }
+        return new String[] { raw, "" };
     }
 
     private void addPair(List<Block> blocks, String label, String value, FontSet fonts, Typography type, boolean bold) {

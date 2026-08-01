@@ -6,6 +6,8 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.io.InputStream;
+import java.net.URI;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -547,6 +549,9 @@ public class BillFolioPdfService {
     }
 
     private byte[] loadLogoBytes(Long companyId) {
+        var publicLogoUrl = settingValue(companyId, SettingKey.COMPANY_LOGO_URL);
+        byte[] publicLogoBytes = downloadLogoBytesFromUrl(publicLogoUrl);
+        if (publicLogoBytes != null && publicLogoBytes.length > 0) return publicLogoBytes;
         var dataUri = settingValue(companyId, SettingKey.COMPANY_LOGO_BASE64);
         if (dataUri.isBlank()) return null;
         int commaIdx = dataUri.indexOf(',');
@@ -555,6 +560,16 @@ public class BillFolioPdfService {
             return java.util.Base64.getDecoder().decode(dataUri.substring(commaIdx + 1));
         } catch (IllegalArgumentException e) {
             log.warn("Invalid base64 logo for company {}, ignoring", companyId, e);
+            return null;
+        }
+    }
+
+    private byte[] downloadLogoBytesFromUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) return null;
+        try (InputStream input = URI.create(rawUrl.trim()).toURL().openStream()) {
+            return input.readAllBytes();
+        } catch (Exception e) {
+            log.warn("Failed to download public company logo from {}", rawUrl, e);
             return null;
         }
     }

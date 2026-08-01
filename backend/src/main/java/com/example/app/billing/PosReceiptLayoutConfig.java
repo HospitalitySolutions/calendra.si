@@ -23,6 +23,7 @@ public class PosReceiptLayoutConfig {
             "payment",
             "paymentQr",
             "fiscal",
+            "taxClauses",
             "notes",
             "footer"
     );
@@ -38,6 +39,7 @@ public class PosReceiptLayoutConfig {
     private boolean showIssuedBy = true;
     private String fontSize = "STANDARD";
     private String footerText = "";
+    private List<String> taxClauses = new ArrayList<>();
     private List<String> sectionOrder = new ArrayList<>(DEFAULT_SECTION_ORDER);
 
     public static PosReceiptLayoutConfig defaultLayout() {
@@ -58,6 +60,7 @@ public class PosReceiptLayoutConfig {
         normalized.showIssuedBy = source.showIssuedBy;
         normalized.fontSize = normalizeFontSize(source.fontSize);
         normalized.footerText = source.footerText == null ? "" : source.footerText.strip();
+        normalized.taxClauses = normalizeTaxClauses(source.taxClauses);
 
         Set<String> ordered = new LinkedHashSet<>();
         if (source.sectionOrder != null) {
@@ -77,6 +80,17 @@ public class PosReceiptLayoutConfig {
             case "COMPACT", "LARGE" -> normalized;
             default -> "STANDARD";
         };
+    }
+
+    private static List<String> normalizeTaxClauses(List<String> input) {
+        List<String> normalized = new ArrayList<>();
+        if (input == null) return normalized;
+        for (String clause : input) {
+            if (clause == null) continue;
+            String trimmed = clause.trim();
+            if (!trimmed.isBlank() && !normalized.contains(trimmed)) normalized.add(trimmed);
+        }
+        return normalized;
     }
 
     public boolean isShowLogo() { return showLogo; }
@@ -101,6 +115,8 @@ public class PosReceiptLayoutConfig {
     public void setFontSize(String fontSize) { this.fontSize = fontSize; }
     public String getFooterText() { return footerText; }
     public void setFooterText(String footerText) { this.footerText = footerText; }
+    public List<String> getTaxClauses() { return taxClauses; }
+    public void setTaxClauses(List<String> taxClauses) { this.taxClauses = taxClauses; }
     public List<String> getSectionOrder() { return sectionOrder; }
     public void setSectionOrder(List<String> sectionOrder) { this.sectionOrder = sectionOrder; }
 }
