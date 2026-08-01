@@ -29,7 +29,10 @@ class ReceiptPdfServiceTest {
                     .isCloseTo(ReceiptPdfService.PAPER_WIDTH_PT, within(0.05f));
             assertThat(document.getPage(0).getMediaBox().getHeight()).isGreaterThan(200f);
             String text = new PDFTextStripper().getText(document);
-            assertThat(text).contains(
+            // PDFBox preserves visual line wraps in extracted text. Normalize whitespace so
+            // assertions verify the receipt content rather than a specific 58 mm wrap point.
+            String normalizedText = text.replaceAll("\\s+", " ").trim();
+            assertThat(normalizedText).contains(
                     "Calendra Studio",
                     "TRR: SI56 1910 0001 2345 678",
                     "RAC-2026-00042",
@@ -41,7 +44,7 @@ class ReceiptPdfServiceTest {
                     "EOR-2026-42",
                     "Izdal"
             );
-            assertThat(text).doesNotContain("Bančno nakazilo");
+            assertThat(normalizedText).doesNotContain("Bančno nakazilo");
         }
     }
 

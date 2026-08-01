@@ -322,7 +322,7 @@ export function PosReceiptLayoutEditor() {
 
   const receiptLocale: ReceiptLocale = locale === 'sl' || locale === 'sr' ? locale : 'en'
   const referencePreview = (layout.referenceTexts[receiptLocale] || '{reference-number}')
-    .replaceAll('{reference-number}', 'REF-2026-001')
+    .split('{reference-number}').join('REF-2026-001')
 
   const previewSections: Record<string, ReactNode> = {
     company: <>{layout.showLogo ? <div className="pos58-preview-logo">LOGO</div> : null}<strong className="pos58-preview-company">Calendra Studio</strong><span>Glavna ulica 12</span><span>2000 Maribor</span><span>SI12345678</span><span>{locale === 'sl' ? 'TRR' : 'IBAN'}: SI56 … 5678</span></>,
