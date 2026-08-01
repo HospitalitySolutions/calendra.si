@@ -83,7 +83,7 @@ public class FolioLayoutConfig {
         /** Optional localized prefix rendered inside the data block, left of the value. */
         private LocalizedText prefixI18n;
         /** Optional date output format for date-like data fields (e.g. folioDate). */
-        private String dateFormat = "YYYY-MM-DD";
+        private String dateFormat = "DD.MM.YYYY";
         private float x;
         private float y;
         private float width = 200;
@@ -180,7 +180,7 @@ public class FolioLayoutConfig {
         private String label = "";
         private LocalizedText labelI18n;
         /** Optional output format for the table date column. */
-        private String dateFormat = "YYYY-MM-DD";
+        private String dateFormat = "DD.MM.YYYY";
         private float relX;
         private float width = 100;
         private String alignment = "left";
@@ -403,9 +403,9 @@ public class FolioLayoutConfig {
                 field.setPrefixI18n(defaultFieldPrefix(field.getKey()));
             }
             if ("folioDate".equals(field.getKey())) {
-                field.setDateFormat("YYYY-MM-DD HH:mm");
+                field.setDateFormat("DD.MM.YYYY HH:mm");
             } else if ("dateOfService".equals(field.getKey()) || "dueDate".equals(field.getKey())) {
-                field.setDateFormat("YYYY-MM-DD");
+                field.setDateFormat("DD.MM.YYYY");
             }
         }
         cfg.setFields(fields);
@@ -430,7 +430,7 @@ public class FolioLayoutConfig {
         for (var col : cols) {
             col.setLabelI18n(new LocalizedText(col.getLabel(), slColumnLabel(col.getKey(), col.getLabel())));
             if ("date".equals(col.getKey())) {
-                col.setDateFormat("YYYY-MM-DD");
+                col.setDateFormat("DD.MM.YYYY");
             }
         }
         table.setColumns(cols);
@@ -813,7 +813,9 @@ public class FolioLayoutConfig {
                 }
                 if (isDocumentMetaKey(field.getKey())) {
                     if ("folioDate".equals(field.getKey())
-                            && (field.getDateFormat() == null || field.getDateFormat().isBlank() || "YYYY-MM-DD".equals(field.getDateFormat()))) {
+                            && (field.getDateFormat() == null || field.getDateFormat().isBlank())) {
+                        field.setDateFormat("DD.MM.YYYY HH:mm");
+                    } else if ("folioDate".equals(field.getKey()) && "YYYY-MM-DD".equals(field.getDateFormat())) {
                         field.setDateFormat("YYYY-MM-DD HH:mm");
                     }
                     if ("folioDate".equals(field.getKey()) && (field.getLabel() == null || field.getLabel().isBlank() || "Issue Date".equals(field.getLabel()))) {

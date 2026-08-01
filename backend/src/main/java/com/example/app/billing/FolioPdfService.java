@@ -424,7 +424,7 @@ public class FolioPdfService {
         float y = firstRowBaseline;
         for (FolioPdfRequest.AdvancePaymentLine row : rows) {
             drawText(ctx, fonts.regular(), bodyFs, colX[0], y, safe(row.getAdvanceNumber()));
-            drawText(ctx, fonts.regular(), bodyFs, colX[1], y, formatDateValue(safe(row.getDate()), "YYYY-MM-DD"));
+            drawText(ctx, fonts.regular(), bodyFs, colX[1], y, formatDateValue(safe(row.getDate()), "DD.MM.YYYY"));
             drawText(ctx, fonts.regular(), bodyFs, colX[2], y, displayTaxPercent(row.getTaxPercent()));
             drawTextRight(ctx, fonts.regular(), bodyFs, advanceBasisRight, y, fmt(row.getNetBasis()));
             drawTextRight(ctx, fonts.regular(), bodyFs, advanceVatRight, y, fmt(row.getTaxAmount()));
@@ -1473,7 +1473,7 @@ public class FolioPdfService {
 
     private static String formatDateValue(String raw, String configuredFormat) {
         if (raw == null || raw.isBlank()) return "";
-        String format = configuredFormat == null || configuredFormat.isBlank() ? "YYYY-MM-DD" : configuredFormat;
+        String format = configuredFormat == null || configuredFormat.isBlank() ? "DD.MM.YYYY" : configuredFormat;
         boolean includeTime = format.contains("HH");
         if (includeTime) {
             LocalDateTime parsedDateTime = parseDateTime(raw.trim());
@@ -1486,7 +1486,7 @@ public class FolioPdfService {
                 case "DD-MM-YYYY HH:mm" -> parsedDateTime.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"));
                 case "DD.MM.YYYY HH:mm" -> parsedDateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
                 case "YYYY-MM-DD HH:mm" -> parsedDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-                default -> parsedDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                default -> parsedDateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
             };
         }
 
@@ -1496,7 +1496,7 @@ public class FolioPdfService {
             case "DD-MM-YYYY" -> parsed.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
             case "DD.MM.YYYY" -> parsed.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
             case "YYYY-MM-DD" -> parsed.format(DateTimeFormatter.ISO_LOCAL_DATE);
-            default -> parsed.format(DateTimeFormatter.ISO_LOCAL_DATE);
+            default -> parsed.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
         };
     }
 

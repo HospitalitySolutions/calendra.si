@@ -19,6 +19,12 @@ class PosReceiptLayoutConfigTest {
         assertThat(normalized.getFooterText()).isEqualTo("Hvala");
         assertThat(normalized.getSectionOrder()).startsWith("items", "company");
         assertThat(normalized.getSectionOrder()).containsExactlyInAnyOrderElementsOf(PosReceiptLayoutConfig.DEFAULT_SECTION_ORDER);
+        assertThat(normalized.getSectionOrder()).doesNotContain("payment");
+        assertThat(normalized.getSectionOrder()).contains("issuedBy");
+        assertThat(normalized.getReferenceTexts())
+                .containsEntry("sl", PosReceiptLayoutConfig.DEFAULT_REFERENCE_TEXT_SL)
+                .containsEntry("en", PosReceiptLayoutConfig.DEFAULT_REFERENCE_TEXT_EN)
+                .containsEntry("sr", PosReceiptLayoutConfig.DEFAULT_REFERENCE_TEXT_SR);
     }
 
     @Test

@@ -189,7 +189,7 @@ const ADVANCE_PAYMENT_SAMPLE_ROWS = 1
 const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en', sr: 'sl' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
 const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate', 'recipientVatId'])
-const DATE_FORMAT_OPTIONS: DateFormat[] = ['YYYY-MM-DD', 'DD-MM-YYYY', 'DD.MM.YYYY', 'YYYY-MM-DD HH:mm', 'DD-MM-YYYY HH:mm', 'DD.MM.YYYY HH:mm']
+const DATE_FORMAT_OPTIONS: DateFormat[] = ['DD.MM.YYYY', 'DD-MM-YYYY', 'YYYY-MM-DD', 'DD.MM.YYYY HH:mm', 'DD-MM-YYYY HH:mm', 'YYYY-MM-DD HH:mm']
 const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
   folioNumber: { en: 'Invoice:', sl: 'Račun:' },
   folioDate: { en: 'Issue date and time:', sl: 'Datum in ura izdaje:' },
@@ -201,9 +201,9 @@ const FIELD_SAMPLE_VALUES: Record<string, string> = {
   companyPostalCodeCity: '1000 Ljubljana',
   recipientPostalCodeCity: '1000 Ljubljana',
   folioNumber: '0000',
-  folioDate: '2026-05-26 14:30',
-  dateOfService: '2026-05-26',
-  dueDate: '2026-05-26',
+  folioDate: '26.05.2026 14:30',
+  dateOfService: '26.05.2026',
+  dueDate: '26.05.2026',
   recipientVatId: 'SI12345678',
 }
 
@@ -564,7 +564,7 @@ function isPrefixField(field: FieldConfig) {
 }
 
 function defaultDateFormatForField(key: string): DateFormat {
-  return key === 'folioDate' ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'
+  return key === 'folioDate' ? 'DD.MM.YYYY HH:mm' : 'DD.MM.YYYY'
 }
 
 function isLegacyFolioNumberPrefix(value: string | undefined): boolean {
@@ -844,7 +844,7 @@ function isValidLayout(data: any): data is LayoutConfig {
     if (col.visible == null) col.visible = true
     col.labelI18n = ensureLocalizedText(col.labelI18n, col.label)
     col.label = resolveLocalizedText(col.labelI18n, col.label, 'en')
-    if (col.key === 'date' && !col.dateFormat) col.dateFormat = 'YYYY-MM-DD'
+    if (col.key === 'date' && !col.dateFormat) col.dateFormat = 'DD.MM.YYYY'
   }
   // Migrate legacy footer totals block and ensure newly supported footer items exist.
   migrateLegacyFooterForDiscount(data)
@@ -1031,11 +1031,11 @@ function A4FolioLayoutEditor() {
       if (layout && dirty) await api.put('/billing/folio-layout', layout)
       const sample = {
         companyName: 'Calendra Studio d.o.o.', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', companyTaxId: 'SI12345678',
-        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '2026-07-31 12:45', dateOfService: '2026-07-31', dueDate: '2026-08-14',
+        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', dateOfService: '31.07.2026', dueDate: '14.08.2026',
         recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: 'SI98765432',
         services: [
-          { date: '2026-07-31', description: locale === 'sl' ? 'Masaža hrbta in vratu' : 'Back and neck massage', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
-          { date: '2026-07-31', description: locale === 'sl' ? 'Individualno svetovanje' : 'Individual counselling', qty: 2, nettPrice: 20.49, grossPrice: 25, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+          { date: '31.07.2026', description: locale === 'sl' ? 'Masaža hrbta in vratu' : 'Back and neck massage', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+          { date: '31.07.2026', description: locale === 'sl' ? 'Individualno svetovanje' : 'Individual counselling', qty: 2, nettPrice: 20.49, grossPrice: 25, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
         ],
         paymentMethods: [{ name: locale === 'sl' ? 'Bančno nakazilo' : 'Bank transfer', amountGross: 100 }],
         paymentMethod: locale === 'sl' ? 'Bančno nakazilo' : 'Bank transfer', issuedBy: 'David Mirc', iban: 'SI56 5678 1234 5678 901', toBePaidGross: 100,
@@ -2323,7 +2323,7 @@ function A4FolioLayoutEditor() {
                 <div className="fle-panel-grid" style={{ marginBottom: 8 }}>
                   <Field label="Date format">
                     <select
-                      value={selectedField.dateFormat || 'YYYY-MM-DD'}
+                      value={selectedField.dateFormat || defaultDateFormatForField(selectedField.key)}
                       onChange={(e) => mutateLayout((l) => {
                         l.fields[selection.index].dateFormat = e.target.value as FieldConfig['dateFormat']
                       })}
@@ -2482,7 +2482,7 @@ function A4FolioLayoutEditor() {
                     {col.key === 'date' ? (
                       <Field label="Date format">
                         <select
-                          value={col.dateFormat || 'YYYY-MM-DD'}
+                          value={col.dateFormat || 'DD.MM.YYYY'}
                           onChange={(e) => mutateLayout((l) => {
                             l.table.columns[ci].dateFormat = e.target.value as ColumnConfig['dateFormat']
                           })}

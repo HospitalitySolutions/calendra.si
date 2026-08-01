@@ -29,7 +29,19 @@ class ReceiptPdfServiceTest {
                     .isCloseTo(ReceiptPdfService.PAPER_WIDTH_PT, within(0.05f));
             assertThat(document.getPage(0).getMediaBox().getHeight()).isGreaterThan(200f);
             String text = new PDFTextStripper().getText(document);
-            assertThat(text).contains("Calendra Studio", "RAC-2026-00042", "Masaža hrbta", "100.00 EUR", "EOR-2026-42");
+            assertThat(text).contains(
+                    "Calendra Studio",
+                    "TRR: SI56 1910 0001 2345 678",
+                    "RAC-2026-00042",
+                    "31.07.2026",
+                    "Masaža hrbta",
+                    "100.00 EUR",
+                    "Popust",
+                    "Prosimo, da se pri plačilu sklicujete na št.: SI00 123",
+                    "EOR-2026-42",
+                    "Izdal"
+            );
+            assertThat(text).doesNotContain("Bančno nakazilo");
         }
     }
 
@@ -75,7 +87,8 @@ class ReceiptPdfServiceTest {
         request.setIban("SI56 1910 0001 2345 678");
         request.setIssuedBy("David Mirc");
         request.setToBePaidGross(new BigDecimal("100.00"));
-        request.setNotes("Hvala za vaš obisk.");
+        request.setDiscountAmountGross(new BigDecimal("10.00"));
+        request.setNotes("SI00 123");
 
         List<FolioPdfRequest.ServiceLine> services = new ArrayList<>();
         for (int index = 1; index <= lineCount; index++) {

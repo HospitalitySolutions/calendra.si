@@ -26,7 +26,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class BillFolioPdfService {
     private static final Logger log = LoggerFactory.getLogger(BillFolioPdfService.class);
     private static final ObjectMapper LAYOUT_MAPPER = new ObjectMapper();
-    private static final DateTimeFormatter ISSUE_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter ISSUE_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+    private static final DateTimeFormatter INVOICE_DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final AppSettingRepository settings;
     private final SessionBookingRepository sessionBookings;
@@ -135,9 +136,9 @@ public class BillFolioPdfService {
         if (serviceDate == null) {
             serviceDate = bill.getIssueDate();
         }
-        req.setDateOfService(serviceDate != null ? serviceDate.toString() : "");
+        req.setDateOfService(serviceDate != null ? serviceDate.format(INVOICE_DATE_FORMAT) : "");
         if (bill.getIssueDate() != null) {
-            req.setDueDate(bill.getIssueDate().plusDays(resolvePaymentDeadlineDays(companyId)).toString());
+            req.setDueDate(bill.getIssueDate().plusDays(resolvePaymentDeadlineDays(companyId)).format(INVOICE_DATE_FORMAT));
         }
 
         boolean companyRecipient = "COMPANY".equalsIgnoreCase(bill.getRecipientTypeSnapshot());
@@ -213,7 +214,7 @@ public class BillFolioPdfService {
             req.setPaymentQrPayload(bill.getStripeHostedInvoiceUrl());
         }
 
-        String fallbackDate = serviceDate != null ? serviceDate.toString() : "";
+        String fallbackDate = serviceDate != null ? serviceDate.format(INVOICE_DATE_FORMAT) : "";
         var serviceLines = new ArrayList<FolioPdfRequest.ServiceLine>();
         for (var item : bill.getItems()) {
             var ts = item.getTransactionService();
@@ -298,17 +299,18 @@ public class BillFolioPdfService {
 
     private String documentNumberPrefix(Bill bill, String locale) {
         boolean slovenian = isSlovenian(locale);
+        boolean serbian = isSerbian(locale);
         if (isOpenBillPreview(bill)) {
-            return slovenian ? "Predračun:" : "Proforma invoice:";
+            return slovenian || serbian ? "Predračun:" : "Proforma invoice:";
         }
         if (isRefundBill(bill)) {
-            return slovenian ? "Dobropis:" : "Refund:";
+            return slovenian ? "Dobropis:" : serbian ? "Odobrenje:" : "Refund:";
         }
         BillType type = bill == null || bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
         if (type == BillType.ADVANCE) {
-            return slovenian ? "Predplačilo:" : "Advance:";
+            return slovenian ? "Predplačilo:" : serbian ? "Avans:" : "Advance:";
         }
-        return slovenian ? "Račun:" : "Invoice:";
+        return slovenian || serbian ? "Račun:" : "Invoice:";
     }
 
     private boolean isOpenBillPreview(Bill bill) {
@@ -360,7 +362,7 @@ public class BillFolioPdfService {
             Bill advance = split.getSourceAdvanceBill();
             var line = new FolioPdfRequest.AdvancePaymentLine();
             line.setAdvanceNumber(firstNonBlank(advance.getBillNumber(), advance.getOrderId(), advance.getId() == null ? null : String.valueOf(advance.getId())));
-            line.setDate(advance.getIssueDate() == null ? "" : advance.getIssueDate().toString());
+            line.setDate(advance.getIssueDate() == null ? "" : advance.getIssueDate().format(INVOICE_DATE_FORMAT));
             line.setTaxPercent(resolveAdvanceTaxPercentLabel(advance));
             BigDecimal netBasis = (advance.getTotalNet() == null ? resolveAdvanceNetTotal(advance) : advance.getTotalNet())
                     .abs()
@@ -491,7 +493,9 @@ public class BillFolioPdfService {
         );
         if (value == null || value.isBlank()) return null;
         String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return normalized.startsWith("sl") ? "sl" : "en";
+        if (normalized.startsWith("sl")) return "sl";
+        if (normalized.startsWith("sr")) return "sr";
+        return "en";
     }
 
     private String resolveGuestOrderInvoiceLocale(Bill bill) {
@@ -508,6 +512,10 @@ public class BillFolioPdfService {
 
     private boolean isSlovenian(String locale) {
         return locale != null && locale.trim().toLowerCase(Locale.ROOT).startsWith("sl");
+    }
+
+    private boolean isSerbian(String locale) {
+        return locale != null && locale.trim().toLowerCase(Locale.ROOT).startsWith("sr");
     }
 
     private String localizedPaymentMethodName(PaymentMethod method, String locale) {

@@ -12,6 +12,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -260,16 +264,16 @@ public class ReceiptPdfService {
     ) {
         List<Block> result = new ArrayList<>();
         Map<String, List<Block>> sections = new LinkedHashMap<>();
-        sections.put("company", companyBlocks(request, layout, logoBytes, fonts, typography));
+        sections.put("company", companyBlocks(request, layout, logoBytes, fonts, typography, locale));
         sections.put("document", documentBlocks(request, fonts, typography, locale));
         sections.put("recipient", recipientBlocks(request, layout, fonts, typography, locale));
         sections.put("items", itemBlocks(request, layout, fonts, typography, locale));
         sections.put("advancePayments", advancePaymentBlocks(request, fonts, typography, locale));
         sections.put("totals", totalBlocks(request, fonts, typography, locale));
         sections.put("vat", vatBlocks(request, layout, fonts, typography, locale));
-        sections.put("payment", paymentBlocks(request, layout, fonts, typography, locale));
         sections.put("paymentQr", paymentQrBlocks(request, layout, typography, locale));
         sections.put("fiscal", fiscalBlocks(request, layout, fonts, typography, locale));
+        sections.put("issuedBy", issuedByBlocks(request, layout, fonts, typography, locale));
         sections.put("taxClauses", taxClauseBlocks(layout, fonts, typography, locale));
         sections.put("notes", notesBlocks(request, layout, fonts, typography, locale));
         sections.put("footer", footerBlocks(layout, fonts, typography));
@@ -285,7 +289,7 @@ public class ReceiptPdfService {
         return result;
     }
 
-    private List<Block> companyBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, byte[] logoBytes, FontSet fonts, Typography type) {
+    private List<Block> companyBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, byte[] logoBytes, FontSet fonts, Typography type, String locale) {
         List<Block> blocks = new ArrayList<>();
         if (layout.isShowLogo() && logoBytes != null && logoBytes.length > 0) {
             blocks.add(new LogoBlock(logoBytes, mmToPt(14f)));
@@ -297,6 +301,10 @@ public class ReceiptPdfService {
         if (!blank(request.getCompanyTaxId())) {
             addWrapped(blocks, request.getCompanyTaxId(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         }
+        if (!blank(request.getIban())) {
+            String ibanLabel = "sl".equals(normalizeLocale(locale)) ? "TRR" : "IBAN";
+            addWrapped(blocks, ibanLabel + ": " + request.getIban(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
+        }
         return blocks;
     }
 
@@ -307,10 +315,10 @@ public class ReceiptPdfService {
         String number = safe(request.getFolioNumber());
         addWrapped(blocks, (label + " " + number).trim(), fonts.bold(), type.title(), type.lineHeight() + 1f, true, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         String[] issueParts = splitIssueDateAndTime(request.getFolioDate());
-        addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), issueParts[0], fonts, type, false);
+        addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), formatReceiptDate(issueParts[0]), fonts, type, false);
         addPair(blocks, word(locale, "Ura izdaje", "Vreme izdavanja", "Issue time"), issueParts[1], fonts, type, false);
-        addPair(blocks, word(locale, "Datum opravljene storitve", "Datum izvršene usluge", "Service date"), request.getDateOfService(), fonts, type, false);
-        addPair(blocks, word(locale, "Rok plačila", "Rok plaćanja", "Due date"), request.getDueDate(), fonts, type, false);
+        addPair(blocks, word(locale, "Datum opravljene storitve", "Datum izvršene usluge", "Service date"), formatReceiptDate(request.getDateOfService()), fonts, type, false);
+        addPair(blocks, word(locale, "Rok plačila", "Rok plaćanja", "Due date"), formatReceiptDate(request.getDueDate()), fonts, type, false);
         blocks.add(new RuleBlock(4f, 1f));
         return blocks;
     }
@@ -342,7 +350,7 @@ public class ReceiptPdfService {
             FolioPdfRequest.ServiceLine service = services.get(index);
             addWrapped(blocks, firstNonBlank(service.getDescription(), "—"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
             if (!blank(service.getDate())) {
-                addWrapped(blocks, service.getDate(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
+                addWrapped(blocks, formatReceiptDate(service.getDate()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
             }
             BigDecimal total = lineGross(service);
             if (layout.isShowUnitPriceAndQuantity()) {
@@ -369,7 +377,7 @@ public class ReceiptPdfService {
         List<Block> blocks = new ArrayList<>();
         blocks.add(textBlock(word(locale, "Porabljena predplačila", "Iskorišćene avansne uplate", "Used advances"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
         for (FolioPdfRequest.AdvancePaymentLine row : rows) {
-            String left = joinNonBlank(Arrays.asList(row.getAdvanceNumber(), row.getDate()), " · ");
+            String left = joinNonBlank(Arrays.asList(row.getAdvanceNumber(), formatReceiptDate(row.getDate())), " · ");
             blocks.add(pairBlock(left, "- " + money(abs(row.getUsedGross())), fonts.regular(), type.small(), type.smallLineHeight(), false));
         }
         return blocks;
@@ -378,13 +386,11 @@ public class ReceiptPdfService {
     private List<Block> totalBlocks(FolioPdfRequest request, FontSet fonts, Typography type, String locale) {
         Totals totals = totals(request.getServices());
         BigDecimal discount = positive(request.getDiscountAmountGross());
-        BigDecimal subtotal = totals.gross().add(discount);
         List<Block> blocks = new ArrayList<>();
+        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(totals.gross()), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
-            blocks.add(pairBlock(word(locale, "Vmesni seštevek", "Međuzbir", "Subtotal"), money(subtotal), fonts.regular(), type.body(), type.lineHeight(), false));
             blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
         }
-        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(totals.gross()), fonts.bold(), type.total(), type.lineHeight() + 2f, true));
         BigDecimal usedAdvance = positive(request.getUsedAdvancePaymentsGross());
         if (usedAdvance.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Porabljeno predplačilo", "Iskorišćen avans", "Advance used"), "- " + money(usedAdvance), fonts.regular(), type.body(), type.lineHeight(), false));
@@ -409,29 +415,6 @@ public class ReceiptPdfService {
         return blocks;
     }
 
-    private List<Block> paymentBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
-        if (!layout.isShowPaymentDetails()) return List.of();
-        boolean hasPayment = (request.getPaymentMethods() != null && !request.getPaymentMethods().isEmpty())
-                || !blank(request.getPaymentMethod()) || !blank(request.getIban()) || (layout.isShowIssuedBy() && !blank(request.getIssuedBy()));
-        if (!hasPayment) return List.of();
-        List<Block> blocks = new ArrayList<>();
-        blocks.add(textBlock(word(locale, "Plačilo", "Plaćanje", "Payment"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
-        if (request.getPaymentMethods() != null && !request.getPaymentMethods().isEmpty()) {
-            for (FolioPdfRequest.PaymentLine line : request.getPaymentMethods()) {
-                blocks.add(pairBlock(firstNonBlank(line.getName(), word(locale, "Način plačila", "Način plaćanja", "Payment method")), money(line.getAmountGross()), fonts.regular(), type.small(), type.smallLineHeight(), false));
-            }
-        } else if (!blank(request.getPaymentMethod())) {
-            addWrapped(blocks, request.getPaymentMethod(), fonts.regular(), type.body(), type.lineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
-        }
-        if (!blank(request.getIban()) && positive(request.getToBePaidGross()).compareTo(BigDecimal.ZERO) > 0) {
-            addPair(blocks, "IBAN", request.getIban(), fonts, type, false);
-        }
-        if (layout.isShowIssuedBy() && !blank(request.getIssuedBy())) {
-            addPair(blocks, word(locale, "Izdal", "Izdao", "Issued by"), request.getIssuedBy(), fonts, type, false);
-        }
-        return blocks;
-    }
-
     private List<Block> paymentQrBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, Typography type, String locale) {
         if (!layout.isShowPaymentQr() || blank(request.getPaymentQrPayload())) return List.of();
         return List.of(new QrBlock(request.getPaymentQrPayload(), PAYMENT_QR_SIZE_PT,
@@ -439,8 +422,9 @@ public class ReceiptPdfService {
     }
 
     private List<Block> fiscalBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
+        if (!layout.isShowFiscalQr()) return List.of();
         boolean hasFiscalText = !blank(request.getFiscalZoi()) || !blank(request.getFiscalEor());
-        boolean hasFiscalQr = layout.isShowFiscalQr() && !blank(request.getFiscalQr());
+        boolean hasFiscalQr = !blank(request.getFiscalQr());
         if (!hasFiscalText && !hasFiscalQr) return List.of();
         List<Block> blocks = new ArrayList<>();
         if (!blank(request.getFiscalZoi())) {
@@ -455,6 +439,11 @@ public class ReceiptPdfService {
                     word(locale, "Fiskalna koda", "Fiskalni kod", "Fiscal code"), type.small(), false));
         }
         return blocks;
+    }
+
+    private List<Block> issuedByBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
+        if (!layout.isShowIssuedBy() || blank(request.getIssuedBy())) return List.of();
+        return List.of(pairBlock(word(locale, "Izdal", "Izdao", "Issued by"), request.getIssuedBy(), fonts.regular(), type.small(), type.smallLineHeight(), false));
     }
 
     private List<Block> taxClauseBlocks(PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
@@ -472,8 +461,22 @@ public class ReceiptPdfService {
         if (!layout.isShowNotes() || blank(request.getNotes())) return List.of();
         List<Block> blocks = new ArrayList<>();
         blocks.add(textBlock(word(locale, "Referenca", "Referenca", "Reference"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
-        addWrapped(blocks, request.getNotes(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
+        addWrapped(blocks, renderReferenceText(layout, locale, request.getNotes()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
         return blocks;
+    }
+
+    private String renderReferenceText(PosReceiptLayoutConfig layout, String locale, String referenceNumber) {
+        String normalizedLocale = normalizeLocale(locale);
+        Map<String, String> texts = layout.getReferenceTexts();
+        String template = texts == null ? "" : safe(texts.get(normalizedLocale));
+        if (template.isBlank()) {
+            return safe(referenceNumber).strip();
+        }
+        String reference = safe(referenceNumber).strip();
+        if (template.contains("{reference-number}")) {
+            return template.replace("{reference-number}", reference).strip();
+        }
+        return joinNonBlank(List.of(template, reference), " ");
     }
 
     private List<Block> footerBlocks(PosReceiptLayoutConfig layout, FontSet fonts, Typography type) {
@@ -507,6 +510,29 @@ public class ReceiptPdfService {
             }
         }
         return new String[] { raw, "" };
+    }
+
+    private String formatReceiptDate(String value) {
+        String raw = safe(value).strip();
+        if (raw.isBlank()) return "";
+        for (DateTimeFormatter parser : List.of(
+                DateTimeFormatter.ISO_LOCAL_DATE,
+                DateTimeFormatter.ofPattern("d.M.yyyy"),
+                DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+                DateTimeFormatter.ofPattern("d-M-yyyy"),
+                DateTimeFormatter.ofPattern("dd-MM-yyyy")
+        )) {
+            try {
+                return LocalDate.parse(raw, parser).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+            } catch (DateTimeParseException ignored) {
+                // Try the next supported date representation.
+            }
+        }
+        try {
+            return LocalDateTime.parse(raw.replace(' ', 'T')).toLocalDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+        } catch (DateTimeParseException ignored) {
+            return raw;
+        }
     }
 
     private void addPair(List<Block> blocks, String label, String value, FontSet fonts, Typography type, boolean bold) {

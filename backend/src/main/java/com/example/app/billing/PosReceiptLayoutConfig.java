@@ -1,9 +1,11 @@
 package com.example.app.billing;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -12,6 +14,10 @@ import java.util.Set;
  * collapse and move when optional information is not present.
  */
 public class PosReceiptLayoutConfig {
+    public static final String DEFAULT_REFERENCE_TEXT_SL = "Prosimo, da se pri plačilu sklicujete na št.: {reference-number}";
+    public static final String DEFAULT_REFERENCE_TEXT_EN = "Please use the following reference when making the payment: {reference-number}";
+    public static final String DEFAULT_REFERENCE_TEXT_SR = "Molimo vas da se prilikom plaćanja pozovete na broj: {reference-number}";
+
     public static final List<String> DEFAULT_SECTION_ORDER = List.of(
             "company",
             "document",
@@ -20,9 +26,9 @@ public class PosReceiptLayoutConfig {
             "advancePayments",
             "totals",
             "vat",
-            "payment",
             "paymentQr",
             "fiscal",
+            "issuedBy",
             "taxClauses",
             "notes",
             "footer"
@@ -32,14 +38,17 @@ public class PosReceiptLayoutConfig {
     private boolean showRecipient = true;
     private boolean showUnitPriceAndQuantity = true;
     private boolean showVatBreakdown = true;
+    /** Retained only so older saved JSON can still be read. Payment details are no longer rendered. */
     private boolean showPaymentDetails = true;
     private boolean showPaymentQr = true;
+    /** Controls the complete fiscal block: ZOI, EOR and the fiscal QR code. */
     private boolean showFiscalQr = true;
     private boolean showNotes = true;
     private boolean showIssuedBy = true;
     private String fontSize = "STANDARD";
     private String footerText = "";
     private List<String> taxClauses = new ArrayList<>();
+    private Map<String, String> referenceTexts = defaultReferenceTexts();
     private List<String> sectionOrder = new ArrayList<>(DEFAULT_SECTION_ORDER);
 
     public static PosReceiptLayoutConfig defaultLayout() {
@@ -61,6 +70,7 @@ public class PosReceiptLayoutConfig {
         normalized.fontSize = normalizeFontSize(source.fontSize);
         normalized.footerText = source.footerText == null ? "" : source.footerText.strip();
         normalized.taxClauses = normalizeTaxClauses(source.taxClauses);
+        normalized.referenceTexts = normalizeReferenceTexts(source.referenceTexts);
 
         Set<String> ordered = new LinkedHashSet<>();
         if (source.sectionOrder != null) {
@@ -93,6 +103,25 @@ public class PosReceiptLayoutConfig {
         return normalized;
     }
 
+    private static Map<String, String> defaultReferenceTexts() {
+        Map<String, String> defaults = new LinkedHashMap<>();
+        defaults.put("sl", DEFAULT_REFERENCE_TEXT_SL);
+        defaults.put("en", DEFAULT_REFERENCE_TEXT_EN);
+        defaults.put("sr", DEFAULT_REFERENCE_TEXT_SR);
+        return defaults;
+    }
+
+    private static Map<String, String> normalizeReferenceTexts(Map<String, String> input) {
+        Map<String, String> normalized = defaultReferenceTexts();
+        if (input == null) return normalized;
+        for (String locale : List.of("sl", "en", "sr")) {
+            if (!input.containsKey(locale)) continue;
+            String value = input.get(locale);
+            normalized.put(locale, value == null ? "" : value.strip());
+        }
+        return normalized;
+    }
+
     public boolean isShowLogo() { return showLogo; }
     public void setShowLogo(boolean showLogo) { this.showLogo = showLogo; }
     public boolean isShowRecipient() { return showRecipient; }
@@ -117,6 +146,8 @@ public class PosReceiptLayoutConfig {
     public void setFooterText(String footerText) { this.footerText = footerText; }
     public List<String> getTaxClauses() { return taxClauses; }
     public void setTaxClauses(List<String> taxClauses) { this.taxClauses = taxClauses; }
+    public Map<String, String> getReferenceTexts() { return referenceTexts; }
+    public void setReferenceTexts(Map<String, String> referenceTexts) { this.referenceTexts = referenceTexts; }
     public List<String> getSectionOrder() { return sectionOrder; }
     public void setSectionOrder(List<String> sectionOrder) { this.sectionOrder = sectionOrder; }
 }
