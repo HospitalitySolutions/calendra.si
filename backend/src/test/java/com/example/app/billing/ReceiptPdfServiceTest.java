@@ -156,7 +156,7 @@ class ReceiptPdfServiceTest {
         byte[] pdf = service.generate(request, PosReceiptLayoutConfig.defaultLayout(), null);
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
-            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
+            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
             assertThat(normalizedText)
                     .contains("Skupaj brez DDV 44.00 EUR")
                     .contains("Popust - 4.40 EUR")
