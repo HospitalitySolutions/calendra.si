@@ -271,11 +271,11 @@ public class ReceiptPdfService {
         sections.put("items", itemBlocks(request, layout, fonts, typography, locale));
         sections.put("advancePayments", advancePaymentBlocks(request, fonts, typography, locale));
         sections.put("totals", totalBlocks(request, fonts, typography, locale));
+        sections.put("taxClauses", taxClauseBlocks(request, layout, fonts, typography, locale));
         sections.put("vat", vatBlocks(request, layout, fonts, typography, locale));
         sections.put("paymentQr", paymentQrBlocks(request, layout, typography, locale));
         sections.put("fiscal", fiscalBlocks(request, layout, fonts, typography, locale));
         sections.put("issuedBy", issuedByBlocks(request, layout, fonts, typography, locale));
-        sections.put("taxClauses", taxClauseBlocks(request, layout, fonts, typography, locale));
         sections.put("notes", notesBlocks(request, layout, fonts, typography, locale));
         sections.put("footer", footerBlocks(layout, fonts, typography));
 
@@ -388,16 +388,17 @@ public class ReceiptPdfService {
     private List<Block> totalBlocks(FolioPdfRequest request, FontSet fonts, Typography type, String locale) {
         Totals totals = totals(request.getServices());
         BigDecimal discount = positive(request.getDiscountAmountGross());
-        BigDecimal configuredSubtotal = positive(request.getSubtotalBeforeDiscountGross());
-        BigDecimal subtotalGross = configuredSubtotal.compareTo(BigDecimal.ZERO) > 0
-                ? configuredSubtotal
+        BigDecimal configuredSubtotalGross = positive(request.getSubtotalBeforeDiscountGross());
+        BigDecimal subtotalGross = configuredSubtotalGross.compareTo(BigDecimal.ZERO) > 0
+                ? configuredSubtotalGross
                 : totals.gross().add(discount).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal subtotalNet = subtotalNetBeforeDiscount(request, totals, configuredSubtotalGross, discount);
         List<Block> blocks = new ArrayList<>();
 
         // Keep every summary row at the normal body size. Visual hierarchy comes
         // from weight and divider lines rather than oversized thermal-printer text.
         blocks.add(new RuleBlock(1f, 4f));
-        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
+        blocks.add(pairBlock(word(locale, "Skupaj brez DDV", "Ukupno bez PDV-a", "Total excl. VAT"), money(subtotalNet), fonts.regular(), type.body(), type.lineHeight(), false));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
         }
@@ -405,6 +406,7 @@ public class ReceiptPdfService {
         if (usedAdvance.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Porabljeno predplačilo", "Iskorišćen avans", "Advance used"), "- " + money(usedAdvance), fonts.regular(), type.body(), type.lineHeight(), false));
         }
+        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(totals.gross()), fonts.bold(), type.body(), type.lineHeight(), true));
         BigDecimal toBePaid = positive(request.getToBePaidGross());
         if (toBePaid.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(new RuleBlock(3f, 4f));
@@ -416,7 +418,10 @@ public class ReceiptPdfService {
 
     private List<Block> vatBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
         if (!layout.isShowVatBreakdown()) return List.of();
-        List<VatRow> rows = vatRows(request.getServices());
+        List<VatRow> rows = new ArrayList<>();
+        for (VatRow row : vatRows(request.getServices())) {
+            if (row.bucket() != VatBucket.NO_VAT) rows.add(row);
+        }
         if (rows.isEmpty()) return List.of();
         List<Block> blocks = new ArrayList<>();
         blocks.add(textBlock(word(locale, "DDV", "PDV", "VAT"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
@@ -439,15 +444,15 @@ public class ReceiptPdfService {
         boolean hasFiscalQr = !blank(request.getFiscalQr());
         if (!hasFiscalText && !hasFiscalQr) return List.of();
         List<Block> blocks = new ArrayList<>();
+        if (hasFiscalQr) {
+            blocks.add(new QrBlock(request.getFiscalQr(), FISCAL_QR_SIZE_PT, "", type.small(), false));
+            if (hasFiscalText) blocks.add(new GapBlock(2f));
+        }
         if (!blank(request.getFiscalZoi())) {
-            addWrapped(blocks, "ZOI: " + request.getFiscalZoi(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
+            addSingleLine(blocks, "ZOI: " + request.getFiscalZoi(), fonts.regular(), type.small(), 5.1f, type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
         }
         if (!blank(request.getFiscalEor())) {
-            addWrapped(blocks, "EOR: " + request.getFiscalEor(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
-        }
-        if (hasFiscalQr) {
-            blocks.add(new GapBlock(2f));
-            blocks.add(new QrBlock(request.getFiscalQr(), FISCAL_QR_SIZE_PT, "", type.small(), false));
+            addSingleLine(blocks, "EOR: " + request.getFiscalEor(), fonts.regular(), type.small(), 4.6f, type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
         }
         return blocks;
     }
@@ -571,6 +576,13 @@ public class ReceiptPdfService {
     private void addWrapped(List<Block> blocks, String text, PDFont font, float fontSize, float lineHeight, boolean bold, Align align, float width) {
         if (blank(text)) return;
         blocks.add(textBlock(text, font, fontSize, lineHeight, bold, align, width));
+    }
+
+    private void addSingleLine(List<Block> blocks, String text, PDFont font, float preferredFontSize, float minFontSize, float lineHeight, boolean bold, Align align, float width) {
+        if (blank(text)) return;
+        float fittedFontSize = fittedFontSize(font, preferredFontSize, minFontSize, text, width);
+        float fittedLineHeight = Math.max(lineHeight, fittedFontSize + 1f);
+        blocks.add(new TextBlock(List.of(safe(text)), fittedFontSize, fittedLineHeight, bold, align));
     }
 
     private FontSet loadFonts(PDDocument document) throws IOException {
@@ -761,6 +773,22 @@ public class ReceiptPdfService {
 
     private static String money(BigDecimal value) {
         return scale(value).toPlainString() + " EUR";
+    }
+
+    private static BigDecimal subtotalNetBeforeDiscount(FolioPdfRequest request, Totals totals, BigDecimal configuredSubtotalGross, BigDecimal discount) {
+        List<VatRow> vatRows = vatRows(request == null ? null : request.getServices());
+        boolean onlyZeroVat = !vatRows.isEmpty() && vatRows.stream().allMatch(row -> row.bucket() == VatBucket.NO_VAT || row.bucket() == VatBucket.VAT_0 || row.vat().compareTo(BigDecimal.ZERO) == 0);
+        if (configuredSubtotalGross.compareTo(BigDecimal.ZERO) > 0 && onlyZeroVat) {
+            return configuredSubtotalGross;
+        }
+        return totals.net();
+    }
+
+    private static float fittedFontSize(PDFont font, float preferredFontSize, float minFontSize, String text, float maxWidth) {
+        float measuredWidth = stringWidth(font, preferredFontSize, text);
+        if (measuredWidth <= maxWidth || measuredWidth <= 0f) return preferredFontSize;
+        float scaled = preferredFontSize * (maxWidth / measuredWidth);
+        return Math.max(minFontSize, scaled);
     }
 
     private static BigDecimal positive(BigDecimal value) {

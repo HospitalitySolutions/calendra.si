@@ -24,12 +24,12 @@ public class PosReceiptLayoutConfig {
             "recipient",
             "items",
             "advancePayments",
-            "totals",
             "vat",
+            "totals",
+            "taxClauses",
             "paymentQr",
             "fiscal",
             "issuedBy",
-            "taxClauses",
             "notes",
             "footer"
     );
