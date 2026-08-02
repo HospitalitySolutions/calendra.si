@@ -180,7 +180,7 @@ const DEFAULT_LOGO: LogoConfig = { x: 400, y: 40, width: 120, height: 60, visibl
 const DEFAULT_SIGNATURE: SignatureConfig = { x: 50, y: 464, width: 120, height: 50, visible: true }
 const DEFAULT_PAYMENT_QR: PaymentQrConfig = { x: 395, y: 356, width: 120, height: 120, visible: true }
 const DEFAULT_FISCAL_QR: PaymentQrConfig = { x: 395, y: 484, width: 95, height: 95, visible: true }
-const PAYMENT_QR_CAPTION: Record<AppLocale, string> = { en: 'Scan and pay.', sl: 'Skeniraj in plačaj.', sr: 'Skeniraj i plati.' }
+const PAYMENT_QR_CAPTION: Record<AppLocale, string> = { en: 'Scan and pay', sl: 'Skeniraj in plačaj', sr: 'Skeniraj i plati' }
 const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 286, width: 300, headerHeight: 14, rowHeight: 14, headerFontSize: 7, bodyFontSize: 7, visible: true }
 const SERVICE_TABLE_PREVIEW_ROWS = 1
 const LEGACY_SERVICE_TABLE_PREVIEW_ROWS = 3
@@ -188,14 +188,14 @@ const VAT_SAMPLE_ROWS = 3
 const ADVANCE_PAYMENT_SAMPLE_ROWS = 1
 const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en', sr: 'sl' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
-const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate', 'recipientVatId'])
+const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'folioIssueTimePlace', 'dateOfService', 'dueDate'])
 const DATE_FORMAT_OPTIONS: DateFormat[] = ['DD.MM.YYYY', 'DD-MM-YYYY', 'YYYY-MM-DD', 'DD.MM.YYYY HH:mm', 'DD-MM-YYYY HH:mm', 'YYYY-MM-DD HH:mm']
 const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
   folioNumber: { en: 'Invoice:', sl: 'Račun:' },
-  folioDate: { en: 'Issue date and time:', sl: 'Datum in ura izdaje:' },
-  dateOfService: { en: 'Date of Service:', sl: 'Datum storitve:' },
-  dueDate: { en: 'Due Date:', sl: 'Rok plačila:' },
-  recipientVatId: { en: 'Recipient VAT ID:', sl: 'Davčna številka prejemnika (ID za DDV):' },
+  folioDate: { en: 'Issued on', sl: 'Izdano', sr: 'Izdato' },
+  folioIssueTimePlace: { en: 'Time and place of issue', sl: 'Ura in kraj izdaje', sr: 'Vreme i mesto izdavanja' },
+  dateOfService: { en: 'Date of service', sl: 'Datum opravljene storitve', sr: 'Datum usluge' },
+  dueDate: { en: 'Due date', sl: 'Rok plačila', sr: 'Rok plaćanja' },
 }
 const FIELD_SAMPLE_VALUES: Record<string, string> = {
   companyName: 'Urška Grmek s.p.',
@@ -204,6 +204,7 @@ const FIELD_SAMPLE_VALUES: Record<string, string> = {
   companyTaxId: '10371745',
   folioNumber: '37',
   folioDate: '31.08.2026',
+  folioIssueTimePlace: '08:47, Maribor',
   dateOfService: '02.08.2026',
   dueDate: '17.08.2026',
   recipientName: 'Andre',
@@ -271,7 +272,7 @@ const A4_TEMPLATE_META: Array<{ id: Exclude<A4TemplateId, 'CUSTOM'>; name: Recor
 
 const TEMPLATE_FIELD_KEYS = new Set([
   'companyName', 'companyAddress', 'companyPostalCodeCity', 'companyTaxId',
-  'folioNumber', 'folioDate', 'dateOfService', 'dueDate',
+  'folioNumber', 'folioDate', 'folioIssueTimePlace', 'dateOfService', 'dueDate',
   'recipientName', 'recipientAddress', 'recipientPostalCodeCity', 'recipientVatId',
   'templateFooterText',
 ])
@@ -329,6 +330,29 @@ function cloneLayout(layout: LayoutConfig): LayoutConfig {
 
 function fieldFor(layout: LayoutConfig, key: string) {
   return layout.fields.find((field) => field.key === key)
+}
+
+function ensureTemplateField(layout: LayoutConfig, key: string, group: string, labelEn: string, labelSl: string, labelSr = labelSl) {
+  let field = fieldFor(layout, key)
+  if (!field) {
+    field = {
+      key,
+      group,
+      label: labelEn,
+      labelI18n: { en: labelEn, sl: labelSl, sr: labelSr },
+      x: 50,
+      y: 50,
+      width: 180,
+      height: 14,
+      fontSize: 10,
+      bold: false,
+      alignment: 'left',
+      visible: true,
+      type: 'data',
+    }
+    layout.fields.push(field)
+  }
+  return field
 }
 
 function footerFor(layout: LayoutConfig, key: string) {
@@ -389,7 +413,7 @@ function ensureTemplateColumns(layout: LayoutConfig) {
 function sampleTableCell(key: string, locale: AppLocale) {
   switch (key) {
     case 'description': return locale === 'sl' ? 'Avans' : locale === 'sr' ? 'Avans' : 'Advance'
-    case 'qty': return '1'
+    case 'qty': return '1 × 34.00 EUR'
     case 'nett': return '27,87 EUR'
     case 'discount': return '0,00 EUR'
     case 'taxPercent': return '22 %'
@@ -458,6 +482,7 @@ function applyFontPreset(layout: LayoutConfig, preset: A4FontSizePreset) {
 
 function applyTemplateColumns(layout: LayoutConfig, compact = false) {
   ensureTemplateColumns(layout)
+  ensureTemplateField(layout, 'folioIssueTimePlace', 'document', 'Time and place of issue', 'Ura in kraj izdaje', 'Vreme i mesto izdavanja')
   setColumn(layout, 'date', { visible: false, relX: 0, width: 0 })
   setColumn(layout, 'description', { visible: true, relX: 0, width: compact ? 188 : 195, alignment: 'left' })
   setColumn(layout, 'qty', { visible: true, relX: compact ? 188 : 195, width: 35, alignment: 'right' })
@@ -477,6 +502,7 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
   layout.pageWidth = 595.28
   layout.pageHeight = 841.89
   ensureTemplateColumns(layout)
+  ensureTemplateField(layout, 'folioIssueTimePlace', 'document', 'Time and place of issue', 'Ura in kraj izdaje', 'Vreme i mesto izdavanja')
   layout.fields = layout.fields.filter((field) => TEMPLATE_FIELD_KEYS.has(field.key))
   layout.footer.items = layout.footer.items.filter((item) => TEMPLATE_FOOTER_KEYS.has(item.key))
   layout.table.columns = layout.table.columns.filter((column) => TEMPLATE_COLUMN_KEYS.has(column.key))
@@ -504,36 +530,44 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
 
   if (templateId === 'COMPACT') {
     layout.pageSections = { headerHeight: 250, footerHeight: 58 }
-    Object.assign(layout.logo, { x: 258, y: 34, width: 90, height: 56 })
+    Object.assign(layout.logo, { x: 248, y: 34, width: 96, height: 64 })
     setField(layout, 'companyName', { x: 50, y: 48, width: 185, height: 18, alignment: 'left', bold: true })
-    setField(layout, 'companyAddress', { x: 50, y: 70, width: 185, height: 14, alignment: 'left' })
-    setField(layout, 'companyPostalCodeCity', { x: 50, y: 86, width: 185, height: 14, alignment: 'left' })
-    setField(layout, 'companyTaxId', { x: 50, y: 102, width: 185, height: 14, alignment: 'left' })
-    setField(layout, 'folioNumber', { x: 350, y: 148, width: 195, height: 22, alignment: 'right', bold: true })
+    setField(layout, 'companyAddress', { x: 50, y: 72, width: 185, height: 14, alignment: 'left' })
+    setField(layout, 'companyPostalCodeCity', { x: 50, y: 90, width: 185, height: 14, alignment: 'left' })
+    setField(layout, 'companyTaxId', { x: 50, y: 110, width: 185, height: 14, alignment: 'left' })
+    setField(layout, 'folioNumber', { x: 360, y: 146, width: 185, height: 24, alignment: 'right', bold: true })
     setField(layout, 'recipientName', { x: 50, y: 214, width: 220, height: 16, alignment: 'left', bold: true })
-    setField(layout, 'recipientAddress', { x: 50, y: 234, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 250, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'recipientVatId', { x: 50, y: 266, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'folioDate', { x: 315, y: 214, width: 230, height: 14, alignment: 'right' })
-    setField(layout, 'dateOfService', { x: 315, y: 238, width: 230, height: 14, alignment: 'right' })
-    setField(layout, 'dueDate', { x: 315, y: 262, width: 230, height: 14, alignment: 'right' })
-    Object.assign(layout.table, { startX: 50, startY: 315, width: 495, rowHeight: 23, headerHeight: 24, footerSpacing: 4 })
+    setField(layout, 'recipientAddress', { x: 50, y: 236, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 254, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 50, y: 272, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'folioDate', { x: 318, y: 214, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'folioIssueTimePlace', { x: 318, y: 240, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 318, y: 266, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 318, y: 292, width: 227, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 338, width: 495, rowHeight: 23, headerHeight: 24, footerSpacing: 4 })
     applyTemplateColumns(layout, true)
+    setColumn(layout, 'date', { visible: true, relX: 105, width: 70, alignment: 'left' })
+    setColumn(layout, 'description', { relX: 0, width: 105, alignment: 'left', visible: true })
+    setColumn(layout, 'qty', { relX: 175, width: 74, alignment: 'right', visible: true, label: 'Quantity × Price', labelI18n: { en: 'Quantity × Price', sl: 'Količina × Cena', sr: 'Količina × Cena' } })
+    setColumn(layout, 'nett', { relX: 249, width: 89, alignment: 'right', visible: true })
+    setColumn(layout, 'discount', { relX: 338, width: 56, alignment: 'right', visible: true })
+    setColumn(layout, 'taxPercent', { relX: 394, width: 44, alignment: 'right', visible: true })
+    setColumn(layout, 'total', { relX: 438, width: 57, alignment: 'right', visible: true })
     Object.assign(layout.vatBreakdownTable, { x: 50, y: 420, width: 235, headerHeight: 15, rowHeight: 15, visible: false })
-    setFooter(layout, 'totalNett', { x: 350, y: 416, width: 195, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'discount', { x: 350, y: 436, width: 195, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'totalGross', { x: 350, y: 456, width: 195, height: 16, alignment: 'right', bold: true })
-    setFooter(layout, 'usedAdvances', { x: 350, y: 476, width: 195, height: 16, alignment: 'right', bold: false })
-    setFooter(layout, 'toBePaid', { x: 350, y: 500, width: 195, height: 20, alignment: 'right', bold: true })
+    setFooter(layout, 'totalNett', { x: 300, y: 466, width: 245, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 300, y: 488, width: 245, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 300, y: 510, width: 245, height: 16, alignment: 'right', bold: true })
+    setFooter(layout, 'usedAdvances', { x: 300, y: 532, width: 245, height: 16, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 300, y: 556, width: 245, height: 20, alignment: 'right', bold: true })
     setFooter(layout, 'payment', { x: 50, y: 535, width: 220, height: 16, alignment: 'left', visible: false })
-    setFooter(layout, 'iban', { x: 50, y: 124, width: 220, height: 16, alignment: 'left', visible: true })
-    setFooter(layout, 'notes', { x: 164, y: 640, width: 120, height: 62, alignment: 'left' })
-    setFooter(layout, 'fiscalZoi', { x: 315, y: 642, width: 115, height: 14, alignment: 'left' })
-    setFooter(layout, 'fiscalEor', { x: 315, y: 674, width: 115, height: 14, alignment: 'left' })
-    setFooter(layout, 'issuedBy', { x: 70, y: 752, width: 140, height: 18, alignment: 'left' })
-    Object.assign(layout.paymentQr, { x: 65, y: 628, width: 82, height: 104 })
-    Object.assign(layout.fiscalQr, { x: 452, y: 638, width: 76, height: 76, visible: true })
-    Object.assign(layout.signature, { x: 285, y: 740, width: 210, height: 44 })
+    setFooter(layout, 'iban', { x: 50, y: 132, width: 220, height: 16, alignment: 'left', visible: true })
+    setFooter(layout, 'notes', { x: 180, y: 648, width: 110, height: 62, alignment: 'left' })
+    setFooter(layout, 'fiscalZoi', { x: 325, y: 648, width: 118, height: 14, alignment: 'left' })
+    setFooter(layout, 'fiscalEor', { x: 325, y: 678, width: 118, height: 14, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 72, y: 752, width: 140, height: 18, alignment: 'left' })
+    Object.assign(layout.paymentQr, { x: 63, y: 632, width: 88, height: 108 })
+    Object.assign(layout.fiscalQr, { x: 456, y: 642, width: 72, height: 72, visible: true })
+    Object.assign(layout.signature, { x: 286, y: 744, width: 210, height: 40 })
     Object.assign(footerText, { x: 50, y: 810, width: 495, height: 16, alignment: 'center' })
     applyFontPreset(layout, 'COMPACT')
   } else if (templateId === 'CLASSIC') {
@@ -574,38 +608,51 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
     layout.pageSections = { headerHeight: 190, footerHeight: 58 }
     Object.assign(layout.logo, { x: 430, y: 52, width: 84, height: 84 })
     setField(layout, 'companyName', { x: 50, y: 58, width: 250, height: 18, alignment: 'left', bold: true })
-    setField(layout, 'companyAddress', { x: 50, y: 80, width: 250, height: 14, alignment: 'left' })
-    setField(layout, 'companyPostalCodeCity', { x: 50, y: 96, width: 250, height: 14, alignment: 'left' })
-    setField(layout, 'companyTaxId', { x: 50, y: 128, width: 250, height: 14, alignment: 'left' })
-    setField(layout, 'folioNumber', { x: 50, y: 186, width: 230, height: 22, alignment: 'left', bold: true })
-    setField(layout, 'recipientName', { x: 50, y: 234, width: 220, height: 16, alignment: 'left', bold: true })
-    setField(layout, 'recipientAddress', { x: 50, y: 254, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 270, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'recipientVatId', { x: 50, y: 286, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'folioDate', { x: 330, y: 234, width: 215, height: 14, alignment: 'right' })
-    setField(layout, 'dateOfService', { x: 330, y: 258, width: 215, height: 14, alignment: 'right' })
-    setField(layout, 'dueDate', { x: 330, y: 282, width: 215, height: 14, alignment: 'right' })
-    Object.assign(layout.table, { startX: 50, startY: 335, width: 495, rowHeight: 25, headerHeight: 23, footerSpacing: 5 })
+    setField(layout, 'companyAddress', { x: 50, y: 82, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'companyPostalCodeCity', { x: 50, y: 100, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'companyTaxId', { x: 50, y: 130, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'folioNumber', { x: 360, y: 184, width: 185, height: 24, alignment: 'right', bold: true })
+    setField(layout, 'recipientName', { x: 50, y: 236, width: 220, height: 16, alignment: 'left', bold: true })
+    setField(layout, 'recipientAddress', { x: 50, y: 262, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 288, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 50, y: 314, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'folioDate', { x: 318, y: 236, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'folioIssueTimePlace', { x: 318, y: 262, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 318, y: 288, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 318, y: 314, width: 227, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 372, width: 495, rowHeight: 25, headerHeight: 23, footerSpacing: 5 })
     applyTemplateColumns(layout)
+    setColumn(layout, 'date', { visible: true, relX: 96, width: 70, alignment: 'left' })
+    setColumn(layout, 'description', { relX: 0, width: 96, alignment: 'left', visible: true })
+    setColumn(layout, 'qty', { relX: 166, width: 84, alignment: 'right', visible: true, label: 'Quantity × Price', labelI18n: { en: 'Quantity × Price', sl: 'Količina × Cena', sr: 'Količina × Cena' } })
+    setColumn(layout, 'nett', { relX: 250, width: 86, alignment: 'right', visible: true })
+    setColumn(layout, 'discount', { relX: 336, width: 56, alignment: 'right', visible: true })
+    setColumn(layout, 'taxPercent', { relX: 392, width: 46, alignment: 'right', visible: true })
+    setColumn(layout, 'total', { relX: 438, width: 57, alignment: 'right', visible: true })
     Object.assign(layout.vatBreakdownTable, { x: 50, y: 442, width: 210, headerHeight: 16, rowHeight: 16, visible: false })
-    setFooter(layout, 'totalNett', { x: 350, y: 438, width: 195, height: 18, alignment: 'right', bold: false })
-    setFooter(layout, 'discount', { x: 350, y: 460, width: 195, height: 18, alignment: 'right', bold: false })
-    setFooter(layout, 'totalGross', { x: 350, y: 482, width: 195, height: 18, alignment: 'right', bold: true })
-    setFooter(layout, 'usedAdvances', { x: 350, y: 504, width: 195, height: 18, alignment: 'right', bold: false })
-    setFooter(layout, 'toBePaid', { x: 350, y: 532, width: 195, height: 20, alignment: 'right', bold: true })
+    setFooter(layout, 'totalNett', { x: 330, y: 474, width: 215, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 330, y: 500, width: 215, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 330, y: 526, width: 215, height: 18, alignment: 'right', bold: true })
+    setFooter(layout, 'usedAdvances', { x: 330, y: 552, width: 215, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 330, y: 580, width: 215, height: 22, alignment: 'right', bold: true })
     setFooter(layout, 'payment', { x: 50, y: 550, width: 220, height: 16, alignment: 'left', visible: false })
     setFooter(layout, 'iban', { x: 50, y: 148, width: 250, height: 16, alignment: 'left', visible: true })
-    setFooter(layout, 'notes', { x: 50, y: 620, width: 205, height: 60, alignment: 'left' })
-    setFooter(layout, 'fiscalZoi', { x: 50, y: 540, width: 210, height: 14, alignment: 'left' })
-    setFooter(layout, 'fiscalEor', { x: 50, y: 560, width: 210, height: 14, alignment: 'left' })
-    setFooter(layout, 'issuedBy', { x: 50, y: 744, width: 180, height: 18, alignment: 'left' })
-    Object.assign(layout.paymentQr, { x: 330, y: 610, width: 98, height: 122 })
-    Object.assign(layout.fiscalQr, { x: 50, y: 440, width: 92, height: 92, visible: true })
-    Object.assign(layout.signature, { x: 330, y: 732, width: 190, height: 44 })
+    setFooter(layout, 'fiscalZoi', { x: 150, y: 496, width: 150, height: 14, alignment: 'left', visible: true })
+    setFooter(layout, 'fiscalEor', { x: 150, y: 522, width: 150, height: 14, alignment: 'left', visible: true })
+    setFooter(layout, 'notes', { x: 50, y: 628, width: 205, height: 60, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 50, y: 748, width: 180, height: 18, alignment: 'left' })
+    Object.assign(layout.paymentQr, { x: 330, y: 624, width: 98, height: 122 })
+    Object.assign(layout.fiscalQr, { x: 50, y: 490, width: 92, height: 92, visible: true })
+    Object.assign(layout.signature, { x: 330, y: 744, width: 190, height: 44 })
     Object.assign(footerText, { x: 50, y: 810, width: 495, height: 16, alignment: 'left' })
     applyFontPreset(layout, 'LARGE')
   }
 
+  ;['recipientVatId'].forEach((key) => { const field = fieldFor(layout, key); if (field) field.prefixI18n = { en: '', sl: '', sr: '' } })
+  ;([['folioDate', DOCUMENT_PREFIX_DEFAULTS.folioDate], ['folioIssueTimePlace', DOCUMENT_PREFIX_DEFAULTS.folioIssueTimePlace], ['dateOfService', DOCUMENT_PREFIX_DEFAULTS.dateOfService], ['dueDate', DOCUMENT_PREFIX_DEFAULTS.dueDate]] as [string, LocalizedText][]).forEach(([key, prefix]) => {
+    const field = fieldFor(layout, key)
+    if (field) field.prefixI18n = { ...prefix }
+  })
   layout.taxClauses = prefs.taxClauses
   footerText.text = prefs.footerText
   footerText.textI18n = prefs.footerTextI18n || ensureLocalizedText(footerText.textI18n, prefs.footerText)
