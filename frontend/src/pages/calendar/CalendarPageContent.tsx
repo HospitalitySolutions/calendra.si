@@ -103,12 +103,14 @@ import {
 } from './calendarStatus'
 import type { CalendarServiceChain, CalendarServiceDraft, ConfirmNonBookableEditPayload, ConfirmNonBookableState } from './calendarTypes'
 import {
+  bookingMatchesUnassignedDimensions,
   isCalendarViewWithToolbarMonthChip,
   isWebTimeGridLikeView,
   newClientInitials,
   slovenianTerminCountForm,
   toIsoDateKey,
   truncateCalendarHolidayPillText,
+  type UnassignedBookingDimension,
 } from './calendarUtils'
 import { CalendarFormFooterDeleteIcon, CalendarFormFooterSaveIcon, BookingTypeTabIcon, CalendarScannerIcon } from './components/CalendarIcons'
 import { CalendarLocalTimeDateRow, CalendarLocalTimespanRow } from './components/CalendarLocalDateTimeRows'
@@ -382,6 +384,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     () => metaUsers.filter((u: any) => u.consultant && u.active !== false),
     [metaUsers],
   )
+  const activeMetaSpaces = useMemo(
+    () => metaSpaces.filter((space: any) => space?.active !== false),
+    [metaSpaces],
+  )
   /** Hide Zaposleni when admin has no real choice (0–1 consultants). */
   const showBookingConsultantRow = isTenantAdmin && metaConsultants.length > 1
   /** Hide Prostor when there is no real choice (0–1 spaces). */
@@ -441,6 +447,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   )
   const [dashboardConsultantIds, setDashboardConsultantIds] = useState<number[]>([])
   const [dashboardSpaceIds, setDashboardSpaceIds] = useState<number[]>([])
+  const [dashboardUnassignedDimensions, setDashboardUnassignedDimensions] = useState<UnassignedBookingDimension[]>([])
   const [calendarDashboardViewEnabled, setCalendarDashboardViewEnabled] = useState(() => {
     try {
       return window.localStorage.getItem(calendarDashboardViewStorageKey) !== 'calendar'
@@ -845,6 +852,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const sessionPopupDragRef = useRef<{ pointerId: number; startX: number; startY: number; originLeft: number; originTop: number } | null>(null)
   const [sessionsSheetState, setSessionsSheetState] = useState<'closed' | 'collapsed' | 'expanded'>('closed')
   const [sessionsSheetTab, setSessionsSheetTab] = useState<'today' | 'unassigned'>('today')
+  const [unassignedDrawerOpen, setUnassignedDrawerOpen] = useState(false)
+  const unassignedDrawerRef = useRef<HTMLElement | null>(null)
   const [sessionsSheetDragOffset, setSessionsSheetDragOffset] = useState(0)
   const sessionsSheetStartYRef = useRef<number | null>(null)
   const sessionsSheetStartStateRef = useRef<'collapsed' | 'expanded'>('collapsed')
@@ -2507,20 +2516,67 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   /** Spaces setting on and at least one space exists — hide mode + space filters otherwise */
   const calendarSpacesFeatureActive = spacesEnabled && metaSpaces.length > 0
 
+  const calendarDashboardUnassignedFilterAvailable = metaConsultants.length > 1 || (calendarSpacesFeatureActive && activeMetaSpaces.length > 1)
+  const calendarDashboardUnassignedFilterRequested =
+    dashboardUnassignedDimensions.length > 0
+    && calendarDashboardViewEnabled
+    && !isNativeAndroid
+    && !calendarFiltersBottomBar
+    && (view === 'timeGridDay' || view === 'resourceTimeGridDay' || view === 'timeGridThreeDay' || view === 'resourceTimeGridThreeDay')
+
   const spacesUseResourceColumns =
-    calendarMode === 'spaces' && spaceFilterId == null && !isNativeAndroid && calendarSpacesFeatureActive
+    calendarMode === 'spaces' && spaceFilterId == null && !isNativeAndroid && calendarSpacesFeatureActive && !calendarDashboardUnassignedFilterRequested
 
   const bookingsUseResourceColumns =
-    calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid
+    calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid && !calendarDashboardUnassignedFilterRequested
 
   const useResourceColumns = spacesUseResourceColumns || bookingsUseResourceColumns
   const useUnassignedDrawer = spacesUseResourceColumns || bookingsUseResourceColumns
   const calendarDashboardDayView = view === 'timeGridDay' || view === 'resourceTimeGridDay'
   const calendarDashboardThreeDayView =
-    view === 'timeGridThreeDay' && calendarMode !== 'spaces' && !bookingsUseResourceColumns
+    (view === 'timeGridThreeDay' || view === 'resourceTimeGridThreeDay') && calendarMode !== 'spaces' && !bookingsUseResourceColumns
   const calendarDashboardEligible =
     !isNativeAndroid && !calendarFiltersBottomBar && (calendarDashboardDayView || calendarDashboardThreeDayView)
   const calendarDashboardEnabled = calendarDashboardEligible && calendarDashboardViewEnabled
+  const calendarDashboardUnassignedFilterActive = calendarDashboardEnabled && dashboardUnassignedDimensions.length > 0
+
+  useEffect(() => {
+    setDashboardUnassignedDimensions((current) => {
+      const next = current.filter((dimension) => (
+        dimension === 'consultant'
+          ? metaConsultants.length > 1
+          : calendarSpacesFeatureActive && activeMetaSpaces.length > 1
+      ))
+      return next.length === current.length && next.every((dimension, index) => dimension === current[index])
+        ? current
+        : next
+    })
+  }, [activeMetaSpaces.length, calendarSpacesFeatureActive, metaConsultants.length])
+
+  useEffect(() => {
+    if (!calendarDashboardEligible) setDashboardUnassignedDimensions([])
+  }, [calendarDashboardEligible])
+
+  useEffect(() => {
+    if (!useUnassignedDrawer) setUnassignedDrawerOpen(false)
+  }, [useUnassignedDrawer])
+
+  useEffect(() => {
+    if (!unassignedDrawerOpen) return
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!unassignedDrawerRef.current?.contains(event.target as Node)) setUnassignedDrawerOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setUnassignedDrawerOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [unassignedDrawerOpen])
+
   /** Keep the rail available in supported views so users can switch between dashboard and full-calendar layouts. */
   const showCalendarRightRail =
     calendarSpacesFeatureActive
@@ -3839,6 +3895,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           modeSwitchingTimerRef.current = null
         }, 380)
       }
+      setDashboardUnassignedDimensions([])
       setCalendarMode(mode)
       setConfirmNonBookable(null)
       setSelection(null)
@@ -3866,15 +3923,25 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     [isTenantAdmin, calendarMode, metaConsultants.length],
   )
 
+  const handleConsultantFilterChange = useCallback((id: number | null) => {
+    setDashboardUnassignedDimensions([])
+    setConsultantFilterId(id)
+  }, [])
+
+  const handleSpaceFilterChange = useCallback((id: number | null) => {
+    setDashboardUnassignedDimensions([])
+    setSpaceFilterId(id)
+  }, [])
+
   const shellCalendarFilters = useMemo(
     () => (
       <CalendarHeaderFilters
         showConsultant={showAdminConsultantFilter}
         showSpace={calendarSpacesFeatureActive && calendarMode !== 'availability'}
         consultantFilterId={consultantFilterId}
-        onConsultantFilterChange={setConsultantFilterId}
+        onConsultantFilterChange={handleConsultantFilterChange}
         spaceFilterId={spaceFilterId}
-        onSpaceFilterChange={setSpaceFilterId}
+        onSpaceFilterChange={handleSpaceFilterChange}
         consultantUsers={metaConsultants}
         spaces={metaSpaces}
       />
@@ -3885,6 +3952,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       calendarSpacesFeatureActive,
       consultantFilterId,
       spaceFilterId,
+      handleConsultantFilterChange,
+      handleSpaceFilterChange,
       metaConsultants,
       metaSpaces,
     ],
@@ -4531,7 +4600,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       isTenantAdmin
         ? filterByConsultantRole(calendarData.booked)
         : (calendarData.booked || [])
-    )
+    ).filter((booking: any) => (
+      !calendarDashboardUnassignedFilterActive
+      || bookingMatchesUnassignedDimensions(booking, dashboardUnassignedDimensions)
+    ))
     const bookedAll = bookedBase.flatMap((b: any) => {
       const displaySegments = bookingSpaceDisplaySegments(b).filter((segment) => {
         if (calendarMode === 'spaces') {
@@ -5918,6 +5990,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     if (modeSwitching) {
       return []
     }
+    if (calendarMode === 'bookings' && calendarDashboardUnassignedFilterActive) {
+      return buildOverlapGroupsForCalendar([
+        ...nonBookableBackground,
+        ...allDaySessionBackground,
+        ...bookedBreakBackground,
+        ...booked,
+      ])
+    }
     if (calendarMode === 'availability') {
       return [...bookable, ...sessionDraftPreviewEvents]
     }
@@ -5962,6 +6042,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     spacesUseResourceColumns,
     bookingsUseResourceColumns,
     useUnassignedDrawer,
+    calendarDashboardUnassignedFilterActive,
+    dashboardUnassignedDimensions,
     consultantFilterId,
     selection,
     form,
@@ -13953,14 +14035,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   : []
             }
             resourceSelector={
-              calendarDashboardDayView && bookingsUseResourceColumns && metaConsultants.length > 3
+              !calendarDashboardUnassignedFilterActive && calendarDashboardDayView && bookingsUseResourceColumns && metaConsultants.length > 3
                 ? {
                     kind: 'consultants',
                     options: metaConsultants.map((consultant: any) => ({ id: Number(consultant.id), label: `${consultant.firstName || ''} ${consultant.lastName || ''}`.trim() || consultant.email || `#${consultant.id}` })),
                     selectedIds: dashboardConsultantIds,
                     onChange: setDashboardConsultantIds,
                   }
-                : calendarDashboardDayView && spacesUseResourceColumns && metaSpaces.length > 3
+                : !calendarDashboardUnassignedFilterActive && calendarDashboardDayView && spacesUseResourceColumns && metaSpaces.length > 3
                   ? {
                       kind: 'spaces',
                       options: metaSpaces.map((space: any) => ({ id: Number(space.id), label: space.name || `#${space.id}` })),
@@ -13968,6 +14050,30 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                       onChange: setDashboardSpaceIds,
                     }
                   : null
+            }
+            unassignedSelector={
+              calendarDashboardUnassignedFilterAvailable
+                ? {
+                    showConsultant: metaConsultants.length > 1,
+                    showSpace: calendarSpacesFeatureActive && activeMetaSpaces.length > 1,
+                    selected: dashboardUnassignedDimensions,
+                    onChange: (dimensions) => {
+                      const next = dimensions.filter((dimension) => (
+                        dimension === 'consultant'
+                          ? metaConsultants.length > 1
+                          : calendarSpacesFeatureActive && activeMetaSpaces.length > 1
+                      ))
+                      setDashboardUnassignedDimensions(next)
+                      if (next.length > 0) {
+                        setCalendarMode('bookings')
+                        setConsultantFilterId(CONSULTANT_FILTER_ALL_SESSION)
+                        setSpaceFilterId(null)
+                        setSelectedBookedSession(null)
+                        setSelection(null)
+                      }
+                    },
+                  }
+                : null
             }
             onOpenClient={(clientId) => openCalendarClientDetail(clientId)}
             onOpenTodo={(todoId) => pushCompactFormRoute(`/calendar/todo/${todoId}`)}
@@ -14047,7 +14153,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   <button
                     type="button"
                     className={`calendar-header-mode-btn calendar-dashboard-view-toggle${calendarDashboardEnabled ? ' active' : ''}`}
-                    onClick={() => setCalendarDashboardViewEnabled((enabled) => !enabled)}
+                    onClick={() => {
+                      if (calendarDashboardViewEnabled) setDashboardUnassignedDimensions([])
+                      setCalendarDashboardViewEnabled((enabled) => !enabled)
+                    }}
                     title={
                       calendarDashboardEnabled
                         ? locale === 'sl' ? 'Prikaži celoten koledar' : 'Show full calendar'
@@ -14093,9 +14202,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   showConsultant
                   showSpace={false}
                   consultantFilterId={consultantFilterId}
-                  onConsultantFilterChange={setConsultantFilterId}
+                  onConsultantFilterChange={handleConsultantFilterChange}
                   spaceFilterId={spaceFilterId}
-                  onSpaceFilterChange={setSpaceFilterId}
+                  onSpaceFilterChange={handleSpaceFilterChange}
                   consultantUsers={metaConsultants}
                   spaces={metaSpaces}
                 />
@@ -14121,9 +14230,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   showConsultant={false}
                   showSpace
                   consultantFilterId={consultantFilterId}
-                  onConsultantFilterChange={setConsultantFilterId}
+                  onConsultantFilterChange={handleConsultantFilterChange}
                   spaceFilterId={spaceFilterId}
-                  onSpaceFilterChange={setSpaceFilterId}
+                  onSpaceFilterChange={handleSpaceFilterChange}
                   consultantUsers={metaConsultants}
                   spaces={metaSpaces}
                 />
@@ -14133,13 +14242,25 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           </>
         )}
         {!isNativeAndroid && useUnassignedDrawer && !showWebMobileBottomPanel && !activeOverlapGroup && (
-          <aside className="calendar-overlap-drawer calendar-unassigned-hover-drawer" aria-label={locale === 'sl' ? 'Nedodeljeni termini' : 'Unassigned sessions'} tabIndex={0}>
-            <div className="calendar-overlap-drawer__handle" aria-hidden="true">
+          <aside
+            ref={unassignedDrawerRef}
+            className={`calendar-overlap-drawer calendar-unassigned-hover-drawer${unassignedDrawerOpen ? ' is-open' : ''}`}
+            aria-label={locale === 'sl' ? 'Nedodeljeni termini' : 'Unassigned sessions'}
+          >
+            <button
+              type="button"
+              className="calendar-overlap-drawer__handle"
+              aria-label={unassignedDrawerOpen ? (locale === 'sl' ? 'Zapri N/A termine' : 'Close N/A sessions') : (locale === 'sl' ? 'Odpri N/A termine' : 'Open N/A sessions')}
+              aria-expanded={unassignedDrawerOpen}
+              onClick={() => setUnassignedDrawerOpen((open) => !open)}
+            >
               <span className="calendar-unassigned-hover-drawer__handle-label">N/A</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M15 18l-6-6 6-6" />
               </svg>
-            </div>
+            </button>
+            {unassignedDrawerOpen ? (
+              <>
             <div className="calendar-overlap-drawer__header">
               <div>
                 <h3>{locale === 'sl' ? 'N/A termini' : 'N/A sessions'}</h3>
@@ -14147,6 +14268,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   {unassignedDrawerSessions.length} {locale === 'sl' ? (unassignedDrawerSessions.length === 1 ? 'nedodeljen termin' : 'nedodeljenih terminov') : `unassigned session${unassignedDrawerSessions.length === 1 ? '' : 's'}`}
                 </p>
               </div>
+              <button
+                type="button"
+                className="calendar-overlap-drawer__close"
+                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+                onClick={() => setUnassignedDrawerOpen(false)}
+              >
+                ×
+              </button>
             </div>
             <div className="calendar-overlap-drawer__hint">
               {unassignedDrawerOpenHint}
@@ -14269,6 +14398,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             <div className="calendar-overlap-drawer__footer">
               {unassignedDrawerFooterHint}
             </div>
+              </>
+            ) : null}
           </aside>
         )}
         {!isNativeAndroid && activeOverlapGroup && (

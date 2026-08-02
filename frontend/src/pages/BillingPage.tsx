@@ -8490,7 +8490,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </tbody>
                     </table>
                     <div className="billing-modern-footer">
-                      <span>{locale === 'sl' ? `Prikazujem 1 do ${Math.min(sortedOpenBills.length, 6)} od ${sortedOpenBills.length} rezultatov` : `Showing 1 to ${Math.min(sortedOpenBills.length, 6)} of ${sortedOpenBills.length} results`}</span>
+                      <span>{locale === 'sl' ? `Prikazujem 1 do ${sortedOpenBills.length} od ${sortedOpenBills.length} rezultatov` : `Showing 1 to ${sortedOpenBills.length} of ${sortedOpenBills.length} results`}</span>
                       <div className="clients-modern-pagination" aria-hidden="true">
                         <button type="button" className="secondary">‹</button>
                         <span>1</span>

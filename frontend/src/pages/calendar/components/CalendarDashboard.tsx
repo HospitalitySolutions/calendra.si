@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../../../api'
 import { useToast } from '../../../components/Toast'
 import { subscribeBookingUpdates } from '../../../lib/bookingRealtime'
+import { bookingMatchesUnassignedDimensions, type UnassignedBookingDimension } from '../calendarUtils'
 
 type DashboardBlockKey = 'analytics' | 'tasks' | 'notifications' | 'clients' | 'waitlist' | 'openBill' | 'advance'
 type DiscountType = 'PERCENT' | 'AMOUNT'
@@ -12,6 +13,13 @@ type ResourceSelector = {
   options: Array<{ id: number; label: string }>
   selectedIds: number[]
   onChange: (ids: number[]) => void
+}
+
+type UnassignedSelector = {
+  showConsultant: boolean
+  showSpace: boolean
+  selected: UnassignedBookingDimension[]
+  onChange: (dimensions: UnassignedBookingDimension[]) => void
 }
 
 type CalendarDashboardProps = {
@@ -28,6 +36,7 @@ type CalendarDashboardProps = {
   visibleConsultantIds?: number[]
   visibleSpaceIds?: number[]
   resourceSelector?: ResourceSelector | null
+  unassignedSelector?: UnassignedSelector | null
   onOpenClient: (clientId: number) => void
   onOpenTodo: (todoId: number) => void
   onEditSession: () => void
@@ -309,14 +318,99 @@ function ResourcePicker({ selector }: { selector: ResourceSelector }) {
   )
 }
 
+function UnassignedBookingsPicker({ selector, locale }: { selector: UnassignedSelector; locale: string }) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<UnassignedBookingDimension[]>(selector.selected)
+  useEffect(() => setDraft(selector.selected), [selector.selected])
+
+  const copy = locale === 'sl'
+    ? {
+        title: 'Nedodeljeni termini',
+        help: 'Prikažite termine brez dodeljenega zaposlenega, prostora ali obojega.',
+        consultant: 'Brez dodeljenega zaposlenega',
+        space: 'Brez dodeljenega prostora',
+        cancel: 'Prekliči',
+        apply: 'Uporabi',
+        clear: 'Počisti',
+      }
+    : locale === 'sr'
+      ? {
+          title: 'Nedodeljeni termini',
+          help: 'Prikažite termine bez dodeljenog zaposlenog, prostora ili oboje.',
+          consultant: 'Bez dodeljenog zaposlenog',
+          space: 'Bez dodeljenog prostora',
+          cancel: 'Otkaži',
+          apply: 'Primeni',
+          clear: 'Očisti',
+        }
+      : {
+          title: 'Unassigned sessions',
+          help: 'Show sessions without an assigned employee, space, or either assignment.',
+          consultant: 'No assigned employee',
+          space: 'No assigned space',
+          cancel: 'Cancel',
+          apply: 'Apply',
+          clear: 'Clear',
+        }
+
+  const toggle = (dimension: UnassignedBookingDimension) => {
+    setDraft((current) => current.includes(dimension)
+      ? current.filter((item) => item !== dimension)
+      : [...current, dimension])
+  }
+  const active = selector.selected.length > 0
+
+  return (
+    <div className="calendar-dashboard-resource-picker calendar-dashboard-unassigned-picker">
+      <button
+        type="button"
+        className={`calendar-dashboard-secondary-button calendar-dashboard-unassigned-picker__trigger${active ? ' is-active' : ''}`}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon name="users" size={16} />
+        {copy.title}{active ? ` (${selector.selected.length})` : ''}
+      </button>
+      {open ? (
+        <div className="calendar-dashboard-resource-picker__popover calendar-dashboard-unassigned-picker__popover">
+          <strong>{copy.title}</strong>
+          <p>{copy.help}</p>
+          <div className="calendar-dashboard-resource-picker__list">
+            {selector.showConsultant ? (
+              <label>
+                <input type="checkbox" checked={draft.includes('consultant')} onChange={() => toggle('consultant')} />
+                <span>{copy.consultant}</span>
+              </label>
+            ) : null}
+            {selector.showSpace ? (
+              <label>
+                <input type="checkbox" checked={draft.includes('space')} onChange={() => toggle('space')} />
+                <span>{copy.space}</span>
+              </label>
+            ) : null}
+          </div>
+          <div className="calendar-dashboard-resource-picker__actions calendar-dashboard-unassigned-picker__actions">
+            {active ? (
+              <button type="button" className="calendar-dashboard-link-button" onClick={() => { selector.onChange([]); setDraft([]); setOpen(false) }}>{copy.clear}</button>
+            ) : null}
+            <button type="button" className="calendar-dashboard-link-button" onClick={() => { setDraft(selector.selected); setOpen(false) }}>{copy.cancel}</button>
+            <button type="button" className="calendar-dashboard-primary-small" disabled={draft.length === 0} onClick={() => { selector.onChange(draft); setOpen(false) }}>{copy.apply}</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function CalendarDashboard(props: CalendarDashboardProps) {
   const {
     locale, user, selectedDate, selectedSession, bookings, settings, todosEnabled, waitlistEnabled,
-    canIssueOpenInvoice, canIssueAdvanceInvoice, visibleConsultantIds = [], visibleSpaceIds = [], resourceSelector,
+    canIssueOpenInvoice, canIssueAdvanceInvoice, visibleConsultantIds = [], visibleSpaceIds = [], resourceSelector, unassignedSelector,
     onOpenClient, onOpenTodo, onEditSession, onOpenFullOpenBill, onOpenFullAdvance, onRefreshCalendar,
   } = props
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const selectedUnassignedDimensions = unassignedSelector?.selected
   const [visibleBlocks, setVisibleBlocks] = useState<DashboardBlockKey[]>(() => readVisibleBlocks(user))
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const [customizeDraft, setCustomizeDraft] = useState<DashboardBlockKey[]>(visibleBlocks)
@@ -468,16 +562,18 @@ export function CalendarDashboard(props: CalendarDashboardProps) {
   const filteredDayBookings = useMemo(() => {
     const consultantSet = new Set(visibleConsultantIds.map(Number))
     const spaceSet = new Set(visibleSpaceIds.map(Number))
+    const unassignedDimensions = selectedUnassignedDimensions ?? []
     return (Array.isArray(bookings) ? bookings : []).filter((booking: any) => {
       if (booking?.kind && booking.kind !== 'booked') return false
       if (localDateKey(booking?.startTime ?? booking?.start) !== selectedDate) return false
+      if (!bookingMatchesUnassignedDimensions(booking, unassignedDimensions)) return false
       const consultantId = Number(booking?.consultant?.id ?? booking?.consultantId ?? 0)
       const spaceId = Number(booking?.space?.id ?? booking?.spaceId ?? 0)
       if (consultantSet.size > 0 && !consultantSet.has(consultantId)) return false
       if (spaceSet.size > 0 && !spaceSet.has(spaceId)) return false
       return true
     })
-  }, [bookings, selectedDate, visibleConsultantIds, visibleSpaceIds])
+  }, [bookings, selectedDate, selectedUnassignedDimensions, visibleConsultantIds, visibleSpaceIds])
 
   const analytics = useMemo(() => {
     const unique = new Map<number | string, any>()
@@ -647,7 +743,7 @@ export function CalendarDashboard(props: CalendarDashboardProps) {
       <div className="calendar-day-dashboard__scroll">
         <header className="calendar-day-dashboard__top">
           <div><h2><Icon name="pulse" size={22} /> Pregled dneva</h2><p>Pregled dneva in pomembnih informacij na enem mestu.</p></div>
-          <div className="calendar-day-dashboard__top-actions">{resourceSelector ? <ResourcePicker selector={resourceSelector} /> : null}<button type="button" className="calendar-dashboard-customize-button" onClick={() => { setCustomizeDraft(visibleBlocks); setCustomizeOpen(true) }}><Icon name="settings" size={17} /> Prilagodi pregled</button></div>
+          <div className="calendar-day-dashboard__top-actions">{unassignedSelector ? <UnassignedBookingsPicker selector={unassignedSelector} locale={locale} /> : null}{resourceSelector ? <ResourcePicker selector={resourceSelector} /> : null}<button type="button" className="calendar-dashboard-customize-button" onClick={() => { setCustomizeDraft(visibleBlocks); setCustomizeOpen(true) }}><Icon name="settings" size={17} /> Prilagodi pregled</button></div>
         </header>
 
         {blockVisible('analytics') ? (

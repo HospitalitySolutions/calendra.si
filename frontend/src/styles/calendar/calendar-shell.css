@@ -3225,3 +3225,24 @@ button.calendar-dashboard-client-row {
 [data-theme="dark"] .calendar-dashboard-billing-line {
     border-color: var(--border);
 }
+
+.calendar-dashboard-unassigned-picker__trigger.is-active {
+    border-color: #8bb9f8;
+    background: #edf5ff;
+    color: #0b5ed7;
+    box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.08);
+}
+
+.calendar-dashboard-unassigned-picker__popover {
+    width: min(330px, calc(100vw - 48px));
+}
+
+.calendar-dashboard-unassigned-picker__actions {
+    flex-wrap: wrap;
+}
+
+[data-theme="dark"] .calendar-dashboard-unassigned-picker__trigger.is-active {
+    border-color: rgba(96, 165, 250, 0.68);
+    background: rgba(30, 64, 175, 0.24);
+    color: #bfdbfe;
+}

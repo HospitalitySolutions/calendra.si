@@ -55,3 +55,32 @@ export function newClientInitials(firstName: string, lastName: string) {
     .slice(0, 2)
   return letters || 'N'
 }
+
+export type UnassignedBookingDimension = 'consultant' | 'space'
+
+function hasPositiveId(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0
+}
+
+/**
+ * Returns true when a booking is missing at least one of the selected assignments.
+ * Space assignment also checks persisted multi-service segments, because a booking
+ * can have its location stored on a service even when the booking-level space is null.
+ */
+export function bookingMatchesUnassignedDimensions(
+  booking: any,
+  dimensions: readonly UnassignedBookingDimension[],
+) {
+  if (!booking || dimensions.length === 0) return true
+
+  const missingConsultant = !hasPositiveId(booking?.consultant?.id ?? booking?.consultantId)
+  const bookingHasSpace = hasPositiveId(booking?.space?.id ?? booking?.spaceId)
+  const serviceHasSpace = Array.isArray(booking?.services)
+    && booking.services.some((service: any) => hasPositiveId(service?.space?.id ?? service?.spaceId))
+  const missingSpace = !bookingHasSpace && !serviceHasSpace
+
+  return dimensions.some((dimension) => (
+    dimension === 'consultant' ? missingConsultant : missingSpace
+  ))
+}
