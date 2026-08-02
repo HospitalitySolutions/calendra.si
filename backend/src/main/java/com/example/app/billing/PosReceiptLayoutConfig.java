@@ -31,6 +31,7 @@ public class PosReceiptLayoutConfig {
             "fiscal",
             "issuedBy",
             "notes",
+            "signature",
             "footer"
     );
 
@@ -45,6 +46,7 @@ public class PosReceiptLayoutConfig {
     private boolean showFiscalQr = true;
     private boolean showNotes = true;
     private boolean showIssuedBy = true;
+    private boolean showSignature = true;
     private String fontSize = "STANDARD";
     private String footerText = "";
     private List<String> taxClauses = new ArrayList<>();
@@ -67,6 +69,7 @@ public class PosReceiptLayoutConfig {
         normalized.showFiscalQr = source.showFiscalQr;
         normalized.showNotes = source.showNotes;
         normalized.showIssuedBy = source.showIssuedBy;
+        normalized.showSignature = source.showSignature;
         normalized.fontSize = normalizeFontSize(source.fontSize);
         normalized.footerText = source.footerText == null ? "" : source.footerText.strip();
         normalized.taxClauses = normalizeTaxClauses(source.taxClauses);
@@ -140,6 +143,8 @@ public class PosReceiptLayoutConfig {
     public void setShowNotes(boolean showNotes) { this.showNotes = showNotes; }
     public boolean isShowIssuedBy() { return showIssuedBy; }
     public void setShowIssuedBy(boolean showIssuedBy) { this.showIssuedBy = showIssuedBy; }
+    public boolean isShowSignature() { return showSignature; }
+    public void setShowSignature(boolean showSignature) { this.showSignature = showSignature; }
     public String getFontSize() { return fontSize; }
     public void setFontSize(String fontSize) { this.fontSize = fontSize; }
     public String getFooterText() { return footerText; }

@@ -105,6 +105,29 @@ public class ReceiptPdfService {
         }
     }
 
+    private static final class SignatureLineBlock implements Block {
+        private final String label;
+        private final float fontSize;
+        private final float lineHeight;
+
+        private SignatureLineBlock(String label, float fontSize, float lineHeight) {
+            this.label = safe(label);
+            this.fontSize = fontSize;
+            this.lineHeight = lineHeight;
+        }
+
+        @Override public float height() { return lineHeight + 12f; }
+
+        @Override public void draw(RenderContext context, float top) throws IOException {
+            drawText(context.stream, context.fonts.regular(), fontSize, context.left, context.pdfY(top, fontSize), label);
+            float lineY = context.pageHeight - top - lineHeight - 3f;
+            context.stream.setLineWidth(0.55f);
+            context.stream.moveTo(context.left, lineY);
+            context.stream.lineTo(context.left + context.width, lineY);
+            context.stream.stroke();
+        }
+    }
+
     private static final class TextBlock implements Block {
         private final List<String> lines;
         private final float fontSize;
@@ -277,6 +300,7 @@ public class ReceiptPdfService {
         sections.put("fiscal", fiscalBlocks(request, layout, fonts, typography, locale));
         sections.put("issuedBy", issuedByBlocks(request, layout, fonts, typography, locale));
         sections.put("notes", notesBlocks(request, layout, fonts, typography, locale));
+        sections.put("signature", signatureBlocks(layout, typography, locale));
         sections.put("footer", footerBlocks(layout, fonts, typography));
 
         boolean hasContent = false;
@@ -357,10 +381,7 @@ public class ReceiptPdfService {
             BigDecimal total = lineGross(service);
             if (layout.isShowUnitPriceAndQuantity()) {
                 int qty = Math.max(1, service.getQty());
-                BigDecimal unit = service.getGrossPrice() == null
-                        ? total.divide(BigDecimal.valueOf(qty), 2, RoundingMode.HALF_UP)
-                        : service.getGrossPrice();
-                String left = qty + " × " + money(unit);
+                String left = String.valueOf(qty);
                 String tax = displayTaxRate(service.getTaxPercent());
                 if (!tax.isBlank()) left += "  " + tax;
                 blocks.add(pairBlock(left, money(total), fonts.regular(), type.small(), type.smallLineHeight(), false));
@@ -397,7 +418,6 @@ public class ReceiptPdfService {
 
         // Keep every summary row at the normal body size. Visual hierarchy comes
         // from weight and divider lines rather than oversized thermal-printer text.
-        blocks.add(new RuleBlock(1f, 4f));
         blocks.add(pairBlock(word(locale, "Skupaj brez DDV", "Ukupno bez PDV-a", "Total excl. VAT"), money(subtotalNet), fonts.regular(), type.body(), type.lineHeight(), false));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
@@ -460,6 +480,11 @@ public class ReceiptPdfService {
     private List<Block> issuedByBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
         if (!layout.isShowIssuedBy() || blank(request.getIssuedBy())) return List.of();
         return List.of(pairBlock(word(locale, "Izdal", "Izdao", "Issued by"), request.getIssuedBy(), fonts.regular(), type.small(), type.smallLineHeight(), false));
+    }
+
+    private List<Block> signatureBlocks(PosReceiptLayoutConfig layout, Typography type, String locale) {
+        if (layout == null || !layout.isShowSignature()) return List.of();
+        return List.of(new SignatureLineBlock(word(locale, "Podpis", "Potpis", "Signature"), type.small(), type.smallLineHeight()));
     }
 
     private List<Block> taxClauseBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {

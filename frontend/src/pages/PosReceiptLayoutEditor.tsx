@@ -21,6 +21,7 @@ type PosReceiptLayout = {
   showFiscalQr: boolean
   showNotes: boolean
   showIssuedBy: boolean
+  showSignature: boolean
   fontSize: PosReceiptFontSize
   footerText: string
   taxClauses: string[]
@@ -41,6 +42,7 @@ const DEFAULT_ORDER = [
   'fiscal',
   'issuedBy',
   'notes',
+  'signature',
   'footer',
 ]
 
@@ -66,6 +68,7 @@ const DEFAULT_LAYOUT: PosReceiptLayout = {
   showFiscalQr: true,
   showNotes: true,
   showIssuedBy: true,
+  showSignature: true,
   fontSize: 'STANDARD',
   footerText: '',
   taxClauses: [],
@@ -210,10 +213,10 @@ export function PosReceiptLayoutEditor() {
   }, [locale])
 
   const labels: Record<string, string> = locale === 'sl'
-    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', totals: 'Seštevki', vat: 'Razčlenitev DDV', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', taxClauses: 'Davčne klavzule', notes: 'Referenca', footer: 'Noga' }
+    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', totals: 'Seštevki', vat: 'Razčlenitev DDV', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', taxClauses: 'Davčne klavzule', notes: 'Referenca', signature: 'Podpis', footer: 'Noga' }
     : locale === 'sr'
-      ? { company: 'Kompanija i logo', document: 'Podaci računa', recipient: 'Primalac', items: 'Stavke', advancePayments: 'Avansne uplate', totals: 'Ukupni iznosi', vat: 'Pregled PDV-a', paymentQr: 'UPN QR', fiscal: 'Fiskalni podaci', issuedBy: 'Izdao', taxClauses: 'Poreske klauzule', notes: 'Referenca', footer: 'Podnožje' }
-      : { company: 'Company and logo', document: 'Invoice details', recipient: 'Recipient', items: 'Items', advancePayments: 'Advances', totals: 'Totals', vat: 'VAT breakdown', paymentQr: 'Payment QR', fiscal: 'Fiscal details', issuedBy: 'Issued by', taxClauses: 'Tax clauses', notes: 'Reference', footer: 'Footer' }
+      ? { company: 'Kompanija i logo', document: 'Podaci računa', recipient: 'Primalac', items: 'Stavke', advancePayments: 'Avansne uplate', totals: 'Ukupni iznosi', vat: 'Pregled PDV-a', paymentQr: 'UPN QR', fiscal: 'Fiskalni podaci', issuedBy: 'Izdao', taxClauses: 'Poreske klauzule', notes: 'Referenca', signature: 'Potpis', footer: 'Podnožje' }
+      : { company: 'Company and logo', document: 'Invoice details', recipient: 'Recipient', items: 'Items', advancePayments: 'Advances', totals: 'Totals', vat: 'VAT breakdown', paymentQr: 'Payment QR', fiscal: 'Fiscal details', issuedBy: 'Issued by', taxClauses: 'Tax clauses', notes: 'Reference', signature: 'Signature', footer: 'Footer' }
 
   useEffect(() => {
     let cancelled = false
@@ -318,6 +321,7 @@ export function PosReceiptLayoutEditor() {
     if (section === 'issuedBy') return layout.showIssuedBy
     if (section === 'taxClauses') return true
     if (section === 'notes') return layout.showNotes
+    if (section === 'signature') return layout.showSignature
     if (section === 'footer') return Boolean(layout.footerText.trim())
     return true
   }
@@ -331,15 +335,16 @@ export function PosReceiptLayoutEditor() {
     company: <>{layout.showLogo ? <div className="pos58-preview-logo">LOGO</div> : null}<strong className="pos58-preview-company">Calendra Studio</strong><span>Glavna ulica 12</span><span>2000 Maribor</span><span>SI12345678</span><span>{locale === 'sl' ? 'TRR' : 'IBAN'}: SI56 … 5678</span></>,
     document: <><hr /><strong className="pos58-preview-title">{locale === 'en' ? 'Invoice' : 'Račun'} 2026-00042</strong><div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Ura in kraj izdaje' : locale === 'sr' ? 'Vreme i mesto izdavanja' : 'Issue time and place'}</span><b>12:45, Maribor</b></div><div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum izvršene usluge' : 'Service date'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><b>07.08.2026</b></div><hr /></>,
     recipient: <><strong>{labels.recipient}</strong><span>Ana Novak</span><span>Cesta 5, 1000 Ljubljana</span></>,
-    items: <><strong>{labels.items}</strong><hr /><b>Masaža hrbta in vratu</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '1 × 50,00 EUR' : ''}</span><b>50,00 EUR</b></div><b>Individualno svetovanje z daljšim opisom</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '2 × 25,00 EUR' : ''}</span><b>50,00 EUR</b></div><hr /></>,
+    items: <><strong>{labels.items}</strong><hr /><b>Masaža hrbta in vratu</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '1' : ''}</span><b>50,00 EUR</b></div><b>Individualno svetovanje z daljšim opisom</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '2' : ''}</span><b>50,00 EUR</b></div><hr /></>,
     advancePayments: <></>,
-    totals: <><hr className="pos58-preview-summary-rule" /><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Total excl. VAT'}</span><b>100,00 EUR</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 10,00 EUR</b></div><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-rule" /></>,
+    totals: <><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Total excl. VAT'}</span><b>100,00 EUR</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 10,00 EUR</b></div><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-rule" /></>,
     vat: <></>,
     paymentQr: <><div className="pos58-preview-qr" aria-label="UPN QR preview" /><small>{locale === 'sl' ? 'Skeniraj in plačaj' : locale === 'sr' ? 'Skeniraj i plati' : 'Scan and pay'}</small></>,
     fiscal: <><div className="pos58-preview-qr pos58-preview-qr--fiscal" /><span>ZOI: 1234567890…</span><span>EOR: 9999cf00-089a-46e6-a3d8-bcbb0da779c7</span></>,
     issuedBy: <div><span>{locale === 'sl' ? 'Izdal' : locale === 'sr' ? 'Izdao' : 'Issued by'}</span><b>David Mirc</b></div>,
     taxClauses: <>{previewTaxClauses.map((clause) => <span key={clause}>• {clause}</span>)}</>,
     notes: <><strong>{labels.notes}</strong><span>{referencePreview}</span></>,
+    signature: <><strong>{labels.signature}</strong><hr /></>,
     footer: <><hr /><span className="pos58-preview-footer">{layout.footerText}</span></>,
   }
 
@@ -358,12 +363,13 @@ export function PosReceiptLayoutEditor() {
             <h4>{copy.settings}</h4>
             <ReceiptToggle checked={layout.showLogo} onChange={(value) => patch('showLogo', value)} label={locale === 'sl' ? 'Prikaži logotip' : locale === 'sr' ? 'Prikaži logo' : 'Show logo'} />
             <ReceiptToggle checked={layout.showRecipient} onChange={(value) => patch('showRecipient', value)} label={labels.recipient} />
-            <ReceiptToggle checked={layout.showUnitPriceAndQuantity} onChange={(value) => patch('showUnitPriceAndQuantity', value)} label={locale === 'sl' ? 'Količina in cena na enoto' : locale === 'sr' ? 'Količina i jedinična cena' : 'Quantity and unit price'} />
+            <ReceiptToggle checked={layout.showUnitPriceAndQuantity} onChange={(value) => patch('showUnitPriceAndQuantity', value)} label={locale === 'sl' ? 'Količina' : locale === 'sr' ? 'Količina' : 'Quantity'} />
             <ReceiptToggle checked={layout.showVatBreakdown} onChange={(value) => patch('showVatBreakdown', value)} label={labels.vat} />
             <ReceiptToggle checked={layout.showPaymentQr} onChange={(value) => patch('showPaymentQr', value)} label={labels.paymentQr} hint={locale === 'sl' ? 'Prikaže se samo, ko so podatki za QR popolni.' : locale === 'sr' ? 'Prikazuje se samo kada su podaci za QR potpuni.' : 'Only shown when QR payment data is complete.'} />
             <ReceiptToggle checked={layout.showFiscalQr} onChange={(value) => patch('showFiscalQr', value)} label={labels.fiscal} hint={locale === 'sl' ? 'Vključi ZOI, EOR in fiskalno QR kodo.' : locale === 'sr' ? 'Uključuje ZOI, EOR i fiskalni QR kod.' : 'Includes ZOI, EOR and the fiscal QR code.'} />
             <ReceiptToggle checked={layout.showIssuedBy} onChange={(value) => patch('showIssuedBy', value)} label={labels.issuedBy} />
             <ReceiptToggle checked={layout.showNotes} onChange={(value) => patch('showNotes', value)} label={labels.notes} />
+            <ReceiptToggle checked={layout.showSignature} onChange={(value) => patch('showSignature', value)} label={labels.signature} />
           </div>
 
           <div className="pos58-card pos58-form-card">
