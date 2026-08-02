@@ -135,6 +135,9 @@ type LayoutConfig = {
   accentColor?: string
   fontSizePreset?: A4FontSizePreset
   taxClauses?: string[]
+  sectionOrder?: string[]
+  hiddenSections?: string[]
+  referenceText?: string
   pageSections: PageSectionsConfig
   fields: FieldConfig[]
   table: TableConfig
@@ -269,6 +272,45 @@ const A4_TEMPLATE_META: Array<{ id: Exclude<A4TemplateId, 'CUSTOM'>; name: Recor
     description: { en: 'Clean, spacious layout with only the most important elements.', sl: 'Čista in zračna postavitev samo z najpomembnejšimi elementi.', sr: 'Čist i prozračan raspored samo sa najvažnijim elementima.' },
   },
 ]
+
+const DEFAULT_A4_SECTION_ORDER = [
+  'company',
+  'document',
+  'recipient',
+  'items',
+  'advancePayments',
+  'vat',
+  'totals',
+  'taxClauses',
+  'reference',
+  'paymentQr',
+  'fiscal',
+  'issuedBy',
+  'signature',
+  'footer',
+] as const
+
+function normalizeA4SectionOrder(value: unknown): string[] {
+  const ordered = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && DEFAULT_A4_SECTION_ORDER.includes(entry as any)) : []
+  const unique = Array.from(new Set([...ordered, ...DEFAULT_A4_SECTION_ORDER]))
+  return unique
+}
+
+function normalizeHiddenSections(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const unique = new Set<string>()
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue
+    if (DEFAULT_A4_SECTION_ORDER.includes(entry as any)) unique.add(entry)
+  }
+  return Array.from(unique)
+}
+
+const DEFAULT_A4_REFERENCE_TEXT: Record<AppLocale, string> = {
+  sl: 'Prosimo, da se pri plačilu sklicujete na št.: {reference-number}',
+  en: 'Please use the following reference when making the payment: {reference-number}',
+  sr: 'Molimo vas da se prilikom plaćanja pozovete na broj: {reference-number}',
+}
 
 const TEMPLATE_FIELD_KEYS = new Set([
   'companyName', 'companyAddress', 'companyPostalCodeCity', 'companyTaxId',
@@ -2815,6 +2857,665 @@ function A4FolioLayoutEditor() {
 }
 
 
+function A4PresetLayoutEditor() {
+  const { locale } = useLocale()
+  const [layout, setLayout] = useState<LayoutConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+
+  const copy = locale === 'sl'
+    ? {
+        title: 'Nastavitve računa',
+        subtitle: 'A4 predloge uporabljajo enako logiko nastavitev kot 58 mm. Ročno pozicioniranje elementov ni več na voljo.',
+        chooseTemplate: 'Izbira predloge',
+        invoiceContent: 'Vsebina računa',
+        textSize: 'Velikost besedila',
+        taxClauses: 'Davčne klavzule',
+        taxClausesHint: 'Klavzula po 94. členu se doda samodejno, ko imajo vse postavke davčno stopnjo Brez DDV. Tukaj lahko izberete dodatne klavzule.',
+        addTaxClause: 'Dodaj davčno klavzulo…',
+        noTaxClauses: 'Ni izbranih dodatnih davčnih klavzul.',
+        referenceText: 'Besedilo reference',
+        referenceHint: 'Uporabite oznako {reference-number}, kjer naj se izpiše številka reference.',
+        footerText: 'Besedilo v nogi',
+        footerHint: 'Neobvezno sporočilo, na primer zahvala ali povezava do spletne strani.',
+        order: 'Vrstni red razdelkov',
+        preview: 'Predogled računa (A4)',
+        save: 'Shrani nastavitve',
+        saving: 'Shranjujem…',
+        reset: 'Ponastavi',
+        test: 'Testno tiskanje',
+        saved: 'A4 postavitev je shranjena.',
+        resetDone: 'A4 postavitev je ponastavljena.',
+        failed: 'A4 postavitve ni bilo mogoče shraniti.',
+        loadFailed: 'A4 postavitve ni bilo mogoče naložiti.',
+        showLogo: 'Prikaži logotip',
+        recipient: 'Prejemnik',
+        quantity: 'Količina',
+        vatBreakdown: 'Razčlenitev DDV',
+        paymentQr: 'UPN QR',
+        paymentQrHint: 'Prikaže se samo, ko so podatki za QR popolni.',
+        fiscal: 'Fiskalni podatki',
+        reference: 'Referenca',
+        issuedBy: 'Izdal',
+        signature: 'Podpis',
+        compact: 'Kompaktna',
+        classic: 'Klasična',
+        minimal: 'Minimalna',
+        compactDesc: 'Vsebuje ključne informacije v kompaktni postavitvi.',
+        classicDesc: 'Pregledna in uravnotežena postavitev za vsakodnevno rabo.',
+        minimalDesc: 'Čista in preprosta postavitev brez odvečnih elementov.',
+        compactSize: 'Kompaktno',
+        standardSize: 'Standardno',
+        largeSize: 'Večje',
+      }
+    : locale === 'sr'
+      ? {
+          title: 'Podešavanja računa',
+          subtitle: 'A4 predlošci sada koriste istu logiku podešavanja kao 58 mm. Ručno pozicioniranje elemenata više nije dostupno.',
+          chooseTemplate: 'Izbor predloška',
+          invoiceContent: 'Sadržaj računa',
+          textSize: 'Veličina teksta',
+          taxClauses: 'Poreske klauzule',
+          taxClausesHint: 'Klauzula po članu 94 automatski se dodaje kada sve stavke koriste poreski nivo Bez PDV-a. Ovde možete izabrati dodatne klauzule.',
+          addTaxClause: 'Dodaj poresku klauzulu…',
+          noTaxClauses: 'Nema izabranih dodatnih poreskih klauzula.',
+          referenceText: 'Tekst reference',
+          referenceHint: 'Koristite oznaku {reference-number} na mestu gde treba prikazati broj reference.',
+          footerText: 'Tekst u podnožju',
+          footerHint: 'Opciona poruka, na primer zahvalnica ili veza ka sajtu.',
+          order: 'Redosled odeljaka',
+          preview: 'Pregled računa (A4)',
+          save: 'Sačuvaj podešavanja',
+          saving: 'Čuvam…',
+          reset: 'Vrati podrazumevano',
+          test: 'Probna štampa',
+          saved: 'A4 izgled je sačuvan.',
+          resetDone: 'A4 izgled je vraćen na podrazumevano.',
+          failed: 'A4 izgled nije moguće sačuvati.',
+          loadFailed: 'A4 izgled nije moguće učitati.',
+          showLogo: 'Prikaži logo',
+          recipient: 'Primalac',
+          quantity: 'Količina',
+          vatBreakdown: 'Pregled PDV-a',
+          paymentQr: 'UPN QR',
+          paymentQrHint: 'Prikazuje se samo kada su QR podaci potpuni.',
+          fiscal: 'Fiskalni podaci',
+          reference: 'Referenca',
+          issuedBy: 'Izdao',
+          signature: 'Potpis',
+          compact: 'Kompaktna',
+          classic: 'Klasična',
+          minimal: 'Minimalna',
+          compactDesc: 'Ključne informacije u kompaktnoj postavci.',
+          classicDesc: 'Pregledna i uravnotežena postavka za svakodnevni rad.',
+          minimalDesc: 'Čista i jednostavna postavka bez suvišnih elemenata.',
+          compactSize: 'Kompaktno',
+          standardSize: 'Standardno',
+          largeSize: 'Veće',
+        }
+      : {
+          title: 'Invoice settings',
+          subtitle: 'A4 templates now use the same settings logic as 58 mm. Manual element positioning is no longer available.',
+          chooseTemplate: 'Template selection',
+          invoiceContent: 'Invoice content',
+          textSize: 'Text size',
+          taxClauses: 'Tax clauses',
+          taxClausesHint: 'The Article 94 clause is added automatically when all items use the No VAT tax level. Additional clauses can be selected here.',
+          addTaxClause: 'Add tax clause…',
+          noTaxClauses: 'No additional tax clauses selected.',
+          referenceText: 'Reference text',
+          referenceHint: 'Use {reference-number} where the invoice reference number should appear.',
+          footerText: 'Footer text',
+          footerHint: 'Optional message such as a thank-you note or website link.',
+          order: 'Section order',
+          preview: 'Invoice preview (A4)',
+          save: 'Save settings',
+          saving: 'Saving…',
+          reset: 'Reset',
+          test: 'Test print',
+          saved: 'A4 layout saved.',
+          resetDone: 'A4 layout reset.',
+          failed: 'Unable to save the A4 layout.',
+          loadFailed: 'Unable to load the A4 layout.',
+          showLogo: 'Show logo',
+          recipient: 'Recipient',
+          quantity: 'Quantity',
+          vatBreakdown: 'VAT breakdown',
+          paymentQr: 'Payment QR',
+          paymentQrHint: 'Shown only when QR details are complete.',
+          fiscal: 'Fiscal details',
+          reference: 'Reference',
+          issuedBy: 'Issued by',
+          signature: 'Signature',
+          compact: 'Compact',
+          classic: 'Classic',
+          minimal: 'Minimal',
+          compactDesc: 'Keeps key information in a compact layout.',
+          classicDesc: 'Balanced and easy-to-scan layout for day-to-day use.',
+          minimalDesc: 'Clean layout without unnecessary elements.',
+          compactSize: 'Compact',
+          standardSize: 'Standard',
+          largeSize: 'Larger',
+        }
+
+  const sectionLabels: Record<string, string> = locale === 'sl'
+    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', vat: 'Razčlenitev DDV', totals: 'Seštevki', taxClauses: 'Davčne klavzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', signature: 'Podpis', footer: 'Noga' }
+    : locale === 'sr'
+      ? { company: 'Kompanija i logo', document: 'Podaci računa', recipient: 'Primalac', items: 'Stavke', advancePayments: 'Avansi', vat: 'Pregled PDV-a', totals: 'Ukupni iznosi', taxClauses: 'Poreske klauzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podaci', issuedBy: 'Izdao', signature: 'Potpis', footer: 'Podnožje' }
+      : { company: 'Company and logo', document: 'Invoice details', recipient: 'Recipient', items: 'Items', advancePayments: 'Advance payments', vat: 'VAT breakdown', totals: 'Totals', taxClauses: 'Tax clauses', reference: 'Reference', paymentQr: 'Payment QR', fiscal: 'Fiscal details', issuedBy: 'Issued by', signature: 'Signature', footer: 'Footer' }
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await api.get('/billing/folio-layout')
+        let data = response.data
+        if (typeof data === 'string') {
+          try { data = JSON.parse(data) } catch { data = null }
+        }
+        if (!isValidLayout(data)) {
+          const resetResponse = await api.delete('/billing/folio-layout')
+          data = typeof resetResponse.data === 'string' ? JSON.parse(resetResponse.data) : resetResponse.data
+        }
+        if (!cancelled && isValidLayout(data)) {
+          const next = rebaseToSelectedTemplate(data)
+          next.sectionOrder = normalizeA4SectionOrder(next.sectionOrder)
+          next.hiddenSections = normalizeHiddenSections(next.hiddenSections)
+          next.referenceText = typeof next.referenceText === 'string' ? next.referenceText : DEFAULT_A4_REFERENCE_TEXT[locale]
+          setLayout(next)
+        } else if (!cancelled) {
+          setNotice(copy.loadFailed)
+        }
+      } catch {
+        if (!cancelled) setNotice(copy.loadFailed)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    api.get('/billing/folio-logo').then((r) => { if (!cancelled && r.status === 200 && r.data) setLogoDataUrl(r.data as string) }).catch(() => {})
+    api.get('/billing/folio-signature').then((r) => { if (!cancelled && r.status === 200 && r.data) setSignatureDataUrl(r.data as string) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [copy.loadFailed, locale])
+
+  const mutateLayout = useCallback((fn: (next: LayoutConfig) => void) => {
+    setLayout((previous) => {
+      if (!previous) return previous
+      const next = cloneLayout(previous)
+      fn(next)
+      next.sectionOrder = normalizeA4SectionOrder(next.sectionOrder)
+      next.hiddenSections = normalizeHiddenSections(next.hiddenSections)
+      next.taxClauses = normalizeTaxClauses(next.taxClauses)
+      if (!next.referenceText) next.referenceText = DEFAULT_A4_REFERENCE_TEXT[locale]
+      return next
+    })
+    setDirty(true)
+    setNotice(null)
+  }, [locale])
+
+  const setRecipientVisible = (visible: boolean) => mutateLayout((next) => {
+    next.fields.filter((field) => field.group === 'recipient').forEach((field) => { field.visible = visible })
+  })
+
+  const setQuantityVisible = (visible: boolean) => mutateLayout((next) => {
+    const qty = columnFor(next, 'qty')
+    if (qty) qty.visible = visible
+  })
+
+  const setFooterText = (value: string) => mutateLayout((next) => {
+    const field = ensureTemplateFooterField(next)
+    field.textI18n = ensureLocalizedText(field.textI18n, field.text || '')
+    field.textI18n[locale] = value
+    field.text = resolveLocalizedText(field.textI18n, value, 'en')
+    field.visible = value.trim().length > 0
+  })
+
+  const save = async () => {
+    if (!layout) return
+    setSaving(true)
+    setNotice(null)
+    try {
+      await api.put('/billing/folio-layout', layout)
+      setDirty(false)
+      setNotice(copy.saved)
+    } catch {
+      setNotice(copy.failed)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const reset = async () => {
+    try {
+      const { data } = await api.delete('/billing/folio-layout')
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data
+      if (isValidLayout(parsed)) {
+        const next = rebaseToSelectedTemplate(parsed)
+        next.sectionOrder = normalizeA4SectionOrder(next.sectionOrder)
+        next.hiddenSections = normalizeHiddenSections(next.hiddenSections)
+        next.referenceText = typeof next.referenceText === 'string' ? next.referenceText : DEFAULT_A4_REFERENCE_TEXT[locale]
+        setLayout(next)
+        setDirty(false)
+        setNotice(copy.resetDone)
+      }
+    } catch {
+      setNotice(copy.failed)
+    }
+  }
+
+  const testPrint = async () => {
+    if (!layout) return
+    setTesting(true)
+    setNotice(null)
+    const prepared = window.open('', '_blank')
+    try {
+      if (dirty) await api.put('/billing/folio-layout', layout)
+      const sample = {
+        companyName: 'Calendra Studio d.o.o.', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', companyTaxId: 'SI12345678',
+        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', dateOfService: '31.07.2026', dueDate: '07.08.2026',
+        recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: 'SI98765432',
+        services: [
+          { date: '31.07.2026', description: locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+          { date: '31.07.2026', description: locale === 'sl' ? 'Individualno svetovanje' : locale === 'sr' ? 'Individualno savetovanje' : 'Individual counselling', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+        ],
+        paymentMethods: [{ name: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', amountGross: 90 }],
+        paymentMethod: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', issuedBy: 'David Mirc', iban: 'SI56 1234 5678 9012 3456', toBePaidGross: 90,
+        paymentQrPayload: 'https://calendra.si/placilo/test', fiscalQr: 'https://calendra.si/fiscal/test', fiscalZoi: '1234567890', fiscalEor: 'EOR-2026-42',
+        notes: 'REF-2026-001', locale,
+      }
+      const response = await api.post(`/billing/folio/pdf?format=A4&locale=${locale}`, sample, { responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      if (prepared) prepared.location.href = url
+      else window.open(url, '_blank', 'noopener,noreferrer')
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000)
+      if (dirty) setDirty(false)
+    } catch {
+      prepared?.close()
+      setNotice(locale === 'sl' ? 'Testnega A4 računa ni bilo mogoče pripraviti.' : locale === 'sr' ? 'Probni A4 račun nije moguće pripremiti.' : 'Unable to prepare the A4 test invoice.')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  if (loading || !layout) return <div className="fle-loading">…</div>
+
+  const activeTemplate = ((layout.templateId || 'CLASSIC') as A4TemplateId)
+  const footerTextField = fieldFor(layout, 'templateFooterText')
+  const currentFooterText = footerTextField ? resolveLocalizedText(footerTextField.textI18n, footerTextField.text || '', locale) : ''
+  const recipientVisible = layout.fields.filter((field) => field.group === 'recipient').some((field) => field.visible !== false)
+  const quantityVisible = columnFor(layout, 'qty')?.visible !== false
+  const fiscalVisible = layout.fiscalQr.visible || ['fiscalZoi', 'fiscalEor'].some((key) => footerFor(layout, key)?.visible !== false)
+  const referenceVisible = footerFor(layout, 'notes')?.visible !== false
+  const issuedByVisible = footerFor(layout, 'issuedBy')?.visible !== false
+  const hiddenSections = normalizeHiddenSections(layout.hiddenSections)
+  const sectionOrder = normalizeA4SectionOrder(layout.sectionOrder)
+  const referenceText = layout.referenceText || DEFAULT_A4_REFERENCE_TEXT[locale]
+
+  const templateDescriptions: Record<Exclude<A4TemplateId, 'CUSTOM'>, { title: string; description: string }> = {
+    COMPACT: { title: copy.compact, description: copy.compactDesc },
+    CLASSIC: { title: copy.classic, description: copy.classicDesc },
+    MINIMAL: { title: copy.minimal, description: copy.minimalDesc },
+  }
+
+  const moveSection = (section: string, direction: -1 | 1) => {
+    mutateLayout((next) => {
+      const order = normalizeA4SectionOrder(next.sectionOrder)
+      const index = order.indexOf(section)
+      const target = index + direction
+      if (index < 0 || target < 0 || target >= order.length) return
+      ;[order[index], order[target]] = [order[target], order[index]]
+      next.sectionOrder = order
+    })
+  }
+
+  const toggleSection = (section: string, visible: boolean) => {
+    mutateLayout((next) => {
+      const hidden = new Set(normalizeHiddenSections(next.hiddenSections))
+      if (visible) hidden.delete(section)
+      else hidden.add(section)
+      next.hiddenSections = Array.from(hidden)
+    })
+  }
+
+  const previewSections = sectionOrder.filter((section) => !hiddenSections.includes(section))
+
+  const renderPreviewSection = (section: string) => {
+    switch (section) {
+      case 'company':
+        return (
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--company">
+            <div className="fle-a4-preview-company-row">
+              {layout.logo.visible ? (
+                logoDataUrl
+                  ? <img src={logoDataUrl} alt="Logo" className="fle-a4-preview-logo-image" />
+                  : <div className="fle-a4-preview-logo-placeholder">LOGO</div>
+              ) : null}
+              <div>
+                <strong>Calendra Studio</strong>
+                <div>Glavna ulica 12</div>
+                <div>2000 Maribor</div>
+                <div>SI12345678</div>
+                <div>TRR: SI56 1234 5678 9012 3456</div>
+              </div>
+            </div>
+          </section>
+        )
+      case 'document':
+        return (
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--document">
+            <div className="fle-a4-preview-document-header">
+              <div className="fle-a4-preview-title">{locale === 'en' ? 'Invoice' : 'Račun'}</div>
+              <div className="fle-a4-preview-number">2026-00042</div>
+            </div>
+            <div className="fle-a4-preview-meta-grid">
+              <div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><strong>31.07.2026</strong></div>
+              <div><span>{locale === 'sl' ? 'Ura izdaje' : locale === 'sr' ? 'Vreme izdavanja' : 'Issue time'}</span><strong>12:45</strong></div>
+              <div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum usluge' : 'Service date'}</span><strong>31.07.2026</strong></div>
+              <div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><strong>07.08.2026</strong></div>
+            </div>
+          </section>
+        )
+      case 'recipient':
+        if (!recipientVisible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.recipient}</div>
+            <div>Ana Novak</div>
+            <div>Cesta 5</div>
+            <div>1000 Ljubljana</div>
+            <div>Slovenija</div>
+          </section>
+        )
+      case 'items': {
+        const showQty = quantityVisible
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.items}</div>
+            <div className="fle-a4-table-wrap">
+              <table className="fle-a4-preview-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{locale === 'sl' ? 'Opis' : locale === 'sr' ? 'Opis' : 'Description'}</th>
+                    {showQty ? <th>{locale === 'sl' ? 'Količina' : locale === 'sr' ? 'Količina' : 'Quantity'}</th> : null}
+                    <th>{locale === 'sl' ? 'Cena brez DDV' : locale === 'sr' ? 'Cena bez PDV-a' : 'Price excl. VAT'}</th>
+                    <th>DDV (%)</th>
+                    <th>{locale === 'sl' ? 'Znesek brez DDV' : locale === 'sr' ? 'Iznos bez PDV-a' : 'Amount excl. VAT'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td>
+                    <td>{locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage'}</td>
+                    {showQty ? <td>1</td> : null}
+                    <td>50,00 €</td>
+                    <td>22 %</td>
+                    <td>50,00 €</td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td>{locale === 'sl' ? 'Individualno svetovanje z daljšim opisom' : locale === 'sr' ? 'Individualno savetovanje sa dužim opisom' : 'Individual counselling with a longer description'}</td>
+                    {showQty ? <td>1</td> : null}
+                    <td>50,00 €</td>
+                    <td>22 %</td>
+                    <td>50,00 €</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )
+      }
+      case 'advancePayments':
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.advancePayments}</div>
+            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Predplačilo' : locale === 'sr' ? 'Avans' : 'Advance payment'}</span><strong>10,00 €</strong></div>
+          </section>
+        )
+      case 'vat':
+        if (!layout.vatBreakdownTable.visible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.vat}</div>
+            <div className="fle-a4-preview-inline-row"><span>22 %</span><span>100,00 €</span><strong>22,00 €</strong></div>
+          </section>
+        )
+      case 'totals':
+        return (
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--totals">
+            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Subtotal excl. VAT'}</span><strong>100,00 €</strong></div>
+            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Popust' : locale === 'sr' ? 'Popust' : 'Discount'}</span><strong>-10,00 €</strong></div>
+            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><strong>90,00 €</strong></div>
+            <div className="fle-a4-preview-inline-row fle-a4-preview-inline-row--payable"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za uplatu' : 'Amount due'}</span><strong>90,00 €</strong></div>
+          </section>
+        )
+      case 'taxClauses':
+        if ((layout.taxClauses || []).length === 0) return null
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.taxClauses}</div>
+            {(layout.taxClauses || []).map((clause) => <div key={clause} className="fle-a4-preview-clause">{clause}</div>)}
+          </section>
+        )
+      case 'reference':
+        if (!referenceVisible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.reference}</div>
+            <div>{referenceText.replace('{reference-number}', 'REF-2026-001')}</div>
+          </section>
+        )
+      case 'paymentQr':
+        if (!layout.paymentQr.visible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr">
+            <div className="fle-a4-preview-section-title">UPN QR</div>
+            <div className="fle-a4-preview-qr" />
+          </section>
+        )
+      case 'fiscal':
+        if (!fiscalVisible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr">
+            <div className="fle-a4-preview-section-title">{sectionLabels.fiscal}</div>
+            <div>ZOI: 1234567890</div>
+            <div>EOR: 9999e010-089a-46e6-a3d8-bc0bd0a779c7</div>
+            <div className="fle-a4-preview-qr fle-a4-preview-qr--small" />
+          </section>
+        )
+      case 'issuedBy':
+        if (!issuedByVisible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.issuedBy}</div>
+            <div>David Mirc</div>
+          </section>
+        )
+      case 'signature':
+        if (!layout.signature.visible) return null
+        return (
+          <section key={section} className="fle-a4-preview-block">
+            <div className="fle-a4-preview-section-title">{sectionLabels.signature}</div>
+            {signatureDataUrl
+              ? <img src={signatureDataUrl} alt="Signature" className="fle-a4-preview-signature-image" />
+              : <div className="fle-a4-preview-signature-line">David Mirc</div>}
+          </section>
+        )
+      case 'footer':
+        if (!currentFooterText.trim()) return null
+        return (
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--footer">
+            <div>{currentFooterText}</div>
+          </section>
+        )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="fle-a4-settings-page">
+      <div className="fle-a4-settings-head">
+        <div>
+          <h3>{copy.title}</h3>
+          <p>{copy.subtitle}</p>
+        </div>
+      </div>
+
+      <div className="fle-a4-info-banner">
+        <span>i</span>
+        <div>{copy.subtitle}</div>
+      </div>
+
+      <div className="fle-a4-settings-grid">
+        <div className="fle-a4-settings-column">
+          <section className="fle-a4-card">
+            <h4>{copy.chooseTemplate}</h4>
+            <div className="fle-a4-template-list">
+              {(['COMPACT', 'CLASSIC', 'MINIMAL'] as const).map((templateId) => (
+                <button
+                  key={templateId}
+                  type="button"
+                  className={`fle-a4-template-card${activeTemplate === templateId ? ' is-selected' : ''}`}
+                  onClick={() => mutateLayout((next) => {
+                    const applied = applyA4Template(next, templateId)
+                    applied.sectionOrder = normalizeA4SectionOrder(applied.sectionOrder)
+                    applied.hiddenSections = normalizeHiddenSections(applied.hiddenSections)
+                    Object.assign(next, applied)
+                  })}
+                >
+                  <span className={`fle-a4-template-thumb fle-a4-template-thumb--${templateId.toLowerCase()}`} aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="fle-a4-template-copy">
+                    <strong>{templateDescriptions[templateId].title}</strong>
+                    <small>{templateDescriptions[templateId].description}</small>
+                  </span>
+                  <span className="fle-a4-template-check" />
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="fle-a4-card">
+            <h4>{copy.invoiceContent}</h4>
+            <QuickSwitch checked={layout.logo.visible} onChange={(visible) => mutateLayout((next) => { next.logo.visible = visible })} label={copy.showLogo} />
+            <QuickSwitch checked={recipientVisible} onChange={setRecipientVisible} label={copy.recipient} />
+            <QuickSwitch checked={quantityVisible} onChange={setQuantityVisible} label={copy.quantity} />
+            <QuickSwitch checked={layout.vatBreakdownTable.visible} onChange={(visible) => mutateLayout((next) => { next.vatBreakdownTable.visible = visible })} label={copy.vatBreakdown} />
+            <QuickSwitch checked={layout.paymentQr.visible} onChange={(visible) => mutateLayout((next) => { next.paymentQr.visible = visible })} label={copy.paymentQr} hint={copy.paymentQrHint} />
+            <QuickSwitch checked={fiscalVisible} onChange={(visible) => mutateLayout((next) => { next.fiscalQr.visible = visible; for (const key of ['fiscalZoi', 'fiscalEor']) { const item = footerFor(next, key); if (item) item.visible = visible } })} label={copy.fiscal} />
+            <QuickSwitch checked={referenceVisible} onChange={(visible) => mutateLayout((next) => { const item = footerFor(next, 'notes'); if (item) item.visible = visible })} label={copy.reference} />
+            <QuickSwitch checked={issuedByVisible} onChange={(visible) => mutateLayout((next) => { const item = footerFor(next, 'issuedBy'); if (item) item.visible = visible })} label={copy.issuedBy} />
+            <QuickSwitch checked={layout.signature.visible} onChange={(visible) => mutateLayout((next) => { next.signature.visible = visible })} label={copy.signature} />
+          </section>
+
+          <section className="fle-a4-card fle-a4-form-card">
+            <label>
+              <span>{copy.textSize}</span>
+              <select value={layout.fontSizePreset || 'STANDARD'} onChange={(e) => mutateLayout((next) => { applyFontPreset(next, e.target.value as A4FontSizePreset) })}>
+                <option value="COMPACT">{copy.compactSize}</option>
+                <option value="STANDARD">{copy.standardSize}</option>
+                <option value="LARGE">{copy.largeSize}</option>
+              </select>
+            </label>
+
+            <label>
+              <span>{copy.taxClauses}</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const clause = e.target.value
+                  if (!clause) return
+                  mutateLayout((next) => {
+                    const current = new Set(normalizeTaxClauses(next.taxClauses))
+                    current.add(clause)
+                    next.taxClauses = Array.from(current)
+                  })
+                  e.currentTarget.value = ''
+                }}
+              >
+                <option value="">{copy.addTaxClause}</option>
+                {TAX_CLAUSE_OPTIONS.filter((clause) => !(layout.taxClauses || []).includes(clause)).map((clause) => <option key={clause} value={clause}>{clause}</option>)}
+              </select>
+              <small>{copy.taxClausesHint}</small>
+            </label>
+            <div className="fle-tax-clause-list">
+              {(layout.taxClauses || []).length === 0 ? (
+                <div className="fle-tax-clause-empty">{copy.noTaxClauses}</div>
+              ) : (layout.taxClauses || []).map((clause) => (
+                <div key={clause} className="fle-tax-clause-chip">
+                  <span>{clause}</span>
+                  <button type="button" onClick={() => mutateLayout((next) => { next.taxClauses = normalizeTaxClauses(next.taxClauses).filter((item) => item !== clause) })}>×</button>
+                </div>
+              ))}
+            </div>
+
+            <label>
+              <span>{copy.referenceText}</span>
+              <textarea rows={3} value={referenceText} onChange={(e) => mutateLayout((next) => { next.referenceText = e.target.value })} />
+              <small>{copy.referenceHint}</small>
+            </label>
+
+            <label>
+              <span>{copy.footerText}</span>
+              <textarea rows={3} value={currentFooterText} onChange={(e) => setFooterText(e.target.value)} />
+              <small>{copy.footerHint}</small>
+            </label>
+          </section>
+
+          <section className="fle-a4-card">
+            <h4>{copy.order}</h4>
+            <div className="fle-a4-order-list">
+              {sectionOrder.map((section, index) => {
+                const visible = !hiddenSections.includes(section)
+                return (
+                  <div key={section} className={`fle-a4-order-item${visible ? '' : ' is-hidden'}`}>
+                    <span className="fle-a4-order-handle">⋮⋮</span>
+                    <span>{sectionLabels[section] || section}</span>
+                    <div className="fle-a4-order-actions">
+                      <button type="button" onClick={() => moveSection(section, -1)} disabled={index === 0}>↑</button>
+                      <button type="button" onClick={() => moveSection(section, 1)} disabled={index === sectionOrder.length - 1}>↓</button>
+                    </div>
+                    <button type="button" className={`fle-quick-switch${visible ? ' is-on' : ''}`} onClick={() => toggleSection(section, !visible)} role="switch" aria-checked={visible}><span /></button>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          <div className="fle-a4-actions">
+            <span className="fle-a4-notice">{notice || ''}</span>
+            <button type="button" className="fle-btn" onClick={() => void testPrint()} disabled={testing}>{testing ? '…' : copy.test}</button>
+            <button type="button" className="fle-btn fle-btn-secondary" onClick={reset}>{copy.reset}</button>
+            <button type="button" className="fle-btn fle-btn-primary" onClick={save} disabled={saving || !dirty}>{saving ? copy.saving : copy.save}</button>
+          </div>
+        </div>
+
+        <aside className="fle-a4-preview-column">
+          <div className="fle-a4-preview-panel">
+            <h4>{copy.preview}</h4>
+            <div className="fle-a4-preview-shell">
+              <div className={`fle-a4-preview-page fle-a4-template--${activeTemplate.toLowerCase()} fle-a4-font--${String(layout.fontSizePreset || 'STANDARD').toLowerCase()}`} style={{ ['--fle-accent' as any]: layout.accentColor || '#1677FF' }}>
+                {previewSections.map((section) => renderPreviewSection(section))}
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+
 export function FolioLayoutEditor() {
   const { locale } = useLocale()
   const [format, setFormat] = useState<'A4' | 'POS_58'>('A4')
@@ -2830,7 +3531,7 @@ export function FolioLayoutEditor() {
           <button type="button" className={format === 'A4' ? 'active' : ''} onClick={() => setFormat('A4')} role="tab" aria-selected={format === 'A4'}>A4</button>
         </div>
       </div>
-      {format === 'A4' ? <A4FolioLayoutEditor /> : <PosReceiptLayoutEditor />}
+      {format === 'A4' ? <A4PresetLayoutEditor /> : <PosReceiptLayoutEditor />}
     </div>
   )
 }

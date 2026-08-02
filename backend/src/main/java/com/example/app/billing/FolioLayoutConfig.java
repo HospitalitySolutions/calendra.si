@@ -28,6 +28,12 @@ public class FolioLayoutConfig {
     private String fontSizePreset = "STANDARD";
     /** Selected Slovenian tax clauses shown on A4 invoice templates. */
     private List<String> taxClauses = new ArrayList<>();
+    /** Order of sections in the simplified A4 settings UI. */
+    private List<String> sectionOrder = new ArrayList<>(List.of("company", "document", "recipient", "items", "advancePayments", "vat", "totals", "taxClauses", "reference", "paymentQr", "fiscal", "issuedBy", "signature", "footer"));
+    /** Sections hidden in the simplified A4 settings UI. */
+    private List<String> hiddenSections = new ArrayList<>();
+    /** Plain reference text shown in the simplified A4 settings UI preview. */
+    private String referenceText = "";
     private PageSectionsConfig pageSections = new PageSectionsConfig();
     private List<FieldConfig> fields = new ArrayList<>();
     private TableConfig table = new TableConfig();
@@ -975,6 +981,12 @@ public class FolioLayoutConfig {
     public void setFontSizePreset(String fontSizePreset) { this.fontSizePreset = fontSizePreset; }
     public List<String> getTaxClauses() { return taxClauses; }
     public void setTaxClauses(List<String> taxClauses) { this.taxClauses = taxClauses == null ? new ArrayList<>() : taxClauses; }
+    public List<String> getSectionOrder() { return sectionOrder; }
+    public void setSectionOrder(List<String> sectionOrder) { this.sectionOrder = sectionOrder == null ? new ArrayList<>() : sectionOrder; }
+    public List<String> getHiddenSections() { return hiddenSections; }
+    public void setHiddenSections(List<String> hiddenSections) { this.hiddenSections = hiddenSections == null ? new ArrayList<>() : hiddenSections; }
+    public String getReferenceText() { return referenceText; }
+    public void setReferenceText(String referenceText) { this.referenceText = referenceText == null ? "" : referenceText; }
     public PageSectionsConfig getPageSections() { return pageSections; }
     public void setPageSections(PageSectionsConfig pageSections) { this.pageSections = pageSections; }
     public List<FieldConfig> getFields() { return fields; }
