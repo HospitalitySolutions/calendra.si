@@ -3642,11 +3642,18 @@ public class BillingController {
         if (!isAdvanceBillingEnabled(companyId)) {
             return List.of();
         }
-        var advanceIds = billRepo.findPageIdsByCompanyIdAndBillType(companyId, BillType.ADVANCE, PageRequest.of(0, 500));
+        var advanceIds = billRepo.findPageIdsByCompanyIdAndBillTypeAndPaymentStatus(
+                companyId,
+                BillType.ADVANCE,
+                BillPaymentStatus.PAID,
+                PageRequest.of(0, 500)
+        );
         if (advanceIds.isEmpty()) {
             return List.of();
         }
         return billRepo.findAllByCompanyIdAndIdIn(companyId, advanceIds).stream()
+                // Keep a defensive application-level check in addition to the repository filter.
+                .filter(advance -> BillPaymentStatus.PAID.equals(advance.getPaymentStatus()))
                 .sorted(Comparator
                         .comparing(Bill::getIssueDate, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(Bill::getId, Comparator.reverseOrder()))

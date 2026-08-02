@@ -92,6 +92,20 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             Pageable pageable
     );
 
+    @Query("""
+            select b.id from Bill b
+            where b.company.id = :companyId
+              and b.billType = :billType
+              and b.paymentStatus = :paymentStatus
+            order by b.issueDate desc, b.id desc
+            """)
+    List<Long> findPageIdsByCompanyIdAndBillTypeAndPaymentStatus(
+            @Param("companyId") Long companyId,
+            @Param("billType") BillType billType,
+            @Param("paymentStatus") String paymentStatus,
+            Pageable pageable
+    );
+
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndRecipientCompanyIdSnapshotOrderByIssueDateDescIdDesc(Long companyId, Long recipientCompanyIdSnapshot);
 
