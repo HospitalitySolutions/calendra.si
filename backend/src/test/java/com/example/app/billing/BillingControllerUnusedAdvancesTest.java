@@ -121,7 +121,7 @@ class BillingControllerUnusedAdvancesTest {
         List<BillingController.UnusedAdvanceResponse> result = controller.unusedAdvances(me);
 
         assertEquals(1, result.size());
-        assertEquals(10L, result.getFirst().id());
+        assertEquals(10L, result.getFirst().advanceBillId());
         verify(billRepo).findPageIdsByCompanyIdAndBillTypeAndPaymentStatus(
                 1L,
                 BillType.ADVANCE,
