@@ -134,6 +134,10 @@
 .fc .calendar-event-personal-visual,
 .fc .calendar-event-todo-visual {
     opacity: 0.9;
+    /* Aggregate/resource week views are view-only, so FullCalendar does not add
+       its editable-event cursor. These blocks are still clickable and must show
+       the same hand cursor as sessions in day and three-day views. */
+    cursor: pointer;
 }
 
 /* Labels start at top of block; wrapping fills line width before breaking */

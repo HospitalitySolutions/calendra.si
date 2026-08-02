@@ -238,6 +238,13 @@
     align-items: stretch;
     box-sizing: border-box;
     background: var(--color-surface);
+    /* Resource week headers can overflow their grid column and use z-index: 8.
+       Keep the mode rail in its own higher stacking context so its buttons receive
+       the pointer instead of the transparent FullCalendar header layer. */
+    position: relative;
+    z-index: 20;
+    isolation: isolate;
+    pointer-events: auto;
 }
 
 /* Scroll overflow lives here (bottom panel) so .calendar-mode-toolbar--rail can use position:sticky vs <main>. */
@@ -1509,6 +1516,16 @@
     width: 44px;
     height: 44px;
     filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.1));
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* Treat the entire 44 × 44 button as the hit target. The SVG must not become a
+   separate pointer target when a resource header overlaps the edge of the rail. */
+.calendar-mode-toolbar--rail .calendar-header-mode-btn svg {
+    pointer-events: none;
 }
 
 .calendar-mode-toolbar--rail .calendar-dashboard-view-toggle {
