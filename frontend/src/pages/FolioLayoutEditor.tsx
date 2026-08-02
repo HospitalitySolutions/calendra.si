@@ -3223,7 +3223,7 @@ function A4PresetLayoutEditor() {
       case 'recipient':
         if (!recipientVisible) return null
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--recipient">
             <div className="fle-a4-preview-section-title">{sectionLabels.recipient}</div>
             <div>Ana Novak</div>
             <div>Cesta 5</div>
@@ -3234,7 +3234,7 @@ function A4PresetLayoutEditor() {
       case 'items': {
         const showQty = quantityVisible
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--items">
             <div className="fle-a4-preview-section-title">{sectionLabels.items}</div>
             <div className="fle-a4-table-wrap">
               <table className="fle-a4-preview-table">
@@ -3273,7 +3273,7 @@ function A4PresetLayoutEditor() {
       }
       case 'advancePayments':
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--advance-payments">
             <div className="fle-a4-preview-section-title">{sectionLabels.advancePayments}</div>
             <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Predplačilo' : locale === 'sr' ? 'Avans' : 'Advance payment'}</span><strong>10,00 €</strong></div>
           </section>
@@ -3281,7 +3281,7 @@ function A4PresetLayoutEditor() {
       case 'vat':
         if (!layout.vatBreakdownTable.visible) return null
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--vat">
             <div className="fle-a4-preview-section-title">{sectionLabels.vat}</div>
             <div className="fle-a4-preview-inline-row"><span>22 %</span><span>100,00 €</span><strong>22,00 €</strong></div>
           </section>
@@ -3298,7 +3298,7 @@ function A4PresetLayoutEditor() {
       case 'taxClauses':
         if ((layout.taxClauses || []).length === 0) return null
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--tax-clauses">
             <div className="fle-a4-preview-section-title">{sectionLabels.taxClauses}</div>
             {(layout.taxClauses || []).map((clause) => <div key={clause} className="fle-a4-preview-clause">{clause}</div>)}
           </section>
@@ -3306,7 +3306,7 @@ function A4PresetLayoutEditor() {
       case 'reference':
         if (!referenceVisible) return null
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--reference">
             <div className="fle-a4-preview-section-title">{sectionLabels.reference}</div>
             <div>{referenceText.replace('{reference-number}', 'REF-2026-001')}</div>
           </section>
@@ -3314,7 +3314,7 @@ function A4PresetLayoutEditor() {
       case 'paymentQr':
         if (!layout.paymentQr.visible) return null
         return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr fle-a4-preview-block--payment-qr">
             <div className="fle-a4-preview-section-title">UPN QR</div>
             <div className="fle-a4-preview-qr" />
           </section>
@@ -3322,7 +3322,7 @@ function A4PresetLayoutEditor() {
       case 'fiscal':
         if (!fiscalVisible) return null
         return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr fle-a4-preview-block--fiscal">
             <div className="fle-a4-preview-section-title">{sectionLabels.fiscal}</div>
             <div>ZOI: 1234567890</div>
             <div>EOR: 9999e010-089a-46e6-a3d8-bc0bd0a779c7</div>
@@ -3332,7 +3332,7 @@ function A4PresetLayoutEditor() {
       case 'issuedBy':
         if (!issuedByVisible) return null
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--issued-by">
             <div className="fle-a4-preview-section-title">{sectionLabels.issuedBy}</div>
             <div>David Mirc</div>
           </section>
@@ -3340,7 +3340,7 @@ function A4PresetLayoutEditor() {
       case 'signature':
         if (!layout.signature.visible) return null
         return (
-          <section key={section} className="fle-a4-preview-block">
+          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--signature">
             <div className="fle-a4-preview-section-title">{sectionLabels.signature}</div>
             {signatureDataUrl
               ? <img src={signatureDataUrl} alt="Signature" className="fle-a4-preview-signature-image" />
