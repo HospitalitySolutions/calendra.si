@@ -357,8 +357,9 @@ public class FolioPdfService {
         String desc = safe(line.getDescription());
         if (desc.length() > 50) desc = desc.substring(0, 50) + "...";
         BigDecimal qty = BigDecimal.valueOf(Math.max(0, line.getQty()));
-        BigDecimal nettValue = positive(line.getNettPrice()).multiply(qty);
-        BigDecimal grossUnit = positive(line.getGrossPrice());
+        BigDecimal nettUnit = line.getNettPrice() == null ? BigDecimal.ZERO : line.getNettPrice();
+        BigDecimal nettValue = nettUnit.multiply(qty);
+        BigDecimal grossUnit = line.getGrossPrice() == null ? BigDecimal.ZERO : line.getGrossPrice();
         BigDecimal grossValue = grossUnit.multiply(qty);
         BigDecimal totalValue = line.getTotalPrice() == null ? grossValue : line.getTotalPrice();
         BigDecimal discountValue = grossValue.subtract(totalValue);
