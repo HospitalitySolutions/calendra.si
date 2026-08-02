@@ -1071,6 +1071,21 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     ((calendarMode === 'bookings' && (consultantFilterId == null || consultantFilterId === CONSULTANT_FILTER_ALL_SESSION)) ||
       (calendarMode === 'spaces' && spaceFilterId == null))
 
+  /**
+   * Week/work-week aggregate views stay non-editable, but selected compact layouts may still
+   * open "Dodaj termin" from a single empty-slot click. Resource columns are intentionally
+   * limited to fewer than four active resources so the clicked employee/space remains clear.
+   */
+  const canCreateFromViewOnlyWeekClick =
+    (view === 'timeGridWeek' ||
+      view === 'timeGridWorkWeek' ||
+      view === 'resourceTimeGridWeek' ||
+      view === 'resourceTimeGridWorkWeek') &&
+    ((calendarMode === 'bookings' &&
+      (consultantFilterId === CONSULTANT_FILTER_ALL_SESSION ||
+        (consultantFilterId == null && metaConsultants.length < 4))) ||
+      (calendarMode === 'spaces' && spaceFilterId == null && activeMetaSpaces.length < 4))
+
   const cleanupDragArtifacts = useCallback(() => {
     const api = calendarRef.current?.getApi()
     api?.unselect()
@@ -12836,7 +12851,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             )
               return
             if (!isNativeAndroid && calendarMode !== 'bookings' && calendarMode !== 'spaces') return
-            if (isViewOnly) return
+            if (isViewOnly && !canCreateFromViewOnlyWeekClick) return
             const start = new Date(arg.date)
             const end = new Date(start.getTime() + SLOT_MS)
             const rid = (arg as { resource?: { id?: string } }).resource?.id
