@@ -172,7 +172,7 @@ public class FolioPdfService {
             byte[] signatureBytes,
             InvoiceTotals totals
     ) throws IOException {
-        drawTemplateDecorations(ctx, layout);
+        drawTemplateDecorations(ctx, layout, locale, fonts);
         drawLogo(ctx, layout, logoBytes, true);
         drawFields(ctx, layout, req, locale, fonts, true);
         drawFixedFooterItems(ctx, layout, totals.net(), totals.gross(), req, locale, fonts);
@@ -277,7 +277,7 @@ public class FolioPdfService {
 
             PDFont font = field.isBold() ? fonts.bold() : fonts.regular();
             float pdfY = pageH - field.getY() - field.getFontSize();
-            boolean accentField = "folioNumber".equals(field.getKey()) || "templateFooterText".equals(field.getKey());
+            boolean accentField = "CLASSIC".equalsIgnoreCase(layout.getTemplateId()) && "folioNumber".equals(field.getKey());
             if (accentField) setTextColor(ctx, accentColor(layout));
             String prefix = safe(resolveLocalized(field.getPrefixI18n(), "", locale));
             if ("folioNumber".equals(field.getKey())) {
@@ -760,7 +760,7 @@ public class FolioPdfService {
     }
 
     private boolean suppressFooterLabel(String key) {
-        return "notes".equals(key) || "iban".equals(key);
+        return "notes".equals(key);
     }
 
     private List<String> paymentFooterLines(FolioPdfRequest req) {
@@ -1245,6 +1245,14 @@ public class FolioPdfService {
         String template = layout.getTemplateId() == null ? "CLASSIC" : layout.getTemplateId().trim().toUpperCase(Locale.ROOT);
         if (!List.of("COMPACT", "CLASSIC", "MINIMAL").contains(template)) return;
 
+        boolean recipientVisible = anyFieldVisible(layout, "recipientName", "recipientAddress", "recipientPostalCodeCity", "recipientVatId");
+        boolean quantityVisible = isColumnVisible(layout, "qty", true);
+        boolean paymentQrVisible = layout.getPaymentQr() == null || layout.getPaymentQr().isVisible();
+        boolean fiscalQrVisible = layout.getFiscalQr() == null || layout.getFiscalQr().isVisible();
+        boolean notesVisible = isFooterVisible(layout, "notes", true);
+        boolean issuedByVisible = isFooterVisible(layout, "issuedBy", true);
+        boolean signatureVisible = layout.getSignature() == null || layout.getSignature().isVisible();
+
         ensureColumn(layout, "date", "Date", "Datum");
         ensureColumn(layout, "description", "Description", "Opis");
         ensureColumn(layout, "qty", "Quantity", "Količina");
@@ -1256,82 +1264,160 @@ public class FolioPdfService {
         ensureColumn(layout, "total", "Value incl. VAT", "Vrednost z DDV");
         setCommonA4Columns(layout, "COMPACT".equals(template));
         renameFooter(layout, "notes", "Reference", "Referenca");
+        renameFooter(layout, "iban", "IBAN", "TRR");
 
         if ("COMPACT".equals(template)) {
-            if (layout.getPageSections() != null) { layout.getPageSections().setHeaderHeight(255f); layout.getPageSections().setFooterHeight(58f); }
+            if (layout.getPageSections() != null) {
+                layout.getPageSections().setHeaderHeight(250f);
+                layout.getPageSections().setFooterHeight(58f);
+            }
             setField(layout, "companyName", 50, 48, 185, 18, 11, true, "left");
-            setField(layout, "companyAddress", 50, 68, 185, 14, 8, false, "left");
-            setField(layout, "companyPostalCodeCity", 50, 83, 185, 14, 8, false, "left");
-            setField(layout, "companyTaxId", 50, 98, 185, 14, 8, false, "left");
-            setField(layout, "folioNumber", 370, 136, 175, 20, 13, true, "right");
-            setField(layout, "folioDate", 320, 182, 225, 14, 8, false, "right");
-            setField(layout, "dateOfService", 320, 198, 225, 14, 8, false, "right");
-            setField(layout, "dueDate", 320, 214, 225, 14, 8, false, "right");
-            setField(layout, "recipientName", 50, 180, 220, 15, 8, true, "left");
-            setField(layout, "recipientAddress", 50, 197, 220, 14, 8, false, "left");
-            setField(layout, "recipientPostalCodeCity", 50, 212, 220, 14, 8, false, "left");
-            setField(layout, "recipientVatId", 50, 227, 220, 14, 8, false, "left");
-            if (layout.getLogo() != null) { layout.getLogo().setX(258); layout.getLogo().setY(34); layout.getLogo().setWidth(96); layout.getLogo().setHeight(54); }
-            if (layout.getTable() != null) { layout.getTable().setStartX(50); layout.getTable().setStartY(275); layout.getTable().setWidth(495); layout.getTable().setRowHeight(21); layout.getTable().setHeaderHeight(21); layout.getTable().setHeaderFontSize(8); layout.getTable().setBodyFontSize(8); layout.getTable().setFooterSpacing(4); }
-            if (layout.getVatBreakdownTable() != null) { layout.getVatBreakdownTable().setX(50); layout.getVatBreakdownTable().setY(382); layout.getVatBreakdownTable().setWidth(230); layout.getVatBreakdownTable().setHeaderHeight(15); layout.getVatBreakdownTable().setRowHeight(15); layout.getVatBreakdownTable().setHeaderFontSize(7); layout.getVatBreakdownTable().setBodyFontSize(7); }
-            setFooter(layout, "totalNett", 380, 386, 165, 16, 9, false, "right", true);
-            setFooter(layout, "discount", 380, 404, 165, 16, 9, false, "right", true);
-            setFooter(layout, "totalGross", 380, 422, 165, 16, 9, false, "right", true);
-            setFooter(layout, "usedAdvances", 380, 440, 165, 16, 9, false, "right", true);
-            setFooter(layout, "toBePaid", 380, 462, 165, 18, 9, true, "right", true);
-            setFooter(layout, "payment", 50, 492, 220, 16, 8, false, "left", false);
-            setFooter(layout, "iban", 50, 510, 220, 16, 8, false, "left", false);
-            setFooter(layout, "issuedBy", 50, 744, 140, 16, 8, false, "left", true);
-            setFooter(layout, "notes", 160, 652, 175, 40, 8, false, "left", true);
-            setFooter(layout, "fiscalZoi", 305, 650, 115, 14, 8, false, "left", true);
-            setFooter(layout, "fiscalEor", 305, 668, 115, 14, 8, false, "left", true);
-            if (layout.getPaymentQr() != null) { layout.getPaymentQr().setX(50); layout.getPaymentQr().setY(632); layout.getPaymentQr().setWidth(92); layout.getPaymentQr().setHeight(112); }
-            if (layout.getFiscalQr() != null) { layout.getFiscalQr().setX(438); layout.getFiscalQr().setY(640); layout.getFiscalQr().setWidth(78); layout.getFiscalQr().setHeight(78); }
-            if (layout.getSignature() != null) { layout.getSignature().setX(220); layout.getSignature().setY(730); layout.getSignature().setWidth(125); layout.getSignature().setHeight(42); }
+            setField(layout, "companyAddress", 50, 70, 185, 14, 8, false, "left");
+            setField(layout, "companyPostalCodeCity", 50, 86, 185, 14, 8, false, "left");
+            setField(layout, "companyTaxId", 50, 102, 185, 14, 8, false, "left");
+            setField(layout, "folioNumber", 350, 148, 195, 22, 13, true, "right");
+            setField(layout, "recipientName", 50, 214, 220, 16, 8, true, "left");
+            setField(layout, "recipientAddress", 50, 234, 220, 14, 8, false, "left");
+            setField(layout, "recipientPostalCodeCity", 50, 250, 220, 14, 8, false, "left");
+            setField(layout, "recipientVatId", 50, 266, 220, 14, 8, false, "left");
+            setField(layout, "folioDate", 315, 214, 230, 14, 8, false, "right");
+            setField(layout, "dateOfService", 315, 238, 230, 14, 8, false, "right");
+            setField(layout, "dueDate", 315, 262, 230, 14, 8, false, "right");
+            if (layout.getLogo() != null) {
+                layout.getLogo().setX(258); layout.getLogo().setY(34); layout.getLogo().setWidth(90); layout.getLogo().setHeight(56);
+            }
+            if (layout.getTable() != null) {
+                layout.getTable().setStartX(50); layout.getTable().setStartY(315); layout.getTable().setWidth(495);
+                layout.getTable().setRowHeight(23); layout.getTable().setHeaderHeight(24);
+                layout.getTable().setHeaderFontSize(8); layout.getTable().setBodyFontSize(8); layout.getTable().setFooterSpacing(4);
+            }
+            if (layout.getVatBreakdownTable() != null) {
+                layout.getVatBreakdownTable().setX(50); layout.getVatBreakdownTable().setY(420); layout.getVatBreakdownTable().setWidth(235);
+                layout.getVatBreakdownTable().setHeaderHeight(15); layout.getVatBreakdownTable().setRowHeight(15);
+                layout.getVatBreakdownTable().setHeaderFontSize(7); layout.getVatBreakdownTable().setBodyFontSize(7); layout.getVatBreakdownTable().setVisible(false);
+            }
+            setFooter(layout, "totalNett", 350, 416, 195, 16, 9, false, "right", true);
+            setFooter(layout, "discount", 350, 436, 195, 16, 9, false, "right", true);
+            setFooter(layout, "totalGross", 350, 456, 195, 16, 9, true, "right", true);
+            setFooter(layout, "usedAdvances", 350, 476, 195, 16, 9, false, "right", true);
+            setFooter(layout, "toBePaid", 350, 500, 195, 20, 9, true, "right", true);
+            setFooter(layout, "payment", 50, 535, 220, 16, 8, false, "left", false);
+            setFooter(layout, "iban", 50, 124, 220, 16, 8, false, "left", true);
+            setFooter(layout, "notes", 164, 640, 120, 62, 8, false, "left", true);
+            setFooter(layout, "fiscalZoi", 315, 642, 115, 14, 8, false, "left", true);
+            setFooter(layout, "fiscalEor", 315, 674, 115, 14, 8, false, "left", true);
+            setFooter(layout, "issuedBy", 70, 752, 140, 18, 8, false, "left", true);
+            if (layout.getPaymentQr() != null) {
+                layout.getPaymentQr().setX(65); layout.getPaymentQr().setY(628); layout.getPaymentQr().setWidth(82); layout.getPaymentQr().setHeight(104);
+            }
+            if (layout.getFiscalQr() != null) {
+                layout.getFiscalQr().setX(452); layout.getFiscalQr().setY(638); layout.getFiscalQr().setWidth(76); layout.getFiscalQr().setHeight(76);
+            }
+            if (layout.getSignature() != null) {
+                layout.getSignature().setX(285); layout.getSignature().setY(740); layout.getSignature().setWidth(210); layout.getSignature().setHeight(44);
+            }
+            setTemplateFooter(layout, 50, 810, 495, 16, 8, "center");
         } else if ("MINIMAL".equals(template)) {
-            if (layout.getPageSections() != null) { layout.getPageSections().setHeaderHeight(195f); layout.getPageSections().setFooterHeight(58f); }
-            setField(layout, "companyName", 50, 96, 250, 18, 15, true, "left");
-            setField(layout, "companyAddress", 50, 117, 250, 14, 11, false, "left");
-            setField(layout, "companyPostalCodeCity", 50, 132, 250, 14, 11, false, "left");
-            setField(layout, "companyTaxId", 50, 147, 250, 14, 11, false, "left");
-            setField(layout, "folioNumber", 350, 44, 195, 22, 19, true, "right");
-            setField(layout, "folioDate", 350, 82, 195, 14, 11, false, "right");
-            setField(layout, "dateOfService", 350, 100, 195, 14, 11, false, "right");
-            setField(layout, "dueDate", 350, 118, 195, 14, 11, false, "right");
-            setField(layout, "recipientName", 50, 185, 220, 16, 11, true, "left");
-            setField(layout, "recipientAddress", 50, 203, 220, 14, 11, false, "left");
-            setField(layout, "recipientPostalCodeCity", 50, 218, 220, 14, 11, false, "left");
-            setField(layout, "recipientVatId", 50, 233, 220, 14, 11, false, "left");
-            if (layout.getLogo() != null) { layout.getLogo().setX(410); layout.getLogo().setY(40); layout.getLogo().setWidth(110); layout.getLogo().setHeight(46); }
-            if (layout.getTable() != null) { layout.getTable().setStartX(50); layout.getTable().setStartY(272); layout.getTable().setWidth(495); layout.getTable().setRowHeight(24); layout.getTable().setHeaderHeight(22); layout.getTable().setHeaderFontSize(10); layout.getTable().setBodyFontSize(10); layout.getTable().setFooterSpacing(5); }
-            if (layout.getVatBreakdownTable() != null) { layout.getVatBreakdownTable().setX(50); layout.getVatBreakdownTable().setY(386); layout.getVatBreakdownTable().setWidth(205); layout.getVatBreakdownTable().setHeaderHeight(16); layout.getVatBreakdownTable().setRowHeight(16); layout.getVatBreakdownTable().setHeaderFontSize(9); layout.getVatBreakdownTable().setBodyFontSize(9); }
-            setFooter(layout, "totalNett", 380, 386, 165, 18, 13, false, "right", true);
-            setFooter(layout, "discount", 380, 406, 165, 18, 13, false, "right", true);
-            setFooter(layout, "totalGross", 380, 426, 165, 18, 13, false, "right", true);
-            setFooter(layout, "usedAdvances", 380, 446, 165, 18, 13, false, "right", true);
-            setFooter(layout, "toBePaid", 380, 470, 165, 20, 13, true, "right", true);
-            setFooter(layout, "payment", 50, 490, 220, 16, 10, false, "left", false);
-            setFooter(layout, "iban", 50, 508, 220, 16, 10, false, "left", false);
-            setFooter(layout, "issuedBy", 50, 738, 180, 16, 10, false, "left", true);
-            setFooter(layout, "notes", 50, 624, 200, 40, 10, false, "left", true);
-            setFooter(layout, "fiscalZoi", 265, 454, 100, 14, 10, false, "left", true);
-            setFooter(layout, "fiscalEor", 265, 472, 100, 14, 10, false, "left", true);
-            if (layout.getPaymentQr() != null) { layout.getPaymentQr().setX(278); layout.getPaymentQr().setY(610); layout.getPaymentQr().setWidth(100); layout.getPaymentQr().setHeight(120); }
-            if (layout.getFiscalQr() != null) { layout.getFiscalQr().setX(265); layout.getFiscalQr().setY(360); layout.getFiscalQr().setWidth(88); layout.getFiscalQr().setHeight(88); }
-            if (layout.getSignature() != null) { layout.getSignature().setX(310); layout.getSignature().setY(724); layout.getSignature().setWidth(150); layout.getSignature().setHeight(38); }
+            if (layout.getPageSections() != null) {
+                layout.getPageSections().setHeaderHeight(190f);
+                layout.getPageSections().setFooterHeight(58f);
+            }
+            setField(layout, "companyName", 50, 58, 250, 18, 15, true, "left");
+            setField(layout, "companyAddress", 50, 80, 250, 14, 11, false, "left");
+            setField(layout, "companyPostalCodeCity", 50, 96, 250, 14, 11, false, "left");
+            setField(layout, "companyTaxId", 50, 128, 250, 14, 11, false, "left");
+            setField(layout, "folioNumber", 50, 186, 230, 22, 19, true, "left");
+            setField(layout, "recipientName", 50, 234, 220, 16, 11, true, "left");
+            setField(layout, "recipientAddress", 50, 254, 220, 14, 11, false, "left");
+            setField(layout, "recipientPostalCodeCity", 50, 270, 220, 14, 11, false, "left");
+            setField(layout, "recipientVatId", 50, 286, 220, 14, 11, false, "left");
+            setField(layout, "folioDate", 330, 234, 215, 14, 11, false, "right");
+            setField(layout, "dateOfService", 330, 258, 215, 14, 11, false, "right");
+            setField(layout, "dueDate", 330, 282, 215, 14, 11, false, "right");
+            if (layout.getLogo() != null) {
+                layout.getLogo().setX(430); layout.getLogo().setY(52); layout.getLogo().setWidth(84); layout.getLogo().setHeight(84);
+            }
+            if (layout.getTable() != null) {
+                layout.getTable().setStartX(50); layout.getTable().setStartY(335); layout.getTable().setWidth(495);
+                layout.getTable().setRowHeight(25); layout.getTable().setHeaderHeight(23);
+                layout.getTable().setHeaderFontSize(10); layout.getTable().setBodyFontSize(10); layout.getTable().setFooterSpacing(5);
+            }
+            if (layout.getVatBreakdownTable() != null) {
+                layout.getVatBreakdownTable().setX(50); layout.getVatBreakdownTable().setY(442); layout.getVatBreakdownTable().setWidth(210);
+                layout.getVatBreakdownTable().setHeaderHeight(16); layout.getVatBreakdownTable().setRowHeight(16);
+                layout.getVatBreakdownTable().setHeaderFontSize(9); layout.getVatBreakdownTable().setBodyFontSize(9); layout.getVatBreakdownTable().setVisible(false);
+            }
+            setFooter(layout, "totalNett", 350, 438, 195, 18, 13, false, "right", true);
+            setFooter(layout, "discount", 350, 460, 195, 18, 13, false, "right", true);
+            setFooter(layout, "totalGross", 350, 482, 195, 18, 13, true, "right", true);
+            setFooter(layout, "usedAdvances", 350, 504, 195, 18, 13, false, "right", true);
+            setFooter(layout, "toBePaid", 350, 532, 195, 20, 13, true, "right", true);
+            setFooter(layout, "payment", 50, 550, 220, 16, 10, false, "left", false);
+            setFooter(layout, "iban", 50, 148, 250, 16, 10, false, "left", true);
+            setFooter(layout, "fiscalZoi", 50, 540, 210, 14, 10, false, "left", true);
+            setFooter(layout, "fiscalEor", 50, 560, 210, 14, 10, false, "left", true);
+            setFooter(layout, "notes", 50, 620, 205, 60, 10, false, "left", true);
+            setFooter(layout, "issuedBy", 50, 744, 180, 18, 10, false, "left", true);
+            if (layout.getPaymentQr() != null) {
+                layout.getPaymentQr().setX(330); layout.getPaymentQr().setY(610); layout.getPaymentQr().setWidth(98); layout.getPaymentQr().setHeight(122);
+            }
+            if (layout.getFiscalQr() != null) {
+                layout.getFiscalQr().setX(50); layout.getFiscalQr().setY(440); layout.getFiscalQr().setWidth(92); layout.getFiscalQr().setHeight(92);
+            }
+            if (layout.getSignature() != null) {
+                layout.getSignature().setX(330); layout.getSignature().setY(732); layout.getSignature().setWidth(190); layout.getSignature().setHeight(44);
+            }
+            setTemplateFooter(layout, 50, 810, 495, 16, 10, "left");
         }
+
+        setFieldVisibility(layout, recipientVisible, "recipientName", "recipientAddress", "recipientPostalCodeCity", "recipientVatId");
+        FolioLayoutConfig.ColumnConfig quantity = findColumn(layout, "qty");
+        if (quantity != null) quantity.setVisible(quantityVisible);
+        if (layout.getPaymentQr() != null) layout.getPaymentQr().setVisible(paymentQrVisible);
+        if (layout.getFiscalQr() != null) layout.getFiscalQr().setVisible(fiscalQrVisible);
+        FolioLayoutConfig.FooterItem notes = findFooter(layout, "notes");
+        if (notes != null) notes.setVisible(notesVisible);
+        FolioLayoutConfig.FooterItem issuedBy = findFooter(layout, "issuedBy");
+        if (issuedBy != null) issuedBy.setVisible(issuedByVisible);
+        if (layout.getSignature() != null) layout.getSignature().setVisible(signatureVisible);
+    }
+
+    private boolean anyFieldVisible(FolioLayoutConfig layout, String... keys) {
+        if (layout == null || layout.getFields() == null) return true;
+        for (String key : keys) {
+            FolioLayoutConfig.FieldConfig field = findField(layout, key);
+            if (field != null && field.isVisible()) return true;
+        }
+        return false;
+    }
+
+    private void setFieldVisibility(FolioLayoutConfig layout, boolean visible, String... keys) {
+        for (String key : keys) {
+            FolioLayoutConfig.FieldConfig field = findField(layout, key);
+            if (field != null) field.setVisible(visible);
+        }
+    }
+
+    private boolean isColumnVisible(FolioLayoutConfig layout, String key, boolean fallback) {
+        FolioLayoutConfig.ColumnConfig column = findColumn(layout, key);
+        return column == null ? fallback : column.isVisible();
+    }
+
+    private boolean isFooterVisible(FolioLayoutConfig layout, String key, boolean fallback) {
+        FolioLayoutConfig.FooterItem item = findFooter(layout, key);
+        return item == null ? fallback : item.isVisible();
     }
 
     private void setCommonA4Columns(FolioLayoutConfig layout, boolean compact) {
         setColumn(layout, "date", 0, 0, "left", false, "Date", "Datum");
-        setColumn(layout, "description", 0, compact ? 190 : 200, "left", true, "Description", "Opis");
-        setColumn(layout, "qty", compact ? 190 : 200, 35, "right", true, "Quantity", "Količina");
-        setColumn(layout, "nett", compact ? 225 : 235, 80, "right", true, "Value excl. VAT", "Vrednost brez DDV");
-        setColumn(layout, "discount", compact ? 305 : 315, compact ? 50 : 55, "right", true, "Discount", "Popust");
+        setColumn(layout, "description", 0, compact ? 188 : 195, "left", true, "Description", "Opis");
+        setColumn(layout, "qty", compact ? 188 : 195, 35, "right", true, "Quantity", "Količina");
+        setColumn(layout, "nett", compact ? 223 : 230, 80, "right", true, "Value excl. VAT", "Vrednost brez DDV");
+        setColumn(layout, "discount", compact ? 303 : 310, 52, "right", true, "Discount", "Popust");
         setColumn(layout, "gross", 0, 0, "right", false, "Gross", "Bruto");
-        setColumn(layout, "taxPercent", compact ? 355 : 370, 45, "right", true, "VAT rate", "DDV stopnja");
+        setColumn(layout, "taxPercent", compact ? 355 : 362, 48, "right", true, "VAT rate", "DDV stopnja");
         setColumn(layout, "taxAmount", 0, 0, "right", false, "VAT amount", "Znesek DDV");
-        setColumn(layout, "total", compact ? 400 : 415, compact ? 95 : 80, "right", true, "Value incl. VAT", "Vrednost z DDV");
+        setColumn(layout, "total", compact ? 403 : 410, compact ? 92 : 85, "right", true, "Value incl. VAT", "Vrednost z DDV");
     }
 
     private void ensureColumn(FolioLayoutConfig layout, String key, String labelEn, String labelSl) {
@@ -1373,6 +1459,23 @@ public class FolioPdfService {
         item.setX(x); item.setY(y); item.setWidth(width); item.setHeight(height); item.setFontSize(fontSize); item.setBold(bold); item.setAlignment(alignment); item.setVisible(visible);
     }
 
+
+    private void setTemplateFooter(FolioLayoutConfig layout, float x, float y, float width, float height, int fontSize, String alignment) {
+        if (layout == null) return;
+        FolioLayoutConfig.FieldConfig field = findField(layout, "templateFooterText");
+        if (field == null) {
+            if (layout.getFields() == null) layout.setFields(new ArrayList<>());
+            field = new FolioLayoutConfig.FieldConfig("templateFooterText", "custom", "Footer text", x, y, width, height, fontSize, false, alignment);
+            field.setType("custom");
+            field.setText("");
+            field.setTextI18n(new FolioLayoutConfig.LocalizedText("", ""));
+            field.setLabelI18n(new FolioLayoutConfig.LocalizedText("Footer text", "Besedilo v nogi"));
+            field.setVisible(false);
+            layout.getFields().add(field);
+        }
+        field.setX(x); field.setY(y); field.setWidth(width); field.setHeight(height); field.setFontSize(fontSize); field.setAlignment(alignment);
+    }
+
     private FolioLayoutConfig.FieldConfig findField(FolioLayoutConfig layout, String key) {
         if (layout == null || layout.getFields() == null) return null;
         for (FolioLayoutConfig.FieldConfig field : layout.getFields()) if (field != null && key.equals(field.getKey())) return field;
@@ -1394,8 +1497,8 @@ public class FolioPdfService {
     private TaxClausePlacement taxClausePlacement(FolioLayoutConfig layout) {
         String template = layout == null || layout.getTemplateId() == null ? "CLASSIC" : layout.getTemplateId().toUpperCase(Locale.ROOT);
         return switch (template) {
-            case "COMPACT" -> new TaxClausePlacement(50f, 548f, 205f, 56f, true);
-            case "MINIMAL" -> new TaxClausePlacement(50f, 520f, 210f, 50f, false);
+            case "COMPACT" -> new TaxClausePlacement(50f, 555f, 495f, 42f, false);
+            case "MINIMAL" -> new TaxClausePlacement(50f, 575f, 495f, 30f, false);
             case "CLASSIC" -> new TaxClausePlacement(50f, 620f, 240f, 78f, true);
             default -> new TaxClausePlacement(50f, 620f, 240f, 78f, true);
         };
@@ -1447,18 +1550,44 @@ public class FolioPdfService {
         return lines;
     }
 
-    private void drawTemplateDecorations(PageContext ctx, FolioLayoutConfig layout) throws IOException {
+    private void drawTemplateDecorations(PageContext ctx, FolioLayoutConfig layout, String locale, FontSet fonts) throws IOException {
         if (layout == null) return;
         String template = layout.getTemplateId() == null ? "CLASSIC" : layout.getTemplateId().toUpperCase(Locale.ROOT);
         Color accent = accentColor(layout);
         float pageH = layout.getPageHeight();
-        setStrokeColor(ctx, accent);
-        if ("MINIMAL".equals(template)) {
-            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 118f, 1.1f);
-            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, 40f, 1.1f);
+        boolean sl = "sl".equals(normalizeLocale(locale));
+
+        if ("COMPACT".equals(template)) {
+            setStrokeColor(ctx, accent);
+            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 188f, 1.2f);
+            setStrokeColor(ctx, new Color(205, 220, 240));
+            ctx.stream.addRect(50f, pageH - 728f, 240f, 112f);
+            ctx.stream.stroke();
+            ctx.stream.addRect(305f, pageH - 728f, 240f, 112f);
+            ctx.stream.stroke();
+            setStrokeColor(ctx, Color.BLACK);
+            setTextColor(ctx, accent);
+            drawText(ctx, fonts.bold(), 9, 50f, pageH - 202f, sl ? "Prejemnik" : "Recipient");
+            drawText(ctx, fonts.bold(), 8, 164f, pageH - 630f, sl ? "Referenca" : "Reference");
+            setTextColor(ctx, Color.BLACK);
+            drawText(ctx, fonts.bold(), 8, 285f, pageH - 742f, sl ? "Podpis" : "Signature");
+            drawHLine(ctx, 340f, 525f, pageH - 770f, 0.6f);
+        } else if ("MINIMAL".equals(template)) {
+            setStrokeColor(ctx, new Color(210, 216, 224));
+            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 166f, 0.7f);
+            drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 314f, 0.7f);
+            setStrokeColor(ctx, Color.BLACK);
+            drawText(ctx, fonts.bold(), 10, 50f, pageH - 222f, sl ? "Prejemnik" : "Recipient");
+            drawText(ctx, fonts.bold(), 10, 50f, pageH - 324f, sl ? "Postavke" : "Items");
+            drawText(ctx, fonts.bold(), 9, 50f, pageH - 610f, sl ? "Referenca" : "Reference");
+            drawText(ctx, fonts.bold(), 9, 330f, pageH - 742f, sl ? "Podpis" : "Signature");
+            drawHLine(ctx, 385f, 535f, pageH - 768f, 0.6f);
         } else if ("CLASSIC".equals(template)) {
+            setStrokeColor(ctx, accent);
             drawHLine(ctx, 50f, layout.getPageWidth() - 50f, pageH - 116f, 1.2f);
+            setStrokeColor(ctx, Color.BLACK);
         }
+        setTextColor(ctx, Color.BLACK);
         setStrokeColor(ctx, Color.BLACK);
     }
 

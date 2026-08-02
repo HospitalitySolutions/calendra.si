@@ -712,3 +712,173 @@
 
 @media(max-width:1180px){.fle-template-grid{grid-template-columns:1fr}.fle-template-card{grid-template-columns:118px 1fr 22px;min-height:140px}.fle-body,.fle-root--advanced .fle-body{grid-template-columns:1fr}.fle-panel,.fle-canvas-wrap{grid-column:1}.fle-panel{grid-row:1}.fle-canvas-wrap{grid-row:2}.fle-root--advanced .fle-panel{max-height:none;overflow:visible}.fle-canvas-wrap{min-height:650px}}
 @media(max-width:700px){.fle-template-selector,.fle-quick-card{padding:12px}.fle-template-card{grid-template-columns:96px 1fr 20px}.fle-template-thumb{width:84px;height:106px;transform-origin:left center}.fle-template-grid{gap:9px}.fle-toolbar{align-items:stretch}.fle-toolbar-spacer{display:none}.fle-toolbar .fle-btn{flex:1}.fle-canvas-wrap{padding:14px;justify-content:flex-start}.fle-format-header strong{font-size:17px}}
+
+/* Revised predefined A4 invoice templates (Kompaktna / Minimalna). */
+.fle-canvas--preview[data-template="COMPACT"]::before,
+.fle-canvas--preview[data-template="COMPACT"]::after,
+.fle-canvas--preview[data-template="MINIMAL"]::before,
+.fle-canvas--preview[data-template="MINIMAL"]::after {
+  display: none;
+}
+
+.fle-template-design {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  color: #0f172a;
+  font-size: 9px;
+}
+
+.fle-template-design > span {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.fle-template-design-header-line {
+  height: 1px;
+  background: var(--fle-accent, #1677ff);
+}
+
+.fle-template-design-recipient-label,
+.fle-template-design-items-label,
+.fle-template-design-reference-label,
+.fle-template-design-issued-label,
+.fle-template-design-signature-label {
+  font-weight: 800;
+  line-height: 1;
+}
+
+.fle-template-design--compact .fle-template-design-header-line {
+  left: 8.4%;
+  right: 8.4%;
+  top: 22.3%;
+  height: 2px;
+}
+
+.fle-template-design--compact .fle-template-design-recipient-label {
+  left: 8.4%;
+  top: 23.8%;
+  color: var(--fle-accent, #1677ff);
+}
+
+.fle-template-design--compact .fle-template-design-card {
+  top: 73.2%;
+  width: 40.3%;
+  height: 13.3%;
+  border: 1px solid #cddcf0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.fle-template-design--compact .fle-template-design-card--payment {
+  left: 8.4%;
+}
+
+.fle-template-design--compact .fle-template-design-card--fiscal {
+  left: 51.2%;
+}
+
+.fle-template-design--compact .fle-template-design-reference-label {
+  left: 27.6%;
+  top: 74.3%;
+  color: var(--fle-accent, #1677ff);
+}
+
+.fle-template-design--compact .fle-template-design-issued-label {
+  left: 11.8%;
+  top: 89.2%;
+}
+
+.fle-template-design--compact .fle-template-design-signature-label {
+  left: 47.9%;
+  top: 88.1%;
+}
+
+.fle-template-design--minimal .fle-template-design-header-line {
+  left: 8.4%;
+  right: 8.4%;
+  top: 19.7%;
+  background: #d5dae2;
+}
+
+.fle-template-design--minimal .fle-template-design-recipient-label {
+  left: 8.4%;
+  top: 25.7%;
+}
+
+.fle-template-design--minimal .fle-template-design-items-label {
+  left: 8.4%;
+  top: 37.5%;
+}
+
+.fle-template-design--minimal .fle-template-design-reference-label {
+  left: 8.4%;
+  top: 72.4%;
+}
+
+.fle-template-design--minimal .fle-template-design-issued-label {
+  left: 8.4%;
+  top: 88.3%;
+}
+
+.fle-template-design--minimal .fle-template-design-signature-label {
+  left: 55.5%;
+  top: 88.0%;
+}
+
+.fle-template-design--classic .fle-template-design-header-line {
+  left: 8.4%;
+  right: 8.4%;
+  top: 13.8%;
+}
+
+.fle-template-design--classic .fle-template-design-recipient-label {
+  left: 8.4%;
+  top: 23.5%;
+}
+
+.fle-template-design--classic .fle-template-design-reference-label {
+  left: 8.4%;
+  top: 63.5%;
+}
+
+.fle-template-design--classic .fle-template-design-issued-label {
+  left: 68%;
+  top: 92%;
+}
+
+.fle-template-design--classic .fle-template-design-signature-label {
+  left: 68%;
+  top: 88.5%;
+}
+
+/* Thumbnail silhouettes match the revised templates rather than the retired presets. */
+.fle-template-thumb--compact .fle-template-thumb-logo{left:49px;top:8px;width:22px;height:18px}
+.fle-template-thumb--compact .fle-template-thumb-title{left:auto;right:9px;top:31px;width:38px}
+.fle-template-thumb--compact .fle-template-thumb-meta{left:auto;right:9px;top:48px;width:40px}
+.fle-template-thumb--compact .fle-template-thumb-recipient{left:9px;top:48px;width:38px;height:22px}
+.fle-template-thumb--compact .fle-template-thumb-table{top:76px}
+.fle-template-thumb--compact .fle-template-thumb-total{right:9px;top:103px;width:40px}
+.fle-template-thumb--compact .fle-template-thumb-qr{left:10px;bottom:5px;width:15px;height:15px;box-shadow:25px 0 0 -1px #fff,25px 0 0 0 #cbd7e5,74px 0 0 -1px #fff,74px 0 0 0 #cbd7e5}
+.fle-template-thumb--minimal .fle-template-thumb-logo{left:auto;right:10px;top:9px;width:24px;height:24px;border:1px solid #b8c9dc;background:#f8fafc}
+.fle-template-thumb--minimal .fle-template-thumb-title{left:10px;right:auto;top:39px;width:40px;height:6px;background:#c8d3df}
+.fle-template-thumb--minimal .fle-template-thumb-meta{right:10px;top:51px;width:39px}
+.fle-template-thumb--minimal .fle-template-thumb-recipient{left:10px;top:51px;width:38px}
+.fle-template-thumb--minimal .fle-template-thumb-table{top:76px;border-top:1px solid #cbd5e1}
+.fle-template-thumb--minimal .fle-template-thumb-total{right:10px;top:103px;width:38px;border-top:1px solid #cbd5e1}
+.fle-template-thumb--minimal .fle-template-thumb-qr{left:10px;bottom:5px;width:15px;height:15px;box-shadow:76px 0 0 -1px #fff,76px 0 0 0 #cbd7e5}
+
+.fle-canvas--preview[data-template="MINIMAL"] .fle-table-region {
+  border-top-color: #cfd6df !important;
+  border-bottom-color: #d9dfe7 !important;
+}
+.fle-canvas--preview[data-template="MINIMAL"] .fle-table-header {
+  border-bottom-color: #d9dfe7;
+}
+.fle-canvas--preview[data-template="MINIMAL"] .fle-table-col-label {
+  color: #0f172a;
+}
+.fle-canvas--preview[data-template="MINIMAL"] .fle-footer-item[style*="font-weight: 700"] {
+  color: #0f172a;
+}
