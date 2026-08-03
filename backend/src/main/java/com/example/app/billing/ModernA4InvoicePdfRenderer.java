@@ -93,6 +93,9 @@ final class ModernA4InvoicePdfRenderer {
 
     /** Mirrors CSS grid-auto-flow: row dense used by the former HTML preview. */
     private List<GridRow> buildDenseGrid(FolioLayoutConfig layout, FolioPdfRequest request) {
+        if (isMinimal(layout)) {
+            return buildMinimalGrid(layout, request);
+        }
         List<GridRow> rows = new ArrayList<>();
         for (String section : effectiveSectionOrder(layout)) {
             if (!isRenderable(section, request, layout)) continue;
@@ -122,12 +125,15 @@ final class ModernA4InvoicePdfRenderer {
             String leftSection,
             String rightSection
     ) throws IOException {
-        float leftHeight = estimateSectionHeight(state, layout, request, leftSection, COLUMN_W);
+        float leftHeight = leftSection == null ? 0 : estimateSectionHeight(state, layout, request, leftSection, COLUMN_W);
         float rightHeight = rightSection == null ? 0 : estimateSectionHeight(state, layout, request, rightSection, COLUMN_W);
         float rowHeight = Math.max(leftHeight, rightHeight);
+        if (rowHeight <= 0f) return;
         state.ensureSpace(rowHeight);
         float y = state.y;
-        drawSection(state, layout, request, logoBytes, signatureBytes, leftSection, MARGIN_X, y, COLUMN_W, rowHeight);
+        if (leftSection != null) {
+            drawSection(state, layout, request, logoBytes, signatureBytes, leftSection, MARGIN_X, y, COLUMN_W, rowHeight);
+        }
         if (rightSection != null) {
             drawSection(state, layout, request, logoBytes, signatureBytes, rightSection, MARGIN_X + COLUMN_W + GRID_GAP, y, COLUMN_W, rowHeight);
         }
@@ -146,6 +152,29 @@ final class ModernA4InvoicePdfRenderer {
         state.ensureSpace(height);
         drawSection(state, layout, request, logoBytes, signatureBytes, section, MARGIN_X, state.y, CONTENT_W, height);
         state.y += height + state.theme.gap;
+    }
+
+    private List<GridRow> buildMinimalGrid(FolioLayoutConfig layout, FolioPdfRequest request) {
+        List<GridRow> rows = new ArrayList<>();
+        addMinimalFull(rows, layout, request, "company");
+        addMinimalPair(rows, layout, request, "recipient", "document");
+        addMinimalFull(rows, layout, request, "items");
+        addMinimalPair(rows, layout, request, isRenderable("taxClauses", request, layout) ? "taxClauses" : null, isRenderable("totals", request, layout) ? "totals" : null);
+        addMinimalPair(rows, layout, request, isRenderable("fiscal", request, layout) ? "fiscal" : null, isRenderable("reference", request, layout) ? "reference" : null);
+        addMinimalPair(rows, layout, request, isRenderable("issuedBy", request, layout) ? "issuedBy" : null, isRenderable("signature", request, layout) ? "signature" : null);
+        return rows;
+    }
+
+    private void addMinimalFull(List<GridRow> rows, FolioLayoutConfig layout, FolioPdfRequest request, String section) {
+        if (isRenderable(section, request, layout)) rows.add(GridRow.full(section));
+    }
+
+    private void addMinimalPair(List<GridRow> rows, FolioLayoutConfig layout, FolioPdfRequest request, String left, String right) {
+        if (left == null && right == null) return;
+        GridRow row = new GridRow();
+        row.left = left;
+        row.right = right;
+        rows.add(row);
     }
 
     private void drawSection(
