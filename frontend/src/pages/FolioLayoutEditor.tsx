@@ -327,7 +327,6 @@ const TEMPLATE_FOOTER_KEYS = new Set([
 const TEMPLATE_COLUMN_KEYS = new Set(['date', 'description', 'qty', 'nett', 'discount', 'gross', 'taxPercent', 'taxAmount', 'total'])
 
 type TemplatePreferences = {
-  fontSizePreset: A4FontSizePreset
   footerText: string
   footerTextI18n?: LocalizedText
   footerTextVisible: boolean
@@ -344,11 +343,7 @@ type TemplatePreferences = {
 
 function extractTemplatePreferences(layout: LayoutConfig): TemplatePreferences {
   const footerTextField = fieldFor(layout, 'templateFooterText')
-  const fontSizePreset = ['COMPACT', 'STANDARD', 'LARGE'].includes(String(layout.fontSizePreset || '').toUpperCase())
-    ? String(layout.fontSizePreset).toUpperCase() as A4FontSizePreset
-    : 'STANDARD'
   return {
-    fontSizePreset,
     footerText: footerTextField?.text || '',
     footerTextI18n: footerTextField?.textI18n,
     footerTextVisible: footerTextField?.visible !== false && Boolean((footerTextField?.text || '').trim() || resolveLocalizedText(footerTextField?.textI18n, footerTextField?.text || '', 'sl')),
@@ -652,45 +647,45 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
     Object.assign(footerText, { x: 50, y: 802, width: 495, height: 16, alignment: 'center' })
     applyFontPreset(layout, 'STANDARD')
   } else {
-    layout.pageSections = { headerHeight: 180, footerHeight: 58 }
-    Object.assign(layout.logo, { x: 50, y: 42, width: 48, height: 36 })
-    setField(layout, 'companyName', { x: 108, y: 42, width: 190, height: 18, alignment: 'left', bold: true })
-    setField(layout, 'companyAddress', { x: 108, y: 64, width: 190, height: 14, alignment: 'left' })
-    setField(layout, 'companyPostalCodeCity', { x: 108, y: 82, width: 190, height: 14, alignment: 'left' })
-    setField(layout, 'companyTaxId', { x: 108, y: 104, width: 190, height: 14, alignment: 'left' })
-    setField(layout, 'folioNumber', { x: 330, y: 44, width: 215, height: 24, alignment: 'right', bold: true })
-    setField(layout, 'recipientName', { x: 50, y: 202, width: 220, height: 16, alignment: 'left', bold: true })
-    setField(layout, 'recipientAddress', { x: 50, y: 222, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 240, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'recipientVatId', { x: 50, y: 258, width: 220, height: 14, alignment: 'left' })
-    setField(layout, 'folioDate', { x: 330, y: 78, width: 215, height: 14, alignment: 'right' })
-    setField(layout, 'folioIssueTimePlace', { x: 330, y: 100, width: 215, height: 14, alignment: 'right' })
-    setField(layout, 'dateOfService', { x: 330, y: 122, width: 215, height: 14, alignment: 'right' })
-    setField(layout, 'dueDate', { x: 330, y: 144, width: 215, height: 14, alignment: 'right' })
-    Object.assign(layout.table, { startX: 50, startY: 294, width: 495, rowHeight: 23, headerHeight: 21, footerSpacing: 5 })
+    layout.pageSections = { headerHeight: 190, footerHeight: 58 }
+    Object.assign(layout.logo, { x: 430, y: 52, width: 84, height: 84 })
+    setField(layout, 'companyName', { x: 50, y: 58, width: 250, height: 18, alignment: 'left', bold: true })
+    setField(layout, 'companyAddress', { x: 50, y: 82, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'companyPostalCodeCity', { x: 50, y: 100, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'companyTaxId', { x: 50, y: 130, width: 250, height: 14, alignment: 'left' })
+    setField(layout, 'folioNumber', { x: 360, y: 184, width: 185, height: 24, alignment: 'right', bold: true })
+    setField(layout, 'recipientName', { x: 50, y: 236, width: 220, height: 16, alignment: 'left', bold: true })
+    setField(layout, 'recipientAddress', { x: 50, y: 262, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'recipientPostalCodeCity', { x: 50, y: 288, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'recipientVatId', { x: 50, y: 314, width: 220, height: 14, alignment: 'left' })
+    setField(layout, 'folioDate', { x: 318, y: 236, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'folioIssueTimePlace', { x: 318, y: 262, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'dateOfService', { x: 318, y: 288, width: 227, height: 14, alignment: 'right' })
+    setField(layout, 'dueDate', { x: 318, y: 314, width: 227, height: 14, alignment: 'right' })
+    Object.assign(layout.table, { startX: 50, startY: 372, width: 495, rowHeight: 25, headerHeight: 23, footerSpacing: 5 })
     applyTemplateColumns(layout)
-    setColumn(layout, 'date', { visible: true, relX: 115, width: 62, alignment: 'left' })
-    setColumn(layout, 'description', { relX: 0, width: 115, alignment: 'left', visible: true })
-    setColumn(layout, 'qty', { relX: 177, width: 82, alignment: 'right', visible: true, label: 'Quantity × Price', labelI18n: { en: 'Quantity × Price', sl: 'Količina × Cena', sr: 'Količina × Cena' } })
-    setColumn(layout, 'nett', { relX: 259, width: 78, alignment: 'right', visible: true })
-    setColumn(layout, 'discount', { relX: 337, width: 50, alignment: 'right', visible: true })
-    setColumn(layout, 'taxPercent', { relX: 387, width: 45, alignment: 'right', visible: true })
-    setColumn(layout, 'total', { relX: 432, width: 63, alignment: 'right', visible: true })
+    setColumn(layout, 'date', { visible: true, relX: 96, width: 70, alignment: 'left' })
+    setColumn(layout, 'description', { relX: 0, width: 96, alignment: 'left', visible: true })
+    setColumn(layout, 'qty', { relX: 166, width: 84, alignment: 'right', visible: true, label: 'Quantity × Price', labelI18n: { en: 'Quantity × Price', sl: 'Količina × Cena', sr: 'Količina × Cena' } })
+    setColumn(layout, 'nett', { relX: 250, width: 86, alignment: 'right', visible: true })
+    setColumn(layout, 'discount', { relX: 336, width: 56, alignment: 'right', visible: true })
+    setColumn(layout, 'taxPercent', { relX: 392, width: 46, alignment: 'right', visible: true })
+    setColumn(layout, 'total', { relX: 438, width: 57, alignment: 'right', visible: true })
     Object.assign(layout.vatBreakdownTable, { x: 50, y: 442, width: 210, headerHeight: 16, rowHeight: 16, visible: false })
-    setFooter(layout, 'totalNett', { x: 330, y: 390, width: 215, height: 18, alignment: 'right', bold: false })
-    setFooter(layout, 'discount', { x: 330, y: 412, width: 215, height: 18, alignment: 'right', bold: false })
-    setFooter(layout, 'totalGross', { x: 330, y: 434, width: 215, height: 18, alignment: 'right', bold: true })
-    setFooter(layout, 'usedAdvances', { x: 330, y: 456, width: 215, height: 18, alignment: 'right', bold: false })
-    setFooter(layout, 'toBePaid', { x: 330, y: 480, width: 215, height: 22, alignment: 'right', bold: true })
-    setFooter(layout, 'payment', { x: 50, y: 500, width: 220, height: 16, alignment: 'left', visible: false })
-    setFooter(layout, 'iban', { x: 108, y: 122, width: 190, height: 16, alignment: 'left', visible: true })
-    setFooter(layout, 'fiscalZoi', { x: 136, y: 392, width: 174, height: 18, alignment: 'left', visible: true })
-    setFooter(layout, 'fiscalEor', { x: 136, y: 420, width: 174, height: 28, alignment: 'left', visible: true })
-    setFooter(layout, 'notes', { x: 330, y: 554, width: 215, height: 54, alignment: 'left' })
-    setFooter(layout, 'issuedBy', { x: 50, y: 722, width: 180, height: 18, alignment: 'left' })
-    Object.assign(layout.paymentQr, { x: 50, y: 540, width: 100, height: 120 })
-    Object.assign(layout.fiscalQr, { x: 50, y: 390, width: 74, height: 74, visible: true })
-    Object.assign(layout.signature, { x: 330, y: 716, width: 190, height: 44 })
+    setFooter(layout, 'totalNett', { x: 330, y: 474, width: 215, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'discount', { x: 330, y: 500, width: 215, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'totalGross', { x: 330, y: 526, width: 215, height: 18, alignment: 'right', bold: true })
+    setFooter(layout, 'usedAdvances', { x: 330, y: 552, width: 215, height: 18, alignment: 'right', bold: false })
+    setFooter(layout, 'toBePaid', { x: 330, y: 580, width: 215, height: 22, alignment: 'right', bold: true })
+    setFooter(layout, 'payment', { x: 50, y: 550, width: 220, height: 16, alignment: 'left', visible: false })
+    setFooter(layout, 'iban', { x: 50, y: 148, width: 250, height: 16, alignment: 'left', visible: true })
+    setFooter(layout, 'fiscalZoi', { x: 150, y: 496, width: 150, height: 14, alignment: 'left', visible: true })
+    setFooter(layout, 'fiscalEor', { x: 150, y: 522, width: 150, height: 14, alignment: 'left', visible: true })
+    setFooter(layout, 'notes', { x: 50, y: 628, width: 205, height: 60, alignment: 'left' })
+    setFooter(layout, 'issuedBy', { x: 50, y: 748, width: 180, height: 18, alignment: 'left' })
+    Object.assign(layout.paymentQr, { x: 330, y: 624, width: 98, height: 122 })
+    Object.assign(layout.fiscalQr, { x: 50, y: 490, width: 92, height: 92, visible: true })
+    Object.assign(layout.signature, { x: 330, y: 744, width: 190, height: 44 })
     Object.assign(footerText, { x: 50, y: 810, width: 495, height: 16, alignment: 'left' })
     applyFontPreset(layout, 'LARGE')
   }
@@ -700,13 +695,6 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
     const field = fieldFor(layout, key)
     if (field) field.prefixI18n = { ...prefix }
   })
-  ;(['folioDate', 'dateOfService', 'dueDate'] as const).forEach((key) => {
-    const field = fieldFor(layout, key)
-    if (field) field.dateFormat = 'DD.MM.YYYY'
-  })
-  const dateColumn = columnFor(layout, 'date')
-  if (dateColumn) dateColumn.dateFormat = 'DD.MM.YYYY'
-  applyFontPreset(layout, prefs.fontSizePreset)
   layout.taxClauses = prefs.taxClauses
   footerText.text = prefs.footerText
   footerText.textI18n = prefs.footerTextI18n || ensureLocalizedText(footerText.textI18n, prefs.footerText)
@@ -2869,72 +2857,6 @@ function A4FolioLayoutEditor() {
 }
 
 
-function buildA4PreviewInvoice(locale: AppLocale) {
-  return {
-    companyName: 'Calendra Studio d.o.o.',
-    companyAddress: 'Glavna ulica 12',
-    companyPostalCode: '2000',
-    companyCity: 'Maribor',
-    issueCity: 'Maribor',
-    companyTaxId: 'SI12345678',
-    folioNumber: '2026-00042',
-    folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:',
-    folioDate: '31.07.2026 12:45',
-    dateOfService: '31.07.2026',
-    dueDate: '07.08.2026',
-    recipientName: 'Ana Novak',
-    recipientAddress: 'Cesta 5',
-    recipientPostalCode: '1000',
-    recipientCity: 'Ljubljana',
-    recipientVatId: 'SI98765432',
-    services: [
-      {
-        date: '31.07.2026',
-        description: locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage',
-        qty: 1,
-        nettPrice: 40.98,
-        grossPrice: 50,
-        taxPercent: '22%',
-        taxAmount: 9.02,
-        totalPrice: 50,
-      },
-      {
-        date: '31.07.2026',
-        description: locale === 'sl' ? 'Individualno svetovanje' : locale === 'sr' ? 'Individualno savetovanje' : 'Individual counselling',
-        qty: 1,
-        nettPrice: 40.98,
-        grossPrice: 50,
-        taxPercent: '22%',
-        taxAmount: 9.02,
-        totalPrice: 50,
-      },
-    ],
-    paymentMethods: [{ name: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', amountGross: 80 }],
-    paymentMethod: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer',
-    issuedBy: 'David Mirc',
-    iban: 'SI56 1234 5678 9012 3456',
-    subtotalBeforeDiscountGross: 100,
-    discountAmountGross: 10,
-    usedAdvancePaymentsGross: 10,
-    toBePaidGross: 80,
-    advancePayments: [{
-      advanceNumber: 'ADV-2026-001',
-      date: '25.07.2026',
-      taxPercent: '22%',
-      netBasis: 8.2,
-      taxAmount: 1.8,
-      totalGross: 10,
-      usedGross: 10,
-    }],
-    paymentQrPayload: 'https://calendra.si/placilo/test',
-    fiscalQr: 'https://calendra.si/fiscal/test',
-    fiscalZoi: '1234567890abcdef1234567890abcdef',
-    fiscalEor: '9999e010-089a-46e6-a3d8-bc0bd0a779c7',
-    notes: 'REF-2026-001',
-    locale,
-  }
-}
-
 function A4PresetLayoutEditor() {
   const { locale } = useLocale()
   const [layout, setLayout] = useState<LayoutConfig | null>(null)
@@ -2945,11 +2867,6 @@ function A4PresetLayoutEditor() {
   const [notice, setNotice] = useState<string | null>(null)
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewFailed, setPreviewFailed] = useState(false)
-  const previewRequestId = useRef(0)
-  const previewImageUrlRef = useRef<string | null>(null)
 
   const copy = locale === 'sl'
     ? {
@@ -3126,42 +3043,6 @@ function A4PresetLayoutEditor() {
     return () => { cancelled = true }
   }, [copy.loadFailed, locale])
 
-  useEffect(() => {
-    if (!layout) return
-    const requestId = ++previewRequestId.current
-    const controller = new AbortController()
-    const timer = window.setTimeout(async () => {
-      setPreviewLoading(true)
-      setPreviewFailed(false)
-      try {
-        const response = await api.post(
-          `/billing/folio-layout/preview?locale=${locale}`,
-          { layout, invoice: buildA4PreviewInvoice(locale) },
-          { responseType: 'blob', signal: controller.signal },
-        )
-        if (requestId !== previewRequestId.current) return
-        const nextUrl = URL.createObjectURL(new Blob([response.data], { type: 'image/png' }))
-        if (previewImageUrlRef.current) URL.revokeObjectURL(previewImageUrlRef.current)
-        previewImageUrlRef.current = nextUrl
-        setPreviewImageUrl(nextUrl)
-      } catch (error: any) {
-        if (controller.signal.aborted || error?.code === 'ERR_CANCELED') return
-        if (requestId === previewRequestId.current) setPreviewFailed(true)
-      } finally {
-        if (requestId === previewRequestId.current) setPreviewLoading(false)
-      }
-    }, 250)
-
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [layout, locale])
-
-  useEffect(() => () => {
-    if (previewImageUrlRef.current) URL.revokeObjectURL(previewImageUrlRef.current)
-  }, [])
-
   const mutateLayout = useCallback((fn: (next: LayoutConfig) => void) => {
     setLayout((previous) => {
       if (!previous) return previous
@@ -3234,7 +3115,19 @@ function A4PresetLayoutEditor() {
     const prepared = window.open('', '_blank')
     try {
       if (dirty) await api.put('/billing/folio-layout', layout)
-      const sample = buildA4PreviewInvoice(locale)
+      const sample = {
+        companyName: 'Calendra Studio d.o.o.', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', companyTaxId: 'SI12345678',
+        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', dateOfService: '31.07.2026', dueDate: '07.08.2026',
+        recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: 'SI98765432',
+        services: [
+          { date: '31.07.2026', description: locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+          { date: '31.07.2026', description: locale === 'sl' ? 'Individualno svetovanje' : locale === 'sr' ? 'Individualno savetovanje' : 'Individual counselling', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
+        ],
+        paymentMethods: [{ name: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', amountGross: 90 }],
+        paymentMethod: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', issuedBy: 'David Mirc', iban: 'SI56 1234 5678 9012 3456', toBePaidGross: 90,
+        paymentQrPayload: 'https://calendra.si/placilo/test', fiscalQr: 'https://calendra.si/fiscal/test', fiscalZoi: '1234567890', fiscalEor: 'EOR-2026-42',
+        notes: 'REF-2026-001', locale,
+      }
       const response = await api.post(`/billing/folio/pdf?format=A4&locale=${locale}`, sample, { responseType: 'blob' })
       const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
       if (prepared) prepared.location.href = url
@@ -3290,6 +3183,7 @@ function A4PresetLayoutEditor() {
   }
 
   const previewSections = sectionOrder.filter((section) => !hiddenSections.includes(section))
+  const renderedPreviewSections = previewSections.length ? previewSections : ['company', 'document', 'items', 'totals']
 
   const renderPreviewSection = (section: string) => {
     switch (section) {
@@ -3475,10 +3369,6 @@ function A4PresetLayoutEditor() {
         </div>
       </div>
 
-      <div className="fle-a4-info-banner">
-        <span>i</span>
-        <div>{copy.subtitle}</div>
-      </div>
 
       <div className="fle-a4-settings-grid">
         <div className="fle-a4-settings-column">
@@ -3611,17 +3501,13 @@ function A4PresetLayoutEditor() {
           <div className="fle-a4-preview-panel">
             <h4>{copy.preview}</h4>
             <div className="fle-a4-preview-shell">
-              {previewImageUrl ? (
-                <img className="fle-a4-rendered-preview" src={previewImageUrl} alt={copy.preview} />
-              ) : (
-                <div className="fle-a4-preview-placeholder">{previewLoading ? '…' : copy.preview}</div>
-              )}
-              {previewLoading && previewImageUrl ? <div className="fle-a4-preview-refreshing">…</div> : null}
-              {previewFailed ? (
-                <div className="fle-a4-preview-error">
-                  {locale === 'sl' ? 'Predogleda ni bilo mogoče osvežiti.' : locale === 'sr' ? 'Pregled nije moguće osvežiti.' : 'Unable to refresh the preview.'}
-                </div>
-              ) : null}
+              <div className={`fle-a4-preview-page fle-a4-template--${activeTemplate.toLowerCase()} fle-a4-font--${String(layout.fontSizePreset || 'STANDARD').toLowerCase()}`} style={{ ['--fle-accent' as any]: layout.accentColor || '#1677FF' }}>
+                {renderedPreviewSections.map((section) => renderPreviewSection(section))}
+              </div>
+              <div className="fle-a4-preview-caption">
+                <span>A4</span>
+                <span>{locale === 'sl' ? '210 × 297 mm · informativni predogled' : locale === 'sr' ? '210 × 297 mm · informativni pregled' : '210 × 297 mm · preview'}</span>
+              </div>
             </div>
           </div>
         </aside>
