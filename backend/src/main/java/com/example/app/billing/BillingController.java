@@ -673,7 +673,7 @@ public class BillingController {
         }
         var pm = new PaymentMethod();
         pm.setCompany(me.getCompany());
-        pm.setName(req.name().trim());
+        pm.setName(normalizePaymentMethodName(req));
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
         var saved = paymentMethodRepo.save(pm);
@@ -702,7 +702,7 @@ public class BillingController {
         if (req.paymentType() == PaymentType.ADVANCE && !isAdvanceBillingEnabled(me.getCompany().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance billing is disabled for this tenant.");
         }
-        pm.setName(req.name().trim());
+        pm.setName(normalizePaymentMethodName(req));
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
         var saved = paymentMethodRepo.save(pm);
@@ -5412,19 +5412,32 @@ public class BillingController {
         return ResponseEntity.noContent().build();
     }
 
+    private static String normalizePaymentMethodName(PaymentMethodRequest req) {
+        boolean stripeEnabled = req.paymentType() == PaymentType.CARD
+                && (req.stripeEnabled() != null ? req.stripeEnabled() : defaultStripeEnabled(req.paymentType()));
+        return stripeEnabled ? "Spletno plačilo s kartico" : req.name().trim();
+    }
+
     private static void applyPaymentMethodFlags(PaymentMethod pm, PaymentMethodRequest req, boolean fiscalCashRegisterEnabled) {
         pm.setFiscalized(fiscalCashRegisterEnabled && (req.fiscalized() != null ? req.fiscalized() : defaultFiscalized(req.paymentType())));
         boolean stripeEnabled = req.paymentType() == PaymentType.CARD
                 && (req.stripeEnabled() != null ? req.stripeEnabled() : defaultStripeEnabled(req.paymentType()));
         pm.setStripeEnabled(stripeEnabled);
-        if (req.guestEnabled() != null) {
-            pm.setGuestEnabled(req.guestEnabled());
-        }
-        if (req.widgetEnabled() != null) {
-            pm.setWidgetEnabled(req.widgetEnabled());
-        } else if (req.guestEnabled() != null) {
-            // Backward compatibility for older clients that only send guestEnabled.
-            pm.setWidgetEnabled(req.guestEnabled());
+        if (req.paymentType() == PaymentType.CASH || req.paymentType() == PaymentType.ADVANCE) {
+            // Cash and advance payments are internal/on-location methods and must never be
+            // exposed as selectable online payment methods in guest booking channels.
+            pm.setGuestEnabled(false);
+            pm.setWidgetEnabled(false);
+        } else {
+            if (req.guestEnabled() != null) {
+                pm.setGuestEnabled(req.guestEnabled());
+            }
+            if (req.widgetEnabled() != null) {
+                pm.setWidgetEnabled(req.widgetEnabled());
+            } else if (req.guestEnabled() != null) {
+                // Backward compatibility for older clients that only send guestEnabled.
+                pm.setWidgetEnabled(req.guestEnabled());
+            }
         }
         if (req.guestDisplayOrder() != null) {
             pm.setGuestDisplayOrder(Math.max(0, req.guestDisplayOrder()));

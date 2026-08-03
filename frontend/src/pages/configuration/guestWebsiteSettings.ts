@@ -64,7 +64,7 @@ export type GuestBookingRulesForm = {
   policyText: string;
 };
 
-export type GuestAppSubtab = "general" | "bookingRules" | "paymentMethods" | "qrCode";
+export type GuestAppSubtab = "general" | "bookingRules" | "qrCode";
 
 export type WebsiteWidgetSettingsForm = {
   acceptedPaymentMethodIds: GuestPaymentMethodId[];
@@ -158,15 +158,18 @@ export const normalizeTenantConfigType = (raw: any): TenantConfigType => {
 export const isGuestPaymentMethodId = (value: string): value is GuestPaymentMethodId =>
   GUEST_PAYMENT_METHOD_OPTIONS.some((option) => option.id === value);
 export const normalizeGuestPaymentMethods = (value: any): GuestPaymentMethodId[] => {
-  if (!Array.isArray(value)) return DEFAULT_GUEST_PAYMENT_METHOD_IDS;
+  if (!Array.isArray(value)) return [...DEFAULT_GUEST_PAYMENT_METHOD_IDS];
+  if (value.length === 0) return [];
   const normalized = value
     .map((row) => String(row || ""))
     .filter(isGuestPaymentMethodId);
-  return normalized.length > 0 ? normalized : DEFAULT_GUEST_PAYMENT_METHOD_IDS;
+  return normalized.length > 0
+    ? normalized
+    : [...DEFAULT_GUEST_PAYMENT_METHOD_IDS];
 };
 
 export const normalizeWebsitePaymentMethods = (value: any): GuestPaymentMethodId[] => {
-  if (!Array.isArray(value)) return DEFAULT_GUEST_PAYMENT_METHOD_IDS;
+  if (!Array.isArray(value)) return [...DEFAULT_GUEST_PAYMENT_METHOD_IDS];
   return value.map((row) => String(row || "")).filter(isGuestPaymentMethodId);
 };
 
@@ -174,6 +177,7 @@ export const removeStripePaymentMethod = (
   ids: GuestPaymentMethodId[],
   fallback: GuestPaymentMethodId = "bank_transfer",
 ): GuestPaymentMethodId[] => {
+  if (ids.length === 0) return [];
   const filtered = ids.filter((id) => id !== "online_card");
   return filtered.length > 0 ? filtered : [fallback];
 };
@@ -182,6 +186,7 @@ export const removeGiftCardPaymentMethod = (
   ids: GuestPaymentMethodId[],
   fallback: GuestPaymentMethodId = "bank_transfer",
 ): GuestPaymentMethodId[] => {
+  if (ids.length === 0) return [];
   const filtered = ids.filter((id) => id !== "gift_card");
   return filtered.length > 0 ? filtered : [fallback];
 };
@@ -195,7 +200,6 @@ export function guestAppSubtabs(
   return [
     { id: "general", label: t("configGuestSubtabGeneral") },
     { id: "bookingRules", label: t("configGuestSubtabBookingRules") },
-    { id: "paymentMethods", label: t("configGuestSubtabPaymentMethods") },
     { id: "qrCode", label: t("configGuestSubtabQrCode") },
   ];
 }
@@ -820,10 +824,10 @@ export const parseWebsiteBookingRules = (
 export const normalizeWebsiteSettingsForPaymentLocation = (
   settings: WebsiteWidgetSettingsForm,
 ): WebsiteWidgetSettingsForm => {
-  if (settings.paymentOnLocation) {
-    return { ...settings, acceptedPaymentMethodIds: [] };
-  }
-
+  // Keep the configured channel availability even when pay-on-location is on.
+  // Runtime services already ignore online methods while that mode is active,
+  // and preserving the selection means it is restored when the mode is disabled.
+  // An explicit empty array is also valid and represents “none”.
   const acceptedPaymentMethodIds = normalizeWebsitePaymentMethods(
     settings.acceptedPaymentMethodIds,
   );
@@ -832,19 +836,15 @@ export const normalizeWebsiteSettingsForPaymentLocation = (
   )
     ? settings.paymentDefaultMethodId
     : "online_card";
-  const nextAcceptedPaymentMethodIds =
-    acceptedPaymentMethodIds.length > 0
-      ? acceptedPaymentMethodIds
-      : [fallbackMethodId];
-  const paymentDefaultMethodId = nextAcceptedPaymentMethodIds.includes(
+  const paymentDefaultMethodId = acceptedPaymentMethodIds.includes(
     settings.paymentDefaultMethodId,
   )
     ? settings.paymentDefaultMethodId
-    : nextAcceptedPaymentMethodIds[0];
+    : acceptedPaymentMethodIds[0] ?? fallbackMethodId;
 
   return {
     ...settings,
-    acceptedPaymentMethodIds: nextAcceptedPaymentMethodIds,
+    acceptedPaymentMethodIds,
     paymentDefaultMethodId,
   };
 };

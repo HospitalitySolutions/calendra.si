@@ -31,13 +31,13 @@ class GuestSettingsServiceAcceptedMethodsTest {
     }
 
     @Test
-    void parseAcceptedPaymentMethods_returnsAllDefaultsWhenInputMissingOrEmpty() throws Exception {
+    void parseAcceptedPaymentMethods_preservesExplicitNoneAndDefaultsMissingOrLegacyValues() throws Exception {
         var nullResult = GuestSettingsService.parseAcceptedPaymentMethods(null);
         var emptyResult = GuestSettingsService.parseAcceptedPaymentMethods(JSON.readTree("[]"));
         var legacyOnly = GuestSettingsService.parseAcceptedPaymentMethods(JSON.readTree("[\"cash\"]"));
 
         assertThat(nullResult).containsExactly("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
-        assertThat(emptyResult).containsExactly("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
+        assertThat(emptyResult).isEmpty();
         assertThat(legacyOnly).containsExactly("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
     }
 
@@ -58,6 +58,16 @@ class GuestSettingsServiceAcceptedMethodsTest {
         );
 
         assertThat(result).containsExactly("BANK_TRANSFER", "GIFT_CARD");
+    }
+
+    @Test
+    void applyGlobalProviderCapabilities_preservesExplicitNone() {
+        var result = GuestSettingsService.applyGlobalProviderCapabilities(
+                List.of(),
+                new GlobalPaymentProviderService.ProviderCapabilities(true, true)
+        );
+
+        assertThat(result).isEmpty();
     }
 
     @Test

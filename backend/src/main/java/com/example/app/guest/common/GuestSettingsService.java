@@ -109,8 +109,8 @@ public class GuestSettingsService {
     /**
      * Runtime payment methods enabled for the tenant in the guest app.
      * Returned values are runtime ids: {@code CARD}, {@code BANK_TRANSFER}, {@code PAYPAL}, {@code GIFT_CARD}.
-     * Legacy config ids (cash, card_on_location) are filtered out. When config is missing or empty,
-     * the full default set is returned so existing tenants keep working.
+     * Legacy config ids (cash, card_on_location) are filtered out. Missing or legacy-only config
+     * keeps the full default set, while an explicitly saved empty array means “none”.
      */
     public List<String> acceptedPaymentMethods(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
@@ -126,19 +126,25 @@ public class GuestSettingsService {
     }
 
     static List<String> parseAcceptedPaymentMethods(JsonNode node) {
-        Set<String> out = new LinkedHashSet<>();
-        if (node != null && node.isArray()) {
-            for (JsonNode entry : node) {
-                String runtime = mapConfigIdToRuntimeType(entry.asText());
-                if (runtime != null) {
-                    out.add(runtime);
-                }
-            }
-        }
-        if (out.isEmpty()) {
+        if (node == null || !node.isArray()) {
             return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
         }
-        return new ArrayList<>(out);
+        if (node.size() == 0) {
+            // An explicitly saved empty array means that no payment method is
+            // available in this booking channel.
+            return List.of();
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (JsonNode entry : node) {
+            String runtime = mapConfigIdToRuntimeType(entry.asText());
+            if (runtime != null) {
+                out.add(runtime);
+            }
+        }
+        // Invalid legacy-only values should retain the previous safe defaults.
+        return out.isEmpty()
+                ? List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD")
+                : new ArrayList<>(out);
     }
 
     private GlobalPaymentProviderService.ProviderCapabilities tenantPaymentCapabilities(Map<String, String> values) {
@@ -162,6 +168,9 @@ public class GuestSettingsService {
             GlobalPaymentProviderService.ProviderCapabilities capabilities,
             boolean giftCardsEnabled
     ) {
+        if (accepted != null && accepted.isEmpty()) {
+            return List.of();
+        }
         List<String> filtered = (accepted == null ? List.<String>of() : accepted).stream()
                 .filter(method -> !"CARD".equals(method) || capabilities.stripeEnabled())
                 .filter(method -> !"PAYPAL".equals(method) || capabilities.paypalEnabled())

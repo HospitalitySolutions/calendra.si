@@ -56,7 +56,6 @@ import {
   GuestEyeIcon,
   GuestField,
   GuestInfoIcon,
-  GuestPaymentMethodIcon,
   GuestSegmentedToggle,
   GuestSwitch,
   GuestUploadDropzone,
@@ -109,10 +108,8 @@ import {
 } from "./configuration/accountCatalog";
 import {
   ALL_GUEST_PRODUCT_TYPES,
-  DEFAULT_GUEST_PAYMENT_METHOD_IDS,
   GUEST_APP_SETTINGS_KEY,
   GUEST_BOOKING_RULES_KEY,
-  GUEST_PAYMENT_METHOD_OPTIONS,
   QR_QUIET_ZONE,
   TENANT_CONFIG_TYPE_OPTIONS,
   WEBSITE_BOOKING_RULES_KEY,
@@ -124,13 +121,10 @@ import {
   defaultWebsiteWidgetSettings,
   escapeHtml,
   guestAppSubtabs,
-  isGuestPaymentMethodId,
   makeQrMatrix,
   normalizeBookingRulesForPaymentLocation,
-  normalizeGuestPaymentMethods,
   normalizeTenantConfigType,
   normalizeWebsiteBookingRulesForPaymentLocation,
-  normalizeWebsitePaymentMethods,
   normalizeWebsiteSettingsForPaymentLocation,
   parseGuestAppSettings,
   parseGuestBookingRules,
@@ -216,6 +210,69 @@ type AccountPlanCard = {
   icon: AccountPlanIconKind;
   features: string[];
 };
+
+
+type PaymentChannelAvailability = "none" | "guestApp" | "website" | "both";
+
+const ONLINE_CARD_PAYMENT_NAME = "Spletno plačilo s kartico";
+
+function guestConfigIdForPaymentMethod(
+  method: PaymentMethod,
+): GuestPaymentMethodId | null {
+  if (method.paymentType === "CARD" && method.stripeEnabled) {
+    return "online_card";
+  }
+  if (method.paymentType === "BANK_TRANSFER") {
+    return "bank_transfer";
+  }
+  if (method.paymentType === "OTHER") {
+    const normalizedName = String(method.name || "").trim().toLowerCase();
+    if (normalizedName.includes("daril") || normalizedName.includes("gift")) {
+      return "gift_card";
+    }
+    return "paypal";
+  }
+  return null;
+}
+
+function paymentMethodDisplayName(method: PaymentMethod, locale: string): string {
+  if (method.paymentType === "CARD" && method.stripeEnabled) {
+    return locale === "sl" ? ONLINE_CARD_PAYMENT_NAME : "Online card payment";
+  }
+  return method.name;
+}
+
+function paymentMethodPersistenceName(method: PaymentMethod): string {
+  return method.paymentType === "CARD" && method.stripeEnabled
+    ? ONLINE_CARD_PAYMENT_NAME
+    : method.name;
+}
+
+function paymentAvailabilityValue(
+  guestEnabled: boolean,
+  widgetEnabled: boolean,
+): PaymentChannelAvailability {
+  if (guestEnabled && widgetEnabled) return "both";
+  if (guestEnabled) return "guestApp";
+  if (widgetEnabled) return "website";
+  return "none";
+}
+
+function paymentAvailabilityFlags(value: PaymentChannelAvailability) {
+  return {
+    guestEnabled: value === "guestApp" || value === "both",
+    widgetEnabled: value === "website" || value === "both",
+  };
+}
+
+function setPaymentMethodIdEnabled(
+  ids: GuestPaymentMethodId[],
+  id: GuestPaymentMethodId,
+  enabled: boolean,
+): GuestPaymentMethodId[] {
+  if (enabled) return ids.includes(id) ? ids : [...ids, id];
+  return ids.filter((entry) => entry !== id);
+}
 
 const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 800;
 const SERVICE_BREAK_MINUTE_OPTIONS = Array.from({ length: 37 }, (_, index) => index * 5);
@@ -1128,6 +1185,10 @@ export function ConfigurationPage() {
     color: string;
   }>({ name: "", color: DEFAULT_PERSONAL_TASK_COLOR });
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [savingPaymentMethodAvailabilityId, setSavingPaymentMethodAvailabilityId] =
+    useState<number | null>(null);
+  const [savingUnifiedPaymentSettings, setSavingUnifiedPaymentSettings] =
+    useState(false);
   const [inlineEditingPaymentMethodId, setInlineEditingPaymentMethodId] =
     useState<number | null>(null);
   const [inlinePaymentMethodForm, setInlinePaymentMethodForm] = useState<{
@@ -1135,6 +1196,7 @@ export function ConfigurationPage() {
     paymentType: PaymentType;
     fiscalized: boolean;
     stripeEnabled: boolean;
+    guestEnabled: boolean;
     widgetEnabled: boolean;
     guestDisplayOrder: number;
   } | null>(null);
@@ -2685,11 +2747,16 @@ export function ConfigurationPage() {
         setBillingSubtab(subtabQuery);
       }
     }
-    if (
+    if (q === "guestApp" && subtabQuery === "paymentMethods") {
+      setTab("billing");
+      setBillingSubtab("paymentMethods");
+      navigate("/configuration?tab=billing&subtab=paymentMethods", {
+        replace: true,
+      });
+    } else if (
       q === "guestApp" &&
       (subtabQuery === "general" ||
         subtabQuery === "bookingRules" ||
-        subtabQuery === "paymentMethods" ||
         subtabQuery === "qrCode")
     ) {
       setGuestAppSubtab(subtabQuery);
@@ -3369,7 +3436,7 @@ export function ConfigurationPage() {
             effectiveGuestApp.paymentDefaultMethodId,
           )
             ? effectiveGuestApp.paymentDefaultMethodId
-            : acceptedPaymentMethodIds[0];
+            : acceptedPaymentMethodIds[0] ?? effectiveGuestApp.paymentDefaultMethodId;
           effectiveGuestApp = {
             ...effectiveGuestApp,
             acceptedPaymentMethodIds,
@@ -3381,19 +3448,18 @@ export function ConfigurationPage() {
                   : "bankart"
                 : effectiveGuestApp.paymentProvider,
           };
-          effectiveWebsiteSettings = effectiveWebsiteSettings.paymentOnLocation
-            ? { ...effectiveWebsiteSettings, acceptedPaymentMethodIds: [] }
-            : {
-                ...effectiveWebsiteSettings,
-                acceptedPaymentMethodIds: removeStripePaymentMethod(
-                  effectiveWebsiteSettings.acceptedPaymentMethodIds,
-                ),
-                paymentDefaultMethodId:
-                  effectiveWebsiteSettings.paymentDefaultMethodId ===
-                  "online_card"
-                    ? "bank_transfer"
-                    : effectiveWebsiteSettings.paymentDefaultMethodId,
-              };
+          const websiteAccepted = removeStripePaymentMethod(
+            effectiveWebsiteSettings.acceptedPaymentMethodIds,
+          );
+          effectiveWebsiteSettings = {
+            ...effectiveWebsiteSettings,
+            acceptedPaymentMethodIds: websiteAccepted,
+            paymentDefaultMethodId: websiteAccepted.includes(
+              effectiveWebsiteSettings.paymentDefaultMethodId,
+            )
+              ? effectiveWebsiteSettings.paymentDefaultMethodId
+              : websiteAccepted[0] ?? effectiveWebsiteSettings.paymentDefaultMethodId,
+          };
         }
         if (modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED !== "true") {
           const fallbackMethodId =
@@ -3409,23 +3475,21 @@ export function ConfigurationPage() {
             acceptedPaymentMethodIds: guestAccepted,
             paymentDefaultMethodId: guestAccepted.includes(effectiveGuestApp.paymentDefaultMethodId)
               ? effectiveGuestApp.paymentDefaultMethodId
-              : guestAccepted[0],
+              : guestAccepted[0] ?? effectiveGuestApp.paymentDefaultMethodId,
           };
-          effectiveWebsiteSettings = effectiveWebsiteSettings.paymentOnLocation
-            ? { ...effectiveWebsiteSettings, acceptedPaymentMethodIds: [] }
-            : (() => {
-                const websiteAccepted = removeGiftCardPaymentMethod(
-                  effectiveWebsiteSettings.acceptedPaymentMethodIds,
-                  fallbackMethodId,
-                );
-                return {
-                  ...effectiveWebsiteSettings,
-                  acceptedPaymentMethodIds: websiteAccepted,
-                  paymentDefaultMethodId: websiteAccepted.includes(effectiveWebsiteSettings.paymentDefaultMethodId)
-                    ? effectiveWebsiteSettings.paymentDefaultMethodId
-                    : websiteAccepted[0],
-                };
-              })();
+          const websiteAccepted = removeGiftCardPaymentMethod(
+            effectiveWebsiteSettings.acceptedPaymentMethodIds,
+            fallbackMethodId,
+          );
+          effectiveWebsiteSettings = {
+            ...effectiveWebsiteSettings,
+            acceptedPaymentMethodIds: websiteAccepted,
+            paymentDefaultMethodId: websiteAccepted.includes(
+              effectiveWebsiteSettings.paymentDefaultMethodId,
+            )
+              ? effectiveWebsiteSettings.paymentDefaultMethodId
+              : websiteAccepted[0] ?? effectiveWebsiteSettings.paymentDefaultMethodId,
+          };
           effectiveGuestBookingRules = {
             ...effectiveGuestBookingRules,
             allowBankTransferFor: removeGiftCardProductType(effectiveGuestBookingRules.allowBankTransferFor),
@@ -3898,7 +3962,7 @@ export function ConfigurationPage() {
               acceptedPaymentMethodIds,
               paymentDefaultMethodId: acceptedPaymentMethodIds.includes(effectiveGuestAppBase.paymentDefaultMethodId)
                 ? effectiveGuestAppBase.paymentDefaultMethodId
-                : acceptedPaymentMethodIds[0],
+                : acceptedPaymentMethodIds[0] ?? effectiveGuestAppBase.paymentDefaultMethodId,
             };
           })();
       const effectiveGuestBookingRules =
@@ -3948,103 +4012,6 @@ export function ConfigurationPage() {
     } catch (e: any) {
       window.alert(
         e?.response?.data?.message || "Failed to save guest app configuration.",
-      );
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-  const saveWebsiteConfiguration = async () => {
-    if (!canViewConfiguration) return;
-    setSavingSettings(true);
-    try {
-      const normalizedStart = toTimeInputValue(
-        settings.WORKING_HOURS_START,
-        "05:00",
-      );
-      const normalizedEnd = toTimeInputValue(
-        settings.WORKING_HOURS_END,
-        "23:00",
-      );
-      const unifiedTenantType = normalizeTenantConfigType(
-        settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType,
-      );
-      const effectiveSettings: Record<string, string> = {
-        ...settings,
-        MODULE_CONFIG_TYPE: unifiedTenantType,
-      };
-      const effectiveGuestAppSettings = {
-        ...guestAppSettings,
-        tenantType: unifiedTenantType,
-      };
-      const giftCardsEnabled = effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true";
-      const effectiveWebsiteSettings = giftCardsEnabled || websiteSettings.paymentOnLocation
-        ? websiteSettings
-        : (() => {
-            const acceptedPaymentMethodIds = removeGiftCardPaymentMethod(
-              websiteSettings.acceptedPaymentMethodIds,
-            );
-            return {
-              ...websiteSettings,
-              acceptedPaymentMethodIds,
-              paymentDefaultMethodId: acceptedPaymentMethodIds.includes(websiteSettings.paymentDefaultMethodId)
-                ? websiteSettings.paymentDefaultMethodId
-                : acceptedPaymentMethodIds[0],
-            };
-          })();
-      const effectiveWebsiteBookingRules =
-        normalizeWebsiteBookingRulesForPaymentLocation(
-          websiteBookingRules,
-          effectiveWebsiteSettings.paymentOnLocation,
-        );
-      const payload = {
-        ...effectiveSettings,
-        WORKING_HOURS_START: normalizedStart,
-        WORKING_HOURS_END: normalizedEnd,
-        [PERSONAL_TASK_PRESETS_KEY]:
-          serializePersonalTaskPresets(personalTaskPresets),
-        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(
-          effectiveGuestAppSettings,
-        ),
-        [GUEST_BOOKING_RULES_KEY]:
-          serializeGuestBookingRules(guestBookingRules),
-        [WEBSITE_WIDGET_SETTINGS_KEY]:
-          serializeWebsiteWidgetSettings(effectiveWebsiteSettings),
-        [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(
-          effectiveWebsiteBookingRules,
-          { giftCardsEnabled },
-        ),
-      };
-      const { data } = await api.put("/settings", payload);
-      const persistedSettings = parseWebsiteWidgetSettings(
-        data?.[WEBSITE_WIDGET_SETTINGS_KEY] ??
-          payload[WEBSITE_WIDGET_SETTINGS_KEY],
-      );
-      const persistedRules = parseWebsiteBookingRules(
-        data?.[WEBSITE_BOOKING_RULES_KEY] ?? payload[WEBSITE_BOOKING_RULES_KEY],
-      );
-      const nextWebsiteSettings =
-        normalizeWebsiteSettingsForPaymentLocation(persistedSettings);
-      setWebsiteSettings(nextWebsiteSettings);
-      setWebsiteBookingRules(
-        normalizeWebsiteBookingRulesForPaymentLocation(
-          persistedRules,
-          nextWebsiteSettings.paymentOnLocation,
-        ),
-      );
-      setSettings({
-        ...payload,
-        ...data,
-        WORKING_HOURS_START: data?.WORKING_HOURS_START || normalizedStart,
-        WORKING_HOURS_END: data?.WORKING_HOURS_END || normalizedEnd,
-      });
-      window.dispatchEvent(new Event("settings-updated"));
-      await load();
-      showToast("success", t("configConfigurationSaved"));
-    } catch (e: any) {
-      window.alert(
-        e?.response?.data?.message ||
-          "Failed to save website widget configuration.",
       );
     } finally {
       setSavingSettings(false);
@@ -4237,10 +4204,11 @@ export function ConfigurationPage() {
   const startInlinePaymentMethodEdit = (method: PaymentMethod) => {
     setInlineEditingPaymentMethodId(method.id);
     setInlinePaymentMethodForm({
-      name: method.name,
+      name: paymentMethodDisplayName(method, locale),
       paymentType: method.paymentType,
       fiscalized: method.fiscalized,
       stripeEnabled: method.stripeEnabled,
+      guestEnabled: method.guestEnabled,
       widgetEnabled: method.widgetEnabled,
       guestDisplayOrder: method.guestDisplayOrder,
     });
@@ -4253,14 +4221,34 @@ export function ConfigurationPage() {
 
   const saveInlinePaymentMethodEdit = async (id: number) => {
     if (!canViewConfiguration || !inlinePaymentMethodForm) return;
+    const currentMethod = paymentMethods.find((method) => method.id === id);
+    const currentAvailability = currentMethod
+      ? paymentMethodAvailability(currentMethod)
+      : paymentAvailabilityValue(
+          inlinePaymentMethodForm.guestEnabled,
+          inlinePaymentMethodForm.widgetEnabled,
+        );
+    const availabilityFlags = paymentAvailabilityFlags(currentAvailability);
+    const isInternalMethod =
+      inlinePaymentMethodForm.paymentType === "CASH" ||
+      inlinePaymentMethodForm.paymentType === "ADVANCE";
+    const isOnlineCard =
+      inlinePaymentMethodForm.paymentType === "CARD" &&
+      inlinePaymentMethodForm.stripeEnabled;
     const payload = {
-      name: inlinePaymentMethodForm.name.trim(),
+      name: isOnlineCard
+        ? ONLINE_CARD_PAYMENT_NAME
+        : inlinePaymentMethodForm.name.trim(),
       paymentType: inlinePaymentMethodForm.paymentType,
       fiscalized: inlinePaymentMethodForm.fiscalized,
       stripeEnabled: inlinePaymentMethodForm.stripeEnabled,
-      widgetEnabled: inlinePaymentMethodForm.widgetEnabled,
+      guestEnabled: isInternalMethod ? false : availabilityFlags.guestEnabled,
+      widgetEnabled: isInternalMethod ? false : availabilityFlags.widgetEnabled,
       guestDisplayOrder: inlinePaymentMethodForm.guestDisplayOrder,
-      allowedGuestProductTypes: [...ALL_GUEST_PRODUCT_TYPES],
+      allowedGuestProductTypes:
+        currentMethod?.allowedGuestProductTypes?.length
+          ? currentMethod.allowedGuestProductTypes
+          : [...ALL_GUEST_PRODUCT_TYPES],
     };
     if (!payload.name) return;
     if (id === -1) {
@@ -4269,7 +4257,7 @@ export function ConfigurationPage() {
       await api.put(`/billing/payment-methods/${id}`, payload);
     }
     cancelInlinePaymentMethodEdit();
-    load();
+    await load();
   };
 
   const registerBusinessPremise = async () => {
@@ -4544,178 +4532,231 @@ export function ConfigurationPage() {
     }
   };
 
-  const visibleGuestPaymentMethodOptions = useMemo(
-    () =>
-      GUEST_PAYMENT_METHOD_OPTIONS.filter((method) => {
-        if (method.id === "online_card")
-          return stripePaymentsAvailableCommitted;
-        if (method.id === "paypal")
-          return paymentGlobalCapabilities.paypalEnabled;
-        if (method.id === "gift_card")
-          return giftCardsEnabledCommitted;
-        return true;
-      }),
-    [
-      giftCardsEnabledCommitted,
-      paymentGlobalCapabilities.paypalEnabled,
-      stripePaymentsAvailableCommitted,
-    ],
-  );
-
-  useEffect(() => {
-    const allowed = new Set(
-      visibleGuestPaymentMethodOptions.map((method) => method.id),
-    );
-    setGuestAppSettings((prev) => {
-      const filteredAccepted = prev.acceptedPaymentMethodIds.filter(
-        (methodId) => allowed.has(methodId),
-      );
-      const acceptedPaymentMethodIds =
-        filteredAccepted.length > 0
-          ? filteredAccepted
-          : [visibleGuestPaymentMethodOptions[0]?.id ?? "bank_transfer"];
-      const paymentDefaultMethodId = allowed.has(prev.paymentDefaultMethodId)
-        ? prev.paymentDefaultMethodId
-        : acceptedPaymentMethodIds[0];
-      const paymentProvider =
-        prev.paymentProvider === "paypal"
-          ? paymentGlobalCapabilities.paypalEnabled
-            ? "paypal"
-            : stripePaymentsAvailableCommitted
-              ? "stripe"
-              : "bankart"
-          : stripePaymentsAvailableCommitted
-            ? "stripe"
-            : paymentGlobalCapabilities.paypalEnabled
-              ? "paypal"
-              : "bankart";
-      if (
-        acceptedPaymentMethodIds.length ===
-          prev.acceptedPaymentMethodIds.length &&
-        acceptedPaymentMethodIds.every(
-          (id, index) => prev.acceptedPaymentMethodIds[index] === id,
-        ) &&
-        paymentDefaultMethodId === prev.paymentDefaultMethodId &&
-        paymentProvider === prev.paymentProvider
-      ) {
-        return prev;
-      }
-      return {
-        ...prev,
-        acceptedPaymentMethodIds,
-        paymentDefaultMethodId,
-        paymentProvider,
-      };
-    });
-    setWebsiteSettings((prev) => {
-      if (prev.paymentOnLocation) {
-        return prev.acceptedPaymentMethodIds.length === 0
-          ? prev
-          : { ...prev, acceptedPaymentMethodIds: [] };
-      }
-      const filteredAccepted = prev.acceptedPaymentMethodIds.filter(
-        (methodId) => allowed.has(methodId),
-      );
-      const acceptedPaymentMethodIds =
-        filteredAccepted.length > 0
-          ? filteredAccepted
-          : [visibleGuestPaymentMethodOptions[0]?.id ?? "bank_transfer"];
-      const paymentDefaultMethodId = allowed.has(prev.paymentDefaultMethodId)
-        ? prev.paymentDefaultMethodId
-        : acceptedPaymentMethodIds[0];
-      if (
-        acceptedPaymentMethodIds.length ===
-          prev.acceptedPaymentMethodIds.length &&
-        acceptedPaymentMethodIds.every(
-          (id, index) => prev.acceptedPaymentMethodIds[index] === id,
-        ) &&
-        paymentDefaultMethodId === prev.paymentDefaultMethodId
-      ) {
-        return prev;
-      }
-      return { ...prev, acceptedPaymentMethodIds, paymentDefaultMethodId };
-    });
-  }, [
-    paymentGlobalCapabilities.paypalEnabled,
-    stripePaymentsAvailableCommitted,
-    visibleGuestPaymentMethodOptions,
-  ]);
-
-  const toggleGuestPaymentMethod = (id: GuestPaymentMethodId) => {
-    setGuestAppSettings((prev) => {
-      const has = prev.acceptedPaymentMethodIds.includes(id);
-      const acceptedPaymentMethodIds = has
-        ? prev.acceptedPaymentMethodIds.filter((row) => row !== id)
-        : [...prev.acceptedPaymentMethodIds, id];
-      return {
-        ...prev,
-        acceptedPaymentMethodIds:
-          acceptedPaymentMethodIds.length > 0
-            ? acceptedPaymentMethodIds
-            : prev.acceptedPaymentMethodIds,
-      };
-    });
+  const paymentMethodAvailability = (method: PaymentMethod) => {
+    if (method.paymentType === "CASH" || method.paymentType === "ADVANCE") {
+      return "none" as PaymentChannelAvailability;
+    }
+    const configId = guestConfigIdForPaymentMethod(method);
+    const guestEnabled = configId
+      ? guestAppSettings.acceptedPaymentMethodIds.includes(configId)
+      : method.guestEnabled;
+    const widgetEnabled = configId
+      ? websiteSettings.acceptedPaymentMethodIds.includes(configId)
+      : method.widgetEnabled;
+    return paymentAvailabilityValue(Boolean(guestEnabled), Boolean(widgetEnabled));
   };
 
-  const toggleWebsitePaymentMethod = (id: GuestPaymentMethodId) => {
-    setWebsiteSettings((prev) => {
-      const has =
-        !prev.paymentOnLocation && prev.acceptedPaymentMethodIds.includes(id);
-      const acceptedPaymentMethodIds = has
-        ? prev.acceptedPaymentMethodIds.filter((row) => row !== id)
-        : [...prev.acceptedPaymentMethodIds.filter((row) => row !== id), id];
-      if (acceptedPaymentMethodIds.length === 0) return prev;
-      const paymentDefaultMethodId = acceptedPaymentMethodIds.includes(
-        prev.paymentDefaultMethodId,
+  const updatePaymentMethodAvailability = async (
+    method: PaymentMethod,
+    availability: PaymentChannelAvailability,
+  ) => {
+    if (
+      !canViewConfiguration ||
+      method.paymentType === "CASH" ||
+      method.paymentType === "ADVANCE"
+    ) return;
+    const flags = paymentAvailabilityFlags(availability);
+    const configId = guestConfigIdForPaymentMethod(method);
+    const relatedMethods = configId === "online_card"
+      ? paymentMethods.filter(
+          (candidate) => guestConfigIdForPaymentMethod(candidate) === "online_card",
+        )
+      : [method];
+
+    const nextGuestAccepted = configId
+      ? setPaymentMethodIdEnabled(
+          guestAppSettings.acceptedPaymentMethodIds,
+          configId,
+          flags.guestEnabled,
+        )
+      : guestAppSettings.acceptedPaymentMethodIds;
+    const nextWebsiteAccepted = configId
+      ? setPaymentMethodIdEnabled(
+          websiteSettings.acceptedPaymentMethodIds,
+          configId,
+          flags.widgetEnabled,
+        )
+      : websiteSettings.acceptedPaymentMethodIds;
+    const nextGuestAppSettings: GuestAppSettingsForm = {
+      ...guestAppSettings,
+      acceptedPaymentMethodIds: nextGuestAccepted,
+      paymentDefaultMethodId: nextGuestAccepted.includes(
+        guestAppSettings.paymentDefaultMethodId,
       )
-        ? prev.paymentDefaultMethodId
-        : acceptedPaymentMethodIds[0];
-      return {
-        ...prev,
-        paymentOnLocation: false,
-        acceptedPaymentMethodIds,
-        paymentDefaultMethodId,
-      };
-    });
-    setWebsiteBookingRules((prev) =>
-      normalizeWebsiteBookingRulesForPaymentLocation(prev, false),
-    );
+        ? guestAppSettings.paymentDefaultMethodId
+        : nextGuestAccepted[0] ?? guestAppSettings.paymentDefaultMethodId,
+    };
+    const nextWebsiteSettings: WebsiteWidgetSettingsForm = {
+      ...websiteSettings,
+      acceptedPaymentMethodIds: nextWebsiteAccepted,
+      paymentDefaultMethodId: nextWebsiteAccepted.includes(
+        websiteSettings.paymentDefaultMethodId,
+      )
+        ? websiteSettings.paymentDefaultMethodId
+        : nextWebsiteAccepted[0] ?? websiteSettings.paymentDefaultMethodId,
+    };
+    const settingsPayload = {
+      [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(nextGuestAppSettings),
+      [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(
+        nextWebsiteSettings,
+      ),
+    };
+
+    setSavingPaymentMethodAvailabilityId(method.id);
+    try {
+      await Promise.all([
+        ...relatedMethods.map((target) =>
+          api.put(`/billing/payment-methods/${target.id}`, {
+            name: paymentMethodPersistenceName(target),
+            paymentType: target.paymentType,
+            fiscalized: target.fiscalized,
+            stripeEnabled: target.stripeEnabled,
+            guestEnabled: flags.guestEnabled,
+            widgetEnabled: flags.widgetEnabled,
+            guestDisplayOrder: target.guestDisplayOrder ?? 0,
+            allowedGuestProductTypes:
+              target.allowedGuestProductTypes?.length > 0
+                ? target.allowedGuestProductTypes
+                : [...ALL_GUEST_PRODUCT_TYPES],
+          }),
+        ),
+        api.put("/settings", settingsPayload),
+      ]);
+      setGuestAppSettings(nextGuestAppSettings);
+      setWebsiteSettings(nextWebsiteSettings);
+      await load();
+      showToast(
+        "success",
+        locale === "sl"
+          ? "Razpoložljivost načina plačila je posodobljena."
+          : "Payment method availability updated.",
+      );
+    } catch (error: any) {
+      showToast(
+        "error",
+        error?.response?.data?.message ||
+          (locale === "sl"
+            ? "Razpoložljivosti ni bilo mogoče shraniti."
+            : "Could not save payment method availability."),
+      );
+    } finally {
+      setSavingPaymentMethodAvailabilityId(null);
+    }
   };
 
-  const toggleWebsitePaymentOnLocation = (checked: boolean) => {
-    setWebsiteSettings((prev) => {
-      if (checked) {
-        return {
-          ...prev,
-          paymentOnLocation: true,
-          acceptedPaymentMethodIds: [],
-        };
-      }
+  const unifiedPaymentOnLocation =
+    guestAppSettings.paymentOnLocation || websiteSettings.paymentOnLocation;
+  const unifiedPartialPayment =
+    !unifiedPaymentOnLocation &&
+    (guestBookingRules.paymentRequirement === "deposit" ||
+      websiteBookingRules.paymentRequirement === "deposit");
+  const unifiedDepositPercent =
+    guestBookingRules.depositPercent || websiteBookingRules.depositPercent || "20";
 
-      const acceptedPaymentMethodIds = normalizeWebsitePaymentMethods(
-        prev.acceptedPaymentMethodIds,
-      );
-      const fallbackMethodId =
-        visibleGuestPaymentMethodOptions[0]?.id ?? "bank_transfer";
-      const nextAcceptedPaymentMethodIds =
-        acceptedPaymentMethodIds.length > 0
-          ? acceptedPaymentMethodIds
-          : [fallbackMethodId];
-      const paymentDefaultMethodId = nextAcceptedPaymentMethodIds.includes(
-        prev.paymentDefaultMethodId,
-      )
-        ? prev.paymentDefaultMethodId
-        : nextAcceptedPaymentMethodIds[0];
-      return {
-        ...prev,
-        paymentOnLocation: false,
-        acceptedPaymentMethodIds: nextAcceptedPaymentMethodIds,
-        paymentDefaultMethodId,
-      };
-    });
+  const setUnifiedPaymentOnLocation = (checked: boolean) => {
+    setGuestAppSettings((prev) => ({ ...prev, paymentOnLocation: checked }));
+    setWebsiteSettings((prev) => ({ ...prev, paymentOnLocation: checked }));
+    setGuestBookingRules((prev) =>
+      normalizeBookingRulesForPaymentLocation(prev, checked),
+    );
     setWebsiteBookingRules((prev) =>
       normalizeWebsiteBookingRulesForPaymentLocation(prev, checked),
     );
+  };
+
+  const setUnifiedPartialPayment = (checked: boolean) => {
+    if (unifiedPaymentOnLocation) return;
+    setGuestBookingRules((prev) => ({
+      ...prev,
+      paymentRequirement: checked ? "deposit" : "full",
+      requireOnlinePayment: true,
+    }));
+    setWebsiteBookingRules((prev) => ({
+      ...prev,
+      paymentRequirement: checked ? "deposit" : "full",
+    }));
+  };
+
+  const setUnifiedDepositPercent = (value: string) => {
+    const normalized = value.replace(/[^0-9]/g, "").slice(0, 3);
+    setGuestBookingRules((prev) => ({ ...prev, depositPercent: normalized }));
+    setWebsiteBookingRules((prev) => ({ ...prev, depositPercent: normalized }));
+  };
+
+  const saveUnifiedBookingPaymentSettings = async () => {
+    if (!canViewConfiguration) return;
+    setSavingUnifiedPaymentSettings(true);
+    try {
+      const synchronizedGuestSettings: GuestAppSettingsForm = {
+        ...guestAppSettings,
+        paymentOnLocation: unifiedPaymentOnLocation,
+      };
+      const synchronizedWebsiteSettings: WebsiteWidgetSettingsForm = {
+        ...websiteSettings,
+        paymentOnLocation: unifiedPaymentOnLocation,
+      };
+      const synchronizedGuestRules: GuestBookingRulesForm = {
+        ...guestBookingRules,
+        paymentRequirement: unifiedPaymentOnLocation
+          ? "none"
+          : unifiedPartialPayment
+            ? "deposit"
+            : "full",
+        requireOnlinePayment: !unifiedPaymentOnLocation,
+        depositPercent: unifiedDepositPercent,
+      };
+      const synchronizedWebsiteRules: WebsiteBookingRulesForm = {
+        ...websiteBookingRules,
+        paymentRequirement: unifiedPaymentOnLocation
+          ? "none"
+          : unifiedPartialPayment
+            ? "deposit"
+            : "full",
+        depositPercent: unifiedDepositPercent,
+      };
+      const effectiveGuestRules = normalizeBookingRulesForPaymentLocation(
+        synchronizedGuestRules,
+        unifiedPaymentOnLocation,
+      );
+      const effectiveWebsiteRules =
+        normalizeWebsiteBookingRulesForPaymentLocation(
+          synchronizedWebsiteRules,
+          unifiedPaymentOnLocation,
+        );
+      const payload = {
+        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(
+          synchronizedGuestSettings,
+        ),
+        [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(
+          effectiveGuestRules,
+        ),
+        [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(
+          synchronizedWebsiteSettings,
+        ),
+        [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(
+          effectiveWebsiteRules,
+          { giftCardsEnabled: giftCardsEnabledCommitted },
+        ),
+      };
+      await api.put("/settings", payload);
+      setGuestAppSettings(synchronizedGuestSettings);
+      setWebsiteSettings(synchronizedWebsiteSettings);
+      setGuestBookingRules(effectiveGuestRules);
+      setWebsiteBookingRules(effectiveWebsiteRules);
+      await load();
+      window.dispatchEvent(new Event("settings-updated"));
+      showToast("success", t("configConfigurationSaved"));
+    } catch (error: any) {
+      showToast(
+        "error",
+        error?.response?.data?.message ||
+          (locale === "sl"
+            ? "Nastavitev plačil ni bilo mogoče shraniti."
+            : "Could not save payment settings."),
+      );
+    } finally {
+      setSavingUnifiedPaymentSettings(false);
+    }
   };
 
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
@@ -4793,7 +4834,8 @@ export function ConfigurationPage() {
       paymentType: "CASH",
       fiscalized: true,
       stripeEnabled: false,
-      widgetEnabled: true,
+      guestEnabled: false,
+      widgetEnabled: false,
       guestDisplayOrder: 0,
     });
   };
@@ -4802,26 +4844,41 @@ export function ConfigurationPage() {
     if (!canViewConfiguration) return;
     const nextFiscalized = !method.fiscalized;
     await api.put(`/billing/payment-methods/${method.id}`, {
-      name: method.name,
+      name: paymentMethodPersistenceName(method),
       paymentType: method.paymentType,
       fiscalized: nextFiscalized,
       stripeEnabled: method.stripeEnabled,
-      widgetEnabled: method.widgetEnabled,
+      ...(() => {
+        if (method.paymentType === "CASH" || method.paymentType === "ADVANCE") {
+          return { guestEnabled: false, widgetEnabled: false };
+        }
+        return paymentAvailabilityFlags(paymentMethodAvailability(method));
+      })(),
       guestDisplayOrder: method.guestDisplayOrder ?? 0,
-      allowedGuestProductTypes: [...ALL_GUEST_PRODUCT_TYPES],
+      allowedGuestProductTypes:
+        method.allowedGuestProductTypes?.length > 0
+          ? method.allowedGuestProductTypes
+          : [...ALL_GUEST_PRODUCT_TYPES],
     });
     load();
   };
 
-  const visibleBillingPaymentMethods = useMemo(
-    () =>
-      paymentMethods.filter(
-        (method) =>
-          stripePaymentsAvailableCommitted ||
-          !(method.stripeEnabled || method.paymentType === "CARD"),
-      ),
-    [paymentMethods, stripePaymentsAvailableCommitted],
-  );
+  const visibleBillingPaymentMethods = useMemo(() => {
+    let onlineCardIncluded = false;
+    return paymentMethods.filter((method) => {
+      if (
+        !stripePaymentsAvailableCommitted &&
+        (method.stripeEnabled || method.paymentType === "CARD")
+      ) {
+        return false;
+      }
+      if (guestConfigIdForPaymentMethod(method) === "online_card") {
+        if (onlineCardIncluded) return false;
+        onlineCardIncluded = true;
+      }
+      return true;
+    });
+  }, [paymentMethods, stripePaymentsAvailableCommitted]);
 
   const moduleDraftForDesign =
     modulesDraftDisplay ??
@@ -10909,13 +10966,13 @@ export function ConfigurationPage() {
             .billing-method-head,
             .billing-method-row {
               display: grid;
-              grid-template-columns: minmax(240px, 1.2fr) minmax(150px, .7fr) minmax(180px, .8fr) 180px;
+              grid-template-columns: minmax(230px, 1.25fr) minmax(130px, .6fr) minmax(170px, .72fr) minmax(260px, 1fr) minmax(110px, .42fr);
               gap: 20px;
               align-items: center;
             }
             .billing-method-head--no-fiscal,
             .billing-method-row--no-fiscal {
-              grid-template-columns: minmax(240px, 1.2fr) minmax(150px, .7fr) 180px;
+              grid-template-columns: minmax(230px, 1.25fr) minmax(130px, .6fr) minmax(260px, 1fr) minmax(110px, .42fr);
             }
             .billing-method-head {
               padding: 18px 18px 12px;
@@ -11062,6 +11119,108 @@ export function ConfigurationPage() {
               padding: 0;
               width: fit-content;
               cursor: pointer;
+            }
+            .billing-availability-select {
+              width: min(100%, 310px);
+              min-height: 42px;
+              border: 1px solid #d8e3f1;
+              border-radius: 11px;
+              background: #fff;
+              color: #334155;
+              font-size: 13px;
+              font-weight: 750;
+              padding: 9px 38px 9px 12px;
+              outline: none;
+              cursor: pointer;
+              transition: border-color .18s ease, box-shadow .18s ease, opacity .18s ease;
+            }
+            .billing-availability-select:focus {
+              border-color: rgba(37, 99, 235, .62);
+              box-shadow: 0 0 0 4px rgba(37, 99, 235, .10);
+            }
+            .billing-availability-select:disabled { opacity: .62; cursor: wait; }
+            .billing-availability-static {
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              color: #64748b;
+              font-size: 13px;
+              font-weight: 750;
+            }
+            .billing-availability-static::before {
+              content: '';
+              width: 7px;
+              height: 7px;
+              border-radius: 50%;
+              background: #94a3b8;
+              flex: 0 0 auto;
+            }
+            .billing-channel-settings-card {
+              margin-top: 22px;
+              padding: 26px 30px;
+            }
+            .billing-channel-settings-head {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 20px;
+              margin-bottom: 20px;
+            }
+            .billing-channel-settings-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 16px;
+            }
+            .billing-channel-setting {
+              border: 1px solid #dbe7fb;
+              border-radius: 15px;
+              background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+              padding: 17px 18px;
+              box-shadow: 0 7px 20px rgba(30, 64, 175, .055);
+            }
+            .billing-channel-setting-top {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 16px;
+            }
+            .billing-channel-setting-title {
+              display: block;
+              color: var(--billing-ink);
+              font-size: 15px;
+              font-weight: 850;
+              line-height: 1.25;
+            }
+            .billing-channel-setting-copy {
+              display: block;
+              margin-top: 6px;
+              color: var(--billing-muted);
+              font-size: 13px;
+              line-height: 1.45;
+            }
+            .billing-deposit-field {
+              display: grid;
+              gap: 8px;
+              max-width: 210px;
+              margin-top: 16px;
+            }
+            .billing-deposit-input-wrap { position: relative; }
+            .billing-deposit-input-wrap .billing-input { padding-right: 42px; }
+            .billing-deposit-suffix {
+              position: absolute;
+              right: 14px;
+              top: 50%;
+              transform: translateY(-50%);
+              color: #475569;
+              font-weight: 850;
+              pointer-events: none;
+            }
+            .billing-channel-settings-actions {
+              display: flex;
+              justify-content: flex-end;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #e8eef6;
             }
             .billing-empty-wrap { padding: 30px; }
             .billing-overview-grid {
@@ -11263,6 +11422,7 @@ export function ConfigurationPage() {
               .billing-method-head { display: none; }
               .billing-method-row { grid-template-columns: 1fr; gap: 12px; align-items: start; }
               .billing-row-actions { justify-content: flex-start; }
+              .billing-channel-settings-grid { grid-template-columns: 1fr; }
             }
             @media (max-width: 1024px) {
               .billing-modern-shell {
@@ -11490,8 +11650,8 @@ export function ConfigurationPage() {
                                 </h3>
                                 <span className="billing-section-kicker">
                                   {locale === "sl"
-                                    ? "Ustvarite, uredite in upravljajte načine plačila, ki so na voljo v sistemu."
-                                    : "Create, edit and manage available payment methods."}
+                                    ? "Upravljajte načine plačila in določite, v katerih rezervacijskih kanalih so na voljo."
+                                    : "Manage payment methods and choose the booking channels where each method is available."}
                                 </span>
                               </span>
                             </div>
@@ -11517,10 +11677,15 @@ export function ConfigurationPage() {
                             </div>
                           ) : (
                             <div className="billing-method-table">
-                              <div className={fiscalCashRegisterEnabledCommitted ? "billing-method-head" : "billing-method-head billing-method-head--no-fiscal"} aria-hidden>
-                                <span>
-                                  {locale === "sl" ? "Naziv" : "Name"}
-                                </span>
+                              <div
+                                className={
+                                  fiscalCashRegisterEnabledCommitted
+                                    ? "billing-method-head"
+                                    : "billing-method-head billing-method-head--no-fiscal"
+                                }
+                                aria-hidden
+                              >
+                                <span>{locale === "sl" ? "Naziv" : "Name"}</span>
                                 <span>{locale === "sl" ? "Tip" : "Type"}</span>
                                 {fiscalCashRegisterEnabledCommitted ? (
                                   <span className="billing-head-with-info">
@@ -11531,21 +11696,30 @@ export function ConfigurationPage() {
                                   </span>
                                 ) : null}
                                 <span>
+                                  {locale === "sl"
+                                    ? "Razpoložljivost"
+                                    : "Availability"}
+                                </span>
+                                <span>
                                   {locale === "sl" ? "Dejanja" : "Actions"}
                                 </span>
                               </div>
                               <div className="billing-method-table-body">
                                 {inlineEditingPaymentMethodId === -1 &&
                                 inlinePaymentMethodForm ? (
-                                  <div className={fiscalCashRegisterEnabledCommitted ? "billing-method-row" : "billing-method-row billing-method-row--no-fiscal"}>
+                                  <div
+                                    className={
+                                      fiscalCashRegisterEnabledCommitted
+                                        ? "billing-method-row"
+                                        : "billing-method-row billing-method-row--no-fiscal"
+                                    }
+                                  >
                                     <div className="billing-method-name">
                                       <span
                                         className={`billing-method-icon billing-method-icon--${inlinePaymentMethodForm.paymentType.toLowerCase().replace("_", "-")}`}
                                       >
                                         <BillingPaymentTypeIcon
-                                          type={
-                                            inlinePaymentMethodForm.paymentType
-                                          }
+                                          type={inlinePaymentMethodForm.paymentType}
                                         />
                                       </span>
                                       <input
@@ -11564,9 +11738,7 @@ export function ConfigurationPage() {
                                     </div>
                                     <select
                                       className="billing-select"
-                                      value={
-                                        inlinePaymentMethodForm.paymentType
-                                      }
+                                      value={inlinePaymentMethodForm.paymentType}
                                       onChange={(e) => {
                                         const paymentType = e.target
                                           .value as PaymentType;
@@ -11575,6 +11747,14 @@ export function ConfigurationPage() {
                                           paymentType,
                                           fiscalized: paymentType !== "CARD",
                                           stripeEnabled: paymentType === "CARD",
+                                          guestEnabled:
+                                            paymentType === "CASH"
+                                              ? false
+                                              : inlinePaymentMethodForm.guestEnabled,
+                                          widgetEnabled:
+                                            paymentType === "CASH"
+                                              ? false
+                                              : inlinePaymentMethodForm.widgetEnabled,
                                         });
                                       }}
                                     >
@@ -11585,7 +11765,10 @@ export function ConfigurationPage() {
                                         {billingPaymentTypeLabel("CARD", locale)}
                                       </option>
                                       <option value="BANK_TRANSFER">
-                                        {billingPaymentTypeLabel("BANK_TRANSFER", locale)}
+                                        {billingPaymentTypeLabel(
+                                          "BANK_TRANSFER",
+                                          locale,
+                                        )}
                                       </option>
                                       <option value="OTHER">
                                         {billingPaymentTypeLabel("OTHER", locale)}
@@ -11621,15 +11804,60 @@ export function ConfigurationPage() {
                                         </span>
                                       </button>
                                     ) : null}
+                                    {inlinePaymentMethodForm.paymentType ===
+                                    "CASH" ? (
+                                      <span className="billing-availability-static">
+                                        {locale === "sl"
+                                          ? "Samo na lokaciji"
+                                          : "On location only"}
+                                      </span>
+                                    ) : (
+                                      <select
+                                        className="billing-availability-select"
+                                        value={paymentAvailabilityValue(
+                                          inlinePaymentMethodForm.guestEnabled,
+                                          inlinePaymentMethodForm.widgetEnabled,
+                                        )}
+                                        onChange={(e) => {
+                                          const flags = paymentAvailabilityFlags(
+                                            e.target
+                                              .value as PaymentChannelAvailability,
+                                          );
+                                          setInlinePaymentMethodForm({
+                                            ...inlinePaymentMethodForm,
+                                            ...flags,
+                                          });
+                                        }}
+                                      >
+                                        <option value="both">
+                                          {locale === "sl"
+                                            ? "Aplikacija za goste + Spletni vtičnik"
+                                            : "Guest app + Website widget"}
+                                        </option>
+                                        <option value="guestApp">
+                                          {locale === "sl"
+                                            ? "Aplikacija za goste"
+                                            : "Guest app"}
+                                        </option>
+                                        <option value="website">
+                                          {locale === "sl"
+                                            ? "Spletni vtičnik"
+                                            : "Website widget"}
+                                        </option>
+                                        <option value="none">
+                                          {locale === "sl"
+                                            ? "Brez razpoložljivosti"
+                                            : "Not available"}
+                                        </option>
+                                      </select>
+                                    )}
                                     <div className="billing-row-actions">
                                       <button
                                         type="button"
                                         className="billing-secondary-button"
                                         onClick={cancelInlinePaymentMethodEdit}
                                       >
-                                        {locale === "sl"
-                                          ? "Prekliči"
-                                          : "Cancel"}
+                                        {locale === "sl" ? "Prekliči" : "Cancel"}
                                       </button>
                                       <button
                                         type="button"
@@ -11652,12 +11880,18 @@ export function ConfigurationPage() {
                                     .toLowerCase()
                                     .replace("_", "-");
                                   const isInlineEditing =
-                                    inlineEditingPaymentMethodId ===
-                                      method.id && inlinePaymentMethodForm;
+                                    inlineEditingPaymentMethodId === method.id &&
+                                    inlinePaymentMethodForm;
+                                  const availability =
+                                    paymentMethodAvailability(method);
                                   return (
                                     <div
                                       key={method.id}
-                                      className={fiscalCashRegisterEnabledCommitted ? "billing-method-row" : "billing-method-row billing-method-row--no-fiscal"}
+                                      className={
+                                        fiscalCashRegisterEnabledCommitted
+                                          ? "billing-method-row"
+                                          : "billing-method-row billing-method-row--no-fiscal"
+                                      }
                                     >
                                       <div className="billing-method-name">
                                         <span
@@ -11678,9 +11912,18 @@ export function ConfigurationPage() {
                                               })
                                             }
                                             onClick={(e) => e.stopPropagation()}
+                                            readOnly={
+                                              method.paymentType === "CARD" &&
+                                              method.stripeEnabled
+                                            }
                                           />
                                         ) : (
-                                          <span>{method.name}</span>
+                                          <span>
+                                            {paymentMethodDisplayName(
+                                              method,
+                                              locale,
+                                            )}
+                                          </span>
                                         )}
                                       </div>
                                       <span className="billing-pill billing-pill--neutral">
@@ -11706,21 +11949,17 @@ export function ConfigurationPage() {
                                         >
                                           <span
                                             className={
-                                              (
-                                                isInlineEditing
-                                                  ? inlinePaymentMethodForm.fiscalized
-                                                  : method.fiscalized
-                                              )
+                                              (isInlineEditing
+                                                ? inlinePaymentMethodForm.fiscalized
+                                                : method.fiscalized)
                                                 ? "billing-pill billing-pill--success"
                                                 : "billing-pill billing-pill--danger"
                                             }
                                           >
                                             <span className="billing-status-dot" />
-                                            {(
-                                              isInlineEditing
-                                                ? inlinePaymentMethodForm.fiscalized
-                                                : method.fiscalized
-                                            )
+                                            {(isInlineEditing
+                                              ? inlinePaymentMethodForm.fiscalized
+                                              : method.fiscalized)
                                               ? locale === "sl"
                                                 ? "Vklopljeno"
                                                 : "On"
@@ -11730,6 +11969,60 @@ export function ConfigurationPage() {
                                           </span>
                                         </button>
                                       ) : null}
+                                      {method.paymentType === "CASH" ||
+                                      method.paymentType === "ADVANCE" ? (
+                                        <span className="billing-availability-static">
+                                          {method.paymentType === "CASH"
+                                            ? locale === "sl"
+                                              ? "Samo na lokaciji"
+                                              : "On location only"
+                                            : locale === "sl"
+                                              ? "Interni način plačila"
+                                              : "Internal payment method"}
+                                        </span>
+                                      ) : (
+                                        <select
+                                          className="billing-availability-select"
+                                          value={availability}
+                                          onChange={(e) =>
+                                            void updatePaymentMethodAvailability(
+                                              method,
+                                              e.target
+                                                .value as PaymentChannelAvailability,
+                                            )
+                                          }
+                                          disabled={
+                                            savingPaymentMethodAvailabilityId ===
+                                            method.id
+                                          }
+                                          aria-label={
+                                            locale === "sl"
+                                              ? `Razpoložljivost: ${paymentMethodDisplayName(method, locale)}`
+                                              : `Availability: ${paymentMethodDisplayName(method, locale)}`
+                                          }
+                                        >
+                                          <option value="both">
+                                            {locale === "sl"
+                                              ? "Aplikacija za goste + Spletni vtičnik"
+                                              : "Guest app + Website widget"}
+                                          </option>
+                                          <option value="guestApp">
+                                            {locale === "sl"
+                                              ? "Aplikacija za goste"
+                                              : "Guest app"}
+                                          </option>
+                                          <option value="website">
+                                            {locale === "sl"
+                                              ? "Spletni vtičnik"
+                                              : "Website widget"}
+                                          </option>
+                                          <option value="none">
+                                            {locale === "sl"
+                                              ? "Brez razpoložljivosti"
+                                              : "Not available"}
+                                          </option>
+                                        </select>
+                                      )}
                                       <div className="billing-row-actions">
                                         {isInlineEditing ? (
                                           <>
@@ -11764,12 +12057,14 @@ export function ConfigurationPage() {
                                           <button
                                             type="button"
                                             className="billing-action-btn billing-action-btn--edit"
-                                            aria-label="Edit payment method"
+                                            aria-label={
+                                              locale === "sl"
+                                                ? "Uredi način plačila"
+                                                : "Edit payment method"
+                                            }
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              startInlinePaymentMethodEdit(
-                                                method,
-                                              );
+                                              startInlinePaymentMethodEdit(method);
                                             }}
                                           >
                                             <BillingEditIcon />
@@ -11782,6 +12077,101 @@ export function ConfigurationPage() {
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        <div className="billing-card billing-channel-settings-card">
+                          <div className="billing-channel-settings-head">
+                            <div>
+                              <h3 className="billing-section-title">
+                                {locale === "sl"
+                                  ? "Delno plačilo in plačilo na lokaciji"
+                                  : "Partial payment and pay on location"}
+                              </h3>
+                              <span className="billing-section-kicker">
+                                {locale === "sl"
+                                  ? "Globalne nastavitve, ki veljajo za Aplikacijo za goste in Spletni vtičnik."
+                                  : "Global settings used by both the Guest app and Website widget."}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="billing-channel-settings-grid">
+                            <div className="billing-channel-setting">
+                              <div className="billing-channel-setting-top">
+                                <div>
+                                  <span className="billing-channel-setting-title">
+                                    {locale === "sl"
+                                      ? "Delno plačilo"
+                                      : "Partial payment"}
+                                  </span>
+                                  <span className="billing-channel-setting-copy">
+                                    {locale === "sl"
+                                      ? "Ko je izklopljeno, se pri spletnem plačilu samodejno zaračuna polni znesek."
+                                      : "When disabled, the full amount is charged for online payments."}
+                                  </span>
+                                </div>
+                                <GuestSwitch
+                                  checked={unifiedPartialPayment}
+                                  onChange={setUnifiedPartialPayment}
+                                  disabled={unifiedPaymentOnLocation}
+                                />
+                              </div>
+                              {unifiedPartialPayment ? (
+                                <label className="billing-deposit-field">
+                                  <span className="billing-label">
+                                    {locale === "sl"
+                                      ? "Višina pologa"
+                                      : "Deposit amount"}
+                                  </span>
+                                  <span className="billing-deposit-input-wrap">
+                                    <input
+                                      className="billing-input"
+                                      inputMode="numeric"
+                                      value={unifiedDepositPercent}
+                                      onChange={(e) =>
+                                        setUnifiedDepositPercent(e.target.value)
+                                      }
+                                    />
+                                    <span className="billing-deposit-suffix">%</span>
+                                  </span>
+                                </label>
+                              ) : null}
+                            </div>
+                            <div className="billing-channel-setting">
+                              <div className="billing-channel-setting-top">
+                                <div>
+                                  <span className="billing-channel-setting-title">
+                                    {locale === "sl"
+                                      ? "Plačilo na lokaciji"
+                                      : "Pay on location"}
+                                  </span>
+                                  <span className="billing-channel-setting-copy">
+                                    {locale === "sl"
+                                      ? "Ko je vklopljeno, gost rezervira brez spletnega plačila in poravna na lokaciji."
+                                      : "When enabled, the guest books without online payment and pays at the location."}
+                                  </span>
+                                </div>
+                                <GuestSwitch
+                                  checked={unifiedPaymentOnLocation}
+                                  onChange={setUnifiedPaymentOnLocation}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="billing-channel-settings-actions">
+                            <button
+                              type="button"
+                              className="billing-primary-button"
+                              onClick={() =>
+                                void saveUnifiedBookingPaymentSettings()
+                              }
+                              disabled={savingUnifiedPaymentSettings}
+                            >
+                              <BillingSaveIcon />
+                              {savingUnifiedPaymentSettings
+                                ? t("formSaving")
+                                : t("configSaveConfiguration")}
+                            </button>
+                          </div>
                         </div>
                       </>
                     ) : billingSubtab === "stripe" ? (
@@ -13253,139 +13643,6 @@ export function ConfigurationPage() {
                           </button>
                         </div>
                       </>
-                    ) : guestAppSubtab === "paymentMethods" ? (
-                      <>
-                        <div className="gapp-grid gapp-payment-layout">
-                          <div className="gapp-pane">
-                            <div className="gapp-section-heading">
-                              <h3>Sprejeti načini plačila</h3>
-                              <p>
-                                Izberite, katere načine plačila želite omogočiti
-                                gostom.
-                              </p>
-                            </div>
-                            <div className="gapp-payment-list">
-                              {visibleGuestPaymentMethodOptions.map(
-                                (method) => (
-                                  <div
-                                    className="gapp-payment-row"
-                                    key={method.id}
-                                  >
-                                    <span className="gapp-payment-icon">
-                                      <GuestPaymentMethodIcon
-                                        kind={method.id}
-                                      />
-                                    </span>
-                                    <strong>{method.label}</strong>
-                                    <GuestSwitch
-                                      checked={guestAppSettings.acceptedPaymentMethodIds.includes(
-                                        method.id,
-                                      )}
-                                      onChange={() =>
-                                        toggleGuestPaymentMethod(method.id)
-                                      }
-                                    />
-                                  </div>
-                                ),
-                              )}
-                            </div>
-                            <div className="gapp-payment-toggle-row">
-                              <div className="gapp-payment-toggle-card">
-                                <div className="gapp-toggle-head">
-                                  <span className="gapp-label">
-                                    Delno plačilo
-                                  </span>
-                                  <GuestSwitch
-                                    checked={
-                                      guestBookingRules.paymentRequirement ===
-                                      "deposit"
-                                    }
-                                    onChange={(checked) => {
-                                      setGuestBookingRules({
-                                        ...guestBookingRules,
-                                        paymentRequirement: checked
-                                          ? "deposit"
-                                          : "full",
-                                      });
-                                    }}
-                                  />
-                                </div>
-                                <span className="gapp-hint">
-                                  Ko je izklopljeno, se samodejno zaračuna polni
-                                  znesek.
-                                </span>
-                                {guestBookingRules.paymentRequirement ===
-                                "deposit" ? (
-                                  <GuestField
-                                    className="gapp-deposit-field"
-                                    label="Znesek pologa"
-                                    hint="Odstotek od skupnega zneska, ki ga gost plača ob rezervaciji."
-                                  >
-                                    <div className="gapp-deposit-input-wrap">
-                                      <input
-                                        className="gapp-deposit-input"
-                                        value={guestBookingRules.depositPercent}
-                                        onChange={(e) =>
-                                          setGuestBookingRules({
-                                            ...guestBookingRules,
-                                            depositPercent:
-                                              e.target.value.replace(
-                                                /[^0-9]/g,
-                                                "",
-                                              ),
-                                          })
-                                        }
-                                      />
-                                      <span className="gapp-deposit-input-suffix">
-                                        %
-                                      </span>
-                                    </div>
-                                  </GuestField>
-                                ) : null}
-                              </div>
-                              <div className="gapp-payment-toggle-card">
-                                <div className="gapp-toggle-head">
-                                  <span className="gapp-label">
-                                    Plačilo na lokaciji
-                                  </span>
-                                  <GuestSwitch
-                                    checked={guestAppSettings.paymentOnLocation}
-                                    onChange={(checked) => {
-                                      setGuestAppSettings({
-                                        ...guestAppSettings,
-                                        paymentOnLocation: checked,
-                                      });
-                                      setGuestBookingRules((prev) =>
-                                        normalizeBookingRulesForPaymentLocation(
-                                          prev,
-                                          checked,
-                                        ),
-                                      );
-                                    }}
-                                  />
-                                </div>
-                                <span className="gapp-hint">
-                                  Ko je vklopljeno, gost rezervira brez
-                                  spletnega plačila in poravna na lokaciji.
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="gapp-savebar">
-                          <button
-                            type="button"
-                            className="gapp-primary-button"
-                            onClick={saveGuestAppConfiguration}
-                            disabled={savingSettings}
-                          >
-                            <GuestSaveIcon />
-                            {savingSettings
-                              ? t("formSaving")
-                              : t("configSaveConfiguration")}
-                          </button>
-                        </div>
-                      </>
                     ) : (
                       <>
                         <div className="gapp-grid gapp-qr-layout">
@@ -13565,420 +13822,98 @@ export function ConfigurationPage() {
                   </div>
                 </Card>
               ) : tab === "website" ? (
-                <Card className="settings-card guest-app-settings-card gapp-modern-card website-settings-card">
+                <Card className="settings-card website-payment-settings-moved">
                   <style>{`
-            .website-settings-card {
-              --gapp-blue: #2563eb;
-              --gapp-blue-dark: #1d4ed8;
-              --gapp-text: #0f1b3d;
-              --gapp-muted: #64748b;
-              --gapp-line: #dbe4f0;
-              --gapp-soft: #f8fafc;
-              --gapp-soft-blue: #eff6ff;
-              border-radius: 24px;
-              border: 1px solid rgba(203, 213, 225, 0.78);
-              box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
-              background: #fff;
-              padding: 28px 34px 32px;
-              color: var(--gapp-text);
-              overflow: visible;
-            }
-            .website-settings-card button { font-family: inherit; }
-            .website-settings-card .gapp-subtabs {
-              display: flex;
-              align-items: center;
-              gap: 10px;
-              flex-wrap: wrap;
-              margin: 20px 0 10px;
-              padding: 0;
-              border-bottom: 1px solid #edf2f7;
-            }
-            .website-settings-card .gapp-subtab {
-              position: relative;
-              appearance: none;
-              border: 0;
-              background: transparent;
-              color: #334155;
-              font-weight: 700;
-              font-size: 15px;
-              padding: 10px 14px;
-              cursor: pointer;
-              border-radius: 10px;
-              box-shadow: none;
-              outline: none;
-              transition: color .18s ease, background .18s ease, box-shadow .18s ease;
-            }
-            .website-settings-card .gapp-subtab:hover { color: #0f172a; background: #f8fafc; }
-            .website-settings-card .gapp-subtab.active {
-              color: #2563eb;
-              background: #eaf2ff;
-              box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16), 0 3px 10px rgba(37, 99, 235, 0.18);
-            }
-            .website-settings-card .gapp-subtab.active::after { content: none; }
-            .website-settings-card .gapp-panel {
-              margin-top: 12px;
-              border: 1px solid rgba(203, 213, 225, 0.86);
-              border-radius: 22px;
-              background: #fff;
-              padding: 34px;
-              box-shadow: 0 18px 50px rgba(15, 23, 42, 0.07);
-            }
-            .website-settings-card .gapp-grid,
-            .website-settings-card .gapp-form-grid {
-              display: grid;
-              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-              gap: 38px 70px;
-            }
-            .website-settings-card .gapp-column { display: grid; gap: 22px; align-content: start; }
-            .website-settings-card .gapp-field { display: grid; gap: 8px; }
-            .website-settings-card .gapp-label {
-              display: block;
-              font-size: 14px;
-              font-weight: 800;
-              color: var(--gapp-text);
-              line-height: 1.2;
-            }
-            .website-settings-card .gapp-hint {
-              display: block;
-              margin-top: 0;
-              color: var(--gapp-muted);
-              font-size: 12.5px;
-              line-height: 1.45;
-            }
-            .website-settings-card .gapp-section-heading { margin: 0 0 20px; }
-            .website-settings-card .gapp-section-heading h3 { margin: 0 0 6px; font-size: 19px; line-height: 1.2; color: var(--gapp-text); letter-spacing: 0; font-weight: 800; }
-            .website-settings-card .gapp-section-heading p { margin: 0; color: var(--gapp-muted); font-size: 13px; line-height: 1.45; }
-            .website-settings-card .gapp-payment-layout { grid-template-columns: minmax(0, 1fr); gap: 34px; }
-            .website-settings-card .gapp-pane { min-width: 0; }
-            .website-settings-card .gapp-payment-list { display: grid; gap: 10px; margin-bottom: 20px; }
-            .website-settings-card .gapp-payment-row {
-              display: grid;
-              grid-template-columns: 46px minmax(0, 1fr) auto;
-              align-items: center;
-              gap: 14px;
-              min-height: 58px;
-              border: 1px solid var(--gapp-line);
-              border-radius: 13px;
-              padding: 8px 12px;
-              background: #fff;
-              box-shadow: none;
-            }
-            .website-settings-card .gapp-payment-icon {
-              display: grid;
-              place-items: center;
-              width: 42px;
-              height: 42px;
-              border-radius: 11px;
-              background: #f8fafc;
-              color: #1e3a8a;
-              border: 1px solid #e2e8f0;
-            }
-            .website-settings-card .gapp-payment-row strong { color: #172554; font-size: 14px; font-weight: 800; }
-            .website-settings-card .gapp-payment-toggle-row {
-              display: grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
-              gap: 14px;
-              margin-top: 4px;
-            }
-            .website-settings-card .gapp-payment-toggle-card {
-              border: 1px solid #dbe7fb;
-              border-radius: 14px;
-              background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-              box-shadow: 0 6px 16px rgba(30, 64, 175, 0.06);
-              padding: 12px 14px;
-              align-content: start;
-            }
-            .website-settings-card .gapp-toggle-head {
-              display: flex;
-              align-items: flex-start;
-              justify-content: space-between;
-              gap: 12px;
-            }
-            .website-settings-card .gapp-toggle-head .gapp-label { margin-top: 2px; }
-            .website-settings-card .gapp-switch {
-              position: relative;
-              display: inline-flex;
-              align-items: center;
-              justify-content: flex-end;
-              width: 68px;
-              height: 34px;
-              border: 1px solid #cbd5e1;
-              border-radius: 999px;
-              background: #e2e8f0;
-              color: #64748b;
-              padding: 0 9px 0 34px;
-              font-size: 10px;
-              font-weight: 900;
-              cursor: pointer;
-              transition: background .18s ease, border-color .18s ease;
-            }
-            .website-settings-card .gapp-switch-label { margin-left: 0; z-index: 1; }
-            .website-settings-card .gapp-switch.active {
-              justify-content: flex-start;
-              padding: 0 34px 0 9px;
-              background: var(--gapp-blue);
-              border-color: var(--gapp-blue);
-              color: #fff;
-            }
-            .website-settings-card .gapp-switch.active .gapp-switch-label { margin-left: 0; margin-right: 0; }
-            .website-settings-card .gapp-switch-knob {
-              position: absolute;
-              left: 4px;
-              width: 26px;
-              height: 26px;
-              border-radius: 999px;
-              background: #fff;
-              box-shadow: 0 4px 10px rgba(15, 23, 42, .18);
-              transition: transform .18s ease;
-            }
-            .website-settings-card .gapp-switch.active .gapp-switch-knob { transform: translateX(34px); }
-            .website-settings-card .gapp-segmented {
-              display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              overflow: hidden;
-              border: 1px solid var(--gapp-line);
-              border-radius: 11px;
-              background: #f8fafc;
-              min-height: 42px;
-            }
-            .website-settings-card .gapp-segmented button {
-              appearance: none;
-              border: 0;
-              background: transparent;
-              color: #334155;
-              font-size: 14px;
-              font-weight: 800;
-              cursor: pointer;
-              transition: background .18s ease, color .18s ease, box-shadow .18s ease;
-            }
-            .website-settings-card .gapp-segmented button.active {
-              background: var(--gapp-blue);
-              color: #fff;
-              box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
-            }
-            .website-settings-card .gapp-field.gapp-deposit-field { margin-top: 12px; }
-            .website-settings-card .gapp-deposit-input-wrap { position: relative; display: flex; align-items: center; }
-            .website-settings-card .gapp-deposit-input {
-              width: 100%;
-              min-height: 44px;
-              border: 1px solid #cddcf5;
-              border-radius: 12px;
-              background: #f8fbff;
-              color: #1e3a8a;
-              font-size: 16px;
-              font-weight: 800;
-              letter-spacing: .02em;
-              line-height: 1.2;
-              padding: 10px 40px 10px 14px;
-              outline: none;
-              box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
-              transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
-            }
-            .website-settings-card .gapp-deposit-input:focus {
-              border-color: rgba(37, 99, 235, 0.65);
-              background: #fff;
-              box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
-            }
-            .website-settings-card .gapp-deposit-input-suffix {
-              position: absolute;
-              right: 10px;
-              top: 50%;
-              transform: translateY(-50%);
-              min-width: 24px;
-              height: 24px;
-              border-radius: 999px;
-              display: grid;
-              place-items: center;
-              padding: 0 7px;
-              background: #e7efff;
-              color: #1d4ed8;
-              font-size: 12px;
-              font-weight: 900;
-              pointer-events: none;
-            }
-            .website-settings-card .gapp-savebar { display: flex; justify-content: flex-end; margin-top: 30px; }
-            .website-settings-card .gapp-primary-button {
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              gap: 10px;
-              min-height: 44px;
-              border: 1px solid #2563eb;
-              border-radius: 12px;
-              padding: 0 22px;
-              background: #2563eb;
-              color: #fff;
-              font-weight: 800;
-              font-size: 14px;
-              cursor: pointer;
-              box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
-              box-sizing: border-box;
-              transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
-            }
-            .website-settings-card .gapp-primary-button:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); }
-            .website-settings-card .gapp-primary-button:disabled { opacity: .62; cursor: not-allowed; transform: none; }
-            @media (max-width: 1024px) {
-              .website-settings-card {
-                width: 100%;
-                max-width: none;
-                margin: 0;
-                padding: 0;
-                border: 0;
-                border-radius: 0;
-                background: #ffffff;
-                box-shadow: none;
-              }
-              .website-settings-card .gapp-grid,
-              .website-settings-card .gapp-form-grid,
-              .website-settings-card .gapp-payment-layout { grid-template-columns: 1fr; }
-              .website-settings-card .gapp-payment-toggle-row { grid-template-columns: 1fr; }
-              .website-settings-card .gapp-subtabs { gap: 18px; overflow-x: auto; }
-              .website-settings-card .gapp-panel {
-                width: 100%;
-                margin: 0;
-                padding: 20px 16px calc(96px + env(safe-area-inset-bottom, 0px));
-                border: 0;
-                border-radius: 0;
-                background: #ffffff;
-                box-shadow: none;
-              }
-            }
-          `}</style>
-                  <div className="gapp-panel">
-                    <>
-                        <div className="gapp-grid gapp-payment-layout">
-                          <div className="gapp-pane">
-                            <div className="gapp-section-heading">
-                              <h3>Sprejeti načini plačila</h3>
-                              <p>
-                                Izberite, katere načine plačila želite omogočiti
-                                gostom v booking widgetu na spletni strani.
-                              </p>
-                            </div>
-                            <div className="gapp-payment-list">
-                              {visibleGuestPaymentMethodOptions.map(
-                                (method) => (
-                                  <div
-                                    className="gapp-payment-row"
-                                    key={method.id}
-                                  >
-                                    <span className="gapp-payment-icon">
-                                      <GuestPaymentMethodIcon
-                                        kind={method.id}
-                                      />
-                                    </span>
-                                    <strong>{method.label}</strong>
-                                    <GuestSwitch
-                                      checked={
-                                        !websiteSettings.paymentOnLocation &&
-                                        websiteSettings.acceptedPaymentMethodIds.includes(
-                                          method.id,
-                                        )
-                                      }
-                                      onChange={() =>
-                                        toggleWebsitePaymentMethod(method.id)
-                                      }
-                                      disabled={
-                                        websiteSettings.paymentOnLocation
-                                      }
-                                    />
-                                  </div>
-                                ),
-                              )}
-                            </div>
-                            <div className="gapp-payment-toggle-row">
-                              <div className="gapp-payment-toggle-card">
-                                <div className="gapp-toggle-head">
-                                  <span className="gapp-label">
-                                    Delno plačilo
-                                  </span>
-                                  <GuestSwitch
-                                    checked={
-                                      !websiteSettings.paymentOnLocation &&
-                                      websiteBookingRules.paymentRequirement ===
-                                        "deposit"
-                                    }
-                                    onChange={(checked) => {
-                                      if (!websiteSettings.paymentOnLocation) {
-                                        setWebsiteBookingRules({
-                                          ...websiteBookingRules,
-                                          paymentRequirement: checked
-                                            ? "deposit"
-                                            : "full",
-                                        });
-                                      }
-                                    }}
-                                    disabled={websiteSettings.paymentOnLocation}
-                                  />
-                                </div>
-                                <span className="gapp-hint">
-                                  Ko je izklopljeno, se ob spletnem plačilu
-                                  samodejno zaračuna polni znesek.
-                                </span>
-                                {!websiteSettings.paymentOnLocation &&
-                                websiteBookingRules.paymentRequirement ===
-                                  "deposit" ? (
-                                  <GuestField
-                                    className="gapp-deposit-field"
-                                    label="Znesek pologa"
-                                    hint="Odstotek od skupnega zneska, ki ga gost plača ob rezervaciji."
-                                  >
-                                    <div className="gapp-deposit-input-wrap">
-                                      <input
-                                        className="gapp-deposit-input"
-                                        value={
-                                          websiteBookingRules.depositPercent
-                                        }
-                                        onChange={(e) =>
-                                          setWebsiteBookingRules({
-                                            ...websiteBookingRules,
-                                            depositPercent:
-                                              e.target.value.replace(
-                                                /[^0-9]/g,
-                                                "",
-                                              ),
-                                          })
-                                        }
-                                      />
-                                      <span className="gapp-deposit-input-suffix">
-                                        %
-                                      </span>
-                                    </div>
-                                  </GuestField>
-                                ) : null}
-                              </div>
-                              <div className="gapp-payment-toggle-card">
-                                <div className="gapp-toggle-head">
-                                  <span className="gapp-label">
-                                    Plačilo na lokaciji
-                                  </span>
-                                  <GuestSwitch
-                                    checked={websiteSettings.paymentOnLocation}
-                                    onChange={toggleWebsitePaymentOnLocation}
-                                  />
-                                </div>
-                                <span className="gapp-hint">
-                                  Ko je vklopljeno, gost rezervira brez
-                                  spletnega plačila in poravna na lokaciji.
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="gapp-savebar">
-                          <button
-                            type="button"
-                            className="gapp-primary-button"
-                            onClick={saveWebsiteConfiguration}
-                            disabled={savingSettings}
-                          >
-                            <GuestSaveIcon />
-                            {savingSettings
-                              ? t("formSaving")
-                              : t("configSaveConfiguration")}
-                          </button>
-                        </div>
-                    </>
+                    .website-payment-settings-moved {
+                      max-width: 980px;
+                      border-radius: 22px;
+                      border: 1px solid rgba(203, 213, 225, .86);
+                      background: #fff;
+                      box-shadow: 0 22px 64px rgba(15, 23, 42, .08);
+                      padding: 34px;
+                    }
+                    .website-payment-moved-content {
+                      display: grid;
+                      grid-template-columns: auto minmax(0, 1fr) auto;
+                      gap: 18px;
+                      align-items: center;
+                    }
+                    .website-payment-moved-icon {
+                      width: 58px;
+                      height: 58px;
+                      border-radius: 18px;
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      color: #2563eb;
+                      background: #eaf2ff;
+                    }
+                    .website-payment-moved-copy h2 {
+                      margin: 0 0 7px;
+                      color: #0f1b3d;
+                      font-size: 22px;
+                      line-height: 1.2;
+                    }
+                    .website-payment-moved-copy p {
+                      margin: 0;
+                      color: #64748b;
+                      font-size: 14px;
+                      line-height: 1.55;
+                    }
+                    .website-payment-moved-button {
+                      appearance: none;
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      gap: 9px;
+                      min-height: 44px;
+                      border: 0;
+                      border-radius: 12px;
+                      padding: 10px 18px;
+                      color: #fff;
+                      background: #2563eb;
+                      font-weight: 850;
+                      cursor: pointer;
+                      box-shadow: 0 12px 24px rgba(37, 99, 235, .25);
+                    }
+                    @media (max-width: 760px) {
+                      .website-payment-settings-moved { padding: 22px; }
+                      .website-payment-moved-content { grid-template-columns: 1fr; }
+                      .website-payment-moved-button { width: 100%; }
+                    }
+                  `}</style>
+                  <div className="website-payment-moved-content">
+                    <span className="website-payment-moved-icon">
+                      <BillingPaymentTypeIcon type="CARD" />
+                    </span>
+                    <div className="website-payment-moved-copy">
+                      <h2>
+                        {locale === "sl"
+                          ? "Načini plačila so zdaj v zavihku Obračun"
+                          : "Payment methods are now under Billing"}
+                      </h2>
+                      <p>
+                        {locale === "sl"
+                          ? "Razpoložljivost načinov plačila, delno plačilo in plačilo na lokaciji se odslej upravljajo na enem mestu za Aplikacijo za goste in Spletni vtičnik."
+                          : "Payment method availability, partial payment and pay on location are now managed in one place for the Guest app and Website widget."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="website-payment-moved-button"
+                      onClick={() => {
+                        setTab("billing");
+                        setBillingSubtab("paymentMethods");
+                        navigate(
+                          "/configuration?tab=billing&subtab=paymentMethods",
+                        );
+                      }}
+                    >
+                      <BillingPaymentTypeIcon type="CARD" />
+                      {locale === "sl"
+                        ? "Odpri načine plačila"
+                        : "Open payment methods"}
+                    </button>
                   </div>
                 </Card>
               ) : tab === "notifications" ? (

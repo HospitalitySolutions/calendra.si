@@ -67,7 +67,7 @@ public class CompanyProvisioningService {
         List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
         boolean fiscalCashRegisterEnabled = isFiscalCashRegisterEnabled(company.getId());
         ensureDefaultPaymentMethod(all, company, "Cash", PaymentType.CASH, fiscalCashRegisterEnabled, false, false, 0);
-        ensureDefaultPaymentMethod(all, company, "Stripe", PaymentType.CARD, fiscalCashRegisterEnabled, true, true, 1);
+        ensureDefaultPaymentMethod(all, company, "Spletno plačilo s kartico", PaymentType.CARD, fiscalCashRegisterEnabled, true, true, 1);
         ensureDefaultPaymentMethod(all, company, "Bank Transfer", PaymentType.BANK_TRANSFER, false, false, true, 2);
         ensureDefaultPaymentMethod(all, company, "PayPal", PaymentType.OTHER, false, false, true, 3);
         ensureDefaultPaymentMethod(all, company, "Advance", PaymentType.ADVANCE, false, false, false, 4);
@@ -93,7 +93,10 @@ public class CompanyProvisioningService {
     ) {
         PaymentMethod method = existing.stream()
                 .filter(pm -> pm.getPaymentType() == type)
-                .filter(pm -> pm.getName() != null && pm.getName().trim().equalsIgnoreCase(name))
+                .filter(pm -> pm.getName() != null && (
+                        pm.getName().trim().equalsIgnoreCase(name)
+                                || (type == PaymentType.CARD && pm.isStripeEnabled())
+                ))
                 .findFirst()
                 .orElse(null);
 
@@ -111,6 +114,10 @@ public class CompanyProvisioningService {
         }
 
         boolean dirty = false;
+        if (!method.getName().equals(name)) {
+            method.setName(name);
+            dirty = true;
+        }
         if (method.isFiscalized() != fiscalized) {
             method.setFiscalized(fiscalized);
             dirty = true;
