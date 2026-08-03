@@ -3076,10 +3076,28 @@ function A4PresetLayoutEditor() {
       try {
         const response = await api.post(`/billing/folio-layout/preview?locale=${locale}`, { layout, invoice: sample }, { responseType: 'blob' })
         if (requestId !== previewRequestId.current) return
-        const url = URL.createObjectURL(new Blob([response.data], { type: 'image/png' }))
-        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-        previewUrlRef.current = url
-        setPreviewUrl(url)
+
+        const imageBlob = response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: 'image/png' })
+        if (imageBlob.size === 0) throw new Error('The preview response was empty.')
+
+        // Production CSP previously blocked blob: image URLs. A data URL works
+        // with the existing img-src data: policy and also lets us detect an
+        // invalid/non-image response before replacing the current preview.
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => typeof reader.result === 'string'
+            ? resolve(reader.result)
+            : reject(new Error('Unable to read the preview image.'))
+          reader.onerror = () => reject(reader.error || new Error('Unable to read the preview image.'))
+          reader.readAsDataURL(imageBlob)
+        })
+        if (requestId !== previewRequestId.current) return
+
+        if (previewUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previewUrlRef.current)
+        previewUrlRef.current = dataUrl
+        setPreviewUrl(dataUrl)
       } catch {
         if (requestId === previewRequestId.current) {
           setPreviewError(locale === 'sl' ? 'Predogleda ni bilo mogoče pripraviti.' : locale === 'sr' ? 'Pregled nije moguće pripremiti.' : 'Unable to prepare the preview.')
@@ -3092,7 +3110,7 @@ function A4PresetLayoutEditor() {
   }, [layout, locale])
 
   useEffect(() => () => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    if (previewUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(previewUrlRef.current)
   }, [])
 
   const mutateLayout = useCallback((fn: (next: LayoutConfig) => void) => {
@@ -3380,7 +3398,18 @@ function A4PresetLayoutEditor() {
           <div className="fle-a4-preview-panel">
             <h4>{copy.preview}</h4>
             <div className="fle-a4-preview-shell fle-a4-preview-shell--rendered">
-              {previewUrl ? <img className="fle-a4-rendered-preview" src={previewUrl} alt={copy.preview} /> : null}
+              {previewUrl ? (
+                <img
+                  className="fle-a4-rendered-preview"
+                  src={previewUrl}
+                  alt={copy.preview}
+                  onLoad={() => setPreviewError(null)}
+                  onError={() => {
+                    setPreviewUrl(null)
+                    setPreviewError(locale === 'sl' ? 'Predogled je bil prejet, vendar ga brskalnik ni mogel prikazati.' : locale === 'sr' ? 'Pregled je primljen, ali ga pregledač nije mogao prikazati.' : 'The preview was received, but the browser could not display it.')
+                  }}
+                />
+              ) : null}
               {previewLoading ? <div className="fle-a4-preview-status">{locale === 'sl' ? 'Pripravljam predogled…' : locale === 'sr' ? 'Pripremam pregled…' : 'Preparing preview…'}</div> : null}
               {!previewLoading && previewError ? <div className="fle-a4-preview-status fle-a4-preview-status--error">{previewError}</div> : null}
             </div>
