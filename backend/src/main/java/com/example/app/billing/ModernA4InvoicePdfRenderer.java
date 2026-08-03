@@ -127,7 +127,9 @@ final class ModernA4InvoicePdfRenderer {
         float rightHeight = rightSection == null ? 0 : estimateSectionHeight(state, layout, request, rightSection, COLUMN_W);
         float rowHeight = Math.max(leftHeight, rightHeight);
         if (rowHeight <= 0f) return;
-        state.ensureSpace(rowHeight);
+        float topSpacing = presetSignoffTopSpacing(layout, leftSection, rightSection);
+        state.ensureSpace(rowHeight + topSpacing);
+        state.y += topSpacing;
         float y = state.y;
         if (leftSection != null) {
             drawSection(state, layout, request, logoBytes, signatureBytes, leftSection, MARGIN_X, y, COLUMN_W, rowHeight);
@@ -179,6 +181,20 @@ final class ModernA4InvoicePdfRenderer {
         row.left = left;
         row.right = right;
         rows.add(row);
+    }
+
+    private float presetSignoffTopSpacing(FolioLayoutConfig layout, String left, String right) {
+        if (!isPresetTemplate(layout)) return 0f;
+        boolean signoffRow = "issuedBy".equals(left)
+                || "issuedBy".equals(right)
+                || "signature".equals(left)
+                || "signature".equals(right);
+        if (!signoffRow) return 0f;
+        return switch (safe(layout.getTemplateId()).toUpperCase(Locale.ROOT)) {
+            case "COMPACT" -> 24f;
+            case "MINIMAL" -> 30f;
+            default -> 32f;
+        };
     }
 
     private void drawSection(
@@ -1158,9 +1174,20 @@ final class ModernA4InvoicePdfRenderer {
         if (layout.getLogo() == null || !layout.getLogo().isVisible() || logoBytes == null || logoBytes.length == 0) return;
         try {
             PDImageXObject image = PDImageXObject.createFromByteArray(state.document, logoBytes, "a4-logo");
-            float logoW = Math.min(135f, width - 24f);
-            float logoH = Math.min(maxHeight, 48f);
-            state.drawImage(image, x + (width - logoW) / 2f, y, logoW, logoH);
+            // Use a compact, almost-square logo area instead of stretching every
+            // tenant logo into the previous 135 x 48 pt horizontal rectangle.
+            // The source aspect ratio is preserved inside the bounding box.
+            float boxW = Math.min(88f, Math.max(0f, width - 24f));
+            float boxH = Math.min(maxHeight, 62f);
+            if (boxW <= 0f || boxH <= 0f) return;
+            float sourceW = Math.max(1f, image.getWidth());
+            float sourceH = Math.max(1f, image.getHeight());
+            float scale = Math.min(boxW / sourceW, boxH / sourceH);
+            float logoW = sourceW * scale;
+            float logoH = sourceH * scale;
+            float logoX = x + (width - logoW) / 2f;
+            float logoY = y + (boxH - logoH) / 2f;
+            state.drawImage(image, logoX, logoY, logoW, logoH);
         } catch (IOException ignored) {
             // Company data and document details remain usable without the logo.
         }
@@ -1207,18 +1234,7 @@ final class ModernA4InvoicePdfRenderer {
             baseline += state.theme.line;
             state.text(state.fonts.regular, state.theme.base, leftX, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + safe(request.getIban()), TEXT);
         }
-        if (layout.getLogo() != null && layout.getLogo().isVisible() && logoBytes != null && logoBytes.length > 0) {
-            try {
-                PDImageXObject image = PDImageXObject.createFromByteArray(state.document, logoBytes, "a4-logo");
-                float logoW = Math.min(140f, width * 0.30f);
-                float logoH = 48f;
-                float logoX = x + (width - logoW) / 2f;
-                float logoY = y + 8f;
-                state.drawImage(image, logoX, logoY, logoW, logoH);
-            } catch (IOException ignored) {
-                // Keep company text even if the logo cannot be rendered.
-            }
-        }
+        drawCenteredLogo(state, layout, logoBytes, x, y + 8f, width, 62f);
     }
 
     private void drawDocumentMinimal(State state, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {

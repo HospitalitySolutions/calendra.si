@@ -7496,7 +7496,9 @@ button.course-edit-save-button.gapp-primary-button {
 }
 
 .linked-entity-modal-backdrop {
-    z-index: 1450;
+    /* These dialogs can be opened from inside the Uredi storitev dialog.
+       Keep their complete backdrop above the parent modal stacking layer. */
+    z-index: 11000;
     background: rgba(15, 23, 42, 0.48);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
@@ -7504,6 +7506,7 @@ button.course-edit-save-button.gapp-primary-button {
 
 .linked-entity-modal,
 .transaction-service-modal.linked-entity-modal {
+    z-index: 11001;
     box-shadow: 0 28px 76px rgba(15, 23, 42, 0.25);
 }
 
