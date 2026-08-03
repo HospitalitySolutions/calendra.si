@@ -6972,7 +6972,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       }}
                     >
                       <option value="">{billingCopy.selectClient}</option>
-                      {clients.map((client) => (
+                      {clients.filter((client) => client.active !== false).map((client) => (
                         <option key={client.id} value={client.id}>{fullName(client)}</option>
                       ))}
                     </select>
@@ -7034,7 +7034,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           if (peerClientId) peerClientIds.add(peerClientId)
         })
     })
-    const sortedClients = [...clients].sort((a, b) => {
+    const sortedClients = clients.filter((client) => client.active !== false).sort((a, b) => {
       const aPeer = peerClientIds.has(a.id) ? 0 : 1
       const bPeer = peerClientIds.has(b.id) ? 0 : 1
       if (aPeer !== bPeer) return aPeer - bPeer
@@ -7088,7 +7088,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   })}
                 >
                   <option value="">{billingCopy.selectCompany}</option>
-                  {companies.map((company) => (
+                  {companies.filter((company) => company.active !== false).map((company) => (
                     <option key={company.id} value={company.id}>{company.name}</option>
                   ))}
                 </select>
@@ -7173,16 +7173,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         vatId: draftCompany.vatId ?? '',
       })
       : { name: '', email: '', telephone: '', address: '', postalCode: '', city: '', vatId: '' }
-    const companyClients = draft.recipientCompanyId == null ? [] : clients.filter((client) => client.billingCompany?.id === draft.recipientCompanyId)
+    const activeClients = clients.filter((client) => client.active !== false)
+    const companyClients = draft.recipientCompanyId == null ? [] : activeClients.filter((client) => client.billingCompany?.id === draft.recipientCompanyId)
     const payeeClientOptions = draft.billingTarget === 'COMPANY'
       ? (
         companyClients.length === 0
-          ? clients
+          ? activeClients
           : (draftClient && !companyClients.some((client) => client.id === draftClient.id)
             ? [draftClient, ...companyClients]
             : companyClients)
       )
-      : clients
+      : activeClients
 
     const updateDialogDetails = (patch: Partial<OpenBillDetailsDraft>) => {
       setOpenBillPayeeDialogDraft((prev) => prev && prev.openBillId === targetOpenBill.id
@@ -7421,7 +7422,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       })}
                     >
                       <option value="">{billingCopy.selectClient}</option>
-                      {clients.map((client) => (
+                      {clients.filter((client) => client.active !== false).map((client) => (
                         <option key={client.id} value={client.id}>{fullName(client)}</option>
                       ))}
                     </select>

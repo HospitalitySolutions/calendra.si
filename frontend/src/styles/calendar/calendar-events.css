@@ -4461,3 +4461,21 @@
         font-size: 0.98rem;
     }
 }
+
+/* Completed booked sessions recede visually so current and upcoming appointments stay prominent. */
+.calendar-fc-shell .fc-event.calendar-event-booked-visual.calendar-event-booked-past,
+.fc .calendar-event-booked-visual.calendar-event-booked-past {
+    opacity: 0.48;
+    filter: saturate(0.5);
+    box-shadow: none !important;
+}
+
+.calendar-fc-shell .fc-event.calendar-event-booked-visual.calendar-event-booked-past:hover,
+.fc .calendar-event-booked-visual.calendar-event-booked-past:hover {
+    opacity: 0.66;
+}
+
+[data-theme="dark"] .calendar-fc-shell .fc-event.calendar-event-booked-visual.calendar-event-booked-past,
+[data-theme="dark"] .fc .calendar-event-booked-visual.calendar-event-booked-past {
+    opacity: 0.56;
+}

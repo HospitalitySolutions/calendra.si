@@ -24,6 +24,10 @@ public class SessionType extends BaseEntity {
     private String name;
     private String description;
 
+    /** Optional staff-only description used in internal selectors and management screens. */
+    @Column(name = "internal_description", length = 512)
+    private String internalDescription;
+
     /** Optional parent used to present closely related service variants together. */
     @ManyToOne
     @JoinColumn(name = "service_group_id")

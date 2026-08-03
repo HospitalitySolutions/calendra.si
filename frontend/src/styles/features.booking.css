@@ -8345,3 +8345,13 @@ button.session-type-color-swatch span {
         justify-content: center;
     }
 }
+
+/* Transaction-service codes are generated internally; the invoice description spans the form. */
+.transaction-service-modal-grid--two > .field:first-child {
+    grid-column: 1 / -1;
+}
+
+/* The modal no longer has a Back button, so keep the single primary action right-aligned. */
+.linked-entity-modal-footer {
+    justify-content: flex-end !important;
+}

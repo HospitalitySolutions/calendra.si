@@ -354,6 +354,11 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const canIssueOpenInvoice = canIssueOpenInvoices(user)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [], waitlistOffers: [] })
+  const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setCalendarNowMs(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
   const [calendarLoadState, setCalendarLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [settings, setSettings] = useState<Record<string, string>>({})
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
@@ -8555,7 +8560,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           const repeatInterval = form.repeatInterval ?? 1
           const repeatUnit = form.repeatUnit ?? 'weeks'
           const repeatEndType = form.repeatEndType ?? 'after'
-          const repeatEndCount = form.repeatEndCount ?? 5
+          const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || 2)))
           const repeatEndDate = form.repeatEndDate ?? ''
           const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
           const targetDayIndex = repeatUnit === 'weeks' ? dayNames.indexOf(form.repeatDay ?? dayNames[baseStart.getDay()]) : -1
@@ -9643,7 +9648,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     api
       .get('/companies', { params: {} })
       .then((res) => {
-        if (!cancelled) setBookingPayeeCompanies(Array.isArray(res.data) ? res.data : [])
+        if (!cancelled) setBookingPayeeCompanies(Array.isArray(res.data) ? res.data.filter((company: any) => company?.active !== false) : [])
       })
       .catch(() => {
         if (!cancelled) setBookingPayeeCompanies([])
@@ -10188,7 +10193,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const repeatInterval = selectedBookedSession.repeatInterval ?? 1
       const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
       const repeatEndType = selectedBookedSession.repeatEndType ?? 'after'
-      const repeatEndCount = selectedBookedSession.repeatEndCount ?? 5
+      const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || 2)))
       const repeatEndDate = selectedBookedSession.repeatEndDate ?? ''
       const dayNamesArr = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
       const targetDayIndex = repeatUnit === 'weeks' ? dayNamesArr.indexOf(selectedBookedSession.repeatDay ?? dayNamesArr[baseStart.getDay()]) : -1
@@ -13217,9 +13222,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               return ['calendar-waitlist-offer-break-background']
             }
             if (kind === 'booked') {
+              const bookedEndMs = arg.event.end?.getTime() ?? Number.NaN
+              const bookedIsPast = Number.isFinite(bookedEndMs) && bookedEndMs <= calendarNowMs
               return [
                 'calendar-event-hover-scale',
                 'calendar-event-booked-visual',
+                ...(bookedIsPast ? ['calendar-event-booked-past'] : []),
                 ...(sessionQuickActions?.eventKey === String(arg.event.id ?? `booked-${arg.event.extendedProps?.id ?? ''}`) ? ['calendar-event-quick-actions-active'] : []),
                 ...(calendarDashboardEnabled && Number(selectedBookedSession?.id ?? 0) > 0 && Number(arg.event.extendedProps?.id ?? 0) === Number(selectedBookedSession?.id) ? ['calendar-event-dashboard-selected'] : []),
                 ...(arg.event.extendedProps?.breakConflict ? ['calendar-event-booked-break-conflict'] : []),

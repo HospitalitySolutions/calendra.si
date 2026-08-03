@@ -69,6 +69,7 @@ public class SessionTypeController {
     public record TypeRequest(
             @JsonProperty("name") @JsonAlias("code") String code,
             String description,
+            String internalDescription,
             String color,
             Integer durationMinutes,
             Integer breakMinutes,
@@ -102,6 +103,7 @@ public class SessionTypeController {
                     code,
                     description,
                     null,
+                    null,
                     durationMinutes,
                     breakMinutes,
                     breakMinutes != null,
@@ -131,6 +133,7 @@ public class SessionTypeController {
             Long id,
             @JsonProperty("name") String name,
             String description,
+            String internalDescription,
             String color,
             Integer durationMinutes,
             Integer breakMinutes,
@@ -188,6 +191,7 @@ public class SessionTypeController {
         type.setCompany(me.getCompany());
         type.setName(normalizedCode);
         type.setDescription(description);
+        type.setInternalDescription(normalizeInternalDescription(req.internalDescription()));
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         applyBreakSettings(type, req, companyId);
@@ -240,6 +244,7 @@ public class SessionTypeController {
         }
         type.setName(normalizedCode);
         type.setDescription(description);
+        type.setInternalDescription(normalizeInternalDescription(req.internalDescription()));
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         applyBreakSettings(type, req, companyId);
@@ -374,6 +379,13 @@ public class SessionTypeController {
         return alnum;
     }
 
+    private String normalizeInternalDescription(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim();
+        if (normalized.isEmpty()) return null;
+        return normalized.length() <= 512 ? normalized : normalized.substring(0, 512);
+    }
+
     private String normalizeServiceDescription(String raw) {
         if (raw == null) return null;
         String description = raw.trim();
@@ -449,6 +461,7 @@ public class SessionTypeController {
                 t.getId(),
                 t.getName(),
                 t.getDescription(),
+                t.getInternalDescription(),
                 normalizeSessionTypeColor(t.getColor()),
                 duration,
                 breakMinutes,

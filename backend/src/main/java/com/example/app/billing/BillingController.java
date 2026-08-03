@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -493,10 +494,16 @@ public class BillingController {
     @PostMapping("/services")
     public TransactionService createService(@RequestBody TransactionService s, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        String normalizedCode = requireValidTransactionServiceCode(s.getCode());
-        ensureTransactionServiceCodeUnique(companyId, normalizedCode, null);
+        String description = requireTransactionServiceDescription(s.getDescription());
+        String normalizedCode = normalizeTransactionServiceCode(s.getCode());
+        if (normalizedCode == null) {
+            normalizedCode = generateUniqueTransactionServiceCode(companyId, description);
+        } else {
+            ensureTransactionServiceCodeUnique(companyId, normalizedCode, null);
+        }
         s.setCompany(me.getCompany());
         s.setCode(normalizedCode);
+        s.setDescription(description);
         s.setActive(s.isActive());
         return txRepo.save(s);
     }
@@ -507,10 +514,14 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var existing = txRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        String validatedCode = requireValidTransactionServiceCode(s.getCode());
-        ensureTransactionServiceCodeUnique(companyId, validatedCode, existing.getId());
+        String validatedCode = normalizeTransactionServiceCode(s.getCode());
+        if (validatedCode == null) {
+            validatedCode = existing.getCode();
+        } else {
+            ensureTransactionServiceCodeUnique(companyId, validatedCode, existing.getId());
+        }
         existing.setCode(validatedCode);
-        existing.setDescription(s.getDescription());
+        existing.setDescription(requireTransactionServiceDescription(s.getDescription()));
         existing.setTaxRate(s.getTaxRate());
         existing.setNetPrice(s.getNetPrice());
         var nextActive = s.isActive();
@@ -552,12 +563,27 @@ public class BillingController {
         return alnum;
     }
 
-    private String requireValidTransactionServiceCode(String raw) {
-        String normalized = normalizeTransactionServiceCode(raw);
-        if (normalized == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction service code is required.");
+    private String requireTransactionServiceDescription(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction service description is required.");
         }
-        return normalized;
+        return raw.trim();
+    }
+
+    private String generateUniqueTransactionServiceCode(Long companyId, String description) {
+        String ascii = Normalizer.normalize(description, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        String base = normalizeTransactionServiceCode(ascii);
+        if (base == null) base = "SERVICE";
+        if (txRepo.findByCompanyIdAndCodeIgnoreCase(companyId, base).isEmpty()) return base;
+
+        for (int suffix = 2; suffix < 10_000; suffix++) {
+            String suffixText = String.valueOf(suffix);
+            int maxBaseLength = Math.max(1, TRANSACTION_SERVICE_CODE_MAX_LENGTH - suffixText.length());
+            String candidate = base.substring(0, Math.min(base.length(), maxBaseLength)) + suffixText;
+            if (txRepo.findByCompanyIdAndCodeIgnoreCase(companyId, candidate).isEmpty()) return candidate;
+        }
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Unable to generate a unique transaction service code.");
     }
 
     private void ensureTransactionServiceCodeUnique(Long companyId, String code, Long currentId) {

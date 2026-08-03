@@ -943,6 +943,11 @@ export function AnalyticsInboxTab() {
     },
   })
 
+  const activeInboxClients = useMemo(
+    () => (clientsQuery.data ?? []).filter((client) => client.active !== false),
+    [clientsQuery.data],
+  )
+
   const selectedClient = useMemo(
     () => (clientsQuery.data ?? []).find((row) => row.id === selectedClientId) ?? null,
     [clientsQuery.data, selectedClientId],
@@ -951,13 +956,13 @@ export function AnalyticsInboxTab() {
   const bulkSelectedSet = useMemo(() => new Set(bulkSelectedClientIds), [bulkSelectedClientIds])
 
   const bulkSelectedClients = useMemo(
-    () => (clientsQuery.data ?? []).filter((client) => bulkSelectedSet.has(client.id)),
-    [clientsQuery.data, bulkSelectedSet],
+    () => activeInboxClients.filter((client) => bulkSelectedSet.has(client.id)),
+    [activeInboxClients, bulkSelectedSet],
   )
 
   const filteredBulkClients = useMemo(
-    () => (clientsQuery.data ?? []).filter((client) => matchesClientSearch(client, bulkRecipientSearch)),
-    [clientsQuery.data, bulkRecipientSearch],
+    () => activeInboxClients.filter((client) => matchesClientSearch(client, bulkRecipientSearch)),
+    [activeInboxClients, bulkRecipientSearch],
   )
 
   const eligibleBulkClients = useMemo(
@@ -1738,7 +1743,7 @@ export function AnalyticsInboxTab() {
         </div>
         <select value={clientIdFilter} onChange={(e) => setClientIdFilter(e.target.value)}>
           <option value="">{ui.allClients}</option>
-          {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+          {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
         </select>
         <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value as '' | InboxChannel)}>
           <option value="">{ui.allChannels}</option>
@@ -1979,7 +1984,7 @@ export function AnalyticsInboxTab() {
             <label>{copy.clientLabel}
               <select value={selectedClientId ?? ''} onChange={(e) => selectClient(e.target.value ? Number(e.target.value) : null)}>
                 <option value="">{copy.selectClient}</option>
-                {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+                {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
               </select>
             </label>
             <div>

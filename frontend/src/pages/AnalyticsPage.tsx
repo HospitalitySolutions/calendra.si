@@ -133,7 +133,7 @@ type AnalyticsOverview = {
 
 type ConsultantOption = { id: number; firstName: string; lastName: string; consultant?: boolean }
 type SpaceOption = { id: number; name: string }
-type TypeOption = { id: number; name: string; serviceGroupId?: number | null; serviceGroupName?: string | null }
+type TypeOption = { id: number; name: string; description?: string | null; internalDescription?: string | null; serviceGroupId?: number | null; serviceGroupName?: string | null }
 type ServiceGroupOption = { id: number; name: string; active: boolean; sortOrder: number; serviceCount: number }
 type Preset = 'day' | '7d' | 'month' | 'year' | 'custom'
 type ReportFrequency = 'DAILY' | 'WEEKLY'
@@ -2651,7 +2651,11 @@ export function AnalyticsPage() {
             )}
             <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
               <option value="">{text.allTypes}</option>
-              {filteredTypeOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              {filteredTypeOptions.map((item) => {
+                const visibleName = item.description || item.name
+                const internalDescription = String(item.internalDescription || '').trim()
+                return <option key={item.id} value={item.id}>{internalDescription ? `${visibleName} — ${internalDescription}` : visibleName}</option>
+              })}
             </select>
           </div>
         </div>

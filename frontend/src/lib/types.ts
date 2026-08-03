@@ -149,6 +149,8 @@ export type SessionType = {
   id: number
   name: string
   description?: string
+  /** Staff-only label used in internal dropdowns and management views. */
+  internalDescription?: string | null
   color?: string | null
   active?: boolean
   durationMinutes?: number

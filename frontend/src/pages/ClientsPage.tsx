@@ -1289,6 +1289,33 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     companyActionsAria: 'Company actions',
     guestAppBadge: 'Guest app',
   }
+  const deactivationCopy = locale === 'sl'
+    ? {
+        client: 'Ali želite deaktivirati to stranko? Ne bo več prikazana v izbirnih seznamih.',
+        company: 'Ali želite deaktivirati to podjetje? Ne bo več prikazano v izbirnih seznamih.',
+        group: 'Ali želite deaktivirati to skupino? Ne bo več prikazana v izbirnih seznamih.',
+        aria: 'Potrditev deaktivacije',
+        yes: 'Da',
+        no: 'Ne',
+      }
+    : locale === 'sr'
+      ? {
+          client: 'Da li želite da deaktivirate ovog klijenta? Više se neće prikazivati u padajućim listama.',
+          company: 'Da li želite da deaktivirate ovu kompaniju? Više se neće prikazivati u padajućim listama.',
+          group: 'Da li želite da deaktivirate ovu grupu? Više se neće prikazivati u padajućim listama.',
+          aria: 'Potvrda deaktivacije',
+          yes: 'Da',
+          no: 'Ne',
+        }
+      : {
+          client: 'Deactivate this client? They will no longer appear in selection lists.',
+          company: 'Deactivate this company? It will no longer appear in selection lists.',
+          group: 'Deactivate this group? It will no longer appear in selection lists.',
+          aria: 'Confirm deactivation',
+          yes: 'Yes',
+          no: 'No',
+        }
+
   const me = useAuthenticatedUser()
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const [entityTab, setEntityTab] = useState<EntityTab>('clients')
@@ -1331,6 +1358,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [companyDetailDatotekeSubTab, setCompanyDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [anonymizingClientId, setAnonymizingClientId] = useState<number | null>(null)
   const [anonymizeConfirmClientId, setAnonymizeConfirmClientId] = useState<number | null>(null)
+  const [pendingDeactivation, setPendingDeactivation] = useState<{ kind: 'client' | 'company' | 'group'; id: number } | null>(null)
   const [deletingClientId, setDeletingClientId] = useState<number | null>(null)
   const [deletingCompanyId, setDeletingCompanyId] = useState<number | null>(null)
   const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null)
@@ -2211,25 +2239,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     [companies],
   )
 
-  const companiesForClientBillingSelect = useMemo(() => {
-    const sid = detailEditDraft.billingCompanyId
-    if (sid == null) return activeCompaniesForNewClient
-    const cur = companies.find((c) => c.id === sid)
-    if (cur && cur.active === false && !activeCompaniesForNewClient.some((c) => c.id === sid)) {
-      return [...activeCompaniesForNewClient, cur].sort((a, b) => a.name.localeCompare(b.name))
-    }
-    return activeCompaniesForNewClient
-  }, [companies, activeCompaniesForNewClient, detailEditDraft.billingCompanyId])
-
-  const companiesForGroupBillingSelect = useMemo(() => {
-    const sid = groupDetailEditDraft.billingCompanyId
-    if (sid == null) return activeCompaniesForNewClient
-    const cur = companies.find((c) => c.id === sid)
-    if (cur && cur.active === false && !activeCompaniesForNewClient.some((c) => c.id === sid)) {
-      return [...activeCompaniesForNewClient, cur].sort((a, b) => a.name.localeCompare(b.name))
-    }
-    return activeCompaniesForNewClient
-  }, [companies, activeCompaniesForNewClient, groupDetailEditDraft.billingCompanyId])
+  const companiesForClientBillingSelect = activeCompaniesForNewClient
+  const companiesForGroupBillingSelect = activeCompaniesForNewClient
 
   const groupDetailHasChanges = useMemo(() => {
     if (!detailGroup) return false
@@ -2529,7 +2540,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
   }
 
-  const toggleGroupActiveById = async (groupId: number, currentlyActive: boolean) => {
+  const toggleGroupActiveById = async (groupId: number, currentlyActive: boolean, confirmed = false) => {
+    if (currentlyActive && !confirmed) {
+      setPendingDeactivation({ kind: 'group', id: groupId })
+      return
+    }
     setActivatingGroupId(groupId)
     setGroupErrorMessage('')
     try {
@@ -3213,7 +3228,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
   }
 
-  const toggleClientActiveById = async (clientId: number, currentlyActive: boolean) => {
+  const toggleClientActiveById = async (clientId: number, currentlyActive: boolean, confirmed = false) => {
+    if (currentlyActive && !confirmed) {
+      setPendingDeactivation({ kind: 'client', id: clientId })
+      return
+    }
     setActivatingClientId(clientId)
     setErrorMessage('')
     try {
@@ -3320,7 +3339,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
   }
 
-  const toggleCompanyActiveById = async (companyId: number, currentlyActive: boolean) => {
+  const toggleCompanyActiveById = async (companyId: number, currentlyActive: boolean, confirmed = false) => {
+    if (currentlyActive && !confirmed) {
+      setPendingDeactivation({ kind: 'company', id: companyId })
+      return
+    }
     setActivatingCompanyId(companyId)
     setCompanyErrorMessage('')
     try {
@@ -6037,6 +6060,48 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </div>,
           document.body
         )}
+
+      {pendingDeactivation != null && (
+        <div
+          className="modal-backdrop clients-anonymize-confirm-backdrop"
+          onClick={() => setPendingDeactivation(null)}
+          role="presentation"
+        >
+          <div
+            className="clients-anonymize-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-label={deactivationCopy.aria}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="clients-anonymize-confirm-message">
+              {deactivationCopy[pendingDeactivation.kind]}
+            </p>
+            <div className="clients-anonymize-confirm-actions">
+              <button
+                type="button"
+                className="clients-anonymize-confirm-ok"
+                onClick={() => {
+                  const pending = pendingDeactivation
+                  setPendingDeactivation(null)
+                  if (pending.kind === 'client') void toggleClientActiveById(pending.id, true, true)
+                  else if (pending.kind === 'company') void toggleCompanyActiveById(pending.id, true, true)
+                  else void toggleGroupActiveById(pending.id, true, true)
+                }}
+              >
+                {deactivationCopy.yes}
+              </button>
+              <button
+                type="button"
+                className="clients-anonymize-confirm-cancel"
+                onClick={() => setPendingDeactivation(null)}
+              >
+                {deactivationCopy.no}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {anonymizeConfirmClientId != null && (
         <div

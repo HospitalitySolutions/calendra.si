@@ -62,6 +62,14 @@ const SERVICE_TYPE_COLOR_PALETTE = [
   "#FFD35C",
   "#B6E3EC",
   "#D9F24D",
+  "#C7D2FE",
+  "#DDD6FE",
+  "#FBCFE8",
+  "#FED7AA",
+  "#A7F3D0",
+  "#BAE6FD",
+  "#FDE68A",
+  "#CBD5E1",
 ] as const;
 const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 const SERVICE_BREAK_MINUTE_OPTIONS = Array.from({ length: 37 }, (_, index) => index * 5);
@@ -261,6 +269,7 @@ function normalizeOptionalParticipantsField(raw: string): string {
 type TypeFormState = {
   name: string;
   description: string;
+  internalDescription: string;
   color: string;
   durationMinutes: number;
   breakMinutes: number;
@@ -277,6 +286,7 @@ type TypeFormState = {
 function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.name !== b.name) return false;
   if (a.description !== b.description) return false;
+  if (a.internalDescription !== b.internalDescription) return false;
   if (
     normalizeServiceTypeColorForUi(a.color) !==
     normalizeServiceTypeColorForUi(b.color)
@@ -314,7 +324,6 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
 }
 
 type ServiceFormState = {
-  code: string;
   description: string;
   taxRate: TaxRate;
   /** Editable gross price; API still stores net. */
@@ -326,7 +335,6 @@ type ServiceFormState = {
 };
 
 const SERVICE_TYPE_CODE_MAX_LENGTH = 12;
-const TRANSACTION_SERVICE_CODE_MAX_LENGTH = 12;
 
 function taxRateMultiplier(taxRate: TaxRate): number {
   if (taxRate === "VAT_22") return 0.22;
@@ -367,12 +375,6 @@ function normalizeServiceTypeCode(raw: string): string {
     .slice(0, SERVICE_TYPE_CODE_MAX_LENGTH);
 }
 
-function normalizeTransactionServiceCode(raw: string): string {
-  return raw
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, TRANSACTION_SERVICE_CODE_MAX_LENGTH);
-}
 
 function normalizeGuestLimitUserEmailsText(raw: string): string {
   return raw
@@ -417,7 +419,6 @@ function clientInitials(
 }
 
 function serviceFormsEqual(a: ServiceFormState, b: ServiceFormState): boolean {
-  if (a.code !== b.code) return false;
   if (a.description !== b.description) return false;
   if (a.taxRate !== b.taxRate) return false;
   if (a.advanceDeduction !== b.advanceDeduction) return false;
@@ -829,7 +830,6 @@ export function SessionTypesPage() {
     useState<number | null>(null);
   const [servicePickerQuery, setServicePickerQuery] = useState("");
   const [serviceForm, setServiceForm] = useState<ServiceFormState>({
-    code: "",
     description: "",
     taxRate: "VAT_22",
     grossPrice: "0.00",
@@ -842,6 +842,7 @@ export function SessionTypesPage() {
   const [typeForm, setTypeForm] = useState<TypeFormState>({
     name: "",
     description: "",
+    internalDescription: "",
     color: SERVICE_TYPE_DEFAULT_COLOR,
     durationMinutes: 60,
     breakMinutes: 0,
@@ -1132,7 +1133,7 @@ export function SessionTypesPage() {
     setTypes(typesRes.data || []);
     setGroups(groupsRes.data || []);
     setServices(servicesRes.data || []);
-    setClients(clientsRes.data || []);
+    setClients((clientsRes.data || []).filter((client) => client.active !== false));
   };
 
   useEffect(() => {
@@ -1192,7 +1193,7 @@ export function SessionTypesPage() {
       const linked = (type.linkedServices || [])
         .map((ls) => `${ls.code} ${ls.price != null ? String(ls.price) : ""}`)
         .join(" ");
-      const hay = [type.name, type.description ?? "", type.serviceGroupName ?? "", String(type.id), linked]
+      const hay = [type.name, type.description ?? "", type.internalDescription ?? "", type.serviceGroupName ?? "", String(type.id), linked]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
@@ -1500,6 +1501,7 @@ export function SessionTypesPage() {
       // The backend creates the immutable internal service code on create and
       // preserves it on edit. Users only maintain the visible description.
       description: normalizedDescription,
+      internalDescription: typeForm.internalDescription.trim() || null,
       color: normalizeServiceTypeColorForUi(typeForm.color),
       durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
       breakMinutes: typeForm.breakMinutesOverridden
@@ -1551,6 +1553,7 @@ export function SessionTypesPage() {
       setTypeForm({
         name: "",
         description: "",
+        internalDescription: "",
         color: SERVICE_TYPE_DEFAULT_COLOR,
         durationMinutes: 60,
         breakMinutes: defaultServiceBreakMinutes,
@@ -1741,6 +1744,7 @@ export function SessionTypesPage() {
       await api.put(`/types/${type.id}`, {
         name: normalizeServiceTypeCode(type.name),
         description: type.description || "",
+        internalDescription: type.internalDescription || null,
         color: normalizeServiceTypeColorForUi(type.color),
         active: nextActive,
         durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
@@ -1783,18 +1787,12 @@ export function SessionTypesPage() {
     e.preventDefault();
     if (!isAdmin) return;
     if (!isServiceFormDirty) return;
-    const normalizedCode = normalizeTransactionServiceCode(serviceForm.code);
-    if (!normalizedCode) {
-      window.alert("Transaction service code is required.");
-      return;
-    }
     const netPrice = netFromGross(
       parseDecimalInput(serviceForm.grossPrice),
       serviceForm.taxRate,
     );
     const payload = {
-      code: normalizedCode,
-      description: serviceForm.description,
+      description: serviceForm.description.trim(),
       taxRate: serviceForm.taxRate,
       netPrice,
     };
@@ -1882,7 +1880,6 @@ export function SessionTypesPage() {
 
       setEditingServiceId(null);
       setServiceForm({
-        code: "",
         description: "",
         taxRate: "VAT_22",
         grossPrice: "0.00",
@@ -2010,6 +2007,7 @@ export function SessionTypesPage() {
     const next: TypeFormState = {
       name: type.name,
       description: type.description || "",
+      internalDescription: type.internalDescription || "",
       color: normalizeServiceTypeColorForUi(type.color),
       durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
       breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
@@ -2071,7 +2069,6 @@ export function SessionTypesPage() {
   const openServiceEdit = (s: BillingService) => {
     setEditingServiceId(s.id);
     const next: ServiceFormState = {
-      code: s.code,
       description: s.description,
       taxRate: s.taxRate,
       grossPrice: grossPriceStringFromNet(Number(s.netPrice), s.taxRate),
@@ -2267,8 +2264,11 @@ export function SessionTypesPage() {
                 <div className="clients-mobile-card-head">
                   <ServiceConfigNameCell
                     title={
-                      type.description?.trim() ||
-                      (locale === "sl" ? "Storitev" : "Service")
+                      [
+                        type.description?.trim() ||
+                          (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service"),
+                        type.internalDescription?.trim(),
+                      ].filter(Boolean).join(" — ")
                     }
                     visual={serviceConfigVisual(index)}
                   />
@@ -2411,8 +2411,11 @@ export function SessionTypesPage() {
                       <div className="service-config-name-with-group">
                         <ServiceConfigNameCell
                           title={
-                            type.description?.trim() ||
-                            (locale === "sl" ? "Storitev" : "Service")
+                            [
+                              type.description?.trim() ||
+                                (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service"),
+                              type.internalDescription?.trim(),
+                            ].filter(Boolean).join(" — ")
                           }
                           visual={serviceConfigVisual(index)}
                         />
@@ -2713,6 +2716,7 @@ export function SessionTypesPage() {
     const empty: TypeFormState = {
       name: "",
       description: "",
+      internalDescription: "",
       color: SERVICE_TYPE_DEFAULT_COLOR,
       durationMinutes: 60,
       breakMinutes: defaultServiceBreakMinutes,
@@ -2740,7 +2744,6 @@ export function SessionTypesPage() {
   const prepareNewServiceModal = (action: LinkedEntityModalAction) => {
     setEditingServiceId(null);
     const empty: ServiceFormState = {
-      code: "",
       description: "",
       taxRate: "VAT_22",
       grossPrice: "0.00",
@@ -2765,7 +2768,6 @@ export function SessionTypesPage() {
   const openServiceLinkModal = () => {
     setEditingServiceId(null);
     const empty: ServiceFormState = {
-      code: "",
       description: "",
       taxRate: "VAT_22",
       grossPrice: "0.00",
@@ -3618,9 +3620,15 @@ export function SessionTypesPage() {
                     </div>
                   </div>
 
-                  <div className="session-type-config-grid session-type-config-description-grid">
+                  <div className="session-type-config-grid session-type-config-grid--two session-type-config-description-grid">
                     <Field
-                      label={locale === "sl" ? "Opis *" : "Description *"}
+                      label={
+                        locale === "sl"
+                          ? "Opis *"
+                          : locale === "sr"
+                            ? "Opis *"
+                            : "Description *"
+                      }
                     >
                       <textarea
                         ref={sessionTypeDescriptionRef}
@@ -3630,7 +3638,9 @@ export function SessionTypesPage() {
                         placeholder={
                           locale === "sl"
                             ? "Npr. Masaža"
-                            : "For example, Massage"
+                            : locale === "sr"
+                              ? "Npr. Masaža"
+                              : "For example, Massage"
                         }
                         value={typeForm.description}
                         onChange={(e) => {
@@ -3639,6 +3649,19 @@ export function SessionTypesPage() {
                           el.style.height = "0px";
                           el.style.height = `${el.scrollHeight}px`;
                         }}
+                      />
+                    </Field>
+                    <Field label={t("sessionTypesInternalDescriptionLabel")}>
+                      <textarea
+                        rows={1}
+                        placeholder={t("sessionTypesInternalDescriptionPlaceholder")}
+                        value={typeForm.internalDescription}
+                        onChange={(e) =>
+                          setTypeForm({
+                            ...typeForm,
+                            internalDescription: e.target.value,
+                          })
+                        }
                       />
                     </Field>
                   </div>
@@ -4527,7 +4550,6 @@ export function SessionTypesPage() {
                   className={serviceModalTab === "create" ? "is-active" : ""}
                   onClick={() => {
                     const empty: ServiceFormState = {
-                      code: "",
                       description: "",
                       taxRate: "VAT_22",
                       grossPrice: "0.00",
@@ -4625,19 +4647,6 @@ export function SessionTypesPage() {
               onSubmit={serviceSubmit}
             >
               <div className="transaction-service-modal-grid transaction-service-modal-grid--two">
-                <Field label={t("sessionTypesTxFieldCode")}>
-                  <input
-                    required
-                    maxLength={TRANSACTION_SERVICE_CODE_MAX_LENGTH}
-                    value={serviceForm.code}
-                    onChange={(e) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        code: normalizeTransactionServiceCode(e.target.value),
-                      })
-                    }
-                  />
-                </Field>
                 <Field label={t("sessionTypesTxLabelDescription")}>
                   <input
                     required
@@ -4850,13 +4859,6 @@ export function SessionTypesPage() {
             )}
 
             <div className="form-actions booking-side-panel-footer transaction-service-modal-footer linked-entity-modal-footer">
-              <button
-                type="button"
-                className="secondary"
-                onClick={dismissServiceModal}
-              >
-                {locale === "sl" ? "Nazaj" : "Back"}
-              </button>
               {serviceModalTab === "existing" &&
               serviceModalAction === "link" ? (
                 <button

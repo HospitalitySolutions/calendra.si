@@ -391,13 +391,17 @@ export function AppointmentsPage() {
       api.get('/users/consultants'),
       api.get('/spaces'),
     ])
-    if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data : [])
+    if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data.filter((client: any) => client?.active !== false) : [])
     if (servicesResult.status === 'fulfilled') {
       const value = Array.isArray(servicesResult.value.data) ? servicesResult.value.data : []
       setServices(
         value
           .filter((item: any) => item.active !== false)
-          .map((item: any) => ({ id: item.id, name: item.description || item.name || `#${item.id}`, durationMinutes: item.durationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName })),
+          .map((item: any) => {
+            const visibleName = item.description || item.name || `#${item.id}`
+            const internalDescription = String(item.internalDescription || '').trim()
+            return { id: item.id, name: internalDescription ? `${visibleName} — ${internalDescription}` : visibleName, durationMinutes: item.durationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName }
+          }),
       )
     }
     if (groupsEnabled && groupsResult.status === 'fulfilled') {

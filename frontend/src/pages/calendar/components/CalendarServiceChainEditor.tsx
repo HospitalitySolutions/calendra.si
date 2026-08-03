@@ -16,10 +16,9 @@ function timePart(value: string | null | undefined) {
 }
 
 function serviceName(type: any, locale: string) {
-  const name = String(type?.name || '').trim()
-  const description = String(type?.description || '').trim()
-  if (name && description && name.toLowerCase() !== description.toLowerCase()) return `${name} – ${description}`
-  return description || name || (locale === 'sl' ? 'Izberite storitev' : locale === 'sr' ? 'Izaberite uslugu' : 'Select service')
+  const visible = serviceDescription(type, locale)
+  const internal = String(type?.internalDescription || '').trim()
+  return internal ? `${visible} — ${internal}` : visible
 }
 
 function serviceDescription(type: any, locale: string) {
@@ -552,7 +551,7 @@ export function CalendarServiceChainEditor({
                 >
                   <option value="">{copy.choose}</option>
                   {sortedSessionTypes.map((entry) => (
-                    <option key={entry.id} value={entry.id}>{serviceDescription(entry, locale)}</option>
+                    <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
                   ))}
                 </select>
                 <select
@@ -563,7 +562,7 @@ export function CalendarServiceChainEditor({
                 >
                   <option value="">{copy.choose}</option>
                   {sortedSessionTypes.map((entry) => (
-                    <option key={entry.id} value={entry.id}>{serviceDescription(entry, locale)}</option>
+                    <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
                   ))}
                 </select>
                 {singleServiceGross != null ? (

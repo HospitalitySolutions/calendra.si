@@ -3070,7 +3070,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 const repeatInterval = selectedBookedSession.repeatInterval ?? 1
                 const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
                 const repeatEndType = selectedBookedSession.repeatEndType ?? 'after'
-                const repeatEndCount = selectedBookedSession.repeatEndCount ?? 5
+                const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || 2)))
                 const repeatEndDate = selectedBookedSession.repeatEndDate ?? ''
                 const summaryTail = repeatEndType === 'after'
                   ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
@@ -3148,8 +3148,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               min={2}
                               max={100}
                               className="form-repeats-number"
-                              value={repeatEndCount}
-                              onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndCount: Math.max(2, Number(e.target.value) || 2) })}
+                              value={selectedBookedSession.repeatEndCount ?? 5}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                setSelectedBookedSession({
+                                  ...selectedBookedSession,
+                                  repeatEndCount: raw === '' ? '' : Math.min(100, Math.max(0, Math.floor(Number(raw) || 0))),
+                                })
+                              }}
+                              onBlur={(e) =>
+                                setSelectedBookedSession({
+                                  ...selectedBookedSession,
+                                  repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
+                                })
+                              }
                             />
                           )}
                           {repeatEndType === 'on' && (
@@ -5421,7 +5433,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 const repeatInterval = form.repeatInterval ?? 1
                 const repeatUnit = form.repeatUnit ?? 'weeks'
                 const repeatEndType = form.repeatEndType ?? 'after'
-                const repeatEndCount = form.repeatEndCount ?? 5
+                const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || 2)))
                 const repeatEndDate = form.repeatEndDate ?? ''
                 const summaryTail = repeatEndType === 'after'
                   ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
@@ -5499,8 +5511,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               min={2}
                               max={100}
                               className="form-repeats-number"
-                              value={repeatEndCount}
-                              onChange={(e) => setForm({ ...form, repeatEndCount: Math.max(2, Number(e.target.value) || 2) })}
+                              value={form.repeatEndCount ?? 5}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                setForm({
+                                  ...form,
+                                  repeatEndCount: raw === '' ? '' : Math.min(100, Math.max(0, Math.floor(Number(raw) || 0))),
+                                })
+                              }}
+                              onBlur={(e) =>
+                                setForm({
+                                  ...form,
+                                  repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
+                                })
+                              }
                             />
                           )}
                           {repeatEndType === 'on' && (
