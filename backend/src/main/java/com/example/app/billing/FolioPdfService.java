@@ -245,7 +245,7 @@ public class FolioPdfService {
         values.put("companyTaxId", req.getCompanyTaxId());
         values.put("folioNumber", req.getFolioNumber());
         values.put("folioDate", formatDateValue(req.getFolioDate(), "DD.MM.YYYY"));
-        values.put("folioIssueTimePlace", formatIssueTimePlace(req.getFolioDate(), req.getCompanyCity()));
+        values.put("folioIssueTimePlace", formatIssueTimePlace(req.getFolioDate(), firstNonBlank(req.getIssueCity(), req.getCompanyCity())));
         values.put("dateOfService", req.getDateOfService());
         values.put("dueDate", req.getDueDate());
         values.put("fiscalZoi", req.getFiscalZoi());
@@ -1258,6 +1258,7 @@ public class FolioPdfService {
         boolean notesVisible = isFooterVisible(layout, "notes", true);
         boolean issuedByVisible = isFooterVisible(layout, "issuedBy", true);
         boolean signatureVisible = layout.getSignature() == null || layout.getSignature().isVisible();
+        boolean vatBreakdownVisible = layout.getVatBreakdownTable() == null || layout.getVatBreakdownTable().isVisible();
 
         ensureField(layout, "folioIssueTimePlace", "document", "Time and place of issue", "Ura in kraj izdaje");
         ensureColumn(layout, "date", "Date", "Datum");
@@ -1462,6 +1463,7 @@ public class FolioPdfService {
         if (quantity != null) quantity.setVisible(quantityVisible);
         if (layout.getPaymentQr() != null) layout.getPaymentQr().setVisible(paymentQrVisible);
         if (layout.getFiscalQr() != null) layout.getFiscalQr().setVisible(fiscalQrVisible);
+        if (layout.getVatBreakdownTable() != null) layout.getVatBreakdownTable().setVisible(vatBreakdownVisible);
         FolioLayoutConfig.FooterItem notes = findFooter(layout, "notes");
         if (notes != null) notes.setVisible(notesVisible);
         FolioLayoutConfig.FooterItem issuedBy = findFooter(layout, "issuedBy");
@@ -1931,6 +1933,11 @@ public class FolioPdfService {
         };
     }
 
+    private static String firstNonBlank(String first, String second) {
+        String safeFirst = safe(first);
+        return safeFirst != null && !safeFirst.isBlank() ? safeFirst : safe(second);
+    }
+
     private static String formatIssueTimePlace(String raw, String city) {
         if (raw == null || raw.isBlank()) return safe(city);
         LocalDateTime parsedDateTime = parseDateTime(raw.trim());
@@ -1947,11 +1954,8 @@ public class FolioPdfService {
         } catch (DateTimeParseException ignored) {
             // continue
         }
-        try {
-            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDateTime();
-        } catch (DateTimeParseException ignored) {
-            // continue
-        }
+        // Preserve the local clock time supplied with an explicit offset. Invoice issue
+        // time is a legal/display value and must not be converted through the CI/server zone.
         try {
             return OffsetDateTime.parse(v).toLocalDateTime();
         } catch (DateTimeParseException ignored) {
@@ -1959,6 +1963,11 @@ public class FolioPdfService {
         }
         try {
             return ZonedDateTime.parse(v).toLocalDateTime();
+        } catch (DateTimeParseException ignored) {
+            // continue
+        }
+        try {
+            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDateTime();
         } catch (DateTimeParseException ignored) {
             // continue
         }
