@@ -15,9 +15,6 @@ type WaitlistSettings = {
   maxRequestedDateRangeDays: number;
   staffManualEntryEnabled: boolean;
   closeEquivalentAfterBooking: boolean;
-  notifyEmail: boolean;
-  notifySms: boolean;
-  notifyGuestApp: boolean;
 };
 
 const defaults: WaitlistSettings = {
@@ -33,9 +30,6 @@ const defaults: WaitlistSettings = {
   maxRequestedDateRangeDays: 30,
   staffManualEntryEnabled: true,
   closeEquivalentAfterBooking: true,
-  notifyEmail: true,
-  notifySms: false,
-  notifyGuestApp: true,
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -285,13 +279,6 @@ export function ConfigurationWaitlistSettingsSection() {
                 }
               />
             </label>
-          </div>
-
-          <div className="waitlist-settings-card">
-            <h4>Kanali obvestil</h4>
-            {switchRow("notifyEmail", "E-pošta", "Pošlji predloge iz Konfiguracija → Obvestila.", !value.enabled)}
-            {switchRow("notifySms", "SMS", "Pošlji SMS, ko je kanal na voljo in aktiven.", !value.enabled)}
-            {switchRow("notifyGuestApp", "Aplikacija za goste", "Pošlji potisno obvestilo in zapis v aplikaciji.", !value.enabled)}
           </div>
 
           <div className="waitlist-settings-card waitlist-settings-info">

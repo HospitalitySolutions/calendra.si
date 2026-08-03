@@ -13608,42 +13608,6 @@ export function ConfigurationPage() {
                                 </span>
                               </div>
                             </div>
-                            <GuestField
-                              label="Varnostni čas pred terminom"
-                              hint="Dodatni čas pred začetkom termina za pripravo storitve."
-                            >
-                              <input
-                                className="gapp-input"
-                                value={`${guestBookingRules.bufferBeforeMinutes} min`}
-                                onChange={(e) =>
-                                  setGuestBookingRules({
-                                    ...guestBookingRules,
-                                    bufferBeforeMinutes: e.target.value.replace(
-                                      /[^0-9]/g,
-                                      "",
-                                    ),
-                                  })
-                                }
-                              />
-                            </GuestField>
-                            <GuestField
-                              label="Varnostni čas po terminu"
-                              hint="Dodatni čas po koncu termina za zaključek in čiščenje."
-                            >
-                              <input
-                                className="gapp-input"
-                                value={`${guestBookingRules.bufferAfterMinutes} min`}
-                                onChange={(e) =>
-                                  setGuestBookingRules({
-                                    ...guestBookingRules,
-                                    bufferAfterMinutes: e.target.value.replace(
-                                      /[^0-9]/g,
-                                      "",
-                                    ),
-                                  })
-                                }
-                              />
-                            </GuestField>
                           </div>
                           <div className="gapp-column">
                             <GuestField

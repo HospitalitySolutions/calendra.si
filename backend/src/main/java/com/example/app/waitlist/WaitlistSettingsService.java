@@ -31,10 +31,7 @@ public class WaitlistSettingsService {
             int maxActiveRequestsPerGuest,
             int maxRequestedDateRangeDays,
             boolean staffManualEntryEnabled,
-            boolean closeEquivalentAfterBooking,
-            boolean notifyEmail,
-            boolean notifySms,
-            boolean notifyGuestApp
+            boolean closeEquivalentAfterBooking
     ) {}
 
     public WaitlistSettings get(Long companyId) {
@@ -55,10 +52,7 @@ public class WaitlistSettingsService {
                     integer(node, "maxActiveRequestsPerGuest", 5, 1, 100),
                     integer(node, "maxRequestedDateRangeDays", 30, 1, 365),
                     bool(node, "staffManualEntryEnabled", true),
-                    bool(node, "closeEquivalentAfterBooking", true),
-                    bool(node, "notifyEmail", true),
-                    bool(node, "notifySms", false),
-                    bool(node, "notifyGuestApp", true)
+                    bool(node, "closeEquivalentAfterBooking", true)
             );
         } catch (Exception ignored) {
             return defaults();
@@ -74,8 +68,7 @@ public class WaitlistSettingsService {
                     bool(node, "exactTimeEnabled", true), bool(node, "flexibleWindowsEnabled", true), bool(node, "employeePreferenceEnabled", true),
                     bool(node, "autoOfferEnabled", false), integer(node, "offerValidityMinutes", 15, 5, 1440),
                     integer(node, "maxActiveRequestsPerGuest", 5, 1, 100), integer(node, "maxRequestedDateRangeDays", 30, 1, 365),
-                    bool(node, "staffManualEntryEnabled", true), bool(node, "closeEquivalentAfterBooking", true),
-                    bool(node, "notifyEmail", true), bool(node, "notifySms", false), bool(node, "notifyGuestApp", true));
+                    bool(node, "staffManualEntryEnabled", true), bool(node, "closeEquivalentAfterBooking", true));
         } catch (Exception ignored) {
             value = defaults();
         }
@@ -93,9 +86,6 @@ public class WaitlistSettingsService {
             node.put("maxRequestedDateRangeDays", value.maxRequestedDateRangeDays());
             node.put("staffManualEntryEnabled", value.staffManualEntryEnabled());
             node.put("closeEquivalentAfterBooking", value.closeEquivalentAfterBooking());
-            node.put("notifyEmail", value.notifyEmail());
-            node.put("notifySms", value.notifySms());
-            node.put("notifyGuestApp", value.notifyGuestApp());
             return json.writeValueAsString(node);
         } catch (Exception ignored) {
             return "{}";
@@ -103,7 +93,7 @@ public class WaitlistSettingsService {
     }
 
     private static WaitlistSettings defaults() {
-        return new WaitlistSettings(true, true, true, true, true, true, false, 15, 5, 30, true, true, true, false, true);
+        return new WaitlistSettings(true, true, true, true, true, true, false, 15, 5, 30, true, true);
     }
 
     private static boolean bool(JsonNode node, String key, boolean fallback) {

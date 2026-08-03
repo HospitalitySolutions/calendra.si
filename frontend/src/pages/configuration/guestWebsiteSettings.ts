@@ -55,8 +55,6 @@ export type GuestBookingRulesForm = {
   cancellationEnabled: boolean;
   freeCancelUntilHours: string;
   autoConfirmReservation: boolean;
-  bufferBeforeMinutes: string;
-  bufferAfterMinutes: string;
   paymentRequirement: "none" | "deposit" | "full";
   depositPercent: string;
   noShowPolicy: string;
@@ -305,8 +303,6 @@ export const defaultGuestBookingRules = (): GuestBookingRulesForm => ({
   cancellationEnabled: true,
   freeCancelUntilHours: "24",
   autoConfirmReservation: true,
-  bufferBeforeMinutes: "15",
-  bufferAfterMinutes: "10",
   paymentRequirement: "full",
   depositPercent: "20",
   noShowPolicy: "charge_deposit",
@@ -738,8 +734,6 @@ export const parseGuestBookingRules = (
         parsed?.freeCancelUntilHours ?? parsed?.cancelUntilHours ?? 24,
       ),
       autoConfirmReservation: parsed?.autoConfirmReservation !== false,
-      bufferBeforeMinutes: String(parsed?.bufferBeforeMinutes ?? 15),
-      bufferAfterMinutes: String(parsed?.bufferAfterMinutes ?? 10),
       paymentRequirement:
         parsed?.paymentRequirement === "none" ||
         parsed?.paymentRequirement === "deposit"
@@ -954,8 +948,6 @@ export const serializeGuestBookingRules = (value: GuestBookingRulesForm) =>
     cancellationEnabled: value.cancellationEnabled,
     freeCancelUntilHours: value.freeCancelUntilHours.trim(),
     autoConfirmReservation: value.autoConfirmReservation,
-    bufferBeforeMinutes: value.bufferBeforeMinutes.trim(),
-    bufferAfterMinutes: value.bufferAfterMinutes.trim(),
     paymentRequirement: value.paymentRequirement,
     depositPercent: value.depositPercent.trim(),
     noShowPolicy: value.noShowPolicy,
