@@ -106,6 +106,25 @@ public class BillFolioPdfService {
         return folioPdfService.generate(req, loadFolioLayout(companyId), loadLogoBytes(companyId), loadSignatureBytes(companyId));
     }
 
+    /**
+     * Render an A4 folio with a caller supplied layout. This is used by the
+     * layout editor so unsaved changes can be previewed with the exact same
+     * PDF renderer, company logo and signature as a real issued invoice.
+     */
+    public byte[] generateWithLayout(FolioPdfRequest req, FolioLayoutConfig layout, Long companyId, String locale) {
+        if (req == null) throw new IllegalArgumentException("FolioPdfRequest is required");
+        if (layout == null) throw new IllegalArgumentException("FolioLayoutConfig is required");
+        String effectiveLocale = locale == null || locale.isBlank() ? req.getLocale() : locale;
+        req.setLocale(effectiveLocale);
+        return folioPdfService.generate(
+                req,
+                layout,
+                loadLogoBytes(companyId),
+                loadSignatureBytes(companyId),
+                effectiveLocale
+        );
+    }
+
     public static final String BANK_TRANSFER_QR_SETTINGS_MISSING_CODE = "BANK_TRANSFER_QR_SETTINGS_MISSING";
 
     public List<String> missingOwnBankTransferSettingKeys(Long companyId) {

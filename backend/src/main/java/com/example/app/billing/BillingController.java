@@ -34,6 +34,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.PageRequest;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -54,7 +56,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.imageio.ImageIO;
 import org.hibernate.Hibernate;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -4905,6 +4912,43 @@ public class BillingController {
                         "inline; filename=\"" + prefix + filename + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    /**
+     * Pixel-accurate first-page preview for the A4 layout editor. The editor
+     * sends its current (possibly unsaved) layout and receives a PNG rendered
+     * from the very same PDF pipeline used for issued invoices.
+     */
+    @PostMapping(value = "/folio-layout/preview", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> previewFolioLayout(@RequestBody FolioLayoutPreviewRequest request,
+                                                     @RequestParam(value = "locale", required = false) String locale,
+                                                     @AuthenticationPrincipal User me) {
+        if (request == null || request.layout() == null || request.invoice() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Layout and invoice preview data are required.");
+        }
+
+        byte[] pdf = billFolioPdfService.generateWithLayout(
+                request.invoice(),
+                request.layout(),
+                me.getCompany().getId(),
+                locale
+        );
+
+        try (PDDocument document = Loader.loadPDF(pdf);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            if (document.getNumberOfPages() == 0) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Generated preview has no pages.");
+            }
+            BufferedImage image = new PDFRenderer(document).renderImageWithDPI(0, 135, ImageType.RGB);
+            ImageIO.write(image, "png", out);
+            return ResponseEntity.ok()
+                    .cacheControl(org.springframework.http.CacheControl.noStore())
+                    .contentType(MediaType.IMAGE_PNG)
+                    .body(out.toByteArray());
+        } catch (IOException e) {
+            log.error("Unable to render A4 folio layout preview for company={}", me.getCompany().getId(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to render invoice preview.", e);
+        }
     }
 
     /* ── Folio layout config management ── */

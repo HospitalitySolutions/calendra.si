@@ -987,3 +987,11 @@
 @media(max-width:700px){
   .fle-a4-preview-page{padding:18px 16px 16px;gap:6px 8px;font-size:7px}
 }
+
+/* The A4 settings preview is rendered by the backend from the same PDF
+   pipeline as issued invoices. This keeps the on-screen preview pixel-accurate. */
+.fle-a4-preview-shell{position:relative;min-height:240px}
+.fle-a4-rendered-preview{display:block;width:min(100%,620px);height:auto;aspect-ratio:210/297;object-fit:contain;background:#fff;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+.fle-a4-preview-placeholder{width:min(100%,620px);aspect-ratio:210/297;display:grid;place-items:center;background:#fff;color:#64748b;font-weight:700;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+.fle-a4-preview-refreshing{position:absolute;top:30px;right:30px;width:30px;height:30px;border-radius:999px;display:grid;place-items:center;background:rgba(15,23,42,.76);color:#fff;font-weight:800;box-shadow:0 4px 12px rgba(15,23,42,.24)}
+.fle-a4-preview-error{position:absolute;left:30px;right:30px;bottom:30px;padding:9px 12px;border-radius:9px;background:rgba(127,29,29,.92);color:#fff;font-size:12px;text-align:center}

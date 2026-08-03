@@ -153,6 +153,42 @@ class FolioPdfServiceTest {
         }
     }
 
+
+    @Test
+    void generate_minimalTemplateUsesConfiguredReferenceAndEuropeanDates() throws Exception {
+        FolioPdfService service = new FolioPdfService();
+        FolioPdfRequest request = new FolioPdfRequest();
+        request.setCompanyName("Test d.o.o.");
+        request.setCompanyCity("Ljubljana");
+        request.setIssueCity("Maribor");
+        request.setRecipientName("Prejemnik");
+        request.setFolioNumber("44");
+        request.setFolioDate("2026-08-02T23:08:00+02:00");
+        request.setDateOfService("2026-08-02");
+        request.setDueDate("2026-08-17");
+        request.setNotes("REF-2026-001");
+        request.setToBePaidGross(new BigDecimal("12.20"));
+        request.setLocale("sl");
+        request.setServices(List.of(serviceLine("Svetovanje", "12.20")));
+
+        FolioLayoutConfig layout = FolioLayoutConfig.defaultLayout();
+        layout.setTemplateId("MINIMAL");
+        layout.setFontSizePreset("LARGE");
+        layout.setReferenceText("Prosimo, da se pri plačilu sklicujete na št.: {reference-number}");
+
+        byte[] pdf = service.generate(request, layout);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(text)
+                    .contains("02.08.2026")
+                    .contains("17.08.2026")
+                    .contains("23:08, Maribor")
+                    .contains("Prosimo, da se pri plačilu sklicujete na št.: REF-2026-001")
+                    .doesNotContain("2026-08-17");
+        }
+    }
+
     private static FolioPdfRequest.ServiceLine serviceLine(String description, String totalGross) {
         return serviceLine(description, "10.00", totalGross, "22%", "2.20");
     }
