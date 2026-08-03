@@ -2601,6 +2601,7 @@ export function ConfigurationPage() {
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
+    if (tabId === "website") return false;
     if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "customFields" || tabId === "integrations")
       return true;
     if (!settingsLoaded) return false;
@@ -2612,11 +2613,14 @@ export function ConfigurationPage() {
     if (tabId === "viber")
       return inboxCapabilitiesLoaded && inboxGlobalCapabilities.viberEnabled;
     if (tabId === "guestApp") return guestAppEnabledCommitted;
-    if (tabId === "website") return websiteWidgetEnabledCommitted;
     return true;
   };
 
   const getUnavailableConfigTabFallback = (tabId: Tab): Tab => {
+    if (tabId === "website") {
+      if (isConfigTabAvailable("billing")) return "billing";
+      if (isConfigTabAvailable("modules")) return "modules";
+    }
     if ((tabId === "billing" || tabId === "booking") && isConfigTabAvailable("modules")) return "modules";
     return firstAvailableConfigTab();
   };
@@ -2711,7 +2715,14 @@ export function ConfigurationPage() {
       subtabQuery === "giftCard" ||
       subtabQuery === "folioLayout"
     ) {
-      if (subtabQuery === "stripe" && !stripePaymentsAvailableCommitted) {
+      if (subtabQuery === "settings") {
+        setBillingSubtab("paymentMethods");
+        if (q === "billing") {
+          navigate("/configuration?tab=billing&subtab=paymentMethods", {
+            replace: true,
+          });
+        }
+      } else if (subtabQuery === "stripe" && !stripePaymentsAvailableCommitted) {
         setBillingSubtab("paymentMethods");
         if (q === "billing")
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
@@ -3256,7 +3267,6 @@ export function ConfigurationPage() {
       { id: "booking", icon: "booking" },
       { id: "billing", icon: "billing" },
       { id: "guestApp", icon: "guestApp" },
-      { id: "website", icon: "website" },
       { id: "notifications", icon: "notifications" },
       { id: "reservationRules", icon: "reservationRules" },
       { id: "customFields", icon: "customFields" },
@@ -4760,7 +4770,6 @@ export function ConfigurationPage() {
   };
 
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
-    { id: "settings", label: t("configBillingSettingsTab") },
     { id: "paymentMethods", label: t("configBillingPaymentMethodsTab") },
     ...(stripePaymentsAvailableCommitted
       ? [
@@ -5458,6 +5467,7 @@ export function ConfigurationPage() {
                       [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: event.target.value,
                     })
                   }
+                  disabled={!moduleOn("BILLING_ENABLED")}
                   aria-label={
                     locale === "sl"
                       ? "Privzeta oblika tiskanja"
@@ -5476,6 +5486,81 @@ export function ConfigurationPage() {
                         : "Always ask"}
                   </option>
                 </select>
+              ),
+            },
+            {
+              id: "billing-invoice-counter",
+              icon: "invoice",
+              title:
+                locale === "sl"
+                  ? "Števec računov"
+                  : locale === "sr"
+                    ? "Brojač računa"
+                    : "Invoice counter",
+              subtitle:
+                locale === "sl"
+                  ? "Naslednja številka računa. Podpira tudi alfanumerične predpone, npr. I, II ali NV-0001."
+                  : locale === "sr"
+                    ? "Sledeći broj računa. Podržava i alfanumeričke prefikse, na primer I, II ili NV-0001."
+                    : "The next invoice number to use. Supports alphanumeric prefixes such as I, II or INV-0001.",
+              valueControl: (
+                <input
+                  className="modules-design-inline-control"
+                  value={settings.INVOICE_COUNTER ?? ""}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      INVOICE_COUNTER: event.target.value,
+                    })
+                  }
+                  disabled={!moduleOn("BILLING_ENABLED")}
+                  aria-label={
+                    locale === "sl"
+                      ? "Števec računov"
+                      : locale === "sr"
+                        ? "Brojač računa"
+                        : "Invoice counter"
+                  }
+                />
+              ),
+            },
+            {
+              id: "billing-payment-deadline-days",
+              icon: "invoice",
+              title:
+                locale === "sl"
+                  ? "Rok plačila (dni)"
+                  : locale === "sr"
+                    ? "Rok plaćanja (dani)"
+                    : "Payment deadline (days)",
+              subtitle:
+                locale === "sl"
+                  ? "Rok zapadlosti je datum računa + to število dni."
+                  : locale === "sr"
+                    ? "Datum dospeća je datum računa + ovaj broj dana."
+                    : "Due date is invoice date + this number of days.",
+              valueControl: (
+                <input
+                  className="modules-design-inline-control"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={settings.PAYMENT_DEADLINE_DAYS ?? ""}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      PAYMENT_DEADLINE_DAYS: event.target.value,
+                    })
+                  }
+                  disabled={!moduleOn("BILLING_ENABLED")}
+                  aria-label={
+                    locale === "sl"
+                      ? "Rok plačila v dneh"
+                      : locale === "sr"
+                        ? "Rok plaćanja u danima"
+                        : "Payment deadline in days"
+                  }
+                />
               ),
             },
           ],
