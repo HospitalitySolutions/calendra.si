@@ -3925,7 +3925,7 @@ public class BillingController {
         byte[] zip = buildBillsPdfZip(bills, companyId, locale, printFormat);
         String filename = "invoice-export-" + LocalDate.now() + ".zip";
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename="" + filename + """)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("application/zip"))
                 .body(zip);
     }
@@ -3940,7 +3940,7 @@ public class BillingController {
         byte[] excel = buildBillsExcelExport(bills, locale);
         String filename = "invoice-export-" + LocalDate.now() + ".xls";
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename="" + filename + """)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
                 .body(excel);
     }
@@ -3997,7 +3997,7 @@ public class BillingController {
         String refundReferenceLabel = sl ? "Sklic vračila" : "Refund reference";
         String bankReferenceLabel = sl ? "Referenca" : "Reference";
         StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset="utf-8" />")
+        html.append("<!DOCTYPE html><html><head><meta charset=\"utf-8\" />")
                 .append("<style>")
                 .append("body{font-family:Arial,sans-serif;font-size:12px;color:#0f172a;}table{border-collapse:collapse;width:100%;}")
                 .append("th,td{border:1px solid #d7dee8;padding:6px 8px;vertical-align:top;}th{background:#eaf2ff;font-weight:700;}")
@@ -4070,7 +4070,7 @@ public class BillingController {
         return value.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
-                .replace(""", "&quot;");
+                .replace("\"", "&quot;");
     }
 
     private String exportBillTypeLabelSl(String billType) {
