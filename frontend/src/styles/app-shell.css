@@ -3131,3 +3131,128 @@ a.credentials-popover-action-btn {
         height: 17px;
     }
 }
+
+/* Inbox mobile/tablet shell: full-bleed page with the same blue title row used by Clients. */
+.app-header-inbox-title {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .layout:has(> .main-area--inbox) {
+        grid-template-columns: 1fr;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: hidden;
+    }
+
+    .layout:has(> .main-area--inbox) > .sidebar-shell {
+        display: none !important;
+    }
+
+    .main-area.main-area--inbox {
+        min-width: 0;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: hidden;
+        background: #f8fafc;
+    }
+
+    .app-header.app-header--inbox {
+        position: relative;
+        z-index: 40;
+        flex: 0 0 auto;
+        min-height: 68px;
+        box-sizing: border-box;
+        padding: max(10px, env(safe-area-inset-top)) 18px 10px;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border-bottom: 0;
+        box-shadow: none;
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .app-header.app-header--inbox {
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        border-bottom: 0;
+    }
+
+    .app-header--inbox .app-header-mobile-leading {
+        min-width: 0;
+    }
+
+    .app-header--inbox .app-header-mobile-nav-trigger {
+        display: inline-flex;
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .app-header--inbox .app-header-mobile-nav-trigger:hover,
+    .app-header--inbox .app-header-mobile-nav-trigger:active {
+        background: rgba(255, 255, 255, 0.10);
+        filter: none;
+    }
+
+    .app-header--inbox .app-header-brand,
+    .app-header--inbox .config-cog-wrap,
+    .app-header--inbox .header-credentials-wrap,
+    .app-header--inbox .calendar-voice-fab--header-toolbar {
+        display: none !important;
+    }
+
+    .app-header--inbox .app-header-inbox-title {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + (env(safe-area-inset-top) / 4));
+        transform: translate(-50%, -50%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        max-width: calc(100% - 150px);
+        color: #ffffff;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .app-header--inbox .app-header-inbox-title strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 1.12rem;
+        line-height: 1;
+        font-weight: 850;
+        letter-spacing: -0.02em;
+    }
+
+    .app-header--inbox .header-actions {
+        margin-left: auto;
+        width: auto;
+        flex-wrap: nowrap;
+    }
+
+    .app-header--inbox .staff-notification-trigger {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        color: #ffffff;
+    }
+
+    .app-header--inbox .staff-notification-trigger:hover,
+    .app-header--inbox .staff-notification-trigger.active {
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+    }
+
+    .main-area--inbox > .content.content--inbox {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+        padding: 0;
+        background: #f8fafc;
+    }
+}

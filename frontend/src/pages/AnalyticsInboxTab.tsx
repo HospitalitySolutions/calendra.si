@@ -466,6 +466,65 @@ function channelIcon(channel: InboxChannel) {
   return '✉'
 }
 
+type InboxMobileIconName = 'search' | 'filter' | 'mail' | 'sms' | 'guest' | 'back' | 'info' | 'more' | 'paperclip' | 'calendar' | 'chevron' | 'close'
+
+function InboxMobileIcon({ name, size = 20 }: { name: InboxMobileIconName; size?: number }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'search') return <svg {...common}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.4-3.4" /></svg>
+  if (name === 'filter') return <svg {...common}><path d="M4 5h16l-6.2 7.1v5.4l-3.6 1.8v-7.2z" /></svg>
+  if (name === 'mail') return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+  if (name === 'sms') return <svg {...common}><path d="M21 13a6 6 0 0 1-6 6H8l-5 3 1.5-5A8 8 0 1 1 21 13Z" /><path d="M8 12h.01M12 12h.01M16 12h.01" /></svg>
+  if (name === 'guest') return <svg {...common}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9" /></svg>
+  if (name === 'back') return <svg {...common}><path d="m15 18-6-6 6-6" /></svg>
+  if (name === 'info') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+  if (name === 'more') return <svg {...common}><circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" /></svg>
+  if (name === 'paperclip') return <svg {...common}><path d="m21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 1 1-2.8-2.8l8.5-8.5" /></svg>
+  if (name === 'calendar') return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></svg>
+  if (name === 'chevron') return <svg {...common}><path d="m9 18 6-6-6-6" /></svg>
+  if (name === 'close') return <svg {...common}><path d="m6 6 12 12M18 6 6 18" /></svg>
+  return null
+}
+
+function inboxMobileChannelIcon(channel: InboxChannel) {
+  if (channel === 'SMS' || channel === 'WHATSAPP' || channel === 'VIBER') return 'sms' as const
+  if (channel === 'GUEST_APP') return 'guest' as const
+  return 'mail' as const
+}
+
+function inboxMobileChannelClass(channel: InboxChannel) {
+  if (channel === 'SMS' || channel === 'WHATSAPP') return 'sms'
+  if (channel === 'VIBER') return 'viber'
+  if (channel === 'GUEST_APP') return 'guest'
+  return 'email'
+}
+
+function compactInboxDate(value?: string | null, locale = 'sl') {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-RS' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date)
+}
+
+function compactInboxTime(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date)
+}
+
 function deliveryRateFromThreads(threads: InboxThread[]) {
   if (!threads.length) return '0%'
   const delivered = threads.filter((thread) => thread.lastStatus === 'DELIVERED' || thread.lastStatus === 'READ').length
@@ -724,6 +783,15 @@ export function AnalyticsInboxTab() {
   const [savingNote, setSavingNote] = useState(false)
   const [savingAssignee, setSavingAssignee] = useState(false)
   const [assigneeFilter, setAssigneeFilter] = useState<number | ''>('')
+  const [isCompactInbox, setIsCompactInbox] = useState(
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
+  )
+  const [mobileConversationOpen, setMobileConversationOpen] = useState(false)
+  const [mobileComposeNew, setMobileComposeNew] = useState(false)
+  const [mobileNewMenuOpen, setMobileNewMenuOpen] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [mobileScheduleOpen, setMobileScheduleOpen] = useState(false)
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
 
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
@@ -745,6 +813,24 @@ export function AnalyticsInboxTab() {
   const composeAttachmentsRef = useRef<ComposeAttachmentItem[]>([])
   const selectedClientIdRef = useRef<number | null>(null)
   const previousSelectedClientIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1024px)')
+    const sync = () => setIsCompactInbox(media.matches)
+    sync()
+    media.addEventListener('change', sync)
+    return () => media.removeEventListener('change', sync)
+  }, [])
+
+  useEffect(() => {
+    if (isCompactInbox) return
+    setMobileConversationOpen(false)
+    setMobileComposeNew(false)
+    setMobileNewMenuOpen(false)
+    setMobileFiltersOpen(false)
+    setMobileScheduleOpen(false)
+    setMobileMoreOpen(false)
+  }, [isCompactInbox])
 
   const clientsQuery = useQuery<Client[]>({
     queryKey: ['inbox-clients'],
@@ -843,6 +929,7 @@ export function AnalyticsInboxTab() {
   }, [threadsQuery.data, selectedClientId, selectedThreadKey])
 
   useEffect(() => {
+    if (isCompactInbox && mobileComposeNew) return
     const rows = threadsQuery.data ?? []
     if (!rows.length) {
       if (selectedClientId == null && clientIdFilter) setSelectedClientId(Number(clientIdFilter))
@@ -861,11 +948,12 @@ export function AnalyticsInboxTab() {
       return
     }
     if (selectedClientId !== selected.clientId) setSelectedClientId(selected.clientId)
-  }, [threadsQuery.data, selectedThreadKey, selectedClientId, clientIdFilter])
+  }, [threadsQuery.data, selectedThreadKey, selectedClientId, clientIdFilter, isCompactInbox, mobileComposeNew])
 
   useEffect(() => {
+    if (isCompactInbox && mobileComposeNew) return
     if (recipientMode === 'single' && selectedThread?.lastChannel) setComposeChannel(selectedThread.lastChannel)
-  }, [selectedThread?.lastChannel, recipientMode])
+  }, [selectedThread?.lastChannel, recipientMode, isCompactInbox, mobileComposeNew])
 
   useEffect(() => {
     composeAttachmentsRef.current = composeAttachments
@@ -1632,9 +1720,123 @@ export function AnalyticsInboxTab() {
     { id: 'closed' as const, label: ui.closed, count: threads.filter((thread) => thread.closed).length, icon: '✓' },
   ]
 
+  const mobileCopy = locale === 'sl'
+    ? {
+        all: 'Vse',
+        unread: 'Neprebrano',
+        starred: 'Označeno',
+        filters: 'Filtri',
+        new: 'Novo',
+        newMessage: 'Novo sporočilo',
+        chooseChannel: 'Izberite kanal, s katerim želite začeti.',
+        emailDescription: 'Pošljite sporočilo po e-pošti',
+        smsDescription: 'Pošljite sporočilo SMS',
+        guestDescription: 'Pošljite sporočilo v Guest App',
+        recipient: 'Prejemnik',
+        selectRecipient: 'Izberite prejemnika',
+        conversationInfo: 'Podrobnosti pogovora',
+        backToInbox: 'Nazaj na prejeta sporočila',
+        closeFilters: 'Zapri filtre',
+        clearFilters: 'Počisti filtre',
+        scheduleDescription: 'Načrtujte pošiljanje sporočila ob pravem času.',
+        noPreview: 'Brez vsebine sporočila',
+      }
+    : locale === 'sr'
+      ? {
+          all: 'Sve',
+          unread: 'Nepročitano',
+          starred: 'Označeno',
+          filters: 'Filteri',
+          new: 'Novo',
+          newMessage: 'Nova poruka',
+          chooseChannel: 'Izaberite kanal kojim želite da započnete.',
+          emailDescription: 'Pošaljite poruku e-poštom',
+          smsDescription: 'Pošaljite SMS poruku',
+          guestDescription: 'Pošaljite poruku u Guest App',
+          recipient: 'Primalac',
+          selectRecipient: 'Izaberite primaoca',
+          conversationInfo: 'Detalji razgovora',
+          backToInbox: 'Nazad na primljene poruke',
+          closeFilters: 'Zatvori filtere',
+          clearFilters: 'Očisti filtere',
+          scheduleDescription: 'Planirajte slanje poruke u pravo vreme.',
+          noPreview: 'Bez sadržaja poruke',
+        }
+      : {
+          all: 'All',
+          unread: 'Unread',
+          starred: 'Starred',
+          filters: 'Filters',
+          new: 'New',
+          newMessage: 'New message',
+          chooseChannel: 'Choose the channel you want to start with.',
+          emailDescription: 'Send an email message',
+          smsDescription: 'Send an SMS message',
+          guestDescription: 'Send a message in Guest App',
+          recipient: 'Recipient',
+          selectRecipient: 'Select a recipient',
+          conversationInfo: 'Conversation details',
+          backToInbox: 'Back to inbox',
+          closeFilters: 'Close filters',
+          clearFilters: 'Clear filters',
+          scheduleDescription: 'Schedule the message to be sent at the right time.',
+          noPreview: 'No message content',
+        }
+
+  const compactFolderTabs = [
+    { id: 'inbox' as const, label: mobileCopy.all, count: folderRows[0].count },
+    { id: 'unread' as const, label: mobileCopy.unread, count: folderRows[1].count },
+    { id: 'starred' as const, label: mobileCopy.starred, count: folderRows[2].count },
+  ]
+
+  const clearMobileFilters = () => {
+    setClientIdFilter('')
+    setChannelFilter('')
+    setStatusFilter('')
+    setAssigneeFilter('')
+    setFrom('')
+    setTo('')
+  }
+
+  const openMobileNewMessage = (channel: InboxChannel) => {
+    setRecipientMode('single')
+    setComposeChannel(channel)
+    setComposeSubject('')
+    setComposeBody('')
+    setComposeAttachments([])
+    setComposerTab('reply')
+    setSelectedClientId(null)
+    setSelectedThreadKey(null)
+    setScheduleDraftClientId(null)
+    setScheduleDraftChannel(channel)
+    setScheduleDraftSubject('')
+    setScheduleDraftBody('')
+    setMobileNewMenuOpen(false)
+    setMobileFiltersOpen(false)
+    setMobileScheduleOpen(false)
+    setMobileMoreOpen(false)
+    setMobileComposeNew(true)
+    setMobileConversationOpen(true)
+  }
+
+  const closeMobileConversation = () => {
+    setMobileConversationOpen(false)
+    setMobileComposeNew(false)
+    setMobileScheduleOpen(false)
+    setMobileMoreOpen(false)
+  }
+
   const selectThread = (thread: InboxThread) => {
     setSelectedClientId(thread.clientId)
     setSelectedThreadKey(inboxThreadKey(thread))
+    if (isCompactInbox) {
+      setMobileComposeNew(false)
+      setMobileNewMenuOpen(false)
+      setMobileFiltersOpen(false)
+      setMobileScheduleOpen(false)
+      setMobileMoreOpen(false)
+      setMobileConversationOpen(true)
+    }
   }
 
   const openClientDetailsPopup = () => {
@@ -1717,6 +1919,391 @@ export function AnalyticsInboxTab() {
         <span>{channelIcon(channel)}</span>
         {channelLabel(channel)}
       </button>
+    )
+  }
+
+  if (isCompactInbox) {
+    const mobileFilterCount = [clientIdFilter, channelFilter, statusFilter, assigneeFilter, from, to].filter(Boolean).length
+    const firstMessageDate = recentMessages.find((message) => message.sentAt || message.createdAt)?.sentAt
+      || recentMessages.find((message) => message.sentAt || message.createdAt)?.createdAt
+    const mobileDateLabel = firstMessageDate
+      ? new Intl.DateTimeFormat(locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-RS' : 'en-GB', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        }).format(new Date(firstMessageDate))
+      : ''
+    const mobileHeaderTitle = mobileComposeNew ? mobileCopy.newMessage : selectedClientName
+    const mobileHeaderSubtitle = mobileComposeNew
+      ? channelLabel(composeChannel)
+      : `${channelLabel(selectedThread?.lastChannel || composeChannel)} · ${conversationId.replace('#CON-', 'ID: ')}`
+
+    return (
+      <div
+        className={`analytics-inbox-mobile${mobileConversationOpen ? ' analytics-inbox-mobile--conversation' : ' analytics-inbox-mobile--list'}`}
+        data-onboarding-panel="inbox"
+      >
+        {!mobileConversationOpen ? (
+          <>
+            <nav className="analytics-inbox-mobile-tabs" aria-label={locale === 'sl' ? 'Filtri prejetih sporočil' : 'Inbox folders'}>
+              {compactFolderTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={folder === tab.id ? 'active' : ''}
+                  aria-current={folder === tab.id ? 'page' : undefined}
+                  onClick={() => {
+                    setFolder(tab.id)
+                    setMobileNewMenuOpen(false)
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  {tab.count > 0 ? <strong>{tab.count}</strong> : null}
+                </button>
+              ))}
+            </nav>
+
+            <section className="analytics-inbox-mobile-list-page">
+              <div className="analytics-inbox-mobile-search-row">
+                <label className="analytics-inbox-mobile-search">
+                  <InboxMobileIcon name="search" size={23} />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={ui.search} />
+                </label>
+                <button
+                  type="button"
+                  className={`analytics-inbox-mobile-filter-button${mobileFiltersOpen ? ' active' : ''}`}
+                  onClick={() => {
+                    setMobileFiltersOpen((open) => !open)
+                    setMobileNewMenuOpen(false)
+                  }}
+                  aria-expanded={mobileFiltersOpen}
+                >
+                  <InboxMobileIcon name="filter" size={20} />
+                  <span>{mobileCopy.filters}</span>
+                  {mobileFilterCount > 0 ? <strong>{mobileFilterCount}</strong> : null}
+                </button>
+              </div>
+
+              {mobileFiltersOpen ? (
+                <div className="analytics-inbox-mobile-filter-panel">
+                  <div className="analytics-inbox-mobile-filter-panel-head">
+                    <strong>{mobileCopy.filters}</strong>
+                    <button type="button" onClick={() => setMobileFiltersOpen(false)} aria-label={mobileCopy.closeFilters}>
+                      <InboxMobileIcon name="close" size={19} />
+                    </button>
+                  </div>
+                  <div className="analytics-inbox-mobile-filter-grid">
+                    <label>{ui.allClients}
+                      <select value={clientIdFilter} onChange={(event) => setClientIdFilter(event.target.value)}>
+                        <option value="">{ui.allClients}</option>
+                        {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+                      </select>
+                    </label>
+                    <label>{ui.channel}
+                      <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value as '' | InboxChannel)}>
+                        <option value="">{ui.allChannels}</option>
+                        {availableChannels.map((channel) => <option key={channel} value={channel}>{channelLabel(channel)}</option>)}
+                      </select>
+                    </label>
+                    <label>{ui.allStatuses}
+                      <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as '' | InboxStatus)}>
+                        <option value="">{ui.allStatuses}</option>
+                        {statusOptions.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
+                      </select>
+                    </label>
+                    {isAdmin ? (
+                      <label>{ui.responsible}
+                        <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value ? Number(event.target.value) : '')}>
+                          <option value="">{ui.searchEmployee}</option>
+                          {(consultantsQuery.data ?? []).map((employee) => (
+                            <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    <label>{locale === 'sl' ? 'Od datuma' : 'From'}
+                      <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+                    </label>
+                    <label>{locale === 'sl' ? 'Do datuma' : 'To'}
+                      <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+                    </label>
+                  </div>
+                  <button type="button" className="analytics-inbox-mobile-clear-filters" onClick={clearMobileFilters}>{mobileCopy.clearFilters}</button>
+                </div>
+              ) : null}
+
+              <div className="analytics-inbox-mobile-thread-list">
+                {threadsQuery.isLoading ? (
+                  <div className="analytics-inbox-mobile-empty muted">{copy.loadingThread}</div>
+                ) : visibleThreads.length === 0 ? (
+                  <div className="analytics-inbox-mobile-empty"><EmptyState title={copy.noConversationsTitle} text={copy.noConversationsText} /></div>
+                ) : visibleThreads.map((thread) => {
+                  const threadKey = inboxThreadKey(thread)
+                  const unread = thread.unreadCount ?? 0
+                  const preview = thread.lastPreview || thread.lastSubject || mobileCopy.noPreview
+                  const channelClass = inboxMobileChannelClass(thread.lastChannel)
+                  return (
+                    <button type="button" key={threadKey} className={`analytics-inbox-mobile-thread${unread > 0 ? ' unread' : ''}`} onClick={() => selectThread(thread)}>
+                      <span className="analytics-inbox-mobile-unread-dot" aria-label={unread > 0 ? `${unread} ${mobileCopy.unread.toLowerCase()}` : undefined} />
+                      <span className="analytics-inbox-mobile-avatar">{initialsFromName(thread.clientFirstName, thread.clientLastName)}</span>
+                      <span className="analytics-inbox-mobile-thread-main">
+                        <strong>{threadClientName(thread)}</strong>
+                        <span>{preview}</span>
+                      </span>
+                      <span className="analytics-inbox-mobile-thread-side">
+                        <time>{compactInboxDate(thread.lastSentAt, locale)}</time>
+                        <span className={`analytics-inbox-mobile-channel analytics-inbox-mobile-channel--${channelClass}`}>
+                          <InboxMobileIcon name={inboxMobileChannelIcon(thread.lastChannel)} size={15} />
+                          {channelLabel(thread.lastChannel)}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
+            <button
+              type="button"
+              className="analytics-inbox-mobile-new-button"
+              onClick={() => {
+                setMobileNewMenuOpen((open) => !open)
+                setMobileFiltersOpen(false)
+              }}
+              aria-expanded={mobileNewMenuOpen}
+            >
+              <span>＋</span>{mobileCopy.new}
+            </button>
+
+            {mobileNewMenuOpen ? (
+              <div className="analytics-inbox-mobile-sheet-backdrop" onClick={() => setMobileNewMenuOpen(false)}>
+                <div className="analytics-inbox-mobile-new-sheet" role="dialog" aria-modal="true" aria-label={mobileCopy.newMessage} onClick={(event) => event.stopPropagation()}>
+                  <span className="analytics-inbox-mobile-sheet-handle" aria-hidden />
+                  <div className="analytics-inbox-mobile-sheet-heading">
+                    <div><h2>{mobileCopy.newMessage}</h2><p>{mobileCopy.chooseChannel}</p></div>
+                    <button type="button" onClick={() => setMobileNewMenuOpen(false)} aria-label={mobileCopy.closeFilters}><InboxMobileIcon name="close" size={20} /></button>
+                  </div>
+                  <div className="analytics-inbox-mobile-channel-options">
+                    {([
+                      { channel: 'EMAIL' as InboxChannel, description: mobileCopy.emailDescription },
+                      { channel: 'SMS' as InboxChannel, description: mobileCopy.smsDescription },
+                      { channel: 'GUEST_APP' as InboxChannel, description: mobileCopy.guestDescription },
+                    ]).map((option) => {
+                      const disabled = !availableChannels.includes(option.channel)
+                      const channelClass = inboxMobileChannelClass(option.channel)
+                      return (
+                        <button key={option.channel} type="button" disabled={disabled} onClick={() => openMobileNewMessage(option.channel)}>
+                          <span className={`analytics-inbox-mobile-channel-option-icon analytics-inbox-mobile-channel-option-icon--${channelClass}`}>
+                            <InboxMobileIcon name={inboxMobileChannelIcon(option.channel)} size={25} />
+                          </span>
+                          <span><strong>{channelLabel(option.channel)}</strong><small>{option.description}</small></span>
+                          <InboxMobileIcon name="chevron" size={20} />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <section className="analytics-inbox-mobile-conversation-page">
+            <header className="analytics-inbox-mobile-conversation-header">
+              <button type="button" className="analytics-inbox-mobile-back" onClick={closeMobileConversation} aria-label={mobileCopy.backToInbox}>
+                <InboxMobileIcon name="back" size={31} />
+              </button>
+              <span className="analytics-inbox-mobile-avatar analytics-inbox-mobile-avatar--header">{mobileComposeNew ? '＋' : selectedClientInitials}</span>
+              <div className="analytics-inbox-mobile-conversation-title">
+                <h1>{mobileHeaderTitle}</h1>
+                <p>{mobileHeaderSubtitle}</p>
+              </div>
+              <div className="analytics-inbox-mobile-conversation-actions">
+                <button type="button" disabled={selectedClientId == null} onClick={openClientDetailsPopup} aria-label={mobileCopy.conversationInfo}>
+                  <InboxMobileIcon name="info" size={22} />
+                </button>
+                <button type="button" disabled={selectedClientId == null} onClick={() => setMobileMoreOpen((open) => !open)} aria-label={locale === 'sl' ? 'Več možnosti' : 'More options'}>
+                  <InboxMobileIcon name="more" size={22} />
+                </button>
+              </div>
+              {mobileMoreOpen ? (
+                <div className="analytics-inbox-mobile-more-menu">
+                  <button type="button" disabled={savingStar} onClick={() => { void updateStarred(!selectedThread?.starred); setMobileMoreOpen(false) }}>
+                    <span>{selectedThread?.starred ? '★' : '☆'}</span>{mobileCopy.starred}
+                  </button>
+                  <button type="button" disabled={savingStatus || !!selectedThread?.closed} onClick={() => { void updateStatus(true); setMobileMoreOpen(false) }}>
+                    <span>✓</span>{ui.statusClosed}
+                  </button>
+                </div>
+              ) : null}
+            </header>
+
+            {mobileComposeNew ? (
+              <div className="analytics-inbox-mobile-new-compose-body">
+                <label className="analytics-inbox-mobile-recipient-field">
+                  <span>{mobileCopy.recipient}</span>
+                  <select
+                    value={selectedClientId ?? ''}
+                    onChange={(event) => {
+                      const nextId = event.target.value ? Number(event.target.value) : null
+                      selectClient(nextId)
+                      setScheduleDraftClientId(nextId)
+                    }}
+                  >
+                    <option value="">{mobileCopy.selectRecipient}</option>
+                    {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+                  </select>
+                </label>
+                <div className={`analytics-inbox-mobile-selected-channel analytics-inbox-mobile-selected-channel--${inboxMobileChannelClass(composeChannel)}`}>
+                  <InboxMobileIcon name={inboxMobileChannelIcon(composeChannel)} size={18} />
+                  <span>{channelLabel(composeChannel)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="analytics-inbox-mobile-messages">
+                {mobileDateLabel ? (
+                  <div className="analytics-inbox-mobile-date-divider"><span /><strong>{mobileDateLabel}</strong><span /></div>
+                ) : null}
+                {selectedClientId == null ? (
+                  <EmptyState title={copy.noClientSelectedTitle} text={copy.noClientSelectedText} />
+                ) : messagesQuery.isLoading ? (
+                  <div className="analytics-inbox-mobile-empty muted">{copy.loadingThread}</div>
+                ) : recentMessages.length === 0 ? (
+                  <EmptyState title={copy.noSavedMessagesTitle} text={copy.noSavedMessagesText} />
+                ) : recentMessages.map((message) => {
+                  const inbound = message.direction === 'INBOUND'
+                  const renderHtml = HTML_TAG_RE.test(message.body || '')
+                  const label = messageSenderLabel(message, copy) || (inbound ? selectedClientName : 'Admin')
+                  if (message.internalNote) {
+                    return (
+                      <div key={message.id} className="analytics-inbox-mobile-note">
+                        <strong>{ui.internalNote} · {label}</strong>
+                        {renderHtml ? <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.body || '') }} /> : <p>{message.body}</p>}
+                      </div>
+                    )
+                  }
+                  return (
+                    <article key={message.id} className={`analytics-inbox-mobile-message analytics-inbox-mobile-message--${inbound ? 'inbound' : 'outbound'}`}>
+                      {inbound ? <span className="analytics-inbox-mobile-message-avatar">{selectedClientInitials}</span> : null}
+                      <div className="analytics-inbox-mobile-bubble">
+                        <time>{compactInboxTime(message.sentAt || message.createdAt)}</time>
+                        {message.subject ? <strong className="analytics-inbox-mobile-bubble-subject">{message.subject}</strong> : null}
+                        {renderHtml ? (
+                          <div className="analytics-inbox-mobile-bubble-body" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.body || '') }} />
+                        ) : (
+                          <p className="analytics-inbox-mobile-bubble-body">{message.body}</p>
+                        )}
+                        {message.attachments?.length ? (
+                          <div className="analytics-inbox-mobile-message-attachments">
+                            {message.attachments.map((attachment) => (
+                              <AttachmentPreviewCard key={attachment.id} clientId={message.clientId} attachment={attachment} copy={copy} onDownload={downloadAttachment} />
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="analytics-inbox-mobile-bubble-footer">
+                          {!inbound ? <span className={`analytics-inbox-mobile-read-status${message.status === 'READ' ? ' read' : ''}`}>{statusLabel(message.status, copy)}</span> : null}
+                          <span><InboxMobileIcon name={inboxMobileChannelIcon(message.channel)} size={14} />{channelLabel(message.channel)}</span>
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="analytics-inbox-mobile-composer">
+              <div className="analytics-inbox-mobile-composer-tabs">
+                <button type="button" className={composerTab === 'reply' ? 'active' : ''} onClick={() => setComposerTab('reply')}>{ui.reply}</button>
+                <button type="button" className={composerTab === 'note' ? 'active' : ''} disabled={mobileComposeNew || selectedClientId == null} onClick={() => setComposerTab('note')}>{ui.internalNote}</button>
+              </div>
+              {composerTab === 'reply' ? (
+                <>
+                  {composeChannel === 'EMAIL' ? (
+                    <input className="analytics-inbox-mobile-subject" value={composeSubject} onChange={(event) => setComposeSubject(event.target.value)} placeholder={ui.subject} />
+                  ) : null}
+                  <textarea value={composeBody} onChange={(event) => setComposeBody(event.target.value)} placeholder={ui.writeReply} />
+                  {composeAttachments.length > 0 ? (
+                    <div className="analytics-inbox-mobile-compose-attachments">
+                      {composeAttachments.map((attachment) => (
+                        <ComposeAttachmentCard key={attachment.id} attachment={attachment} onRemove={() => removeComposeAttachment(attachment.id)} onRetry={() => void retryComposeAttachment(attachment.id)} copy={copy} />
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="analytics-inbox-mobile-composer-actions">
+                    <div>
+                      <label className={`analytics-inbox-mobile-composer-icon${canAttachFiles ? '' : ' disabled'}`} aria-label={ui.addAttachment}>
+                        <InboxMobileIcon name="paperclip" size={21} />
+                        {canAttachFiles ? <input type="file" multiple accept={ACCEPTED_ATTACHMENT_INPUT} onChange={(event) => { handleComposeAttachmentSelection(event.target.files); event.currentTarget.value = '' }} /> : null}
+                      </label>
+                      <button type="button" className={mobileScheduleOpen ? 'active' : ''} onClick={() => {
+                        setScheduleDraftClientId(selectedClientId)
+                        setScheduleDraftChannel(composeChannel)
+                        setMobileScheduleOpen((open) => !open)
+                      }} aria-label={ui.scheduleMessage}>
+                        <InboxMobileIcon name="calendar" size={21} />
+                      </button>
+                    </div>
+                    <button type="button" className="analytics-inbox-mobile-send" onClick={() => void sendMessage()} disabled={sending || !singleSendReady}>
+                      {sending ? copy.sending : ui.send}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} placeholder={ui.addNotePlaceholder} />
+                  <div className="analytics-inbox-mobile-composer-actions analytics-inbox-mobile-composer-actions--note">
+                    <span>{ui.internalNoteHint}</span>
+                    <button type="button" className="analytics-inbox-mobile-send" onClick={() => void addInternalNote()} disabled={savingNote || !selectedClientId || !richTextHasContent(noteBody)}>
+                      {savingNote ? copy.sending : ui.addNote}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <button type="button" className={`analytics-inbox-mobile-schedule-card${mobileScheduleOpen ? ' active' : ''}`} onClick={() => {
+                setScheduleDraftClientId(selectedClientId)
+                setScheduleDraftChannel(composeChannel)
+                setMobileScheduleOpen((open) => !open)
+              }}>
+                <span><InboxMobileIcon name="calendar" size={23} /></span>
+                <span><strong>{ui.scheduleMessage}</strong><small>{mobileCopy.scheduleDescription}</small></span>
+                <InboxMobileIcon name="chevron" size={21} />
+              </button>
+
+              {mobileScheduleOpen ? (
+                <div className="analytics-inbox-mobile-schedule-panel">
+                  <div className="analytics-inbox-mobile-schedule-grid">
+                    <label>{ui.dateAndTime}<input type="date" value={scheduleDateValue} onChange={(event) => updateScheduleDate(event.target.value)} /></label>
+                    <label>&nbsp;<ModernTimePicker value={scheduleTimeValue} onChange={updateScheduleTime} ariaLabel={ui.dateAndTime} /></label>
+                  </div>
+                  <div className="analytics-inbox-mobile-frequency">
+                    <label><input type="radio" name="mobile-schedule-frequency" checked={scheduleFrequency === 'once'} onChange={() => setScheduleFrequency('once')} /> {ui.once}</label>
+                    <label><input type="radio" name="mobile-schedule-frequency" checked={scheduleFrequency === 'repeat'} onChange={() => setScheduleFrequency('repeat')} /> {ui.repeat}</label>
+                    {scheduleFrequency === 'repeat' ? (
+                      <select value={scheduleInterval} onChange={(event) => setScheduleInterval(event.target.value as Exclude<MessageRecurrence, 'NONE'>)}>
+                        <option value="DAILY">{ui.intervalDaily}</option>
+                        <option value="WEEKLY">{ui.intervalWeekly}</option>
+                        <option value="MONTHLY">{ui.intervalMonthly}</option>
+                        <option value="YEARLY">{ui.intervalYearly}</option>
+                      </select>
+                    ) : null}
+                  </div>
+                  <button type="button" className="analytics-inbox-mobile-schedule-submit" onClick={() => void submitSchedule()} disabled={!inlineScheduleReady || submittingSchedule}>
+                    {submittingSchedule ? copy.sending : ui.scheduleMessage}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        )}
+
+        {clientDetailModalId != null ? (
+          <Suspense fallback={null}>
+            <EmbeddedClientsPage
+              embeddedClientId={clientDetailModalId}
+              onEmbeddedClose={closeClientDetailsPopup}
+              onEmbeddedSaved={refreshInboxAfterClientEdit}
+            />
+          </Suspense>
+        ) : null}
+      </div>
     )
   }
 

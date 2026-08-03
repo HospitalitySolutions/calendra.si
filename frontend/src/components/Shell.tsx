@@ -382,6 +382,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isServicesRoute = location.pathname === '/session-types' || location.pathname.startsWith('/session-types/')
   const isEmployeesRoute = location.pathname === '/consultants' || location.pathname.startsWith('/consultants/')
   const isAnalyticsRoute = location.pathname === '/analytics' || location.pathname.startsWith('/analytics/')
+  const isInboxRoute = location.pathname === '/inbox' || location.pathname.startsWith('/inbox/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
   const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
   const configurationTab = isConfigurationRoute ? new URLSearchParams(location.search).get('tab') : null
@@ -1434,7 +1435,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isEmployeesRoute ? 'main-area main-area--employees' : isAnalyticsRoute ? 'main-area main-area--analytics' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : isNotificationsConfigurationRoute ? 'main-area main-area--configuration-notifications' : isBillingConfigurationRoute ? 'main-area main-area--configuration-billing' : isWhiteConfigurationDetailRoute ? 'main-area main-area--configuration-detail-white' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isInboxRoute ? 'main-area main-area--inbox' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isEmployeesRoute ? 'main-area main-area--employees' : isAnalyticsRoute ? 'main-area main-area--analytics' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : isNotificationsConfigurationRoute ? 'main-area main-area--configuration-notifications' : isBillingConfigurationRoute ? 'main-area main-area--configuration-billing' : isWhiteConfigurationDetailRoute ? 'main-area main-area--configuration-detail-white' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1443,6 +1444,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
               ? 'app-header app-header--calendar'
               : isClientsRoute
                 ? 'app-header app-header--clients'
+                : isInboxRoute
+                  ? 'app-header app-header--inbox'
                 : isWaitlistRoute
                   ? 'app-header app-header--waitlist'
                   : isServicesRoute
@@ -1493,6 +1496,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 {isClientsRoute && (
                   <div className="app-header-clients-title" aria-live="polite">
                     <strong>{clientsMobileHeader.title || (locale === 'sl' ? 'Stranke' : locale === 'sr' ? 'Klijenti' : 'Clients')}</strong>
+                  </div>
+                )}
+                {isInboxRoute && (
+                  <div className="app-header-section-title app-header-inbox-title">
+                    <strong>{locale === 'sl' ? 'Prejeto' : locale === 'sr' ? 'Primljeno' : 'Inbox'}</strong>
                   </div>
                 )}
                 {isWaitlistRoute && (
@@ -1546,7 +1554,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isInboxRoute ? 'content content--inbox' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}
