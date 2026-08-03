@@ -202,6 +202,15 @@ public class SessionBookingController {
         }
     }
 
+    public record BookingSeriesRequest(
+            List<BookingRequest> occurrences
+    ) {}
+
+    public record BookingSeriesUpdateRequest(
+            BookingRequest current,
+            List<BookingRequest> futureOccurrences
+    ) {}
+
     public record BookingPayeeRequest(
             Long clientId,
             String payeeType,
@@ -338,6 +347,19 @@ public class SessionBookingController {
         return bookingCreationService.create(req, me, waitlistRequestId);
     }
 
+    @PostMapping("/series")
+    public List<BookingResponse> createSeries(
+            @RequestBody BookingSeriesRequest req,
+            @RequestHeader(name = "X-Waitlist-Request-Id", required = false) Long waitlistRequestId,
+            @AuthenticationPrincipal User me
+    ) {
+        return bookingCreationService.createSeries(
+                req == null ? null : req.occurrences(),
+                me,
+                waitlistRequestId
+        );
+    }
+
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@AuthenticationPrincipal User me) {
         return bookingRealtimeService.subscribe(me.getCompany().getId());
@@ -346,6 +368,20 @@ public class SessionBookingController {
     @PutMapping("/{id}")
     public BookingResponse update(@PathVariable Long id, @RequestBody BookingRequest req, @AuthenticationPrincipal User me) {
         return bookingCreationService.update(id, req, me);
+    }
+
+    @PutMapping("/{id}/series")
+    public List<BookingResponse> updateSeries(
+            @PathVariable Long id,
+            @RequestBody BookingSeriesUpdateRequest req,
+            @AuthenticationPrincipal User me
+    ) {
+        return bookingCreationService.updateSeries(
+                id,
+                req == null ? null : req.current(),
+                req == null ? null : req.futureOccurrences(),
+                me
+        );
     }
 
     @PostMapping("/swap")

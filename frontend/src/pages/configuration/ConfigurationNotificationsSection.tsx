@@ -1768,7 +1768,7 @@ export function ConfigurationNotificationsSection({
           width: min(100%, 1540px);
         }
         .notif-page-title {
-          margin: 0 0 22px;
+          margin: 22px 0;
           font-size: clamp(30px, 3vw, 38px);
           line-height: 1.1;
           color: var(--notif-ink);
@@ -2609,7 +2609,9 @@ export function ConfigurationNotificationsSection({
             gap: 14px;
           }
           .notif-sender-card {
-            display: none;
+            margin: 0 16px 16px;
+            padding: 18px;
+            border-radius: 16px;
           }
           .notif-tabs {
             display: grid;
@@ -3126,137 +3128,6 @@ export function ConfigurationNotificationsSection({
       `}</style>
       <div className="notif-card">
         <div className="notif-card-content">
-          {channelAvailability.email ? (
-            <section className="notif-sender-card" aria-label="Pošiljatelj e-pošte">
-              <div className="notif-sender-head">
-                <span>
-                  <h3>Pošiljatelj e-pošte</h3>
-                  <p>
-                    Izberite, ali se e-poštna obvestila strankam pošiljajo iz
-                    Calendra domene ali iz preverjene domene najemnika.
-                  </p>
-                </span>
-                <span
-                  className={
-                    customDomainVerified
-                      ? "notif-sender-status is-ready"
-                      : "notif-sender-status"
-                  }
-                >
-                  {customDomainVerified ? "Domena preverjena" : "Domena ni preverjena"}
-                </span>
-              </div>
-              <div className="notif-sender-options">
-                <button
-                  type="button"
-                  className={
-                    effectiveEmailSenderMode === "DEFAULT_CALENDRA"
-                      ? "notif-sender-option is-active"
-                      : "notif-sender-option"
-                  }
-                  onClick={() => selectEmailSenderMode("DEFAULT_CALENDRA")}
-                >
-                  <span className="notif-sender-radio" aria-hidden />
-                  <span>
-                    <strong>Calendra domena</strong>
-                    <span>Calendra &lt;no-reply@calendra.si&gt;</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={[
-                    effectiveEmailSenderMode === "CUSTOM_DOMAIN"
-                      ? "notif-sender-option is-active"
-                      : "notif-sender-option",
-                    customDomainVerified ? "" : "is-disabled",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  disabled={!customDomainVerified}
-                  onClick={() => selectEmailSenderMode("CUSTOM_DOMAIN")}
-                >
-                  <span className="notif-sender-radio" aria-hidden />
-                  <span>
-                    <strong>Lastna domena</strong>
-                    <span>
-                      {customFromName || "Naziv pošiljatelja"} &lt;
-                      {customFromEmail || "info@domena.si"}&gt;
-                    </span>
-                  </span>
-                </button>
-              </div>
-              {effectiveEmailSenderMode === "CUSTOM_DOMAIN" ? (
-                <>
-                  <div className="notif-sender-fields">
-                    <span className="notif-sender-field">
-                      <label htmlFor="notif-custom-from-name">Naziv pošiljatelja</label>
-                      <input
-                        id="notif-custom-from-name"
-                        value={customFromName}
-                        onChange={(event) =>
-                          setEmailSenderSetting(
-                            EMAIL_CUSTOM_FROM_NAME_KEY,
-                            event.target.value,
-                          )
-                        }
-                        placeholder="Inštitut Avisensa"
-                      />
-                    </span>
-                    <span className="notif-sender-field">
-                      <label htmlFor="notif-custom-from-email">E-poštni naslov</label>
-                      <input
-                        id="notif-custom-from-email"
-                        value={customFromEmail}
-                        onChange={(event) =>
-                          setEmailSenderSetting(
-                            EMAIL_CUSTOM_FROM_EMAIL_KEY,
-                            event.target.value,
-                          )
-                        }
-                        placeholder="info@avisensa.com"
-                      />
-                    </span>
-                    <span className="notif-sender-field">
-                      <label htmlFor="notif-custom-reply-to">Odgovori na</label>
-                      <input
-                        id="notif-custom-reply-to"
-                        value={customReplyToEmail}
-                        onChange={(event) =>
-                          setEmailSenderSetting(
-                            EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY,
-                            event.target.value,
-                          )
-                        }
-                        placeholder="info@avisensa.com"
-                      />
-                    </span>
-                    <span className="notif-sender-field">
-                      <label htmlFor="notif-custom-domain">Preverjena domena</label>
-                      <input
-                        id="notif-custom-domain"
-                        value={customDomain}
-                        readOnly
-                        aria-readonly="true"
-                        placeholder="Domena ni nastavljena"
-                      />
-                    </span>
-                  </div>
-                  <p className="notif-sender-note">
-                    Preverjena domena je nastavljena v Platform Adminu in je v
-                    nastavitvah najemnika ni mogoče urejati. Varnostna in
-                    platformna sporočila ostanejo poslana iz Calendra domene.
-                    {!customSenderDomainMatches && customFromEmail ? (
-                      <>
-                        {" "}
-                        E-poštni naslov se mora ujemati s preverjeno domeno, da
-                        bo pošiljanje prek lastne domene uspešno.
-                      </>
-                    ) : null}
-                  </p>
-                </>
-              ) : null}
-            </section>
-          ) : null}
           <div
             className="notif-tabs"
             role="tablist"
@@ -4006,6 +3877,137 @@ export function ConfigurationNotificationsSection({
                 </aside>
               ) : null}
             </div>
+          ) : null}
+          {channel === "email" && channelAvailability.email ? (
+            <section className="notif-sender-card" aria-label="Pošiljatelj e-pošte">
+              <div className="notif-sender-head">
+                <span>
+                  <h3>Pošiljatelj e-pošte</h3>
+                  <p>
+                    Izberite, ali se e-poštna obvestila strankam pošiljajo iz
+                    Calendra domene ali iz preverjene domene najemnika.
+                  </p>
+                </span>
+                <span
+                  className={
+                    customDomainVerified
+                      ? "notif-sender-status is-ready"
+                      : "notif-sender-status"
+                  }
+                >
+                  {customDomainVerified ? "Domena preverjena" : "Domena ni preverjena"}
+                </span>
+              </div>
+              <div className="notif-sender-options">
+                <button
+                  type="button"
+                  className={
+                    effectiveEmailSenderMode === "DEFAULT_CALENDRA"
+                      ? "notif-sender-option is-active"
+                      : "notif-sender-option"
+                  }
+                  onClick={() => selectEmailSenderMode("DEFAULT_CALENDRA")}
+                >
+                  <span className="notif-sender-radio" aria-hidden />
+                  <span>
+                    <strong>Calendra domena</strong>
+                    <span>Calendra &lt;no-reply@calendra.si&gt;</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    effectiveEmailSenderMode === "CUSTOM_DOMAIN"
+                      ? "notif-sender-option is-active"
+                      : "notif-sender-option",
+                    customDomainVerified ? "" : "is-disabled",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  disabled={!customDomainVerified}
+                  onClick={() => selectEmailSenderMode("CUSTOM_DOMAIN")}
+                >
+                  <span className="notif-sender-radio" aria-hidden />
+                  <span>
+                    <strong>Lastna domena</strong>
+                    <span>
+                      {customFromName || "Naziv pošiljatelja"} &lt;
+                      {customFromEmail || "info@domena.si"}&gt;
+                    </span>
+                  </span>
+                </button>
+              </div>
+              {effectiveEmailSenderMode === "CUSTOM_DOMAIN" ? (
+                <>
+                  <div className="notif-sender-fields">
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-from-name">Naziv pošiljatelja</label>
+                      <input
+                        id="notif-custom-from-name"
+                        value={customFromName}
+                        onChange={(event) =>
+                          setEmailSenderSetting(
+                            EMAIL_CUSTOM_FROM_NAME_KEY,
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Inštitut Avisensa"
+                      />
+                    </span>
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-from-email">E-poštni naslov</label>
+                      <input
+                        id="notif-custom-from-email"
+                        value={customFromEmail}
+                        onChange={(event) =>
+                          setEmailSenderSetting(
+                            EMAIL_CUSTOM_FROM_EMAIL_KEY,
+                            event.target.value,
+                          )
+                        }
+                        placeholder="info@avisensa.com"
+                      />
+                    </span>
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-reply-to">Odgovori na</label>
+                      <input
+                        id="notif-custom-reply-to"
+                        value={customReplyToEmail}
+                        onChange={(event) =>
+                          setEmailSenderSetting(
+                            EMAIL_CUSTOM_REPLY_TO_EMAIL_KEY,
+                            event.target.value,
+                          )
+                        }
+                        placeholder="info@avisensa.com"
+                      />
+                    </span>
+                    <span className="notif-sender-field">
+                      <label htmlFor="notif-custom-domain">Preverjena domena</label>
+                      <input
+                        id="notif-custom-domain"
+                        value={customDomain}
+                        readOnly
+                        aria-readonly="true"
+                        placeholder="Domena ni nastavljena"
+                      />
+                    </span>
+                  </div>
+                  <p className="notif-sender-note">
+                    Preverjena domena je nastavljena v Platform Adminu in je v
+                    nastavitvah najemnika ni mogoče urejati. Varnostna in
+                    platformna sporočila ostanejo poslana iz Calendra domene.
+                    {!customSenderDomainMatches && customFromEmail ? (
+                      <>
+                        {" "}
+                        E-poštni naslov se mora ujemati s preverjeno domeno, da
+                        bo pošiljanje prek lastne domene uspešno.
+                      </>
+                    ) : null}
+                  </p>
+                </>
+              ) : null}
+            </section>
           ) : null}
           {!isCompactNotificationsLayout || hasPendingNotificationChanges ? (
             <div className="notif-savebar">

@@ -4,6 +4,7 @@ import { getStoredUser } from '../auth'
 import { Field, PageHeader } from '../components/ui'
 import { useLocale, type AppLocale } from '../locale'
 import { PosReceiptLayoutEditor } from './PosReceiptLayoutEditor'
+import { GuestSwitch } from './configuration/ConfigurationVisualComponents'
 import '../styles/folio-layout-editor.css'
 
 const FOLIO_IMAGE_MAX_BYTES = 2_000_000
@@ -342,6 +343,7 @@ type TemplatePreferences = {
   notesVisible: boolean
   issuedByVisible: boolean
   signatureVisible: boolean
+  vatBreakdownVisible: boolean
 }
 
 function extractTemplatePreferences(layout: LayoutConfig): TemplatePreferences {
@@ -359,6 +361,7 @@ function extractTemplatePreferences(layout: LayoutConfig): TemplatePreferences {
     notesVisible: footerFor(layout, 'notes')?.visible !== false,
     issuedByVisible: footerFor(layout, 'issuedBy')?.visible !== false,
     signatureVisible: layout.signature?.visible !== false,
+    vatBreakdownVisible: layout.vatBreakdownTable?.visible !== false,
   }
 }
 
@@ -714,6 +717,7 @@ function applyA4Template(current: LayoutConfig, templateId: Exclude<A4TemplateId
   layout.signature.visible = prefs.signatureVisible
   layout.paymentQr.visible = prefs.paymentQrVisible
   layout.fiscalQr.visible = prefs.fiscalVisible
+  layout.vatBreakdownTable.visible = prefs.vatBreakdownVisible
   layout.fields.filter((field) => field.group === 'recipient').forEach((field) => { field.visible = prefs.recipientVisible })
   const quantityColumn = columnFor(layout, 'qty')
   if (quantityColumn) quantityColumn.visible = prefs.unitColumnsVisible
@@ -730,7 +734,7 @@ function QuickSwitch({ checked, onChange, label, hint }: { checked: boolean; onC
   return (
     <label className="fle-quick-option">
       <span><strong>{label}</strong>{hint ? <small>{hint}</small> : null}</span>
-      <button type="button" className={`fle-quick-switch${checked ? ' is-on' : ''}`} role="switch" aria-checked={checked} onClick={() => onChange(!checked)}><span /></button>
+      <GuestSwitch checked={checked} onChange={onChange} />
     </label>
   )
 }
@@ -2737,7 +2741,10 @@ function A4FolioLayoutEditor() {
                   <input type="number" min={6} max={16} value={layout.vatBreakdownTable.bodyFontSize} onChange={(e) => mutateLayout((l) => { l.vatBreakdownTable.bodyFontSize = Number(e.target.value) })} />
                 </Field>
                 <Field label="Visible">
-                  <input type="checkbox" checked={layout.vatBreakdownTable.visible} onChange={(e) => mutateLayout((l) => { l.vatBreakdownTable.visible = e.target.checked })} />
+                  <GuestSwitch
+                    checked={layout.vatBreakdownTable.visible}
+                    onChange={(visible) => mutateLayout((l) => { l.vatBreakdownTable.visible = visible })}
+                  />
                 </Field>
               </div>
               <div className="fle-panel-coords">
@@ -3382,7 +3389,7 @@ function A4PresetLayoutEditor() {
                       <button type="button" onClick={() => moveSection(section, -1)} disabled={index === 0}>↑</button>
                       <button type="button" onClick={() => moveSection(section, 1)} disabled={index === sectionOrder.length - 1}>↓</button>
                     </div>
-                    <button type="button" className={`fle-quick-switch${visible ? ' is-on' : ''}`} onClick={() => toggleSection(section, !visible)} role="switch" aria-checked={visible}><span /></button>
+                    <GuestSwitch checked={visible} onChange={(nextVisible) => toggleSection(section, nextVisible)} />
                   </div>
                 )
               })}

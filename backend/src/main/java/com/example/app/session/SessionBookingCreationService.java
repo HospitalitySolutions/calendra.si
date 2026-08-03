@@ -46,6 +46,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class SessionBookingCreationService {
     private static final long EXCLUDE_NONE_SENTINEL = -1L;
+    private static final int MAX_SERIES_OCCURRENCES = 200;
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final SessionBookingRepository repo;
@@ -148,6 +149,146 @@ public class SessionBookingCreationService {
                 reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null, null,
                 new TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())),
                 "Europe/Ljubljana");
+    }
+
+    @Transactional
+    public List<SessionBookingController.BookingResponse> createSeries(
+            List<SessionBookingController.BookingRequest> occurrences,
+            User me,
+            Long waitlistRequestId
+    ) {
+        List<SessionBookingController.BookingRequest> requests = requireSeriesRequests(
+                occurrences,
+                false
+        );
+        for (int i = 0; i < requests.size(); i++) {
+            validateCreateRequest(requests.get(i), me, i == 0 ? waitlistRequestId : null);
+        }
+
+        List<SessionBookingController.BookingResponse> responses = new ArrayList<>(requests.size());
+        for (int i = 0; i < requests.size(); i++) {
+            responses.add(create(requests.get(i), me, i == 0 ? waitlistRequestId : null));
+        }
+        return responses;
+    }
+
+    @Transactional
+    public List<SessionBookingController.BookingResponse> updateSeries(
+            Long id,
+            SessionBookingController.BookingRequest current,
+            List<SessionBookingController.BookingRequest> futureOccurrences,
+            User me
+    ) {
+        if (current == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current booking request is required.");
+        }
+        List<SessionBookingController.BookingRequest> futureRequests = requireSeriesRequests(
+                futureOccurrences,
+                true
+        );
+        for (SessionBookingController.BookingRequest request : futureRequests) {
+            validateCreateRequest(request, me, null);
+        }
+
+        List<SessionBookingController.BookingResponse> responses = new ArrayList<>(futureRequests.size() + 1);
+        responses.add(update(id, current, me));
+        for (SessionBookingController.BookingRequest request : futureRequests) {
+            responses.add(create(request, me, null));
+        }
+        return responses;
+    }
+
+    private List<SessionBookingController.BookingRequest> requireSeriesRequests(
+            List<SessionBookingController.BookingRequest> requests,
+            boolean allowEmpty
+    ) {
+        if (requests == null || (!allowEmpty && requests.isEmpty())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one booking occurrence is required.");
+        }
+        if (requests.size() > MAX_SERIES_OCCURRENCES) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A repeating booking can contain at most " + MAX_SERIES_OCCURRENCES + " occurrences."
+            );
+        }
+        if (requests.stream().anyMatch(Objects::isNull)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking occurrence is required.");
+        }
+        return List.copyOf(requests);
+    }
+
+    private void validateCreateRequest(
+            SessionBookingController.BookingRequest req,
+            User me,
+            Long waitlistRequestId
+    ) {
+        if (req == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking request is required.");
+        }
+        var companyId = me.getCompany().getId();
+        validateMultipleServicesForCreate(companyId, req);
+        LocalDateTime start = parseToLocalDateTime(req.startTime());
+        LocalDateTime requestedEnd = parseOptionalEndTime(req.endTime(), start, req.services());
+        SessionServicePlanService.Plan servicePlan = servicePlans.resolve(req, companyId, start, requestedEnd);
+        LocalDateTime end = servicePlan.endTime();
+        resolveRequestedStoredStatusForCreate(companyId, req.bookingStatus());
+        Long consultantId = resolveConsultantId(req, me);
+        companies.findByIdForUpdate(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
+        boolean spacesEnabled = isSpacesEnabled(companyId);
+        boolean multipleSessionsPerSpaceEnabled = isMultipleSessionsPerSpaceEnabled(companyId);
+        boolean multipleClientsPerSessionEnabled = isMultipleClientsPerSessionEnabled(companyId);
+        ClientGroup clientGroup = resolveGroup(req.groupId(), companyId);
+        servicePlans.validateGroupBooking(servicePlan, clientGroup != null);
+        List<Long> requestedClientIds;
+        if (clientGroup != null) {
+            boolean explicitEmptySessionClients =
+                    req.clientIds() != null
+                            && req.clientIds().isEmpty()
+                            && (req.clientId() == null || req.clientId() <= 0);
+            if (explicitEmptySessionClients) {
+                requestedClientIds = List.of();
+            } else if (hasPositiveClientIdsInRequest(req)) {
+                requestedClientIds = resolveRequestedClientIds(req, true);
+            } else {
+                requestedClientIds = clientGroup.getMembers().stream().map(Client::getId).toList();
+            }
+        } else {
+            requestedClientIds = resolveRequestedClientIds(req, multipleClientsPerSessionEnabled);
+        }
+        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
+        Long excludedWaitlistOfferId = resolveMatchingWaitlistOfferId(
+                waitlistRequestId,
+                companyId,
+                requestedClientIds,
+                consultantId,
+                servicePlan.primarySpaceId(),
+                servicePlan.primaryTypeId(),
+                start,
+                end
+        );
+        validateBookingWindow(
+                companyId,
+                requestedClientIds,
+                consultantId,
+                servicePlan,
+                bookingExcludeIds((Long) null),
+                spacesEnabled,
+                multipleSessionsPerSpaceEnabled,
+                clientGroup != null || multipleClientsPerSessionEnabled,
+                isOnlineRequest(req),
+                Boolean.TRUE.equals(req.allowPersonalBlockOverlap()),
+                true,
+                excludedWaitlistOfferId,
+                null
+        );
+        String meetingLink = req.meetingLink();
+        if (Boolean.TRUE.equals(req.online()) && (meetingLink == null || meetingLink.isBlank()) && consultantId == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Online sessions require a meeting link when no consultant is assigned."
+            );
+        }
     }
 
     @Transactional

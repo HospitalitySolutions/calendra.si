@@ -149,6 +149,73 @@ const EmbeddedClientsPage = lazy(() =>
 const CALENDAR_DEFAULT_BOOKED_COLOR = '#16A34A'
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
 
+type CalendarRecurrenceInput = {
+  repeatInterval?: number | null
+  repeatUnit?: 'days' | 'weeks' | 'months' | string | null
+  repeatEndType?: 'after' | 'on' | string | null
+  repeatEndCount?: number | null
+  repeatEndDate?: string | null
+  repeatDay?: string | null
+}
+
+const formatRecurrenceLocalDateTime = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+const buildRecurringBookingIntervals = (
+  startValue: string,
+  endValue: string,
+  recurrence: CalendarRecurrenceInput,
+  includeFirst: boolean,
+) => {
+  const baseStart = new Date(startValue)
+  const baseEnd = new Date(endValue)
+  const durationMs = baseEnd.getTime() - baseStart.getTime()
+  if (!Number.isFinite(baseStart.getTime()) || !Number.isFinite(baseEnd.getTime()) || durationMs <= 0) return []
+
+  const repeatInterval = Math.max(1, Math.floor(Number(recurrence.repeatInterval) || 1))
+  const repeatUnit = recurrence.repeatUnit || 'weeks'
+  const repeatEndType = recurrence.repeatEndType || 'after'
+  const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(recurrence.repeatEndCount) || 2)))
+  const repeatEndDate = recurrence.repeatEndDate || ''
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const targetDayIndex = repeatUnit === 'weeks'
+    ? dayNames.indexOf(recurrence.repeatDay || dayNames[baseStart.getDay()])
+    : -1
+  const maxOccurrences = repeatEndType === 'after' ? repeatEndCount : 200
+  const endDateMs = repeatEndType === 'on' && repeatEndDate
+    ? new Date(`${repeatEndDate}T23:59:59`).getTime()
+    : Infinity
+
+  const cursor = new Date(baseStart)
+  if (repeatUnit === 'weeks' && targetDayIndex >= 0 && cursor.getDay() !== targetDayIndex) {
+    let diff = targetDayIndex - cursor.getDay()
+    if (diff < 0) diff += 7
+    cursor.setDate(cursor.getDate() + diff)
+  }
+  if (!includeFirst) {
+    if (repeatUnit === 'days') cursor.setDate(cursor.getDate() + repeatInterval)
+    else if (repeatUnit === 'weeks') cursor.setDate(cursor.getDate() + 7 * repeatInterval)
+    else if (repeatUnit === 'months') cursor.setMonth(cursor.getMonth() + repeatInterval)
+  }
+
+  const intervals: Array<{ startTime: string; endTime: string }> = []
+  const firstIndex = includeFirst ? 0 : 1
+  for (let index = firstIndex; index < maxOccurrences && cursor.getTime() <= endDateMs; index++) {
+    const occurrenceStart = new Date(cursor)
+    const occurrenceEnd = new Date(occurrenceStart.getTime() + durationMs)
+    intervals.push({
+      startTime: formatRecurrenceLocalDateTime(occurrenceStart),
+      endTime: formatRecurrenceLocalDateTime(occurrenceEnd),
+    })
+    if (repeatUnit === 'days') cursor.setDate(cursor.getDate() + repeatInterval)
+    else if (repeatUnit === 'weeks') cursor.setDate(cursor.getDate() + 7 * repeatInterval)
+    else if (repeatUnit === 'months') cursor.setMonth(cursor.getMonth() + repeatInterval)
+  }
+  return intervals
+}
+
 const MOBILE_SWIPE_CALENDAR_VIEWS = new Set([
   'timeGridDay',
   'resourceTimeGridDay',
@@ -2322,8 +2389,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
               meetingProvider: provider,
               groupEmailOverride: null,
               groupBillingCompanyIdOverride: null,
+              recurrenceSeriesKey: pending.recurrenceSeriesKey ?? null,
               payees: Array.isArray(pending.payees) ? pending.payees : [],
-              ...(pending.allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
             }
           : {
               clientId: pendingClientIds[0],
@@ -2340,18 +2407,31 @@ export default function CalendarPage({ user }: CalendarPageProps) {
               meetingProvider: provider,
               groupEmailOverride: null,
               groupBillingCompanyIdOverride: null,
+              recurrenceSeriesKey: pending.recurrenceSeriesKey ?? null,
               payees: Array.isArray(pending.payees) ? pending.payees : [],
-              ...(pending.allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
             }
         const waitlistRequestId = Number(pending.waitlistRequestId)
         const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
-        api.post('/bookings', payload, {
-          headers: {
-            'X-Skip-Conflict-Toast': 'true',
-            ...(hasWaitlistRequest ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
-          },
-        }).then(async (response) => {
-          const createdBookingId = Number(response?.data?.id)
+        const recurringIntervals = pending.repeats
+          ? buildRecurringBookingIntervals(pending.startTime, pending.endTime, pending, true)
+          : [{ startTime: pending.startTime, endTime: pending.endTime }]
+        const occurrencePayloads = recurringIntervals.map((interval) => ({
+          ...payload,
+          startTime: interval.startTime,
+          endTime: interval.endTime,
+        }))
+        const requestHeaders = {
+          'X-Skip-Conflict-Toast': 'true',
+          ...(hasWaitlistRequest ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
+        }
+        const createRequest = pending.repeats
+          ? api.post('/bookings/series', { occurrences: occurrencePayloads }, { headers: requestHeaders })
+          : api.post('/bookings', occurrencePayloads[0], { headers: requestHeaders })
+        createRequest.then(async (response) => {
+          const createdBookings = pending.repeats
+            ? (Array.isArray(response?.data) ? response.data : [])
+            : [response?.data]
+          const createdBookingId = Number(createdBookings[0]?.id)
           if (hasWaitlistRequest
             && Number.isInteger(createdBookingId) && createdBookingId > 0) {
             try {
@@ -2438,7 +2518,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           bookingStatus: normalizeStoredBookingStatus(pending.bookingStatus),
           recurrenceSeriesKey: pending.recurrenceSeriesKey ?? null,
           payees: Array.isArray(pending.payees) ? pending.payees : [],
-          ...(pending.allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
         }
         const pendingStatusValidation = getStatusTransitionValidation(
           payload.startTime,
@@ -2450,14 +2529,31 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           setSaveBookingError(formatInvalidStatusTransitionMessage(pendingStatusValidation.reason, payload.bookingStatus))
           return
         }
-        api.put(`/bookings/${bookingId}`, payload).then(() => {
+        const futureIntervals = pending.repeats
+          ? buildRecurringBookingIntervals(pending.startTime, pending.endTime, pending, false)
+          : []
+        const futureOccurrences = futureIntervals.map((interval) => ({
+          ...payload,
+          ...(pendingGroupId ? { groupId: pendingGroupId } : {}),
+          startTime: interval.startTime,
+          endTime: interval.endTime,
+        }))
+        const updateRequest = pending.repeats
+          ? api.put(`/bookings/${bookingId}/series`, {
+              current: payload,
+              futureOccurrences,
+            }, { headers: { 'X-Skip-Conflict-Toast': 'true' } })
+          : api.put(`/bookings/${bookingId}`, payload, { headers: { 'X-Skip-Conflict-Toast': 'true' } })
+        updateRequest.then(() => {
           setSelectedBookedSession(null)
           setBookedStatusMenuOpen(false)
           notifyBookingAndClientRecordsChanged()
           load()
           leaveCompactFormRouteIfNeeded()
         }).catch((e: any) => {
-          const msg = e?.response?.data?.message || e?.message || 'Failed to update session.'
+          const msg = Number(e?.response?.status) === 409
+            ? t('calendarErrorBookingConflict')
+            : (e?.response?.data?.message || e?.message || 'Failed to update session.')
           setSaveBookingError(String(msg))
         })
       })
@@ -8276,17 +8372,67 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     typeId?: number | null,
     availabilityEndTime?: string | null,
     excludeBookingId?: number | null,
+    requestedSegments: Array<{ startTime?: string; endTime?: string; availabilityEndTime?: string; spaceId?: number | null }> = [],
+    requestedClientIds: number[] = [],
+    online = false,
   ) => {
     const startMs = new Date(start).getTime()
     const endMs = new Date(end).getTime()
     const directBusyEndMs = new Date(availabilityEndTime || '').getTime()
     const requestedBusyEndMs = Number.isFinite(directBusyEndMs) ? directBusyEndMs : endMs + getTypeBreakMinutes(typeId) * 60000
-    return (calendarData.booked || []).filter((b: any) => {
-      if (excludeBookingId != null && Number(b?.id) === Number(excludeBookingId)) return false
-      if (b.consultant?.id !== consultantId) return false
-      const bStart = new Date(b.startTime).getTime()
-      const bEnd = getBookingBusyEndMs(b)
-      return startMs < bEnd && requestedBusyEndMs > bStart
+    const requestedClientIdSet = new Set(
+      requestedClientIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
+    )
+    const enforceSpaceOverlap = spacesEnabled && settings.MULTIPLE_SESSIONS_PER_SPACE_ENABLED !== 'true' && !online
+    const requestedSpaceSegments = requestedSegments
+      .map((segment) => ({
+        spaceId: Number(segment?.spaceId),
+        startMs: new Date(segment?.startTime || start).getTime(),
+        endMs: new Date(segment?.availabilityEndTime || segment?.endTime || end).getTime(),
+      }))
+      .filter((segment) => Number.isInteger(segment.spaceId) && segment.spaceId > 0 && Number.isFinite(segment.startMs) && Number.isFinite(segment.endMs))
+
+    return (calendarData.booked || []).filter((booking: any) => {
+      if (excludeBookingId != null && Number(booking?.id) === Number(excludeBookingId)) return false
+      const bookingStartMs = new Date(booking.startTime).getTime()
+      const bookingEndMs = new Date(booking.endTime).getTime()
+      const bookingBusyEndMs = getBookingBusyEndMs(booking)
+      const consultantConflict = booking.consultant?.id === consultantId
+        && startMs < bookingBusyEndMs
+        && requestedBusyEndMs > bookingStartMs
+
+      const bookingClientIds = Array.isArray(booking?.clients) && booking.clients.length > 0
+        ? booking.clients.map((client: any) => Number(client?.id))
+        : [Number(booking?.client?.id)]
+      const clientConflict = requestedClientIdSet.size > 0
+        && bookingClientIds.some((id: number) => requestedClientIdSet.has(id))
+        && startMs < bookingEndMs
+        && endMs > bookingStartMs
+
+      let spaceConflict = false
+      const bookingOnline = Boolean(booking?.online || (booking?.meetingLink && String(booking.meetingLink).trim()))
+      if (enforceSpaceOverlap && !bookingOnline && requestedSpaceSegments.length > 0) {
+        const persistedServices = Array.isArray(booking?.services) ? booking.services : []
+        const bookingSpaceSegments = persistedServices.length > 0
+          ? persistedServices.map((service: any) => ({
+              spaceId: Number(service?.space?.id ?? service?.spaceId),
+              startMs: new Date(service?.startTime || booking.startTime).getTime(),
+              endMs: new Date(service?.availabilityEndTime || service?.endTime || booking.endTime).getTime(),
+            }))
+          : [{
+              spaceId: Number(booking?.space?.id ?? booking?.spaceId),
+              startMs: bookingStartMs,
+              endMs: bookingBusyEndMs,
+            }]
+        spaceConflict = requestedSpaceSegments.some((requestedSegment) =>
+          bookingSpaceSegments.some((bookingSegment: any) =>
+            requestedSegment.spaceId === bookingSegment.spaceId
+              && requestedSegment.startMs < bookingSegment.endMs
+              && requestedSegment.endMs > bookingSegment.startMs,
+          ),
+        )
+      }
+      return consultantConflict || clientConflict || spaceConflict
     })
   }
 
@@ -8437,6 +8583,48 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         return
       }
     }
+    if (!form.personal && !form.todo) {
+      const typeMaxParticipants = getServiceChainMaxParticipants(currentServiceDrafts)
+      if (typeMaxParticipants != null && resolvedClientIds.length > typeMaxParticipants) {
+        setSaveBookingError(locale === 'sl'
+          ? `Izbrane storitve dovoljujejo največ ${typeMaxParticipants} udeležencev na termin.`
+          : `The selected services allow at most ${typeMaxParticipants} participants per session.`)
+        return
+      }
+    }
+    if (!form.personal && !form.todo) {
+      const overlappingPersonal = findOverlappingPersonalBlocksForBooking(
+        form.startTime,
+        currentServiceChain.endTime,
+        form.consultantId,
+        Math.max(0, currentServiceChain.totalBreakMinutes - currentServiceChain.totalInternalBreakMinutes),
+      )
+      const overlappingBooked = findOverlappingSessionsForBooking(
+        form.startTime,
+        currentServiceChain.endTime,
+        form.consultantId,
+        primaryService?.typeId ?? form.typeId,
+        currentServiceChain.availabilityEndTime,
+        null,
+        currentServiceChain.segments,
+        resolvedClientIds,
+        Boolean(form.online),
+      )
+      if (overlappingPersonal.length > 0 || overlappingBooked.length > 0) {
+        setConfirmOverlap(null)
+        setConfirmBookedPersonalOverlap(null)
+        setSaveBookingError(t('calendarErrorBookingConflict'))
+        return
+      }
+    }
+    if (!form.personal && !form.todo && (form.outsideBookable || isBookingStartInPast(form.startTime)) && !skipNonBookableConfirm) {
+      setSelection(null)
+      setClientDropdownOpen(false)
+      setEditingClientSearch(false)
+      calendarRef.current?.getApi()?.unselect()
+      setConfirmNonBookable({ mode: 'create', pastTime: isBookingStartInPast(form.startTime) })
+      return
+    }
     if (!form.personal && !form.todo && form.online && form.consultantId === user.id) {
       const provider = form.meetingProvider || 'zoom'
       const needsConnect = provider === 'google' ? googleConnected === false : zoomConnected === false
@@ -8456,49 +8644,19 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           meetingProvider: provider,
           waitlistRequestId: form.waitlistRequestId ?? null,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
-          allowPersonalBlockOverlap: skipPersonalOverlapConfirm || skipNonBookableConfirm,
+          repeats: Boolean(form.repeats),
+          repeatInterval: form.repeatInterval ?? 1,
+          repeatUnit: form.repeatUnit ?? 'weeks',
+          repeatEndType: form.repeatEndType ?? 'after',
+          repeatEndCount: form.repeatEndCount ?? 2,
+          repeatEndDate: form.repeatEndDate ?? '',
+          repeatDay: form.repeatDay ?? null,
+          recurrenceSeriesKey: form.repeats ? createRecurrenceSeriesKey() : null,
+          allowPersonalBlockOverlap: false,
         }))
         if (provider === 'google') connectGoogle()
         else connectZoom()
         return
-      }
-    }
-    if (!form.personal && !form.todo) {
-      const typeMaxParticipants = getServiceChainMaxParticipants(currentServiceDrafts)
-      if (typeMaxParticipants != null && resolvedClientIds.length > typeMaxParticipants) {
-        setSaveBookingError(locale === 'sl'
-          ? `Izbrane storitve dovoljujejo največ ${typeMaxParticipants} udeležencev na termin.`
-          : `The selected services allow at most ${typeMaxParticipants} participants per session.`)
-        return
-      }
-    }
-    if (!form.personal && !form.todo && (form.outsideBookable || isBookingStartInPast(form.startTime)) && !skipNonBookableConfirm) {
-      setSelection(null)
-      setClientDropdownOpen(false)
-      setEditingClientSearch(false)
-      calendarRef.current?.getApi()?.unselect()
-      setConfirmNonBookable({ mode: 'create', pastTime: isBookingStartInPast(form.startTime) })
-      return
-    }
-    if (!form.personal && !form.todo) {
-      if (!skipPersonalOverlapConfirm) {
-        const overlappingPersonal = findOverlappingPersonalBlocksForBooking(
-          form.startTime,
-          currentServiceChain.endTime,
-          form.consultantId,
-          Math.max(0, currentServiceChain.totalBreakMinutes - currentServiceChain.totalInternalBreakMinutes),
-        )
-        if (overlappingPersonal.length > 0) {
-          setConfirmBookedPersonalOverlap({ type: 'create' })
-          return
-        }
-      }
-      if (!skipBookedOverlapCheck) {
-        const overlapping = findOverlappingSessionsForBooking(form.startTime, currentServiceChain.endTime, form.consultantId, primaryService?.typeId ?? form.typeId, currentServiceChain.availabilityEndTime)
-        if (overlapping.length > 0) {
-          setConfirmOverlap({ overlapping, start: form.startTime, end: currentServiceChain.endTime })
-          return
-        }
       }
     }
     setSaveBookingLoading(true)
@@ -8521,12 +8679,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           visibleToAdmins: Boolean(form.visibleToAdmins),
         })
       } else {
-        if (confirmOverlap) {
-          for (const b of confirmOverlap.overlapping) {
-            await api.delete(`/bookings/${b.id}`)
-          }
-          setConfirmOverlap(null)
-        }
         const groupBookingNoClients =
           bookingGroupMode && resolvedGroupId != null && resolvedClientIds.length === 0
         const recurrenceSeriesKey = form.repeats ? createRecurrenceSeriesKey() : null
@@ -8547,70 +8699,28 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           groupBillingCompanyIdOverride: null,
           recurrenceSeriesKey,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
-          // Confirming a manual booking outside open availability must also bypass
-          // the hidden availability-block marker. Normal personal sessions are still
-          // handled by the dedicated overlap confirmation above.
-          ...(skipPersonalOverlapConfirm || skipNonBookableConfirm ? { allowPersonalBlockOverlap: true } : {}),
         }
-        const bookingDates: Array<{ startTime: string; endTime: string }> = []
-        if (form.repeats) {
-          const baseStart = new Date(form.startTime)
-          const baseEnd = new Date(currentServiceChain.endTime)
-          const durationMs = baseEnd.getTime() - baseStart.getTime()
-          const repeatInterval = form.repeatInterval ?? 1
-          const repeatUnit = form.repeatUnit ?? 'weeks'
-          const repeatEndType = form.repeatEndType ?? 'after'
-          const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || 2)))
-          const repeatEndDate = form.repeatEndDate ?? ''
-          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-          const targetDayIndex = repeatUnit === 'weeks' ? dayNames.indexOf(form.repeatDay ?? dayNames[baseStart.getDay()]) : -1
-
-          const maxOccurrences = repeatEndType === 'after' ? repeatEndCount : 200
-          const endDateMs = repeatEndType === 'on' && repeatEndDate ? new Date(repeatEndDate + 'T23:59:59').getTime() : Infinity
-
-          let cursor = new Date(baseStart)
-          // If weekly, adjust first occurrence to the target day
-          if (repeatUnit === 'weeks' && targetDayIndex >= 0 && cursor.getDay() !== targetDayIndex) {
-            let diff = targetDayIndex - cursor.getDay()
-            if (diff < 0) diff += 7
-            cursor.setDate(cursor.getDate() + diff)
-          }
-          for (let i = 0; i < maxOccurrences && cursor.getTime() <= endDateMs; i++) {
-            const s = new Date(cursor)
-            const e = new Date(s.getTime() + durationMs)
-            bookingDates.push({
-              startTime: toLocalDateTimeString(s),
-              endTime: toLocalDateTimeString(e),
-            })
-            // Advance cursor
-            if (repeatUnit === 'days') {
-              cursor.setDate(cursor.getDate() + repeatInterval)
-            } else if (repeatUnit === 'weeks') {
-              cursor.setDate(cursor.getDate() + 7 * repeatInterval)
-            } else if (repeatUnit === 'months') {
-              cursor.setMonth(cursor.getMonth() + repeatInterval)
-            }
-          }
-        } else {
-          bookingDates.push({ startTime: form.startTime, endTime: currentServiceChain.endTime })
-        }
+        const bookingDates = form.repeats
+          ? buildRecurringBookingIntervals(form.startTime, currentServiceChain.endTime, form, true)
+          : [{ startTime: form.startTime, endTime: currentServiceChain.endTime }]
         const waitlistRequestId = Number(form.waitlistRequestId)
         const hasWaitlistRequest = waitlistModuleEnabled && Number.isInteger(waitlistRequestId) && waitlistRequestId > 0
-        for (const dt of bookingDates) {
-          const useWaitlistHoldExclusion: boolean = hasWaitlistRequest && firstCreatedBookingId == null
-          const createdResponse: { data?: any } = await api.post('/bookings', {
-            ...bookingPayloadBase,
-            startTime: dt.startTime,
-            endTime: dt.endTime,
-          }, {
-            headers: {
-              'X-Skip-Conflict-Toast': 'true',
-              ...(useWaitlistHoldExclusion ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
-            },
-          })
-          const createdId: number = Number(createdResponse.data?.id)
-          if (Number.isInteger(createdId) && createdId > 0 && createdResponse.data) {
-            createdBookingSnapshots.push(createdResponse.data)
+        const occurrencePayloads = bookingDates.map((date) => ({
+          ...bookingPayloadBase,
+          startTime: date.startTime,
+          endTime: date.endTime,
+        }))
+        const requestHeaders = {
+          'X-Skip-Conflict-Toast': 'true',
+          ...(hasWaitlistRequest ? { 'X-Waitlist-Request-Id': String(waitlistRequestId) } : {}),
+        }
+        const createdResponses: any[] = form.repeats
+          ? ((await api.post('/bookings/series', { occurrences: occurrencePayloads }, { headers: requestHeaders })).data || [])
+          : [((await api.post('/bookings', occurrencePayloads[0], { headers: requestHeaders })).data)]
+        for (const createdBooking of createdResponses) {
+          const createdId = Number(createdBooking?.id)
+          if (Number.isInteger(createdId) && createdId > 0 && createdBooking) {
+            createdBookingSnapshots.push(createdBooking)
           }
           if (firstCreatedBookingId == null && Number.isInteger(createdId) && createdId > 0) {
             firstCreatedBookingId = createdId
@@ -10041,11 +10151,19 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id,
         currentBookedServiceChain.availabilityEndTime,
         selectedBookedSession.id,
+        currentBookedServiceChain.segments,
+        resolvedClientIds,
+        Boolean(selectedBookedSession.online),
       )
-      if (overlappingBooked.length > 0) {
-        showToast('error', locale === 'sl'
-          ? 'Izbrana veriga storitev se prekriva z drugim terminom zaposlenega.'
-          : 'The selected service chain overlaps another employee booking.')
+      const overlappingPersonal = findOverlappingPersonalBlocksForBooking(
+        selectedBookedSession.startTime,
+        currentBookedServiceChain.endTime,
+        consultantId,
+        typeBreakMinutes,
+      )
+      if (overlappingBooked.length > 0 || overlappingPersonal.length > 0) {
+        setConfirmBookedPersonalOverlap(null)
+        showToast('error', t('calendarErrorBookingConflict'))
         return
       }
     }
@@ -10090,19 +10208,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         return
       }
     }
-    if (
-      !skipPersonalOverlapConfirm &&
-      Number.isFinite(consultantId) &&
-      findOverlappingPersonalBlocksForBooking(
-        selectedBookedSession.startTime,
-        currentBookedServiceChain.endTime,
-        consultantId,
-        typeBreakMinutes,
-      ).length > 0
-    ) {
-      setConfirmBookedPersonalOverlap({ type: 'edit' })
-      return
-    }
     const online = !!selectedBookedSession.online
     const bookedPayloadClients =
       bookedIsGroupSession && resolvedClientIds.length === 0
@@ -10128,38 +10233,74 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           bookingStatus: requestedStoredStatus,
           recurrenceSeriesKey,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
-          allowPersonalBlockOverlap,
+          repeats: Boolean(selectedBookedSession.repeats),
+          repeatInterval: selectedBookedSession.repeatInterval ?? 1,
+          repeatUnit: selectedBookedSession.repeatUnit ?? 'weeks',
+          repeatEndType: selectedBookedSession.repeatEndType ?? 'after',
+          repeatEndCount: selectedBookedSession.repeatEndCount ?? 2,
+          repeatEndDate: selectedBookedSession.repeatEndDate ?? '',
+          repeatDay: selectedBookedSession.repeatDay ?? null,
+          allowPersonalBlockOverlap: false,
         }))
         if (provider === 'google') await connectGoogle()
         else await connectZoom()
         return
       }
     }
+    const currentBookingPayload = {
+      ...bookedPayloadClients,
+      consultantId: selectedBookedSession.consultant?.id ?? null,
+      startTime: selectedBookedSession.startTime,
+      endTime: currentBookedServiceChain.endTime,
+      spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
+      typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
+      services: currentBookedServicesPayload,
+      notes: selectedBookedSession.notes ?? '',
+      meetingLink: online ? (selectedBookedSession.meetingLink ?? null) : null,
+      online,
+      meetingProvider: online ? (selectedBookedSession.meetingProvider || 'zoom') : null,
+      groupEmailOverride: null,
+      groupBillingCompanyIdOverride: null,
+      bookingStatus: requestedStoredStatus,
+      recurrenceSeriesKey,
+      payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
+    }
+    const futureOccurrencePayloads: any[] = selectedBookedSession.repeats
+      ? buildRecurringBookingIntervals(
+          selectedBookedSession.startTime,
+          currentBookedServiceChain.endTime,
+          selectedBookedSession,
+          false,
+        ).map((interval) => ({
+          ...currentBookingPayload,
+          ...(bookedIsGroupSession ? { groupId: selectedBookedSession.groupId } : {}),
+          startTime: interval.startTime,
+          endTime: interval.endTime,
+        }))
+      : []
+
     let updatedBookingFromApi: any = null
     try {
       setSaveBookingLoading(true)
-      const response = await api.put(`/bookings/${selectedBookedSession.id}`, {
-        ...bookedPayloadClients,
-        consultantId: selectedBookedSession.consultant?.id ?? null,
-        startTime: selectedBookedSession.startTime,
-        endTime: currentBookedServiceChain.endTime,
-        spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
-        typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
-        services: currentBookedServicesPayload,
-        notes: selectedBookedSession.notes ?? '',
-        meetingLink: online ? (selectedBookedSession.meetingLink ?? null) : null,
-        online,
-        meetingProvider: online ? (selectedBookedSession.meetingProvider || 'zoom') : null,
-        groupEmailOverride: null,
-        groupBillingCompanyIdOverride: null,
-        bookingStatus: requestedStoredStatus,
-        recurrenceSeriesKey,
-        payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
-        ...(allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
-      })
-      updatedBookingFromApi = response?.data ?? null
+      if (selectedBookedSession.repeats) {
+        const response = await api.put(`/bookings/${selectedBookedSession.id}/series`, {
+          current: currentBookingPayload,
+          futureOccurrences: futureOccurrencePayloads,
+        }, { headers: { 'X-Skip-Conflict-Toast': 'true' } })
+        updatedBookingFromApi = Array.isArray(response?.data) ? response.data[0] ?? null : null
+      } else {
+        const response = await api.put(`/bookings/${selectedBookedSession.id}`, currentBookingPayload, {
+          headers: { 'X-Skip-Conflict-Toast': 'true' },
+        })
+        updatedBookingFromApi = response?.data ?? null
+      }
     } catch (e: any) {
-      showToast('error', e?.response?.data?.message || e?.message || 'Failed to update session.')
+      showToast(
+        'error',
+        Number(e?.response?.status) === 409
+          ? t('calendarErrorBookingConflict')
+          : (e?.response?.data?.message || e?.message || 'Failed to update session.'),
+      )
       setSaveBookingLoading(false)
       return false
     }
@@ -10183,62 +10324,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               : 'Session is checked out, but open invoice could not be created. Please try again from Payments.',
           )
         }
-      }
-    }
-    // Create repeated future bookings if repeats is enabled
-    if (selectedBookedSession.repeats) {
-      const baseStart = new Date(selectedBookedSession.startTime)
-      const baseEnd = new Date(currentBookedServiceChain.endTime)
-      const durationMs = baseEnd.getTime() - baseStart.getTime()
-      const repeatInterval = selectedBookedSession.repeatInterval ?? 1
-      const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
-      const repeatEndType = selectedBookedSession.repeatEndType ?? 'after'
-      const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || 2)))
-      const repeatEndDate = selectedBookedSession.repeatEndDate ?? ''
-      const dayNamesArr = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      const targetDayIndex = repeatUnit === 'weeks' ? dayNamesArr.indexOf(selectedBookedSession.repeatDay ?? dayNamesArr[baseStart.getDay()]) : -1
-
-      const maxOccurrences = repeatEndType === 'after' ? repeatEndCount : 200
-      const endDateMs = repeatEndType === 'on' && repeatEndDate ? new Date(repeatEndDate + 'T23:59:59').getTime() : Infinity
-
-      let cursor = new Date(baseStart)
-      if (repeatUnit === 'weeks' && targetDayIndex >= 0 && cursor.getDay() !== targetDayIndex) {
-        let diff = targetDayIndex - cursor.getDay()
-        if (diff < 0) diff += 7
-        cursor.setDate(cursor.getDate() + diff)
-      }
-      // Skip the first occurrence (that's the current session being edited)
-      if (repeatUnit === 'days') cursor.setDate(cursor.getDate() + repeatInterval)
-      else if (repeatUnit === 'weeks') cursor.setDate(cursor.getDate() + 7 * repeatInterval)
-      else if (repeatUnit === 'months') cursor.setMonth(cursor.getMonth() + repeatInterval)
-
-      for (let i = 1; i < maxOccurrences && cursor.getTime() <= endDateMs; i++) {
-        const s = new Date(cursor)
-        const e = new Date(s.getTime() + durationMs)
-        try {
-          await api.post('/bookings', {
-            ...bookedPayloadClients,
-            ...(bookedIsGroupSession ? { groupId: selectedBookedSession.groupId } : {}),
-            consultantId: selectedBookedSession.consultant?.id ?? null,
-            startTime: toLocalDateTimeString(s),
-            endTime: toLocalDateTimeString(e),
-            spaceId: currentBookedPrimaryService?.spaceId ?? selectedBookedSession.space?.id ?? null,
-            typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
-            services: currentBookedServicesPayload,
-            notes: selectedBookedSession.notes ?? '',
-            meetingLink: online ? (selectedBookedSession.meetingLink ?? null) : null,
-            online,
-            meetingProvider: online ? (selectedBookedSession.meetingProvider || 'zoom') : null,
-            groupEmailOverride: null,
-            groupBillingCompanyIdOverride: null,
-            bookingStatus: requestedStoredStatus,
-            recurrenceSeriesKey,
-            payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
-          }, { headers: { 'X-Skip-Conflict-Toast': 'true' } })
-        } catch { /* skip failed occurrences */ }
-        if (repeatUnit === 'days') cursor.setDate(cursor.getDate() + repeatInterval)
-        else if (repeatUnit === 'weeks') cursor.setDate(cursor.getDate() + 7 * repeatInterval)
-        else if (repeatUnit === 'months') cursor.setMonth(cursor.getMonth() + repeatInterval)
       }
     }
     setSelectedBookedSession(null)
