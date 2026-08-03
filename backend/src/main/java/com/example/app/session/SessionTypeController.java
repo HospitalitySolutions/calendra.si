@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -170,11 +171,23 @@ public class SessionTypeController {
     public TypeResponse create(@RequestBody TypeRequest req, @AuthenticationPrincipal User me) {
         var type = new SessionType();
         Long companyId = me.getCompany().getId();
-        String normalizedCode = requireValidSessionTypeCode(req.code());
-        ensureSessionTypeCodeUnique(companyId, normalizedCode, null);
+        String normalizedCode = normalizeSessionTypeCode(req.code());
+        String description = normalizeServiceDescription(req.description());
+        if (description == null) {
+            if (normalizedCode == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service description is required.");
+            }
+            // Backwards compatibility for older API clients that still provide only a code.
+            description = normalizedCode;
+        }
+        if (normalizedCode == null) {
+            normalizedCode = generateUniqueSessionTypeCode(companyId, description);
+        } else {
+            ensureSessionTypeCodeUnique(companyId, normalizedCode, null);
+        }
         type.setCompany(me.getCompany());
         type.setName(normalizedCode);
-        type.setDescription(req.description());
+        type.setDescription(description);
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         applyBreakSettings(type, req, companyId);
@@ -209,10 +222,24 @@ public class SessionTypeController {
         if (!type.getCompany().getId().equals(companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        String normalizedCode = requireValidSessionTypeCode(req.code());
-        ensureSessionTypeCodeUnique(companyId, normalizedCode, id);
+        String normalizedCode = normalizeSessionTypeCode(req.code());
+        String description = normalizeServiceDescription(req.description());
+        if (description == null) {
+            if (normalizedCode == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service description is required.");
+            }
+            // Preserve legacy rows when an older status-only client does not manage descriptions.
+            description = type.getDescription();
+        }
+        if (normalizedCode == null) {
+            // The code is intentionally hidden from the regular editor. Keep it stable
+            // when the visible description is renamed.
+            normalizedCode = type.getName();
+        } else {
+            ensureSessionTypeCodeUnique(companyId, normalizedCode, id);
+        }
         type.setName(normalizedCode);
-        type.setDescription(req.description());
+        type.setDescription(description);
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         applyBreakSettings(type, req, companyId);
@@ -347,12 +374,35 @@ public class SessionTypeController {
         return alnum;
     }
 
-    private String requireValidSessionTypeCode(String raw) {
-        String normalized = normalizeSessionTypeCode(raw);
-        if (normalized == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service code is required.");
+    private String normalizeServiceDescription(String raw) {
+        if (raw == null) return null;
+        String description = raw.trim();
+        return description.isEmpty() ? null : description;
+    }
+
+    private String generateUniqueSessionTypeCode(Long companyId, String description) {
+        String ascii = Normalizer.normalize(description, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        String base = normalizeSessionTypeCode(ascii);
+        if (base == null) base = "SERVICE";
+
+        if (repo.findByCompanyIdAndNameIgnoreCase(companyId, base).isEmpty()) {
+            return base;
         }
-        return normalized;
+
+        for (int suffix = 2; suffix < 1_000_000; suffix++) {
+            String suffixText = String.valueOf(suffix);
+            int prefixLength = Math.max(1, SESSION_TYPE_CODE_MAX_LENGTH - suffixText.length());
+            String candidate = base.substring(0, Math.min(base.length(), prefixLength)) + suffixText;
+            if (repo.findByCompanyIdAndNameIgnoreCase(companyId, candidate).isEmpty()) {
+                return candidate;
+            }
+        }
+
+        throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "A unique internal service code could not be generated."
+        );
     }
 
     private void applyBreakSettings(SessionType type, TypeRequest req, Long companyId) {

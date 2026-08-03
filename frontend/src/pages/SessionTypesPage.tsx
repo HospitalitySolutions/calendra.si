@@ -1468,9 +1468,13 @@ export function SessionTypesPage() {
     e.preventDefault();
     if (!isAdmin) return;
     if (!isTypeFormDirty) return;
-    const normalizedTypeCode = normalizeServiceTypeCode(typeForm.name);
-    if (!normalizedTypeCode) {
-      window.alert("Service code is required.");
+    const normalizedDescription = typeForm.description.trim();
+    if (!normalizedDescription) {
+      window.alert(
+        locale === "sl"
+          ? "Opis storitve je obvezen."
+          : "Service description is required.",
+      );
       return;
     }
     const effectiveGuestBookingMode = normalizeGuestBookingModeForModules(
@@ -1493,8 +1497,9 @@ export function SessionTypesPage() {
           })();
 
     const payload = {
-      name: normalizedTypeCode,
-      description: typeForm.description,
+      // The backend creates the immutable internal service code on create and
+      // preserves it on edit. Users only maintain the visible description.
+      description: normalizedDescription,
       color: normalizeServiceTypeColorForUi(typeForm.color),
       durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
       breakMinutes: typeForm.breakMinutesOverridden
@@ -2261,11 +2266,9 @@ export function SessionTypesPage() {
               >
                 <div className="clients-mobile-card-head">
                   <ServiceConfigNameCell
-                    title={type.name}
-                    subtitle={
-                      type.description?.trim()
-                        ? type.description
-                        : `ID #${type.id}`
+                    title={
+                      type.description?.trim() ||
+                      (locale === "sl" ? "Storitev" : "Service")
                     }
                     visual={serviceConfigVisual(index)}
                   />
@@ -2407,11 +2410,9 @@ export function SessionTypesPage() {
                     <td>
                       <div className="service-config-name-with-group">
                         <ServiceConfigNameCell
-                          title={type.name}
-                          subtitle={
-                            type.description?.trim()
-                              ? type.description
-                              : `ID #${type.id}`
+                          title={
+                            type.description?.trim() ||
+                            (locale === "sl" ? "Storitev" : "Service")
                           }
                           visual={serviceConfigVisual(index)}
                         />
@@ -3617,25 +3618,20 @@ export function SessionTypesPage() {
                     </div>
                   </div>
 
-                  <div className="session-type-config-grid session-type-config-grid--two">
-                    <Field label={locale === "sl" ? "Koda storitve" : "Service code"}>
-                      <input
-                        required
-                        maxLength={SERVICE_TYPE_CODE_MAX_LENGTH}
-                        value={typeForm.name}
-                        onChange={(e) =>
-                          setTypeForm({
-                            ...typeForm,
-                            name: normalizeServiceTypeCode(e.target.value),
-                          })
-                        }
-                      />
-                    </Field>
-                    <Field label={locale === "sl" ? "Opis" : "Description"}>
+                  <div className="session-type-config-grid session-type-config-description-grid">
+                    <Field
+                      label={locale === "sl" ? "Opis *" : "Description *"}
+                    >
                       <textarea
                         ref={sessionTypeDescriptionRef}
                         className="session-type-description-autogrow"
                         rows={1}
+                        required
+                        placeholder={
+                          locale === "sl"
+                            ? "Npr. Masaža"
+                            : "For example, Massage"
+                        }
                         value={typeForm.description}
                         onChange={(e) => {
                           const el = e.target;
