@@ -266,12 +266,22 @@ final class ModernA4InvoicePdfRenderer {
         float baseline = sectionTitle(state, vatBreakdownLabel(state.locale), x, y, width);
         List<VatRow> rows = vatRows(request.getServices());
         String[] headers = vatHeaders(state.locale);
-        float[] proportions = {0.31f, 0.18f, 0.25f, 0.26f};
+        // Keep all VAT column titles fully visible. The previous narrow rate column
+        // shortened "Stopnja DDV" to "Stopnja D…", which also made the generated
+        // PDF differ from the configured A4 template and broke text extraction.
+        float[] proportions = {0.29f, 0.24f, 0.22f, 0.25f};
         float currentX = x + pad;
         float tableW = width - 2 * pad;
         for (int i = 0; i < headers.length; i++) {
             float cellW = tableW * proportions[i];
-            state.text(state.fonts.bold, state.theme.small, currentX, baseline, fitText(state.fonts.bold, state.theme.small, cellW - 3f, headers[i]), MUTED);
+            float headerSize = fitFontSize(
+                    state.fonts.bold,
+                    state.theme.small,
+                    Math.max(5f, state.theme.small - 2f),
+                    cellW - 3f,
+                    headers[i]
+            );
+            state.text(state.fonts.bold, headerSize, currentX, baseline, headers[i], MUTED);
             currentX += cellW;
         }
         baseline += state.theme.line;
@@ -896,6 +906,16 @@ final class ModernA4InvoicePdfRenderer {
         String ellipsis = "…";
         while (text.length() > 1 && textWidth(font, size, text + ellipsis) > width) text = text.substring(0, text.length() - 1);
         return text + ellipsis;
+    }
+
+    private static float fitFontSize(PDFont font, float preferredSize, float minimumSize, float width, String raw) throws IOException {
+        String text = safe(raw);
+        if (text.isBlank() || width <= 0f) return preferredSize;
+        float size = preferredSize;
+        while (size > minimumSize && textWidth(font, size, text) > width) {
+            size = Math.max(minimumSize, size - 0.25f);
+        }
+        return size;
     }
 
     private static float textWidth(PDFont font, float size, String text) throws IOException {
