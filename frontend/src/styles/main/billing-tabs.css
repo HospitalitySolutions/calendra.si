@@ -188,6 +188,164 @@
     line-height: 1;
 }
 
+.billing-history-export {
+    position: relative;
+}
+
+.billing-export-btn {
+    min-width: 136px;
+    justify-content: space-between;
+}
+
+.billing-export-btn__caret {
+    font-size: 0.78rem;
+    color: #64748b;
+    transform: rotate(180deg);
+    transition: transform 0.18s ease;
+}
+
+.billing-export-btn__caret.is-open {
+    transform: rotate(0deg);
+}
+
+.billing-export-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    min-width: 280px;
+    padding: 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: #ffffff;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14);
+    z-index: 40;
+    display: grid;
+    gap: 10px;
+}
+
+.billing-export-menu__section {
+    display: grid;
+    gap: 8px;
+}
+
+.billing-export-menu__headline {
+    display: flex;
+    width: 100%;
+    padding: 6px 6px 2px;
+    border: none;
+    background: transparent;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+}
+
+.billing-export-menu__headline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.billing-export-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: none;
+    background: #f8fbff;
+    color: #0f172a;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.billing-export-menu__item:hover:not(:disabled),
+.billing-export-menu__headline:hover:not(:disabled) {
+    background: #eef5ff;
+}
+
+.billing-export-menu__item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.billing-export-menu__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: #eaf2ff;
+    font-size: 1rem;
+}
+
+.billing-export-menu__copy {
+    display: grid;
+    gap: 2px;
+}
+
+.billing-export-menu__copy strong {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.billing-export-menu__divider {
+    height: 1px;
+    background: #e7edf4;
+}
+
+.billing-history-selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid #dce7f7;
+    border-radius: 16px 16px 0 0;
+    background: #f5f9ff;
+    margin-bottom: -12px;
+}
+
+.billing-history-selection-bar__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #1e3a8a;
+}
+
+.billing-history-selection-bar__clear {
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-size: 0.88rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.billing-history-checkbox-cell {
+    width: 44px;
+    text-align: center;
+}
+
+.billing-history-row--selected td {
+    background: #f5f9ff;
+}
+
+.billing-history-row input[type="checkbox"],
+.billing-history-selection-bar input[type="checkbox"],
+.billing-modern-history-table thead input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
 .billing-bank-import-input {
     display: none;
 }
@@ -2609,6 +2767,29 @@
 
     .billing-modern-toolbar-actions > * {
         flex: 1 1 0;
+    }
+
+    .billing-history-export {
+        width: 100%;
+    }
+
+    .billing-export-btn {
+        width: 100%;
+    }
+
+    .billing-export-menu {
+        left: 0;
+        right: 0;
+        min-width: 0;
+    }
+
+    .billing-history-selection-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .billing-history-selection-bar__clear {
+        align-self: flex-start;
     }
 
     .billing-filter-modal__body {

@@ -1174,6 +1174,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     fiscalStatus: 'all',
     billType: 'all',
   })
+  const [selectedHistoryBillIds, setSelectedHistoryBillIds] = useState<number[]>([])
+  const [historyExportMenuOpen, setHistoryExportMenuOpen] = useState(false)
+  const [exportingHistoryScope, setExportingHistoryScope] = useState<null | 'all-pdf' | 'selected-pdf' | 'all-excel' | 'selected-excel'>(null)
   const [showGiftCardFilters, setShowGiftCardFilters] = useState(false)
   const [giftCardFilterDraft, setGiftCardFilterDraft] = useState<{
     dateFrom: string
@@ -1732,6 +1735,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return () => document.removeEventListener('mousedown', onDocPointerDown)
   }, [openBillPreviewChoice])
 
+  useEffect(() => {
+    if (!historyExportMenuOpen) return
+    const onDocPointerDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el?.closest('.billing-history-export')) return
+      setHistoryExportMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocPointerDown)
+    return () => document.removeEventListener('mousedown', onDocPointerDown)
+  }, [historyExportMenuOpen])
+
   const grossPreview = useMemo(() => billForm.items.reduce((sum, item) => {
     const gross = Number(item.grossPrice || 0)
     return sum + (Number.isFinite(gross) ? gross : 0) * Number(item.quantity || 0)
@@ -2168,6 +2182,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   useEffect(() => {
     if (historyPagination.page !== historyPage) setHistoryPage(historyPagination.page)
   }, [historyPagination.page, historyPage])
+
+  useEffect(() => {
+    const allowedIds = new Set(sortedHistoryBills.map((bill) => bill.id))
+    setSelectedHistoryBillIds((prev) => prev.filter((id) => allowedIds.has(id)))
+  }, [sortedHistoryBills])
+
+  const selectedHistoryBillIdSet = useMemo(() => new Set(selectedHistoryBillIds), [selectedHistoryBillIds])
+  const selectedHistoryBills = useMemo(() => sortedHistoryBills.filter((bill) => selectedHistoryBillIdSet.has(bill.id)), [sortedHistoryBills, selectedHistoryBillIdSet])
+  const historyPageBillIds = useMemo(() => historyPagination.slice.map((bill) => bill.id), [historyPagination.slice])
+  const allHistoryPageSelected = historyPageBillIds.length > 0 && historyPageBillIds.every((id) => selectedHistoryBillIdSet.has(id))
 
   const filteredGiftCards = useMemo(() => {
     const q = giftCardSearch.trim().toLowerCase()
@@ -4188,6 +4212,57 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     a.click()
     a.remove()
     window.URL.revokeObjectURL(url)
+  }
+
+  const toggleHistoryBillSelection = (billId: number, checked?: boolean) => {
+    setSelectedHistoryBillIds((prev) => {
+      const exists = prev.includes(billId)
+      const shouldSelect = checked == null ? !exists : checked
+      if (shouldSelect && !exists) return [...prev, billId]
+      if (!shouldSelect && exists) return prev.filter((id) => id !== billId)
+      return prev
+    })
+  }
+
+  const toggleHistoryPageSelection = (checked: boolean) => {
+    setSelectedHistoryBillIds((prev) => {
+      const next = new Set(prev)
+      historyPageBillIds.forEach((id) => {
+        if (checked) next.add(id)
+        else next.delete(id)
+      })
+      return Array.from(next)
+    })
+  }
+
+  const downloadHistoryExport = async (kind: 'pdf' | 'excel', scope: 'all' | 'selected') => {
+    const ids = scope === 'selected' ? selectedHistoryBills.map((bill) => bill.id) : sortedHistoryBills.map((bill) => bill.id)
+    if (ids.length === 0) {
+      showToast('error', locale === 'sl' ? 'Ni računov za izvoz.' : 'There are no invoices to export.')
+      return
+    }
+    const stateLabel = `${scope}-${kind}` as 'all-pdf' | 'selected-pdf' | 'all-excel' | 'selected-excel'
+    setExportingHistoryScope(stateLabel)
+    setHistoryExportMenuOpen(false)
+    try {
+      const response = await api.post(
+        kind === 'pdf' ? `/billing/bills/export/pdf-zip?locale=${locale}` : `/billing/bills/export/excel?locale=${locale}`,
+        { billIds: ids },
+        { responseType: 'blob' },
+      )
+      const blob = new Blob([response.data], {
+        type: kind === 'pdf' ? 'application/zip' : 'application/vnd.ms-excel',
+      })
+      const stamp = new Date().toISOString().slice(0, 10)
+      const scopePart = scope === 'selected' ? (locale === 'sl' ? 'izbrani-racuni' : 'selected-invoices') : (locale === 'sl' ? 'vsi-racuni' : 'all-invoices')
+      const extension = kind === 'pdf' ? 'zip' : 'xls'
+      downloadPdfBlob(blob, `${scopePart}-${stamp}.${extension}`)
+      showToast('success', locale === 'sl' ? 'Izvoz je pripravljen.' : 'Export is ready.')
+    } catch (error: any) {
+      showToast('error', readBillingApiMessage(error) || (locale === 'sl' ? 'Izvoza ni bilo mogoče pripraviti.' : 'Could not prepare the export.'))
+    } finally {
+      setExportingHistoryScope(null)
+    }
   }
 
   const printPdfBlob = async (blob: Blob, fileName: string, preparedWindow?: Window | null): Promise<boolean> => {
@@ -8148,6 +8223,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     to: locale === 'sl' ? 'Datum do' : 'Date to',
   }
 
+  const historyExportText = {
+    button: locale === 'sl' ? 'Izvoz' : 'Export',
+    all: locale === 'sl' ? 'Izvozi vse račune' : 'Export all invoices',
+    selected: locale === 'sl' ? `Izvozi izbrane račune (${selectedHistoryBills.length})` : `Export selected invoices (${selectedHistoryBills.length})`,
+    asPdf: locale === 'sl' ? 'Kot PDF datoteke (.zip)' : 'As PDF files (.zip)',
+    asExcel: locale === 'sl' ? 'Kot Excel tabela (.xls)' : 'As Excel table (.xls)',
+    clearSelection: locale === 'sl' ? 'Počisti izbor' : 'Clear selection',
+    selectedBar: locale === 'sl' ? `Izbrani ${selectedHistoryBills.length} računi` : `${selectedHistoryBills.length} invoices selected`,
+  }
+
   const openHistoryFiltersModal = () => {
     setHistoryFilterDraft({
       dateFrom: historyDateFrom,
@@ -9027,6 +9112,61 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>{historyFilterText.title}</span>
                       {activeHistoryFilterCount > 0 ? <strong className="billing-filter-btn__count">{activeHistoryFilterCount}</strong> : null}
                     </button>
+                    <div className="billing-history-export">
+                      <button
+                        type="button"
+                        className="billing-filter-btn billing-export-btn"
+                        onClick={() => setHistoryExportMenuOpen((value) => !value)}
+                        disabled={sortedHistoryBills.length === 0 || exportingHistoryScope != null}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M12 3v12" />
+                          <path d="m7 10 5 5 5-5" />
+                          <path d="M5 21h14" />
+                        </svg>
+                        <span>{exportingHistoryScope == null ? historyExportText.button : (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')}</span>
+                        <span className={`billing-export-btn__caret${historyExportMenuOpen ? ' is-open' : ''}`} aria-hidden>⌃</span>
+                      </button>
+                      {historyExportMenuOpen ? (
+                        <div className="billing-export-menu" role="menu">
+                          <div className="billing-export-menu__section">
+                            <button type="button" className="billing-export-menu__headline" onClick={() => downloadHistoryExport('pdf', 'all')} role="menuitem">
+                              <span>{historyExportText.all}</span>
+                            </button>
+                            <button type="button" className="billing-export-menu__item" onClick={() => downloadHistoryExport('pdf', 'all')} role="menuitem">
+                              <span className="billing-export-menu__icon" aria-hidden>📄</span>
+                              <span className="billing-export-menu__copy">
+                                <strong>{historyExportText.asPdf}</strong>
+                              </span>
+                            </button>
+                            <button type="button" className="billing-export-menu__item" onClick={() => downloadHistoryExport('excel', 'all')} role="menuitem">
+                              <span className="billing-export-menu__icon" aria-hidden>📊</span>
+                              <span className="billing-export-menu__copy">
+                                <strong>{historyExportText.asExcel}</strong>
+                              </span>
+                            </button>
+                          </div>
+                          <div className="billing-export-menu__divider" />
+                          <div className="billing-export-menu__section">
+                            <button type="button" className="billing-export-menu__headline" disabled={selectedHistoryBills.length === 0} onClick={() => downloadHistoryExport('pdf', 'selected')} role="menuitem">
+                              <span>{historyExportText.selected}</span>
+                            </button>
+                            <button type="button" className="billing-export-menu__item" disabled={selectedHistoryBills.length === 0} onClick={() => downloadHistoryExport('pdf', 'selected')} role="menuitem">
+                              <span className="billing-export-menu__icon" aria-hidden>📄</span>
+                              <span className="billing-export-menu__copy">
+                                <strong>{historyExportText.asPdf}</strong>
+                              </span>
+                            </button>
+                            <button type="button" className="billing-export-menu__item" disabled={selectedHistoryBills.length === 0} onClick={() => downloadHistoryExport('excel', 'selected')} role="menuitem">
+                              <span className="billing-export-menu__icon" aria-hidden>📊</span>
+                              <span className="billing-export-menu__copy">
+                                <strong>{historyExportText.asExcel}</strong>
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                     <button
                       type="button"
                       className="clients-modern-new-btn billing-history-new-btn"
@@ -9240,10 +9380,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </div>
                   </div>
                 ) : (
+                  <>
+                    {selectedHistoryBills.length > 0 ? (
+                      <div className="billing-history-selection-bar">
+                        <label className="billing-history-selection-bar__label">
+                          <input
+                            type="checkbox"
+                            checked={allHistoryPageSelected}
+                            onChange={(e) => toggleHistoryPageSelection(e.target.checked)}
+                          />
+                          <span>{historyExportText.selectedBar}</span>
+                        </label>
+                        <button type="button" className="billing-history-selection-bar__clear" onClick={() => setSelectedHistoryBillIds([])}>{historyExportText.clearSelection}</button>
+                      </div>
+                    ) : null}
                   <div className="billing-modern-table-wrap">
                     <table className="billing-modern-table billing-modern-history-table">
                       <thead>
                         <tr>
+                          <th className="billing-history-checkbox-cell">
+                            <input
+                              type="checkbox"
+                              checked={allHistoryPageSelected}
+                              onChange={(e) => toggleHistoryPageSelection(e.target.checked)}
+                              aria-label={locale === 'sl' ? 'Izberi vse račune na strani' : 'Select all invoices on page'}
+                            />
+                          </th>
                           <th>{locale === 'sl' ? 'Št. računa' : 'Invoice No.'}</th>
                           <th>{billingCopy.historyInvoiceTypeColumn}</th>
                           <th>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</th>
@@ -9260,7 +9422,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </thead>
                       <tbody>
                         {historyPagination.slice.map((bill) => (
-                          <tr key={bill.id} className="billing-history-row" onClick={() => { void openFolioPanel(bill) }}>
+                          <tr key={bill.id} className={`billing-history-row${selectedHistoryBillIdSet.has(bill.id) ? ' billing-history-row--selected' : ''}`} onClick={() => { void openFolioPanel(bill) }}>
+                            <td className="billing-history-checkbox-cell" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedHistoryBillIdSet.has(bill.id)}
+                                onChange={(e) => toggleHistoryBillSelection(bill.id, e.target.checked)}
+                                aria-label={locale === 'sl' ? `Izberi račun ${bill.billNumber}` : `Select invoice ${bill.billNumber}`}
+                              />
+                            </td>
                             <td className="billing-modern-link-cell">{bill.billNumber}{bill.refundReference ? <div className="billing-modern-muted">{bill.refundReference}</div> : null}</td>
                             <td>{historyBillTypeLabel(bill)}</td>
                             <td>{displayInvoiceOrderId(bill)}</td>
@@ -9324,6 +9494,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </div>
                     </div>
                   </div>
+                  </>
                 )}
               </div>
             )}

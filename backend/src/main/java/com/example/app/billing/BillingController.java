@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.math.RoundingMode;
@@ -56,6 +57,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 import org.hibernate.Hibernate;
@@ -316,6 +319,7 @@ public class BillingController {
             List<PaymentSplitResponse> paymentSplits,
             List<BillItemResponse> items
     ) {}
+    public record BillExportRequest(List<Long> billIds) {}
 
     public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record ItemDiscountRequest(Integer itemIndex, String discountType, BigDecimal discountValue) {}
@@ -3907,6 +3911,204 @@ public class BillingController {
     /** Backwards-compatible direct-call overload used by controller unit tests. */
     public ResponseEntity<byte[]> billFolioPdf(Long id, String locale, User me) {
         return billFolioPdf(id, locale, null, me);
+    }
+
+    @PostMapping(value = "/bills/export/pdf-zip", produces = "application/zip")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> exportBillsPdfZip(@RequestBody(required = false) BillExportRequest request,
+                                                    @RequestParam(value = "locale", required = false) String locale,
+                                                    @RequestParam(value = "format", required = false) String format,
+                                                    @AuthenticationPrincipal User me) {
+        var companyId = me.getCompany().getId();
+        List<Bill> bills = resolveBillsForExport(companyId, request);
+        InvoicePrintFormat printFormat = InvoicePrintFormat.from(format);
+        byte[] zip = buildBillsPdfZip(bills, companyId, locale, printFormat);
+        String filename = "invoice-export-" + LocalDate.now() + ".zip";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename="" + filename + """)
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(zip);
+    }
+
+    @PostMapping(value = "/bills/export/excel", produces = "application/vnd.ms-excel")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> exportBillsExcel(@RequestBody(required = false) BillExportRequest request,
+                                                   @RequestParam(value = "locale", required = false) String locale,
+                                                   @AuthenticationPrincipal User me) {
+        var companyId = me.getCompany().getId();
+        List<Bill> bills = resolveBillsForExport(companyId, request);
+        byte[] excel = buildBillsExcelExport(bills, locale);
+        String filename = "invoice-export-" + LocalDate.now() + ".xls";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename="" + filename + """)
+                .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
+                .body(excel);
+    }
+
+    private List<Bill> resolveBillsForExport(Long companyId, BillExportRequest request) {
+        List<Long> ids = request == null || request.billIds() == null ? List.of() : request.billIds().stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No invoices selected for export.");
+        }
+        Map<Long, Integer> order = new HashMap<>();
+        for (int i = 0; i < ids.size(); i++) order.put(ids.get(i), i);
+        List<Bill> bills = billRepo.findAllByCompanyIdAndIdIn(companyId, ids).stream()
+                .map(this::ensureSnapshotBackfilled)
+                .sorted(Comparator.comparingInt(b -> order.getOrDefault(b.getId(), Integer.MAX_VALUE)))
+                .toList();
+        if (bills.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No invoices found for export.");
+        }
+        return bills;
+    }
+
+    private byte[] buildBillsPdfZip(List<Bill> bills, Long companyId, String locale, InvoicePrintFormat printFormat) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream zip = new ZipOutputStream(baos)) {
+            for (Bill bill : bills) {
+                String entryNamePrefix = printFormat == InvoicePrintFormat.POS_58 ? "receipt-58mm-" : "folio-";
+                String entryName = entryNamePrefix + safeFilenameToken(bill.getBillNumber()) + ".pdf";
+                zip.putNextEntry(new ZipEntry(entryName));
+                byte[] pdf = billFolioPdfService.generate(bill, companyId, locale, printFormat);
+                zip.write(pdf);
+                zip.closeEntry();
+            }
+            zip.finish();
+            return baos.toByteArray();
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not create invoice PDF archive.");
+        }
+    }
+
+    private byte[] buildBillsExcelExport(List<Bill> bills, String locale) {
+        boolean sl = locale == null || locale.isBlank() || locale.toLowerCase(Locale.ROOT).startsWith("sl");
+        String title = sl ? "Izvoz računov" : "Invoice export";
+        String customerLabel = sl ? "Stranka / Podjetje" : "Customer / Company";
+        String employeeLabel = sl ? "Zaposleni" : "Employee";
+        String descriptionLabel = sl ? "Opis" : "Description";
+        String issueDateLabel = sl ? "Datum izdaje" : "Issue date";
+        String amountLabel = sl ? "Znesek" : "Amount";
+        String paymentStatusLabel = sl ? "Status plačila" : "Payment status";
+        String fiscalStatusLabel = sl ? "Fiskalni status" : "Fiscal status";
+        String paymentMethodLabel = sl ? "Način plačila" : "Payment method";
+        String refundReferenceLabel = sl ? "Sklic vračila" : "Refund reference";
+        String bankReferenceLabel = sl ? "Referenca" : "Reference";
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html><html><head><meta charset="utf-8" />")
+                .append("<style>")
+                .append("body{font-family:Arial,sans-serif;font-size:12px;color:#0f172a;}table{border-collapse:collapse;width:100%;}")
+                .append("th,td{border:1px solid #d7dee8;padding:6px 8px;vertical-align:top;}th{background:#eaf2ff;font-weight:700;}")
+                .append("tr:nth-child(even) td{background:#f8fbff;} h1{font-size:18px;margin:0 0 12px 0;}")
+                .append("</style></head><body>");
+        html.append("<h1>").append(htmlEscape(title)).append("</h1>");
+        html.append("<table><thead><tr>")
+                .append(th(sl ? "Št. računa" : "Invoice No."))
+                .append(th(sl ? "Vrsta računa" : "Invoice type"))
+                .append(th(sl ? "ID naročila" : "Order ID"))
+                .append(th(sl ? "ID seje" : "Session ID"))
+                .append(th(customerLabel))
+                .append(th(employeeLabel))
+                .append(th(descriptionLabel))
+                .append(th(issueDateLabel))
+                .append(th(amountLabel))
+                .append(th(paymentStatusLabel))
+                .append(th(fiscalStatusLabel))
+                .append(th(paymentMethodLabel))
+                .append(th(refundReferenceLabel))
+                .append(th(bankReferenceLabel))
+                .append("</tr></thead><tbody>");
+        for (Bill bill : bills) {
+            String billType = bill.getBillType() == null ? BillType.INVOICE.name() : bill.getBillType().name();
+            String customer = "COMPANY".equalsIgnoreCase(defaultString(bill.getRecipientTypeSnapshot()))
+                    ? defaultString(bill.getRecipientCompanyNameSnapshot())
+                    : defaultString(snapshotFirstName(bill) + (snapshotLastName(bill).isBlank() ? "" : " " + snapshotLastName(bill))).trim();
+            if (customer.isBlank()) customer = "—";
+            String employee = bill.getConsultant() == null ? "—" : defaultString(bill.getConsultant().getFirstName()) + (defaultString(bill.getConsultant().getLastName()).isBlank() ? "" : " " + defaultString(bill.getConsultant().getLastName()));
+            if (employee.isBlank()) employee = "—";
+            String description = bill.getItems().isEmpty() || bill.getItems().get(0).getTransactionService() == null
+                    ? billType
+                    : defaultString(bill.getItems().get(0).getTransactionService().getDescription());
+            String paymentMethod = bill.getPaymentMethod() == null ? "—" : defaultString(bill.getPaymentMethod().getName());
+            html.append("<tr>")
+                    .append(td(defaultString(bill.getBillNumber())))
+                    .append(td(sl ? exportBillTypeLabelSl(billType) : exportBillTypeLabelEn(billType)))
+                    .append(td(defaultString(bill.getOrderId())))
+                    .append(td(bill.getSourceSessionIdSnapshot() == null ? "—" : String.valueOf(bill.getSourceSessionIdSnapshot())))
+                    .append(td(customer))
+                    .append(td(employee))
+                    .append(td(description))
+                    .append(td(bill.getIssueDate() == null ? "—" : bill.getIssueDate().toString()))
+                    .append(td(safeMoney(bill.getTotalGross()).toPlainString()))
+                    .append(td(sl ? exportPaymentStatusLabelSl(normalizePaymentStatus(bill.getPaymentStatus())) : exportPaymentStatusLabelEn(normalizePaymentStatus(bill.getPaymentStatus()))))
+                    .append(td(sl ? exportFiscalStatusLabelSl(normalizeFiscalStatus(bill.getFiscalStatus())) : exportFiscalStatusLabelEn(normalizeFiscalStatus(bill.getFiscalStatus()))))
+                    .append(td(paymentMethod))
+                    .append(td(defaultString(bill.getRefundReference())))
+                    .append(td(defaultString(BankStatementReconciliationService.bankReferenceForBill(bill))))
+                    .append("</tr>");
+        }
+        html.append("</tbody></table></body></html>");
+        return html.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String th(String value) {
+        return "<th>" + htmlEscape(value) + "</th>";
+    }
+
+    private String td(String value) {
+        return "<td>" + htmlEscape(value) + "</td>";
+    }
+
+    private String defaultString(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String htmlEscape(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace(""", "&quot;");
+    }
+
+    private String exportBillTypeLabelSl(String billType) {
+        if ("ADVANCE".equalsIgnoreCase(billType)) return "Predplačilo";
+        if ("REFUND".equalsIgnoreCase(billType)) return "Vračilo";
+        return "Račun";
+    }
+
+    private String exportBillTypeLabelEn(String billType) {
+        if ("ADVANCE".equalsIgnoreCase(billType)) return "Advance";
+        if ("REFUND".equalsIgnoreCase(billType)) return "Refund";
+        return "Invoice";
+    }
+
+    private String exportPaymentStatusLabelSl(String status) {
+        if (BillPaymentStatus.PAID.equalsIgnoreCase(status)) return "Plačano";
+        if (BillPaymentStatus.PAYMENT_PENDING.equalsIgnoreCase(status)) return "Delno plačano";
+        if (BillPaymentStatus.CANCELLED.equalsIgnoreCase(status)) return "Arhivirano";
+        return "Neplačano";
+    }
+
+    private String exportPaymentStatusLabelEn(String status) {
+        if (BillPaymentStatus.PAID.equalsIgnoreCase(status)) return "Paid";
+        if (BillPaymentStatus.PAYMENT_PENDING.equalsIgnoreCase(status)) return "Partially paid";
+        if (BillPaymentStatus.CANCELLED.equalsIgnoreCase(status)) return "Archived";
+        return "Unpaid";
+    }
+
+    private String exportFiscalStatusLabelSl(String status) {
+        if ("SENT".equalsIgnoreCase(status)) return "Izdano";
+        if ("FAILED".equalsIgnoreCase(status)) return "Napaka";
+        return "Ni poslano";
+    }
+
+    private String exportFiscalStatusLabelEn(String status) {
+        if ("SENT".equalsIgnoreCase(status)) return "Issued";
+        if ("FAILED".equalsIgnoreCase(status)) return "Failed";
+        return "Not sent";
     }
 
     private String settingValue(Long companyId, SettingKey key) {
