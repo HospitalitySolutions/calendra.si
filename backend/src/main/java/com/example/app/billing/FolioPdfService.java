@@ -566,7 +566,7 @@ public class FolioPdfService {
         float leftEdge = tbl.getStartX();
         float pageH = layout.getPageHeight();
 
-        FooterRenderData footerData = buildFooterRenderData(totalNett, totalGross, req);
+        FooterRenderData footerData = buildFooterRenderData(totalNett, totalGross, req, layout);
         Map<String, String> footerValues = footerData.values();
         List<String> paymentLines = footerData.paymentLines();
 
@@ -660,7 +660,7 @@ public class FolioPdfService {
         var ftr = layout.getFooter();
         if (ftr == null || ftr.getItems() == null) return;
         float pageH = layout.getPageHeight();
-        FooterRenderData footerData = buildFooterRenderData(totalNett, totalGross, req);
+        FooterRenderData footerData = buildFooterRenderData(totalNett, totalGross, req, layout);
         Map<String, String> footerValues = footerData.values();
         List<String> paymentLines = footerData.paymentLines();
 
@@ -713,7 +713,7 @@ public class FolioPdfService {
         }
     }
 
-    private FooterRenderData buildFooterRenderData(BigDecimal totalNett, BigDecimal totalGross, FolioPdfRequest req) {
+    private FooterRenderData buildFooterRenderData(BigDecimal totalNett, BigDecimal totalGross, FolioPdfRequest req, FolioLayoutConfig layout) {
         Map<String, String> footerValues = new HashMap<>();
         footerValues.put("totalNett", fmtEurSuffix(totalNett));
         BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
@@ -744,7 +744,7 @@ public class FolioPdfService {
         footerValues.put("vat0", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_0)));
         footerValues.put("noVat", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.NO_VAT)));
         if (req != null && req.getNotes() != null && !req.getNotes().isBlank()) {
-            footerValues.put("notes", safe(req.getNotes()));
+            footerValues.put("notes", resolveReferenceText(layout, req.getNotes()));
         }
         List<String> paymentLines = paymentFooterLines(req);
         if (!paymentLines.isEmpty()) {
@@ -763,6 +763,16 @@ public class FolioPdfService {
             footerValues.put("fiscalEor", safe(req.getFiscalEor()));
         }
         return new FooterRenderData(footerValues, paymentLines);
+    }
+
+    private String resolveReferenceText(FolioLayoutConfig layout, String referenceNumber) {
+        String normalizedReference = safe(referenceNumber);
+        if (normalizedReference.isBlank() || layout == null) return normalizedReference;
+
+        String configuredText = safe(layout.getReferenceText());
+        if (configuredText.isBlank()) return normalizedReference;
+
+        return safe(configuredText.replace("{reference-number}", normalizedReference));
     }
 
     private boolean suppressFooterLabel(String key) {
