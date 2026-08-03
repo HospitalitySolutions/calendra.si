@@ -216,8 +216,9 @@ const FIELD_SAMPLE_VALUES: Record<string, string> = {
   recipientVatId: 'SI10234224',
 }
 
+const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.'
+
 const TAX_CLAUSE_OPTIONS = [
-  'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
   'Oprostitev DDV po 42. členu ZDDV-1.',
   'Oprostitev DDV po 44. členu ZDDV-1.',
   'Dobava blaga v drugo državo članico EU je oproščena DDV po 46. členu ZDDV-1.',
@@ -233,7 +234,9 @@ function normalizeTaxClauses(value: unknown): string[] {
   for (const item of value) {
     if (typeof item !== 'string') continue
     const trimmed = item.trim()
-    if (trimmed) unique.add(trimmed)
+    // The 94/1 BREZ DDV clause is automatic and must not be persisted as a
+    // user-selectable additional clause.
+    if (trimmed && trimmed !== AUTO_NO_VAT_CLAUSE) unique.add(trimmed)
   }
   return Array.from(unique)
 }

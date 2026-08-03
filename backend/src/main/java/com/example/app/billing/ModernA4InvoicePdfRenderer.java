@@ -746,9 +746,17 @@ final class ModernA4InvoicePdfRenderer {
 
     private static List<String> effectiveTaxClauses(FolioLayoutConfig layout, FolioPdfRequest request) {
         LinkedHashSet<String> clauses = new LinkedHashSet<>();
-        if (allNoVat(request.getServices())) clauses.add(AUTO_NO_VAT_CLAUSE);
-        if (layout.getTaxClauses() != null) {
-            for (String clause : layout.getTaxClauses()) if (!safe(clause).isBlank()) clauses.add(safe(clause));
+        // This clause is system-controlled, exactly as on 58 mm receipts. It must
+        // not be enabled manually and is rendered only when every service line
+        // explicitly uses the BREZ DDV / NO VAT tax level.
+        if (allServicesExplicitlyNoVat(request == null ? null : request.getServices())) {
+            clauses.add(AUTO_NO_VAT_CLAUSE);
+        }
+        if (layout != null && layout.getTaxClauses() != null) {
+            for (String clause : layout.getTaxClauses()) {
+                String normalized = safe(clause);
+                if (!normalized.isBlank() && !AUTO_NO_VAT_CLAUSE.equals(normalized)) clauses.add(normalized);
+            }
         }
         return new ArrayList<>(clauses);
     }
@@ -816,10 +824,18 @@ final class ModernA4InvoicePdfRenderer {
         return VatBucket.VAT_0;
     }
 
-    private static boolean allNoVat(List<FolioPdfRequest.ServiceLine> lines) {
+    private static boolean allServicesExplicitlyNoVat(List<FolioPdfRequest.ServiceLine> lines) {
         if (lines == null || lines.isEmpty()) return false;
-        for (FolioPdfRequest.ServiceLine line : lines) if (vatBucket(line.getTaxPercent()) != VatBucket.NO_VAT) return false;
+        for (FolioPdfRequest.ServiceLine line : lines) {
+            if (line == null || !isExplicitNoVat(line.getTaxPercent())) return false;
+        }
         return true;
+    }
+
+    private static boolean isExplicitNoVat(String raw) {
+        String value = safe(raw).trim().toUpperCase(Locale.ROOT);
+        return !value.isBlank()
+                && (value.contains("NO VAT") || value.contains("BREZ DDV") || value.contains("NEOBDAV"));
     }
 
     private static String displayTax(String raw) {

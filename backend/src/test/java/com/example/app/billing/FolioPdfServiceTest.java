@@ -129,7 +129,7 @@ class FolioPdfServiceTest {
     }
 
     @Test
-    void generate_printsTaxClauseBodyWithoutTaxClauseHeading() throws Exception {
+    void generate_ignoresManuallyConfiguredAutomaticNoVatClauseForVatLines() throws Exception {
         FolioPdfService service = new FolioPdfService();
         FolioPdfRequest request = new FolioPdfRequest();
         request.setCompanyName("Test d.o.o.");
@@ -146,10 +146,33 @@ class FolioPdfServiceTest {
         byte[] pdf = service.generate(request, layout);
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
-            String text = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            String text = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
             assertThat(text)
-                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
                     .doesNotContain("Davčne klavzule");
+        }
+    }
+
+    @Test
+    void generate_doesNotTreatMissingVatLevelAsExplicitNoVat() throws Exception {
+        FolioPdfService service = new FolioPdfService();
+        FolioPdfRequest request = new FolioPdfRequest();
+        request.setCompanyName("Test d.o.o.");
+        request.setRecipientName("Prejemnik");
+        request.setFolioNumber("RAC-5B");
+        request.setFolioDate("2026-05-08");
+        request.setDateOfService("2026-05-08");
+        request.setDueDate("2026-05-15");
+        request.setLocale("sl");
+        FolioPdfRequest.ServiceLine line = serviceLine("Storitev", "12.20");
+        line.setTaxPercent(null);
+        request.setServices(List.of(line));
+
+        byte[] pdf = service.generate(request, FolioLayoutConfig.defaultLayout());
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
+            assertThat(text).doesNotContain("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.");
         }
     }
 
