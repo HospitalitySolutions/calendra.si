@@ -4854,37 +4854,37 @@
 
 .billing-line-discount-popover {
     position: absolute;
-    top: calc(100% - 20px);
-    right: -10px;
-    width: min(286px, calc(100vw - 40px));
+    top: calc(100% - 18px);
+    right: -12px;
+    width: min(370px, calc(100vw - 40px));
     display: grid;
-    gap: 11px;
-    padding: 14px;
-    border: 1px solid rgba(37, 99, 235, 0.30);
-    border-radius: 16px;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid rgba(147, 176, 222, 0.58);
+    border-radius: 22px;
     background: #ffffff;
-    box-shadow: 0 22px 48px rgba(15, 23, 42, 0.20);
+    box-shadow: 0 28px 64px rgba(15, 23, 42, 0.22);
     z-index: 12;
 }
 
 .billing-line-discount-popover::before {
     content: '';
     position: absolute;
-    top: -7px;
-    right: 18px;
-    width: 12px;
-    height: 12px;
+    top: -8px;
+    right: 22px;
+    width: 14px;
+    height: 14px;
     transform: rotate(45deg);
     background: #ffffff;
-    border-left: 1px solid rgba(37, 99, 235, 0.30);
-    border-top: 1px solid rgba(37, 99, 235, 0.30);
+    border-left: 1px solid rgba(147, 176, 222, 0.58);
+    border-top: 1px solid rgba(147, 176, 222, 0.58);
 }
 
 .billing-line-discount-popover-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 14px;
 }
 
 .billing-line-discount-popover-head div {
@@ -4895,76 +4895,91 @@
 
 .billing-line-discount-popover-head strong {
     color: #0f172a;
-    font-size: 0.95rem;
-    letter-spacing: -0.01em;
+    font-size: 1.18rem;
+    font-weight: 850;
+    letter-spacing: -0.025em;
 }
 
 .billing-line-discount-popover-head span,
-.billing-line-discount-popover p {
+.billing-line-discount-footer p {
     color: #64748b;
-    font-size: 0.76rem;
-    line-height: 1.35;
+    font-size: 0.78rem;
+    line-height: 1.42;
 }
 
 .billing-line-discount-popover-head button {
-    width: 28px;
-    height: 28px;
-    min-height: 28px;
-    padding: 0;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    flex: 0 0 36px;
+    padding: 0 0 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 0;
-    border-radius: 9px;
-    background: rgba(15, 23, 42, 0.06);
-    color: #334155;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #475569;
     box-shadow: none;
-    font-size: 1rem;
+    font-size: 1.25rem;
     line-height: 1;
+}
+
+.billing-line-discount-popover-head button:hover,
+.billing-line-discount-popover-head button:focus-visible {
+    background: #e8eef6;
+    color: #0f172a;
+    box-shadow: none;
 }
 
 .billing-line-discount-segmented {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    min-height: 42px;
+    min-height: 52px;
     padding: 3px;
-    border-radius: 12px;
+    border-radius: 15px;
     background: #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.24);
+    border: 1px solid rgba(148, 163, 184, 0.30);
 }
 
 .billing-line-discount-segmented button {
-    min-height: 34px;
-    padding: 0 10px;
+    min-height: 44px;
+    padding: 0 12px;
     border: 0;
-    border-radius: 9px;
+    border-radius: 12px;
     background: transparent;
     color: #475569;
     box-shadow: none;
+    font-size: 1rem;
     font-weight: 900;
 }
 
 .billing-line-discount-segmented button.is-active {
     color: #ffffff;
     background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
-    box-shadow: 0 10px 20px rgba(124, 58, 237, 0.24);
+    box-shadow: 0 10px 22px rgba(79, 70, 229, 0.24);
 }
 
 .billing-line-discount-input-wrap {
     min-width: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 42px;
+    grid-template-columns: minmax(0, 1fr) 56px;
     align-items: center;
-    min-height: 44px;
-    border-radius: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    min-height: 58px;
+    border-radius: 15px;
+    border: 1px solid rgba(148, 163, 184, 0.34);
     background: #ffffff;
     overflow: hidden;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .billing-line-discount-input-wrap input {
     width: 100%;
-    min-height: 44px;
+    min-height: 58px;
     border: 0;
-    padding: 0 14px;
+    padding: 0 16px;
     color: #0f172a;
+    font-size: 1.05rem;
     font-weight: 850;
     background: transparent;
     box-shadow: none;
@@ -4975,8 +4990,8 @@
 }
 
 .billing-line-discount-input-wrap:focus-within {
-    border-color: rgba(37, 99, 235, 0.48);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+    border-color: rgba(37, 99, 235, 0.55);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
 }
 
 .billing-line-discount-input-wrap em {
@@ -4984,41 +4999,68 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-left: 1px solid rgba(148, 163, 184, 0.22);
+    border-left: 1px solid rgba(148, 163, 184, 0.24);
     background: #f8fafc;
-    color: #475569;
+    color: #2563eb;
+    font-size: 1.08rem;
     font-style: normal;
     font-weight: 900;
 }
 
-.billing-line-discount-popover p {
+.billing-line-discount-footer {
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+    padding-top: 2px;
+}
+
+.billing-line-discount-footer p {
+    min-width: 0;
+    flex: 1 1 auto;
     margin: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
 }
 
-
-.billing-line-discount-actions {
-    display: none;
+.billing-line-discount-footer p > span:last-child {
+    min-width: 0;
 }
 
-.billing-line-discount-action {
-    min-height: 48px;
+.billing-line-discount-note-icon {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.billing-line-discount-save {
+    min-width: 108px;
+    min-height: 46px;
+    flex: 0 0 auto;
+    padding: 0 20px;
+    border: 0;
     border-radius: 14px;
-    border: 1px solid rgba(203, 213, 225, 0.78);
-    font-weight: 900;
-    letter-spacing: -0.01em;
-    box-shadow: none;
-}
-
-.billing-line-discount-action--primary {
     color: #ffffff;
-    border-color: transparent;
     background: linear-gradient(180deg, #2f75ff 0%, #0b63f6 100%);
-    box-shadow: 0 14px 26px rgba(37, 99, 235, 0.24);
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.26);
+    font-size: 0.95rem;
+    font-weight: 850;
+    letter-spacing: -0.01em;
 }
 
-.billing-line-discount-action--secondary {
-    color: #0b63f6;
-    background: #ffffff;
+.billing-line-discount-save:hover,
+.billing-line-discount-save:focus-visible {
+    transform: translateY(-1px);
+    background: linear-gradient(180deg, #2563eb 0%, #0757dc 100%);
+    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.32);
 }
 
 .billing-invoice-discount-subtitle {
@@ -5063,10 +5105,13 @@
 }
 
 
-[data-theme="dark"] .billing-line-discount-action--secondary {
-    color: #bfdbfe;
-    background: rgba(15, 23, 42, 0.72);
-    border-color: rgba(148, 163, 184, 0.24);
+[data-theme="dark"] .billing-line-discount-footer p {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .billing-line-discount-note-icon {
+    color: #93c5fd;
+    background: rgba(37, 99, 235, 0.18);
 }
 
 @media (max-width: 720px) {
@@ -8772,15 +8817,29 @@
     font-size: 1.34rem;
   }
 
-  .billing-invoice-item-discount-cell .billing-line-discount-popover > p {
+  .billing-invoice-item-discount-cell .billing-line-discount-footer {
     margin: 0 20px;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .billing-invoice-item-discount-cell .billing-line-discount-footer p {
     color: #64748b;
     font-size: 0.98rem;
     line-height: 1.42;
   }
 
-  .billing-invoice-item-discount-cell .billing-line-discount-actions {
-    display: none !important;
+  .billing-invoice-item-discount-cell .billing-line-discount-note-icon {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+  }
+
+  .billing-invoice-item-discount-cell .billing-line-discount-save {
+    min-width: 132px;
+    min-height: 52px;
+    border-radius: 15px;
+    font-size: 1.02rem;
   }
 }
 
@@ -8811,9 +8870,29 @@
 
   .billing-invoice-item-discount-cell .billing-line-discount-segmented,
   .billing-invoice-item-discount-cell .billing-line-discount-input-wrap,
-  .billing-invoice-item-discount-cell .billing-line-discount-popover > p {
+  .billing-invoice-item-discount-cell .billing-line-discount-footer {
     margin-left: 16px;
     margin-right: 16px;
+  }
+
+  .billing-invoice-item-discount-cell .billing-line-discount-footer {
+    gap: 12px;
+  }
+
+  .billing-invoice-item-discount-cell .billing-line-discount-footer p {
+    font-size: 0.84rem;
+  }
+
+  .billing-invoice-item-discount-cell .billing-line-discount-note-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+
+  .billing-invoice-item-discount-cell .billing-line-discount-save {
+    min-width: 108px;
+    min-height: 48px;
+    padding: 0 16px;
   }
 }
 

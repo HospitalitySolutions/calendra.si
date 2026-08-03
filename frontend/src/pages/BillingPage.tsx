@@ -1114,6 +1114,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillDiscountEdits, setOpenBillDiscountEdits] = useState<Record<number, DiscountDraft>>({})
   const [openCreateItemDiscountIndex, setOpenCreateItemDiscountIndex] = useState<number | null>(null)
   const [openOpenBillItemDiscount, setOpenOpenBillItemDiscount] = useState<{ openBillId: number; index: number } | null>(null)
+
+  useEffect(() => {
+    if (openCreateItemDiscountIndex == null && openOpenBillItemDiscount == null) return
+
+    const closeDiscountPopoverOnOutsideClick = (event: globalThis.MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest('.billing-line-discount-popover, .billing-invoice-discount-mini')) return
+
+      // Discount edits are written to the draft immediately while typing, so an
+      // outside click only closes the popover and keeps the entered value.
+      setOpenCreateItemDiscountIndex(null)
+      setOpenOpenBillItemDiscount(null)
+    }
+
+    document.addEventListener('click', closeDiscountPopoverOnOutsideClick)
+    return () => document.removeEventListener('click', closeDiscountPopoverOnOutsideClick)
+  }, [openCreateItemDiscountIndex, openOpenBillItemDiscount])
   const [entitlementPaymentTarget, setEntitlementPaymentTarget] = useState<EntitlementPaymentTarget | null>(null)
   const [entitlementPaymentStep, setEntitlementPaymentStep] = useState<EntitlementPaymentStep>('choice')
   const [entitlementManualCode, setEntitlementManualCode] = useState('')
@@ -3448,7 +3466,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
       return
     }
-    const printWindow = afterCreatePdfAction === 'print' && invoicePrintPreference !== 'ASK'
+    const printWindow = afterCreatePdfAction === 'print'
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingBill(true)
@@ -4360,10 +4378,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     if (invoicePrintPreference === 'ASK') {
-      // The format picker must appear before any print tab is opened. A format
-      // selection is a fresh user gesture, so the chosen tab can be opened there.
-      closePdfActionWindow(preparedWindow)
-      setPrintFormatChoice({ bill })
+      setPrintFormatChoice({ bill, preparedWindow })
       return
     }
     const actionWindow = preparedWindow ?? openPdfActionWindow(
@@ -4836,7 +4851,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
-    const printWindow = afterCreatePdfAction === 'print' && invoicePrintPreference !== 'ASK'
+    const printWindow = afterCreatePdfAction === 'print'
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingFromOpenId(target.id)
@@ -4996,7 +5011,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const payload = buildManualOpenBillPayload()
     if (!payload) return
     const existingIds = new Set(openBills.map((entry) => entry.id))
-    const printWindow = afterCreatePdfAction === 'print' && invoicePrintPreference !== 'ASK'
+    const printWindow = afterCreatePdfAction === 'print'
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingBill(true)
@@ -5796,13 +5811,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           />
           <em>{suffix}</em>
         </label>
-        <p>{locale === 'sl' ? 'Popust se uporabi samo na izbrano postavko.' : 'The discount is applied only to the selected item.'}</p>
-        <div className="billing-line-discount-actions">
-          <button type="button" className="billing-line-discount-action billing-line-discount-action--primary" onClick={onClose}>
-            {locale === 'sl' ? 'Uporabi' : 'Apply'}
-          </button>
-          <button type="button" className="billing-line-discount-action billing-line-discount-action--secondary" onClick={onClose}>
-            {locale === 'sl' ? 'Prekliči' : 'Cancel'}
+        <div className="billing-line-discount-footer">
+          <p>
+            <span className="billing-line-discount-note-icon" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3 4.5 6v5.2c0 4.7 3.1 8.8 7.5 9.8 4.4-1 7.5-5.1 7.5-9.8V6L12 3Z" />
+                <path d="m8.8 12 2.1 2.1 4.4-4.5" />
+              </svg>
+            </span>
+            <span>{locale === 'sl' ? 'Popust se uporabi samo na izbrano postavko.' : 'The discount is applied only to the selected item.'}</span>
+          </p>
+          <button type="button" className="billing-line-discount-save" onClick={onClose}>
+            {locale === 'sl' ? 'Shrani' : 'Save'}
           </button>
         </div>
       </div>
