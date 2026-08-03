@@ -1008,3 +1008,31 @@
 @media(max-width:700px){
   .fle-a4-preview-caption{font-size:11px;flex-direction:column;align-items:flex-start}
 }
+
+/* The A4 editor now displays the PNG produced by the exact same PDF renderer
+   that is used for issued invoices. This removes the former HTML/PDF mismatch. */
+.fle-a4-preview-shell--rendered{
+  position:relative;
+  min-height:520px;
+  align-content:start;
+}
+.fle-a4-rendered-preview{
+  display:block;
+  width:min(100%,620px);
+  height:auto;
+  background:#fff;
+  box-shadow:0 18px 46px rgba(0,0,0,.28);
+}
+.fle-a4-preview-status{
+  position:absolute;
+  inset:20px;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  color:#dbeafe;
+  font-size:13px;
+  text-align:center;
+  background:rgba(23,32,51,.72);
+  backdrop-filter:blur(2px);
+}
+.fle-a4-preview-status--error{color:#fecaca}

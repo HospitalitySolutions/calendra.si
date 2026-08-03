@@ -2873,8 +2873,11 @@ function A4PresetLayoutEditor() {
   const [testing, setTesting] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
-  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const previewRequestId = useRef(0)
+  const previewUrlRef = useRef<string | null>(null)
 
   const copy = locale === 'sl'
     ? {
@@ -3046,10 +3049,51 @@ function A4PresetLayoutEditor() {
       }
     }
     void load()
-    api.get('/billing/folio-logo').then((r) => { if (!cancelled && r.status === 200 && r.data) setLogoDataUrl(r.data as string) }).catch(() => {})
-    api.get('/billing/folio-signature').then((r) => { if (!cancelled && r.status === 200 && r.data) setSignatureDataUrl(r.data as string) }).catch(() => {})
     return () => { cancelled = true }
   }, [copy.loadFailed, locale])
+
+  useEffect(() => {
+    if (!layout) return
+    const requestId = ++previewRequestId.current
+    const timer = window.setTimeout(async () => {
+      setPreviewLoading(true)
+      setPreviewError(null)
+      const sample = {
+        companyName: 'Calendra Studio', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', issueCity: 'Maribor', companyTaxId: 'SI12345678',
+        folioNumber: '2026-00042', folioNumberLabel: locale === 'en' ? 'Invoice:' : 'Račun:', folioDate: '2026-07-31T12:45:00+02:00', dateOfService: '2026-07-31', dueDate: '2026-08-07',
+        recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: '',
+        services: [
+          { date: '2026-07-31', description: locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage', qty: 1, nettPrice: 50, grossPrice: 61, taxPercent: '22%', taxAmount: 11, totalPrice: 61 },
+          { date: '2026-07-31', description: locale === 'sl' ? 'Individualno svetovanje z daljšim opisom' : locale === 'sr' ? 'Individualno savetovanje sa dužim opisom' : 'Individual counselling with a longer description', qty: 1, nettPrice: 50, grossPrice: 61, taxPercent: '22%', taxAmount: 11, totalPrice: 61 },
+        ],
+        advancePayments: [{ advanceNumber: locale === 'en' ? 'Advance payment' : locale === 'sr' ? 'Avans' : 'Predplačilo', date: '2026-07-20', taxPercent: '22%', netBasis: 8.2, taxAmount: 1.8, totalGross: 10, usedGross: 10 }],
+        usedAdvancePaymentsGross: 10, subtotalBeforeDiscountGross: 100, discountAmountGross: 10, toBePaidGross: 90,
+        paymentMethod: locale === 'en' ? 'Bank transfer' : locale === 'sr' ? 'Bankovni prenos' : 'Bančno nakazilo',
+        issuedBy: 'David Mirc', iban: 'SI56 1234 5678 9012 3456', paymentQrPayload: 'https://calendra.si/placilo/REF-2026-001',
+        fiscalQr: 'https://calendra.si/fiscal/2026-00042', fiscalZoi: '1234567890', fiscalEor: '9999e010-089a-46e6-a3d8-bc0bd0a779c7',
+        notes: 'REF-2026-001', locale,
+      }
+      try {
+        const response = await api.post(`/billing/folio-layout/preview?locale=${locale}`, { layout, invoice: sample }, { responseType: 'blob' })
+        if (requestId !== previewRequestId.current) return
+        const url = URL.createObjectURL(new Blob([response.data], { type: 'image/png' }))
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+        previewUrlRef.current = url
+        setPreviewUrl(url)
+      } catch {
+        if (requestId === previewRequestId.current) {
+          setPreviewError(locale === 'sl' ? 'Predogleda ni bilo mogoče pripraviti.' : locale === 'sr' ? 'Pregled nije moguće pripremiti.' : 'Unable to prepare the preview.')
+        }
+      } finally {
+        if (requestId === previewRequestId.current) setPreviewLoading(false)
+      }
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [layout, locale])
+
+  useEffect(() => () => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+  }, [])
 
   const mutateLayout = useCallback((fn: (next: LayoutConfig) => void) => {
     setLayout((previous) => {
@@ -3190,182 +3234,6 @@ function A4PresetLayoutEditor() {
     })
   }
 
-  const previewSections = sectionOrder.filter((section) => !hiddenSections.includes(section))
-
-  const renderPreviewSection = (section: string) => {
-    switch (section) {
-      case 'company':
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--company">
-            <div className="fle-a4-preview-company-row">
-              {layout.logo.visible ? (
-                logoDataUrl
-                  ? <img src={logoDataUrl} alt="Logo" className="fle-a4-preview-logo-image" />
-                  : <div className="fle-a4-preview-logo-placeholder">LOGO</div>
-              ) : null}
-              <div>
-                <strong>Calendra Studio</strong>
-                <div>Glavna ulica 12</div>
-                <div>2000 Maribor</div>
-                <div>SI12345678</div>
-                <div>TRR: SI56 1234 5678 9012 3456</div>
-              </div>
-            </div>
-          </section>
-        )
-      case 'document':
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--document">
-            <div className="fle-a4-preview-document-header">
-              <div className="fle-a4-preview-title">{locale === 'en' ? 'Invoice' : 'Račun'}</div>
-              <div className="fle-a4-preview-number">2026-00042</div>
-            </div>
-            <div className="fle-a4-preview-meta-grid">
-              <div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><strong>31.07.2026</strong></div>
-              <div><span>{locale === 'sl' ? 'Ura izdaje' : locale === 'sr' ? 'Vreme izdavanja' : 'Issue time'}</span><strong>12:45</strong></div>
-              <div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum usluge' : 'Service date'}</span><strong>31.07.2026</strong></div>
-              <div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><strong>07.08.2026</strong></div>
-            </div>
-          </section>
-        )
-      case 'recipient':
-        if (!recipientVisible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--recipient">
-            <div className="fle-a4-preview-section-title">{sectionLabels.recipient}</div>
-            <div>Ana Novak</div>
-            <div>Cesta 5</div>
-            <div>1000 Ljubljana</div>
-            <div>Slovenija</div>
-          </section>
-        )
-      case 'items': {
-        const showQty = quantityVisible
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--items">
-            <div className="fle-a4-preview-section-title">{sectionLabels.items}</div>
-            <div className="fle-a4-table-wrap">
-              <table className="fle-a4-preview-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>{locale === 'sl' ? 'Opis' : locale === 'sr' ? 'Opis' : 'Description'}</th>
-                    {showQty ? <th>{locale === 'sl' ? 'Količina' : locale === 'sr' ? 'Količina' : 'Quantity'}</th> : null}
-                    <th>{locale === 'sl' ? 'Cena brez DDV' : locale === 'sr' ? 'Cena bez PDV-a' : 'Price excl. VAT'}</th>
-                    <th>DDV (%)</th>
-                    <th>{locale === 'sl' ? 'Znesek brez DDV' : locale === 'sr' ? 'Iznos bez PDV-a' : 'Amount excl. VAT'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>{locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage'}</td>
-                    {showQty ? <td>1</td> : null}
-                    <td>50,00 €</td>
-                    <td>22 %</td>
-                    <td>50,00 €</td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>{locale === 'sl' ? 'Individualno svetovanje z daljšim opisom' : locale === 'sr' ? 'Individualno savetovanje sa dužim opisom' : 'Individual counselling with a longer description'}</td>
-                    {showQty ? <td>1</td> : null}
-                    <td>50,00 €</td>
-                    <td>22 %</td>
-                    <td>50,00 €</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )
-      }
-      case 'advancePayments':
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--advance-payments">
-            <div className="fle-a4-preview-section-title">{sectionLabels.advancePayments}</div>
-            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Predplačilo' : locale === 'sr' ? 'Avans' : 'Advance payment'}</span><strong>10,00 €</strong></div>
-          </section>
-        )
-      case 'vat':
-        if (!layout.vatBreakdownTable.visible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--vat">
-            <div className="fle-a4-preview-section-title">{sectionLabels.vat}</div>
-            <div className="fle-a4-preview-inline-row"><span>22 %</span><span>100,00 €</span><strong>22,00 €</strong></div>
-          </section>
-        )
-      case 'totals':
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--totals">
-            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Subtotal excl. VAT'}</span><strong>100,00 €</strong></div>
-            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Popust' : locale === 'sr' ? 'Popust' : 'Discount'}</span><strong>-10,00 €</strong></div>
-            <div className="fle-a4-preview-inline-row"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><strong>90,00 €</strong></div>
-            <div className="fle-a4-preview-inline-row fle-a4-preview-inline-row--payable"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za uplatu' : 'Amount due'}</span><strong>90,00 €</strong></div>
-          </section>
-        )
-      case 'taxClauses':
-        if ((layout.taxClauses || []).length === 0) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--tax-clauses">
-            <div className="fle-a4-preview-section-title">{sectionLabels.taxClauses}</div>
-            {(layout.taxClauses || []).map((clause) => <div key={clause} className="fle-a4-preview-clause">{clause}</div>)}
-          </section>
-        )
-      case 'reference':
-        if (!referenceVisible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--reference">
-            <div className="fle-a4-preview-section-title">{sectionLabels.reference}</div>
-            <div>{referenceText.replace('{reference-number}', 'REF-2026-001')}</div>
-          </section>
-        )
-      case 'paymentQr':
-        if (!layout.paymentQr.visible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr fle-a4-preview-block--payment-qr">
-            <div className="fle-a4-preview-section-title">UPN QR</div>
-            <div className="fle-a4-preview-qr" />
-          </section>
-        )
-      case 'fiscal':
-        if (!fiscalVisible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--qr fle-a4-preview-block--fiscal">
-            <div className="fle-a4-preview-section-title">{sectionLabels.fiscal}</div>
-            <div>ZOI: 1234567890</div>
-            <div>EOR: 9999e010-089a-46e6-a3d8-bc0bd0a779c7</div>
-            <div className="fle-a4-preview-qr fle-a4-preview-qr--small" />
-          </section>
-        )
-      case 'issuedBy':
-        if (!issuedByVisible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--issued-by">
-            <div className="fle-a4-preview-section-title">{sectionLabels.issuedBy}</div>
-            <div>David Mirc</div>
-          </section>
-        )
-      case 'signature':
-        if (!layout.signature.visible) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--signature">
-            <div className="fle-a4-preview-section-title">{sectionLabels.signature}</div>
-            {signatureDataUrl
-              ? <img src={signatureDataUrl} alt="Signature" className="fle-a4-preview-signature-image" />
-              : <div className="fle-a4-preview-signature-line">David Mirc</div>}
-          </section>
-        )
-      case 'footer':
-        if (!currentFooterText.trim()) return null
-        return (
-          <section key={section} className="fle-a4-preview-block fle-a4-preview-block--footer">
-            <div>{currentFooterText}</div>
-          </section>
-        )
-      default:
-        return null
-    }
-  }
 
   return (
     <div className="fle-a4-settings-page">
@@ -3511,10 +3379,10 @@ function A4PresetLayoutEditor() {
         <aside className="fle-a4-preview-column">
           <div className="fle-a4-preview-panel">
             <h4>{copy.preview}</h4>
-            <div className="fle-a4-preview-shell">
-              <div className={`fle-a4-preview-page fle-a4-template--${activeTemplate.toLowerCase()} fle-a4-font--${String(layout.fontSizePreset || 'STANDARD').toLowerCase()}`} style={{ ['--fle-accent' as any]: layout.accentColor || '#1677FF' }}>
-                {previewSections.map((section) => renderPreviewSection(section))}
-              </div>
+            <div className="fle-a4-preview-shell fle-a4-preview-shell--rendered">
+              {previewUrl ? <img className="fle-a4-rendered-preview" src={previewUrl} alt={copy.preview} /> : null}
+              {previewLoading ? <div className="fle-a4-preview-status">{locale === 'sl' ? 'Pripravljam predogled…' : locale === 'sr' ? 'Pripremam pregled…' : 'Preparing preview…'}</div> : null}
+              {!previewLoading && previewError ? <div className="fle-a4-preview-status fle-a4-preview-status--error">{previewError}</div> : null}
             </div>
           </div>
         </aside>
