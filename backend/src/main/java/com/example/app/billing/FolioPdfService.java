@@ -2036,13 +2036,17 @@ public class FolioPdfService {
         } catch (DateTimeParseException ignored) {
             // continue
         }
+        // Preserve the wall-clock time when the API value already contains an
+        // explicit offset (for example 23:08+02:00). Parsing it as an Instant
+        // first would convert it through the JVM timezone and can incorrectly
+        // render 21:08 on UTC CI/production hosts.
         try {
-            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDateTime();
+            return OffsetDateTime.parse(v).toLocalDateTime();
         } catch (DateTimeParseException ignored) {
             // continue
         }
         try {
-            return OffsetDateTime.parse(v).toLocalDateTime();
+            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDateTime();
         } catch (DateTimeParseException ignored) {
             // continue
         }
@@ -2080,13 +2084,16 @@ public class FolioPdfService {
         } catch (DateTimeParseException ignored) {
             // continue
         }
+        // Keep the date belonging to the explicit offset instead of first
+        // converting through the JVM timezone, which may move it to the
+        // previous/next calendar day on UTC hosts.
         try {
-            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDate();
+            return OffsetDateTime.parse(v).toLocalDate();
         } catch (DateTimeParseException ignored) {
             // continue
         }
         try {
-            return OffsetDateTime.parse(v).toLocalDate();
+            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDate();
         } catch (DateTimeParseException ignored) {
             // continue
         }
