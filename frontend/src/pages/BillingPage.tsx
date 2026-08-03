@@ -3448,7 +3448,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
       return
     }
-    const printWindow = afterCreatePdfAction === 'print'
+    const printWindow = afterCreatePdfAction === 'print' && invoicePrintPreference !== 'ASK'
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingBill(true)
@@ -4360,7 +4360,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     if (invoicePrintPreference === 'ASK') {
-      setPrintFormatChoice({ bill, preparedWindow })
+      // The format picker must appear before any print tab is opened. A format
+      // selection is a fresh user gesture, so the chosen tab can be opened there.
+      closePdfActionWindow(preparedWindow)
+      setPrintFormatChoice({ bill })
       return
     }
     const actionWindow = preparedWindow ?? openPdfActionWindow(
@@ -4833,7 +4836,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
-    const printWindow = afterCreatePdfAction === 'print'
+    const printWindow = afterCreatePdfAction === 'print' && invoicePrintPreference !== 'ASK'
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingFromOpenId(target.id)
@@ -4993,7 +4996,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const payload = buildManualOpenBillPayload()
     if (!payload) return
     const existingIds = new Set(openBills.map((entry) => entry.id))
-    const printWindow = afterCreatePdfAction === 'print'
+    const printWindow = afterCreatePdfAction === 'print' && invoicePrintPreference !== 'ASK'
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingBill(true)
