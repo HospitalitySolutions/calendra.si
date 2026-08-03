@@ -842,7 +842,7 @@ final class ModernA4InvoicePdfRenderer {
         List<VatRow> rows = vatRows(request.getServices());
         List<String> parts = new ArrayList<>();
         for (VatRow row : rows) {
-            parts.add(vatRate(row.bucket, locale) + ": " + vatMoney(row.vat));
+            parts.add(vatRate(row.bucket, locale) + ": " + money(row.vat, locale));
         }
         return String.join("; ", parts);
     }

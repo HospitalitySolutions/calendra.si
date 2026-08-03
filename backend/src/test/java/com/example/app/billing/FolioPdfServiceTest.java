@@ -83,15 +83,14 @@ class FolioPdfServiceTest {
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String text = new PDFTextStripper().getText(document);
-            assertThat(text).contains("Opis DDV");
-            assertThat(text).contains("Stopnja DDV");
-            assertThat(text).contains("Osnova DDV");
-            assertThat(text).contains("Vrednost DDV");
-            assertThat(text).contains("DDV 22%");
-            assertThat(text).contains("EUR 10.00");
-            assertThat(text).contains("EUR 2.20");
-            assertThat(text).contains("DDV 9,5%");
-            assertThat(text).contains("EUR 0.95");
+            assertThat(text).contains("Skupaj brez DDV 28,00 €");
+            assertThat(text).contains("Razčlenitev DDV 22%: 2,20 €; 9,5%: 0,95 €");
+            assertThat(text).contains("Skupaj 31,15 €");
+            assertThat(text).contains("Za plačilo 31,15 €");
+            assertThat(text).doesNotContain("Opis DDV");
+            assertThat(text).doesNotContain("Stopnja DDV");
+            assertThat(text).doesNotContain("Osnova DDV");
+            assertThat(text).doesNotContain("Vrednost DDV");
             assertThat(text).doesNotContain("DDV 0%");
             assertThat(text).doesNotContain("NO VAT");
             assertThat(text).doesNotContain("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.");
