@@ -96,7 +96,7 @@ final class ModernA4InvoicePdfRenderer {
         List<GridRow> rows = new ArrayList<>();
         for (String section : effectiveSectionOrder(layout)) {
             if (!isRenderable(section, request, layout)) continue;
-            if (isFullWidth(section)) {
+            if (isFullWidth(section, layout)) {
                 rows.add(GridRow.full(section));
                 continue;
             }
@@ -180,6 +180,10 @@ final class ModernA4InvoicePdfRenderer {
     }
 
     private void drawCompany(State state, FolioPdfRequest request, FolioLayoutConfig layout, byte[] logoBytes, float x, float y, float width, float height) throws IOException {
+        if (state.theme.minimal) {
+            drawCompanyMinimal(state, request, layout, logoBytes, x, y, width, height);
+            return;
+        }
         float pad = state.theme.pad;
         float contentX = x + pad;
         float contentY = y + pad;
@@ -209,6 +213,10 @@ final class ModernA4InvoicePdfRenderer {
     }
 
     private void drawDocument(State state, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
+        if (state.theme.minimal) {
+            drawDocumentMinimal(state, request, x, y, width, height);
+            return;
+        }
         float pad = state.theme.pad;
         float top = y + pad;
         String title = documentTitle(request, state.locale);
@@ -334,7 +342,8 @@ final class ModernA4InvoicePdfRenderer {
         for (String clause : effectiveTaxClauses(layout, request)) {
             List<String> lines = wrap(state.fonts.regular, state.theme.base, width - 2 * pad, clause);
             for (int i = 0; i < lines.size(); i++) {
-                state.text(state.fonts.regular, state.theme.base, x + pad, baseline, (i == 0 ? "• " : "  ") + lines.get(i), TEXT);
+                String line = state.theme.minimal ? lines.get(i) : (i == 0 ? "• " : "  ") + lines.get(i);
+                state.text(state.fonts.regular, state.theme.base, x + pad, baseline, line, TEXT);
                 baseline += state.theme.line;
             }
             baseline += 2f;
@@ -343,11 +352,19 @@ final class ModernA4InvoicePdfRenderer {
 
     private void drawReference(State state, FolioLayoutConfig layout, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
         float pad = state.theme.pad;
-        float baseline = sectionTitle(state, referenceLabel(state.locale), x, y, width);
+        float baseline = state.theme.minimal ? y + pad + state.theme.base : sectionTitle(state, referenceLabel(state.locale), x, y, width);
         String reference = referenceText(layout, request, state.locale);
         for (String line : wrap(state.fonts.regular, state.theme.base, width - 2 * pad, reference)) {
             state.text(state.fonts.regular, state.theme.base, x + pad, baseline, line, TEXT);
             baseline += state.theme.line;
+        }
+        if (state.theme.minimal && layout.getPaymentQr() != null && layout.getPaymentQr().isVisible() && !safe(request.getPaymentQrPayload()).isBlank()) {
+            byte[] png = createQrPng(request.getPaymentQrPayload(), 180, 180);
+            PDImageXObject qr = PDImageXObject.createFromByteArray(state.document, png, "upn-qr");
+            float size = Math.min(64f, Math.max(48f, height - (baseline - y) - pad - 16f));
+            float qrY = Math.min(y + height - pad - size - state.theme.small - 6f, baseline + 4f);
+            state.drawImage(qr, x + pad, qrY, size, size);
+            state.text(state.fonts.regular, state.theme.small, x + pad, qrY + size + state.theme.small + 2f, scanPayLabel(state.locale), MUTED);
         }
     }
 
@@ -363,8 +380,22 @@ final class ModernA4InvoicePdfRenderer {
 
     private void drawFiscal(State state, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
         float pad = state.theme.pad;
-        float baseline = sectionTitle(state, fiscalLabel(state.locale), x, y, width);
+        float baseline;
         float textWidth = width - 2 * pad;
+        if (state.theme.minimal) {
+            baseline = y + pad;
+            if (!safe(request.getFiscalQr()).isBlank()) {
+                byte[] png = createQrPng(request.getFiscalQr(), 160, 160);
+                PDImageXObject qr = PDImageXObject.createFromByteArray(state.document, png, "fiscal-qr");
+                float size = Math.min(62f, height * 0.54f);
+                state.drawImage(qr, x + pad, baseline, size, size);
+                baseline += size + 10f;
+            } else {
+                baseline += state.theme.base;
+            }
+        } else {
+            baseline = sectionTitle(state, fiscalLabel(state.locale), x, y, width);
+        }
         if (!safe(request.getFiscalZoi()).isBlank()) {
             for (String line : wrap(state.fonts.regular, state.theme.base, textWidth, "ZOI: " + safe(request.getFiscalZoi()))) {
                 state.text(state.fonts.regular, state.theme.base, x + pad, baseline, line, TEXT);
@@ -377,7 +408,7 @@ final class ModernA4InvoicePdfRenderer {
                 baseline += state.theme.line;
             }
         }
-        if (!safe(request.getFiscalQr()).isBlank()) {
+        if (!state.theme.minimal && !safe(request.getFiscalQr()).isBlank()) {
             byte[] png = createQrPng(request.getFiscalQr(), 160, 160);
             PDImageXObject qr = PDImageXObject.createFromByteArray(state.document, png, "fiscal-qr");
             float size = Math.min(58f, height - (baseline - y) - pad);
@@ -407,6 +438,7 @@ final class ModernA4InvoicePdfRenderer {
     }
 
     private void drawFooterText(State state, FolioLayoutConfig layout, float x, float y, float width, float height) throws IOException {
+        if (state.theme.minimal) return;
         String footer = footerText(layout, state.locale);
         float baseline = y + (height + state.theme.base) / 2f;
         state.textCentered(state.fonts.regular, state.theme.base, x, width, baseline, footer, MUTED);
@@ -519,6 +551,22 @@ final class ModernA4InvoicePdfRenderer {
 
     private float estimateSectionHeight(State state, FolioLayoutConfig layout, FolioPdfRequest request, String section, float width) throws IOException {
         float p = state.theme.pad;
+        if (state.theme.minimal) {
+            return switch (section) {
+                case "company" -> 92f;
+                case "document" -> 102f;
+                case "recipient" -> 102f + (!safe(request.getRecipientVatId()).isBlank() ? state.theme.line : 0f);
+                case "advancePayments" -> 0f;
+                case "vat" -> 34f + Math.max(1, vatRows(request.getServices()).size()) * (state.theme.line + 2f) + 2 * p;
+                case "totals" -> 88f + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
+                case "taxClauses" -> Math.max(44f, estimateTaxClauses(state, layout, request, width));
+                case "reference" -> 108f;
+                case "paymentQr", "fiscal" -> 118f;
+                case "issuedBy", "signature" -> 64f;
+                case "footer" -> 0f;
+                default -> 50f;
+            };
+        }
         return switch (section) {
             case "company", "document" -> 86f;
             case "recipient" -> 70f + (!safe(request.getRecipientVatId()).isBlank() ? state.theme.line : 0f);
@@ -560,7 +608,6 @@ final class ModernA4InvoicePdfRenderer {
 
     private void drawSectionFrame(State state, float x, float y, float width, float height, boolean totals) throws IOException {
         if (state.theme.minimal) {
-            state.line(x, y + height, x + width, y + height, BORDER, 0.55f);
             return;
         }
         if (totals && "CLASSIC".equals(state.theme.template)) {
@@ -573,28 +620,33 @@ final class ModernA4InvoicePdfRenderer {
 
     private boolean isRenderable(String section, FolioPdfRequest request, FolioLayoutConfig layout) {
         if (layout.getHiddenSections() != null && layout.getHiddenSections().contains(section)) return false;
+        boolean minimal = isMinimal(layout);
         return switch (section) {
             case "company", "document", "items", "totals" -> true;
             case "recipient" -> recipientVisible(layout) && !safe(request.getRecipientName()).isBlank();
-            case "advancePayments" -> advanceCount(request) > 0 || nvl(request.getUsedAdvancePaymentsGross()).compareTo(BigDecimal.ZERO) > 0;
+            case "advancePayments" -> !minimal && (advanceCount(request) > 0 || nvl(request.getUsedAdvancePaymentsGross()).compareTo(BigDecimal.ZERO) > 0);
             case "vat" -> layout.getVatBreakdownTable() != null && layout.getVatBreakdownTable().isVisible() && !vatRows(request.getServices()).isEmpty();
             case "taxClauses" -> !effectiveTaxClauses(layout, request).isEmpty();
             case "reference" -> footerVisible(layout, "notes", true) && !safe(request.getNotes()).isBlank();
-            case "paymentQr" -> layout.getPaymentQr() != null && layout.getPaymentQr().isVisible() && !safe(request.getPaymentQrPayload()).isBlank();
+            case "paymentQr" -> !minimal && layout.getPaymentQr() != null && layout.getPaymentQr().isVisible() && !safe(request.getPaymentQrPayload()).isBlank();
             case "fiscal" -> fiscalVisible(layout) && (!safe(request.getFiscalQr()).isBlank() || !safe(request.getFiscalZoi()).isBlank() || !safe(request.getFiscalEor()).isBlank());
             case "issuedBy" -> footerVisible(layout, "issuedBy", true) && !safe(request.getIssuedBy()).isBlank();
             case "signature" -> layout.getSignature() != null && layout.getSignature().isVisible();
-            case "footer" -> !footerText(layout, normalizeLocale(request.getLocale())).isBlank();
+            case "footer" -> !minimal && !footerText(layout, normalizeLocale(request.getLocale())).isBlank();
             default -> false;
         };
     }
 
-    private static boolean isFullWidth(String section) {
+    private static boolean isFullWidth(String section, FolioLayoutConfig layout) {
+        if (isMinimal(layout)) return "company".equals(section) || "items".equals(section) || "vat".equals(section) || "footer".equals(section);
         return "items".equals(section) || "taxClauses".equals(section) || "footer".equals(section);
     }
 
     private static List<String> effectiveSectionOrder(FolioLayoutConfig layout) {
-        List<String> defaults = List.of("company", "document", "recipient", "advancePayments", "items", "vat", "totals", "taxClauses", "reference", "paymentQr", "fiscal", "issuedBy", "signature", "footer");
+        List<String> defaults = isMinimal(layout)
+                ? List.of("company", "recipient", "document", "items", "vat", "taxClauses", "totals", "fiscal", "reference", "issuedBy", "signature", "footer")
+                : List.of("company", "document", "recipient", "advancePayments", "items", "vat", "totals", "taxClauses", "reference", "paymentQr", "fiscal", "issuedBy", "signature", "footer");
+        if (isMinimal(layout)) return new ArrayList<>(defaults);
         Set<String> result = new LinkedHashSet<>();
         if (layout.getSectionOrder() != null) {
             for (String section : layout.getSectionOrder()) if (defaults.contains(section)) result.add(section);
@@ -953,6 +1005,57 @@ final class ModernA4InvoicePdfRenderer {
             if (ch == '\n' || ch == '\t' || !Character.isISOControl(ch)) clean.append(ch);
         }
         return clean.toString();
+    }
+
+    private void drawCompanyMinimal(State state, FolioPdfRequest request, FolioLayoutConfig layout, byte[] logoBytes, float x, float y, float width, float height) throws IOException {
+        float leftX = x + 2f;
+        float baseline = y + 10f + state.theme.base + 2f;
+        state.text(state.fonts.bold, state.theme.base + 1.4f, leftX, baseline, safe(request.getCompanyName()), TEXT);
+        baseline += state.theme.line + 2f;
+        state.text(state.fonts.regular, state.theme.base, leftX, baseline, safe(request.getCompanyAddress()), TEXT);
+        baseline += state.theme.line;
+        state.text(state.fonts.regular, state.theme.base, leftX, baseline, joinPostalCity(request.getCompanyPostalCode(), request.getCompanyCity()), TEXT);
+        baseline += state.theme.line;
+        state.text(state.fonts.regular, state.theme.base, leftX, baseline, safe(request.getCompanyTaxId()), TEXT);
+        if (!safe(request.getIban()).isBlank()) {
+            baseline += state.theme.line;
+            state.text(state.fonts.regular, state.theme.base, leftX, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + safe(request.getIban()), TEXT);
+        }
+        if (layout.getLogo() != null && layout.getLogo().isVisible() && logoBytes != null && logoBytes.length > 0) {
+            try {
+                PDImageXObject image = PDImageXObject.createFromByteArray(state.document, logoBytes, "a4-logo");
+                float logoW = Math.min(140f, width * 0.30f);
+                float logoH = 48f;
+                float logoX = x + (width - logoW) / 2f;
+                float logoY = y + 8f;
+                state.drawImage(image, logoX, logoY, logoW, logoH);
+            } catch (IOException ignored) {
+                // Keep company text even if the logo cannot be rendered.
+            }
+        }
+    }
+
+    private void drawDocumentMinimal(State state, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
+        float pad = state.theme.pad;
+        float titleY = y + 8f + state.theme.title;
+        state.text(state.fonts.bold, state.theme.title + 0.5f, x + pad, titleY, documentTitle(request, state.locale), state.theme.accent);
+        state.textRight(state.fonts.bold, state.theme.title - 0.2f, x + width - pad, titleY, safe(request.getFolioNumber()), TEXT);
+        float rowY = titleY + 22f;
+        String[][] rows = new String[][] {
+                {issuedLabel(state.locale), dateOnly(request.getFolioDate())},
+                {issuePlaceLabel(state.locale), issueTimePlace(request)},
+                {serviceDateLabel(state.locale), dateOnly(request.getDateOfService())},
+                {dueDateLabel(state.locale), dateOnly(request.getDueDate())}
+        };
+        for (String[] row : rows) {
+            state.text(state.fonts.regular, state.theme.base, x + pad, rowY, row[0], MUTED);
+            state.textRight(state.fonts.bold, state.theme.base, x + width - pad, rowY, fitText(state.fonts.bold, state.theme.base, width * 0.48f, row[1]), TEXT);
+            rowY += state.theme.line + 5f;
+        }
+    }
+
+    private static boolean isMinimal(FolioLayoutConfig layout) {
+        return "MINIMAL".equals(safe(layout.getTemplateId()).toUpperCase(Locale.ROOT));
     }
 
     private static String normalizeLocale(String locale) {
