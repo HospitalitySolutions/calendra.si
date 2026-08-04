@@ -3276,14 +3276,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return locale === 'sl' ? `${Math.abs(diff)} dni zamude` : `${Math.abs(diff)} days overdue`
   }
 
-  const paymentStatusLabel = (status: Bill['paymentStatus']) => {
+  const paymentStatusLabel = (status: Bill['paymentStatus'] | null) => {
     if (status === 'paid') return locale === 'sl' ? 'Plačano' : 'Paid'
     if (status === 'payment_pending') return locale === 'sl' ? 'Delno plačano' : 'Partially Paid'
     if (status === 'cancelled') return locale === 'sl' ? 'Arhivirano' : 'Archived'
     return locale === 'sl' ? 'Neplačano' : locale === 'sr' ? 'Neplaćeno' : 'Unpaid'
   }
 
-  const paymentStatusClass = (status: Bill['paymentStatus']) => {
+  const paymentStatusClass = (status: Bill['paymentStatus'] | null) => {
     if (status === 'paid') return 'paid'
     if (status === 'payment_pending') return 'partial'
     if (status === 'cancelled') return 'archived'

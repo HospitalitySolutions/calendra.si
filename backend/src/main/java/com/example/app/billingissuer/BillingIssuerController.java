@@ -393,9 +393,10 @@ public class BillingIssuerController {
             affected.add(value.getCompany().getId());
             affected.add(input.companyId());
         }
+        Long seriesId = value.getId();
         assignments.findAllByLegalEntityId(value.getLegalEntity().getId()).stream()
                 .filter(row -> row.getDefaultInvoiceSeries() != null
-                        && Objects.equals(row.getDefaultInvoiceSeries().getId(), value.getId()))
+                        && Objects.equals(row.getDefaultInvoiceSeries().getId(), seriesId))
                 .map(row -> row.getCompany().getId())
                 .forEach(affected::add);
         accessService.requireAdminForCompanies(me, affected);

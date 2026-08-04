@@ -444,7 +444,7 @@ export type WorkspaceBill = {
   billNumber: string
   billType: string
   issueDate: string
-  paymentStatus?: string | null
+  paymentStatus?: 'open' | 'payment_pending' | 'paid' | 'cancelled' | null
   fiscalStatus?: string | null
   totalNet: number
   totalGross: number
