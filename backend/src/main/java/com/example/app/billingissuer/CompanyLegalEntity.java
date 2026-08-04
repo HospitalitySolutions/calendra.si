@@ -1,8 +1,7 @@
-package com.example.app.fiscal;
+package com.example.app.billingissuer;
 
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
-import com.example.app.billingissuer.LegalEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -15,11 +14,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(
-        name = "fiscal_certificates",
-        uniqueConstraints = @UniqueConstraint(columnNames = { "legal_entity_id" })
-)
-public class FiscalCertificate extends BaseEntity {
+@Table(name = "company_legal_entities", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "legal_entity_id"}))
+public class CompanyLegalEntity extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
@@ -28,13 +24,12 @@ public class FiscalCertificate extends BaseEntity {
     @JoinColumn(name = "legal_entity_id", nullable = false)
     private LegalEntity legalEntity;
 
+    @Column(name = "default_issuer", nullable = false)
+    private boolean defaultIssuer;
     @Column(nullable = false)
-    private String fileName;
+    private boolean active = true;
 
-    @Column(nullable = false)
-    private String contentType;
-
-    // Use a dedicated bytea column; avoids Hibernate trying to cast legacy OID column in place.
-    @Column(name = "certificate_data_bytes", columnDefinition = "bytea")
-    private byte[] certificateData;
+    @ManyToOne
+    @JoinColumn(name = "default_invoice_series_id")
+    private InvoiceSeries defaultInvoiceSeries;
 }

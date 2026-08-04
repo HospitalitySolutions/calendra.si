@@ -57,7 +57,7 @@ public class FiscalHttpClientConfig {
         if (certificatePassword == null || certificatePassword.isBlank()) {
             throw new IllegalStateException("Fiscal certificate password is missing.");
         }
-        var cert = certificates.findByCompanyId(companyId)
+        var cert = certificates.findByLegalEntityId(companyId)
                 .orElseThrow(() -> new IllegalStateException("Fiscal certificate is not uploaded."));
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         keyStore.load(new java.io.ByteArrayInputStream(cert.getCertificateData()), certificatePassword.toCharArray());

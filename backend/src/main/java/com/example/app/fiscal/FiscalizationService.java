@@ -1,6 +1,9 @@
 package com.example.app.fiscal;
 
 import com.example.app.billing.Bill;
+import com.example.app.location.Location;
+import com.example.app.billingissuer.LegalEntity;
+import com.example.app.billingissuer.InvoiceSeries;
 import com.example.app.billing.BillFolioPdfService;
 import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillItem;
@@ -53,7 +56,7 @@ public class FiscalizationService {
     }
 
     public Bill fiscalizeBill(Bill bill, Long companyId) {
-        FiscalSettings settings = fiscalSettings.forCompany(companyId);
+        FiscalSettings settings = fiscalSettings.forBill(bill, companyId);
         int attempts = bill.getFiscalAttemptCount() == null ? 0 : bill.getFiscalAttemptCount();
         bill.setFiscalAttemptCount(attempts + 1);
         List<Map<String, Object>> trace = new ArrayList<>();
@@ -62,16 +65,17 @@ public class FiscalizationService {
                     .truncatedTo(ChronoUnit.SECONDS)
                     .toString();
             trace.add(logStep("Preparing invoice for fiscal validation", "ok", "Invoice data is prepared."));
-            String protectedId = buildProtectedId(companyId, settings, bill, issueDateTime);
+            Long fiscalCertificateOwnerId = bill.getLegalEntity() == null ? companyId : bill.getLegalEntity().getId();
+            String protectedId = buildProtectedId(fiscalCertificateOwnerId, settings, bill, issueDateTime);
             trace.add(logStep("Creating fiscal protection code", "ok", "Protection code created."));
             Map<String, Object> payload = buildInvoicePayload(bill, settings, issueDateTime, protectedId);
             trace.add(logStep("Signing fiscal request", "ok", "Request is signed with your fiscal certificate."));
-            String token = signatureService.createJwsToken(companyId, settings, payload);
+            String token = signatureService.createJwsToken(fiscalCertificateOwnerId, settings, payload);
             trace.add(logStep("Sending request to tax authority", "ok", "Request sent to FURS."));
             FiscalResponse response = client.post(
                     settings.invoiceUrl(),
                     token,
-                    companyId,
+                    fiscalCertificateOwnerId,
                     settings.certificatePassword()
             );
             boolean invoiceConfirmed = response.success() && response.eor() != null && !response.eor().isBlank();
@@ -124,7 +128,20 @@ public class FiscalizationService {
     }
 
     public FiscalResponse registerBusinessPremise(Long companyId, User user) {
-        FiscalSettings settings = fiscalSettings.forCompany(companyId);
+        return registerBusinessPremise(companyId, null, null, null, user);
+    }
+
+    public FiscalResponse registerBusinessPremise(
+            Long companyId,
+            LegalEntity legalEntity,
+            Location location,
+            InvoiceSeries invoiceSeries,
+            User user
+    ) {
+        FiscalSettings settings = legalEntity == null
+                ? fiscalSettings.forCompany(companyId)
+                : fiscalSettings.forLegalEntity(legalEntity, location, invoiceSeries, companyId);
+        Long certificateOwnerId = legalEntity == null ? companyId : legalEntity.getId();
         Map<String, Object> header = new LinkedHashMap<>();
         header.put("MessageID", UUID.randomUUID().toString());
         header.put("DateTime", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
@@ -171,11 +188,11 @@ public class FiscalizationService {
         request.put("BusinessPremise", businessPremise);
         payload.put("BusinessPremiseRequest", request);
 
-        String token = signatureService.createJwsToken(companyId, settings, payload);
+        String token = signatureService.createJwsToken(certificateOwnerId, settings, payload);
         return client.post(
                 settings.premiseUrl(),
                 token,
-                companyId,
+                certificateOwnerId,
                 settings.certificatePassword()
         );
     }

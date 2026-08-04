@@ -1,5 +1,8 @@
 package com.example.app.location;
 
+import com.example.app.billingissuer.CompanyLegalEntity;
+import com.example.app.billingissuer.CompanyLegalEntityRepository;
+import com.example.app.billingissuer.LegalEntity;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SpaceRepository;
 import com.example.app.user.User;
@@ -26,21 +29,25 @@ public class LocationController {
     private final SpaceRepository spaces;
     private final SessionBookingRepository bookings;
     private final WaitlistRequestRepository waitlists;
+    private final CompanyLegalEntityRepository issuerAssignments;
 
     public LocationController(LocationRepository locations, SpaceRepository spaces, SessionBookingRepository bookings,
-                              WaitlistRequestRepository waitlists) {
+                              WaitlistRequestRepository waitlists, CompanyLegalEntityRepository issuerAssignments) {
         this.locations = locations;
         this.spaces = spaces;
         this.bookings = bookings;
         this.waitlists = waitlists;
+        this.issuerAssignments = issuerAssignments;
     }
 
     public record LocationInput(String name, String address, String postalCode, String city, String timezone,
                                 String phone, String email, String openingHoursJson, Boolean publicBookingEnabled,
-                                Boolean defaultLocation, Boolean active, String fiscalBusinessPremiseCode) {}
+                                Boolean defaultLocation, Boolean active, String fiscalBusinessPremiseCode,
+                                Long defaultLegalEntityId) {}
     public record LocationResponse(Long id, String name, String address, String postalCode, String city, String timezone,
                                    String phone, String email, String openingHoursJson, boolean publicBookingEnabled,
-                                   boolean defaultLocation, boolean active, String fiscalBusinessPremiseCode) {}
+                                   boolean defaultLocation, boolean active, String fiscalBusinessPremiseCode,
+                                   Long defaultLegalEntityId, String defaultLegalEntityName) {}
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -59,7 +66,10 @@ public class LocationController {
         }
         Location location = new Location();
         location.setCompany(me.getCompany());
-        apply(location, input);
+        apply(location, input, me.getCompany().getId());
+        if (location.getDefaultLegalEntity() == null) {
+            location.setDefaultLegalEntity(defaultIssuer(me.getCompany().getId()));
+        }
         if (locations.countByCompanyId(me.getCompany().getId()) == 0 || Boolean.TRUE.equals(input.defaultLocation())) {
             clearDefault(me.getCompany().getId(), null);
             location.setDefaultLocation(true);
@@ -82,7 +92,7 @@ public class LocationController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Choose another default location before changing this one.");
         }
         if (Boolean.TRUE.equals(input.defaultLocation()) && !wasDefault) clearDefault(me.getCompany().getId(), id);
-        apply(location, input);
+        apply(location, input, me.getCompany().getId());
         if (wasDefault || Boolean.TRUE.equals(input.defaultLocation())) location.setDefaultLocation(true);
         if (location.isDefaultLocation()) location.setActive(true);
         if (!location.isDefaultLocation() && locations.countByCompanyId(me.getCompany().getId()) == 1) location.setDefaultLocation(true);
@@ -111,7 +121,7 @@ public class LocationController {
         });
     }
 
-    private static void apply(Location location, LocationInput input) {
+    private void apply(Location location, LocationInput input, Long companyId) {
         if (input == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required.");
         location.setName(requiredName(input.name()));
         location.setAddress(trim(input.address()));
@@ -125,6 +135,26 @@ public class LocationController {
         if (input.defaultLocation() != null) location.setDefaultLocation(input.defaultLocation());
         if (input.active() != null) location.setActive(input.active());
         location.setFiscalBusinessPremiseCode(trim(input.fiscalBusinessPremiseCode()));
+        if (input.defaultLegalEntityId() != null) {
+            location.setDefaultLegalEntity(requireAssignedIssuer(companyId, input.defaultLegalEntityId()));
+        }
+    }
+
+    private LegalEntity defaultIssuer(Long companyId) {
+        return issuerAssignments.findFirstByCompanyIdAndActiveTrueOrderByDefaultIssuerDescIdAsc(companyId)
+                .map(CompanyLegalEntity::getLegalEntity)
+                .filter(LegalEntity::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Assign an active invoice issuer before creating a location."));
+    }
+
+    private LegalEntity requireAssignedIssuer(Long companyId, Long legalEntityId) {
+        return issuerAssignments.findByCompanyIdAndLegalEntityId(companyId, legalEntityId)
+                .filter(CompanyLegalEntity::isActive)
+                .map(CompanyLegalEntity::getLegalEntity)
+                .filter(LegalEntity::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "The selected invoice issuer is not assigned to this operating unit."));
     }
 
     private static String requiredName(String name) {
@@ -136,6 +166,8 @@ public class LocationController {
     private static LocationResponse response(Location l) {
         return new LocationResponse(l.getId(), l.getName(), l.getAddress(), l.getPostalCode(), l.getCity(), l.getTimezone(),
                 l.getPhone(), l.getEmail(), l.getOpeningHoursJson(), l.isPublicBookingEnabled(), l.isDefaultLocation(),
-                l.isActive(), l.getFiscalBusinessPremiseCode());
+                l.isActive(), l.getFiscalBusinessPremiseCode(),
+                l.getDefaultLegalEntity() == null ? null : l.getDefaultLegalEntity().getId(),
+                l.getDefaultLegalEntity() == null ? null : l.getDefaultLegalEntity().getName());
     }
 }

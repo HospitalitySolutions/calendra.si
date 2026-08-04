@@ -10491,3 +10491,160 @@
   .billing-print-format-options { grid-template-columns: 1fr; }
   .billing-print-format-option { min-height: 86px; }
 }
+
+/* Phase 4: legal invoice issuer and numbering context */
+.billing-invoice-issuer-card {
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.98));
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.04);
+  padding: 18px 20px;
+}
+
+.billing-invoice-issuer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.billing-invoice-issuer-grid .field {
+  min-width: 0;
+}
+
+.billing-invoice-issuer-grid select {
+  width: 100%;
+  min-height: 44px;
+}
+
+.billing-invoice-issuer-warning {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  border-radius: 12px;
+  background: rgba(255, 251, 235, 0.94);
+  color: #92400e;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.billing-workspace-history-backdrop {
+  z-index: 17000;
+}
+
+.billing-workspace-history-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1440px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 32px 100px rgba(15, 23, 42, 0.34);
+}
+
+.billing-workspace-history-modal > .billing-payee-modal-head {
+  margin: 0;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.billing-workspace-history-body {
+  min-height: 220px;
+  overflow: auto;
+  padding: 0 24px 24px;
+}
+
+.billing-workspace-history-empty {
+  margin: 0;
+  padding: 56px 18px;
+  color: #64748b;
+  text-align: center;
+}
+
+.billing-workspace-history-table-wrap {
+  min-width: 1050px;
+  overflow: visible;
+}
+
+.billing-workspace-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.billing-workspace-history-table th,
+.billing-workspace-history-table td {
+  padding: 13px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.billing-workspace-history-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.billing-workspace-history-table td:first-child strong,
+.billing-workspace-history-table td:first-child small {
+  display: block;
+}
+
+.billing-workspace-history-table td:first-child small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+[data-theme="dark"] .billing-invoice-issuer-card,
+[data-theme="dark"] .billing-workspace-history-modal {
+  background: #111827;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme="dark"] .billing-workspace-history-table th {
+  background: #172033;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .billing-workspace-history-table th,
+[data-theme="dark"] .billing-workspace-history-table td,
+[data-theme="dark"] .billing-workspace-history-modal > .billing-payee-modal-head {
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+@media (max-width: 900px) {
+  .billing-invoice-issuer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-workspace-history-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .billing-workspace-history-modal {
+    width: 100vw;
+    max-height: 100vh;
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .billing-workspace-history-modal > .billing-payee-modal-head {
+    padding: 18px 16px 14px;
+  }
+
+  .billing-workspace-history-body {
+    padding: 0 16px 18px;
+  }
+}

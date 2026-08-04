@@ -10,6 +10,7 @@ import com.example.app.billing.BillType;
 import com.example.app.billing.BillingEmailService;
 import com.example.app.billing.InvoiceOrderIdService;
 import com.example.app.billing.InvoicePdfS3Service;
+import com.example.app.billingissuer.InvoiceIssuanceService;
 import com.example.app.billing.OpenBill;
 import com.example.app.billing.OpenBillItem;
 import com.example.app.billing.OpenBillRepository;
@@ -58,6 +59,7 @@ import java.util.zip.CRC32;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,6 +100,8 @@ public class PlatformSubscriptionBillingService {
     private final TimeService timeService;
     private final ScheduledJobTrackerService jobTracker;
     private final ObjectMapper objectMapper;
+
+    private InvoiceIssuanceService invoiceIssuanceService;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -141,6 +145,11 @@ public class PlatformSubscriptionBillingService {
         this.timeService = timeService;
         this.jobTracker = jobTracker;
         this.objectMapper = objectMapper;
+    }
+
+    @Autowired(required = false)
+    void configureInvoiceIssuanceService(InvoiceIssuanceService invoiceIssuanceService) {
+        this.invoiceIssuanceService = invoiceIssuanceService;
     }
 
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
@@ -883,7 +892,6 @@ public class PlatformSubscriptionBillingService {
         Bill bill = new Bill();
         bill.setCompany(platformCompany);
         bill.setBillType(BillType.INVOICE);
-        bill.setBillNumber(nextInvoiceNumber(platformCompany.getId()));
         bill.setClient(open.getClient());
         setBillClientSnapshot(bill, open.getClient());
         if (OpenBill.BATCH_SCOPE_COMPANY.equals(open.getBatchScope()) && open.getBatchTargetCompanyId() != null) {
@@ -904,6 +912,7 @@ public class PlatformSubscriptionBillingService {
         bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolvePaymentMethod(platformCompany.getId(), null).orElse(null));
         bill.setBankTransferReference(open.getReference());
         bill.setIssueDate(timeService.localDate());
+        assignInvoiceIdentity(bill, platformCompany.getId());
         bill.setFiscalStatus(BillFiscalStatus.NOT_SENT);
 
         BigDecimal totalNet = BigDecimal.ZERO;
@@ -1542,6 +1551,14 @@ public class PlatformSubscriptionBillingService {
             s.setValue(value);
             settings.save(s);
         });
+    }
+
+    private void assignInvoiceIdentity(Bill bill, Long companyId) {
+        if (invoiceIssuanceService != null) {
+            invoiceIssuanceService.assign(bill, companyId, null, null, null, bill.getIssueDate());
+        } else {
+            bill.setBillNumber(nextInvoiceNumber(companyId));
+        }
     }
 
     private String nextInvoiceNumber(Long companyId) {

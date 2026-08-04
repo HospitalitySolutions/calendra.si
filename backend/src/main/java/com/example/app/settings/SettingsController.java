@@ -5,6 +5,10 @@ import com.example.app.session.SessionTypeBreakSettingsService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.billing.PaymentMethodRepository;
+import com.example.app.billingissuer.CompanyLegalEntity;
+import com.example.app.billingissuer.CompanyLegalEntityRepository;
+import com.example.app.billingissuer.InvoiceSeries;
+import com.example.app.billingissuer.InvoiceSeriesRepository;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.email.TenantEmailSenderResolver;
 import java.util.Locale;
@@ -102,6 +106,8 @@ public class SettingsController {
     private final TenantReservationRulesService tenantReservationRulesService;
     private final PaymentMethodRepository paymentMethodRepository;
     private final SessionTypeBreakSettingsService sessionTypeBreakSettingsService;
+    private CompanyLegalEntityRepository billingIssuerAssignments;
+    private InvoiceSeriesRepository invoiceSeriesRepository;
 
     @Autowired
     public SettingsController(
@@ -140,6 +146,15 @@ public class SettingsController {
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
         this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null, null, null);
+    }
+
+    @Autowired(required = false)
+    void configureBillingIssuerCompatibility(
+            CompanyLegalEntityRepository billingIssuerAssignments,
+            InvoiceSeriesRepository invoiceSeriesRepository
+    ) {
+        this.billingIssuerAssignments = billingIssuerAssignments;
+        this.invoiceSeriesRepository = invoiceSeriesRepository;
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
@@ -249,6 +264,7 @@ public class SettingsController {
                 repository.save(s);
             }
         });
+        synchronizeLegacyBillingIdentitySettings(companyId, normalizedPayload);
         if (sessionTypeBreakSettingsService != null
                 && normalizedPayload.containsKey(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name())) {
             int normalizedDefault = sessionTypeBreakSettingsService.applyDefaultToInheritedServices(
@@ -466,6 +482,81 @@ public class SettingsController {
         repository.save(setting);
     }
 
+
+    private void synchronizeLegacyBillingIdentitySettings(Long companyId, Map<String, String> payload) {
+        if (companyId == null || payload == null || payload.isEmpty()
+                || billingIssuerAssignments == null || invoiceSeriesRepository == null) {
+            return;
+        }
+        Set<String> relevant = Set.of(
+                SettingKey.COMPANY_NAME.name(), SettingKey.COMPANY_ADDRESS.name(),
+                SettingKey.COMPANY_POSTAL_CODE.name(), SettingKey.COMPANY_CITY.name(),
+                SettingKey.COMPANY_VAT_ID.name(), SettingKey.COMPANY_IBAN.name(),
+                SettingKey.COMPANY_BIC.name(), SettingKey.COMPANY_EMAIL.name(),
+                SettingKey.COMPANY_TELEPHONE.name(), SettingKey.FISCAL_ENVIRONMENT.name(),
+                SettingKey.FISCAL_TAX_NUMBER.name(), SettingKey.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER.name(),
+                SettingKey.FISCAL_CERTIFICATE_PASSWORD.name(), SettingKey.FISCAL_BUSINESS_PREMISE_ID.name(),
+                SettingKey.FISCAL_DEVICE_ID.name(), SettingKey.INVOICE_COUNTER.name()
+        );
+        if (payload.keySet().stream().noneMatch(relevant::contains)) return;
+
+        CompanyLegalEntity assignment = billingIssuerAssignments
+                .findFirstByCompanyIdAndActiveTrueOrderByDefaultIssuerDescIdAsc(companyId)
+                .orElse(null);
+        if (assignment == null || assignment.getLegalEntity() == null) return;
+
+        var issuer = assignment.getLegalEntity();
+        boolean issuerExclusiveToUnit = billingIssuerAssignments.countByLegalEntityIdAndActiveTrue(issuer.getId()) == 1;
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_NAME.name())) issuer.setName(nonBlankOrCurrent(payload.get(SettingKey.COMPANY_NAME.name()), issuer.getName()));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_ADDRESS.name())) issuer.setAddress(trimToNull(payload.get(SettingKey.COMPANY_ADDRESS.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_POSTAL_CODE.name())) issuer.setPostalCode(trimToNull(payload.get(SettingKey.COMPANY_POSTAL_CODE.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_CITY.name())) issuer.setCity(trimToNull(payload.get(SettingKey.COMPANY_CITY.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_VAT_ID.name())) issuer.setVatId(trimToNull(payload.get(SettingKey.COMPANY_VAT_ID.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_IBAN.name())) issuer.setIban(trimToNull(payload.get(SettingKey.COMPANY_IBAN.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_BIC.name())) issuer.setBic(trimToNull(payload.get(SettingKey.COMPANY_BIC.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_EMAIL.name())) issuer.setEmail(trimToNull(payload.get(SettingKey.COMPANY_EMAIL.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.COMPANY_TELEPHONE.name())) issuer.setTelephone(trimToNull(payload.get(SettingKey.COMPANY_TELEPHONE.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.FISCAL_TAX_NUMBER.name())) issuer.setTaxNumber(trimToNull(payload.get(SettingKey.FISCAL_TAX_NUMBER.name())));
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.FISCAL_ENVIRONMENT.name())) {
+            issuer.setFiscalEnvironment("PROD".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.FISCAL_ENVIRONMENT.name())).trim()) ? "PROD" : "TEST");
+        }
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER.name())) {
+            issuer.setSoftwareSupplierTaxNumber(trimToNull(payload.get(SettingKey.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER.name())));
+        }
+        if (issuerExclusiveToUnit && payload.containsKey(SettingKey.FISCAL_CERTIFICATE_PASSWORD.name())) {
+            String submitted = payload.get(SettingKey.FISCAL_CERTIFICATE_PASSWORD.name());
+            if (!isMaskedSecretValue(submitted)) {
+                String value = trimToNull(submitted);
+                issuer.setCertificatePasswordEncrypted(value == null ? null : crypto.encrypt(value));
+            }
+        }
+        billingIssuerAssignments.save(assignment);
+
+        InvoiceSeries defaultSeries = assignment.getDefaultInvoiceSeries();
+        if (defaultSeries == null || defaultSeries.getCompany() == null
+                || !companyId.equals(defaultSeries.getCompany().getId())) return;
+        if (payload.containsKey(SettingKey.INVOICE_COUNTER.name())) {
+            defaultSeries.setNextNumber(nonBlankOrCurrent(payload.get(SettingKey.INVOICE_COUNTER.name()), defaultSeries.getNextNumber()));
+        }
+        if (payload.containsKey(SettingKey.FISCAL_BUSINESS_PREMISE_ID.name())) {
+            defaultSeries.setBusinessPremiseCode(trimToNull(payload.get(SettingKey.FISCAL_BUSINESS_PREMISE_ID.name())));
+        }
+        if (payload.containsKey(SettingKey.FISCAL_DEVICE_ID.name())) {
+            defaultSeries.setElectronicDeviceId(trimToNull(payload.get(SettingKey.FISCAL_DEVICE_ID.name())));
+        }
+        invoiceSeriesRepository.save(defaultSeries);
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String nonBlankOrCurrent(String submitted, String current) {
+        String normalized = trimToNull(submitted);
+        return normalized == null ? current : normalized;
+    }
 
     private void disablePaymentMethodFiscalizationIfNeeded(Long companyId, Map<String, String> payload) {
         if (paymentMethodRepository == null || companyId == null || payload == null) return;

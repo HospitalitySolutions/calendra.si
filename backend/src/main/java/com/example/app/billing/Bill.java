@@ -1,6 +1,9 @@
 package com.example.app.billing;
 
 import com.example.app.company.Company;
+import com.example.app.billingissuer.InvoiceSeries;
+import com.example.app.billingissuer.LegalEntity;
+import com.example.app.location.Location;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.user.User;
@@ -19,7 +22,7 @@ import lombok.Setter;
 @Table(
         name = "bills",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = { "company_id", "billNumber" }),
+                @UniqueConstraint(columnNames = { "invoice_series_id", "bill_number" }),
                 @UniqueConstraint(columnNames = { "company_id", "order_id" })
         }
 )
@@ -30,6 +33,47 @@ public class Bill extends BaseEntity {
 
     @Column(nullable = false)
     private String billNumber;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "legal_entity_id", nullable = false)
+    private LegalEntity legalEntity;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "invoice_series_id", nullable = false)
+    private InvoiceSeries invoiceSeries;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
+
+    @Column(name = "issuer_name_snapshot", nullable = false)
+    private String issuerNameSnapshot;
+    @Column(name = "issuer_address_snapshot", length = 512)
+    private String issuerAddressSnapshot;
+    @Column(name = "issuer_postal_code_snapshot", length = 64)
+    private String issuerPostalCodeSnapshot;
+    @Column(name = "issuer_city_snapshot")
+    private String issuerCitySnapshot;
+    @Column(name = "issuer_country_snapshot", length = 2)
+    private String issuerCountrySnapshot;
+    @Column(name = "issuer_tax_number_snapshot", length = 64)
+    private String issuerTaxNumberSnapshot;
+    @Column(name = "issuer_vat_id_snapshot", length = 64)
+    private String issuerVatIdSnapshot;
+    @Column(name = "issuer_iban_snapshot", length = 128)
+    private String issuerIbanSnapshot;
+    @Column(name = "issuer_bic_snapshot", length = 64)
+    private String issuerBicSnapshot;
+    @Column(name = "issuer_email_snapshot", length = 320)
+    private String issuerEmailSnapshot;
+    @Column(name = "issuer_telephone_snapshot", length = 128)
+    private String issuerTelephoneSnapshot;
+    @Column(name = "invoice_series_name_snapshot", nullable = false)
+    private String invoiceSeriesNameSnapshot;
+    @Column(name = "fiscal_business_premise_snapshot", length = 64)
+    private String fiscalBusinessPremiseSnapshot;
+    @Column(name = "fiscal_device_id_snapshot", length = 64)
+    private String fiscalDeviceIdSnapshot;
 
     /** Public order identifier shown to guests and tenant users (tenantCode-clientId-tenantCounter). */
     @Column(name = "order_id", length = 160)

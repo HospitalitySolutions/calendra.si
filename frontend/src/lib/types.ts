@@ -211,6 +211,8 @@ export type Location = {
   defaultLocation: boolean
   active: boolean
   fiscalBusinessPremiseCode?: string | null
+  defaultLegalEntityId?: number | null
+  defaultLegalEntityName?: string | null
 }
 
 export type Space = { id: number; name: string; description?: string; createdAt?: string; location: Location }
@@ -395,6 +397,70 @@ export function normalizePaymentMethod(
   }
 }
 
+
+export type InvoiceIssuerSummary = {
+  id: number
+  name: string
+  vatId?: string | null
+  taxNumber?: string | null
+  iban?: string | null
+}
+
+export type InvoiceSeriesSummary = { id: number; name: string }
+export type InvoiceLocationSummary = { id: number; name: string }
+
+export type InvoiceIssuerOption = InvoiceIssuerSummary & {
+  address?: string | null
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
+  active: boolean
+  assignedToCurrentUnit: boolean
+  defaultForCurrentUnit: boolean
+  defaultInvoiceSeriesId?: number | null
+}
+
+export type InvoiceSeriesOption = {
+  id: number
+  legalEntityId: number
+  legalEntityName: string
+  companyId?: number | null
+  companyName?: string | null
+  locationId?: number | null
+  locationName?: string | null
+  name: string
+  nextNumber: string
+  initialNumber: string
+  resetPolicy: 'NONE' | 'YEARLY' | string
+  businessPremiseCode?: string | null
+  electronicDeviceId?: string | null
+  active: boolean
+  sharedAcrossUnits: boolean
+  defaultForCurrentUnit: boolean
+}
+
+export type WorkspaceBill = {
+  id: number
+  billNumber: string
+  billType: string
+  issueDate: string
+  paymentStatus?: string | null
+  fiscalStatus?: string | null
+  totalNet: number
+  totalGross: number
+  pendingPaymentGross?: number | null
+  companyId: number
+  companyName: string
+  locationId: number
+  locationName: string
+  legalEntityId: number
+  issuerName: string
+  invoiceSeriesId: number
+  invoiceSeriesName: string
+  clientId?: number | null
+  clientName?: string | null
+}
+
 export type BillItem = {
   id: number
   transactionService: BillingService
@@ -439,6 +505,9 @@ export type Bill = {
   refundReference?: string | null
   bankTransferReference?: string | null
   fiscalLogJson?: string | null
+  issuer?: InvoiceIssuerSummary | null
+  invoiceSeries?: InvoiceSeriesSummary | null
+  location?: InvoiceLocationSummary | null
   items: BillItem[]
 }
 

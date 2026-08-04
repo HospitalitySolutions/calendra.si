@@ -27,7 +27,7 @@ public class FiscalSignatureService {
         }
         try {
             byte[] payloadBytes = JSON.writeValueAsBytes(payload);
-            var cert = certificates.findByCompanyId(companyId)
+            var cert = certificates.findByLegalEntityId(companyId)
                     .orElseThrow(() -> new IllegalStateException("Fiscal certificate is not uploaded."));
             KeyStore ks = KeyStore.getInstance("PKCS12");
             ks.load(new java.io.ByteArrayInputStream(cert.getCertificateData()), settings.certificatePassword().toCharArray());
@@ -53,7 +53,7 @@ public class FiscalSignatureService {
             throw new IllegalStateException("Fiscal certificate settings are incomplete.");
         }
         try {
-            var cert = certificates.findByCompanyId(companyId)
+            var cert = certificates.findByLegalEntityId(companyId)
                     .orElseThrow(() -> new IllegalStateException("Fiscal certificate is not uploaded."));
             KeyStore ks = KeyStore.getInstance("PKCS12");
             ks.load(new java.io.ByteArrayInputStream(cert.getCertificateData()), settings.certificatePassword().toCharArray());

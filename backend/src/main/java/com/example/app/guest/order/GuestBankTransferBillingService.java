@@ -1,6 +1,7 @@
 package com.example.app.guest.order;
 
 import com.example.app.billing.*;
+import com.example.app.billingissuer.InvoiceIssuanceService;
 import com.example.app.client.Client;
 import com.example.app.fiscal.FiscalizationService;
 import com.example.app.guest.model.GuestPaymentMethodType;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +43,8 @@ public class GuestBankTransferBillingService {
     private final InvoiceOrderIdService invoiceOrderIdService;
     private final UserRepository users;
     private final SessionTypeRepository sessionTypes;
+
+    private InvoiceIssuanceService invoiceIssuanceService;
 
     public GuestBankTransferBillingService(
             BillRepository bills,
@@ -64,6 +68,11 @@ public class GuestBankTransferBillingService {
         this.invoiceOrderIdService = invoiceOrderIdService;
         this.users = users;
         this.sessionTypes = sessionTypes;
+    }
+
+    @Autowired(required = false)
+    void configureInvoiceIssuanceService(InvoiceIssuanceService invoiceIssuanceService) {
+        this.invoiceIssuanceService = invoiceIssuanceService;
     }
 
     @Transactional
@@ -90,7 +99,6 @@ public class GuestBankTransferBillingService {
         PaymentMethod paymentMethod = resolvePaymentMethod(companyId, paymentMethodType);
         Bill bill = new Bill();
         bill.setCompany(order.getCompany());
-        bill.setBillNumber(nextInvoiceNumber(companyId));
         bill.setBillType(BillType.ADVANCE);
         bill.setClient(order.getClient());
         setBillClientSnapshot(bill, order.getClient());
@@ -98,6 +106,7 @@ public class GuestBankTransferBillingService {
         bill.setConsultant(resolveBillConsultant(companyId, booking));
         bill.setPaymentMethod(paymentMethod);
         bill.setIssueDate(LocalDate.now());
+        assignInvoiceIdentity(bill, companyId, booking.getLocation() == null ? null : booking.getLocation().getId());
         bill.setSourceSessionIdSnapshot(booking.getId());
         bill.setInvoiceLocale(resolveInvoiceLocale(order));
         bill.setPaymentStatus(targetPaymentStatus);
@@ -365,6 +374,14 @@ public class GuestBankTransferBillingService {
 
     private static boolean isBankTransferPayment(PaymentMethod paymentMethod) {
         return paymentMethod != null && paymentMethod.getPaymentType() == PaymentType.BANK_TRANSFER;
+    }
+
+    private void assignInvoiceIdentity(Bill bill, Long companyId, Long locationId) {
+        if (invoiceIssuanceService != null) {
+            invoiceIssuanceService.assign(bill, companyId, null, null, locationId, bill.getIssueDate());
+        } else {
+            bill.setBillNumber(nextInvoiceNumber(companyId));
+        }
     }
 
     private String nextInvoiceNumber(Long companyId) {

@@ -13,4 +13,6 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     Optional<Location> findFirstByCompanyIdAndDefaultLocationTrue(Long companyId);
     boolean existsByCompanyIdAndNameIgnoreCase(Long companyId, String name);
     long countByCompanyId(Long companyId);
+    long countByDefaultLegalEntityId(Long legalEntityId);
+    long countByCompanyIdAndDefaultLegalEntityId(Long companyId, Long legalEntityId);
 }

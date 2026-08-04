@@ -1,6 +1,7 @@
 package com.example.app.location;
 
 import com.example.app.common.BaseEntity;
+import com.example.app.billingissuer.LegalEntity;
 import com.example.app.company.Company;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
@@ -45,4 +46,8 @@ public class Location extends BaseEntity {
     private boolean active = true;
     @Column(name = "fiscal_business_premise_code", length = 64)
     private String fiscalBusinessPremiseCode;
+
+    @ManyToOne
+    @JoinColumn(name = "default_legal_entity_id")
+    private LegalEntity defaultLegalEntity;
 }

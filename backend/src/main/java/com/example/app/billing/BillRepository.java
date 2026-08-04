@@ -15,6 +15,19 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     long countByPaymentStatus(String paymentStatus);
     long countByFiscalStatus(BillFiscalStatus fiscalStatus);
 
+    long countByLegalEntityId(Long legalEntityId);
+    long countByInvoiceSeriesId(Long invoiceSeriesId);
+
+    @Query("""
+            select b.id from Bill b
+            where b.company.id in :companyIds
+            order by b.issueDate desc, b.id desc
+            """)
+    List<Long> findWorkspacePageIdsByCompanyIds(@Param("companyIds") Collection<Long> companyIds, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"company", "legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    List<Bill> findAllByCompanyIdInAndIdIn(Collection<Long> companyIds, Collection<Long> ids);
+
     boolean existsByCompanyIdAndOrderId(Long companyId, String orderId);
 
     @Query("select coalesce(max(b.orderCounter), 0) from Bill b where b.company.id = :companyId")
@@ -24,13 +37,13 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     List<String> findAllOrderIdsByCompanyId(@Param("companyId") Long companyId);
 
     @Override
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAll();
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyId(Long companyId);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     @Query("""
             select distinct b from Bill b
             left join b.consultant consultant
@@ -47,7 +60,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             @Param("consultantId") Long consultantId
     );
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     @Query("""
             select distinct b from Bill b
             where b.company.id = :companyId
@@ -77,7 +90,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     List<Long> findPageIdsByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
 
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(Long companyId, BillType billType);
 
     @Query("""
@@ -106,29 +119,29 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndRecipientCompanyIdSnapshotOrderByIssueDateDescIdDesc(Long companyId, Long recipientCompanyIdSnapshot);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndBillTypeAndRecipientCompanyIdSnapshotInOrderByIssueDateDescIdDesc(
             Long companyId,
             BillType billType,
             Collection<Long> recipientCompanyIdSnapshots);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findByIdAndCompanyIdAndRecipientCompanyIdSnapshotIn(
             Long id,
             Long companyId,
             Collection<Long> recipientCompanyIdSnapshots);
 
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndBillTypeAndBankTransferReferenceOrderByIssueDateDescIdDesc(
             Long companyId,
             BillType billType,
             String bankTransferReference);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findByIdAndCompanyIdAndBankTransferReference(
             Long id,
             Long companyId,
@@ -164,24 +177,24 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             @Param("newRecipientCompanyId") Long newRecipientCompanyId);
 
     @Override
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findById(Long id);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findByIdAndCompanyId(Long id, Long companyId);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findByCheckoutSessionId(String checkoutSessionId);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findByStripeInvoiceId(String stripeInvoiceId);
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findFirstByCompanyIdAndSourceSessionIdSnapshotOrderByIdDesc(Long companyId, Long sourceSessionIdSnapshot);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findFirstByCompanyIdAndSourceSessionIdSnapshotAndBillTypeOrderByIdDesc(Long companyId, Long sourceSessionIdSnapshot, BillType billType);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndSourceSessionIdSnapshotAndBillTypeOrderByIdAsc(Long companyId, Long sourceSessionIdSnapshot, BillType billType);
 
     @Query("SELECT DISTINCT b FROM Bill b LEFT JOIN FETCH b.client LEFT JOIN FETCH b.consultant LEFT JOIN FETCH b.paymentMethod " +
@@ -189,7 +202,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             "WHERE b.company.id = :companyId AND (b.sourceSessionIdSnapshot IN :sessionIds OR i.sourceSessionBookingId IN :sessionIds)")
     List<Bill> findAllLinkedToSessionIds(@Param("companyId") Long companyId, @Param("sessionIds") Collection<Long> sessionIds);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndIdIn(Long companyId, Collection<Long> ids);
 
     @Query(
@@ -202,6 +215,6 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     List<Bill> findTop8ByCompany_IdOrderByIdDesc(Long companyId);
 
-    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findFirstByCompanyIdAndRefundOfBillId(Long companyId, Long refundOfBillId);
 }

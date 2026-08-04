@@ -137,6 +137,16 @@ public class BillFolioPdfService {
         return missing;
     }
 
+    private List<String> missingOwnBankTransferSettingKeys(Bill bill, Long companyId) {
+        List<String> missing = new ArrayList<>();
+        if (firstNonBlank(bill == null ? null : bill.getIssuerNameSnapshot(), settingValue(companyId, SettingKey.COMPANY_NAME)).isBlank()) missing.add(SettingKey.COMPANY_NAME.name());
+        if (firstNonBlank(bill == null ? null : bill.getIssuerAddressSnapshot(), settingValue(companyId, SettingKey.COMPANY_ADDRESS)).isBlank()) missing.add(SettingKey.COMPANY_ADDRESS.name());
+        if (firstNonBlank(bill == null ? null : bill.getIssuerPostalCodeSnapshot(), settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE)).isBlank()) missing.add(SettingKey.COMPANY_POSTAL_CODE.name());
+        if (firstNonBlank(bill == null ? null : bill.getIssuerCitySnapshot(), settingValue(companyId, SettingKey.COMPANY_CITY)).isBlank()) missing.add(SettingKey.COMPANY_CITY.name());
+        if (firstNonBlank(bill == null ? null : bill.getIssuerIbanSnapshot(), settingValue(companyId, SettingKey.COMPANY_IBAN)).isBlank()) missing.add(SettingKey.COMPANY_IBAN.name());
+        return missing;
+    }
+
     public void ensureOwnBankTransferSettings(Long companyId) {
         List<String> missing = missingOwnBankTransferSettingKeys(companyId);
         if (!missing.isEmpty()) {
@@ -153,16 +163,17 @@ public class BillFolioPdfService {
         req.setFiscalZoi(bill.getFiscalZoi());
         req.setFiscalEor(bill.getFiscalEor());
         req.setFiscalQr(bill.getFiscalQr());
-        req.setCompanyName(settingValue(companyId, SettingKey.COMPANY_NAME));
-        req.setCompanyAddress(settingValue(companyId, SettingKey.COMPANY_ADDRESS));
-        req.setCompanyPostalCode(settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE));
-        req.setCompanyCity(settingValue(companyId, SettingKey.COMPANY_CITY));
+        req.setCompanyName(firstNonBlank(bill.getIssuerNameSnapshot(), settingValue(companyId, SettingKey.COMPANY_NAME)));
+        req.setCompanyAddress(firstNonBlank(bill.getIssuerAddressSnapshot(), settingValue(companyId, SettingKey.COMPANY_ADDRESS)));
+        req.setCompanyPostalCode(firstNonBlank(bill.getIssuerPostalCodeSnapshot(), settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE)));
+        req.setCompanyCity(firstNonBlank(bill.getIssuerCitySnapshot(), settingValue(companyId, SettingKey.COMPANY_CITY)));
         req.setIssueCity(firstNonBlank(
+                bill.getLocation() == null ? null : bill.getLocation().getCity(),
                 settingValue(companyId, SettingKey.COMPANY_PHYSICAL_CITY),
                 req.getCompanyCity()
         ));
-        req.setCompanyTaxId(settingValue(companyId, SettingKey.COMPANY_VAT_ID));
-        req.setIban(settingValue(companyId, SettingKey.COMPANY_IBAN));
+        req.setCompanyTaxId(firstNonBlank(bill.getIssuerVatIdSnapshot(), bill.getIssuerTaxNumberSnapshot(), settingValue(companyId, SettingKey.COMPANY_VAT_ID)));
+        req.setIban(firstNonBlank(bill.getIssuerIbanSnapshot(), settingValue(companyId, SettingKey.COMPANY_IBAN)));
         BigDecimal discountAmountGross = resolveBillDiscountGross(bill);
         req.setDiscountAmountGross(discountAmountGross);
         req.setSubtotalBeforeDiscountGross(resolveSubtotalBeforeDiscountGross(bill, discountAmountGross));
@@ -214,11 +225,11 @@ public class BillFolioPdfService {
         req.setToBePaidGross(bankTransferDue.setScale(2, RoundingMode.HALF_UP));
         if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
             req.setNotes(buildInvoiceNotes(bill));
-            List<String> missingQrSettings = missingOwnBankTransferSettingKeys(companyId);
+            List<String> missingQrSettings = missingOwnBankTransferSettingKeys(bill, companyId);
             if (missingQrSettings.isEmpty()) {
-                String companyIban = settingValue(companyId, SettingKey.COMPANY_IBAN);
+                String companyIban = firstNonBlank(bill.getIssuerIbanSnapshot(), settingValue(companyId, SettingKey.COMPANY_IBAN));
                 String recipientNameForQr = firstNonBlank(req.getCompanyName(), bill.getRecipientCompanyNameSnapshot());
-                String recipientStreetForQr = firstNonBlank(req.getCompanyAddress(), settingValue(companyId, SettingKey.COMPANY_ADDRESS));
+                String recipientStreetForQr = firstNonBlank(req.getCompanyAddress(), bill.getIssuerAddressSnapshot(), settingValue(companyId, SettingKey.COMPANY_ADDRESS));
                 String recipientCityForQr = joinPostalAndCity(req.getCompanyPostalCode(), req.getCompanyCity());
                 String payerName = companyRecipient
                         ? req.getRecipientName()

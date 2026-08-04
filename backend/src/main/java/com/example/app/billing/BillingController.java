@@ -1,6 +1,7 @@
 package com.example.app.billing;
 
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
+import com.example.app.billingissuer.InvoiceIssuanceService;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
@@ -112,6 +113,7 @@ public class BillingController {
     private final GlobalPaymentProviderService globalPaymentProviders;
     private final BillingModuleAccessService billingModuleAccess;
     private final TimeService timeService;
+    private InvoiceIssuanceService invoiceIssuanceService;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -150,6 +152,11 @@ public class BillingController {
         this.globalPaymentProviders = globalPaymentProviders;
         this.billingModuleAccess = billingModuleAccess;
         this.timeService = timeService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureInvoiceIssuanceService(InvoiceIssuanceService invoiceIssuanceService) {
+        this.invoiceIssuanceService = invoiceIssuanceService;
     }
 
     @ModelAttribute
@@ -243,7 +250,10 @@ public class BillingController {
             Integer discountItemIndex,
             BigDecimal wholeBillDiscountPercent,
             List<ItemDiscountRequest> itemDiscounts,
-            List<BillItemRequest> items
+            List<BillItemRequest> items,
+            Long legalEntityId,
+            Long invoiceSeriesId,
+            Long locationId
     ) {}
     public record PaymentMethodRequest(
             String name,
@@ -272,6 +282,9 @@ public class BillingController {
     public record PaymentSplitRequest(Long paymentMethodId, BigDecimal amountGross, Long sourceAdvanceBillId) {}
     public record PaymentSplitResponse(Long id, PaymentMethodSummary paymentMethod, BigDecimal amountGross, Long sourceAdvanceBillId) {}
     public record ServiceSummary(Long id, String code, String description, TaxRate taxRate, BigDecimal netPrice) {}
+    public record InvoiceIssuerSummary(Long id, String name, String vatId, String taxNumber, String iban) {}
+    public record InvoiceSeriesSummary(Long id, String name) {}
+    public record InvoiceLocationSummary(Long id, String name) {}
     public record BillItemResponse(
             Long id,
             ServiceSummary transactionService,
@@ -312,10 +325,14 @@ public class BillingController {
             Long refundOfBillId,
             String refundReference,
             String bankTransferReference,
+            InvoiceIssuerSummary issuer,
+            InvoiceSeriesSummary invoiceSeries,
+            InvoiceLocationSummary location,
             List<PaymentSplitResponse> paymentSplits,
             List<BillItemResponse> items
     ) {}
     public record BillExportRequest(List<Long> billIds) {}
+    public record BillIssuerSelectionRequest(Long legalEntityId, Long invoiceSeriesId, Long locationId) {}
 
     public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record ItemDiscountRequest(Integer itemIndex, String discountType, BigDecimal discountValue) {}
@@ -1961,7 +1978,11 @@ public class BillingController {
 
     @PostMapping("/open-bills/{id}/create-bill")
     @Transactional
-    public BillResponse createBillFromOpen(@PathVariable Long id, @AuthenticationPrincipal User me) {
+    public BillResponse createBillFromOpen(
+            @PathVariable Long id,
+            @RequestBody(required = false) BillIssuerSelectionRequest issuerSelection,
+            @AuthenticationPrincipal User me
+    ) {
         var companyId = me.getCompany().getId();
         var open = openBillRepo.findById(id).orElseThrow();
         if (!open.getCompany().getId().equals(companyId)) {
@@ -1994,7 +2015,6 @@ public class BillingController {
         bill.setBillType(resolvedBillType);
         PaymentMethod openPaymentMethod = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId);
         requireStripeCheckoutReadyIfNeeded(me, openPaymentMethod);
-        bill.setBillNumber(nextInvoiceNumber(companyId));
         bill.setClient(open.getClient());
         setBillClientSnapshot(bill, open.getClient());
         if (OpenBill.BATCH_SCOPE_COMPANY.equals(open.getBatchScope()) && open.getBatchTargetCompanyId() != null) {
@@ -2011,6 +2031,15 @@ public class BillingController {
         bill.setPaymentMethod(openPaymentMethod);
         bill.setBankTransferReference(open.getReference());
         bill.setIssueDate(timeService.localDate());
+        assignInvoiceIdentity(
+                bill,
+                companyId,
+                issuerSelection == null ? null : issuerSelection.legalEntityId(),
+                issuerSelection == null ? null : issuerSelection.invoiceSeriesId(),
+                issuerSelection != null && issuerSelection.locationId() != null
+                        ? issuerSelection.locationId()
+                        : resolveInvoiceLocationId(companyId, linkedSessionIds)
+        );
         bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
         if (open.getItems() == null || open.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no items.");
@@ -3191,8 +3220,6 @@ public class BillingController {
         bill.setCompany(me.getCompany());
         PaymentMethod requestedPaymentMethod = resolvePaymentMethod(request.paymentMethodId(), companyId);
         requireStripeCheckoutReadyIfNeeded(me, requestedPaymentMethod);
-        String billNumber = nextInvoiceNumber(companyId);
-        bill.setBillNumber(billNumber);
         BillType requestedBillType = resolveRequestedBillType(request.billType());
         requireCanIssueBillType(me, requestedBillType);
         if (requestedBillType == BillType.ADVANCE) {
@@ -3252,6 +3279,10 @@ public class BillingController {
         bill.setPaymentMethod(requestedPaymentMethod);
         bill.setBankTransferReference(request.bankTransferReference() == null ? null : request.bankTransferReference().trim());
         bill.setIssueDate(timeService.localDate());
+        Long requestedLocationId = request.locationId() != null
+                ? request.locationId()
+                : selectedSession != null && selectedSession.getLocation() != null ? selectedSession.getLocation().getId() : null;
+        assignInvoiceIdentity(bill, companyId, request.legalEntityId(), request.invoiceSeriesId(), requestedLocationId);
         bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
             bill.setPaidAt(timeService.offsetDateTime());
@@ -3381,7 +3412,6 @@ public class BillingController {
 
         Bill refund = new Bill();
         refund.setCompany(original.getCompany());
-        refund.setBillNumber(nextInvoiceNumber(companyId));
         refund.setBillType(BillType.INVOICE);
         refund.setClient(original.getClient());
         refund.setClientFirstNameSnapshot(original.getClientFirstNameSnapshot());
@@ -3391,6 +3421,11 @@ public class BillingController {
         refund.setPaymentMethod(original.getPaymentMethod());
         copyRefundPaymentSplits(original, refund);
         refund.setIssueDate(timeService.localDate());
+        if (invoiceIssuanceService != null) {
+            invoiceIssuanceService.assignFromOriginal(refund, original, refund.getIssueDate());
+        } else {
+            refund.setBillNumber(nextInvoiceNumber(companyId));
+        }
         refund.setPaymentStatus(BillPaymentStatus.PAID);
         refund.setPaidAt(timeService.offsetDateTime());
         refund.setSourceSessionIdSnapshot(original.getSourceSessionIdSnapshot());
@@ -4057,6 +4092,12 @@ public class BillingController {
                 bill.getRefundOfBillId(),
                 bill.getRefundReference(),
                 BankStatementReconciliationService.bankReferenceForBill(bill),
+                bill.getLegalEntity() == null ? null : new InvoiceIssuerSummary(
+                        bill.getLegalEntity().getId(), bill.getIssuerNameSnapshot(), bill.getIssuerVatIdSnapshot(),
+                        bill.getIssuerTaxNumberSnapshot(), bill.getIssuerIbanSnapshot()),
+                bill.getInvoiceSeries() == null ? null : new InvoiceSeriesSummary(
+                        bill.getInvoiceSeries().getId(), bill.getInvoiceSeriesNameSnapshot()),
+                bill.getLocation() == null ? null : new InvoiceLocationSummary(bill.getLocation().getId(), bill.getLocation().getName()),
                 toBillPaymentSplitResponses(bill),
                 items
         );
@@ -4151,6 +4192,32 @@ public class BillingController {
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid bill type. Allowed values: INVOICE, ADVANCE.");
         }
+    }
+
+    private void assignInvoiceIdentity(
+            Bill bill,
+            Long companyId,
+            Long legalEntityId,
+            Long invoiceSeriesId,
+            Long locationId
+    ) {
+        if (invoiceIssuanceService != null) {
+            invoiceIssuanceService.assign(bill, companyId, legalEntityId, invoiceSeriesId, locationId, bill.getIssueDate());
+            return;
+        }
+        bill.setBillNumber(nextInvoiceNumber(companyId));
+    }
+
+    private Long resolveInvoiceLocationId(Long companyId, Set<Long> sessionIds) {
+        if (sessionIds != null && !sessionIds.isEmpty()) {
+            return sessionBookings.findAllByCompanyIdAndIds(companyId, sessionIds).stream()
+                    .map(SessionBooking::getLocation)
+                    .filter(Objects::nonNull)
+                    .map(location -> location.getId())
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
     }
 
     private String nextInvoiceNumber(Long companyId) {

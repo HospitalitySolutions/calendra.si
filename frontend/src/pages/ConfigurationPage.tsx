@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuthenticatedUser } from "../authUserContext";
-import type { PaymentMethod, PaymentType } from "../lib/types";
+import type { InvoiceIssuerOption, PaymentMethod, PaymentType } from "../lib/types";
 import { normalizePaymentMethod } from "../lib/types";
 import {
   CALENDAR_TIME_SCALE_MINUTES_KEY,
@@ -32,6 +32,7 @@ import {
   mergeNotificationSettingsJsonIntoFlat,
 } from "./configuration/ConfigurationNotificationsSection";
 import { ConfigurationWaitlistSettingsSection } from "./configuration/ConfigurationWaitlistSettingsSection";
+import { BillingIssuersSection } from "./configuration/BillingIssuersSection";
 import {
   BillingCertificateIcon,
   BillingEditIcon,
@@ -183,6 +184,7 @@ type Tab =
   | "modules";
 type BookingSubtab = "spaces" | "waitlist";
 type BillingSubtab =
+  | "issuers"
   | "settings"
   | "paymentMethods"
   | "stripe"
@@ -295,6 +297,9 @@ const isBillingSubtabHiddenOnMobile = (subtab: BillingSubtab) =>
   BILLING_MOBILE_HIDDEN_SUBTABS.includes(subtab);
 
 function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
+  if (subtab === "issuers") {
+    return <BillingReceiptIcon />;
+  }
   if (subtab === "settings") {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -903,6 +908,8 @@ type OperatingLocation = {
   defaultLocation: boolean;
   active: boolean;
   fiscalBusinessPremiseCode?: string | null;
+  defaultLegalEntityId?: number | null;
+  defaultLegalEntityName?: string | null;
 };
 type Space = {
   id: number;
@@ -1159,7 +1166,8 @@ export function ConfigurationPage() {
   const [websiteBookingRules, setWebsiteBookingRules] =
     useState<WebsiteBookingRulesForm>(defaultWebsiteBookingRules);
   const [locations, setLocations] = useState<OperatingLocation[]>([]);
-  const [locationDraft, setLocationDraft] = useState({ name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "", publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "" });
+  const [locationIssuerOptions, setLocationIssuerOptions] = useState<InvoiceIssuerOption[]>([]);
+  const [locationDraft, setLocationDraft] = useState({ name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "", publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "", defaultLegalEntityId: null as number | null });
   const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
   const [showNewLocation, setShowNewLocation] = useState(false);
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -2883,6 +2891,7 @@ export function ConfigurationPage() {
       hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
     const [
       locationsRes,
+      locationIssuersRes,
       spacesRes,
       paymentMethodsRes,
       certificateMetaRes,
@@ -2893,6 +2902,7 @@ export function ConfigurationPage() {
       tenantUsersRes,
     ] = await Promise.all([
       api.get("/locations").catch(() => ({ data: [] })),
+      api.get("/billing/issuers").catch(() => ({ data: [] })),
       api.get("/spaces").catch(() => ({ data: [] })),
       api.get("/billing/payment-methods").catch(() => ({ data: [] })),
       canReadFiscalCertificate
@@ -3068,6 +3078,7 @@ export function ConfigurationPage() {
       parsePersonalTaskPresets(settingsData[PERSONAL_TASK_PRESETS_KEY]),
     );
     setLocations(locationsRes.data || []);
+    setLocationIssuerOptions((locationIssuersRes.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active));
     setSpaces(spacesRes.data || []);
     setPaymentMethods(
       (paymentMethodsRes.data || [])
@@ -4031,7 +4042,11 @@ export function ConfigurationPage() {
 
 
 
-  const resetLocationDraft = () => setLocationDraft({ name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "", publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "" });
+  const resetLocationDraft = () => setLocationDraft({
+    name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "",
+    publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "",
+    defaultLegalEntityId: locationIssuerOptions.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? locationIssuerOptions[0]?.id ?? null,
+  });
 
   const startEditLocation = (location: OperatingLocation) => {
     setEditingLocationId(location.id);
@@ -4041,6 +4056,7 @@ export function ConfigurationPage() {
       city: location.city || "", timezone: location.timezone || "Europe/Ljubljana", phone: location.phone || "",
       email: location.email || "", publicBookingEnabled: location.publicBookingEnabled !== false,
       active: location.active !== false, fiscalBusinessPremiseCode: location.fiscalBusinessPremiseCode || "",
+      defaultLegalEntityId: location.defaultLegalEntityId ?? locationIssuerOptions.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? locationIssuerOptions[0]?.id ?? null,
     });
   };
 
@@ -4657,6 +4673,7 @@ export function ConfigurationPage() {
   };
 
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
+    { id: "issuers", label: locale === "sl" ? "Izdajatelji in serije" : "Issuers & series" },
     { id: "paymentMethods", label: t("configBillingPaymentMethodsTab") },
     ...(stripePaymentsAvailableCommitted
       ? [
@@ -10325,6 +10342,13 @@ export function ConfigurationPage() {
                               <span>Oznaka poslovnega prostora</span>
                               <input value={locationDraft.fiscalBusinessPremiseCode} onChange={(event) => setLocationDraft((draft) => ({ ...draft, fiscalBusinessPremiseCode: event.target.value }))} placeholder="Za kasnejšo nastavitev fiskalizacije" />
                             </label>
+                            <label>
+                              <span>Privzeti izdajatelj računov</span>
+                              <select value={locationDraft.defaultLegalEntityId ?? ""} onChange={(event) => setLocationDraft((draft) => ({ ...draft, defaultLegalEntityId: event.target.value ? Number(event.target.value) : null }))}>
+                                <option value="">Izberite izdajatelja</option>
+                                {locationIssuerOptions.map((issuer) => <option key={issuer.id} value={issuer.id}>{issuer.name}</option>)}
+                              </select>
+                            </label>
                             <label className="booking-location-checkbox">
                               <input type="checkbox" checked={locationDraft.publicBookingEnabled} onChange={(event) => setLocationDraft((draft) => ({ ...draft, publicBookingEnabled: event.target.checked }))} />
                               <span>Vidna pri spletnem naročanju</span>
@@ -10350,7 +10374,7 @@ export function ConfigurationPage() {
                                   {!location.active ? <span className="booking-location-inactive-pill">Neaktivna</span> : null}
                                 </div>
                                 <p>{[location.address, location.postalCode, location.city].filter(Boolean).join(", ") || "Naslov ni določen"}</p>
-                                <small>{location.timezone}{location.publicBookingEnabled ? " · spletno naročanje" : " · skrita pri spletnem naročanju"}</small>
+                                <small>{location.timezone}{location.publicBookingEnabled ? " · spletno naročanje" : " · skrita pri spletnem naročanju"}{location.defaultLegalEntityName ? ` · ${location.defaultLegalEntityName}` : ""}</small>
                               </div>
                               <div className="booking-location-actions">
                                 {!location.defaultLocation && location.active ? <button type="button" onClick={() => void makeDefaultLocation(location)}>Nastavi kot privzeto</button> : null}
@@ -11608,7 +11632,9 @@ export function ConfigurationPage() {
                       </div>
                     </div>
 
-                    {billingSubtab === "settings" ? (
+                    {billingSubtab === "issuers" ? (
+                      <BillingIssuersSection locale={locale} />
+                    ) : billingSubtab === "settings" ? (
                       <div className="billing-card billing-settings-card">
                         <div className="billing-section-heading-row">
                           <span className="billing-section-icon">

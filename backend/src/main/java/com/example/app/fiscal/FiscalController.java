@@ -2,7 +2,16 @@ package com.example.app.fiscal;
 
 import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillRepository;
+import com.example.app.billingissuer.CompanyLegalEntity;
+import com.example.app.billingissuer.CompanyLegalEntityRepository;
+import com.example.app.billingissuer.InvoiceSeries;
+import com.example.app.billingissuer.InvoiceSeriesRepository;
+import com.example.app.billingissuer.LegalEntity;
+import com.example.app.billingissuer.LegalEntityRepository;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
+import com.example.app.workspaceclient.WorkspaceClientAccessService;
 import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -35,6 +44,11 @@ public class FiscalController {
     private final FiscalCertificateRepository certificates;
     private final BillingModuleAccessService billingModuleAccess;
     private final AppSettingRepository settings;
+    private final LegalEntityRepository legalEntities;
+    private final CompanyLegalEntityRepository issuerAssignments;
+    private final InvoiceSeriesRepository invoiceSeries;
+    private final LocationRepository locations;
+    private final WorkspaceClientAccessService workspaceAccess;
 
     public FiscalController(
             FiscalizationService fiscalizationService,
@@ -42,7 +56,12 @@ public class FiscalController {
             BillRepository bills,
             FiscalCertificateRepository certificates,
             BillingModuleAccessService billingModuleAccess,
-            AppSettingRepository settings
+            AppSettingRepository settings,
+            LegalEntityRepository legalEntities,
+            CompanyLegalEntityRepository issuerAssignments,
+            InvoiceSeriesRepository invoiceSeries,
+            LocationRepository locations,
+            WorkspaceClientAccessService workspaceAccess
     ) {
         this.fiscalizationService = fiscalizationService;
         this.fiscalSettingsService = fiscalSettingsService;
@@ -50,6 +69,11 @@ public class FiscalController {
         this.certificates = certificates;
         this.billingModuleAccess = billingModuleAccess;
         this.settings = settings;
+        this.legalEntities = legalEntities;
+        this.issuerAssignments = issuerAssignments;
+        this.invoiceSeries = invoiceSeries;
+        this.locations = locations;
+        this.workspaceAccess = workspaceAccess;
     }
 
     @ModelAttribute
@@ -95,8 +119,16 @@ public class FiscalController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/premises/register")
-    public FiscalResponse registerPremise(@AuthenticationPrincipal User me) {
-        return fiscalizationService.registerBusinessPremise(me.getCompany().getId(), me);
+    public FiscalResponse registerPremise(
+            @RequestParam(name = "legalEntityId", required = false) Long legalEntityId,
+            @RequestParam(name = "locationId", required = false) Long locationId,
+            @RequestParam(name = "invoiceSeriesId", required = false) Long invoiceSeriesId,
+            @AuthenticationPrincipal User me
+    ) {
+        LegalEntity issuer = resolveAssignedIssuer(me, legalEntityId);
+        Location location = resolveLocation(me, locationId);
+        InvoiceSeries series = resolveSeries(me, issuer, location, invoiceSeriesId);
+        return fiscalizationService.registerBusinessPremise(me.getCompany().getId(), issuer, location, series, me);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -104,19 +136,25 @@ public class FiscalController {
     @Transactional
     public FiscalCertificateMetaResponse uploadCertificate(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "legalEntityId", required = false) Long legalEntityId,
             @AuthenticationPrincipal User me
     ) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Certificate file is required.");
         }
         try {
-            var existing = certificates.findByCompanyId(me.getCompany().getId()).orElseGet(FiscalCertificate::new);
+            LegalEntity issuer = resolveAssignedIssuer(me, legalEntityId);
+            requireIssuerAdminAcrossAssignments(me, issuer);
+            var existing = certificates.findByLegalEntityId(issuer.getId()).orElseGet(FiscalCertificate::new);
             existing.setCompany(me.getCompany());
+            existing.setLegalEntity(issuer);
             existing.setFileName(file.getOriginalFilename() == null ? "certificate.p12" : file.getOriginalFilename());
             existing.setContentType(file.getContentType() == null ? "application/x-pkcs12" : file.getContentType());
             existing.setCertificateData(file.getBytes());
             var saved = certificates.save(existing);
             return toMeta(saved);
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             String reason = e.getMessage();
             Throwable cause = e.getCause();
@@ -132,8 +170,12 @@ public class FiscalController {
 
     @GetMapping("/certificate/meta")
     @Transactional(readOnly = true)
-    public FiscalCertificateMetaResponse certificateMeta(@AuthenticationPrincipal User me) {
-        return certificates.findByCompanyId(me.getCompany().getId())
+    public FiscalCertificateMetaResponse certificateMeta(
+            @RequestParam(name = "legalEntityId", required = false) Long legalEntityId,
+            @AuthenticationPrincipal User me
+    ) {
+        LegalEntity issuer = resolveAssignedIssuer(me, legalEntityId);
+        return certificates.findByLegalEntityId(issuer.getId())
                 .map(this::toMeta)
                 .orElseGet(() -> new FiscalCertificateMetaResponse(false, null, null, null, null));
     }
@@ -141,8 +183,13 @@ public class FiscalController {
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/certificate")
     @Transactional
-    public void deleteCertificate(@AuthenticationPrincipal User me) {
-        certificates.deleteByCompanyId(me.getCompany().getId());
+    public void deleteCertificate(
+            @RequestParam(name = "legalEntityId", required = false) Long legalEntityId,
+            @AuthenticationPrincipal User me
+    ) {
+        LegalEntity issuer = resolveAssignedIssuer(me, legalEntityId);
+        requireIssuerAdminAcrossAssignments(me, issuer);
+        certificates.deleteByLegalEntityId(issuer.getId());
     }
     @GetMapping("/invoices/{billId}/status")
     @Transactional(readOnly = true)
@@ -186,6 +233,56 @@ public class FiscalController {
         return status.name();
     }
 
+    private void requireIssuerAdminAcrossAssignments(User me, LegalEntity issuer) {
+        var companyIds = issuerAssignments.findAllByLegalEntityId(issuer.getId()).stream()
+                .filter(CompanyLegalEntity::isActive)
+                .map(row -> row.getCompany().getId())
+                .toList();
+        workspaceAccess.requireAdminForCompanies(me, companyIds);
+    }
+
+    private LegalEntity resolveAssignedIssuer(User me, Long requestedId) {
+        Long companyId = me.getCompany().getId();
+        CompanyLegalEntity assignment = requestedId == null
+                ? issuerAssignments.findFirstByCompanyIdAndActiveTrueOrderByDefaultIssuerDescIdAsc(companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No invoice issuer is assigned to this operating unit."))
+                : issuerAssignments.findByCompanyIdAndLegalEntityId(companyId, requestedId)
+                    .filter(CompanyLegalEntity::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice issuer is not assigned to this operating unit."));
+        return legalEntities.findById(assignment.getLegalEntity().getId())
+                .filter(LegalEntity::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice issuer is inactive or missing."));
+    }
+
+    private Location resolveLocation(User me, Long requestedId) {
+        Long companyId = me.getCompany().getId();
+        if (requestedId != null) {
+            return locations.findByIdAndCompanyId(requestedId, companyId)
+                    .filter(Location::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location does not belong to this operating unit."));
+        }
+        return locations.findFirstByCompanyIdAndDefaultLocationTrue(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No default location is configured."));
+    }
+
+    private InvoiceSeries resolveSeries(User me, LegalEntity issuer, Location location, Long requestedId) {
+        if (requestedId == null) {
+            return issuerAssignments.findByCompanyIdAndLegalEntityId(me.getCompany().getId(), issuer.getId())
+                    .map(CompanyLegalEntity::getDefaultInvoiceSeries)
+                    .filter(value -> value != null && value.isActive())
+                    .orElse(null);
+        }
+        InvoiceSeries series = invoiceSeries.findByIdAndWorkspaceId(requestedId, me.getCompany().getWorkspace().getId())
+                .filter(InvoiceSeries::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series not found."));
+        if (!series.getLegalEntity().getId().equals(issuer.getId())
+                || (series.getCompany() != null && !series.getCompany().getId().equals(me.getCompany().getId()))
+                || (series.getLocation() != null && !series.getLocation().getId().equals(location.getId()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series is not valid for the selected issuer and location.");
+        }
+        return series;
+    }
+
     private FiscalCertificateMetaResponse toMeta(FiscalCertificate c) {
         return new FiscalCertificateMetaResponse(
                 true,
@@ -198,9 +295,9 @@ public class FiscalController {
 
     private String certificateExpiry(FiscalCertificate c) {
         try {
-            var company = c.getCompany();
-            if (company == null || company.getId() == null) return null;
-            String certificatePassword = fiscalSettingsService.forCompany(company.getId()).certificatePassword();
+            var issuer = c.getLegalEntity();
+            if (issuer == null || issuer.getId() == null) return null;
+            String certificatePassword = fiscalSettingsService.certificatePasswordFor(issuer);
             if (certificatePassword == null || certificatePassword.isBlank()) return null;
             KeyStore ks = KeyStore.getInstance("PKCS12");
             ks.load(new ByteArrayInputStream(c.getCertificateData()), certificatePassword.toCharArray());

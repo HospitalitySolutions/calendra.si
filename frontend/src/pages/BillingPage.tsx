@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
-import type { Bill, BillingService, Booking, Client, Company, OpenBill, PaymentMethod, PaymentSplit, User } from '../lib/types'
+import type { Bill, BillingService, Booking, Client, Company, InvoiceIssuerOption, InvoiceSeriesOption, Location, OpenBill, PaymentMethod, PaymentSplit, User, WorkspaceBill } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -184,6 +184,9 @@ type BillForm = {
   recipientCompanyId?: number
   billType: BillDocumentType
   sessionId?: number
+  legalEntityId?: number
+  invoiceSeriesId?: number
+  locationId?: number
   paymentSplits?: OpenBillPaymentSplitDraft[]
   discountType?: DiscountType
   discountValue?: string
@@ -989,6 +992,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [users, setUsers] = useState<User[]>([])
+  const [invoiceIssuers, setInvoiceIssuers] = useState<InvoiceIssuerOption[]>([])
+  const [invoiceSeriesOptions, setInvoiceSeriesOptions] = useState<InvoiceSeriesOption[]>([])
+  const [invoiceLocations, setInvoiceLocations] = useState<Location[]>([])
+  const [workspaceBills, setWorkspaceBills] = useState<WorkspaceBill[]>([])
+  const [showWorkspaceBills, setShowWorkspaceBills] = useState(false)
+  const [workspaceBillsLoading, setWorkspaceBillsLoading] = useState(false)
   const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', wholeBillDiscountPercent: '0', itemDiscounts: {} })
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
   const [editingCreateBillPayee, setEditingCreateBillPayee] = useState(false)
@@ -1173,7 +1182,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const settingsRes = await api.get('/settings').catch(() => ({ data: {} as Record<string, string> }))
     const giftCardsEnabled = settingsRes.data?.BILLING_ENABLED !== 'false'
       && settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'true'
-    const [servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
+    const [servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes, issuersRes, seriesRes, locationsRes] = await Promise.all([
       api.get('/billing/services'),
       api.get('/billing/bills'),
       api.get('/billing/open-bills'),
@@ -1184,6 +1193,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       api.get('/companies'),
       isAdmin ? api.get('/users') : Promise.resolve({ data: [] }),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
+      api.get('/billing/issuers').catch(() => ({ data: [] })),
+      api.get('/billing/invoice-series').catch(() => ({ data: [] })),
+      api.get('/locations').catch(() => ({ data: [] })),
     ])
     setSettings(settingsRes.data || {})
     setServices(servicesRes.data)
@@ -1197,6 +1209,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setCompanies(companiesRes.data || [])
     setUsers(usersRes.data)
     setPaymentMethods((paymentMethodsRes.data || []).map((p: PaymentMethod) => normalizePaymentMethod(p)!))
+    setInvoiceIssuers((issuersRes.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active))
+    setInvoiceSeriesOptions((seriesRes.data || []).filter((series: InvoiceSeriesOption) => series.active))
+    setInvoiceLocations((locationsRes.data || []).filter((location: Location) => location.active !== false))
     return {
       openBills: (openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)) as OpenBill[],
     }
@@ -1238,6 +1253,62 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     },
     [advanceBillingEnabled, paymentMethods, stripeBillingEnabled],
   )
+
+  const defaultInvoiceIssuerId = invoiceIssuers.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? invoiceIssuers[0]?.id
+  const defaultInvoiceLocationId = invoiceLocations.find((location) => location.defaultLocation)?.id ?? invoiceLocations[0]?.id
+  const compatibleInvoiceSeries = useMemo(() => invoiceSeriesOptions.filter((series) =>
+    (!billForm.legalEntityId || series.legalEntityId === billForm.legalEntityId)
+    && (series.locationId == null || series.locationId === billForm.locationId),
+  ), [invoiceSeriesOptions, billForm.legalEntityId, billForm.locationId])
+
+  useEffect(() => {
+    if (invoiceIssuers.length === 0 || invoiceLocations.length === 0) return
+    setBillForm((current) => {
+      const locationId = current.locationId && invoiceLocations.some((location) => location.id === current.locationId)
+        ? current.locationId : defaultInvoiceLocationId
+      const locationDefaultIssuerId = invoiceLocations.find((location) => location.id === locationId)?.defaultLegalEntityId
+      const preferredIssuerId = locationDefaultIssuerId && invoiceIssuers.some((issuer) => issuer.id === locationDefaultIssuerId)
+        ? locationDefaultIssuerId : defaultInvoiceIssuerId
+      const legalEntityId = current.legalEntityId && invoiceIssuers.some((issuer) => issuer.id === current.legalEntityId)
+        ? current.legalEntityId : preferredIssuerId
+      const available = invoiceSeriesOptions.filter((series) => series.legalEntityId === legalEntityId
+        && (series.locationId == null || series.locationId === locationId))
+      const invoiceSeriesId = current.invoiceSeriesId && available.some((series) => series.id === current.invoiceSeriesId)
+        ? current.invoiceSeriesId
+        : (available.find((series) => series.defaultForCurrentUnit)?.id ?? available[0]?.id)
+      if (current.locationId === locationId && current.legalEntityId === legalEntityId && current.invoiceSeriesId === invoiceSeriesId) return current
+      return { ...current, locationId, legalEntityId, invoiceSeriesId }
+    })
+  }, [invoiceIssuers, invoiceLocations, invoiceSeriesOptions, defaultInvoiceIssuerId, defaultInvoiceLocationId])
+
+  useEffect(() => {
+    if (!billForm.sessionId) return
+    const booking = bookings.find((entry) => entry.id === billForm.sessionId)
+    const bookingLocationId = booking?.location?.id ?? booking?.space?.location?.id
+    if (bookingLocationId && bookingLocationId !== billForm.locationId) {
+      const locationDefaultIssuerId = invoiceLocations.find((location) => location.id === bookingLocationId)?.defaultLegalEntityId
+      setBillForm((current) => ({
+        ...current,
+        locationId: bookingLocationId,
+        legalEntityId: locationDefaultIssuerId && invoiceIssuers.some((issuer) => issuer.id === locationDefaultIssuerId)
+          ? locationDefaultIssuerId : current.legalEntityId,
+        invoiceSeriesId: undefined,
+      }))
+    }
+  }, [billForm.sessionId, bookings, invoiceIssuers, invoiceLocations])
+
+  const openWorkspaceBillHistory = async () => {
+    setShowWorkspaceBills(true)
+    setWorkspaceBillsLoading(true)
+    try {
+      const { data } = await api.get('/billing/workspace-bills?size=500')
+      setWorkspaceBills(Array.isArray(data) ? data : [])
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || (locale === 'sl' ? 'Skupne zgodovine računov ni bilo mogoče naložiti.' : 'Could not load workspace invoice history.'))
+    } finally {
+      setWorkspaceBillsLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!advanceBillingEnabled && billingTab === 'unusedAdvances') {
@@ -3328,6 +3399,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         bankTransferReference: billForm.bankTransferReference,
         billType: billForm.billType,
         sessionId: billForm.sessionId,
+        legalEntityId: billForm.legalEntityId,
+        invoiceSeriesId: billForm.invoiceSeriesId,
+        locationId: billForm.locationId,
         items: billForm.items.map((item) => ({
           ...item,
           netPrice: Number(item.netPrice),
@@ -3673,6 +3747,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   ))
   const billCanSubmit = billForm.items.length > 0
     && (billForm.billingTarget === 'PERSON' ? Boolean(billForm.clientId) : Boolean(billForm.recipientCompanyId))
+    && Boolean(billForm.legalEntityId && billForm.invoiceSeriesId && billForm.locationId)
     && billItemsAllowedByType
     && createPaymentsMatchTotal
     && createAdvanceSelectionValid
@@ -4666,6 +4741,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (billForm.billType === 'INVOICE') Object.assign(payload, discountPayloadFields(createBillDiscountDraft, grossPreview, billForm.items))
     payload.reference = billForm.bankTransferReference
     payload.sessionId = billForm.sessionId
+    payload.legalEntityId = billForm.legalEntityId
+    payload.invoiceSeriesId = billForm.invoiceSeriesId
+    payload.locationId = billForm.locationId
     payload.billType = billForm.billType
     payload.items = billForm.items.map((row) => ({
       transactionServiceId: row.transactionServiceId,
@@ -4730,7 +4808,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         showToast('error', locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.')
         return
       }
-      const { data: bill } = await api.post(`/billing/open-bills/${targetId}/create-bill`)
+      const { data: bill } = await api.post(`/billing/open-bills/${targetId}/create-bill`, {
+        legalEntityId: billForm.legalEntityId,
+        invoiceSeriesId: billForm.invoiceSeriesId,
+        locationId: billForm.locationId,
+      })
       if (bill?.id) setBills((prev) => [normalizeBill(bill), ...prev])
       await handleCreatedBillPdfAction(bill, afterCreatePdfAction, printWindow)
       if (bill?.id && shouldCreateCheckoutSession(bill)) {
@@ -8540,6 +8622,25 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>{historyFilterText.title}</span>
                       {activeHistoryFilterCount > 0 ? <strong className="billing-filter-btn__count">{activeHistoryFilterCount}</strong> : null}
                     </button>
+                    {(me.units?.length ?? 0) > 1 && (
+                      <button
+                        type="button"
+                        className="billing-filter-btn"
+                        onClick={() => void openWorkspaceBillHistory()}
+                        disabled={workspaceBillsLoading}
+                        title={locale === 'sl' ? 'Prikaži račune vseh dostopnih enot' : 'Show invoices from all accessible units'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M3 21h18" />
+                          <path d="M5 21V7l7-4 7 4v14" />
+                          <path d="M9 9h1" />
+                          <path d="M14 9h1" />
+                          <path d="M9 13h1" />
+                          <path d="M14 13h1" />
+                        </svg>
+                        <span>{workspaceBillsLoading ? (locale === 'sl' ? 'Nalaganje…' : 'Loading…') : (locale === 'sl' ? 'Vse enote' : 'All units')}</span>
+                      </button>
+                    )}
                     <div className="billing-history-export">
                       <button
                         type="button"
@@ -9263,6 +9364,60 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         )
       })()}
 
+      {showWorkspaceBills && (
+        <div className="billing-payee-modal-backdrop billing-workspace-history-backdrop" onMouseDown={() => setShowWorkspaceBills(false)} role="presentation">
+          <div className="billing-workspace-history-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Računi vseh enot' : 'Invoices from all units'}>
+            <div className="billing-payee-modal-head">
+              <div>
+                <h3>{locale === 'sl' ? 'Računi vseh dostopnih enot' : 'Invoices from all accessible units'}</h3>
+                <p>{locale === 'sl' ? 'Združeni pregled je samo za branje. Račun ostane vezan na prvotno enoto, lokacijo, izdajatelja in serijo.' : 'This consolidated view is read-only. Every invoice remains owned by its original unit, location, issuer and series.'}</p>
+              </div>
+              <button type="button" className="billing-bill-modal-close" onClick={() => setShowWorkspaceBills(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            </div>
+            <div className="billing-workspace-history-body">
+              {workspaceBillsLoading ? (
+                <p className="billing-workspace-history-empty">{locale === 'sl' ? 'Nalaganje računov…' : 'Loading invoices…'}</p>
+              ) : workspaceBills.length === 0 ? (
+                <p className="billing-workspace-history-empty">{locale === 'sl' ? 'V dostopnih enotah še ni računov.' : 'No invoices exist in the accessible units yet.'}</p>
+              ) : (
+                <div className="billing-workspace-history-table-wrap">
+                  <table className="billing-workspace-history-table">
+                    <thead>
+                      <tr>
+                        <th>{locale === 'sl' ? 'Račun' : 'Invoice'}</th>
+                        <th>{locale === 'sl' ? 'Datum' : 'Date'}</th>
+                        <th>{locale === 'sl' ? 'Enota' : 'Unit'}</th>
+                        <th>{locale === 'sl' ? 'Lokacija' : 'Location'}</th>
+                        <th>{locale === 'sl' ? 'Izdajatelj' : 'Issuer'}</th>
+                        <th>{locale === 'sl' ? 'Serija' : 'Series'}</th>
+                        <th>{locale === 'sl' ? 'Stranka' : 'Client'}</th>
+                        <th>{locale === 'sl' ? 'Bruto' : 'Gross'}</th>
+                        <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workspaceBills.map((bill) => (
+                        <tr key={bill.id}>
+                          <td><strong>{bill.billNumber || `#${bill.id}`}</strong><small>{bill.billType}</small></td>
+                          <td>{formatDate(bill.issueDate)}</td>
+                          <td>{bill.companyName}</td>
+                          <td>{bill.locationName}</td>
+                          <td>{bill.issuerName}</td>
+                          <td>{bill.invoiceSeriesName}</td>
+                          <td>{bill.clientName || '—'}</td>
+                          <td><strong>{currency(bill.totalGross)}</strong></td>
+                          <td><span className={`billing-status-pill billing-status-pill--${paymentStatusClass(bill.paymentStatus)}`}>{paymentStatusLabel(bill.paymentStatus)}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreateBillModal && (() => {
         const createSubtotalGross = estimateGross(billForm.items)
         const createDiscountedItems = applyDiscountToItemsForVat(billForm.items, createBillDiscountDraft)
@@ -9286,7 +9441,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               ? (locale === 'sl' ? 'Izberite podjetje.' : 'Select a company.')
               : billForm.items.length === 0
                 ? (locale === 'sl' ? 'Dodajte vsaj eno postavko.' : 'Add at least one line item.')
-                : !billItemsAllowedByType
+                : !billForm.legalEntityId || !billForm.invoiceSeriesId || !billForm.locationId
+                  ? (locale === 'sl' ? 'Izberite izdajatelja, številčno serijo in lokacijo.' : 'Select an issuer, invoice series and location.')
+                  : !billItemsAllowedByType
                   ? (isCreateAdvanceBill
                     ? (locale === 'sl' ? 'Za predplačilo lahko izberete samo storitve s Predplačilo ON.' : 'Advance bills only accept services marked as Advance.')
                     : (locale === 'sl' ? 'Storitve s Predplačilo ON lahko uporabite samo na Novo predplačilo.' : 'Services marked as Advance can only be used on New advance.'))
@@ -9370,6 +9527,79 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </button>
                     )}
                   </div>
+                </section>
+
+                <section className="billing-invoice-issuer-card">
+                  <div className="billing-invoice-section-title-row">
+                    <h3>{locale === 'sl' ? 'Izdajatelj in številčenje' : 'Issuer and numbering'}</h3>
+                    <span>{locale === 'sl' ? 'Obvezno' : 'Required'}</span>
+                  </div>
+                  <div className="billing-invoice-issuer-grid">
+                    <Field label={locale === 'sl' ? 'Izdajatelj računa' : 'Invoice issuer'}>
+                      <select
+                        value={billForm.legalEntityId ?? ''}
+                        onChange={(event) => setBillForm((current) => ({
+                          ...current,
+                          legalEntityId: event.target.value ? Number(event.target.value) : undefined,
+                          invoiceSeriesId: undefined,
+                        }))}
+                        disabled={invoiceIssuers.length === 0}
+                      >
+                        <option value="">{locale === 'sl' ? 'Izberite izdajatelja' : 'Select issuer'}</option>
+                        {invoiceIssuers.map((issuer) => (
+                          <option key={issuer.id} value={issuer.id}>
+                            {issuer.name}{issuer.vatId ? ` · ${issuer.vatId}` : issuer.taxNumber ? ` · ${issuer.taxNumber}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={locale === 'sl' ? 'Fizična lokacija' : 'Physical location'}>
+                      <select
+                        value={billForm.locationId ?? ''}
+                        onChange={(event) => {
+                          const locationId = event.target.value ? Number(event.target.value) : undefined
+                          const locationDefaultIssuerId = invoiceLocations.find((location) => location.id === locationId)?.defaultLegalEntityId
+                          setBillForm((current) => ({
+                            ...current,
+                            locationId,
+                            legalEntityId: locationDefaultIssuerId && invoiceIssuers.some((issuer) => issuer.id === locationDefaultIssuerId)
+                              ? locationDefaultIssuerId : current.legalEntityId,
+                            invoiceSeriesId: undefined,
+                          }))
+                        }}
+                        disabled={invoiceLocations.length === 0}
+                      >
+                        <option value="">{locale === 'sl' ? 'Izberite lokacijo' : 'Select location'}</option>
+                        {invoiceLocations.map((location) => (
+                          <option key={location.id} value={location.id}>{location.name}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={locale === 'sl' ? 'Številčna serija' : 'Invoice series'}>
+                      <select
+                        value={billForm.invoiceSeriesId ?? ''}
+                        onChange={(event) => setBillForm((current) => ({
+                          ...current,
+                          invoiceSeriesId: event.target.value ? Number(event.target.value) : undefined,
+                        }))}
+                        disabled={!billForm.legalEntityId || compatibleInvoiceSeries.length === 0}
+                      >
+                        <option value="">{locale === 'sl' ? 'Izberite serijo' : 'Select series'}</option>
+                        {compatibleInvoiceSeries.map((series) => (
+                          <option key={series.id} value={series.id}>
+                            {series.name}{series.locationName ? ` · ${series.locationName}` : series.sharedAcrossUnits ? ` · ${locale === 'sl' ? 'skupna' : 'shared'}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  {invoiceIssuers.length === 0 || invoiceLocations.length === 0 || compatibleInvoiceSeries.length === 0 ? (
+                    <p className="billing-invoice-issuer-warning">
+                      {locale === 'sl'
+                        ? 'Manjka veljaven izdajatelj, lokacija ali številčna serija. Nastavite jih v Nastavitve → Obračunavanje → Izdajatelji in serije.'
+                        : 'A valid issuer, location or invoice series is missing. Configure it under Settings → Billing → Issuers & series.'}
+                    </p>
+                  ) : null}
                 </section>
 
                 <section className="billing-invoice-workspace-card">
