@@ -1,8 +1,6 @@
 package com.example.app.group;
 
-import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
-import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.customfield.CustomFieldAppliesTo;
 import com.example.app.customfield.CustomFieldService;

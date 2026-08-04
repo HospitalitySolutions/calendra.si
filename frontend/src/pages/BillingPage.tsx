@@ -313,65 +313,8 @@ type EntitlementWalletOption = {
 const ENTITLEMENT_PAYMENT_OPTION_VALUE = '__ENTITLEMENT_PAYMENT__'
 
 
-/** Lines that share service + gross unit price + session are combined; quantities add (gross is authoritative). */
-function openBillLineMergeKey(item: {
-  openBillItemId?: number
-  clientRowKey?: string
-  transactionServiceId: number
-  netPrice: string
-  grossPrice: string
-  sourceSessionBookingId?: number | null
-  sourceAdvanceBillId?: number | null
-}) {
-  if (item.openBillItemId != null && item.openBillItemId > 0) {
-    return `id:${item.openBillItemId}`
-  }
-  if (item.clientRowKey) {
-    return `client:${item.clientRowKey}`
-  }
-  const sid = item.sourceSessionBookingId == null ? '' : String(item.sourceSessionBookingId)
-  const aid = item.sourceAdvanceBillId == null ? '' : String(item.sourceAdvanceBillId)
-  const gross = Number(item.grossPrice || 0)
-  const grossKey = Number.isFinite(gross) ? gross.toFixed(2) : '0.00'
-  return `${item.transactionServiceId}|${grossKey}|${sid}|${aid}`
-}
 
-function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditItem[] {
-  if (items.length < 2) return items
-  const byKey = new Map<string, OpenBillEditItem>()
-  const order: string[] = []
-  for (const item of items) {
-    const key = openBillLineMergeKey(item)
-    const cur = byKey.get(key)
-    if (!cur) {
-      byKey.set(key, {
-        openBillItemId: item.openBillItemId,
-        clientRowKey: item.clientRowKey,
-        transactionServiceId: item.transactionServiceId,
-        quantity: item.quantity,
-        netPrice: String(item.netPrice),
-        grossPrice: String(item.grossPrice),
-        sourceSessionBookingId: item.sourceSessionBookingId ?? null,
-        sourceAdvanceBillId: item.sourceAdvanceBillId ?? null,
-      })
-      order.push(key)
-    } else {
-      cur.quantity = cur.quantity + item.quantity
-    }
-  }
-  return order.map((k) => byKey.get(k)!)
-}
 
-function paymentTypeLabel(value: string | null | undefined, loc: AppLocale): string {
-  if (loc === 'sl') {
-    if (value === 'BANK_TRANSFER') return 'BANK. NAKAZILO'
-    if (value === 'OTHER') return 'DRUGO'
-    return value || '—'
-  }
-  if (value === 'BANK_TRANSFER') return 'BANK TRANSFER'
-  if (value === 'OTHER') return 'OTHER'
-  return value || '—'
-}
 type PaymentMethodVisualKey = 'advance' | 'paypal' | 'stripe' | 'cash' | 'bank' | 'card' | 'other'
 
 function paymentMethodVisualKey(value?: string | null, methodName?: string | null): PaymentMethodVisualKey {
@@ -517,32 +460,6 @@ function paymentMethodChipLabel(
   if (visualKey === 'stripe') return 'Stripe'
   return localizedPaymentMethodName(method, loc)
 }
-function paymentTypeBadgeLabel(value: string | null | undefined, loc: AppLocale): string {
-  if (loc === 'sl') {
-    return value === 'BANK_TRANSFER'
-      ? 'Nakazilo'
-      : value === 'CASH'
-        ? 'Gotovina'
-        : value === 'CARD'
-          ? 'Kartica'
-          : value === 'ADVANCE'
-            ? 'Predplačilo'
-            : value === 'OTHER'
-              ? 'Drugo'
-              : '—'
-  }
-  return value === 'BANK_TRANSFER'
-    ? 'Transfer'
-    : value === 'CASH'
-      ? 'Cash'
-      : value === 'CARD'
-        ? 'Card'
-        : value === 'ADVANCE'
-          ? 'Advance'
-          : value === 'OTHER'
-            ? 'Other'
-            : '—'
-}
 function localizedPaymentMethodName(
   method: { name: string; paymentType?: string | null } | null | undefined,
   loc: AppLocale,
@@ -610,10 +527,6 @@ function normalizeBill(bill: Bill): Bill {
   }
 }
 
-function formatAmountForInput(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return ''
-  return value.toFixed(2)
-}
 function slovenianPostavkaCountForm(count: number): string {
   const n = Math.abs(count) % 100
   if (n >= 11 && n <= 14) return 'postavk'
@@ -796,20 +709,6 @@ function getOpenBillsSortOptions(loc: AppLocale): Array<{ field: OpenBillsSortFi
     { field: 'gross', label: 'Gross' },
     { field: 'date', label: 'Date' },
     { field: 'client', label: 'Client' },
-  ]
-}
-function getHistorySortOptions(loc: AppLocale): Array<{ field: HistorySortField; label: string }> {
-  if (loc === 'sl') {
-    return [
-      { field: 'date', label: 'Datum' },
-      { field: 'gross', label: 'Bruto' },
-      { field: 'folio', label: 'Št. lista' },
-    ]
-  }
-  return [
-    { field: 'date', label: 'Date' },
-    { field: 'gross', label: 'Gross' },
-    { field: 'folio', label: 'Folio no.' },
   ]
 }
 
@@ -1078,7 +977,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     manualOpenBillSessionLabel: MANUAL_OPEN_BILL_BACKEND_LABEL,
   }
   const openBillsSortOptions = useMemo(() => getOpenBillsSortOptions(locale), [locale])
-  const historySortOptions = useMemo(() => getHistorySortOptions(locale), [locale])
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [services, setServices] = useState<BillingService[]>([])
   const [servicesLoaded, setServicesLoaded] = useState(false)
@@ -1106,8 +1004,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillPreviewChoice, setOpenBillPreviewChoice] = useState<{ openBill: OpenBill; relatedBills?: OpenBill[]; recipientEmail: string } | null>(null)
   const [deletingOpenId, setDeletingOpenId] = useState<number | null>(null)
   const [detailOpenBill, setDetailOpenBill] = useState<OpenBill | null>(null)
-  const [editPayeePopupOpen, setEditPayeePopupOpen] = useState(false)
-  const [useOnePayeeForAllBills, setUseOnePayeeForAllBills] = useState(false)
+  const [] = useState(false)
+  const [] = useState(false)
   const [openBillEdits, setOpenBillEdits] = useState<Record<number, OpenBillEditItem[]>>({})
   const [openBillDetailsEdits, setOpenBillDetailsEdits] = useState<Record<number, OpenBillDetailsDraft>>({})
   const [openBillPaymentEdits, setOpenBillPaymentEdits] = useState<Record<number, OpenBillPaymentSplitDraft[]>>({})
@@ -1207,13 +1105,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   })
   const [billingTab, setBillingTab] = useState<BillingTab>('open')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
-  const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
-  const [applyAmountNet, setApplyAmountNet] = useState('')
+  const [] = useState<{ openBillId: number; sessionId: number } | null>(null)
+  const [, setApplyAmountNet] = useState('')
   const [advancePaymentModal, setAdvancePaymentModal] = useState<AdvancePaymentModalState | null>(null)
   const [advancePaymentDraftSelections, setAdvancePaymentDraftSelections] = useState<AdvancePaymentSelectionDraft[]>([])
   const [advancePaymentInitialSelections, setAdvancePaymentInitialSelections] = useState<AdvancePaymentSelectionDraft[]>([])
   const [advancePaymentShowOther, setAdvancePaymentShowOther] = useState(false)
-  const [applyingAdvance, setApplyingAdvance] = useState(false)
+  const [] = useState(false)
   const [newCompanyName, setNewCompanyName] = useState('')
   const [newCompanyEmail, setNewCompanyEmail] = useState('')
   const [newCompanyTelephone, setNewCompanyTelephone] = useState('')
@@ -1233,7 +1131,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [recipientCompanySearch, setRecipientCompanySearch] = useState('')
   const [recipientCompanyPickerOpen, setRecipientCompanyPickerOpen] = useState(false)
   const [editingRecipientCompanySearch, setEditingRecipientCompanySearch] = useState(false)
-  const [retryingFiscalBillId, setRetryingFiscalBillId] = useState<number | null>(null)
+  const [] = useState<number | null>(null)
   const [creatingCheckoutBillId, setCreatingCheckoutBillId] = useState<number | null>(null)
   const [importingBankStatement, setImportingBankStatement] = useState(false)
   const [markingPaidBillId, setMarkingPaidBillId] = useState<number | null>(null)
@@ -1249,8 +1147,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillsSortField, setOpenBillsSortField] = useState<OpenBillsSortField>('gross')
   const [openBillsSortDir, setOpenBillsSortDir] = useState<SortDir>('desc')
   const [openBillsSortMenuOpen, setOpenBillsSortMenuOpen] = useState(false)
-  const [historySortField, setHistorySortField] = useState<HistorySortField>('date')
-  const [historySortDir, setHistorySortDir] = useState<SortDir>('asc')
+  const [historySortField] = useState<HistorySortField>('date')
+  const [historySortDir] = useState<SortDir>('asc')
   const [historySortMenuOpen, setHistorySortMenuOpen] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
   const [openPaymentsPage, setOpenPaymentsPage] = useState(1)
@@ -1259,9 +1157,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [sendingGiftCardId, setSendingGiftCardId] = useState<number | null>(null)
   const [printingGiftCardId, setPrintingGiftCardId] = useState<number | null>(null)
   const [detailGiftCard, setDetailGiftCard] = useState<BillingGiftCard | null>(null)
-  const [splittingSessionKey, setSplittingSessionKey] = useState<string | null>(null)
-  const [expandedBatchSessionId, setExpandedBatchSessionId] = useState<number | null>(null)
-  const batchInvoicesRef = useRef<HTMLDivElement | null>(null)
+  const [] = useState<string | null>(null)
+  const [, setExpandedBatchSessionId] = useState<number | null>(null)
   const billingTabsRef = useRef<HTMLDivElement | null>(null)
   const billingPollInFlightRef = useRef<Promise<unknown> | null>(null)
   const [creatingManualOpenBill, setCreatingManualOpenBill] = useState(false)
@@ -1682,10 +1579,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     ))
   }, [activeOpenBillId, openBills, clients])
 
-  const updateOpenBillDetailsDraft = (ob: OpenBill, patch: Partial<OpenBillDetailsDraft>) => {
-    const next = mergeOpenBillDetailsDraft(getOpenBillDetailsDraft(ob), patch)
-    setOpenBillDetailsEdits((prev) => ({ ...prev, [ob.id]: next }))
-  }
 
   useEffect(() => {
     if (!clients.length) return
@@ -2854,19 +2747,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }))
   }
 
-  async function applyAdvanceSelectionsToOpenBill(openBillId: number, sessionId: number, selections: AdvancePaymentSelectionDraft[]) {
-    const normalized = normalizeAdvanceSelections(selections)
-    for (const selection of normalized) {
-      const amountGross = Number(selection.amountGross || 0)
-      if (!Number.isFinite(amountGross) || amountGross <= 0) continue
-      await api.post('/billing/unused-advances/apply', {
-        advanceBillId: selection.advanceBillId,
-        openBillId,
-        sessionId,
-        applyAmountGross: amountGross,
-      })
-    }
-  }
 
   function isEntitlementPaymentSplit(split: OpenBillPaymentSplitDraft | null | undefined) {
     return split?.kind === 'entitlement'
@@ -3182,33 +3062,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     [sortedOpenBills, openBillEdits, services, openBills],
   )
 
-  const openBillsSortLabel = useMemo(() => {
-    const opt = openBillsSortOptions.find((o) => o.field === openBillsSortField)
-    const label = opt?.label ?? ''
-    return `${label} ${openBillsSortDir === 'asc' ? '↑' : '↓'}`
-  }, [openBillsSortOptions, openBillsSortField, openBillsSortDir])
 
-  const historySortButtonLabel = useMemo(() => {
-    const opt = historySortOptions.find((o) => o.field === historySortField)
-    const label = opt?.label ?? ''
-    return `${label} ${historySortDir === 'asc' ? '↑' : '↓'}`
-  }, [historySortOptions, historySortField, historySortDir])
 
-  const historyCollectedTotal = useMemo(
-    () => sortedHistoryBills.reduce((sum, bill) => sum + Number(bill.totalGross || 0), 0),
-    [sortedHistoryBills],
-  )
 
-  const openHistoryDatePicker = useCallback((input: HTMLInputElement | null) => {
-    if (!input) return
-    input.focus()
-    const pickerInput = input as HTMLInputElement & { showPicker?: () => void }
-    if (typeof pickerInput.showPicker === 'function') {
-      pickerInput.showPicker()
-      return
-    }
-    input.click()
-  }, [])
 
   const openPayments = useMemo(() => {
     const q = openPaymentsSearch.trim().toLowerCase()
@@ -3385,18 +3241,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     .map((part) => part[0]?.toUpperCase())
     .join('') || '—'
 
-  const paymentReferenceLabel = (bill: Bill | OpenBill) => {
-    const method = bill.paymentMethod
-    const typeLabel = localizedPaymentMethodName(method, locale)
-    const suffix = method?.paymentType === 'CARD'
-      ? '•••• 4242'
-      : method?.paymentType === 'BANK_TRANSFER'
-        ? `Ref: ${'billNumber' in bill ? bill.billNumber : `OB-${bill.id}`}`
-        : method?.paymentType === 'CASH'
-          ? (locale === 'sl' ? 'Blagajna' : 'Point of sale')
-          : '—'
-    return { typeLabel, suffix }
-  }
 
   const showBankTransferQrSettingsPopupFromError = (error: any): boolean => {
     const missingKeys = extractMissingBankTransferQrKeys(error)
@@ -3658,10 +3502,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       || (company.telephone || '').toLowerCase().includes(q),
     )
   }, [companies, recipientCompanySearch])
-  const selectedUnusedAdvance = useMemo(
-    () => unusedAdvances.find((entry) => entry.advanceBillId === selectedUnusedAdvanceId) || null,
-    [unusedAdvances, selectedUnusedAdvanceId],
-  )
   const detailEligibleUnusedAdvances = useMemo(() => {
     if (!detailOpenBill) return unusedAdvances
     const detailRecipientTarget: 'PERSON' | 'COMPANY' =
@@ -3722,29 +3562,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       billForm.recipientCompanyId ?? null,
     )),
     [unusedAdvances, billForm.billingTarget, billForm.clientId, billForm.recipientCompanyId],
-  )
-  const openBillSessionTargets = useMemo(
-    () =>
-      openBills.flatMap((ob) => {
-        const source = (ob.sessions && ob.sessions.length > 0)
-          ? ob.sessions.map((s) => ({
-              sessionId: s.sessionId,
-              sessionDisplayId: s.sessionDisplayId || formatBillingSessionIdDisplay(s.sessionId),
-            }))
-          : (ob.sessionId != null
-            ? [{ sessionId: ob.sessionId, sessionDisplayId: ob.sessionDisplayId || formatBillingSessionIdDisplay(ob.sessionId) }]
-            : [])
-        // Backend uses negative synthetic ids for manual open-bill slots (#M1 → -1).
-        return source
-          .filter((entry) => Number.isFinite(entry.sessionId) && entry.sessionId !== 0)
-          .map((entry) => ({
-            key: `${ob.id}:${entry.sessionId}`,
-            openBillId: ob.id,
-            sessionId: entry.sessionId,
-            label: `${entry.sessionDisplayId} · ${openBillClientLabel(ob)}`,
-          }))
-      }),
-    [openBills],
   )
 
   const createBillSessionOptions = useMemo(() => {
@@ -4145,57 +3962,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const applyUnusedAdvance = async (params?: {
-    advanceBillId?: number | null
-    openBillId?: number | null
-    sessionId?: number | null
-    applyAmountNet?: number
-  }) => {
-    if (applyingAdvance) return
-    const effectiveAdvanceBillId = params?.advanceBillId ?? selectedUnusedAdvanceId
-    const effectiveOpenBillId = params?.openBillId ?? selectedApplyTarget?.openBillId ?? null
-    const effectiveSessionId = params?.sessionId ?? selectedApplyTarget?.sessionId ?? null
-    if (!effectiveAdvanceBillId) {
-      showToast('error', billingCopy.requiredAdvanceSelection)
-      return
-    }
-    if (!effectiveOpenBillId || !effectiveSessionId) {
-      showToast('error', billingCopy.requiredOpenBillSessionSelection)
-      return
-    }
-    const numericAmount = Number(params?.applyAmountNet ?? applyAmountNet)
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      showToast('error', billingCopy.requiredApplyAmount)
-      return
-    }
-    setApplyingAdvance(true)
-    try {
-      const appliedOpenBillId = effectiveOpenBillId
-      await api.post('/billing/unused-advances/apply', {
-        advanceBillId: effectiveAdvanceBillId,
-        openBillId: appliedOpenBillId,
-        sessionId: effectiveSessionId,
-        applyAmountGross: numericAmount,
-      })
-      showToast('success', billingCopy.advanceAppliedSuccess)
-      setApplyAmountNet('')
-      // Drop stale line drafts so Save / Create bill cannot PUT a subset and wipe server lines.
-      setOpenBillEdits((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, appliedOpenBillId)) return prev
-        const next = { ...prev }
-        delete next[appliedOpenBillId]
-        return next
-      })
-      const snapshot = await load()
-      setDetailOpenBill((prev) => {
-        if (!prev || prev.id !== appliedOpenBillId) return prev
-        const raw = snapshot.openBills.find((o: OpenBill) => o.id === appliedOpenBillId)
-        return raw ? normalizeOpenBill(raw) : prev
-      })
-    } finally {
-      setApplyingAdvance(false)
-    }
-  }
 
   const invoicePrintPreference = normalizeInvoicePrintPreference(settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY])
 
@@ -4580,48 +4346,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     await onEmbeddedSaved?.()
   }
 
-  const saveOpenBill = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
-    if (onePayeeRelatedBills && onePayeeRelatedBills.length > 1) {
-      await saveOpenBillGroupAsOnePayee(onePayeeRelatedBills[0] ?? ob, onePayeeRelatedBills)
-      return
-    }
-    const items = getOpenBillItems(ob)
-    const detailsDraft = openBillDetailsEdits[ob.id]
-    if (!validateOpenBillDetailsDraft(detailsDraft)) return
-    await api.put(`/billing/open-bills/${ob.id}`, buildOpenBillUpdatePayload(ob, items))
-
-    // Optimistically sync modal/list bill items to avoid UI flicker back to stale values.
-    const mergedItems = items.map((row) => {
-      const fromServer = ob.items.find((i) => i.transactionService.id === row.transactionServiceId)?.transactionService
-      const service =
-        services.find((s) => s.id === row.transactionServiceId)
-        || fromServer
-        || ({
-          id: row.transactionServiceId,
-          code: '',
-          description: '',
-          taxRate: 'VAT_22',
-          netPrice: Number(row.netPrice || 0),
-        } as any)
-      return {
-        id: 0,
-        transactionService: service,
-        quantity: row.quantity,
-        netPrice: Number(row.netPrice || 0),
-        grossPrice: Number(row.grossPrice || 0),
-        sourceSessionBookingId: row.sourceSessionBookingId ?? null,
-        sourceAdvanceBillId: row.sourceAdvanceBillId ?? null,
-      }
-    })
-    setOpenBills((prev) => prev.map((entry) => (entry.id === ob.id ? { ...entry, items: mergedItems } : entry)))
-    setDetailOpenBill((prev) => (prev?.id === ob.id ? { ...prev, items: mergedItems } : prev))
-
-    clearOpenBillDrafts([ob.id])
-    const snapshot = await load()
-    const updated = snapshot.openBills.find((entry) => entry.id === ob.id) || null
-    setDetailOpenBill(updated)
-    await onEmbeddedSaved?.()
-  }
 
   const deleteOpenBill = async (ob: OpenBill) => {
     if (deletingOpenId) return
@@ -4778,7 +4502,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const renderOpenBillPreviewChoicePopover = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+  const renderOpenBillPreviewChoicePopover = (ob: OpenBill) => {
     if (!openBillPreviewChoice || openBillPreviewChoice.openBill.id !== ob.id) return null
     const { openBill, relatedBills, recipientEmail } = openBillPreviewChoice
     const { target } = resolveOpenBillPreviewTarget(openBill, relatedBills)
@@ -4910,23 +4634,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const splitOpenBillSession = async (ob: OpenBill, sessionId: number) => {
-    if (splittingSessionKey) return
-    const key = `${ob.id}:${sessionId}`
-    setSplittingSessionKey(key)
-    try {
-      const { data } = await api.post('/billing/open-bills/' + ob.id + '/split-session', { sessionId })
-      const normalized = (data || []).map((entry: OpenBill) => normalizeOpenBill(entry))
-      setOpenBills(normalized)
-      setOpenBillEdits({})
-      setOpenBillDetailsEdits({})
-      setOpenBillPaymentEdits({})
-      setOpenBillDiscountEdits({})
-      setDetailOpenBill(normalized.find((entry: OpenBill) => entry.id === ob.id) || null)
-    } finally {
-      setSplittingSessionKey(null)
-    }
-  }
 
   const buildManualOpenBillPayload = (): Record<string, unknown> | null => {
     const payload: Record<string, unknown> =
@@ -4976,13 +4683,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
     const payload = buildManualOpenBillPayload()
     if (!payload) return
-    const existingIds = new Set(openBills.map((entry) => entry.id))
     setCreatingManualOpenBill(true)
     try {
-      const { data: createdList } = await api.post('/billing/open-bills/manual', payload)
-      const responses: any[] = Array.isArray(createdList) ? createdList : []
-      const newlyCreated = responses.find((entry) => entry?.id != null && !existingIds.has(entry.id))
-        ?? [...responses].sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0))[0]
       const snapshot = await load()
       const refreshed = snapshot.openBills.map((entry) => normalizeOpenBill(entry))
       setOpenBills(refreshed)
@@ -5127,12 +4829,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setDetailOpenBill((prev) => prev?.id === openBillId ? { ...prev, paymentMethod: selected } : prev)
   }
 
-  const updateOpenBillReference = (openBillId: number, value: string) => {
-    const source = detailOpenBill?.id === openBillId ? detailOpenBill : openBills.find((entry) => entry.id === openBillId)
-    if (source) markOpenBillDirty(source)
-    setOpenBills((prev) => prev.map((entry) => entry.id === openBillId ? { ...entry, reference: value } : entry))
-    setDetailOpenBill((prev) => prev?.id === openBillId ? { ...prev, reference: value } : prev)
-  }
 
   const taxRateByServiceId = (serviceId: number): VatBreakdownKey => {
     const tax = services.find((s) => s.id === serviceId)?.taxRate
@@ -5166,10 +4862,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (!Number.isFinite(gross) || gross <= 0 || divisor <= 0) return 0
     return Number((gross / divisor).toFixed(2))
   }
-  const advanceNetToGross = (net: number) => {
-    if (!Number.isFinite(net) || net <= 0) return 0
-    return Number((net * (1 + advanceDeductionTaxMultiplier)).toFixed(2))
-  }
   const grossToNet = (gross: string, serviceId: number) => {
     const divisor = 1 + taxMultiplierByServiceId(serviceId)
     if (!Number.isFinite(divisor) || divisor <= 0) return Number(gross || 0)
@@ -5195,18 +4887,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     })
   }
 
-  const discountItemOptionsForItems = (
-    items: { transactionServiceId: number; quantity: number; grossPrice: string }[],
-  ) => items.map((item, index) => {
-    const gross = discountLineGrossTotal(item)
-    const service = services.find((entry) => entry.id === item.transactionServiceId)
-    const description = service ? billingServiceDisplayLabel(service) : (locale === 'sl' ? `Postavka ${index + 1}` : `Item ${index + 1}`)
-    return {
-      index,
-      gross,
-      label: `${index + 1}. ${description} · ${currency(gross)}`,
-    }
-  })
 
   const lineNetTotal = (item: { quantity: number; netPrice: string }) =>
     Number(item.netPrice || 0) * Number(item.quantity || 0)
@@ -5222,8 +4902,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const estimateNet = (items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[]) =>
     items.reduce((sum, item) => sum + lineNetTotal(item), 0)
 
-  const estimateTax = (items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[]) =>
-    items.reduce((sum, item) => sum + lineTaxTotal(item), 0)
 
   const vatBreakdownRowsForItems = (items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[]): VatBreakdownRow[] => {
     const order: VatBreakdownKey[] = ['VAT_22', 'VAT_9_5', 'VAT_0', 'NO_VAT']
@@ -5247,8 +4925,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       .filter((row) => row.lineCount > 0 && row.key !== 'NO_VAT')
   }
 
-  const isOpenBillBatchPayment = (ob: OpenBill) => (ob.batchScope ?? 'NONE') !== 'NONE'
-  const isOpenBillBatched = (ob: OpenBill) => isOpenBillBatchPayment(ob) || (ob.sessions?.length ?? 0) > 1
 
   const getOpenBillIncludedSessions = (ob: OpenBill) => {
     const sessions = ob.sessions ?? []
@@ -5266,82 +4942,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }]
   }
 
-  const getEditOpenBillSessionOptions = (ob: OpenBill, draft: OpenBillDetailsDraft) => {
-    const seen = new Set<number>()
-    const options: { sessionId: number; label: string }[] = []
-    const addOption = (sessionId: number | null | undefined, label: string) => {
-      if (sessionId == null || !Number.isFinite(sessionId) || sessionId <= 0 || seen.has(sessionId)) return
-      seen.add(sessionId)
-      options.push({ sessionId, label })
-    }
 
-    getOpenBillIncludedSessions(ob).forEach((session) => {
-      addOption(
-        session.sessionId,
-        [
-          session.sessionDisplayId || formatBillingSessionIdDisplay(session.sessionId),
-          session.sessionInfo || session.clientName || openBillClientLabel(ob),
-          session.totalGross != null ? currency(session.totalGross) : null,
-        ].filter(Boolean).join(' · '),
-      )
-    })
 
-    for (const booking of bookings) {
-      const paymentStatuses = booking.paymentStatuses ?? []
-      for (const status of paymentStatuses) {
-        if (status.status === 'PAID') continue
-        const participant = (booking.clients || []).find((client) => client.id === status.clientId)
-          || (booking.client?.id === status.clientId ? booking.client : null)
-        if (!participant) continue
-        const payee = (booking.payees || []).find((entry) => entry.clientId === participant.id)
-        const matchesPerson = draft.billingTarget === 'PERSON'
-          && draft.clientId != null
-          && participant.id === draft.clientId
-        const matchesCompany = draft.billingTarget === 'COMPANY'
-          && draft.recipientCompanyId != null
-          && (participant.billingCompany?.id === draft.recipientCompanyId
-            || booking.sessionGroupBillingCompany?.id === draft.recipientCompanyId
-            || payee?.company?.id === draft.recipientCompanyId)
-        if (!matchesPerson && !matchesCompany) continue
-        const labelParts = [
-          formatBillingSessionIdDisplay(status.bookingId || booking.id),
-          booking.type?.name,
-          participant ? fullName(participant) : null,
-          status.sessionTotalGross != null ? currency(status.sessionTotalGross) : null,
-        ].filter(Boolean)
-        addOption(status.bookingId || booking.id, labelParts.join(' · '))
-      }
-    }
 
-    return options
-  }
 
-  const getOpenBillSessionGross = (ob: OpenBill, sessionId: number) => {
-    const summary = (ob.sessions ?? []).find((s) => s.sessionId === sessionId)
-    const fromApi = Number(summary?.totalGross)
-    if (Number.isFinite(fromApi) && fromApi !== 0) return fromApi
-    const matching = getOpenBillItems(ob).filter((item) => item.sourceSessionBookingId === sessionId || ((item.sourceSessionBookingId == null) && ob.sessionId === sessionId))
-    return estimateGross(matching)
-  }
-
-  const itemBelongsToBatchedSession = (ob: OpenBill, item: OpenBillEditItem) => {
-    if (!isOpenBillBatched(ob)) return false
-    const sid = item.sourceSessionBookingId
-    if (sid == null) return false
-    return (ob.sessions ?? []).some((s) => s.sessionId === sid)
-  }
-
-  const openBillLineIndicesForMain = (ob: OpenBill) =>
-    getOpenBillItems(ob)
-      .map((item, idx) => ({ item, idx }))
-      .filter(({ item }) => !itemBelongsToBatchedSession(ob, item))
-      .map(({ idx }) => idx)
-
-  const openBillLineIndicesForSession = (ob: OpenBill, sessionId: number) =>
-    getOpenBillItems(ob)
-      .map((item, idx) => ({ item, idx }))
-      .filter(({ item }) => item.sourceSessionBookingId === sessionId)
-      .map(({ idx }) => idx)
 
   const openBillEditorLineKey = (ob: OpenBill, idx: number, item: OpenBillEditItem) => {
     if (item.openBillItemId != null && item.openBillItemId > 0) return `line-${ob.id}-db-${item.openBillItemId}`
@@ -5349,134 +4953,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return `line-${ob.id}-idx-${idx}`
   }
 
-  const renderOpenBillLineEditor = (ob: OpenBill, idx: number) => {
-    const item = getOpenBillItems(ob)[idx]
-    const billServices = selectableServicesForOpenBill(ob)
-    if (!item) return null
-    return (
-      <div key={openBillEditorLineKey(ob, idx, item)} className="billing-bill-modal-item-row">
-        <div className="billing-bill-modal-field billing-bill-modal-field--service">
-          <select
-            value={item.transactionServiceId}
-            onChange={(e) => {
-              const id = Number(e.target.value)
-              const svc = billServices.find((s) => s.id === id)
-              const next = [...getOpenBillItems(ob)]
-              next[idx] = { ...next[idx], transactionServiceId: id, netPrice: String(svc?.netPrice ?? 0), grossPrice: grossStringFromService(svc) }
-              setOpenBillItems(ob, next)
-            }}
-          >
-            {billServices.map((s) => (
-              <option key={s.id} value={s.id}>
-                {serviceOptionLabel(s)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="billing-bill-modal-field billing-bill-modal-field--qty">
-          <input
-            type="number"
-            min="1"
-            value={item.quantity}
-            onChange={(e) => {
-              const next = [...getOpenBillItems(ob)]
-              next[idx].quantity = Number(e.target.value)
-              setOpenBillItems(ob, next)
-            }}
-          />
-        </div>
-        <div className="billing-bill-modal-field billing-bill-modal-field--price">
-          <input
-            type="number"
-            step="0.01"
-            value={String(Number(item.grossPrice || 0).toFixed(2))}
-            onChange={(e) => {
-              const grossStr = Number(e.target.value || 0).toFixed(2)
-              const next = [...getOpenBillItems(ob)]
-              next[idx].grossPrice = grossStr
-              next[idx].netPrice = String(grossToNet(grossStr, item.transactionServiceId))
-              setOpenBillItems(ob, next)
-            }}
-          />
-        </div>
-        <div className="billing-bill-modal-amount">
-          <strong>{currency(lineGrossTotal(item))}</strong>
-        </div>
-        <button
-          type="button"
-          className="billing-bill-modal-icon-btn billing-bill-modal-icon-btn--danger"
-          onClick={() => setOpenBillItems(ob, getOpenBillItems(ob).filter((_, i) => i !== idx))}
-          aria-label={billingCopy.removeBillLine}
-          title={billingCopy.removeBillLine}
-        >
-          🗑
-        </button>
-      </div>
-    )
-  }
 
-  const renderBillFormLineEditor = (item: BillForm['items'][number], index: number) => (
-    <div key={index} className="billing-bill-modal-item-row">
-      <div className="billing-bill-modal-field billing-bill-modal-field--service">
-        <select
-          value={item.transactionServiceId}
-          onChange={(e) => {
-            const id = Number(e.target.value)
-            const service = services.find((entry) => entry.id === id)
-            const next = [...billForm.items]
-            next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0), grossPrice: grossStringFromService(service) }
-            setBillForm({ ...billForm, items: next })
-          }}
-        >
-          {availableBillServices.map((service) => (
-            <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
-          ))}
-        </select>
-      </div>
-      <div className="billing-bill-modal-field billing-bill-modal-field--qty">
-        <input
-          type="number"
-          min="1"
-          value={item.quantity}
-          onChange={(e) => {
-            const next = [...billForm.items]
-            next[index].quantity = Number(e.target.value)
-            setBillForm({ ...billForm, items: next })
-          }}
-        />
-      </div>
-      <div className="billing-bill-modal-field billing-bill-modal-field--price">
-        <input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          aria-label={billingCopy.grossUnitPrice}
-          value={formatCashRegisterAmount(Number(item.grossPrice || 0), locale)}
-          onChange={(e) => {
-            const digits = cashRegisterDigitsFromRaw(e.target.value)
-            const cents = digits ? Number.parseInt(digits, 10) : 0
-            const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
-            const next = [...billForm.items]
-            next[index].grossPrice = grossStr
-            next[index].netPrice = String(grossToNet(grossStr, item.transactionServiceId))
-            setBillForm({ ...billForm, items: next })
-          }}
-        />
-      </div>
-      <div className="billing-bill-modal-amount">
-        <strong>{currency(lineGrossTotal(item))}</strong>
-      </div>
-      <button
-        type="button"
-        className="billing-bill-modal-icon-btn billing-bill-modal-icon-btn--danger"
-        onClick={() => setBillForm({ ...billForm, items: billForm.items.filter((_, i) => i !== index) })}
-        aria-label={billingCopy.removeBillLine}
-        title={billingCopy.removeBillLine}
-      >
-        🗑
-      </button>
-    </div>
-  )
 
   const getOpenBillEditorSessionIds = (ob: OpenBill) => {
     const ids = new Set<number>()
@@ -6720,45 +6197,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
-  const renderBillingNewClientEditableField = (
-    key: 'firstName' | 'lastName' | 'email' | 'phone',
-    label: string,
-    wide = false,
-    inputType: 'text' | 'email' | 'tel' = 'text',
-  ) => {
-    const required = key === 'firstName' || key === 'lastName'
-    const value = key === 'firstName'
-      ? newClientFirstName
-      : key === 'lastName'
-        ? newClientLastName
-        : key === 'email'
-          ? newClientEmail
-          : newClientPhone
-    const updateValue = (nextValue: string) => {
-      if (key === 'firstName') setNewClientFirstName(nextValue)
-      else if (key === 'lastName') setNewClientLastName(nextValue)
-      else if (key === 'email') setNewClientEmail(nextValue)
-      else setNewClientPhone(nextValue)
-    }
-
-    return (
-      <label className={`clients-detail-field-card clients-create-field${wide ? ' clients-detail-field-card--wide' : ''}`}>
-        <span>{label}{required ? ' *' : ''}</span>
-        <input
-          autoFocus={key === 'firstName'}
-          required={required}
-          type={inputType}
-          name={`calendra-billing-new-client-${key}`}
-          autoComplete="off"
-          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
-          enterKeyHint={key === 'phone' ? 'done' : 'next'}
-          value={value}
-          placeholder={`${label}${required ? ' *' : ''}`}
-          onChange={(event) => updateValue(event.target.value)}
-        />
-      </label>
-    )
-  }
 
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
@@ -8010,30 +7448,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return uniqueNames.join(' · ')
   }
 
-  const formatOpenBillDateOnly = (sessionInfo?: string) => {
-    if (!sessionInfo) return '—'
-    const value = String(sessionInfo).trim()
-    if (value === MANUAL_OPEN_BILL_BACKEND_LABEL) return billingCopy.manualOpenBillSessionLabel
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (match) {
-      const [, year, month, day] = match
-      return `${day}/${month}/${year}`
-    }
-    const slashMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
-    if (slashMatch) return slashMatch[0]
-    return value
-  }
 
-  const retryFiscalization = async (billId: number) => {
-    if (retryingFiscalBillId) return
-    setRetryingFiscalBillId(billId)
-    try {
-      await api.post(`/fiscal/invoices/${billId}/retry`)
-      await load()
-    } finally {
-      setRetryingFiscalBillId(null)
-    }
-  }
 
   const sendCheckoutLink = async (bill: Bill) => {
     if (creatingCheckoutBillId) return
@@ -8196,12 +7611,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     </svg>
   )
 
-  const folioHistoryMobileStatusPill = (bill: Bill): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
-    if (bill.fiscalStatus === 'FAILED') return { label: 'FISCAL FAILED', variant: 'fiscal-failed' }
-    if (bill.paymentStatus === 'payment_pending') return { label: 'PAYMENT PENDING', variant: 'payment-pending' }
-    if (bill.paymentStatus === 'paid') return { label: 'PAID', variant: 'paid' }
-    return null
-  }
 
   const renderBankStatementImportButton = () => (
     <button
@@ -8462,12 +7871,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         const employeeLabel = openBillListGroupEmployeeLabel(ob)
                         const clientLabel = openBillListGroupClientLabel(ob)
                         const rowDescription = Array.from(new Set(rowMembers.map((entry) => openBillDescription(entry)).filter((value) => value && value !== '—'))).join(' · ') || '—'
-                        const groupBillCount = rowMembers.length
-                        const canCloseRowBill = groupBillCount > 1 || canIssueOpenBillType(ob)
-                        const rowClosePermissionTooltip = groupBillCount > 1 ? undefined : issueOpenBillPermissionTooltip(ob)
-                        const rowPaymentSelected = !!ob.paymentMethod?.id && (resolveOpenBillEffectiveType(ob) === 'ADVANCE' || !isDepositPaymentMethod(ob.paymentMethod))
-                        const rowCloseTooltip = rowClosePermissionTooltip ?? (groupBillCount <= 1 && !rowPaymentSelected ? (locale === 'sl' ? 'Izberite način plačila' : 'Select a payment method') : undefined)
-                        const sessionCount = ob.sessions?.length ?? 0
                         const rawId = String(ob.sessionDisplayId || formatBillingSessionIdDisplay(ob.sessionId) || '—')
                         const displayId = rawId.startsWith('#') ? rawId : `#${rawId}`
                         return (
@@ -9680,22 +9083,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       )}
 
       {detailOpenBill && (() => {
-        const detailItems = getOpenBillItems(detailOpenBill)
-        const detailSessionLabel = formatOpenBillSession(detailOpenBill.sessionInfo)
-        const detailIncludedSessions = getOpenBillIncludedSessions(detailOpenBill)
-        const activeExpandedSessionId = detailIncludedSessions.some((session) => session.sessionId === expandedBatchSessionId)
-          ? expandedBatchSessionId
-          : (detailIncludedSessions[0]?.sessionId ?? detailOpenBill.sessionId ?? null)
-        const detailAdditionalLineIndices = openBillLineIndicesForMain(detailOpenBill)
-        const detailDraft = getOpenBillDetailsDraft(detailOpenBill)
-        const detailDraftClient = clients.find((client) => client.id === detailDraft.clientId) || null
-        const detailDraftCompany = companies.find((company) => company.id === detailDraft.recipientCompanyId) || null
-        const detailCompanyClients = detailDraft.recipientCompanyId == null
-          ? []
-          : clients.filter((client) => client.billingCompany?.id === detailDraft.recipientCompanyId)
-        const detailHeaderRecipientLabel = detailDraft.billingTarget === 'COMPANY'
-          ? (detailDraftCompany?.name || billingCopy.targetCompany)
-          : (detailDraftClient ? fullName(detailDraftClient) : openBillClientLabel(detailOpenBill))
         const detailRootOpenBill = getOpenBillEditorRoot(detailOpenBill)
         const detailBaseRelatedOpenBills = getRelatedOpenBillsForEditor(detailRootOpenBill)
         const detailTemporaryOpenBills = getTemporaryOpenBillTabsForRoot(detailRootOpenBill)
@@ -9739,19 +9126,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           || detailRelatedOpenBills.some((entry) => Object.prototype.hasOwnProperty.call(openBillEdits, entry.id)
             || Object.prototype.hasOwnProperty.call(openBillDetailsEdits, entry.id)
             || Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id))
-        const detailAllBillTabs = [
-          { key: 'current', label: detailHeaderRecipientLabel, type: detailDraft.billingTarget === 'COMPANY' ? 'company' : 'client' },
-          ...detailCompanyClients
-            .filter((client) => client.id !== detailDraft.clientId)
-            .slice(0, 2)
-            .map((client) => ({ key: `client-${client.id}`, label: fullName(client), type: 'client' as const })),
-          ...companies
-            .filter((company) => company.id !== detailDraft.recipientCompanyId)
-            .slice(0, Math.max(0, 3 - (1 + detailCompanyClients.filter((client) => client.id !== detailDraft.clientId).slice(0, 2).length)))
-            .map((company) => ({ key: `company-${company.id}`, label: company.name, type: 'company' as const })),
-        ]
-        const detailVisibleBillTabs = useOnePayeeForAllBills ? detailAllBillTabs.slice(0, 1) : detailAllBillTabs.slice(0, 3)
-        const detailSummaryItems = useOnePayeeForAllBills ? detailItems.length : detailItems.length
         return (
           <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" onMouseDown={onDetailOpenBillBackdropMouseDown} role="presentation">
             <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-open-detail-panel--invoice-editor billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
@@ -9802,7 +9176,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
                     </button>
                   </div>
-                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
                 </details>
               </div>
 
@@ -9836,7 +9210,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
                     <span>{previewingOpenBillId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : emailingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}</span>
                   </button>
-                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
                 </div>
                 <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-open-edit">
                   <button
@@ -9896,8 +9270,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? (selectedRecipientCompany?.name || billingCopy.targetCompany)
           : (selectedClient ? fullName(selectedClient) : billingCopy.targetPerson)
         const createTargetLabel = billForm.billingTarget === 'COMPANY' ? billingCopy.targetCompany : billingCopy.targetPerson
-        const createPaymentTotal = paymentSplitTotalGross(createPaymentSplits)
-        const createPaymentDifference = createGross - createPaymentTotal
         const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
         const canIssueCreateBillType = isCreateAdvanceBill ? canIssueAdvanceInvoice : canIssueOpenInvoice
         const createPermissionTooltip = !canIssueCreateBillType

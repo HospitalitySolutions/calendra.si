@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { useToast } from '../components/Toast'
-import { Card, EmptyState, Field, Pill, SectionTitle } from '../components/ui'
+import { EmptyState, Pill } from '../components/ui'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import type { Client, ClientGroup, ClientMessage, InboxChannel, InboxStatus, InboxThread } from '../lib/types'
@@ -364,17 +364,6 @@ function messageSenderLabel(message: ClientMessage, copy: any) {
   return message.direction === 'INBOUND' ? `${copy.clientPrefix} · ${label}` : `${copy.sentBy} ${label}`
 }
 
-function matchesClientSearch(client: Client, value: string) {
-  const query = value.trim().toLowerCase()
-  if (!query) return true
-  const haystack = [
-    clientName(client),
-    client.email ?? '',
-    client.phone ?? '',
-    client.whatsappPhone ?? '',
-  ].join(' ').toLowerCase()
-  return haystack.includes(query)
-}
 
 function hasEmailTarget(client?: Client | null) {
   return !!client?.email?.trim()
@@ -405,16 +394,6 @@ function isClientEligibleForChannel(client: Client | null | undefined, channel: 
   return hasGuestAppTarget(client)
 }
 
-function clientEligibilityLabel(client: Client, channel: InboxChannel, copy: any) {
-  if (channel === 'EMAIL') return hasEmailTarget(client) ? copy.ready : copy.missingEmail
-  if (channel === 'SMS') return hasSmsTarget(client) ? copy.ready : copy.missingPhone
-  if (channel === 'WHATSAPP') {
-    if (!client.whatsappOptIn) return copy.optInNeeded
-    return hasWhatsAppTarget(client) ? copy.ready : copy.missingPhone
-  }
-  if (channel === 'VIBER') return client.viberConnected ? copy.ready : copy.notLinked
-  return client.guestAppLinked ? copy.ready : copy.notLinkedGuestApp
-}
 
 
 function initialsFromName(first?: string | null, last?: string | null, fallback = 'CL') {
@@ -446,17 +425,6 @@ function compactDateTime(value?: string | null) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)
 }
 
-function threadSectionLabel(value?: string | null) {
-  if (!value) return 'Earlier'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Earlier'
-  const now = new Date()
-  if (date.toDateString() === now.toDateString()) return 'Today'
-  const yesterday = new Date(now)
-  yesterday.setDate(now.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return 'Earlier'
-}
 
 function channelIcon(channel: InboxChannel) {
   if (channel === 'SMS') return '💬'
@@ -525,11 +493,6 @@ function compactInboxTime(value?: string | null) {
   return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
-function deliveryRateFromThreads(threads: InboxThread[]) {
-  if (!threads.length) return '0%'
-  const delivered = threads.filter((thread) => thread.lastStatus === 'DELIVERED' || thread.lastStatus === 'READ').length
-  return `${Math.round((delivered / threads.length) * 1000) / 10}%`
-}
 
 function toLocalInputDateTime(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0')
@@ -771,8 +734,8 @@ export function AnalyticsInboxTab() {
   const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [recipientMode, setRecipientMode] = useState<RecipientMode>('single')
-  const [bulkRecipientSearch, setBulkRecipientSearch] = useState('')
-  const [bulkSelectedClientIds, setBulkSelectedClientIds] = useState<number[]>([])
+  const [] = useState('')
+  const [bulkSelectedClientIds] = useState<number[]>([])
   const [composeChannel, setComposeChannel] = useState<InboxChannel>('EMAIL')
   const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
@@ -801,7 +764,7 @@ export function AnalyticsInboxTab() {
   const [savingStar, setSavingStar] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
-  const [scheduleView, setScheduleView] = useState<ScheduleView>('list')
+  const [, setScheduleView] = useState<ScheduleView>('list')
   const [scheduleDraftClientId, setScheduleDraftClientId] = useState<number | null>(null)
   const [scheduleDraftChannel, setScheduleDraftChannel] = useState<InboxChannel>('EMAIL')
   const [scheduleDraftSubject, setScheduleDraftSubject] = useState('')
@@ -1048,10 +1011,6 @@ export function AnalyticsInboxTab() {
     [activeInboxClients, bulkSelectedSet],
   )
 
-  const filteredBulkClients = useMemo(
-    () => activeInboxClients.filter((client) => matchesClientSearch(client, bulkRecipientSearch)),
-    [activeInboxClients, bulkRecipientSearch],
-  )
 
   const eligibleBulkClients = useMemo(
     () => bulkSelectedClients.filter((client) => isClientEligibleForChannel(client, composeChannel)),
@@ -1085,13 +1044,6 @@ export function AnalyticsInboxTab() {
     return threads.filter((thread) => !thread.closed)
   }, [threads, folder])
 
-  const groupedThreads = useMemo(() => {
-    const grouped: Record<string, InboxThread[]> = { Today: [], Yesterday: [], Earlier: [] }
-    visibleThreads.forEach((thread) => {
-      grouped[threadSectionLabel(thread.lastSentAt)].push(thread)
-    })
-    return grouped
-  }, [visibleThreads])
 
   const threadTotalPages = Math.max(1, Math.ceil(visibleThreads.length / THREADS_PAGE_SIZE))
   const pagedThreads = useMemo(
@@ -1146,27 +1098,9 @@ export function AnalyticsInboxTab() {
   const bulkSendReady = composeChannel !== 'VIBER' && composeChannel !== 'GUEST_APP' && composeBodyHasText && eligibleBulkClients.length > 0
   const groupSendReady = !!selectedGroup && composeBodyHasText && eligibleGroupClients.length > 0
 
-  const toggleBulkClient = (clientId: number) => {
-    setBulkSelectedClientIds((prev) => (
-      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
-    ))
-  }
 
-  const selectAllVisibleClients = () => {
-    setBulkSelectedClientIds(filteredBulkClients.map((client) => client.id))
-  }
 
-  const selectEligibleVisibleClients = () => {
-    setBulkSelectedClientIds(
-      filteredBulkClients
-        .filter((client) => isClientEligibleForChannel(client, composeChannel))
-        .map((client) => client.id),
-    )
-  }
 
-  const clearBulkSelection = () => {
-    setBulkSelectedClientIds([])
-  }
 
   const resetComposerAfterSend = () => {
     setComposeBody('')
@@ -1466,13 +1400,6 @@ export function AnalyticsInboxTab() {
     }
   }
 
-  const resetScheduleDraft = () => {
-    setScheduleDraftClientId(selectedClientId)
-    setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : (availableChannels[0] ?? 'EMAIL'))
-    setScheduleDraftSubject('')
-    setScheduleDraftBody('')
-    setScheduleDraftWhen('')
-  }
 
   const openScheduleModal = () => {
     setScheduleView('list')
@@ -1484,10 +1411,6 @@ export function AnalyticsInboxTab() {
     setScheduleView('list')
   }
 
-  const startScheduleForm = () => {
-    resetScheduleDraft()
-    setScheduleView('form')
-  }
 
   const submitSchedule = async () => {
     const targetChannel = availableChannels.includes(scheduleDraftChannel) ? scheduleDraftChannel : composeChannel
@@ -1547,7 +1470,6 @@ export function AnalyticsInboxTab() {
 
   const scheduledBodyPreview = (body: string) => (body || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()
 
-  const scheduleFormReady = !!scheduleDraftBody.trim() && !!scheduleDraftWhen
   const sentTodayCount = recentMessages.filter((message) => {
     if (message.direction !== 'OUTBOUND') return false
     const rawDate = message.sentAt || message.createdAt

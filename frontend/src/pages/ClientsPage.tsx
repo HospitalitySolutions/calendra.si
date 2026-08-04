@@ -5,9 +5,9 @@ import { isNativeAndroid } from '../lib/platform'
 import { api, getApiErrorMessage } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
-import { useCalendarFiltersBottomBar, useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
-import type { Client, ClientGroup, Company, CompanySummary, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Role, StoredFile, User } from '../lib/types'
-import { Card, EmptyState, PageHeader } from '../components/ui'
+import { useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
+import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, StoredFile, User } from '../lib/types'
+import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
@@ -929,9 +929,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const embeddedClientDetailMode = embeddedClientDetailId != null
   const embeddedGroupDetailMode = embeddedGroupDetailId != null
   const embeddedDetailMode = embeddedClientDetailMode || embeddedGroupDetailMode
-  const compactCreateModalHeader = useCalendarFiltersBottomBar()
-  /** Match `clients-tab-client-detail-modal` header CSS (title hidden, close left). */
-  const clientDetailCompactHeader = useMediaMaxWidth(768)
   const isClientCreatePage = useMediaMaxWidth(1024)
   const isClientsDesktop = !useMediaMaxWidth(1100)
   const clientsCopy = locale === 'sl' ? {
@@ -1512,12 +1509,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const companyListCustomFieldDefs = useMemo(() => listCustomFields(customFieldDefinitions, 'COMPANY'), [customFieldDefinitions])
   const groupListCustomFieldDefs = useMemo(() => listCustomFields(customFieldDefinitions, 'GROUP'), [customFieldDefinitions])
 
-  const companyInvoiceStatusPill = (bill: CompanyBillSummary): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
-    if (bill.fiscalStatus === 'FAILED') return { label: 'FAILED', variant: 'fiscal-failed' }
-    if (bill.paymentStatus === 'payment_pending') return { label: 'PAYMENT PENDING', variant: 'payment-pending' }
-    if (bill.paymentStatus === 'paid') return { label: 'PAID', variant: 'paid' }
-    return null
-  }
 
   async function loadClients() {
     setLoading(true)
@@ -2757,12 +2748,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     return employees.map((user) => fullName(user)).join(', ')
   }
 
-  const assignedEmployeesDisplayText = (client: Client) => {
-    const employees = assignedUsersForClient(client)
-    if (employees.length === 0) return clientsCopy.unassignedConsultant
-    if (employees.length === 1) return fullName(employees[0])
-    return clientsCopy.assignedConsultantsSelected(employees.length)
-  }
 
   const renderClientAssignedOwnerChip = (client: Client) => {
     const employees = assignedUsersForClient(client)

@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
-import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.tenant.GuestTenantService;

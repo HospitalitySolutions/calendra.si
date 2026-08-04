@@ -686,25 +686,6 @@ public class BillingEmailService {
         return date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
     }
 
-    private static String formatSlovenianMonthYear(LocalDate date) {
-        if (date == null) return "—";
-        String month = switch (date.getMonth()) {
-            case JANUARY -> "januar";
-            case FEBRUARY -> "februar";
-            case MARCH -> "marec";
-            case APRIL -> "april";
-            case MAY -> "maj";
-            case JUNE -> "junij";
-            case JULY -> "julij";
-            case AUGUST -> "avgust";
-            case SEPTEMBER -> "september";
-            case OCTOBER -> "oktober";
-            case NOVEMBER -> "november";
-            case DECEMBER -> "december";
-        };
-        return Character.toUpperCase(month.charAt(0)) + month.substring(1) + " " + date.getYear();
-    }
-
     private static String formatEuro(BigDecimal value) {
         BigDecimal normalized = value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
         return normalized.toPlainString().replace('.', ',') + " €";

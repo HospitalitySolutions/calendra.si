@@ -13,7 +13,6 @@ import com.example.app.session.SessionBillingSupport;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionPriceCalculationMode;
-import com.example.app.session.TypeTransactionService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -37,9 +36,7 @@ import org.springframework.data.domain.PageRequest;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
@@ -49,7 +46,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -431,7 +427,6 @@ public class BillingController {
     }
     public record OpenBillPreviewEmailResponse(String recipientEmail) {}
 
-    public record SplitOpenBillSessionRequest(Long sessionId) {}
     public record MergeOpenBillsRequest(List<Long> openBillIds) {}
     public record ManualOpenBillLineRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
 
@@ -1794,97 +1789,6 @@ public class BillingController {
             sessionBookings.save(session);
         }
     }
-
-    @PostMapping("/open-bills/{id}/split-session")
-    @Transactional
-    public List<OpenBillResponse> splitOpenBillBySession(
-            @PathVariable Long id,
-            @RequestBody SplitOpenBillSessionRequest req,
-            @AuthenticationPrincipal User me
-    ) {
-        var companyId = me.getCompany().getId();
-        if (req == null || req.sessionId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sessionId is required.");
-        }
-
-        var source = openBillRepo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!source.getCompany().getId().equals(companyId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-
-        Long sessionId = req.sessionId();
-        var matchedItems = source.getItems().stream()
-                .filter(item -> Objects.equals(item.getSourceSessionBookingId(), sessionId)
-                        || (item.getSourceSessionBookingId() == null
-                        && source.getSessionBooking() != null
-                        && Objects.equals(source.getSessionBooking().getId(), sessionId)))
-                .toList();
-
-        if (matchedItems.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No open-bill lines found for that session.");
-        }
-
-        var split = new OpenBill();
-        split.setCompany(source.getCompany());
-        split.setPaymentMethod(source.getPaymentMethod());
-        split.setReference(source.getReference());
-        split.setBatchScope(OpenBill.BATCH_SCOPE_NONE);
-        split.setBatchTargetClientId(null);
-        split.setBatchTargetCompanyId(null);
-        split.setManualSplitLocked(true);
-        split.setBillType(source.getBillType());
-
-        if (sessionId < 0) {
-            long manualNo = -sessionId;
-            split.setClient(source.getClient());
-            split.setConsultant(source.getConsultant());
-            split.setSessionBooking(null);
-            split.setBookingGroupKey(source.getBookingGroupKey());
-            appendManualSessionNumber(split, manualNo);
-            removeManualSessionNumber(source, manualNo);
-        } else {
-            var sourceSession = sessionBookings.findByIdAndCompanyId(sessionId, companyId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid sessionId."));
-            split.setClient(sourceSession.getClient() != null ? sourceSession.getClient() : source.getClient());
-            split.setConsultant(sourceSession.getConsultant() != null ? sourceSession.getConsultant() : source.getConsultant());
-            split.setSessionBooking(sourceSession);
-            split.setBookingGroupKey(resolveBookingGroupKeyForOpenBill(sourceSession));
-        }
-
-        if (split.getClient() == null || split.getConsultant() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Split target requires client and consultant.");
-        }
-
-        for (var item : new ArrayList<>(matchedItems)) {
-            source.getItems().remove(item);
-            var moved = new OpenBillItem();
-            moved.setOpenBill(split);
-            moved.setTransactionService(item.getTransactionService());
-            moved.setQuantity(item.getQuantity());
-            moved.setNetPrice(item.getNetPrice());
-            moved.setUnitGrossPrice(resolveOpenBillUnitGrossPrice(item));
-            moved.setSourceSessionBookingId(sessionId);
-            moved.setSourceAdvanceBillId(item.getSourceAdvanceBillId());
-            split.getItems().add(moved);
-        }
-
-        openBillRepo.save(split);
-        if (split.getId() != null && source.getId() != null) {
-            advanceAllocationRepo.reassignOpenBillForSession(companyId, source.getId(), split.getId(), sessionId);
-            advanceAllocationRepo.flush();
-        }
-        if (source.getItems().isEmpty()) {
-            deleteAdvanceAllocationsForOpenBill(companyId, source.getId());
-            advanceAllocationRepo.flush();
-            openBillRepo.delete(source);
-        } else {
-            openBillRepo.save(source);
-        }
-
-        return openBillResponsePage(companyId, 0, 100);
-    }
-
-
     @PostMapping("/open-bills/{id}/merge-related")
     @Transactional
     public List<OpenBillResponse> mergeRelatedOpenBills(
@@ -2491,252 +2395,7 @@ public class BillingController {
         return Math.min(size, maxSize);
     }
 
-    private void syncOpenBillsFromPastSessions(Long companyId) {
-        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(), companyId);
-        for (SessionBooking sb : past) {
-            if (!SessionBillingSupport.hasTransactionServices(sb)) continue;
-            if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) continue;
-
-            var client = sb.getClient();
-            if (client == null) continue;
-
-            var consultant = resolveOpenBillConsultant(sb, companyId);
-            if (consultant == null) continue;
-
-            PayeeResolution payee = resolveSessionPayee(sb, client);
-            var linkedCompany = payee.linkedCompany();
-            final boolean companyBatchEnabled = payee.companyTarget();
-            final boolean clientBatchEnabled = payee.clientTarget();
-
-            var legacyOpen = openBillRepo.findBySessionBookingIdAndCompanyId(sb.getId(), companyId).orElse(null);
-            if (legacyOpen != null && legacyOpen.isManualSplitLocked()) {
-                continue;
-            }
-            var containingOpen = legacyOpen != null
-                    ? legacyOpen
-                    : openBillRepo.findContainingSession(companyId, sb.getId()).orElse(null);
-
-            OpenBill open = resolveSyncTargetOpenBill(sb, client, consultant, linkedCompany, companyBatchEnabled, clientBatchEnabled, containingOpen, companyId);
-            boolean changed = false;
-
-            if (legacyOpen != null && !sameOpenBill(legacyOpen, open)) {
-                open = moveOpenBillRowsIntoTarget(companyId, legacyOpen, open, sb.getId());
-            } else if (legacyOpen == null && containingOpen != null && !sameOpenBill(containingOpen, open)) {
-                // Existing batch bills can contain multiple sessions; do not move the whole batch when a single
-                // session payer changes. New payer selection is applied when the open bill is first created.
-                continue;
-            }
-
-            changed |= ensureSessionServiceLines(open, sb, companyId);
-            changed |= ensureAdvanceOffsetLines(open, sb, companyId);
-
-            if (changed || open.getId() == null) {
-                openBillRepo.save(open);
-            }
-        }
-    }
-
-    private void syncOpenBillsByBatchSettings(Long companyId) {
-        var sourceIds = openBillRepo.findBatchMergeCandidateIds(companyId, PageRequest.of(0, 100));
-        for (Long sourceId : sourceIds) {
-            mergeOpenBillIntoConfiguredBatch(companyId, sourceId);
-            openBillRepo.flush();
-            advanceAllocationRepo.flush();
-            entityManager.clear();
-        }
-    }
-
-    private void mergeOpenBillIntoConfiguredBatch(Long companyId, Long sourceId) {
-        var sourceOpt = openBillRepo.findByIdWithItemsForBatchSync(sourceId, companyId);
-        if (sourceOpt.isEmpty()) {
-            return;
-        }
-        OpenBill source = sourceOpt.get();
-        if (source.getId() == null) return;
-        if (!OpenBill.BATCH_SCOPE_NONE.equals(source.getBatchScope())) return;
-        if (source.getClient() == null || source.getItems() == null || source.getItems().isEmpty()) return;
-        if (openBillHasExplicitSessionPayee(source, companyId)) return;
-
-        BatchTarget batchTarget = resolveBatchTargetForOpenBillSource(source, companyId);
-        if (batchTarget == null) return;
-
-        OpenBill target;
-        if (OpenBill.BATCH_SCOPE_COMPANY.equals(batchTarget.scope())) {
-            target = openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, batchTarget.companyId())
-                    .orElseGet(() -> newBatchOpenBillFromSource(source, OpenBill.BATCH_SCOPE_COMPANY, null, batchTarget.companyId()));
-        } else {
-            target = openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, batchTarget.clientId())
-                    .orElseGet(() -> newBatchOpenBillFromSource(source, OpenBill.BATCH_SCOPE_CLIENT, batchTarget.clientId(), null));
-        }
-        if (sameOpenBill(source, target)) return;
-
-        moveOpenBillRowsIntoTarget(
-                companyId,
-                source,
-                target,
-                source.getSessionBooking() != null ? source.getSessionBooking().getId() : null
-        );
-    }
-
     private record BatchTarget(String scope, Long clientId, Long companyId) {}
-
-    private BatchTarget resolveBatchTargetForOpenBillSource(OpenBill source, Long companyId) {
-        Set<Long> sessionIds = sourceSessionIds(source);
-        if (!sessionIds.isEmpty()) {
-            List<SessionBooking> sourceSessions = sourceSessionsForOpenBill(companyId, sessionIds);
-            if (sourceSessions.size() != sessionIds.size()) {
-                return null;
-            }
-            List<BatchTarget> resolvedTargets = sourceSessions.stream()
-                    .map(this::resolveBatchTargetForSession)
-                    .toList();
-            if (resolvedTargets.stream().anyMatch(Objects::isNull)) {
-                return null;
-            }
-            Set<BatchTarget> targets = resolvedTargets.stream()
-                    .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-            if (targets.size() == 1) {
-                return targets.iterator().next();
-            }
-            return null;
-        }
-        return resolveBatchTargetForClient(source.getClient());
-    }
-
-    private List<SessionBooking> sourceSessionsForOpenBill(Long companyId, Set<Long> sessionIds) {
-        if (sessionIds == null || sessionIds.isEmpty()) {
-            return List.of();
-        }
-        return sessionBookings.findAllByCompanyIdAndIds(companyId, sessionIds).stream()
-                .filter(session -> session != null && session.getClient() != null)
-                .toList();
-    }
-
-    private BatchTarget resolveBatchTargetForSession(SessionBooking session) {
-        if (session == null || session.getClient() == null) return null;
-        String explicitType = session.getPayeeType() == null ? null : session.getPayeeType().trim().toUpperCase(java.util.Locale.ROOT);
-        if (session.isPayeeCustomData()) return null;
-        if ("COMPANY".equals(explicitType)) {
-            ClientCompany payeeCompany = session.getPayeeCompany();
-            if (payeeCompany != null && payeeCompany.isBatchPaymentEnabled() && payeeCompany.getId() != null) {
-                return new BatchTarget(OpenBill.BATCH_SCOPE_COMPANY, null, payeeCompany.getId());
-            }
-            return null;
-        }
-        return resolveBatchTargetForClient(session.getClient());
-    }
-
-    private BatchTarget resolveBatchTargetForClient(Client client) {
-        if (client == null || client.getId() == null) return null;
-        ClientCompany linkedCompany = client.getBillingCompany();
-        if (linkedCompany != null && linkedCompany.isBatchPaymentEnabled() && linkedCompany.getId() != null) {
-            return new BatchTarget(OpenBill.BATCH_SCOPE_COMPANY, null, linkedCompany.getId());
-        }
-        if (client.isBatchPaymentEnabled()) {
-            return new BatchTarget(OpenBill.BATCH_SCOPE_CLIENT, client.getId(), null);
-        }
-        return null;
-    }
-
-    private Set<Long> sourceSessionIds(OpenBill source) {
-        Set<Long> sessionIds = new HashSet<>();
-        if (source.getSessionBooking() != null && source.getSessionBooking().getId() != null) {
-            sessionIds.add(source.getSessionBooking().getId());
-        }
-        if (source.getItems() != null) {
-            source.getItems().stream()
-                    .map(OpenBillItem::getSourceSessionBookingId)
-                    .filter(Objects::nonNull)
-                    .forEach(sessionIds::add);
-        }
-        return sessionIds;
-    }
-
-    private boolean openBillHasExplicitSessionPayee(OpenBill source, Long companyId) {
-        if (source == null) return false;
-        Set<Long> sessionIds = sourceSessionIds(source);
-        if (sessionIds.isEmpty()) return false;
-        return sessionBookings.findAllByCompanyIdAndIds(companyId, sessionIds).stream()
-                .anyMatch(session -> {
-                    if (session == null) return false;
-                    if (session.isPayeeCustomData()) return true;
-                    String explicitType = session.getPayeeType() == null ? null : session.getPayeeType().trim().toUpperCase(java.util.Locale.ROOT);
-                    if (!"COMPANY".equals(explicitType)) return false;
-                    ClientCompany payeeCompany = session.getPayeeCompany();
-                    return payeeCompany == null || !payeeCompany.isBatchPaymentEnabled();
-                });
-    }
-
-    private OpenBill moveOpenBillRowsIntoTarget(Long companyId, OpenBill source, OpenBill target, Long fallbackSessionId) {
-        if (source == null || target == null || sameOpenBill(source, target)) {
-            return target;
-        }
-        if (source.getId() == null) {
-            return target;
-        }
-
-        Set<Long> movedSessionIds = source.getItems() == null
-                ? Set.of()
-                : source.getItems().stream()
-                .map(item -> item.getSourceSessionBookingId() != null ? item.getSourceSessionBookingId() : fallbackSessionId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        mergeManualSessionNumbers(source, target);
-        if ((target.getReference() == null || target.getReference().isBlank())
-                && source.getReference() != null && !source.getReference().isBlank()) {
-            target.setReference(source.getReference());
-        }
-
-        OpenBill savedTarget = openBillRepo.saveAndFlush(target);
-        Long sourceOpenBillId = source.getId();
-        Long targetOpenBillId = savedTarget.getId();
-
-        // Hibernate orphanRemoval collections are intentionally not mutated here.
-        // We first persist the batch target, clear the persistence context, and
-        // then move the rows with bulk SQL. This prevents stale PersistentBag
-        // snapshots from causing EntityEntry.getMaybeLazySet()/non-threadsafe
-        // session failures when Open Bills is opened after enabling batch payment.
-        entityManager.flush();
-        entityManager.clear();
-
-        openBillRepo.moveItemsToOpenBill(sourceOpenBillId, targetOpenBillId, fallbackSessionId, companyId);
-        for (Long sessionId : movedSessionIds) {
-            advanceAllocationRepo.reassignOpenBillForSession(companyId, sourceOpenBillId, targetOpenBillId, sessionId);
-        }
-        deleteAdvanceAllocationsForOpenBill(companyId, sourceOpenBillId);
-        openBillRepo.deletePaymentSplitsByOpenBillIdAndCompanyId(sourceOpenBillId, companyId);
-        openBillRepo.deleteByIdAndCompanyId(sourceOpenBillId, companyId);
-        openBillRepo.flush();
-        advanceAllocationRepo.flush();
-        entityManager.clear();
-
-        return openBillRepo.findByIdWithItemsForBatchSync(targetOpenBillId, companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-    }
-
-    private OpenBill newBatchOpenBillFromSource(OpenBill source, String batchScope, Long batchTargetClientId, Long batchTargetCompanyId) {
-        var target = new OpenBill();
-        target.setCompany(source.getCompany());
-        target.setClient(source.getClient());
-        target.setConsultant(source.getConsultant());
-        target.setPaymentMethod(source.getPaymentMethod() != null ? source.getPaymentMethod() : resolveDefaultPaymentMethod(source.getCompany().getId()));
-        target.setReference(source.getReference());
-        target.setSessionBooking(null);
-        target.setBatchScope(batchScope);
-        target.setBatchTargetClientId(batchTargetClientId);
-        target.setBatchTargetCompanyId(batchTargetCompanyId);
-        target.setManualSplitLocked(false);
-        target.setBillType(source.getBillType());
-        target.setBookingGroupKey(source.getBookingGroupKey());
-        return target;
-    }
-
-    private static void mergeManualSessionNumbers(OpenBill from, OpenBill to) {
-        for (Long manualNo : parseManualSessionNumbers(from.getManualSessionNumbersCsv())) {
-            appendManualSessionNumber(to, manualNo);
-        }
-    }
 
     private record PayeeResolution(ClientCompany linkedCompany, boolean companyTarget, boolean clientTarget) {}
 
@@ -2831,10 +2490,6 @@ public class BillingController {
         String key = session.getBookingGroupKey();
         if (key != null && !key.isBlank()) return key;
         return null;
-    }
-
-    private boolean sameOpenBill(OpenBill a, OpenBill b) {
-        return a != null && b != null && a.getId() != null && a.getId().equals(b.getId());
     }
 
     private boolean ensureSessionServiceLines(OpenBill open, SessionBooking session, Long companyId) {
@@ -3101,10 +2756,6 @@ public class BillingController {
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
                 .findFirst()
                 .orElse(session);
-    }
-
-    private Long billingSourceSessionIdForPriceMode(SessionBooking session) {
-        return session == null ? null : session.getId();
     }
 
     private boolean isTotalPriceCalculation(SessionBooking session) {
@@ -3421,13 +3072,6 @@ public class BillingController {
         open.setManualSessionNumbersCsv(all.stream().map(String::valueOf).collect(Collectors.joining(",")));
         long prevMax = open.getManualSessionNumberMax() == null ? 0 : open.getManualSessionNumberMax();
         open.setManualSessionNumberMax(Math.max(prevMax, manualNo));
-    }
-
-    private static void removeManualSessionNumber(OpenBill open, long manualNo) {
-        var remaining = parseManualSessionNumbers(open.getManualSessionNumbersCsv()).stream()
-                .filter(value -> value != manualNo)
-                .toList();
-        open.setManualSessionNumbersCsv(remaining.stream().map(String::valueOf).collect(Collectors.joining(",")));
     }
 
     @PostMapping("/bills")
@@ -4183,19 +3827,6 @@ public class BillingController {
         return remainingGross.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : remainingGross;
     }
 
-    /** Open-bill allocations plus folio lines that carried {@link BillItem#getSourceAdvanceBillId()} when the open bill was closed. */
-    private BigDecimal totalAdvanceConsumedNet(Long companyId, Long advanceBillId) {
-        BigDecimal fromAllocations = advanceAllocationRepo.sumAmountNetByCompanyIdAndAdvanceBillId(companyId, advanceBillId);
-        BigDecimal fromFolio = advanceAllocationRepo.sumConsumedFromFolioByAdvanceBillId(companyId, advanceBillId);
-        BigDecimal fromOpenBillPayments = advanceAllocationRepo.sumConsumedFromOpenBillPaymentsByAdvanceBillId(companyId, advanceBillId);
-        BigDecimal fromBillPayments = advanceAllocationRepo.sumConsumedFromBillPaymentsByAdvanceBillId(companyId, advanceBillId);
-        BigDecimal a = fromAllocations == null ? BigDecimal.ZERO : fromAllocations;
-        BigDecimal b = fromFolio == null ? BigDecimal.ZERO : fromFolio;
-        BigDecimal c = fromOpenBillPayments == null ? BigDecimal.ZERO : fromOpenBillPayments;
-        BigDecimal d = fromBillPayments == null ? BigDecimal.ZERO : fromBillPayments;
-        return a.add(b).add(c).add(d);
-    }
-
     /**
      * Display/reservation balance is gross-first: a user-entered gross 44.00 must consume
      * exactly 44.00 of the deposit, not 44.01 after net/tax round-tripping.
@@ -4239,16 +3870,6 @@ public class BillingController {
         if (configuredAdvanceIds.contains(transactionServiceId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction services marked as advance can only be used on ADVANCE bills.");
         }
-    }
-
-    private TransactionService resolveAdvanceDeductionService(Long companyId) {
-        Set<Long> ids = resolveAdvanceDeductionServiceIds(companyId);
-        if (ids.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing setting ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID.");
-        }
-        Long serviceId = ids.iterator().next();
-        return txRepo.findByIdAndCompanyId(serviceId, companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Configured advance deduction service was not found."));
     }
 
     private Set<Long> resolveAdvanceDeductionServiceIds(Long companyId) {
@@ -4408,15 +4029,6 @@ public class BillingController {
     }
 
 
-    private int paymentDeadlineDays(Long companyId) {
-        try {
-            String raw = settingValue(companyId, SettingKey.PAYMENT_DEADLINE_DAYS);
-            int parsed = Integer.parseInt(raw == null || raw.isBlank() ? "15" : raw.trim());
-            return Math.max(parsed, 0);
-        } catch (Exception ignored) {
-            return 15;
-        }
-    }
 
     private static String normalizePaymentStatus(String status) {
         if (!BillPaymentStatus.isKnown(status)) return BillPaymentStatus.OPEN;
@@ -4468,37 +4080,6 @@ public class BillingController {
         bill.setClientLastNameSnapshot(client.getLastName() == null ? "" : client.getLastName());
     }
 
-    private SessionBooking resolveOpenBillPayerSession(OpenBill open, Set<Long> linkedSessionIds, Long companyId) {
-        if (open == null) return null;
-        if (open.getSessionBooking() != null) {
-            return open.getSessionBooking();
-        }
-        if (linkedSessionIds == null || linkedSessionIds.isEmpty()) {
-            return null;
-        }
-        return sessionBookings.findAllByCompanyIdAndIds(companyId, linkedSessionIds).stream()
-                .filter(session -> session.getPayeeType() != null && !session.getPayeeType().isBlank())
-                .findFirst()
-                .orElse(null);
-    }
-
-    private static void applyCustomSessionPayeeToBill(Bill bill, SessionBooking session) {
-        String type = session.getPayeeType() == null ? "PERSON" : session.getPayeeType().trim().toUpperCase(Locale.ROOT);
-        if ("COMPANY".equals(type)) {
-            setBillRecipientCustomCompanySnapshot(bill, session);
-            bill.setClient(null);
-            bill.setClientFirstNameSnapshot("");
-            bill.setClientLastNameSnapshot("");
-            return;
-        }
-        if (notBlank(session.getPayeePersonFirstName()) || notBlank(session.getPayeePersonLastName())) {
-            bill.setClientFirstNameSnapshot(emptySafe(session.getPayeePersonFirstName()));
-            bill.setClientLastNameSnapshot(emptySafe(session.getPayeePersonLastName()));
-        }
-        setBillRecipientPersonSnapshot(bill);
-        bill.setRecipientPersonEmailSnapshot(emptyToNull(session.getPayeePersonEmail()));
-    }
-
     private ClientCompany resolveBillRecipientCompany(BillRequest request, com.example.app.client.Client client, Long companyId) {
         String requestedTarget = request.billingTarget() == null ? "" : request.billingTarget().trim().toUpperCase();
         boolean companyRequested = "COMPANY".equals(requestedTarget);
@@ -4541,21 +4122,6 @@ public class BillingController {
         bill.setRecipientCompanyIbanSnapshot(company.getIban());
         bill.setRecipientCompanyEmailSnapshot(company.getEmail());
         bill.setRecipientCompanyTelephoneSnapshot(company.getTelephone());
-    }
-
-    private static void setBillRecipientCustomCompanySnapshot(Bill bill, SessionBooking session) {
-        ClientCompany fallback = session.getPayeeCompany();
-        bill.setRecipientTypeSnapshot("COMPANY");
-        bill.setRecipientPersonEmailSnapshot(null);
-        bill.setRecipientCompanyIdSnapshot(fallback == null ? null : fallback.getId());
-        bill.setRecipientCompanyNameSnapshot(firstNonBlank(session.getPayeeCompanyName(), fallback == null ? null : fallback.getName()));
-        bill.setRecipientCompanyAddressSnapshot(firstNonBlank(session.getPayeeCompanyAddress(), fallback == null ? null : fallback.getAddress()));
-        bill.setRecipientCompanyPostalCodeSnapshot(firstNonBlank(session.getPayeeCompanyPostalCode(), fallback == null ? null : fallback.getPostalCode()));
-        bill.setRecipientCompanyCitySnapshot(firstNonBlank(session.getPayeeCompanyCity(), fallback == null ? null : fallback.getCity()));
-        bill.setRecipientCompanyVatIdSnapshot(firstNonBlank(session.getPayeeCompanyVatId(), fallback == null ? null : fallback.getVatId()));
-        bill.setRecipientCompanyIbanSnapshot(fallback == null ? null : fallback.getIban());
-        bill.setRecipientCompanyEmailSnapshot(firstNonBlank(session.getPayeeCompanyEmail(), fallback == null ? null : fallback.getEmail()));
-        bill.setRecipientCompanyTelephoneSnapshot(fallback == null ? null : fallback.getTelephone());
     }
 
     private Bill ensureSnapshotBackfilled(Bill bill) {
@@ -4629,10 +4195,6 @@ public class BillingController {
         return value == null ? "" : value;
     }
 
-    private static boolean notBlank(String value) {
-        return value != null && !value.isBlank();
-    }
-
     private static String emptyToNull(String value) {
         if (value == null) return null;
         String trimmed = value.trim();
@@ -4673,16 +4235,6 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods configured. Add one in Configuration > Billing.");
         }
         return all.getFirst();
-    }
-
-    private static BigDecimal estimateOpenBillGross(OpenBill open) {
-        if (open == null || open.getItems() == null) return BigDecimal.ZERO;
-        BigDecimal total = BigDecimal.ZERO;
-        for (var item : open.getItems()) {
-            if (item == null || item.getTransactionService() == null || isLegacyAdvanceOffsetItem(item)) continue;
-            total = total.add(resolveOpenBillLineGross(item)).setScale(2, RoundingMode.HALF_UP);
-        }
-        return total.setScale(2, RoundingMode.HALF_UP);
     }
 
     private static List<BigDecimal> openBillDiscountLineGrosses(OpenBill open) {
@@ -4953,64 +4505,6 @@ public class BillingController {
         open.setDiscountType("PERCENT");
         open.setDiscountValue(wholeBillPercent);
         open.setDiscountItemIndex(null);
-    }
-
-    private static BigDecimal totalBillGross(List<BillItem> items) {
-        if (items == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal total = BigDecimal.ZERO;
-        for (BillItem item : items) {
-            if (item == null) continue;
-            BigDecimal gross = item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice();
-            total = total.add(gross).setScale(2, RoundingMode.HALF_UP);
-        }
-        return total.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private static List<BigDecimal> allocateLineDiscounts(List<BigDecimal> lineGrosses, String discountTypeRaw, BigDecimal discountValueRaw, Integer discountItemIndex) {
-        List<BigDecimal> discounts = new ArrayList<>();
-        if (lineGrosses == null || lineGrosses.isEmpty()) return discounts;
-        for (int i = 0; i < lineGrosses.size(); i++) discounts.add(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
-        String discountType = normalizeOpenBillDiscountType(discountTypeRaw);
-        BigDecimal subtotal = lineGrosses.stream()
-                .filter(Objects::nonNull)
-                .map(value -> value.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP))
-                .reduce(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
-        if (subtotal.compareTo(BigDecimal.ZERO) <= 0 || discountValueRaw == null || discountValueRaw.compareTo(BigDecimal.ZERO) <= 0) {
-            return discounts;
-        }
-        Integer idx = normalizeDiscountItemIndex(discountType, discountItemIndex, lineGrosses.size());
-        if ("AMOUNT".equals(discountType)) {
-            if (idx == null) return discounts;
-            BigDecimal selectedGross = (lineGrosses.get(idx) == null ? BigDecimal.ZERO : lineGrosses.get(idx)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-            discounts.set(idx, discountValueRaw.max(BigDecimal.ZERO).min(selectedGross).setScale(2, RoundingMode.HALF_UP));
-            return discounts;
-        }
-        BigDecimal percent = discountValueRaw.max(BigDecimal.ZERO).min(new BigDecimal("100"));
-        if (idx != null) {
-            BigDecimal selectedGross = (lineGrosses.get(idx) == null ? BigDecimal.ZERO : lineGrosses.get(idx)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal selectedDiscount = selectedGross.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-            discounts.set(idx, selectedDiscount.min(selectedGross).setScale(2, RoundingMode.HALF_UP));
-            return discounts;
-        }
-        BigDecimal targetDiscount = subtotal.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-        BigDecimal remaining = targetDiscount;
-        int lastPositive = -1;
-        for (int i = 0; i < lineGrosses.size(); i++) {
-            BigDecimal gross = (lineGrosses.get(i) == null ? BigDecimal.ZERO : lineGrosses.get(i)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-            if (gross.compareTo(BigDecimal.ZERO) > 0) lastPositive = i;
-        }
-        for (int i = 0; i < lineGrosses.size(); i++) {
-            BigDecimal gross = (lineGrosses.get(i) == null ? BigDecimal.ZERO : lineGrosses.get(i)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-            if (gross.compareTo(BigDecimal.ZERO) <= 0) continue;
-            BigDecimal discount = i == lastPositive
-                    ? remaining.min(gross).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
-                    : gross.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP).min(gross).min(remaining).setScale(2, RoundingMode.HALF_UP);
-            discounts.set(i, discount);
-            remaining = remaining.subtract(discount).setScale(2, RoundingMode.HALF_UP);
-            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
-        }
-        return discounts;
     }
 
     private static BigDecimal netTotalFromGross(TransactionService tx, BigDecimal gross) {
@@ -5506,59 +5000,6 @@ public class BillingController {
         settings.findByCompanyIdAndKey(me.getCompany().getId(), SettingKey.COMPANY_LOGO_BASE64)
                 .ifPresent(settings::delete);
         return ResponseEntity.noContent().build();
-    }
-
-    private byte[] loadLogoBytes(Long companyId) {
-        var publicLogoUrl = settingValue(companyId, SettingKey.COMPANY_LOGO_URL);
-        byte[] publicLogoBytes = downloadLogoBytesFromUrl(publicLogoUrl);
-        if (publicLogoBytes != null && publicLogoBytes.length > 0) return publicLogoBytes;
-        var dataUri = settingValue(companyId, SettingKey.COMPANY_LOGO_BASE64);
-        if (dataUri.isBlank()) return null;
-        int commaIdx = dataUri.indexOf(',');
-        if (commaIdx < 0) return null;
-        try {
-            return java.util.Base64.getDecoder().decode(dataUri.substring(commaIdx + 1));
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid base64 logo for company, ignoring", e);
-            return null;
-        }
-    }
-
-    private byte[] downloadLogoBytesFromUrl(String rawUrl) {
-        if (rawUrl == null || rawUrl.isBlank()) return null;
-        try (InputStream input = URI.create(rawUrl.trim()).toURL().openStream()) {
-            return input.readAllBytes();
-        } catch (Exception e) {
-            log.warn("Failed to download public company logo from {}", rawUrl, e);
-            return null;
-        }
-    }
-
-    private byte[] loadSignatureBytes(Long companyId) {
-        var dataUri = settingValue(companyId, SettingKey.FOLIO_SIGNATURE_BASE64);
-        if (dataUri.isBlank()) return null;
-        int commaIdx = dataUri.indexOf(',');
-        if (commaIdx < 0) return null;
-        try {
-            return java.util.Base64.getDecoder().decode(dataUri.substring(commaIdx + 1));
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid base64 signature for company, ignoring", e);
-            return null;
-        }
-    }
-
-    private FolioLayoutConfig loadFolioLayout(Long companyId) {
-        var json = settingValue(companyId, SettingKey.FOLIO_TEMPLATE_LAYOUT_JSON);
-        var trimmed = json.strip();
-        if (json.isBlank() || !trimmed.startsWith("{") || !trimmed.contains("\"fields\"")) {
-            return FolioLayoutConfig.defaultLayout();
-        }
-        try {
-            return FolioLayoutConfig.normalize(LAYOUT_MAPPER.readValue(json, FolioLayoutConfig.class));
-        } catch (Exception e) {
-            log.warn("Invalid folio layout JSON for company={}, using defaults", companyId, e);
-            return FolioLayoutConfig.defaultLayout();
-        }
     }
 
     /* ── Folio signature management ── */

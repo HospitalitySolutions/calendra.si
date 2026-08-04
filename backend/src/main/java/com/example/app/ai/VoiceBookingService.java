@@ -16,7 +16,6 @@ import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
-import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

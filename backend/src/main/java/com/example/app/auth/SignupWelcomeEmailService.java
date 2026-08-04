@@ -544,14 +544,6 @@ public class SignupWelcomeEmailService {
         };
     }
 
-    private static String languageLabel(String locale, WelcomeCopy copy) {
-        return switch (normalizeSupportedLocale(locale)) {
-            case "sl" -> "Slovenščina";
-            case "sr" -> "Srpski";
-            default -> copy.fallbackLanguage();
-        };
-    }
-
     private static String normalizeSupportedLocale(String localeCode) {
         if (localeCode == null || localeCode.isBlank()) return "en";
         String normalized = localeCode.trim().toLowerCase(Locale.ROOT);

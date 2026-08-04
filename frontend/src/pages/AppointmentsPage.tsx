@@ -578,15 +578,6 @@ export function AppointmentsPage() {
     await closeSelected()
   }
 
-  const skipSelected = async () => {
-    if (!selected) return
-    const slotStart = window.prompt(locale === 'sl' ? 'Začetek termina (YYYY-MM-DDTHH:mm)' : 'Slot start (YYYY-MM-DDTHH:mm)', offerForm.slotStart || `${selected.dateFrom}T09:00`)
-    if (!slotStart) return
-    const slotEnd = window.prompt(locale === 'sl' ? 'Konec termina (YYYY-MM-DDTHH:mm)' : 'Slot end (YYYY-MM-DDTHH:mm)', offerForm.slotEnd || `${selected.dateFrom}T10:00`)
-    if (!slotEnd) return
-    await api.post(`/waitlists/${selected.id}/skip`, { slotStart, slotEnd, employeeId: selected.specificEmployee?.id || null, roomId: selected.locationId || null })
-    await selectRequest(selected)
-  }
 
   const closeSelected = async (options: { refreshRows?: boolean; suppressNextReload?: boolean } = {}) => {
     if (closingSelectedRef.current) return

@@ -212,8 +212,6 @@ const DEFAULT_FEATURE_ITEMS: RegisterCatalogFeatureItem[] = [
 export const ANNUAL_BILLED_MONTHS = 10;
 export const ANNUAL_SAVINGS_MONTHS = 2;
 const MONTHS_PER_YEAR = 12;
-const FIXED_ANNUAL_DISCOUNT_PERCENT =
-  (ANNUAL_SAVINGS_MONTHS * 100) / MONTHS_PER_YEAR;
 
 const DEFAULT_USAGE_PRICES: RegisterUsagePriceCatalog = {
   additionalUserMonthly: 9.9,
@@ -242,7 +240,6 @@ let addonCatalogItems: RegisterAddonCatalogItem[] = DEFAULT_ADDON_ITEMS.map(
 let featureCatalogItems: RegisterCatalogFeatureItem[] =
   DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item }));
 let usagePrices: RegisterUsagePriceCatalog = { ...DEFAULT_USAGE_PRICES };
-const annualDiscountPercent = FIXED_ANNUAL_DISCOUNT_PERCENT;
 
 function clampCatalogMoney(n: number): boolean {
   return Number.isFinite(n) && n >= 0 && n <= 100_000;
@@ -457,10 +454,6 @@ export function hydrateRegisterCatalogFromApi(
       .filter((item): item is RegisterCatalogFeatureItem => Boolean(item));
     featureCatalogItems = next;
   }
-}
-
-export function getAnnualDiscountPercent() {
-  return annualDiscountPercent;
 }
 
 export function getAnnualDiscountFactor() {
@@ -752,15 +745,6 @@ export function getActiveAddonKeys() {
   return addonCatalogItems
     .filter((item) => item.active !== false)
     .map((item) => item.key);
-}
-
-export function countSelectedAddons(selection: RegisterSelection) {
-  if (isBasicMonthlyTrial(selection)) return 0;
-  const active = getActiveAddonKeys();
-  return active.reduce(
-    (count, key) => count + (selection.addons?.[key] ? 1 : 0),
-    0,
-  );
 }
 
 export function selectionRequiresBillingDetails(selection: RegisterSelection) {

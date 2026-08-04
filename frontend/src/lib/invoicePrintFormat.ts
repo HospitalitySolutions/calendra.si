@@ -9,8 +9,3 @@ export function normalizeInvoicePrintPreference(value: unknown): InvoicePrintPre
   if (normalized === 'POS_58' || normalized === 'ASK') return normalized
   return 'A4'
 }
-
-export function invoicePrintFormatLabel(format: InvoicePrintFormat, locale: string): string {
-  if (format === 'POS_58') return locale === 'sl' ? 'POS 58 mm' : locale === 'sr' ? 'POS 58 mm' : 'POS 58 mm'
-  return 'A4'
-}

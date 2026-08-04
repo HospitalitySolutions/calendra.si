@@ -171,18 +171,6 @@ export type SessionType = {
   linkedServices?: TypeServiceLink[]
 }
 
-export type BookableSlot = {
-  id: number
-  dayOfWeek: DayOfWeek
-  startTime: string
-  endTime: string
-  consultant: User
-  indefinite: boolean
-  startDate?: string
-  endDate?: string
-  createdAt?: string
-}
-
 export type BookingPayee = {
   clientId: number
   payeeType: 'PERSON' | 'COMPANY' | string
@@ -484,8 +472,6 @@ export type ClientMessage = {
   attachments?: MessageAttachment[]
   internalNote?: boolean
 }
-
-export type SettingsMap = Record<string, string>
 
 export type DayOfWeek = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'
 

@@ -1484,8 +1484,4 @@ public class SessionBookingController {
     private static boolean intervalsOverlap(LocalDateTime aStart, LocalDateTime aEnd, LocalDateTime bStart, LocalDateTime bEnd) {
         return aStart.isBefore(bEnd) && aEnd.isAfter(bStart);
     }
-
-    private static LocalDateTime effectiveEnd(SessionBooking booking) {
-        return SessionServiceSupport.availabilityEnd(booking);
-    }
 }

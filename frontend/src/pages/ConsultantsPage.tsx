@@ -723,7 +723,6 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const activeStatusLabel = locale === 'sl' ? 'Aktivna' : 'Active'
   const inactiveStatusLabel = locale === 'sl' ? 'Neaktivna' : 'Inactive'
   const formTitle = selfService ? t('myProfileTitle') : editing ? (locale === 'sl' ? 'Uredi zaposlenega' : 'Edit employee') : (locale === 'sl' ? 'Novi zaposleni' : 'New employee')
-  const cancelLabel = locale === 'sl' ? 'Prekliči' : 'Cancel'
   const closeLabel = locale === 'sl' ? 'Zapri' : 'Close'
   const formPrimaryLabel = saving ? t('employeesFormSaving') : editing ? t('employeesFormSaveChanges') : (locale === 'sl' ? 'Ustvari' : 'Create')
   const formPrimaryDisabled = saving || deleting || (!!editing && !isFormDirty)

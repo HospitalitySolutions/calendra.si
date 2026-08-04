@@ -421,15 +421,6 @@ public class GiftCardEmailService {
         }
     }
 
-    private String field(String label, String value) {
-        return """
-                <div style=\"padding-bottom:13px; margin-bottom:15px; border-bottom:1px solid rgba(184,137,62,.44);\">
-                  <div style=\"font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #6f4e15; margin-bottom: 6px;\">%s</div>
-                  <div style=\"font-family: Georgia, 'Times New Roman', serif; font-size: 25px; line-height: 1.12; color:#30261d;\">%s</div>
-                </div>
-                """.formatted(escape(label), escape(value));
-    }
-
     private String plainPreview(GuestEntitlement entitlement, GiftCardSettings settings) {
         return "Gift card " + productName(entitlement) + " · " + value(entitlement) + " · " + firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
     }
@@ -553,13 +544,6 @@ public class GiftCardEmailService {
         return "";
     }
 
-    private static String safeCssUrl(String value) {
-        if (value == null) return "";
-        String trimmed = value.trim();
-        if (!trimmed.startsWith("data:image/")) return "";
-        return trimmed.replace("'", "").replace("\\", "");
-    }
-
     private static String pdfText(String value) {
         if (value == null) return "";
         return value
@@ -567,15 +551,6 @@ public class GiftCardEmailService {
                 .replace("\t", " ")
                 .replaceAll("[\\p{Cntrl}&&[^\\r\\n]]", "")
                 .trim();
-    }
-
-    private static String escape(String value) {
-        if (value == null) return "";
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;");
     }
 
     private record GiftCardSettings(

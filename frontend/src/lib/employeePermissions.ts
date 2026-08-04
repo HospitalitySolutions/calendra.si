@@ -154,13 +154,6 @@ export function hasEmployeePermissionAction(
   return hasEmployeePermission(user, employeePermissionKey(group, action))
 }
 
-export function hasEmployeeViewPermission(
-  user: Pick<User, 'role' | 'permissions'> | null | undefined,
-  group: EmployeePermissionGroup,
-): boolean {
-  return hasEmployeePermissionAction(user, group, 'VIEW')
-}
-
 export function canIssueAdvanceInvoices(user: Pick<User, 'role' | 'permissions'> | null | undefined): boolean {
   return hasEmployeePermission(user, BILLING_ADVANCE_INVOICE_PERMISSION)
 }
@@ -171,8 +164,4 @@ export function canIssueOpenInvoices(user: Pick<User, 'role' | 'permissions'> | 
 
 export function canIssueRefundInvoices(user: Pick<User, 'role' | 'permissions'> | null | undefined): boolean {
   return hasEmployeePermission(user, BILLING_REFUND_PERMISSION)
-}
-
-export function canScanWalletEntitlements(user: Pick<User, 'role' | 'permissions'> | null | undefined): boolean {
-  return hasEmployeePermission(user, WALLET_SCANNER_PERMISSION)
 }

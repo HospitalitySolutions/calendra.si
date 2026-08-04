@@ -777,7 +777,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [calendarIsSwiping, setCalendarIsSwiping] = useState(false)
   const [swipeTransitionActive, setSwipeTransitionActive] = useState(false)
   const [calendarToolbarTitle, setCalendarToolbarTitle] = useState('')
-  const calendarToolbarTitleRef = useRef('')
   const swipeHandlersRef = useRef<{ move: Function | null; end: Function | null }>({ move: null, end: null })
   const swipeWrapRef = useRef<HTMLDivElement>(null)
   const swipeVelocityRef = useRef({ lastX: 0, lastT: 0, vx: 0 })
@@ -3984,20 +3983,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     void (availabilityIntent === 'block' ? blockAvailabilitySlot() : saveAvailabilitySlot())
   }
 
-  const deleteAvailabilitySlot = async () => {
-    if (!availabilitySelection?.slotId) return
-    setAvailabilitySaving(true)
-    setAvailabilityError(null)
-    try {
-      await api.delete(`/bookable-slots/${availabilitySelection.slotId}`)
-      await load()
-      closeAvailabilityModal()
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Failed to delete availability session.'
-      setAvailabilityError(String(msg))
-      setAvailabilitySaving(false)
-    }
-  }
 
   const setCalendarModeView = useCallback(
     (mode: 'bookings' | 'availability' | 'spaces') => {
@@ -4583,7 +4568,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return list.filter((item: any) => item.consultant?.id === effectiveConsultantFilterId)
   }
 
-  const adminConsultantFilterActive = isTenantAdmin && effectiveConsultantFilterId != null
   const selectedConsultantLabel = effectiveConsultantFilterId == null
     ? t('calendarFilterByStaffColumns')
     : effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION
@@ -4616,9 +4600,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const SLOT_MS = 15 * 60 * 1000
 
   const events = useMemo(() => {
-    const selectedIsSelf = effectiveConsultantFilterId != null && effectiveConsultantFilterId === user.id
-    const adminAll = isTenantAdmin && (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION)
-    const adminSpecificOther = isTenantAdmin && effectiveConsultantFilterId != null && effectiveConsultantFilterId !== CONSULTANT_FILTER_ALL_SESSION && effectiveConsultantFilterId !== user.id
     const personalOwnerId = (p: any) => p.consultant?.id ?? p.consultantId ?? p.ownerId ?? null
 
     const splitRangeByBlocks = (startMs: number, endMs: number, blocks: Array<{ startMs: number; endMs: number }>) => {
@@ -5518,7 +5499,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       .filter(Boolean as any)
     const todosRaw = (todosModuleEnabled ? calendarData.todos || [] : [])
       .filter((t: any) => (t.consultant?.id ?? t.consultantId ?? user.id) === user.id)
-      .filter((t: any) => {
+      .filter(() => {
         if (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION) return true
         return effectiveConsultantFilterId === user.id
       })
@@ -8450,7 +8431,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     })
   }
 
-  const saveBooking = async (skipBookedOverlapCheck = false, skipNonBookableConfirm = false, skipPersonalOverlapConfirm = false) => {
+  const saveBooking = async (skipNonBookableConfirm = false) => {
     setSaveBookingError(null)
     const currentServiceDrafts = normalizeCalendarServiceDrafts(form?.services, form?.typeId, form?.spaceId)
     const currentBookingIsAllDay = isLocalBookingAllDay(form?.startTime, form?.endTime)
@@ -9248,30 +9229,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }, { total: 0, paid: 0, pending: 0, unpaid: 0 })
   }, [paymentManagerSessionClients, paymentStatusForClient])
 
-  const bookedPaymentPayeeSummary = useMemo(() => {
-    const drafts = bookedPaymentPayeeDrafts
-    const clientNames = paymentManagerSessionClients.map((client: any) => fullName(client)).filter(Boolean)
-    const hasMultiple = drafts.length > 1
-    const first = drafts[0]
-    const sameCompany = hasMultiple && !!first && drafts.every((draft) => (
-      draft.payeeType === 'COMPANY'
-      && first.payeeType === 'COMPANY'
-      && Number(draft.companyId ?? 0) === Number(first.companyId ?? 0)
-      && Boolean(draft.customData) === Boolean(first.customData)
-      && String(draft.companyName ?? '') === String(first.companyName ?? '')
-    ))
-    const companyName = paymentManagerPayeeLinkedCompany?.name
-      || drafts.find((draft) => draft.companyName)?.companyName
-      || (locale === 'sl' ? 'Ni povezanega podjetja' : 'No linked company')
-    return {
-      clientNames,
-      mode: sameCompany ? 'shared' : 'per-client',
-      modeLabel: sameCompany
-        ? (locale === 'sl' ? 'Isto podjetje za vse' : 'Same company for all')
-        : (locale === 'sl' ? 'Za vsakega klienta posebej' : 'Per client'),
-      companyName,
-    }
-  }, [bookedPaymentPayeeDrafts, paymentManagerSessionClients, paymentManagerPayeeLinkedCompany?.name, locale])
 
   const selectedBookedPaymentPayeeLocked = useMemo(
     () => (isGroupedSingleInvoiceMode
@@ -9654,97 +9611,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
   }, [invoiceAllocationForPaymentStatus, locale, showToast])
 
-  const renderBookedPaymentDetail = useCallback((status: BookingPaymentStatus | null) => {
-    const meta = bookedPaymentMeta(status?.status)
-    const allocations = status?.allocations ?? []
-    const invoiceAllocation = invoiceAllocationForPaymentStatus(status)
-    const advanceAllocation = allocations.find((allocation) => allocation.source === 'ADVANCE')
-    const entitlementAllocation = allocations.find((allocation) => allocation.source === 'ENTITLEMENT')
-    const canCreateOpenBill = status?.status === 'UNPAID' && !status?.openBillId
-    const canUseInvoiceActions = !!invoiceAllocation?.billId && (status?.status === 'PARTIALLY_PAID' || status?.status === 'PAYMENT_PENDING' || status?.status === 'PAID')
-    const detailSourceLabel = invoiceAllocation
-      ? (locale === 'sl' ? 'Neizdani računi' : locale === 'sr' ? 'Neizdati računi' : 'Unissued invoices')
-      : advanceAllocation
-        ? (locale === 'sl' ? 'Predplačilo' : 'Advance')
-        : entitlementAllocation
-          ? (locale === 'sl' ? 'Dobroimetje' : 'Entitlement')
-          : '—'
-    return (
-      <div className="calendar-payment-detail">
-        <div className="calendar-payment-detail__header">
-          <span>{locale === 'sl' ? 'Plačilni status' : 'Payment status'}</span>
-          <strong className={`calendar-payment-inline-badge calendar-payment-inline-badge--${meta.tone}`}>{meta.label}</strong>
-        </div>
-        <div className="calendar-payment-detail__totals">
-          <span>{locale === 'sl' ? 'Znesek' : 'Amount'}: <strong>{currency(status?.sessionTotalGross ?? 0)}</strong></span>
-          <span>{locale === 'sl' ? 'Plačano' : 'Paid'}: <strong>{currency(status?.paidGross ?? 0)}</strong></span>
-          {(status?.pendingGross ?? 0) > 0 && (
-            <span>{locale === 'sl' ? 'V teku' : 'Pending'}: <strong>{currency(status?.pendingGross ?? 0)}</strong></span>
-          )}
-        </div>
-        {invoiceAllocation || advanceAllocation || entitlementAllocation ? (
-          <div className="calendar-payment-summary-card">
-            <div className="calendar-payment-summary-row">
-              <span className="calendar-payment-summary-icon" aria-hidden="true">▣</span>
-              <span>{invoiceAllocation ? (locale === 'sl' ? 'Račun:' : 'Invoice:') : advanceAllocation ? (locale === 'sl' ? 'Predplačilo:' : 'Advance:') : (locale === 'sl' ? 'Dobroimetje:' : 'Entitlement:')}</span>
-              <strong>{invoiceAllocation?.billNumber || advanceAllocation?.billNumber || entitlementAllocation?.entitlementCode || entitlementAllocation?.productName || '—'}</strong>
-            </div>
-            <div className="calendar-payment-summary-row">
-              <span className="calendar-payment-summary-icon" aria-hidden="true">▤</span>
-              <span>{locale === 'sl' ? 'Način:' : 'Method:'}</span>
-              <strong>{invoiceAllocation?.paymentMethod || advanceAllocation?.paymentMethod || entitlementAllocation?.entitlementType || '—'}</strong>
-            </div>
-            <div className="calendar-payment-summary-row">
-              <span className="calendar-payment-summary-icon" aria-hidden="true">◉</span>
-              <span>{locale === 'sl' ? 'Vir:' : 'Source:'}</span>
-              <strong>{detailSourceLabel}</strong>
-            </div>
-          </div>
-        ) : (
-          <div className="calendar-payment-empty calendar-payment-empty--info">
-            <span className="calendar-payment-summary-icon" aria-hidden="true">i</span>
-            <span>{locale === 'sl' ? 'Ni povezanega računa ali porabe dobroimetja.' : 'No linked invoice or entitlement usage.'}</span>
-          </div>
-        )}
-        {(canCreateOpenBill || canUseInvoiceActions) && (
-          <div className="calendar-payment-actions">
-            {canCreateOpenBill && (
-              <>
-                <button
-                  type="button"
-                  className="calendar-payment-action calendar-payment-action--primary"
-                  onClick={() => void createOpenBillForPaymentStatus(status)}
-                >
-                  {locale === 'sl' ? 'Ustvari odprti račun' : 'Create open invoice'}
-                </button>
-                <small>{locale === 'sl' ? 'Prikaže se samo, če odprti račun še ne obstaja.' : 'Shown only when no open invoice exists yet.'}</small>
-              </>
-            )}
-            {canUseInvoiceActions && (
-              <div className="calendar-payment-action-grid">
-                <button
-                  type="button"
-                  className="calendar-payment-action calendar-payment-action--outline"
-                  onClick={() => void openPaymentInvoicePdf(status)}
-                >
-                  <span aria-hidden="true">↗</span>
-                  {locale === 'sl' ? 'Odpri račun' : 'Open invoice'}
-                </button>
-                <button
-                  type="button"
-                  className="calendar-payment-action calendar-payment-action--soft"
-                  onClick={() => void resendPaymentInvoicePdf(status)}
-                >
-                  <span aria-hidden="true">✈</span>
-                  {locale === 'sl' ? 'Ponovno pošlji račun' : 'Resend invoice'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }, [bookedPaymentMeta, createOpenBillForPaymentStatus, invoiceAllocationForPaymentStatus, locale, openPaymentInvoicePdf, resendPaymentInvoicePdf])
 
   useEffect(() => {
     setBookedPaymentMenuOpen(false)
@@ -9881,7 +9747,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           : 'Switch status to NO SHOW? This will release the booking availability.')
       if (!window.confirm(confirmMessage)) return
     }
-    return await updateBookedSession(allowWaitlistHold, allowWaitlistHold, allowWaitlistHold, targetStatus)
+    return await updateBookedSession(allowWaitlistHold, targetStatus)
   }
 
   const closePersonalModal = () => {
@@ -10028,8 +9894,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }, [useBookingSidePanel, form?.startTime, form?.endTime, bookingsUseResourceColumns, spacesUseResourceColumns]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateBookedSession = async (
-    skipPersonalOverlapConfirm = false,
-    allowPersonalBlockOverlap = false,
     skipNonBookableConfirm = false,
     bookingStatusOverride?: StoredBookingStatus,
   ) => {
@@ -11086,7 +10950,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       await performEditNonBookableUpdate(c.editPayload)
       return
     }
-    await saveBooking(false, true)
+    await saveBooking(true)
   }
 
   const confirmBookedPersonalOverlapYes = async () => {
@@ -11094,11 +10958,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     if (!c) return
     setConfirmBookedPersonalOverlap(null)
     if (c.type === 'create') {
-      await saveBooking(false, false, true)
+      await saveBooking()
       return
     }
     if (c.type === 'edit') {
-      await updateBookedSession(true, true)
+      await updateBookedSession()
       return
     }
     const moveSpaceId = c.type === 'move' ? c.spaceIdOverride : undefined
@@ -12114,7 +11978,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       event.stopImmediatePropagation()
 
       if (selection) {
-        void (availabilitySelection != null ? confirmAvailabilityFromHeader() : saveBooking(false))
+        void (availabilitySelection != null ? confirmAvailabilityFromHeader() : saveBooking())
         return
       }
       if (selectedBookedSession) {

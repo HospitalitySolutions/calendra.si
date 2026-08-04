@@ -248,11 +248,6 @@ final class ModernA4InvoicePdfRenderer {
         }
     }
 
-    private void drawMeta(State state, float x, float y, float width, String label, String value) throws IOException {
-        state.text(state.fonts.regular, state.theme.small, x, y + state.theme.small, label, MUTED);
-        state.text(state.fonts.bold, state.theme.base, x, y + state.theme.small + state.theme.line, fitText(state.fonts.bold, state.theme.base, width, value), TEXT);
-    }
-
     private void drawRecipient(State state, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
         float pad = state.theme.pad;
         float baseline = sectionTitle(state, recipientLabel(state.locale), x, y, width);
@@ -1261,10 +1256,6 @@ final class ModernA4InvoicePdfRenderer {
         return Set.of("MINIMAL", "CLASSIC", "COMPACT").contains(template);
     }
 
-    private static boolean isMinimal(FolioLayoutConfig layout) {
-        return "MINIMAL".equals(safe(layout.getTemplateId()).toUpperCase(Locale.ROOT));
-    }
-
     private static String normalizeLocale(String locale) {
         String value = safe(locale).toLowerCase(Locale.ROOT);
         if (value.startsWith("sl")) return "sl";
@@ -1292,7 +1283,6 @@ final class ModernA4InvoicePdfRenderer {
     private static String descriptionLabel(String locale) { return "en".equals(locale) ? "Description" : "Opis"; }
     private static String quantityLabel(String locale) { return "sl".equals(locale) ? "Količina" : "sr".equals(locale) ? "Količina" : "Quantity"; }
     private static String priceExVatLabel(String locale) { return "sl".equals(locale) ? "Cena brez DDV" : "sr".equals(locale) ? "Cena bez PDV-a" : "Price excl. VAT"; }
-    private static String amountExVatLabel(String locale) { return "sl".equals(locale) ? "Znesek brez DDV" : "sr".equals(locale) ? "Iznos bez PDV-a" : "Amount excl. VAT"; }
     private static String discountColumnLabel(String locale) { return "sl".equals(locale) ? "Popust" : "sr".equals(locale) ? "Popust" : "Discount"; }
     private static String grossTotalColumnLabel(String locale) { return "sl".equals(locale) ? "Skupaj z DDV" : "sr".equals(locale) ? "Ukupno sa PDV-om" : "Total incl. VAT"; }
     private static String scanPayLabel(String locale) { return "sl".equals(locale) ? "Skeniraj in plačaj" : "sr".equals(locale) ? "Skeniraj i plati" : "Scan and pay"; }

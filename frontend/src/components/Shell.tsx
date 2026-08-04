@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
-import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
+import { clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
 import { useLocale } from '../locale'
 import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
@@ -314,7 +314,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
-  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const [] = useState<ThemeMode>(() => getStoredTheme())
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(true)
@@ -610,15 +610,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     }
   }
 
-  const setLightMode = () => {
-    applyTheme('light')
-    setTheme('light')
-  }
 
-  const setDarkMode = () => {
-    applyTheme('dark')
-    setTheme('dark')
-  }
 
   const logout = async () => {
     try {

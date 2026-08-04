@@ -1,6 +1,5 @@
 package com.example.app.zoom;
 
-import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;

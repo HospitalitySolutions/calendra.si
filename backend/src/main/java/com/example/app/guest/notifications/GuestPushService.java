@@ -4,7 +4,6 @@ import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
-import com.example.app.guest.model.GuestDevicePlatform;
 import com.example.app.guest.model.GuestDeviceToken;
 import com.example.app.guest.model.GuestDeviceTokenRepository;
 import com.example.app.guest.model.GuestUser;

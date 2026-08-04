@@ -229,20 +229,6 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         response.sendRedirect(url);
     }
 
-    private String buildRegisterAccountVerifyUrl(String returnSearch, String verifyEmail, String challengeId) {
-        String base = frontendBaseUrl() + "/register/account";
-        String rs = returnSearch == null ? "" : returnSearch.trim();
-        if (!rs.isEmpty() && !rs.startsWith("?")) {
-            rs = "?" + rs;
-        }
-        String sep = rs.contains("?") ? "&" : "?";
-        String out = base + rs + sep + "verifyEmail=1&email=" + URLEncoder.encode(verifyEmail, StandardCharsets.UTF_8);
-        if (challengeId != null && !challengeId.isBlank()) {
-            out += "&challengeId=" + URLEncoder.encode(challengeId, StandardCharsets.UTF_8);
-        }
-        return out;
-    }
-
     private String buildRegisterAccountFinishVerifyUrl(String returnSearch, String verifyEmail) {
         String base = frontendBaseUrl() + "/register/account";
         String rs = returnSearch == null ? "" : returnSearch.trim();

@@ -144,16 +144,6 @@ public class FiscalController {
     public void deleteCertificate(@AuthenticationPrincipal User me) {
         certificates.deleteByCompanyId(me.getCompany().getId());
     }
-
-    @PostMapping("/invoices/{billId}/retry")
-    @Transactional
-    public FiscalInvoiceStatusResponse retryInvoice(@PathVariable Long billId, @AuthenticationPrincipal User me) {
-        var bill = bills.findByIdAndCompanyId(billId, me.getCompany().getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        var updated = fiscalizationService.fiscalizeBill(bill, me.getCompany().getId());
-        return toStatus(updated);
-    }
-
     @GetMapping("/invoices/{billId}/status")
     @Transactional(readOnly = true)
     public FiscalInvoiceStatusResponse invoiceStatus(@PathVariable Long billId, @AuthenticationPrincipal User me) {

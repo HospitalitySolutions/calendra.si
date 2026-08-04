@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -1273,12 +1272,6 @@ public class WaitlistService {
                 && session.getType() != null
                 && Objects.equals(session.getType().getId(), service.getId());
         if (sameServiceSession) validateGroupCapacity(request, service, session, releasedSlot);
-    }
-
-    private boolean isInsideWorkingSlot(Long companyId, Long employeeId, LocalDateTime start, LocalDateTime busyEnd) {
-        var slots = bookableSlots.findAllForWidgetByCompanyIdAndDate(companyId, start.getDayOfWeek(), start.toLocalDate(), employeeId);
-        if (slots.isEmpty()) return false;
-        return slots.stream().anyMatch(slot -> !start.toLocalTime().isBefore(slot.getStartTime()) && !busyEnd.toLocalTime().isAfter(slot.getEndTime()));
     }
 
     private void validateGroupCapacity(WaitlistRequest request, SessionType service, SessionBooking session, boolean releasedSlot) {

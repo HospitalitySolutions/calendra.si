@@ -581,7 +581,6 @@ function BunnyCoursePlayer({
 function AudioCoursePlayer({
   src,
   startSeconds,
-  durationSeconds,
   onProgress,
   loadingLabel: _loadingLabel,
 }: {

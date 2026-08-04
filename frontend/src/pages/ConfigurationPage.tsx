@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuthenticatedUser } from "../authUserContext";
@@ -16,12 +16,9 @@ import {
 import {
   Card,
   EmptyState,
-  Field,
-  PageHeader,
-  SectionTitle,
 } from "../components/ui";
 import { useToast } from "../components/Toast";
-import { currency, formatDate } from "../lib/format";
+import { formatDate } from "../lib/format";
 import {
   ConfigurationViberSection,
   ConfigurationWhatsAppSection,
@@ -80,7 +77,6 @@ import { hasAnyEmployeePermission, hasEmployeePermission } from "../lib/employee
 import {
   companyProfileFromSettings,
   companyProfileToSettings,
-  createCompanyProfileId,
   loadCompanyProfilesFromSettings,
   sanitizeCompanyProfile,
   type CompanyProfileForm,
@@ -102,7 +98,6 @@ import {
   type AccountPlanDetailsFeature,
   type AccountPlanPackageKey,
   type AccountRegisterCatalog,
-  type AccountRegisterPlanKey,
   type AccountSubscriptionInterval,
   type AccountUserResponse,
 } from "./configuration/accountCatalog";
@@ -146,10 +141,7 @@ import type {
   GuestAppSubtab,
   GuestBookingRulesForm,
   GuestPaymentMethodId,
-  StripeConnectAccountStatus,
-  StripeConnectMode,
   StripeConnectTenantStatus,
-  TenantConfigType,
   WebsiteBookingRulesForm,
   WebsiteWidgetSettingsForm
 } from "./configuration/guestWebsiteSettings";
@@ -911,14 +903,6 @@ const toTimeInputValue = (value: string | undefined, fallback: string) => {
   return fallback;
 };
 
-function spaceListInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2)
-    return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
-  const s = name.trim();
-  if (s.length >= 2) return s.slice(0, 2).toUpperCase();
-  return (s.charAt(0) || "S").toUpperCase();
-}
 const WORKING_HOURS_FALLBACK_KEY = "workingHoursFallback";
 const getWorkingHoursFallback = () => {
   try {
@@ -1054,8 +1038,8 @@ export function ConfigurationPage() {
   const [accountRegisterCatalog, setAccountRegisterCatalog] =
     useState<AccountRegisterCatalog>(DEFAULT_ACCOUNT_REGISTER_CATALOG);
   const [tenantUsersCount, setTenantUsersCount] = useState(1);
-  const [extraUsersAddonEnabled, setExtraUsersAddonEnabled] = useState(true);
-  const [smsAddonEnabled, setSmsAddonEnabled] = useState(true);
+  const [] = useState(true);
+  const [] = useState(true);
   const [extraUsersCount, setExtraUsersCount] = useState(5);
   const [smsPackCount, setSmsPackCount] = useState(0);
   const [currentCycleUserAddCount, setCurrentCycleUserAddCount] = useState(0);
@@ -1175,12 +1159,12 @@ export function ConfigurationPage() {
   const [personalTaskPresets, setPersonalTaskPresets] = useState<
     PersonalTaskPreset[]
   >([]);
-  const [showTaskPresetModal, setShowTaskPresetModal] = useState(false);
-  const [editingTaskPresetId, setEditingTaskPresetId] = useState<string | null>(
+  const [] = useState(false);
+  const [] = useState<string | null>(
     null,
   );
-  const [savingTaskPreset, setSavingTaskPreset] = useState(false);
-  const [taskPresetForm, setTaskPresetForm] = useState<{
+  const [] = useState(false);
+  const [] = useState<{
     name: string;
     color: string;
   }>({ name: "", color: DEFAULT_PERSONAL_TASK_COLOR });
@@ -1214,7 +1198,7 @@ export function ConfigurationPage() {
   const [registeringPremiseId, setRegisteringPremiseId] = useState<
     string | null
   >(null);
-  const [premisePickerOpen, setPremisePickerOpen] = useState(false);
+  const [] = useState(false);
   const [inboxGlobalCapabilities, setInboxGlobalCapabilities] =
     useState<InboxGlobalCapabilities>({
       whatsappEnabled: false,
@@ -2413,32 +2397,7 @@ export function ConfigurationPage() {
     );
   };
 
-  const selectCompanyProfile = (profileId: string) => {
-    const profile = companyProfiles.find((entry) => entry.id === profileId);
-    if (!profile) return;
-    setSelectedCompanyProfileId(profile.id);
-    setCompanyProfileMenuOpenId(null);
-    setSettings((prev) =>
-      companyProfileToSettings(prev, profile, companyProfiles),
-    );
-  };
 
-  const addCompanyProfile = () => {
-    const nextProfile = sanitizeCompanyProfile({
-      id: createCompanyProfileId(),
-      name: "",
-      bankQrPurposeCode: "OTHR",
-      bankQrPurposeText: "PLACILO FOLIA",
-      isDefault: companyProfiles.length === 0,
-    });
-    const nextProfiles = [...companyProfiles, nextProfile];
-    setCompanyProfiles(nextProfiles);
-    setSelectedCompanyProfileId(nextProfile.id);
-    setCompanyProfileMenuOpenId(null);
-    setSettings((prev) =>
-      companyProfileToSettings(prev, nextProfile, nextProfiles),
-    );
-  };
 
   const setDefaultCompanyProfile = (profileId: string) => {
     const nextProfiles = companyProfiles.map((profile) => ({
@@ -2457,42 +2416,6 @@ export function ConfigurationPage() {
     );
   };
 
-  const deleteCompanyProfile = (profileId: string) => {
-    const target = companyProfiles.find((profile) => profile.id === profileId);
-    if (!target) return;
-    if (companyProfiles.length <= 1) {
-      window.alert("Zadnjega profila ni mogoče izbrisati.");
-      return;
-    }
-    if (
-      !window.confirm(`Izbrišem profil "${target.name || "Profil podjetja"}"?`)
-    )
-      return;
-    let nextProfiles = companyProfiles.filter(
-      (profile) => profile.id !== profileId,
-    );
-    if (
-      !nextProfiles.some((profile) => profile.isDefault) &&
-      nextProfiles.length > 0
-    ) {
-      const fallbackDefaultId = nextProfiles[0].id;
-      nextProfiles = nextProfiles.map((profile) => ({
-        ...profile,
-        isDefault: profile.id === fallbackDefaultId,
-      }));
-    }
-    const nextSelected =
-      nextProfiles.find((profile) => profile.id === selectedCompanyProfileId) ||
-      nextProfiles.find((profile) => profile.isDefault) ||
-      nextProfiles[0];
-    if (!nextSelected) return;
-    setCompanyProfiles(nextProfiles);
-    setSelectedCompanyProfileId(nextSelected.id);
-    setCompanyProfileMenuOpenId(null);
-    setSettings((prev) =>
-      companyProfileToSettings(prev, nextSelected, nextProfiles),
-    );
-  };
 
   const setCompanyTenantType = (rawValue: string) => {
     const nextType = normalizeTenantConfigType(rawValue);
@@ -4074,111 +3997,10 @@ export function ConfigurationPage() {
     }
   };
 
-  const saveTaskPresets = async (nextPresets: PersonalTaskPreset[]) => {
-    const normalizedStart = toTimeInputValue(
-      settings.WORKING_HOURS_START,
-      "05:00",
-    );
-    const normalizedEnd = toTimeInputValue(settings.WORKING_HOURS_END, "23:00");
-    const payload = {
-      ...settings,
-      WORKING_HOURS_START: normalizedStart,
-      WORKING_HOURS_END: normalizedEnd,
-      [PERSONAL_TASK_PRESETS_KEY]: serializePersonalTaskPresets(nextPresets),
-      [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(guestAppSettings),
-      [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(guestBookingRules),
-    };
-    const { data } = await api.put("/settings", payload);
-    const responseHasPresets = Object.prototype.hasOwnProperty.call(
-      data || {},
-      PERSONAL_TASK_PRESETS_KEY,
-    );
-    const persistedPresetsRaw = responseHasPresets
-      ? data?.[PERSONAL_TASK_PRESETS_KEY]
-      : payload[PERSONAL_TASK_PRESETS_KEY];
-    setSettings({
-      ...payload,
-      ...data,
-      WORKING_HOURS_START: data?.WORKING_HOURS_START || normalizedStart,
-      WORKING_HOURS_END: data?.WORKING_HOURS_END || normalizedEnd,
-      [PERSONAL_TASK_PRESETS_KEY]: String(persistedPresetsRaw || ""),
-    });
-    const parsed = parsePersonalTaskPresets(String(persistedPresetsRaw || ""));
-    setPersonalTaskPresets(
-      parsed.length > 0 || nextPresets.length === 0 ? parsed : nextPresets,
-    );
-    window.dispatchEvent(new Event("settings-updated"));
-    showToast("success", t("configConfigurationSaved"));
-  };
 
-  const openNewTaskPresetModal = () => {
-    setEditingTaskPresetId(null);
-    setTaskPresetForm({ name: "", color: DEFAULT_PERSONAL_TASK_COLOR });
-    setShowTaskPresetModal(true);
-  };
 
-  const openEditTaskPresetModal = (preset: PersonalTaskPreset) => {
-    setEditingTaskPresetId(preset.id);
-    setTaskPresetForm({
-      name: preset.name,
-      color: normalizeHexColor(preset.color),
-    });
-    setShowTaskPresetModal(true);
-  };
 
-  const submitTaskPreset = async (e: FormEvent) => {
-    e.preventDefault();
-    const name = taskPresetForm.name.trim();
-    if (!name) return;
-    const color = normalizeHexColor(taskPresetForm.color);
-    const duplicate = personalTaskPresets.find(
-      (p) =>
-        p.name.toLowerCase() === name.toLowerCase() &&
-        p.id !== editingTaskPresetId,
-    );
-    if (duplicate) {
-      window.alert("A task preset with this name already exists.");
-      return;
-    }
-    const next = editingTaskPresetId
-      ? personalTaskPresets.map((p) =>
-          p.id === editingTaskPresetId ? { ...p, name, color } : p,
-        )
-      : [
-          ...personalTaskPresets,
-          { id: `${Date.now()}-${Math.random()}`, name, color },
-        ];
-    setSavingTaskPreset(true);
-    try {
-      await saveTaskPresets(next);
-      setShowTaskPresetModal(false);
-      setEditingTaskPresetId(null);
-      setTaskPresetForm({ name: "", color: DEFAULT_PERSONAL_TASK_COLOR });
-    } catch (e: any) {
-      window.alert(
-        e?.response?.data?.message ||
-          "Failed to save predefined personal task.",
-      );
-    } finally {
-      setSavingTaskPreset(false);
-    }
-  };
 
-  const deleteTaskPreset = async (id: string) => {
-    if (!window.confirm("Delete this predefined personal task?")) return;
-    const next = personalTaskPresets.filter((p) => p.id !== id);
-    setSavingTaskPreset(true);
-    try {
-      await saveTaskPresets(next);
-    } catch (e: any) {
-      window.alert(
-        e?.response?.data?.message ||
-          "Failed to delete predefined personal task.",
-      );
-    } finally {
-      setSavingTaskPreset(false);
-    }
-  };
 
   const saveEditedSpace = async (spaceId: number) => {
     if (!canViewConfiguration) return;
@@ -5068,17 +4890,6 @@ export function ConfigurationPage() {
   const moduleOn = (key: ModulesStringKey) =>
     moduleDraftForDesign[key] === "true";
   const moduleBool = (key: ModulesBooleanKey) => moduleDraftForDesign[key];
-  const setModuleConfigType = (value: TenantConfigType) => {
-    setModulesDraft((prev) => {
-      const d =
-        prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings);
-      return applyModuleConfigPreset(
-        d,
-        value,
-        settings.SIGNUP_PACKAGE_NAME || me.packageType,
-      );
-    });
-  };
   const toggleExpandedModuleRow = (id: string) => {
     setExpandedModuleRows((prev) =>
       prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id],
@@ -10503,7 +10314,7 @@ export function ConfigurationPage() {
                                   Za izbrano iskanje ni rezultatov.
                                 </div>
                               ) : null}
-                              {newSpaceDrafts.map((draft, index) => (
+                              {newSpaceDrafts.map((draft) => (
                                 <article
                                   key={draft.tempId}
                                   className="booking-space-card"

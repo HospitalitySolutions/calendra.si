@@ -24,7 +24,6 @@ import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.settings.TenantReservationRulesService;
-import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -789,18 +788,6 @@ public class GuestCatalogService {
                 tenantZoneId(companyId),
                 timeService.localDateTime(tenantZoneId(companyId))
         );
-    }
-
-    private boolean isGuestSlotStartInFuture(Long companyId, LocalDate date, LocalDateTime slotStart) {
-        ZoneId effectiveZone = tenantZoneId(companyId);
-        LocalDate today = timeService.localDate(effectiveZone);
-        if (date.isBefore(today)) {
-            return false;
-        }
-        if (date.isAfter(today)) {
-            return true;
-        }
-        return slotStart.isAfter(timeService.localDateTime(effectiveZone));
     }
 
     private String tenantCurrency(Long companyId) {

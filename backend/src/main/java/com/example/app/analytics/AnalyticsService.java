@@ -17,7 +17,6 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionService;
 import com.example.app.session.SessionServiceSupport;
-import com.example.app.session.SessionType;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import com.example.app.waitlist.WaitlistOffer;
@@ -1527,10 +1526,6 @@ public class AnalyticsService {
             }
             default -> new DateRange(today.minusDays(29), today);
         };
-    }
-
-    private boolean isInDateRange(LocalDate d, DateRange range) {
-        return !(d.isBefore(range.from()) || d.isAfter(range.to()));
     }
 
     private Long resolveConsultantFilter(User me, Long consultantIdParam) {

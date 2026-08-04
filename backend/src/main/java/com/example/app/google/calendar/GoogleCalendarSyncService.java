@@ -855,10 +855,6 @@ public class GoogleCalendarSyncService {
         links.save(link);
     }
 
-    private boolean isGoogleTaskDeletedOrCompleted(JsonNode task) {
-        return task.path("deleted").asBoolean(false) || "completed".equalsIgnoreCase(task.path("status").asText(null));
-    }
-
     private LocalDateTime startFromGoogleTask(JsonNode task) {
         return startFromGoogleTask(task, null);
     }

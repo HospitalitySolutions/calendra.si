@@ -76,27 +76,3 @@ export function windowToDayMs(
     endMs: base + endMin * 60_000,
   }
 }
-
-/** Clip [segStart, segEnd] to consultant working window; drops if no overlap. */
-export function clipSegmentToConsultantWindow(
-  segStartMs: number,
-  segEndMs: number,
-  year: number,
-  month0: number,
-  day: number,
-  consultantId: number | null | undefined,
-  users: any[],
-  fallbackStartMin: number,
-  fallbackEndMin: number,
-): Array<{ startMs: number; endMs: number }> {
-  const w = consultantDayWindow(year, month0, day, consultantId, users, fallbackStartMin, fallbackEndMin)
-  if (w == null) {
-    return segEndMs > segStartMs ? [{ startMs: segStartMs, endMs: segEndMs }] : []
-  }
-  if (w.closed) return []
-  const { startMs, endMs } = windowToDayMs(year, month0, day, w.startMin, w.endMin)
-  const s = Math.max(segStartMs, startMs)
-  const e = Math.min(segEndMs, endMs)
-  if (e <= s) return []
-  return [{ startMs: s, endMs: e }]
-}

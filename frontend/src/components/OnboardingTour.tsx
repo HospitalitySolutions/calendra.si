@@ -41,7 +41,6 @@ type OnboardingTourProps = {
 }
 
 function buildSteps({
-  user,
   billingModuleEnabled,
   inboxModuleEnabled,
   servicesModuleEnabled,

@@ -1147,14 +1147,6 @@ public class PublicBookingWidgetService {
         );
     }
 
-    private List<SessionBooking> loadGroupedRows(SessionBooking booking, Long companyId) {
-        List<SessionBooking> rows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKeyOf(booking), companyId);
-        if (rows == null || rows.isEmpty()) {
-            return List.of(booking);
-        }
-        return rows;
-    }
-
     private String groupKeyOf(SessionBooking booking) {
         if (booking.getBookingGroupKey() != null && !booking.getBookingGroupKey().isBlank()) {
             return booking.getBookingGroupKey();
@@ -1442,17 +1434,6 @@ public class PublicBookingWidgetService {
                 cfg.zoneId(),
                 timeService.localDateTime(cfg.zoneId())
         );
-    }
-
-    private boolean isWidgetSlotStartInFuture(LocalDate date, LocalDateTime slotStart, ZoneId zoneId) {
-        LocalDate today = timeService.localDate(zoneId);
-        if (date.isBefore(today)) {
-            return false;
-        }
-        if (date.isAfter(today)) {
-            return true;
-        }
-        return slotStart.isAfter(timeService.localDateTime(zoneId));
     }
 
     private boolean isActuallyBookable(
@@ -2271,10 +2252,6 @@ public class PublicBookingWidgetService {
         if (left.isBlank()) return right.isBlank() ? null : right;
         if (right.isBlank()) return left;
         return left + " " + right;
-    }
-
-    private ZoneId tenantZoneId(Long companyId) {
-        return widgetZoneId;
     }
 
     private int parseInteger(String value, int fallback) {

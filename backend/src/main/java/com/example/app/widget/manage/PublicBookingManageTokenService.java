@@ -1,6 +1,5 @@
 package com.example.app.widget.manage;
 
-import com.example.app.company.Company;
 import com.example.app.session.SessionBooking;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

@@ -1425,32 +1425,6 @@ public class SessionBookingCreationService {
         return List.copyOf(ids);
     }
 
-    private int getRequestedBreakMinutes(Long companyId, Long typeId) {
-        if (typeId == null) return 0;
-        var type = types.findById(typeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type"));
-        if (!type.getCompany().getId().equals(companyId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type for this company");
-        }
-        if (!type.isActive()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is inactive.");
-        }
-        return Math.max(0, type.getBreakMinutes() != null ? type.getBreakMinutes() : 0);
-    }
-
-    private static LocalDateTime effectiveEnd(LocalDateTime end, int breakMinutes) {
-        return breakMinutes > 0 ? end.plusMinutes(breakMinutes) : end;
-    }
-
-    private static LocalDateTime effectiveEnd(SessionBooking booking) {
-        LocalDateTime availabilityEnd = SessionServiceSupport.availabilityEnd(booking);
-        return availabilityEnd != null ? availabilityEnd : booking.getEndTime();
-    }
-
-    private static boolean intervalsOverlap(LocalDateTime startA, LocalDateTime endA, LocalDateTime startB, LocalDateTime endB) {
-        return startA.isBefore(endB) && endA.isAfter(startB);
-    }
-
     public static List<Long> bookingExcludeIds(Long excludeId) {
         return excludeId == null ? List.of(EXCLUDE_NONE_SENTINEL) : List.of(excludeId);
     }
@@ -1755,39 +1729,6 @@ public class SessionBookingCreationService {
             return;
         }
         guestEntitlementService.maybeRestoreCreditForBooking(booking);
-    }
-
-    private void validateTypeParticipantLimit(Long typeId, Long companyId, int participantCount) {
-        if (typeId == null) return;
-        var type = types.findById(typeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type"));
-        if (!type.getCompany().getId().equals(companyId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type for this company");
-        }
-        if (!type.isActive()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is inactive.");
-        }
-        Integer maxParticipants = type.getMaxParticipantsPerSession();
-        if (maxParticipants == null) return;
-        if (participantCount > maxParticipants) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "This service type allows at most " + maxParticipants + " participants per session.");
-        }
-    }
-
-    private void validateGroupBookingServiceType(Long typeId, Long companyId, boolean groupSession) {
-        if (!groupSession || typeId == null) return;
-        var type = types.findById(typeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type"));
-        if (!type.getCompany().getId().equals(companyId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid type for this company");
-        }
-        if (!type.isActive()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is inactive.");
-        }
-        if (!type.isGroupBookingEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type is not enabled for group bookings.");
-        }
     }
 
     private void validateGroupSessionJoinCapacity(SessionType type, List<SessionBooking> existingRows, Client joiningClient) {

@@ -131,17 +131,3 @@ export function getEstimatedUserCount(selection: RegisterSelection) {
 export function getBillingInterval(selection: RegisterSelection) {
   return selection.billing === 'annual' ? 'YEARLY' : 'MONTHLY'
 }
-
-/** Build OTP verification return path for account setup with plan params preserved. */
-export function buildPostProvisionVerifyPath(email: string, returnSearch: string | null | undefined, challengeId?: string) {
-  const rs = (returnSearch ?? '').trim()
-  const q = new URLSearchParams(rs.replace(/^\?/, ''))
-  q.set('verifyEmail', '1')
-  q.set('email', email)
-  if (challengeId) q.set('challengeId', challengeId)
-  else q.delete('challengeId')
-  q.delete('pendingAccountCreation')
-  q.delete('finishVerify')
-  q.delete('existingAccount')
-  return `/register/account?${q.toString()}`
-}

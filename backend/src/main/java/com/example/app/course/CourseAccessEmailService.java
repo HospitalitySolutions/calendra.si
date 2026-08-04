@@ -1,7 +1,6 @@
 package com.example.app.course;
 
 import com.example.app.guest.model.GuestEntitlement;
-import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.model.GuestProduct;

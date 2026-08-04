@@ -13,7 +13,6 @@ import java.util.Locale;
 import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Getter
 @Setter

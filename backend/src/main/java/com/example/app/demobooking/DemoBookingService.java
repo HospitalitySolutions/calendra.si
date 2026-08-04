@@ -19,7 +19,6 @@ import com.example.app.client.ClientRepository;
 import com.example.app.google.GoogleMeetService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBookingRealtimeService;
-import com.example.app.session.PersonalCalendarBlock;
 import com.example.app.session.PersonalCalendarBlockRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;

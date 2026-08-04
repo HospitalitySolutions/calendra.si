@@ -135,17 +135,6 @@ export function helpTitle(t: (key: string) => string, id: string): string {
   return e ? t(e.titleKey) : ''
 }
 
-export function helpTooltip(t: (key: string) => string, id: string): string {
-  const e = HELP_BY_ID[id]
-  return e ? t(e.tooltipKey) : ''
-}
-
-export function helpAria(t: (key: string) => string, id: string): string {
-  const e = HELP_BY_ID[id]
-  if (!e) return ''
-  return e.ariaKey ? t(e.ariaKey) : t(e.tooltipKey)
-}
-
 /** Matches `renderBookingModeTitle` mode selection on the calendar. */
 export function calendarBookingPanelHelpId(state: {
   hasAvailabilitySelection: boolean

@@ -9,14 +9,9 @@ import { api } from '../api'
  * offset is ~0 and {@link nowMs} behaves like {@code Date.now()}.
  */
 let offsetMs = 0
-let simulated = false
 
 export function nowMs(): number {
   return Date.now() + offsetMs
-}
-
-export function isClockSimulated(): boolean {
-  return simulated
 }
 
 export async function refreshClock(): Promise<void> {
@@ -25,7 +20,6 @@ export async function refreshClock(): Promise<void> {
     const serverEpoch = Number(res?.data?.epochMillis)
     if (Number.isFinite(serverEpoch)) {
       offsetMs = serverEpoch - Date.now()
-      simulated = Boolean(res?.data?.simulated)
     }
   } catch {
     // Keep the previous offset on transient failures; falls back to real time on first failure.

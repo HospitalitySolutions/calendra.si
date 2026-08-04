@@ -1,4 +1,3 @@
-const textEncoder = new TextEncoder()
 
 function padBase64(input: string) {
   const pad = input.length % 4

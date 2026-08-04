@@ -9,7 +9,6 @@ import com.example.app.session.SessionBillingSupport;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionPriceCalculationMode;
-import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
@@ -19,7 +18,6 @@ import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -1154,10 +1152,6 @@ public class OpenBillSyncService {
                 .filter(row -> !SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())))
                 .findFirst()
                 .orElse(session);
-    }
-
-    private Long billingSourceSessionIdForPriceMode(SessionBooking session) {
-        return session == null ? null : session.getId();
     }
 
     private boolean isTotalPriceCalculation(SessionBooking session) {

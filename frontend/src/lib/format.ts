@@ -1,20 +1,6 @@
 export const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString() : '—'
 export const formatDateTime = (value?: string) => value ? new Date(value).toLocaleString() : '—'
-export const formatTime = (value?: string) => {
-  if (!value) return '—'
-  const t = value.includes('T') ? value.split('T')[1] : value
-  return t ? t.slice(0, 5) : '—'
-}
 export const fullName = (person?: { firstName?: string; lastName?: string }) => person ? `${person.firstName ?? ''} ${person.lastName ?? ''}`.trim() : '—'
-
-/** "Last, first" when both are present; otherwise the single available part (for calendar labels on wide screens). */
-export const nameLastFirst = (person?: { firstName?: string; lastName?: string }) => {
-  if (!person) return '—'
-  const fn = (person.firstName ?? '').trim()
-  const ln = (person.lastName ?? '').trim()
-  if (ln && fn) return `${ln}, ${fn}`
-  return ln || fn || '—'
-}
 
 /**
  * Split a single display string into stored first/last name: first word → firstName, remainder → lastName;

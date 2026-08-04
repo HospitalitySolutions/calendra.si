@@ -50,7 +50,6 @@ import {
   plansForLocale,
   type RegisterLocale,
   type RegisterPlanPageCopy,
-  type RegisterSummary,
 } from "./registerPlanCopy";
 
 export type { RegisterSummary } from "./registerPlanCopy";

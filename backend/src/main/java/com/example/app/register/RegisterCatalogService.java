@@ -421,13 +421,6 @@ public class RegisterCatalogService {
         return v >= 0 && v <= MAX_PRICE;
     }
 
-    private static boolean isValidPercent(Double v) {
-        if (v == null || v.isNaN() || v.isInfinite()) {
-            return false;
-        }
-        return v >= 0 && v <= 100.0;
-    }
-
     private static double firstValidAmount(Double first, Double second, Double third, double fallback) {
         if (isValidAmount(first)) return first;
         if (isValidAmount(second)) return second;

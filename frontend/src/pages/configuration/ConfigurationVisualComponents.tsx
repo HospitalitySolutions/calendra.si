@@ -554,25 +554,6 @@ export function GuestCopyIcon() {
   );
 }
 
-export function GuestLinkIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.5 4.43" />
-      <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.33-1.33" />
-    </svg>
-  );
-}
-
 export function GuestEyeIcon() {
   return (
     <svg
@@ -608,103 +589,6 @@ export function GuestInfoIcon() {
       <circle cx="12" cy="12" r="10" />
       <path d="M12 16v-4" />
       <path d="M12 8h.01" />
-    </svg>
-  );
-}
-
-export function GuestShieldIcon() {
-  return (
-    <svg
-      width="38"
-      height="38"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
-  );
-}
-
-export function GuestPaymentMethodIcon({ kind }: { kind: string }) {
-  if (kind === "online_card") {
-    return (
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <circle cx="12" cy="12" r="10" />
-        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20" />
-      </svg>
-    );
-  }
-  if (kind === "paypal") {
-    return (
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M7 21l1.5-9h4a4 4 0 0 0 0-8H8L5 21" />
-        <path d="M9.5 17h3.2a4 4 0 0 0 4-3.4l.1-.6a3 3 0 0 0-3-3.5H10" />
-      </svg>
-    );
-  }
-  if (kind === "bank_transfer") {
-    return (
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M3 10h18" />
-        <path d="M5 10V8l7-4 7 4v2" />
-        <path d="M6 10v7M10 10v7M14 10v7M18 10v7" />
-        <path d="M4 21h16M3 17h18" />
-      </svg>
-    );
-  }
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <polyline points="20 12 20 22 4 22 4 12" />
-      <rect x="2" y="7" width="20" height="5" />
-      <path d="M12 22V7" />
-      <path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Z" />
-      <path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z" />
     </svg>
   );
 }

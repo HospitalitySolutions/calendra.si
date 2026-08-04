@@ -19,8 +19,6 @@ import com.example.app.files.ClientFileUploadPolicy;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
-import com.example.app.user.Role;
-import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalMessagingProviderService;
 import com.example.app.settings.SettingKey;

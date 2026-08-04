@@ -26,10 +26,8 @@ import {
   Card,
   EmptyState,
   Field,
-  PageHeader,
-  SectionTitle,
 } from "../components/ui";
-import { currency, formatDate } from "../lib/format";
+import { currency } from "../lib/format";
 import { useLocale, type AppLocale } from "../locale";
 import {
   GUEST_APP_SETTINGS_KEY,
@@ -396,10 +394,6 @@ function guestLimitUserEmailsTextFromApi(emails?: string[] | null): string {
     : "";
 }
 
-function guestLimitUserEmailsCountLabel(count: number): string {
-  if (!count) return "—";
-  return `${count} email${count === 1 ? "" : "s"}`;
-}
 
 function clientFullName(
   client: Pick<Client, "firstName" | "lastName" | "email">,
@@ -462,40 +456,9 @@ function serializeSingleTransactionServiceId(id: number | null): string {
   return Number.isInteger(id) && Number(id) > 0 ? String(id) : "";
 }
 
-function slovenianStoritevCount(count: number): string {
-  const n = Math.abs(count) % 100;
-  const last = n % 10;
-  if (n >= 11 && n <= 14) return `${count} storitev`;
-  if (last === 1) return `${count} storitev`;
-  if (last === 2) return `${count} storitvi`;
-  if (last === 3 || last === 4) return `${count} storitve`;
-  return `${count} storitev`;
-}
 
-function sessionTypeListCountLabel(count: number, locale: AppLocale): string {
-  if (locale !== "sl")
-    return `${count} ${count === 1 ? "session type" : "session types"}`;
-  return slovenianStoritevCount(count);
-}
 
-function transactionServiceListCountLabel(
-  count: number,
-  locale: AppLocale,
-): string {
-  if (locale !== "sl")
-    return `${count} ${count === 1 ? "service" : "services"}`;
-  return slovenianStoritevCount(count);
-}
 
-function guestCardListCountLabel(count: number, locale: AppLocale): string {
-  if (locale !== "sl") return `${count} ${count === 1 ? "card" : "cards"}`;
-  const n = Math.abs(count) % 100;
-  const last = n % 10;
-  if (n >= 11 && n <= 14) return `${count} kartic`;
-  if (last === 1) return `${count} kartica`;
-  if (last === 2) return `${count} kartici`;
-  return `${count} kartic`;
-}
 
 type ServiceConfigTabIconName =
   | "types"
@@ -1971,28 +1934,6 @@ export function SessionTypesPage() {
     () => Array.from(new Set(types.map((type) => String(type.durationMinutes ?? "")).filter(Boolean))).sort((a, b) => Number(a) - Number(b)),
     [types],
   );
-  const serviceConfigFilterCount = useMemo(() => {
-    if (showCourses) return 1;
-    if (showCardsMemberships) return 1;
-    if (showServiceGroups) return 1;
-    if (showTransactionServices) return 1;
-    let count = 1;
-    if (serviceGroupsModuleEnabled && typeGroupFilter !== "all") count += 1;
-    if (typeCategoryFilter !== "all") count += 1;
-    if (typeDurationFilter !== "all") count += 1;
-    if (typeVisibilityFilter !== "all") count += 1;
-    return count;
-  }, [
-    showCourses,
-    showCardsMemberships,
-    showServiceGroups,
-    showTransactionServices,
-    serviceGroupsModuleEnabled,
-    typeGroupFilter,
-    typeCategoryFilter,
-    typeDurationFilter,
-    typeVisibilityFilter,
-  ]);
 
   if (!isAdmin) {
     return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />;
@@ -2854,20 +2795,6 @@ export function SessionTypesPage() {
     if (e.target === e.currentTarget) dismissServiceModal();
   };
 
-  const openServiceConfigFilters = () => {
-    setServiceConfigFilterDraft({
-      typeStatus: typeActiveFilter,
-      groupStatus: groupActiveFilter,
-      typeGroup: typeGroupFilter,
-      serviceStatus: serviceActiveFilter,
-      cardsStatus: cardsActiveFilter,
-      coursesStatus: coursesActiveFilter,
-      typeCategory: typeCategoryFilter,
-      typeDuration: typeDurationFilter,
-      typeVisibility: typeVisibilityFilter,
-    });
-    setShowServiceConfigFilters(true);
-  };
 
   const resetServiceConfigFilterDraft = () => {
     setServiceConfigFilterDraft({

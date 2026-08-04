@@ -1432,15 +1432,6 @@ public class GuestOrderService {
                 .forEach(this::maybeCreateEntitlement);
     }
 
-    private void maybeCreatePendingBooking(GuestOrder order) {
-        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(order.getCompany().getId());
-        if (!rules.bankTransferReservesSlot()) return;
-        if (findBookingForOrder(order) != null) return;
-        SlotContext context = extractSlotContext(order);
-        if (context == null) return;
-        createBooking(order, context, "PENDING_PAYMENT");
-    }
-
     private SessionBooking maybeCreateConfirmedBooking(GuestOrder order) {
         SessionBooking existing = findBookingForOrder(order);
         if (existing != null) {
