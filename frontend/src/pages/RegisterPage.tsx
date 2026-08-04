@@ -183,6 +183,25 @@ export function RegisterFeatureIcon({ featureKey }: { featureKey: string }) {
       case "custom-fields":
       case "custom_fields":
         return <><path d="M4 6h7M15 6h5M4 12h3M11 12h9M4 18h9M17 18h3" /><circle cx="13" cy="6" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="15" cy="18" r="2" /></>;
+      case "waitlist":
+      case "waiting-list":
+      case "waiting_list":
+        return (
+          <>
+            <path d="M4 6h8M4 12h6M4 18h7" />
+            <circle cx="17" cy="14" r="4" />
+            <path d="M17 12v2.3l1.6 1" />
+          </>
+        );
+      case "inbox":
+      case "messages":
+        return (
+          <>
+            <path d="M4 4h16l2 10v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5L4 4Z" />
+            <path d="M2 14h5l2 3h6l2-3h5" />
+            <path d="M8 8h8M13 5l3 3-3 3" />
+          </>
+        );
       case "ai":
         return <><path d="m12 3 1.3 3.7L17 8l-3.7 1.3L12 13l-1.3-3.7L7 8l3.7-1.3L12 3Z" /><path d="m18.5 13 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" /><path d="M5 14v7M2 17.5h6" /></>;
       case "integrations":
