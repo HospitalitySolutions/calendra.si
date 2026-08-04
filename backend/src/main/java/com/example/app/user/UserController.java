@@ -71,6 +71,24 @@ public class UserController {
                 .stream().map(user -> toResponse(user, tenantOwnerId)).collect(Collectors.toList());
     }
 
+    /** Tenant-scoped consultant lookup used by calendar and waitlist selectors. */
+    @GetMapping("/consultants")
+    @PreAuthorize("isAuthenticated()")
+    @Transactional(readOnly = true)
+    public List<ConsultantLookupResponse> consultants(@AuthenticationPrincipal User me) {
+        if (me == null || me.getCompany() == null || me.getCompany().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        return userRepository.findActiveBookableByCompanyId(me.getCompany().getId()).stream()
+                .map(user -> new ConsultantLookupResponse(
+                        user.getId(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        user.getEmail()
+                ))
+                .toList();
+    }
+
     /** Current user's full row (for consultant self-service profile editor). */
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
@@ -481,6 +499,14 @@ public class UserController {
             String avatarPath,
             Instant createdAt,
             Instant updatedAt
+    ) {
+    }
+
+    public record ConsultantLookupResponse(
+            Long id,
+            String firstName,
+            String lastName,
+            String email
     ) {
     }
 

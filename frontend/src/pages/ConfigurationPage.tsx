@@ -2855,8 +2855,13 @@ export function ConfigurationPage() {
 
   const load = async () => {
     setAccountReceivedInvoicesLoading(true);
+    const settingsRes = await api.get("/settings");
+    const rawSettings = (settingsRes.data || {}) as Record<string, string>;
+    const canReadFiscalCertificate =
+      rawSettings.BILLING_ENABLED !== "false" &&
+      rawSettings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true" &&
+      hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
     const [
-      settingsRes,
       spacesRes,
       paymentMethodsRes,
       certificateMetaRes,
@@ -2866,12 +2871,13 @@ export function ConfigurationPage() {
       catalogRes,
       tenantUsersRes,
     ] = await Promise.all([
-      api.get("/settings"),
       api.get("/spaces").catch(() => ({ data: [] })),
       api.get("/billing/payment-methods").catch(() => ({ data: [] })),
-      api
-        .get("/fiscal/certificate/meta")
-        .catch(() => ({ data: { uploaded: false } })),
+      canReadFiscalCertificate
+        ? api
+            .get("/fiscal/certificate/meta")
+            .catch(() => ({ data: { uploaded: false } }))
+        : Promise.resolve({ data: { uploaded: false } }),
       api.get("/paypal/onboarding/config").catch(() => ({ data: null })),
       api.get("/stripe/connect/config").catch(() => ({ data: null })),
       api

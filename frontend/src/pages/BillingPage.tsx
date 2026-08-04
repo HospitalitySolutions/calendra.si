@@ -1170,14 +1170,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const load = async () => {
-    const [settingsRes, servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
-      api.get('/settings').catch(() => ({ data: {} })),
+    const settingsRes = await api.get('/settings').catch(() => ({ data: {} as Record<string, string> }))
+    const giftCardsEnabled = settingsRes.data?.BILLING_ENABLED !== 'false'
+      && settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'true'
+    const [servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
       api.get('/billing/services'),
       api.get('/billing/bills'),
       api.get('/billing/open-bills'),
       api.get('/bookings').catch(() => ({ data: [] })),
       api.get('/billing/unused-advances').catch(() => ({ data: [] })),
-      api.get('/billing/gift-cards').catch(() => ({ data: [] })),
+      giftCardsEnabled ? api.get('/billing/gift-cards').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       api.get('/clients'),
       api.get('/companies'),
       isAdmin ? api.get('/users') : Promise.resolve({ data: [] }),

@@ -136,6 +136,7 @@ public class TenantPermissionAuthorizationFilter extends OncePerRequestFilter {
                 RouteRule.prefix("/api/bookings", "CALENDAR_BOOKINGS"),
                 RouteRule.prefix("/api/bookable-slots", "CALENDAR_BOOKINGS"),
                 RouteRule.prefix("/api/holidays", "CALENDAR_BOOKINGS"),
+                RouteRule.exact("/api/users/consultants", null),
                 RouteRule.exact("/api/ai/voice-booking/status", "CALENDAR_BOOKINGS_VIEW"),
                 RouteRule.exact("/api/ai/voice-booking", "CALENDAR_BOOKINGS_CREATE"),
 
