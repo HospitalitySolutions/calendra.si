@@ -21,6 +21,17 @@ export type CustomFieldDefinition = {
 
 export type CustomFieldValueMap = Record<string, string>
 
+export type UnitAccess = {
+  id: number
+  name: string
+  tenantCode?: string | null
+  workspaceId?: number | null
+  workspaceName?: string | null
+  membershipId: number
+  role: Role
+  permissions?: string[]
+}
+
 export type User = {
   id: number
   firstName: string
@@ -29,6 +40,12 @@ export type User = {
   role: Role
   consultant?: boolean
   companyId?: number
+  loginAccountId?: number
+  activeUnitId?: number
+  activeUnitName?: string
+  workspaceId?: number | null
+  workspaceName?: string | null
+  units?: UnitAccess[]
   /** Short public tenant identifier (e.g. widget URL segment); empty if not provisioned yet. */
   tenantCode?: string | null
   packageType?: PackageType

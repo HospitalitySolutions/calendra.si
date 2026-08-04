@@ -1,5 +1,6 @@
 package com.example.app.securitycenter;
 
+import com.example.app.auth.LoginAccount;
 import com.example.app.user.User;
 import java.util.List;
 import java.util.Optional;
@@ -9,4 +10,6 @@ public interface UserSecuritySessionRepository extends JpaRepository<UserSecurit
     Optional<UserSecuritySession> findBySessionKey(String sessionKey);
     List<UserSecuritySession> findAllByUserAndRevokedAtIsNullOrderByLastSeenAtDesc(User user);
     List<UserSecuritySession> findAllByUserOrderByLastSeenAtDesc(User user);
+    List<UserSecuritySession> findAllByLoginAccountAndRevokedAtIsNullOrderByLastSeenAtDesc(LoginAccount loginAccount);
+    List<UserSecuritySession> findAllByLoginAccountOrderByLastSeenAtDesc(LoginAccount loginAccount);
 }

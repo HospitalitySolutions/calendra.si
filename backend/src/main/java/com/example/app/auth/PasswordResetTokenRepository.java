@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
     Optional<PasswordResetToken> findByTokenAndActiveTrue(String token);
-    List<PasswordResetToken> findAllByUser_IdAndActiveTrue(Long userId);
+    List<PasswordResetToken> findAllByUser_LoginAccount_IdAndActiveTrue(Long loginAccountId);
 
     int deleteByExpiresAtBefore(Instant cutoff);
 }

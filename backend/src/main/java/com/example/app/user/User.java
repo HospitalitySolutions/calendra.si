@@ -1,5 +1,6 @@
 package com.example.app.user;
 
+import com.example.app.auth.LoginAccount;
 import com.example.app.company.Company;
 import com.example.app.common.BaseEntity;
 import com.example.app.session.Space;
@@ -16,9 +17,17 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @Entity
 @Table(
         name = "users",
-        uniqueConstraints = @UniqueConstraint(columnNames = { "company_id", "email" })
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = { "company_id", "email" }),
+                @UniqueConstraint(name = "uq_users_login_account_company", columnNames = { "login_account_id", "company_id" })
+        }
 )
 public class User extends BaseEntity {
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.EAGER, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @JoinColumn(name = "login_account_id", nullable = false)
+    private LoginAccount loginAccount;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
@@ -105,4 +114,33 @@ public class User extends BaseEntity {
 
     @Column(name = "avatar_content_type", length = 120)
     private String avatarContentType;
+
+    @PrePersist
+    void ensureLoginAccountBeforePersist() {
+        if (loginAccount != null) {
+            return;
+        }
+        LoginAccount account = new LoginAccount();
+        account.setFirstName(firstName == null || firstName.isBlank() ? "User" : firstName.trim());
+        account.setLastName(lastName == null ? "" : lastName.trim());
+        account.setEmail(email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT));
+        account.setPasswordHash(passwordHash);
+        account.setActive(true);
+        account.setLastSelectedCompanyId(company == null ? null : company.getId());
+        loginAccount = account;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+        if (this.loginAccount != null) {
+            this.loginAccount.setEmail(email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT));
+        }
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+        if (this.loginAccount != null) {
+            this.loginAccount.setPasswordHash(passwordHash);
+        }
+    }
 }

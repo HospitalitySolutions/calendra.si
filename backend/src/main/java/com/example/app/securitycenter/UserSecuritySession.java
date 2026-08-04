@@ -1,5 +1,6 @@
 package com.example.app.securitycenter;
 
+import com.example.app.auth.LoginAccount;
 import com.example.app.common.BaseEntity;
 import com.example.app.user.User;
 import jakarta.persistence.Column;
@@ -18,9 +19,14 @@ import lombok.Setter;
 @Entity
 @Table(name = "user_security_sessions", indexes = {
         @Index(name = "idx_user_security_sessions_user_last_seen", columnList = "user_id,lastSeenAt"),
+        @Index(name = "idx_user_security_sessions_login_account_last_seen", columnList = "login_account_id,lastSeenAt"),
         @Index(name = "idx_user_security_sessions_session_key", columnList = "sessionKey", unique = true)
 })
 public class UserSecuritySession extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "login_account_id", nullable = false)
+    private LoginAccount loginAccount;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

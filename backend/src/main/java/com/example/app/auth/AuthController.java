@@ -2,6 +2,7 @@ package com.example.app.auth;
 
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.workspace.Workspace;
 import com.example.app.mfa.WebAuthnService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
@@ -59,6 +60,7 @@ public class AuthController {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final UserRepository users;
+    private final LoginAccountService loginAccountService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
         private final Environment environment;
@@ -76,6 +78,7 @@ public class AuthController {
 
     public AuthController(
             UserRepository users,
+            LoginAccountService loginAccountService,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
                         Environment environment,
@@ -91,6 +94,7 @@ public class AuthController {
             AuthRateLimiter authRateLimiter
     ) {
         this.users = users;
+        this.loginAccountService = loginAccountService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
                 this.environment = environment;
@@ -175,12 +179,19 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         authRateLimiter.checkStaffLogin(httpRequest, request.email());
         String normalizedEmail = request.email().trim().toLowerCase();
-        List<User> candidates = users.findAllByEmailIgnoreCase(normalizedEmail);
-
-        List<User> passwordMatches = candidates.stream()
-                .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
+        List<LoginAccount> candidates = loginAccountService.findLoginCandidates(normalizedEmail);
+        List<LoginAccount> passwordMatches = candidates.stream()
+                .filter(LoginAccount::isActive)
+                .filter(account -> passwordEncoder.matches(request.password(), account.getPasswordHash()))
                 .toList();
-        User user = chooseStaffLoginCandidate(normalizedEmail, passwordMatches);
+        LoginSelection selection = chooseStaffLoginCandidate(normalizedEmail, passwordMatches);
+        User user = selection == null ? null : selection.membership();
+        if (user != null && tenantLoginBlocked(user)) {
+            user = loginAccountService.activeMemberships(selection.account()).stream()
+                    .filter(candidate -> !tenantLoginBlocked(candidate))
+                    .findFirst()
+                    .orElse(user);
+        }
 
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -190,6 +201,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("message", "This tenant account is suspended or cancelled. Please contact Calendra support."));
         }
+        loginAccountService.rememberSelectedUnit(selection.account(), user.getCompany().getId());
 
         WebAuthnService.PrimaryLoginResult mfa = webAuthnService.startLoginChallenge(user);
         if (mfa.mfaRequired()) {
@@ -198,7 +210,7 @@ public class AuthController {
                     "pendingToken", mfa.pendingToken(),
                     "availableMethods", List.of("webauthn", "recovery_code"),
                     "user", Map.of(
-                            "email", user.getEmail(),
+                            "email", selection.account().getEmail(),
                             "firstName", user.getFirstName(),
                             "lastName", user.getLastName()
                     )
@@ -211,44 +223,29 @@ public class AuthController {
         return ResponseEntity.ok(authSuccessResponse(user, token, httpRequest));
     }
 
-    private User chooseStaffLoginCandidate(String normalizedEmail, List<User> passwordMatches) {
-        if (passwordMatches.isEmpty()) {
+    private LoginSelection chooseStaffLoginCandidate(String normalizedEmail, List<LoginAccount> passwordMatches) {
+        List<LoginSelection> selectable = passwordMatches.stream()
+                .map(account -> new LoginSelection(account, loginAccountService.resolveDefaultMembership(account)))
+                .filter(selection -> selection.membership() != null)
+                .toList();
+        if (selectable.isEmpty()) {
             return null;
         }
-        if (passwordMatches.size() == 1) {
-            return passwordMatches.get(0);
+        if (selectable.size() > 1) {
+            log.warn(
+                    "Multiple login accounts matched one staff email. email={}, count={}. Selecting the preferred active membership.",
+                    normalizedEmail,
+                    selectable.size()
+            );
         }
-
-        List<User> activeMatches = passwordMatches.stream()
-                .filter(User::isActive)
-                .toList();
-        List<User> selectableMatches = activeMatches.isEmpty() ? passwordMatches : activeMatches;
-
-        List<User> superAdminMatches = selectableMatches.stream()
-                .filter(user -> user.getRole() == Role.SUPER_ADMIN)
-                .toList();
-        if (!superAdminMatches.isEmpty()) {
-            if (superAdminMatches.size() > 1) {
-                log.warn(
-                        "Multiple SUPER_ADMIN accounts matched one login email. email={}, count={}. Selecting lowest user id.",
-                        normalizedEmail,
-                        superAdminMatches.size()
-                );
-            }
-            return superAdminMatches.stream()
-                    .min(Comparator.comparing(User::getId))
-                    .orElse(superAdminMatches.get(0));
-        }
-
-        log.warn(
-                "Multiple staff accounts matched one login email without a SUPER_ADMIN match. email={}, count={}. Selecting lowest active user id.",
-                normalizedEmail,
-                selectableMatches.size()
-        );
-        return selectableMatches.stream()
-                .min(Comparator.comparing(User::getId))
-                .orElse(selectableMatches.get(0));
+        return selectable.stream()
+                .min(Comparator
+                        .comparing((LoginSelection selection) -> selection.membership().getRole() == Role.SUPER_ADMIN ? 0 : 1)
+                        .thenComparing(selection -> selection.account().getId()))
+                .orElse(selectable.get(0));
     }
+
+    private record LoginSelection(LoginAccount account, User membership) {}
 
     @GetMapping("/csrf")
     public ResponseEntity<?> csrf(CsrfToken csrfToken) {
@@ -271,31 +268,82 @@ public class AuthController {
                     .body(Map.of("message", "This tenant account is suspended or cancelled. Please contact Calendra support."));
         }
 
-        return ResponseEntity.ok(Map.of(
-                "user", serializeUser(user, packageTypeForCompany(user.getCompany())),
-                "authorities", authentication.getAuthorities().stream()
-                        .map(a -> a.getAuthority())
-                        .collect(Collectors.toList())
-        ));
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("user", serializeUser(user, packageTypeForCompany(user.getCompany())));
+        body.put("authorities", authentication.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .collect(Collectors.toList()));
+        return ResponseEntity.ok(body);
     }
 
     private Map<String, Object> serializeUser(User user, String packageType) {
         Company company = user.getCompany();
-        String tenantCode = company.getTenantCode();
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        Workspace workspace = company == null ? null : company.getWorkspace();
+        String tenantCode = company == null ? null : company.getTenantCode();
         String avatarPath = (user.getAvatarS3Key() == null || user.getAvatarS3Key().isBlank())
                 ? ""
                 : ("/api/users/" + user.getId() + "/avatar?v=" + (user.getUpdatedAt() == null ? 0 : user.getUpdatedAt().toEpochMilli()));
-        return Map.of(
-                "id", user.getId(),
-                "firstName", user.getFirstName(),
-                "lastName", user.getLastName(),
-                "email", user.getEmail(),
-                "role", user.getRole().name(),
-                "companyId", company.getId(),
-                "packageType", packageType,
-                "tenantCode", tenantCode != null && !tenantCode.isBlank() ? tenantCode : "",
-                "avatarPath", avatarPath,
-                "permissions", SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()));
+
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("id", user.getId());
+        out.put("loginAccountId", account.getId());
+        out.put("firstName", user.getFirstName());
+        out.put("lastName", user.getLastName());
+        out.put("email", account.getEmail());
+        out.put("role", user.getRole().name());
+        out.put("companyId", company == null ? null : company.getId());
+        out.put("activeUnitId", company == null ? null : company.getId());
+        out.put("activeUnitName", company == null ? "" : company.getName());
+        out.put("workspaceId", workspace == null ? null : workspace.getId());
+        out.put("workspaceName", workspace == null ? "" : workspace.getName());
+        out.put("packageType", packageType);
+        out.put("tenantCode", tenantCode != null && !tenantCode.isBlank() ? tenantCode : "");
+        out.put("avatarPath", avatarPath);
+        out.put("permissions", SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()));
+        out.put("units", loginAccountService.activeMemberships(account).stream().map(this::serializeUnit).toList());
+        return out;
+    }
+
+    private Map<String, Object> serializeUnit(User membership) {
+        Company unit = membership.getCompany();
+        Workspace workspace = unit == null ? null : unit.getWorkspace();
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("id", unit == null ? null : unit.getId());
+        out.put("name", unit == null ? "" : unit.getName());
+        out.put("tenantCode", unit == null || unit.getTenantCode() == null ? "" : unit.getTenantCode());
+        out.put("workspaceId", workspace == null ? null : workspace.getId());
+        out.put("workspaceName", workspace == null ? "" : workspace.getName());
+        out.put("membershipId", membership.getId());
+        out.put("role", membership.getRole().name());
+        out.put("permissions", SecurityUtils.permissionsForClientResponse(membership.getPermissionsJson()));
+        return out;
+    }
+
+    public record ActiveUnitRequest(Long companyId) {}
+
+    @PostMapping("/active-unit")
+    public ResponseEntity<?> selectActiveUnit(@RequestBody ActiveUnitRequest request, Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Not authenticated."));
+        }
+        Long activeCompanyId = user.getCompany() == null ? null : user.getCompany().getId();
+        if (request == null || request.companyId() == null || !request.companyId().equals(activeCompanyId)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "Send the target unit in both companyId and X-Calendra-Unit-Id."
+            ));
+        }
+        if (tenantLoginBlocked(user)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "message", "This tenant account is suspended or cancelled. Please contact Calendra support."
+            ));
+        }
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        loginAccountService.rememberSelectedUnit(account, request.companyId());
+        return ResponseEntity.ok(Map.of(
+                "user", serializeUser(user, packageTypeForCompany(user.getCompany())),
+                "message", "Active unit changed."
+        ));
     }
 
     @PostMapping("/signup")
@@ -617,10 +665,14 @@ public class AuthController {
     public ResponseEntity<?> logout(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
         try {
             String token = authCookieService.resolveTokenFromHeaderOrCookie(request);
-            if (authentication != null && authentication.getPrincipal() instanceof User user && token != null && !token.isBlank()) {
+            if (authentication != null && token != null && !token.isBlank()) {
                 String sessionId = jwtService.extractSessionId(token);
                 if (sessionId != null && !sessionId.isBlank()) {
-                    securityCenterService.revokeSession(user, sessionId, request);
+                    if (authentication.getPrincipal() instanceof User user) {
+                        securityCenterService.revokeSession(user, sessionId, request);
+                    } else if (authentication.getPrincipal() instanceof LoginAccount account) {
+                        securityCenterService.revokeSession(account, sessionId, request);
+                    }
                 }
             }
         } catch (Exception ex) {

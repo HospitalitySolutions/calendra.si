@@ -1,4 +1,5 @@
 import { api } from '../api'
+import { getActiveUnitId } from './unitContext'
 
 type BookingRealtimePayload = {
   bookingId?: number
@@ -24,7 +25,11 @@ export function subscribeBookingUpdates(onBookingUpdated: (payload: BookingRealt
 
   const connect = () => {
     if (closed) return
-    const streamUrl = api.getUri({ url: '/bookings/stream' })
+    const activeUnitId = getActiveUnitId()
+    const streamUrl = api.getUri({
+      url: '/bookings/stream',
+      params: activeUnitId ? { unitId: activeUnitId } : undefined,
+    })
     source = new EventSource(streamUrl, { withCredentials: true })
 
     source.addEventListener('booking-updated', (event) => {

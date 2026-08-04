@@ -4,6 +4,7 @@ import { api, ensureCsrfToken } from '../api'
 import { MfaChallengeCard } from '../components/MfaChallengeCard'
 import { consumePostLoginRedirect, storeAuthenticatedSession } from '../lib/session'
 import { clearOnboardingTourPending } from '../lib/onboardingTour'
+import { clearActiveUnitId } from '../lib/unitContext'
 
 /**
  * Handles redirect from Google OAuth: backend sets the auth cookie, frontend loads the user profile.
@@ -33,6 +34,7 @@ export function OAuthCallbackPage() {
       return
     }
 
+    clearActiveUnitId()
     api
       .get('/auth/me')
       .then((res) => {

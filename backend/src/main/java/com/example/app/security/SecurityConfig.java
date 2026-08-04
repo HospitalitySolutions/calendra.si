@@ -46,6 +46,7 @@ public class SecurityConfig {
     private final CorsProperties corsProperties;
     private final CsrfCookieFilter csrfCookieFilter;
     private final TenantPermissionAuthorizationFilter tenantPermissionAuthorizationFilter;
+    private final UnitContextValidationFilter unitContextValidationFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           GuestJwtAuthenticationFilter guestJwtAuthenticationFilter,
@@ -54,7 +55,8 @@ public class SecurityConfig {
                           ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository,
                           CorsProperties corsProperties,
                           CsrfCookieFilter csrfCookieFilter,
-                          TenantPermissionAuthorizationFilter tenantPermissionAuthorizationFilter) {
+                          TenantPermissionAuthorizationFilter tenantPermissionAuthorizationFilter,
+                          UnitContextValidationFilter unitContextValidationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.guestJwtAuthenticationFilter = guestJwtAuthenticationFilter;
         this.googleOAuth2SuccessHandler = googleOAuth2SuccessHandler;
@@ -63,6 +65,7 @@ public class SecurityConfig {
         this.corsProperties = corsProperties;
         this.csrfCookieFilter = csrfCookieFilter;
         this.tenantPermissionAuthorizationFilter = tenantPermissionAuthorizationFilter;
+        this.unitContextValidationFilter = unitContextValidationFilter;
     }
 
     @Bean
@@ -120,7 +123,7 @@ public class SecurityConfig {
                     CorsConfiguration config = new CorsConfiguration();
                     config.setAllowedOrigins(Optional.ofNullable(corsProperties.getAllowedOrigins()).orElse(List.of()));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "idempotency-key", "X-App-Platform", "X-Calendra-Booking-Source", "X-Requested-With", "X-XSRF-TOKEN", "X-CSRF-TOKEN"));
+                    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "idempotency-key", "X-App-Platform", "X-Calendra-Booking-Source", "X-Requested-With", "X-XSRF-TOKEN", "X-CSRF-TOKEN", "X-Calendra-Unit-Id"));
                     config.setAllowCredentials(true);
                     config.setMaxAge(3600L);
                     return config;
@@ -239,7 +242,8 @@ public class SecurityConfig {
                 )
                 .addFilterAfter(csrfCookieFilter, CsrfFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(tenantPermissionAuthorizationFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(unitContextValidationFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(tenantPermissionAuthorizationFilter, UnitContextValidationFilter.class)
                 .addFilterBefore(guestJwtAuthenticationFilter, JwtAuthenticationFilter.class)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)

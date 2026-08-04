@@ -13,6 +13,7 @@ import { OnboardingTour } from './OnboardingTour'
 import { NotificationCenter } from './NotificationCenter'
 import { ReferAFriendModal } from './ReferAFriendModal'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
+import { setActiveUnitId } from '../lib/unitContext'
 import type { User } from '../lib/types'
 import loginLogo from '../assets/login-logo.png'
 
@@ -359,6 +360,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [referAFriendModalOpen, setReferAFriendModalOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [unitSwitching, setUnitSwitching] = useState(false)
   const configRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
   const profileAvatarInputRef = useRef<HTMLInputElement>(null)
@@ -712,7 +714,67 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     }
   }
 
-  const headerBrandLabel = companyName
+  const availableUnits = user.units?.length
+    ? user.units
+    : (user.companyId ? [{
+        id: user.companyId,
+        name: user.activeUnitName || companyName,
+        membershipId: user.id,
+        role: user.role,
+        permissions: user.permissions,
+      }] : [])
+  const activeUnitId = user.activeUnitId ?? user.companyId
+  const headerBrandLabel = user.activeUnitName || companyName
+
+  const switchUnit = async (targetUnitId: number) => {
+    if (!targetUnitId || targetUnitId === activeUnitId || unitSwitching) return
+    setUnitSwitching(true)
+    try {
+      const response = await api.post(
+        '/auth/active-unit',
+        { companyId: targetUnitId },
+        { headers: { 'X-Calendra-Unit-Id': String(targetUnitId) } },
+      )
+      const nextUser = response.data?.user
+      setActiveUnitId(targetUnitId)
+      if (nextUser) sessionStorage.setItem('user', JSON.stringify(nextUser))
+      window.location.reload()
+    } catch (error: any) {
+      setUnitSwitching(false)
+      const message = typeof error?.response?.data?.message === 'string'
+        ? error.response.data.message
+        : (locale === 'sl'
+            ? 'Preklop lokacije ni uspel.'
+            : locale === 'sr'
+              ? 'Promena lokacije nije uspela.'
+              : 'Could not switch location.')
+      window.alert(message)
+    }
+  }
+
+  const unitBrand = availableUnits.length > 1 ? (
+    <label className="unit-switcher" title={headerBrandLabel}>
+      <span className="sr-only">
+        {locale === 'sl' ? 'Aktivna lokacija' : locale === 'sr' ? 'Aktivna lokacija' : 'Active location'}
+      </span>
+      <select
+        className="unit-switcher-select"
+        value={activeUnitId ?? ''}
+        disabled={unitSwitching}
+        onChange={(event) => void switchUnit(Number(event.target.value))}
+        aria-label={locale === 'sl' ? 'Izberi lokacijo' : locale === 'sr' ? 'Izaberi lokaciju' : 'Select location'}
+      >
+        {availableUnits.map((unit) => (
+          <option key={unit.id} value={unit.id}>{unit.name}</option>
+        ))}
+      </select>
+      <svg className="unit-switcher-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </label>
+  ) : (
+    <span className="unit-switcher-static">{headerBrandLabel}</span>
+  )
 
   const mobileNavTrigger = (
     <button
@@ -1459,7 +1521,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 {mobileNavTrigger}
                 {calendarShellSlots.toolbarMonthLabel}
                 <div className="app-header-brand app-header-brand--calendar" title={headerBrandLabel}>
-                  {headerBrandLabel}
+                  {unitBrand}
                 </div>
                 {calendarShellSlots.left}
               </div>
@@ -1483,7 +1545,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
               <div className="app-header-mobile-leading">
                 {mobileNavTrigger}
                 <div className="app-header-brand" title={headerBrandLabel}>
-                  {headerBrandLabel}
+                  {unitBrand}
                 </div>
                 {isClientsRoute && (
                   <div className="app-header-clients-title" aria-live="polite">

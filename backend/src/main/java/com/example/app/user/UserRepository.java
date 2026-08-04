@@ -12,9 +12,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailIgnoreCase(String email);
     List<User> findAllByEmailIgnoreCase(String email);
     List<User> findAllByEmailIgnoreCaseAndActiveTrue(String email);
+    List<User> findAllByEmailIgnoreCaseAndLoginAccountIsNull(String email);
     boolean existsByEmailIgnoreCase(String email);
 
     List<User> findAllByCompanyId(Long companyId);
+
+    List<User> findAllByLoginAccountIdOrderByIdAsc(Long loginAccountId);
+    List<User> findAllByLoginAccountIdAndActiveTrueOrderByIdAsc(Long loginAccountId);
+    long countByLoginAccountId(Long loginAccountId);
+    Optional<User> findByLoginAccountIdAndCompanyIdAndActiveTrue(Long loginAccountId, Long companyId);
 
     long countByCompanyId(Long companyId);
     long countByCompanyIdAndActiveTrue(Long companyId);

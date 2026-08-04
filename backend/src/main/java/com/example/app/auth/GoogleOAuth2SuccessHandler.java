@@ -5,7 +5,6 @@ import com.example.app.mfa.WebAuthnService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.user.User;
-import com.example.app.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -35,7 +34,7 @@ import java.util.Map;
 public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
     private static final Logger log = LoggerFactory.getLogger(GoogleOAuth2SuccessHandler.class);
 
-    private final UserRepository userRepository;
+    private final LoginAccountService loginAccountService;
     private final WebAuthnService webAuthnService;
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
@@ -43,14 +42,14 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
     private final Environment environment;
 
     public GoogleOAuth2SuccessHandler(
-            UserRepository userRepository,
+            LoginAccountService loginAccountService,
             WebAuthnService webAuthnService,
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService,
             SignupService signupService,
             Environment environment
     ) {
-        this.userRepository = userRepository;
+        this.loginAccountService = loginAccountService;
         this.webAuthnService = webAuthnService;
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
@@ -79,9 +78,14 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         }
 
         String normalizedEmail = email.trim().toLowerCase();
-        List<User> candidates = userRepository.findAllByEmailIgnoreCase(normalizedEmail);
-        log.info("{} OAuth user lookup. email={} matches={}", providerName, LogSanitizer.emailHash(normalizedEmail), candidates.size());
-        User user = candidates.isEmpty() ? null : candidates.get(0);
+        List<LoginAccount> loginCandidates = loginAccountService.findLoginCandidates(normalizedEmail);
+        LoginAccount loginAccount = loginCandidates.stream()
+                .filter(LoginAccount::isActive)
+                .filter(account -> loginAccountService.resolveDefaultMembership(account) != null)
+                .findFirst()
+                .orElse(null);
+        User user = loginAccount == null ? null : loginAccountService.resolveDefaultMembership(loginAccount);
+        log.info("{} OAuth login-account lookup. email={} matches={}", providerName, LogSanitizer.emailHash(normalizedEmail), loginCandidates.size());
 
         HttpSession session = request.getSession(false);
         boolean googleSignupFlow = session != null && Boolean.TRUE.equals(session.getAttribute("OAUTH_GOOGLE_SIGNUP_ACTIVE"));
@@ -169,6 +173,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             return;
         }
 
+        loginAccountService.rememberSelectedUnit(loginAccount, user.getCompany().getId());
         WebAuthnService.PrimaryLoginResult mfa = webAuthnService.startLoginChallenge(user);
         String redirectUrl;
         if (mfa.mfaRequired()) {

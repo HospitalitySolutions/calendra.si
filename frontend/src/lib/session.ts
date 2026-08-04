@@ -1,3 +1,5 @@
+import { setActiveUnitId } from './unitContext'
+
 export type AuthPayload = {
   token?: string
   user: unknown
@@ -44,4 +46,6 @@ export function storeAuthenticatedSession(data: AuthPayload) {
   if (data.token) sessionStorage.setItem('token', data.token)
   else sessionStorage.removeItem('token')
   sessionStorage.setItem('user', JSON.stringify(data.user))
+  const user = data.user as { activeUnitId?: number; companyId?: number } | null
+  setActiveUnitId(user?.activeUnitId ?? user?.companyId ?? null)
 }

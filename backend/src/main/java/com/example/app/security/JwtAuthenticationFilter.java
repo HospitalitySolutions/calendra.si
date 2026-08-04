@@ -1,24 +1,21 @@
 package com.example.app.security;
 
+import com.example.app.auth.LoginAccount;
+import com.example.app.auth.LoginAccountRepository;
 import com.example.app.securitycenter.SecurityCenterService;
-import com.example.app.user.Role;
-import com.example.app.user.User;
-import com.example.app.user.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
-import java.util.List;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -26,18 +23,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtService jwtService;
-    private final UserRepository userRepository;
+    private final LoginAccountRepository loginAccounts;
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
 
     public JwtAuthenticationFilter(
             JwtService jwtService,
-            UserRepository userRepository,
+            LoginAccountRepository loginAccounts,
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService
     ) {
         this.jwtService = jwtService;
-        this.userRepository = userRepository;
+        this.loginAccounts = loginAccounts;
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
     }
@@ -78,34 +75,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             JwtService.AuthTokenPayload payload = jwtService.parseAuthToken(token);
-            Long userId = payload.userId();
+            Long loginAccountId = payload.userId();
 
-            if (userId != null) {
-                User user = userRepository.findById(userId).orElse(null);
+            if (loginAccountId != null) {
+                LoginAccount account = loginAccounts.findById(loginAccountId).orElse(null);
 
-                if (user != null && jwtService.isTokenValid(token, user.getId())) {
+                if (account != null && account.isActive() && jwtService.isTokenValid(token, account.getId())) {
                     String sessionId = payload.sessionId();
 
-                    if (sessionId != null && !securityCenterService.isSessionActive(user.getId(), sessionId)) {
+                    if (sessionId != null && !securityCenterService.isSessionActive(account.getId(), sessionId)) {
                         filterChain.doFilter(request, response);
                         return;
                     }
 
                     UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    user,
-                                    null,
-                                    authoritiesFor(user)
-                            );
+                            new UsernamePasswordAuthenticationToken(account, null, List.of());
 
-                    authentication.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
-
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
                     if (sessionId != null && !sessionId.isBlank()) {
-                        securityCenterService.touchSession(user.getId(), sessionId, request);
+                        securityCenterService.touchSession(account.getId(), sessionId, request);
                     }
                 }
             }
@@ -120,24 +110,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private List<SimpleGrantedAuthority> authoritiesFor(User user) {
-        if (user.getRole() == Role.SUPER_ADMIN) {
-            return List.of(
-                    new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"),
-                    new SimpleGrantedAuthority("ROLE_ADMIN")
-            );
-        }
-        if (user.getRole() == Role.CONSULTANT && user.getEmployeeAccessRole() != null) {
-            // Custom employee roles must be allowed through legacy tenant endpoints that still use
-            // hasRole('ADMIN'). TenantPermissionAuthorizationFilter then enforces the fine-grained
-            // View/Create/Edit/Delete permission for the requested module before the controller runs.
-            return List.of(
-                    new SimpleGrantedAuthority("ROLE_CONSULTANT"),
-                    new SimpleGrantedAuthority("ROLE_ADMIN")
-            );
-        }
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 }

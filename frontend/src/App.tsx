@@ -26,6 +26,7 @@ import { storeAuthenticatedSession } from './lib/session'
 import { startClockSync, stopClockSync } from './lib/clock'
 import { clearAuthStoragePreservingTheme } from './theme'
 import { AuthenticatedUserProvider } from './authUserContext'
+import { clearActiveUnitId, getActiveUnitId } from './lib/unitContext'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
@@ -240,10 +241,24 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    api.get('/auth/me')
-      .then((res) => {
+
+    const resolveSession = async () => {
+      try {
+        let response
+        try {
+          response = await api.get('/auth/me')
+        } catch (error) {
+          if (axios.isAxiosError(error) && error.response?.status === 403 && getActiveUnitId() !== null) {
+            // The remembered unit may have been removed from this login. Retry once with the server default.
+            clearActiveUnitId()
+            response = await api.get('/auth/me')
+          } else {
+            throw error
+          }
+        }
+
         if (cancelled) return
-        const nextUser = res.data?.user ?? null
+        const nextUser = response.data?.user ?? null
         if (nextUser) {
           storeAuthenticatedSession({ user: nextUser })
           setUser(nextUser)
@@ -251,19 +266,20 @@ export default function App() {
           clearAuthStoragePreservingTheme()
           setUser(null)
         }
-      })
-      .catch((err) => {
+      } catch (error) {
         if (cancelled) return
-        if (axios.isAxiosError(err) && err.response?.status === 401) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
           clearAuthStoragePreservingTheme()
           setUser(null)
           return
         }
         setUser((current) => current)
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setAuthResolved(true)
-      })
+      }
+    }
+
+    void resolveSession()
     return () => {
       cancelled = true
     }

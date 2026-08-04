@@ -1,5 +1,6 @@
 package com.example.app.user;
 
+import com.example.app.auth.LoginAccountService;
 import com.example.app.auth.PasswordResetService;
 import com.example.app.entitlement.PackageAccessService;
 import com.example.app.files.TenantFileS3Service;
@@ -48,8 +49,9 @@ public class UserController {
     private final TenantOwnerAccessService tenantOwnerAccessService;
     private final PasswordResetService passwordResetService;
     private final SessionBookingRepository sessionBookingRepository;
+    private final LoginAccountService loginAccountService;
 
-    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository, LoginAccountService loginAccountService) {
         this.userRepository = userRepository;
         this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -59,6 +61,7 @@ public class UserController {
         this.tenantOwnerAccessService = tenantOwnerAccessService;
         this.passwordResetService = passwordResetService;
         this.sessionBookingRepository = sessionBookingRepository;
+        this.loginAccountService = loginAccountService;
     }
 
     @GetMapping
@@ -100,6 +103,7 @@ public class UserController {
     /** Consultant-only: update own name, contact, working hours, optional password (role unchanged). */
     @PutMapping("/profile")
     @PreAuthorize("hasRole('CONSULTANT')")
+    @Transactional
     public ResponseEntity<?> updateProfile(@RequestBody ConsultantProfileUpdateRequest request, @AuthenticationPrincipal User me) {
         String normalizedEmail = request.email().trim().toLowerCase();
         var companyId = me.getCompany().getId();
@@ -112,6 +116,14 @@ public class UserController {
         }
         return userRepository.findByIdAndCompanyId(me.getId(), companyId)
                 .<ResponseEntity<?>>map(existing -> {
+                    var account = loginAccountService.ensureForUser(existing);
+                    boolean emailChanged = !normalizedEmail.equalsIgnoreCase(account.getEmail());
+                    boolean passwordChanged = request.password() != null && !request.password().isBlank();
+                    if (emailChanged && !loginAccountService.canUseEmailAcrossMemberships(existing, normalizedEmail)) {
+                        return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(Map.of("message", "This email is already used by another employee in one of your linked units."));
+                    }
+
                     existing.setFirstName(request.firstName().trim());
                     existing.setLastName(request.lastName().trim());
                     existing.setEmail(normalizedEmail);
@@ -133,16 +145,19 @@ public class UserController {
                                     .body(Map.of("message", "Invalid working hours."));
                         }
                     }
-                    if (request.password() != null && !request.password().isBlank()) {
+                    if (passwordChanged) {
                         existing.setPasswordHash(passwordEncoder.encode(request.password()));
                     }
                     try {
                         User saved = userRepository.save(existing);
+                        loginAccountService.synchronizeCredentials(saved, emailChanged, passwordChanged);
                         Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
                         return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
-                    } catch (DataIntegrityViolationException ex) {
+                    } catch (DataIntegrityViolationException | IllegalArgumentException ex) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(Map.of("message", "A consultant with this email already exists."));
+                                .body(Map.of("message", ex.getMessage() == null
+                                        ? "A consultant with this email already exists."
+                                        : ex.getMessage()));
                     }
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -236,6 +251,21 @@ public class UserController {
         return userRepository.findByIdAndCompanyId(id, companyId)
                 .<ResponseEntity<?>>map(existing -> {
                     String normalizedEmail = request.email().trim().toLowerCase();
+                    var account = loginAccountService.ensureForUser(existing);
+                    boolean emailChanged = !normalizedEmail.equalsIgnoreCase(account.getEmail());
+                    boolean passwordChanged = request.password() != null && !request.password().isBlank();
+                    boolean editingOwnMembership = existing.getId().equals(me.getId());
+
+                    if (!editingOwnMembership
+                            && loginAccountService.hasMultipleMemberships(existing)
+                            && (emailChanged || passwordChanged)) {
+                        return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(Map.of("message", "This employee uses one login across multiple units. Only the employee can change global login credentials."));
+                    }
+                    if (emailChanged && !loginAccountService.canUseEmailAcrossMemberships(existing, normalizedEmail)) {
+                        return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(Map.of("message", "This email is already used by another employee in one of the linked units."));
+                    }
 
                     boolean emailBelongsToAnotherUser = userRepository.findByEmailIgnoreCaseAndCompanyId(normalizedEmail, companyId)
                             .map(user -> !user.getId().equals(id))
@@ -303,16 +333,19 @@ public class UserController {
                         existing.setPermissionsJson(writePermissionsJson(request.permissions()));
                     }
 
-                    if (request.password() != null && !request.password().isBlank()) {
+                    if (passwordChanged) {
                         existing.setPasswordHash(passwordEncoder.encode(request.password()));
                     }
 
                     try {
                         User saved = userRepository.save(existing);
+                        loginAccountService.synchronizeCredentials(saved, emailChanged, passwordChanged);
                         return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
-                    } catch (DataIntegrityViolationException ex) {
+                    } catch (DataIntegrityViolationException | IllegalArgumentException ex) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(Map.of("message", "A consultant with this email already exists."));
+                                .body(Map.of("message", ex.getMessage() == null
+                                        ? "A consultant with this email already exists."
+                                        : ex.getMessage()));
                     }
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)

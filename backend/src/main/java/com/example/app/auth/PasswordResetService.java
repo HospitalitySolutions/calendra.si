@@ -34,6 +34,7 @@ public class PasswordResetService {
     private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
 
     private final UserRepository users;
+    private final LoginAccountService loginAccountService;
     private final PasswordResetTokenRepository resetTokens;
     private final AppSettingRepository appSettings;
     private final PasswordEncoder passwordEncoder;
@@ -45,6 +46,7 @@ public class PasswordResetService {
 
     public PasswordResetService(
             UserRepository users,
+            LoginAccountService loginAccountService,
             PasswordResetTokenRepository resetTokens,
             AppSettingRepository appSettings,
             PasswordEncoder passwordEncoder,
@@ -55,6 +57,7 @@ public class PasswordResetService {
             @Value("${app.auth.frontend-url:http://app.calendra.si}") String frontendBaseUrl
     ) {
         this.users = users;
+        this.loginAccountService = loginAccountService;
         this.resetTokens = resetTokens;
         this.appSettings = appSettings;
         this.passwordEncoder = passwordEncoder;
@@ -75,24 +78,32 @@ public class PasswordResetService {
     public void requestReset(String email, String localeCode) {
         if (email == null || email.isBlank()) return;
         String normalized = email.trim().toLowerCase(Locale.ROOT);
-        List<User> matches = users.findAllByEmailIgnoreCaseAndActiveTrue(normalized);
-        if (matches.isEmpty()) {
+        User user = loginAccountService.findLoginCandidates(normalized).stream()
+                .filter(LoginAccount::isActive)
+                .map(loginAccountService::resolveDefaultMembership)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        if (user == null) {
             log.info("Password reset requested for non-active or unknown email={}", LogSanitizer.emailHash(normalized));
             return;
         }
-        User user = matches.get(0);
         String token = createResetToken(user);
         sendResetEmail(user, token, localeCode);
     }
 
     @Transactional
     public Optional<String> createPasswordSetupUrl(User user, String localeCode) {
-        if (user == null || user.getId() == null || user.getEmail() == null || user.getEmail().isBlank()) {
+        if (user == null || user.getId() == null) {
+            return Optional.empty();
+        }
+        String loginEmail = accountEmail(user);
+        if (loginEmail.isBlank()) {
             return Optional.empty();
         }
         String token = createResetToken(user);
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
-        String encodedEmail = URLEncoder.encode(user.getEmail().trim().toLowerCase(Locale.ROOT), StandardCharsets.UTF_8);
+        String encodedEmail = URLEncoder.encode(loginEmail, StandardCharsets.UTF_8);
         String locale = normalizeSupportedLocale(localeCode);
         return Optional.of(frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail + "&locale=" + locale);
     }
@@ -104,7 +115,7 @@ public class PasswordResetService {
 
     @Transactional
     public void sendEmployeeAccountCreatedEmail(User user, String localeCode) {
-        if (user == null || user.getId() == null || user.getEmail() == null || user.getEmail().isBlank()) {
+        if (user == null || user.getId() == null || accountEmail(user).isBlank()) {
             return;
         }
         String token = createResetToken(user);
@@ -125,11 +136,8 @@ public class PasswordResetService {
         if (row == null) {
             return Optional.empty();
         }
-        String email = row.getUser().getEmail();
-        if (email == null || email.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(email.trim().toLowerCase());
+        String email = accountEmail(row.getUser());
+        return email.isBlank() ? Optional.empty() : Optional.of(email);
     }
 
     @Transactional
@@ -139,6 +147,7 @@ public class PasswordResetService {
         User user = row.getUser();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         users.save(user);
+        loginAccountService.synchronizeCredentials(user, false, true);
         clearSignupOwnerPasswordPending(user);
         row.setActive(false);
         row.setUsedAt(Instant.now());
@@ -155,6 +164,7 @@ public class PasswordResetService {
     }
 
     private String createResetToken(User user) {
+        loginAccountService.ensureForUser(user);
         invalidatePreviousTokens(user);
         String token = generateToken();
         PasswordResetToken row = new PasswordResetToken();
@@ -167,7 +177,8 @@ public class PasswordResetService {
     }
 
     private void invalidatePreviousTokens(User user) {
-        List<PasswordResetToken> activeTokens = resetTokens.findAllByUser_IdAndActiveTrue(user.getId());
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        List<PasswordResetToken> activeTokens = resetTokens.findAllByUser_LoginAccount_IdAndActiveTrue(account.getId());
         for (PasswordResetToken t : activeTokens) {
             t.setActive(false);
             t.setUsedAt(Instant.now());
@@ -186,12 +197,13 @@ public class PasswordResetService {
     }
 
     private void sendResetEmail(User user, String token, String localeCode) {
+        String recipientEmail = accountEmail(user);
         if (!mailConfigured) {
-            log.warn("Password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(user.getEmail()));
+            log.warn("Password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(recipientEmail));
             return;
         }
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
-        String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
+        String encodedEmail = URLEncoder.encode(recipientEmail, StandardCharsets.UTF_8);
         String locale = normalizeSupportedLocale(localeCode);
         String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail + "&locale=" + locale;
         ResetEmailCopy copy = resetEmailCopy(locale);
@@ -221,23 +233,24 @@ public class PasswordResetService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom);
-            helper.setTo(user.getEmail());
+            helper.setTo(recipientEmail);
             helper.setSubject(copy.subject());
             helper.setText(body, false);
             mailSender.send(message);
-            log.info("Password reset email sent to {}", LogSanitizer.emailHash(user.getEmail()));
+            log.info("Password reset email sent to {}", LogSanitizer.emailHash(recipientEmail));
         } catch (Exception e) {
-            log.warn("Failed sending password reset email to {}: {}", LogSanitizer.emailHash(user.getEmail()), e.getMessage());
+            log.warn("Failed sending password reset email to {}: {}", LogSanitizer.emailHash(recipientEmail), e.getMessage());
         }
     }
 
     private void sendEmployeeAccountCreatedEmail(User user, String token, String localeCode) {
+        String recipientEmail = accountEmail(user);
         if (!mailConfigured) {
-            log.warn("Employee account created for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(user.getEmail()));
+            log.warn("Employee account created for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(recipientEmail));
             return;
         }
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
-        String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
+        String encodedEmail = URLEncoder.encode(recipientEmail, StandardCharsets.UTF_8);
         String locale = normalizeSupportedLocale(localeCode);
         String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail + "&locale=" + locale;
         EmployeeAccountEmailCopy copy = employeeAccountEmailCopy(locale);
@@ -247,7 +260,7 @@ public class PasswordResetService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom);
-            helper.setTo(user.getEmail());
+            helper.setTo(recipientEmail);
             helper.setSubject(copy.subject());
             helper.setText(plainText, html);
             helper.addInline(
@@ -256,9 +269,9 @@ public class PasswordResetService {
                     "image/png"
             );
             mailSender.send(message);
-            log.info("Employee account created email sent to {}", LogSanitizer.emailHash(user.getEmail()));
+            log.info("Employee account created email sent to {}", LogSanitizer.emailHash(recipientEmail));
         } catch (Exception e) {
-            log.warn("Failed sending employee account created email to {}: {}", LogSanitizer.emailHash(user.getEmail()), e.getMessage());
+            log.warn("Failed sending employee account created email to {}: {}", LogSanitizer.emailHash(recipientEmail), e.getMessage());
         }
     }
 
@@ -267,7 +280,7 @@ public class PasswordResetService {
         String companyName = user.getCompany() == null || user.getCompany().getName() == null || user.getCompany().getName().isBlank()
                 ? copy.companyFallback()
                 : user.getCompany().getName().trim();
-        String email = user.getEmail() == null ? "" : user.getEmail().trim().toLowerCase(Locale.ROOT);
+        String email = accountEmail(user);
         return """
                 %s %s,
 
@@ -304,7 +317,7 @@ public class PasswordResetService {
         String companyName = user.getCompany() == null || user.getCompany().getName() == null || user.getCompany().getName().isBlank()
                 ? escapeHtml(copy.companyFallback())
                 : escapeHtml(user.getCompany().getName().trim());
-        String email = escapeHtml(user.getEmail() == null ? "" : user.getEmail().trim().toLowerCase(Locale.ROOT));
+        String email = escapeHtml(accountEmail(user));
         String safeResetUrl = escapeHtml(resetUrl);
 
         return """
@@ -607,6 +620,15 @@ public class PasswordResetService {
         byte[] bytes = new byte[TOKEN_BYTES];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String accountEmail(User user) {
+        if (user == null) {
+            return "";
+        }
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        String email = account.getEmail();
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private String sanitizeBase(String raw) {

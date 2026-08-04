@@ -25,5 +25,6 @@ export function clearAuthStoragePreservingTheme() {
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('user')
   sessionStorage.removeItem('securityReauthToken')
+  localStorage.removeItem('calendra.activeUnitId')
   if (theme) localStorage.setItem(THEME_KEY, theme)
 }

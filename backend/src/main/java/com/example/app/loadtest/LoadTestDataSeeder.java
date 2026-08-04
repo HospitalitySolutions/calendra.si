@@ -395,10 +395,13 @@ public class LoadTestDataSeeder implements CommandLineRunner {
         jdbc.update("delete from space where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from payment_methods where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from clients where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from user_security_sessions where login_account_id in (select id from login_accounts where email like 'lt-%@loadtest.local')");
         jdbc.update("delete from users where company_id in (select id from company where tenant_code like 'lt-%')");
+        jdbc.update("delete from login_accounts where email like 'lt-%@loadtest.local' and not exists (select 1 from users u where u.login_account_id = login_accounts.id)");
         jdbc.update("delete from app_settings where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from tenant_invites where company_id in (select id from company where tenant_code like 'lt-%')");
         jdbc.update("delete from company where tenant_code like 'lt-%'");
+        jdbc.update("delete from workspaces where name like 'Load Test Tenant %' and not exists (select 1 from company c where c.workspace_id = workspaces.id)");
     }
 
     private Long getOrCreateCompany(int index, String code) {
@@ -407,21 +410,47 @@ public class LoadTestDataSeeder implements CommandLineRunner {
             jdbc.update("update company set updated_at=now(), name=? where id=?", "Load Test Tenant " + index, id);
             return id;
         }
-        return jdbc.queryForObject("insert into company(created_at, updated_at, name, tenant_code) values (now(), now(), ?, ?) returning id",
-                Long.class, "Load Test Tenant " + index, code);
+        return jdbc.queryForObject("""
+                with workspace_row as (
+                    insert into workspaces(created_at, updated_at, name, active)
+                    values (now(), now(), ?, true)
+                    returning id
+                )
+                insert into company(created_at, updated_at, workspace_id, name, tenant_code)
+                select now(), now(), workspace_row.id, ?, ? from workspace_row
+                returning id
+                """, Long.class, "Load Test Tenant " + index, "Load Test Tenant " + index, code);
     }
 
     private Long getOrCreateUser(Long companyId, String firstName, String lastName, String email, String passwordHash, String role, boolean consultant) {
         Long id = queryLongOrNull("select id from users where company_id=? and lower(email)=lower(?)", companyId, email);
         if (id != null) {
-            jdbc.update("update users set updated_at=now(), password_hash=?, role=?, active=true, consultant=?, working_hours_json=? where id=?",
-                    passwordHash, role, consultant, WORKING_HOURS_JSON, id);
+            jdbc.update("""
+                    update login_accounts
+                    set updated_at=now(), first_name=?, last_name=?, email=lower(trim(?)), password_hash=?, active=true,
+                        last_selected_company_id=?
+                    where id=(select login_account_id from users where id=?)
+                    """, firstName, lastName, email, passwordHash, companyId, id);
+            jdbc.update("update users set updated_at=now(), first_name=?, last_name=?, email=?, password_hash=?, role=?, active=true, consultant=?, working_hours_json=? where id=?",
+                    firstName, lastName, email, passwordHash, role, consultant, WORKING_HOURS_JSON, id);
             return id;
         }
         return jdbc.queryForObject("""
-                insert into users(created_at, updated_at, company_id, first_name, last_name, email, password_hash, role, active, consultant, working_hours_json)
-                values (now(), now(), ?, ?, ?, ?, ?, ?, true, ?, ?) returning id
-                """, Long.class, companyId, firstName, lastName, email, passwordHash, role, consultant, WORKING_HOURS_JSON);
+                with login_row as (
+                    insert into login_accounts(
+                        created_at, updated_at, first_name, last_name, email, password_hash, active, last_selected_company_id
+                    ) values (now(), now(), ?, ?, lower(trim(?)), ?, true, ?)
+                    returning id
+                )
+                insert into users(
+                    created_at, updated_at, login_account_id, company_id, first_name, last_name, email,
+                    password_hash, role, active, consultant, working_hours_json
+                )
+                select now(), now(), login_row.id, ?, ?, ?, ?, ?, ?, true, ?, ? from login_row
+                returning id
+                """, Long.class,
+                firstName, lastName, email, passwordHash, companyId,
+                companyId, firstName, lastName, email, passwordHash, role, consultant, WORKING_HOURS_JSON);
     }
 
     private Long getOrCreateGuestUser(int index, String email, String passwordHash) {

@@ -1,5 +1,6 @@
 import { appPlatform, isNativePlatform } from './lib/platform'
 import axios from 'axios'
+import { getActiveUnitId } from './lib/unitContext'
 
 function readEnv(name: keyof ImportMetaEnv): string | undefined {
   return (import.meta.env[name] as string | undefined)?.trim() || undefined
@@ -165,6 +166,10 @@ export async function ensureCsrfToken(force = false): Promise<void> {
 
 api.interceptors.request.use(async (config) => {
   config.headers['X-App-Platform'] = isNativePlatform ? 'native' : 'web'
+  const activeUnitId = getActiveUnitId()
+  if (activeUnitId && !config.headers['X-Calendra-Unit-Id']) {
+    config.headers['X-Calendra-Unit-Id'] = String(activeUnitId)
+  }
   if (isNativePlatform) {
     const token = sessionStorage.getItem('token')
     if (token) config.headers.Authorization = `Bearer ${token}`

@@ -1,5 +1,7 @@
 package com.example.app.securitycenter;
 
+import com.example.app.auth.LoginAccount;
+import com.example.app.auth.LoginAccountService;
 import com.example.app.mfa.WebAuthnCredential;
 import com.example.app.mfa.WebAuthnCredentialRepository;
 import com.example.app.mfa.WebAuthnService;
@@ -44,6 +46,7 @@ public class SecurityCenterService {
     private final SecurityNotificationService notificationService;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final LoginAccountService loginAccountService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public SecurityCenterService(
@@ -54,7 +57,8 @@ public class SecurityCenterService {
             SecurityAlertPreferenceRepository alertPreferenceRepository,
             SecurityNotificationService notificationService,
             JwtService jwtService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            LoginAccountService loginAccountService
     ) {
         this.webAuthnService = webAuthnService;
         this.credentialRepository = credentialRepository;
@@ -64,6 +68,7 @@ public class SecurityCenterService {
         this.notificationService = notificationService;
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
+        this.loginAccountService = loginAccountService;
     }
 
     @Transactional(readOnly = true)
@@ -80,7 +85,8 @@ public class SecurityCenterService {
                 ))
                 .toList();
 
-        List<SessionView> sessions = sessionRepository.findAllByUserOrderByLastSeenAtDesc(user).stream()
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        List<SessionView> sessions = sessionRepository.findAllByLoginAccountOrderByLastSeenAtDesc(account).stream()
                 .limit(20)
                 .map(session -> new SessionView(
                         session.getSessionKey(),
@@ -110,11 +116,12 @@ public class SecurityCenterService {
 
     @Transactional
     public String reauthenticate(User user, String password, HttpServletRequest request) {
-        if (password == null || password.isBlank() || !passwordEncoder.matches(password, user.getPasswordHash())) {
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        if (password == null || password.isBlank() || !passwordEncoder.matches(password, account.getPasswordHash())) {
             throw new IllegalArgumentException("Your password was not accepted.");
         }
         logEvent(user, SecurityEventType.REAUTH_SUCCEEDED, "Re-authentication confirmed", "Sensitive security actions are now unlocked for a short time.", "info", request);
-        return jwtService.generateReauthToken(user.getId());
+        return jwtService.generateReauthToken(account.getId());
     }
 
     public void requireRecentReauth(User user, String reauthToken) {
@@ -122,7 +129,8 @@ public class SecurityCenterService {
             throw new IllegalArgumentException("Re-authentication required.");
         }
         JwtService.ReauthTokenPayload payload = jwtService.parseReauthToken(reauthToken);
-        if (!user.getId().equals(payload.userId())) {
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        if (!account.getId().equals(payload.userId())) {
             throw new IllegalArgumentException("Re-authentication token does not match this account.");
         }
     }
@@ -199,16 +207,18 @@ public class SecurityCenterService {
 
     @Transactional
     public IssuedSession issueSession(User user, HttpServletRequest request, String reason) {
+        LoginAccount account = loginAccountService.ensureForUser(user);
         Instant now = Instant.now();
         String sessionKey = randomToken(24);
         String userAgent = trim(request == null ? null : request.getHeader("User-Agent"), 500);
         String ip = clientIp(request);
         String label = deviceLabel(userAgent);
 
-        List<UserSecuritySession> previousSessions = sessionRepository.findAllByUserAndRevokedAtIsNullOrderByLastSeenAtDesc(user);
+        List<UserSecuritySession> previousSessions = sessionRepository.findAllByLoginAccountAndRevokedAtIsNullOrderByLastSeenAtDesc(account);
         boolean suspicious = !previousSessions.isEmpty() && previousSessions.stream().noneMatch(session -> sameDevice(session, userAgent));
 
         UserSecuritySession session = new UserSecuritySession();
+        session.setLoginAccount(account);
         session.setUser(user);
         session.setSessionKey(sessionKey);
         session.setIssuedAt(now);
@@ -228,28 +238,28 @@ public class SecurityCenterService {
             logEvent(user, SecurityEventType.SIGN_IN, "New sign-in", reason == null || reason.isBlank() ? label : reason + " · " + label, "info", request);
         }
 
-        return new IssuedSession(jwtService.generateToken(user.getId(), sessionKey), sessionKey, suspicious);
+        return new IssuedSession(jwtService.generateToken(account.getId(), sessionKey), sessionKey, suspicious);
     }
 
     @Transactional(readOnly = true)
-    public boolean isSessionActive(Long userId, String sessionKey) {
+    public boolean isSessionActive(Long loginAccountId, String sessionKey) {
         if (sessionKey == null || sessionKey.isBlank()) {
             return true;
         }
         return sessionRepository.findBySessionKey(sessionKey)
                 .filter(session -> session.getRevokedAt() == null)
-                .filter(session -> session.getUser() != null && userId.equals(session.getUser().getId()))
+                .filter(session -> session.getLoginAccount() != null && loginAccountId.equals(session.getLoginAccount().getId()))
                 .isPresent();
     }
 
     @Transactional
-    public void touchSession(Long userId, String sessionKey, HttpServletRequest request) {
+    public void touchSession(Long loginAccountId, String sessionKey, HttpServletRequest request) {
         if (sessionKey == null || sessionKey.isBlank()) {
             return;
         }
         sessionRepository.findBySessionKey(sessionKey)
                 .filter(session -> session.getRevokedAt() == null)
-                .filter(session -> session.getUser() != null && userId.equals(session.getUser().getId()))
+                .filter(session -> session.getLoginAccount() != null && loginAccountId.equals(session.getLoginAccount().getId()))
                 .ifPresent(session -> {
                     Instant now = Instant.now();
                     if (session.getLastSeenAt() == null || session.getLastSeenAt().isBefore(now.minus(45, ChronoUnit.SECONDS))) {
@@ -265,20 +275,32 @@ public class SecurityCenterService {
 
     @Transactional
     public void revokeSession(User user, String sessionKey, HttpServletRequest request) {
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        revokeSession(account, sessionKey, request);
+    }
+
+    @Transactional
+    public void revokeSession(LoginAccount account, String sessionKey, HttpServletRequest request) {
+        if (account == null || account.getId() == null) {
+            throw new IllegalArgumentException("Login account is required.");
+        }
         UserSecuritySession session = sessionRepository.findBySessionKey(sessionKey)
-                .filter(row -> row.getUser() != null && user.getId().equals(row.getUser().getId()))
+                .filter(row -> row.getLoginAccount() != null && account.getId().equals(row.getLoginAccount().getId()))
                 .orElseThrow(() -> new IllegalArgumentException("Session not found."));
         if (session.getRevokedAt() == null) {
             session.setRevokedAt(Instant.now());
             session.setRevokeReason("manual");
             sessionRepository.save(session);
         }
-        logEvent(user, SecurityEventType.SESSION_REVOKED, "Session signed out", safeLabel(session), "info", request);
+        if (session.getUser() != null) {
+            logEvent(session.getUser(), SecurityEventType.SESSION_REVOKED, "Session signed out", safeLabel(session), "info", request);
+        }
     }
 
     @Transactional
     public void revokeOtherSessions(User user, String currentSessionKey, HttpServletRequest request) {
-        List<UserSecuritySession> activeSessions = sessionRepository.findAllByUserAndRevokedAtIsNullOrderByLastSeenAtDesc(user);
+        LoginAccount account = loginAccountService.ensureForUser(user);
+        List<UserSecuritySession> activeSessions = sessionRepository.findAllByLoginAccountAndRevokedAtIsNullOrderByLastSeenAtDesc(account);
         int revokedCount = 0;
         for (UserSecuritySession session : activeSessions) {
             if (currentSessionKey != null && currentSessionKey.equals(session.getSessionKey())) {
