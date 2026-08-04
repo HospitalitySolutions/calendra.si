@@ -1976,6 +1976,16 @@ public class BillingController {
         return BillType.INVOICE;
     }
 
+    /**
+     * Backward-compatible entry point used by unit tests and internal callers that do not
+     * provide an explicit issuer selection. The mapped controller method below remains the
+     * single HTTP endpoint and resolves the default issuer, location and series when the
+     * selection is {@code null}.
+     */
+    public BillResponse createBillFromOpen(Long id, User me) {
+        return createBillFromOpen(id, null, me);
+    }
+
     @PostMapping("/open-bills/{id}/create-bill")
     @Transactional
     public BillResponse createBillFromOpen(
