@@ -4,19 +4,22 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 public interface ClientRepository extends JpaRepository<Client, Long> {
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany", "workspaceClient"})
     List<Client> findAll();
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany", "workspaceClient"})
     List<Client> findAllByCompanyId(Long companyId);
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany", "workspaceClient"})
     @Query("""
             select distinct c from Client c
             left join c.assignedUsers assignedUser
@@ -25,7 +28,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             """)
     List<Client> findByAssignedToId(@Param("userId") Long userId);
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "preferredSlots", "billingCompany", "workspaceClient"})
     @Query("""
             select distinct c from Client c
             left join c.assignedUsers assignedUser
@@ -53,7 +56,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("assignedToId") Long assignedToId
     );
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany", "workspaceClient"})
     @Query("""
             select c from Client c
             where c.company.id = :companyId
@@ -69,7 +72,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("search") String search,
             Pageable pageable);
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany", "workspaceClient"})
     @Query("""
             select distinct c from Client c
             left join c.assignedUsers assignedUser
@@ -170,4 +173,50 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("companyId") Long companyId,
             @Param("normalizedEmail") String normalizedEmail,
             @Param("excludeClientId") Long excludeClientId);
+
+    @EntityGraph(attributePaths = {"company", "workspaceClient", "assignedTo", "assignedUsers"})
+    List<Client> findAllByWorkspaceClientIdOrderByCompanyIdAscIdAsc(Long workspaceClientId);
+
+    @EntityGraph(attributePaths = {"company", "company.workspace", "workspaceClient", "assignedTo", "assignedUsers"})
+    List<Client> findAllByWorkspaceClientIdInOrderByWorkspaceClientIdAscCompanyIdAscIdAsc(Collection<Long> workspaceClientIds);
+
+    @EntityGraph(attributePaths = {"company", "workspaceClient", "assignedTo", "assignedUsers"})
+    @Query("""
+            select distinct c from Client c
+            left join c.assignedUsers assignedUser
+            where c.workspaceClient.id in :workspaceClientIds
+              and c.company.id in :companyIds
+              and (c.company.id in :adminCompanyIds
+                   or c.assignedTo.id in :membershipIds
+                   or assignedUser.id in :membershipIds)
+            order by lower(c.lastName), lower(c.firstName), c.company.id, c.id
+            """)
+    List<Client> findVisibleWorkspaceRelationships(
+            @Param("workspaceClientIds") Collection<Long> workspaceClientIds,
+            @Param("companyIds") Collection<Long> companyIds,
+            @Param("adminCompanyIds") Collection<Long> adminCompanyIds,
+            @Param("membershipIds") Collection<Long> membershipIds);
+
+    @Query("select distinct c.company.id from Client c where c.workspaceClient.id = :workspaceClientId")
+    Set<Long> findCompanyIdsByWorkspaceClientId(@Param("workspaceClientId") Long workspaceClientId);
+
+    long countByWorkspaceClientId(Long workspaceClientId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Client c
+               set c.firstName = :firstName,
+                   c.lastName = :lastName,
+                   c.email = :email,
+                   c.phone = :phone,
+                   c.whatsappPhone = case when c.whatsappPhone is null or c.whatsappPhone = '' or c.whatsappPhone = c.phone then :phone else c.whatsappPhone end
+             where c.workspaceClient.id = :workspaceClientId
+               and c.anonymized = false
+            """)
+    int synchronizeSharedIdentity(
+            @Param("workspaceClientId") Long workspaceClientId,
+            @Param("firstName") String firstName,
+            @Param("lastName") String lastName,
+            @Param("email") String email,
+            @Param("phone") String phone);
 }

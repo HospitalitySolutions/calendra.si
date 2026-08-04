@@ -14,3 +14,5 @@
 @import './features/service-type-tabs.css';
 @import './features/employees-popup.css';
 @import './features/employee-roles.css';
+
+@import './features/workspace-clients.css';

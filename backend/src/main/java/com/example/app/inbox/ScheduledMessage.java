@@ -1,6 +1,7 @@
 package com.example.app.inbox;
 
 import com.example.app.client.Client;
+import com.example.app.client.ClientDataVisibilityScope;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import com.example.app.user.User;
@@ -58,4 +59,8 @@ public class ScheduledMessage extends BaseEntity {
 
     @Column(length = 2000)
     private String lastError;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility_scope", nullable = false, length = 20)
+    private ClientDataVisibilityScope visibilityScope = ClientDataVisibilityScope.UNIT_ONLY;
 }

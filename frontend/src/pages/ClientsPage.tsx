@@ -9,6 +9,7 @@ import { useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
 import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, StoredFile, User } from '../lib/types'
 import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
+import { WorkspaceClientsPanel } from '../components/WorkspaceClientsPanel'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -1315,6 +1316,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const me = useAuthenticatedUser()
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
+  const sharedWorkspaceUnitCount = (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId).length
+  const [workspaceClientsOpen, setWorkspaceClientsOpen] = useState(false)
   const [entityTab, setEntityTab] = useState<EntityTab>('clients')
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -3902,6 +3905,16 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </button>
                 )}
               </div>
+              {entityTab === 'clients' && sharedWorkspaceUnitCount > 1 && (
+                <button
+                  type="button"
+                  className="clients-workspace-button"
+                  onClick={() => setWorkspaceClientsOpen(true)}
+                >
+                  <span aria-hidden>⌘</span>
+                  <span>{locale === 'sl' ? 'Vse lokacije' : locale === 'sr' ? 'Sve lokacije' : 'All locations'}</span>
+                </button>
+              )}
               <button type="button" className="clients-modern-new-btn" onClick={createCurrentEntity}>
                 <ClientsModernIcon name="plus" />
                 <span>{isClientsMobile ? clientsCopy.newButtonMobile : currentCreateLabel}</span>
@@ -6087,6 +6100,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </div>
         </div>
       )}
+
+      <WorkspaceClientsPanel
+        open={workspaceClientsOpen}
+        onClose={() => setWorkspaceClientsOpen(false)}
+        onChanged={loadClients}
+      />
 
       {anonymizeConfirmClientId != null && (
         <div

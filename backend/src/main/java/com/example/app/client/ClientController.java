@@ -23,6 +23,7 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspaceclient.WorkspaceClientService;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -67,6 +68,9 @@ public class ClientController {
 
     @Autowired(required = false)
     private GuestNotificationService guestNotifications;
+
+    @Autowired(required = false)
+    private WorkspaceClientService workspaceClientService;
 
     public ClientController(
             ClientRepository repository,
@@ -175,7 +179,8 @@ public class ClientController {
             Instant createdAt,
             Instant updatedAt,
             boolean removalBlocked,
-            Map<Long, String> customFieldValues
+            Map<Long, String> customFieldValues,
+            Long workspaceClientId
     ) {}
 
     public record ClientSessionResponse(
@@ -263,6 +268,9 @@ public class ClientController {
         var c = new Client();
         apply(c, req, me);
         Client saved = repository.save(c);
+        if (workspaceClientService != null) {
+            saved = workspaceClientService.synchronizeFromUnitClient(saved, me, true);
+        }
         if (customFieldService != null) {
             customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.CLIENT, saved.getId(), req.customFieldValues());
         }
@@ -279,6 +287,9 @@ public class ClientController {
         }
         apply(c, req, me);
         Client saved = repository.save(c);
+        if (workspaceClientService != null) {
+            saved = workspaceClientService.synchronizeFromUnitClient(saved, me, false);
+        }
         if (customFieldService != null) {
             customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.CLIENT, saved.getId(), req.customFieldValues());
         }
@@ -297,6 +308,9 @@ public class ClientController {
         clientFiles.findAllByClientId(c.getId()).forEach(file -> fileStorage.deleteQuietly(file.getS3ObjectKey()));
         if (customFieldService != null) {
             customFieldService.deleteValuesForEntity(me.getCompany().getId(), CustomFieldAppliesTo.CLIENT, c.getId());
+        }
+        if (workspaceClientService != null) {
+            workspaceClientService.prepareForUnitClientDeletion(c, me);
         }
         repository.delete(c);
     }
@@ -711,7 +725,8 @@ public class ClientController {
                         ? prefetchedCustomValues
                         : customFieldService == null
                                 ? Map.of()
-                                : customFieldService.valuesForEntity(c.getCompany().getId(), CustomFieldAppliesTo.CLIENT, c.getId())
+                                : customFieldService.valuesForEntity(c.getCompany().getId(), CustomFieldAppliesTo.CLIENT, c.getId()),
+                c.getWorkspaceClient() == null ? null : c.getWorkspaceClient().getId()
         );
     }
 

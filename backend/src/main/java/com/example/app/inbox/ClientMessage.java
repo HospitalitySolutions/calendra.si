@@ -1,6 +1,7 @@
 package com.example.app.inbox;
 
 import com.example.app.client.Client;
+import com.example.app.client.ClientDataVisibilityScope;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import com.example.app.guest.model.GuestUser;
@@ -84,6 +85,11 @@ public class ClientMessage extends BaseEntity {
     private boolean internalNote = false;
 
     private Instant sentAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility_scope", nullable = false, length = 20)
+    private ClientDataVisibilityScope visibilityScope = ClientDataVisibilityScope.UNIT_ONLY;
+
     @OneToMany(mappedBy = "message", fetch = FetchType.LAZY, orphanRemoval = true)
     @OrderBy("createdAt asc, id asc")
     private List<ClientMessageAttachment> attachments = new ArrayList<>();

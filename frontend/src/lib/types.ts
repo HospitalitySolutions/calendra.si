@@ -89,6 +89,62 @@ export type Client = {
   /** True when upcoming/live bookings or usable wallet entitlements block deactivate/delete. */
   removalBlocked?: boolean
   customFieldValues?: CustomFieldValueMap | null
+  workspaceClientId?: number | null
+}
+
+export type WorkspaceClientUnit = {
+  clientId: number
+  unitId: number
+  unitName: string
+  active: boolean
+  anonymized: boolean
+  assignedToId?: number | null
+  assignedToName?: string | null
+  bookingCount: number
+  invoiceCount: number
+  messageCount: number
+  noteCount: number
+  fileCount: number
+  lastActivityAt?: string | null
+  lastBookingAt?: string | null
+}
+
+export type WorkspaceClient = {
+  id: number
+  publicId: string
+  firstName: string
+  lastName: string
+  email?: string | null
+  phone?: string | null
+  status: 'ACTIVE' | 'MERGED' | 'ANONYMIZED'
+  units: WorkspaceClientUnit[]
+}
+
+export type WorkspaceClientActivityEvent = {
+  id: number
+  clientId: number
+  unitId: number
+  occurredAt: string
+  type: 'BOOKING' | 'INVOICE' | 'MESSAGE' | 'NOTE' | 'FILE' | string
+  title: string
+  detail?: string | null
+  amount?: number | null
+}
+
+export type WorkspaceClientActivity = {
+  client: WorkspaceClient
+  events: WorkspaceClientActivityEvent[]
+}
+
+export type WorkspaceClientDuplicateCandidate = {
+  id: number
+  score: number
+  reasons: string[]
+  status: 'PENDING' | 'CONFIRMED_SAME_PERSON' | 'NOT_DUPLICATE' | 'DEFERRED' | 'MERGED'
+  createdAt?: string | null
+  reviewedAt?: string | null
+  left: WorkspaceClient
+  right: WorkspaceClient
 }
 
 export type CompanySummary = {

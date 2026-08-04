@@ -22,6 +22,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByLoginAccountId(Long loginAccountId);
     Optional<User> findByLoginAccountIdAndCompanyIdAndActiveTrue(Long loginAccountId, Long companyId);
 
+    @Query("""
+            select u from User u
+            join fetch u.company c
+            join fetch c.workspace w
+            where u.loginAccount.id = :loginAccountId
+              and w.id = :workspaceId
+              and u.active = true
+            order by c.name, c.id, u.id
+            """)
+    List<User> findActiveWorkspaceMemberships(
+            @Param("loginAccountId") Long loginAccountId,
+            @Param("workspaceId") Long workspaceId);
+
     long countByCompanyId(Long companyId);
     long countByCompanyIdAndActiveTrue(Long companyId);
     long countByCompanyIdAndActiveTrueAndRole(Long companyId, Role role);

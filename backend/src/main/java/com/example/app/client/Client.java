@@ -4,6 +4,7 @@ import com.example.app.company.Company;
 import com.example.app.company.ClientCompany;
 import com.example.app.common.BaseEntity;
 import com.example.app.user.User;
+import com.example.app.workspaceclient.WorkspaceClient;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,6 +25,11 @@ public class Client extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    /** Workspace-level identity shared by this person across operating units. */
+    @ManyToOne(optional = false, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "workspace_client_id", nullable = false)
+    private WorkspaceClient workspaceClient;
 
     @Column(nullable = false)
     private String firstName;
@@ -97,11 +103,32 @@ public class Client extends BaseEntity {
     @PrePersist
     @PreUpdate
     public void normalizeNameCase() {
+        ensureWorkspaceClient();
         if (!anonymized) {
             firstName = toNameCase(firstName);
             lastName = toNameCase(lastName);
         }
         email = normalizeEmailStorage(email);
+        if (!anonymized && workspaceClient != null
+                && workspaceClient.getStatus() == com.example.app.workspaceclient.WorkspaceClientStatus.ACTIVE) {
+            workspaceClient.setFirstName(firstName);
+            workspaceClient.setLastName(lastName);
+            workspaceClient.setEmail(email);
+            workspaceClient.setPhone(phone);
+        }
+    }
+
+
+    private void ensureWorkspaceClient() {
+        if (workspaceClient == null && company != null && company.getWorkspace() != null) {
+            WorkspaceClient identity = new WorkspaceClient();
+            identity.setWorkspace(company.getWorkspace());
+            identity.setFirstName(firstName);
+            identity.setLastName(lastName);
+            identity.setEmail(email);
+            identity.setPhone(phone);
+            workspaceClient = identity;
+        }
     }
 
     /** Trim, lowercase (ASCII), empty → null — consistent uniqueness checks per tenant. */

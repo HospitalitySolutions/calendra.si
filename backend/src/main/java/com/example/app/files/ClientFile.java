@@ -1,10 +1,13 @@
 package com.example.app.files;
 
 import com.example.app.client.Client;
+import com.example.app.client.ClientDataVisibilityScope;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -45,4 +48,8 @@ public class ClientFile extends BaseEntity {
 
     @Column(name = "pending_inbox_attachment", nullable = false)
     private boolean pendingInboxAttachment;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility_scope", nullable = false, length = 20)
+    private ClientDataVisibilityScope visibilityScope = ClientDataVisibilityScope.UNIT_ONLY;
 }

@@ -141,6 +141,7 @@ public class TenantPermissionAuthorizationFilter extends OncePerRequestFilter {
                 RouteRule.exact("/api/ai/voice-booking", "CALENDAR_BOOKINGS_CREATE"),
 
                 // Clients, client groups and company/customer records.
+                RouteRule.prefix("/api/workspace-clients", "CLIENTS"),
                 RouteRule.prefix("/api/clients/{clientId}/wallet", "WALLET_BENEFITS"),
                 RouteRule.prefix("/api/clients", "CLIENTS"),
                 RouteRule.prefix("/api/groups", "CLIENTS"),

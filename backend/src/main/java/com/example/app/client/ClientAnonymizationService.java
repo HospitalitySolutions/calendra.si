@@ -3,6 +3,8 @@ package com.example.app.client;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.user.User;
+import com.example.app.workspaceclient.WorkspaceClientService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,9 @@ public class ClientAnonymizationService {
 
     private final ClientRepository clients;
     private final SessionBookingRepository bookings;
+
+    @Autowired(required = false)
+    private WorkspaceClientService workspaceClientService;
 
     public ClientAnonymizationService(ClientRepository clients, SessionBookingRepository bookings) {
         this.clients = clients;
@@ -27,7 +32,7 @@ public class ClientAnonymizationService {
         if (!SecurityUtils.isAdmin(me) && (client.getAssignedTo() == null || !client.getAssignedTo().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        return anonymizeClient(client, me.getId());
+        return anonymizeClient(client, me.getId(), me);
     }
 
     @Transactional
@@ -35,17 +40,24 @@ public class ClientAnonymizationService {
         if (client == null || client.getId() == null || client.getCompany() == null || client.getCompany().getId() == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        return anonymizeClient(client, guestUserId);
+        return anonymizeClient(client, guestUserId, null);
     }
 
-    private Client anonymizeClient(Client client, Long actorId) {
+    private Client anonymizeClient(Client client, Long actorId, User actor) {
         if (client.isAnonymized()) {
             return client;
+        }
+        if (workspaceClientService != null) {
+            workspaceClientService.detachForUnitAnonymization(client, actor);
         }
         client.getPreferredSlots().clear();
         bookings.anonymizeNotesForClient(client.getCompany().getId(), client.getId(), NOTES_REPLACEMENT);
         client.anonymize(actorId);
-        return clients.save(client);
+        Client saved = clients.save(client);
+        if (workspaceClientService != null) {
+            workspaceClientService.markUnitIdentityAnonymized(saved, actor);
+        }
+        return saved;
     }
 }
 
