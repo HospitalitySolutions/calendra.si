@@ -76,7 +76,7 @@ BEGIN
          WHERE t.relname = 'space'
            AND c.contype = 'u'
            AND (
-               SELECT array_agg(a.attname ORDER BY a.attname)
+               SELECT array_agg(a.attname::TEXT ORDER BY a.attname::TEXT)
                  FROM unnest(c.conkey) key(attnum)
                  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = key.attnum
            ) = ARRAY['company_id', 'name']::TEXT[]
