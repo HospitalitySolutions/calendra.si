@@ -59,7 +59,7 @@ type WaitlistRequest = {
   history: EventView[]
 }
 
-type LookupItem = { id: number; name: string; durationMinutes?: number | null; serviceGroupId?: number | null; serviceGroupName?: string | null }
+type LookupItem = { id: number; name: string; durationMinutes?: number | null; serviceGroupId?: number | null; serviceGroupName?: string | null; locationId?: number | null }
 type ServiceGroupItem = { id: number; name: string; active: boolean; serviceCount: number }
 type ClientItem = { id: number; firstName?: string; lastName?: string; email?: string; phone?: string }
 
@@ -281,6 +281,7 @@ export function AppointmentsPage() {
   const [serviceGroups, setServiceGroups] = useState<ServiceGroupItem[]>([])
   const [serviceGroupsModuleEnabled, setServiceGroupsModuleEnabled] = useState(true)
   const [employees, setEmployees] = useState<LookupItem[]>([])
+  const [locations, setLocations] = useState<LookupItem[]>([])
   const [spaces, setSpaces] = useState<LookupItem[]>([])
   const [saving, setSaving] = useState(false)
   const [, setTick] = useState(0)
@@ -384,11 +385,12 @@ export function AppointmentsPage() {
     const settingsResult = await api.get<Record<string, string>>('/settings').catch(() => ({ data: {} as Record<string, string> }))
     const groupsEnabled = settingsResult.data?.SERVICE_GROUPS_ENABLED !== 'false'
     setServiceGroupsModuleEnabled(groupsEnabled)
-    const [clientsResult, servicesResult, groupsResult, employeesResult, spacesResult] = await Promise.allSettled([
+    const [clientsResult, servicesResult, groupsResult, employeesResult, locationsResult, spacesResult] = await Promise.allSettled([
       api.get('/clients', { params: { size: 500 } }),
       api.get('/types'),
       groupsEnabled ? api.get('/service-groups') : Promise.resolve({ data: [] }),
       api.get('/users/consultants'),
+      api.get('/locations'),
       api.get('/spaces'),
     ])
     if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data.filter((client: any) => client?.active !== false) : [])
@@ -414,9 +416,13 @@ export function AppointmentsPage() {
       const value = Array.isArray(employeesResult.value.data) ? employeesResult.value.data : []
       setEmployees(value.map((item: any) => ({ id: item.id, name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email || `#${item.id}` })))
     }
+    if (locationsResult.status === 'fulfilled') {
+      const value = Array.isArray(locationsResult.value.data) ? locationsResult.value.data : []
+      setLocations(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
+    }
     if (spacesResult.status === 'fulfilled') {
       const value = Array.isArray(spacesResult.value.data) ? spacesResult.value.data : []
-      setSpaces(value.map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
+      setSpaces(value.map((item: any) => ({ id: item.id, name: item.name || `#${item.id}`, locationId: item.location?.id ?? null })))
     }
   }, [])
 
@@ -532,11 +538,10 @@ export function AppointmentsPage() {
       : employeeOptions.length === 1
         ? String(employeeOptions[0].id)
         : ''
-    const roomId = request.locationId
-      ? String(request.locationId)
-      : spaces.length === 1
-        ? String(spaces[0].id)
-        : ''
+    const matchingRooms = request.locationId
+      ? spaces.filter(item => Number(item.locationId) === Number(request.locationId))
+      : spaces
+    const roomId = matchingRooms.length === 1 ? String(matchingRooms[0].id) : ''
     setOfferForm({ serviceId, slotStart: start, slotEnd: end, employeeId, roomId, validityMinutes: '15' })
     setShowOffer(true)
   }
@@ -1050,7 +1055,7 @@ export function AppointmentsPage() {
         <label><span>{copy.serviceGroup}</span><select required value={requestForm.serviceGroupId} onChange={event => setRequestForm(value => ({ ...value, serviceGroupId: event.target.value }))}><option value="">{copy.select}</option>{serviceGroups.filter(group => group.serviceCount > 0).map(group => <option key={group.id} value={group.id}>{group.name} · {group.serviceCount}</option>)}</select></label> :
         <label><span>{copy.service}</span><select required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
       <label><span>{copy.employeeOptional}</span><select value={requestForm.specificEmployeeId} onChange={event => setRequestForm(value => ({ ...value, specificEmployeeId: event.target.value }))}><option value="">{copy.any}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label><span>{copy.location}</span><select value={requestForm.locationId} onChange={event => setRequestForm(value => ({ ...value, locationId: event.target.value }))}><option value="">—</option>{spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label><span>{copy.location}</span><select value={requestForm.locationId} onChange={event => setRequestForm(value => ({ ...value, locationId: event.target.value }))}><option value="">—</option>{locations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <div className="waitlist-flexible-option wide">
         <span><strong>{copy.flexible}</strong><small>{copy.flexibleHelp}</small></span>
         <button type="button" role="switch" aria-checked={requestForm.anyAvailableSlot} className={`waitlist-payment-switch${requestForm.anyAvailableSlot ? ' is-on' : ''}`} onClick={() => setRequestForm(value => ({ ...value, anyAvailableSlot: !value.anyAvailableSlot }))}><span>{requestForm.anyAvailableSlot ? 'ON' : 'OFF'}</span><i/></button>
@@ -1071,7 +1076,7 @@ export function AppointmentsPage() {
       <label><span>{copy.start}</span><input required type="datetime-local" value={offerForm.slotStart} onChange={event => setOfferForm(value => ({ ...value, slotStart: event.target.value }))}/></label>
       <label><span>{copy.end}</span><input required type="datetime-local" value={offerForm.slotEnd} onChange={event => setOfferForm(value => ({ ...value, slotEnd: event.target.value }))}/></label>
       {employeeOptions.length > 1 && <label><span>{copy.employee}</span><select value={offerForm.employeeId} onChange={event => setOfferForm(value => ({ ...value, employeeId: event.target.value }))}><option value="">—</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
-      {spaces.length > 1 && <label><span>{copy.room}</span><select value={offerForm.roomId} onChange={event => setOfferForm(value => ({ ...value, roomId: event.target.value }))}><option value="">—</option>{spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
+      {spaces.filter(item => !selected?.locationId || Number(item.locationId) === Number(selected.locationId)).length > 1 && <label><span>{copy.room}</span><select value={offerForm.roomId} onChange={event => setOfferForm(value => ({ ...value, roomId: event.target.value }))}><option value="">—</option>{spaces.filter(item => !selected?.locationId || Number(item.locationId) === Number(selected.locationId)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
       <label><span>{copy.validity}</span><input required min="5" max="1440" type="number" value={offerForm.validityMinutes} onChange={event => setOfferForm(value => ({ ...value, validityMinutes: event.target.value }))}/></label>
     </div><div className="waitlist-modal-info">{copy.temporaryHold} <strong>{offerForm.validityMinutes} min</strong>. V tem času termin ni na voljo drugim rezervacijam.</div><footer><button type="submit" className="primary" disabled={saving}>{saving ? '…' : copy.offer}</button></footer></form></div>}
 

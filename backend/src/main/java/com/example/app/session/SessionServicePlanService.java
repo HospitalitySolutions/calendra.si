@@ -129,6 +129,7 @@ public class SessionServicePlanService {
         List<Segment> segments = new ArrayList<>();
         LocalDateTime cursor = start;
         SessionPriceCalculationMode priceMode = null;
+        Long normalizedLocationId = null;
         for (int position = 0; position < ordered.size(); position++) {
             var serviceRequest = ordered.get(position).value();
             SessionType type = requireActiveType(serviceRequest.typeId(), companyId);
@@ -151,6 +152,16 @@ public class SessionServicePlanService {
                     : 0;
             Long requestedSpaceId = serviceRequest.spaceId() != null ? serviceRequest.spaceId() : request.spaceId();
             Space space = resolveSpace(requestedSpaceId, companyId);
+            if (space != null && space.getLocation() != null) {
+                Long currentLocationId = space.getLocation().getId();
+                if (normalizedLocationId == null) normalizedLocationId = currentLocationId;
+                else if (!normalizedLocationId.equals(currentLocationId)) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "All spaces in one session must belong to the same location."
+                    );
+                }
+            }
             LocalDateTime serviceEnd = cursor.plusMinutes(durationMinutes);
             segments.add(new Segment(position, type, space, cursor, serviceEnd, durationMinutes, breakMinutes));
             cursor = serviceEnd;
@@ -212,6 +223,9 @@ public class SessionServicePlanService {
         booking.setAvailabilityEndTime(plan.availabilityEndTime());
         booking.setType(plan.primaryType());
         booking.setSpace(plan.primarySpace());
+        if (plan.primarySpace() != null && plan.primarySpace().getLocation() != null) {
+            booking.setLocation(plan.primarySpace().getLocation());
+        }
 
         Map<Integer, SessionService> existingByPosition = new LinkedHashMap<>();
         if (booking.getServices() != null) {

@@ -5,6 +5,7 @@ import com.example.app.company.Company;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.group.ClientGroup;
+import com.example.app.location.Location;
 import com.example.app.user.User;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -24,6 +25,10 @@ public class SessionBooking extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     /** Null allowed for group sessions until participants are added. */
     @ManyToOne(optional = true)

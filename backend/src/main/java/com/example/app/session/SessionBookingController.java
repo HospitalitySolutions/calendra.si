@@ -22,6 +22,8 @@ import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.Role;
 import com.example.app.user.User;
+import com.example.app.user.UserRepository;
+import com.example.app.location.LocationRepository;
 import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
 import com.example.app.waitlist.WaitlistService;
@@ -80,6 +82,12 @@ public class SessionBookingController {
 
     @Autowired(required = false)
     private ObjectProvider<WaitlistService> waitlistServiceProvider;
+
+    @Autowired(required = false)
+    private UserRepository userRepository;
+
+    @Autowired(required = false)
+    private LocationRepository locationRepository;
 
     @Autowired
     public SessionBookingController(SessionBookingRepository repo,
@@ -172,7 +180,9 @@ public class SessionBookingController {
             /** Stable key shared by occurrences created from the same repeating booking action. */
             String recurrenceSeriesKey,
             /** Ordered service chain. Null/empty preserves the legacy typeId + endTime contract. */
-            List<BookingServiceRequest> services
+            List<BookingServiceRequest> services,
+            /** Physical branch inside the selected operating unit. Defaults from space or unit default. */
+            Long locationId
     ) {
         /** Source-compatible constructor for legacy callers that only provide typeId. */
         public BookingRequest(
@@ -198,7 +208,22 @@ public class SessionBookingController {
             this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
                     meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
                     groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
-                    recurrenceSeriesKey, null);
+                    recurrenceSeriesKey, null, null);
+        }
+
+        /** Source-compatible constructor for callers that provide a service chain but no location. */
+        public BookingRequest(
+                Long clientId, List<Long> clientIds, Long consultantId, String startTime, String endTime,
+                Long spaceId, Long typeId, String notes, String meetingLink, Boolean online,
+                String meetingProvider, Boolean allowPersonalBlockOverlap, Long groupId,
+                String groupEmailOverride, Long groupBillingCompanyIdOverride, String bookingStatus,
+                List<BookingPayeeRequest> payees, String recurrenceSeriesKey,
+                List<BookingServiceRequest> services
+        ) {
+            this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
+                    meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
+                    groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
+                    recurrenceSeriesKey, services, null);
         }
     }
 
@@ -229,6 +254,8 @@ public class SessionBookingController {
 
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
+    public record LocationSummary(Long id, String name, String city, String timezone) {}
+    public record UnitSummary(Long id, String name) {}
     public record SpaceSummary(Long id, String name) {}
     public record TypeSummary(Long id, String name, String description, String color, Integer durationMinutes, Integer breakMinutes, Integer maxParticipantsPerSession, SessionPriceCalculationMode priceCalculationMode) {}
     public record BookingServiceResponse(
@@ -312,7 +339,8 @@ public class SessionBookingController {
             LocalDateTime availabilityEndTime,
             int totalServiceMinutes,
             int totalBreakMinutes,
-            BigDecimal totalGross
+            BigDecimal totalGross,
+            LocationSummary location
     ) {}
     public record BookableSlotResponse(
             Long id,
@@ -779,6 +807,96 @@ public class SessionBookingController {
         return result;
     }
 
+    @GetMapping("/calendar/workspace")
+    @Transactional(readOnly = true)
+    public Map<String, Object> workspaceCalendar(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @RequestParam(required = false) List<Long> unitIds,
+            @AuthenticationPrincipal User me
+    ) {
+        if (userRepository == null || me.getLoginAccount() == null || me.getCompany() == null
+                || me.getCompany().getWorkspace() == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Workspace calendar is unavailable.");
+        }
+        DateRange range = resolveRequiredDateRange(from, to);
+        Long workspaceId = me.getCompany().getWorkspace().getId();
+        List<User> memberships = userRepository.findActiveWorkspaceMemberships(me.getLoginAccount().getId(), workspaceId);
+        Map<Long, User> membershipByUnit = memberships.stream().collect(Collectors.toMap(
+                membership -> membership.getCompany().getId(), membership -> membership,
+                (left, right) -> left, LinkedHashMap::new));
+        List<Long> accessibleUnitIds = new ArrayList<>(membershipByUnit.keySet());
+        List<Long> selectedUnitIds = unitIds == null || unitIds.isEmpty()
+                ? accessibleUnitIds
+                : unitIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (selectedUnitIds.isEmpty() || !accessibleUnitIds.containsAll(selectedUnitIds)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "One or more requested locations are not accessible.");
+        }
+
+        List<SessionBooking> rows = repo.findWorkspaceCalendarRows(selectedUnitIds, range.rangeStart(), range.rangeEnd()).stream()
+                .filter(row -> {
+                    User membership = membershipByUnit.get(row.getCompany().getId());
+                    if (membership == null) return false;
+                    if (SecurityUtils.isAdmin(membership)) return true;
+                    return row.getConsultant() != null && row.getConsultant().getLoginAccount() != null
+                            && Objects.equals(row.getConsultant().getLoginAccount().getId(), me.getLoginAccount().getId());
+                }).toList();
+
+        List<Map<String, Object>> booked = new ArrayList<>();
+        rows.stream().collect(Collectors.groupingBy(row -> row.getCompany().getId(), LinkedHashMap::new, Collectors.toList()))
+                .forEach((companyId, companyRows) -> groupedBookingResponsesWithPayments(companyRows, companyId)
+                        .forEach(base -> booked.add(workspaceBookingMap(base, companyRows))));
+        booked.sort((left, right) -> String.valueOf(left.get("startTime")).compareTo(String.valueOf(right.get("startTime"))));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("booked", booked);
+        result.put("bookable", List.of());
+        result.put("personal", List.of());
+        result.put("todos", List.of());
+        result.put("waitlistOffers", List.of());
+        result.put("readOnly", true);
+        result.put("units", memberships.stream().filter(m -> selectedUnitIds.contains(m.getCompany().getId()))
+                .map(m -> new UnitSummary(m.getCompany().getId(), m.getCompany().getName())).toList());
+        result.put("locations", locationRepository == null ? List.of() : locationRepository
+                .findAllByCompanyIdInAndActiveTrueOrderByCompanyIdAscDefaultLocationDescNameAscIdAsc(selectedUnitIds)
+                .stream().map(l -> new LocationSummary(l.getId(), l.getName(), l.getCity(), l.getTimezone())).toList());
+        return result;
+    }
+
+    private Map<String, Object> workspaceBookingMap(BookingResponse base, List<SessionBooking> companyRows) {
+        SessionBooking row = companyRows.stream().filter(candidate -> Objects.equals(candidate.getId(), base.id())).findFirst()
+                .orElse(companyRows.get(0));
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", base.id());
+        map.put("bookingGroupKey", base.bookingGroupKey());
+        map.put("recurrenceSeriesKey", base.recurrenceSeriesKey());
+        map.put("client", base.client());
+        map.put("clients", base.clients());
+        map.put("consultant", base.consultant());
+        map.put("startTime", base.startTime());
+        map.put("endTime", base.endTime());
+        map.put("space", base.space());
+        map.put("type", base.type());
+        map.put("notes", base.notes());
+        map.put("meetingLink", base.meetingLink());
+        map.put("meetingProvider", base.meetingProvider());
+        map.put("groupId", base.groupId());
+        map.put("bookingStatus", base.bookingStatus());
+        map.put("bookingSource", base.bookingSource());
+        map.put("payees", base.payees());
+        map.put("paymentStatuses", base.paymentStatuses());
+        map.put("services", base.services());
+        map.put("availabilityEndTime", base.availabilityEndTime());
+        map.put("totalServiceMinutes", base.totalServiceMinutes());
+        map.put("totalBreakMinutes", base.totalBreakMinutes());
+        map.put("totalGross", base.totalGross());
+        map.put("location", row.getLocation() == null ? null : new LocationSummary(
+                row.getLocation().getId(), row.getLocation().getName(), row.getLocation().getCity(), row.getLocation().getTimezone()));
+        map.put("unit", new UnitSummary(row.getCompany().getId(), row.getCompany().getName()));
+        map.put("readOnly", true);
+        return map;
+    }
+
     private static WaitlistOfferHoldSummary toWaitlistOfferHoldSummary(WaitlistBookingHold hold) {
         var offer = hold.getOffer();
         var request = offer == null ? null : offer.getRequest();
@@ -926,7 +1044,8 @@ public class SessionBookingController {
                 base.availabilityEndTime(),
                 base.totalServiceMinutes(),
                 base.totalBreakMinutes(),
-                base.totalGross()
+                base.totalGross(),
+                base.location()
         );
     }
 
@@ -1336,7 +1455,10 @@ public class SessionBookingController {
                 SessionServiceSupport.availabilityEnd(representative),
                 SessionServiceSupport.totalServiceMinutes(representative),
                 SessionServiceSupport.totalBreakMinutes(representative),
-                SessionBillingSupport.grossTotal(representative)
+                SessionBillingSupport.grossTotal(representative),
+                representative.getLocation() == null ? null : new LocationSummary(
+                        representative.getLocation().getId(), representative.getLocation().getName(),
+                        representative.getLocation().getCity(), representative.getLocation().getTimezone())
         );
     }
 

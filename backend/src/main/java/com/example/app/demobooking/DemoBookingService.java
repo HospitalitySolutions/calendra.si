@@ -17,6 +17,7 @@ import com.example.app.demobooking.DemoBookingApiModels.RescheduleRequest;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.google.GoogleMeetService;
+import com.example.app.location.LocationService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBookingRealtimeService;
 import com.example.app.session.PersonalCalendarBlockRepository;
@@ -48,6 +49,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +75,9 @@ public class DemoBookingService {
     private final ZoomService zoom;
     private final DemoBookingEmailService emails;
     private final ObjectMapper objectMapper;
+
+    @Autowired(required = false)
+    private LocationService locationService;
 
     public DemoBookingService(
             DemoBookingProfileRepository profiles,
@@ -494,6 +499,7 @@ public class DemoBookingService {
             String provider) {
         SessionBooking session = new SessionBooking();
         session.setCompany(host.getCompany());
+        if (locationService != null) session.setLocation(locationService.requireDefault(host.getCompany()));
         session.setClient(client);
         session.setConsultant(host);
         session.setBookingGroupKey(UUID.randomUUID().toString());

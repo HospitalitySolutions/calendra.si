@@ -792,4 +792,34 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("companyId") Long companyId,
             @Param("transactionServiceId") Long transactionServiceId,
             @Param("now") LocalDateTime now);
+    long countByLocationId(Long locationId);
+
+    @EntityGraph(attributePaths = {"company", "location", "space", "space.location", "consultant", "consultant.loginAccount", "client", "type"})
+    @Query("SELECT DISTINCT sb FROM SessionBooking sb WHERE sb.company.id IN :companyIds " +
+           "AND sb.startTime < :rangeEnd AND sb.endTime > :rangeStart " +
+           "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")
+    List<SessionBooking> findWorkspaceCalendarRows(
+            @Param("companyIds") Collection<Long> companyIds,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd);
+
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            join users u on u.id = sb.consultant_id
+            join company c on c.id = sb.company_id
+            where u.login_account_id = :loginAccountId
+              and c.workspace_id = :workspaceId
+              and sb.id not in (:excludeIds)
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+              and sb.start_time < :requestedBusyEnd
+              and coalesce(sb.availability_end_time, sb.end_time) > :start
+            """, nativeQuery = true)
+    boolean existsWorkspaceOverlapForLoginAccount(
+            @Param("loginAccountId") Long loginAccountId,
+            @Param("workspaceId") Long workspaceId,
+            @Param("start") LocalDateTime start,
+            @Param("requestedBusyEnd") LocalDateTime requestedBusyEnd,
+            @Param("excludeIds") List<Long> excludeIds);
+
 }

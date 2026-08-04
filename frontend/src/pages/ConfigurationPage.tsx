@@ -890,11 +890,26 @@ function useQuery() {
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
+type OperatingLocation = {
+  id: number;
+  name: string;
+  address?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  timezone: string;
+  phone?: string | null;
+  email?: string | null;
+  publicBookingEnabled: boolean;
+  defaultLocation: boolean;
+  active: boolean;
+  fiscalBusinessPremiseCode?: string | null;
+};
 type Space = {
   id: number;
   name: string;
   description?: string;
   createdAt?: string;
+  location?: OperatingLocation | null;
 };
 const toTimeInputValue = (value: string | undefined, fallback: string) => {
   const v = (value || "").trim();
@@ -1143,14 +1158,19 @@ export function ConfigurationPage() {
     useState<WebsiteWidgetSettingsForm>(defaultWebsiteWidgetSettings);
   const [websiteBookingRules, setWebsiteBookingRules] =
     useState<WebsiteBookingRulesForm>(defaultWebsiteBookingRules);
+  const [locations, setLocations] = useState<OperatingLocation[]>([]);
+  const [locationDraft, setLocationDraft] = useState({ name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "", publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "" });
+  const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
+  const [showNewLocation, setShowNewLocation] = useState(false);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null);
   const [spaceEditDraft, setSpaceEditDraft] = useState({
     name: "",
     description: "",
+    locationId: "",
   });
   const [newSpaceDrafts, setNewSpaceDrafts] = useState<
-    Array<{ tempId: string; name: string; description: string }>
+    Array<{ tempId: string; name: string; description: string; locationId: string }>
   >([]);
   const [openSpaceMenuId, setOpenSpaceMenuId] = useState<number | null>(null);
   const [spaceSearch, setSpaceSearch] = useState("");
@@ -2862,6 +2882,7 @@ export function ConfigurationPage() {
       rawSettings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true" &&
       hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
     const [
+      locationsRes,
       spacesRes,
       paymentMethodsRes,
       certificateMetaRes,
@@ -2871,6 +2892,7 @@ export function ConfigurationPage() {
       catalogRes,
       tenantUsersRes,
     ] = await Promise.all([
+      api.get("/locations").catch(() => ({ data: [] })),
       api.get("/spaces").catch(() => ({ data: [] })),
       api.get("/billing/payment-methods").catch(() => ({ data: [] })),
       canReadFiscalCertificate
@@ -3045,6 +3067,7 @@ export function ConfigurationPage() {
     setPersonalTaskPresets(
       parsePersonalTaskPresets(settingsData[PERSONAL_TASK_PRESETS_KEY]),
     );
+    setLocations(locationsRes.data || []);
     setSpaces(spacesRes.data || []);
     setPaymentMethods(
       (paymentMethodsRes.data || [])
@@ -4008,6 +4031,41 @@ export function ConfigurationPage() {
 
 
 
+  const resetLocationDraft = () => setLocationDraft({ name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "", publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "" });
+
+  const startEditLocation = (location: OperatingLocation) => {
+    setEditingLocationId(location.id);
+    setShowNewLocation(false);
+    setLocationDraft({
+      name: location.name || "", address: location.address || "", postalCode: location.postalCode || "",
+      city: location.city || "", timezone: location.timezone || "Europe/Ljubljana", phone: location.phone || "",
+      email: location.email || "", publicBookingEnabled: location.publicBookingEnabled !== false,
+      active: location.active !== false, fiscalBusinessPremiseCode: location.fiscalBusinessPremiseCode || "",
+    });
+  };
+
+  const saveLocation = async (id?: number) => {
+    if (!locationDraft.name.trim()) return;
+    const payload = { ...locationDraft, name: locationDraft.name.trim(), defaultLocation: id ? locations.find(item => item.id === id)?.defaultLocation === true : false };
+    if (id) await api.put(`/locations/${id}`, payload);
+    else await api.post("/locations", payload);
+    setEditingLocationId(null);
+    setShowNewLocation(false);
+    resetLocationDraft();
+    await load();
+  };
+
+  const makeDefaultLocation = async (location: OperatingLocation) => {
+    await api.put(`/locations/${location.id}`, { ...location, defaultLocation: true });
+    await load();
+  };
+
+  const removeLocation = async (location: OperatingLocation) => {
+    if (!window.confirm(`Izbrišem lokacijo ${location.name}?`)) return;
+    await api.delete(`/locations/${location.id}`);
+    await load();
+  };
+
   const saveEditedSpace = async (spaceId: number) => {
     if (!canViewConfiguration) return;
     const name = spaceEditDraft.name.trim();
@@ -4015,9 +4073,10 @@ export function ConfigurationPage() {
     await api.put(`/spaces/${spaceId}`, {
       name,
       description: spaceEditDraft.description.trim(),
+      locationId: spaceEditDraft.locationId ? Number(spaceEditDraft.locationId) : null,
     });
     setEditingSpaceId(null);
-    setSpaceEditDraft({ name: "", description: "" });
+    setSpaceEditDraft({ name: "", description: "", locationId: "" });
     load();
   };
 
@@ -4027,7 +4086,7 @@ export function ConfigurationPage() {
     if (!draft) return;
     const name = draft.name.trim();
     if (!name) return;
-    await api.post("/spaces", { name, description: draft.description.trim() });
+    await api.post("/spaces", { name, description: draft.description.trim(), locationId: draft.locationId ? Number(draft.locationId) : null });
     setNewSpaceDrafts((prev) => prev.filter((item) => item.tempId !== tempId));
     load();
   };
@@ -10213,6 +10272,96 @@ export function ConfigurationPage() {
                       </div>
                     </div>
                     <div className="booking-content-panel">
+                      <section className="booking-locations-manager" aria-labelledby="booking-locations-heading">
+                        <div className="booking-locations-heading-row">
+                          <div>
+                            <h3 id="booking-locations-heading">Lokacije</h3>
+                            <p>Upravljajte fizične poslovalnice. Prostori in termini so vedno vezani na eno lokacijo.</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="booking-primary-button booking-primary-button--compact"
+                            onClick={() => {
+                              setEditingLocationId(null);
+                              resetLocationDraft();
+                              setShowNewLocation(true);
+                            }}
+                          >
+                            + Nova lokacija
+                          </button>
+                        </div>
+
+                        {(showNewLocation || editingLocationId != null) ? (
+                          <div className="booking-location-form">
+                            <label>
+                              <span>Ime lokacije *</span>
+                              <input value={locationDraft.name} onChange={(event) => setLocationDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="npr. Maribor Center" />
+                            </label>
+                            <label>
+                              <span>Naslov</span>
+                              <input value={locationDraft.address} onChange={(event) => setLocationDraft((draft) => ({ ...draft, address: event.target.value }))} />
+                            </label>
+                            <label>
+                              <span>Poštna številka</span>
+                              <input value={locationDraft.postalCode} onChange={(event) => setLocationDraft((draft) => ({ ...draft, postalCode: event.target.value }))} />
+                            </label>
+                            <label>
+                              <span>Mesto</span>
+                              <input value={locationDraft.city} onChange={(event) => setLocationDraft((draft) => ({ ...draft, city: event.target.value }))} />
+                            </label>
+                            <label>
+                              <span>Časovni pas</span>
+                              <input value={locationDraft.timezone} onChange={(event) => setLocationDraft((draft) => ({ ...draft, timezone: event.target.value }))} />
+                            </label>
+                            <label>
+                              <span>Telefon</span>
+                              <input value={locationDraft.phone} onChange={(event) => setLocationDraft((draft) => ({ ...draft, phone: event.target.value }))} />
+                            </label>
+                            <label>
+                              <span>E-pošta</span>
+                              <input type="email" value={locationDraft.email} onChange={(event) => setLocationDraft((draft) => ({ ...draft, email: event.target.value }))} />
+                            </label>
+                            <label>
+                              <span>Oznaka poslovnega prostora</span>
+                              <input value={locationDraft.fiscalBusinessPremiseCode} onChange={(event) => setLocationDraft((draft) => ({ ...draft, fiscalBusinessPremiseCode: event.target.value }))} placeholder="Za kasnejšo nastavitev fiskalizacije" />
+                            </label>
+                            <label className="booking-location-checkbox">
+                              <input type="checkbox" checked={locationDraft.publicBookingEnabled} onChange={(event) => setLocationDraft((draft) => ({ ...draft, publicBookingEnabled: event.target.checked }))} />
+                              <span>Vidna pri spletnem naročanju</span>
+                            </label>
+                            <label className="booking-location-checkbox">
+                              <input type="checkbox" checked={locationDraft.active} onChange={(event) => setLocationDraft((draft) => ({ ...draft, active: event.target.checked }))} />
+                              <span>Aktivna lokacija</span>
+                            </label>
+                            <div className="booking-location-form-actions">
+                              <button type="button" className="booking-space-inline-btn primary" onClick={() => void saveLocation(editingLocationId ?? undefined)}>Shrani</button>
+                              <button type="button" className="booking-space-inline-btn" onClick={() => { setEditingLocationId(null); setShowNewLocation(false); resetLocationDraft(); }}>Prekliči</button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="booking-location-grid">
+                          {locations.map((location) => (
+                            <article key={location.id} className={`booking-location-card${location.defaultLocation ? " is-default" : ""}${location.active ? "" : " is-inactive"}`}>
+                              <div>
+                                <div className="booking-location-title-row">
+                                  <h4>{location.name}</h4>
+                                  {location.defaultLocation ? <span className="booking-location-default-pill">Privzeta</span> : null}
+                                  {!location.active ? <span className="booking-location-inactive-pill">Neaktivna</span> : null}
+                                </div>
+                                <p>{[location.address, location.postalCode, location.city].filter(Boolean).join(", ") || "Naslov ni določen"}</p>
+                                <small>{location.timezone}{location.publicBookingEnabled ? " · spletno naročanje" : " · skrita pri spletnem naročanju"}</small>
+                              </div>
+                              <div className="booking-location-actions">
+                                {!location.defaultLocation && location.active ? <button type="button" onClick={() => void makeDefaultLocation(location)}>Nastavi kot privzeto</button> : null}
+                                <button type="button" onClick={() => startEditLocation(location)}>Uredi</button>
+                                {!location.defaultLocation ? <button type="button" className="danger" onClick={() => void removeLocation(location)}>Izbriši</button> : null}
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+
                       {spacesEnabledCommitted ? (
                         <div>
                           <div className="booking-spaces-mobile-toolbar">
@@ -10286,7 +10435,7 @@ export function ConfigurationPage() {
                               onClick={() => {
                                 const tempId = `new-space-${Date.now()}`;
                                 setNewSpaceDrafts((prev) => [
-                                  { tempId, name: "", description: "" },
+                                  { tempId, name: "", description: "", locationId: String(locations.find(item => item.defaultLocation)?.id || locations[0]?.id || "") },
                                   ...prev,
                                 ]);
                               }}
@@ -10375,6 +10524,13 @@ export function ConfigurationPage() {
                                       )
                                     }
                                   />
+                                  <select
+                                    className="booking-space-select"
+                                    value={draft.locationId}
+                                    onChange={(event) => setNewSpaceDrafts((prev) => prev.map((item) => item.tempId === draft.tempId ? { ...item, locationId: event.target.value } : item))}
+                                  >
+                                    {locations.filter((location) => location.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                                  </select>
                                   <div className="booking-space-inline-actions">
                                     <button
                                       type="button"
@@ -10453,6 +10609,13 @@ export function ConfigurationPage() {
                                           }))
                                         }
                                       />
+                                      <select
+                                        className="booking-space-select"
+                                        value={spaceEditDraft.locationId}
+                                        onChange={(event) => setSpaceEditDraft((prev) => ({ ...prev, locationId: event.target.value }))}
+                                      >
+                                        {locations.filter((location) => location.active || location.id === space.location?.id).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                                      </select>
                                       <div className="booking-space-inline-actions">
                                         <button
                                           type="button"
@@ -10471,6 +10634,7 @@ export function ConfigurationPage() {
                                             setSpaceEditDraft({
                                               name: "",
                                               description: "",
+                                              locationId: "",
                                             });
                                           }}
                                         >
@@ -10481,7 +10645,7 @@ export function ConfigurationPage() {
                                   ) : (
                                     <>
                                       <h4>{space.name}</h4>
-                                      <p>{space.description || "Prostor"}</p>
+                                      <p>{space.location?.name || "Lokacija ni določena"}{space.description ? ` · ${space.description}` : ""}</p>
                                     </>
                                   )}
                                   <span className="booking-status-pill">
@@ -10528,8 +10692,8 @@ export function ConfigurationPage() {
                                             setEditingSpaceId(space.id);
                                             setSpaceEditDraft({
                                               name: space.name,
-                                              description:
-                                                space.description || "",
+                                              description: space.description || "",
+                                              locationId: String(space.location?.id || locations.find(item => item.defaultLocation)?.id || ""),
                                             });
                                           }}
                                         >

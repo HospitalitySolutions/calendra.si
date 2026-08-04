@@ -50,6 +50,8 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
 
     long countByCompanyIdAndClientIdAndStatusIn(Long companyId, Long clientId, List<WaitlistRequestStatus> statuses);
 
+    long countByLocationId(Long locationId);
+
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

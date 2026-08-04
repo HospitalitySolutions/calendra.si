@@ -197,7 +197,23 @@ export type PreferredSlot = {
   endTime: string
 }
 
-export type Space = { id: number; name: string; description?: string; createdAt?: string }
+export type Location = {
+  id: number
+  name: string
+  address?: string | null
+  postalCode?: string | null
+  city?: string | null
+  timezone: string
+  phone?: string | null
+  email?: string | null
+  openingHoursJson?: string | null
+  publicBookingEnabled: boolean
+  defaultLocation: boolean
+  active: boolean
+  fiscalBusinessPremiseCode?: string | null
+}
+
+export type Space = { id: number; name: string; description?: string; createdAt?: string; location: Location }
 
 export type TypeServiceLink = {
   id?: number
@@ -315,6 +331,9 @@ export type Booking = {
   payees?: BookingPayee[]
   paymentStatuses?: BookingPaymentStatus[]
   createdAt?: string
+  location?: Pick<Location, 'id' | 'name' | 'city' | 'timezone'> | null
+  unit?: { id: number; name: string } | null
+  readOnly?: boolean
 }
 
 export type BillingService = {

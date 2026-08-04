@@ -125,4 +125,33 @@ public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalC
            "AND LOWER(p.task) = '__availability_block__'")
     List<PersonalCalendarBlock> findAvailabilityBlockMarkersByCompany(@Param("companyId") Long companyId);
 
+    @Query(value = """
+            select count(*) > 0
+            from personal_calendar_block p
+            join users u on u.id = p.owner_id
+            join company c on c.id = p.company_id
+            where u.login_account_id = :loginAccountId
+              and c.workspace_id = :workspaceId
+              and (p.task is null or lower(p.task) <> '__availability_block__')
+              and p.start_time < :end and p.end_time > :start
+            """, nativeQuery = true)
+    boolean existsWorkspaceRegularOverlapForLoginAccount(
+            @Param("loginAccountId") Long loginAccountId,
+            @Param("workspaceId") Long workspaceId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query(value = """
+            select p.* from personal_calendar_block p
+            join users u on u.id = p.owner_id
+            join company c on c.id = p.company_id
+            where u.login_account_id = :loginAccountId
+              and c.workspace_id = :workspaceId
+              and lower(p.task) = '__availability_block__'
+            order by p.start_time, p.id
+            """, nativeQuery = true)
+    List<PersonalCalendarBlock> findWorkspaceAvailabilityMarkersForLoginAccount(
+            @Param("loginAccountId") Long loginAccountId,
+            @Param("workspaceId") Long workspaceId);
+
 }

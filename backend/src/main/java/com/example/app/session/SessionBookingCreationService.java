@@ -10,6 +10,8 @@ import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.CompanyRepository;
 import com.example.app.group.ClientGroup;
 import com.example.app.group.ClientGroupRepository;
+import com.example.app.location.Location;
+import com.example.app.location.LocationService;
 import com.example.app.google.GoogleMeetService;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.reminder.ReminderService;
@@ -76,6 +78,9 @@ public class SessionBookingCreationService {
 
     @Autowired(required = false)
     private BookingSlotHoldRepository bookingSlotHolds;
+
+    @Autowired(required = false)
+    private LocationService locationService;
 
     @Autowired
     public SessionBookingCreationService(
@@ -913,6 +918,7 @@ public class SessionBookingCreationService {
 
         SessionBooking joined = new SessionBooking();
         joined.setCompany(representative.getCompany());
+        joined.setLocation(representative.getLocation());
         joined.setClient(client);
         joined.setBookingGroupKey(SessionBookingController.groupKey(representative));
         joined.setRecurrenceSeriesKey(representative.getRecurrenceSeriesKey());
@@ -1255,13 +1261,37 @@ public class SessionBookingCreationService {
             )) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
             }
+            User selectedConsultant = users.findByIdAndCompanyId(consultantId, companyId).orElse(null);
+            if (selectedConsultant != null && selectedConsultant.getLoginAccount() != null
+                    && selectedConsultant.getCompany() != null && selectedConsultant.getCompany().getWorkspace() != null
+                    && repo.existsWorkspaceOverlapForLoginAccount(
+                            selectedConsultant.getLoginAccount().getId(),
+                            selectedConsultant.getCompany().getWorkspace().getId(),
+                            start, requestedBusyEnd, safeExcludeIds)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This employee already has a session in another location at that time.");
+            }
             if (!allowPersonalBlockOverlap
                     && personalBlocks.existsOverlappingRegularPersonalSessionForOwner(consultantId, companyId, start, requestedBusyEnd)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a personal session at that time.");
             }
+            if (!allowPersonalBlockOverlap && selectedConsultant != null && selectedConsultant.getLoginAccount() != null
+                    && selectedConsultant.getCompany().getWorkspace() != null
+                    && personalBlocks.existsWorkspaceRegularOverlapForLoginAccount(
+                            selectedConsultant.getLoginAccount().getId(),
+                            selectedConsultant.getCompany().getWorkspace().getId(), start, requestedBusyEnd)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This employee already has a personal session in another location at that time.");
+            }
             if (!allowAvailabilityBlockOverlap
                     && hasOverlappingAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant is unavailable at that time.");
+            }
+            if (!allowAvailabilityBlockOverlap && selectedConsultant != null && selectedConsultant.getLoginAccount() != null
+                    && selectedConsultant.getCompany().getWorkspace() != null
+                    && personalBlocks.findWorkspaceAvailabilityMarkersForLoginAccount(
+                            selectedConsultant.getLoginAccount().getId(),
+                            selectedConsultant.getCompany().getWorkspace().getId()).stream()
+                            .anyMatch(block -> AvailabilityBlockMetadata.overlaps(block, start, requestedBusyEnd))) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This employee is unavailable in another location at that time.");
             }
         }
 
@@ -1494,6 +1524,50 @@ public class SessionBookingCreationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
     }
 
+    private Location resolveBookingLocation(
+            SessionBookingController.BookingRequest request,
+            SessionBooking booking,
+            User actor
+    ) {
+        if (request.locationId() != null) {
+            Location explicit = locationService.requireForCompany(request.locationId(), actor.getCompany());
+            if (booking.getSpace() != null && booking.getSpace().getLocation() != null
+                    && !Objects.equals(booking.getSpace().getLocation().getId(), explicit.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected space belongs to another location.");
+            }
+            if (request.services() != null) {
+                for (SessionBookingController.BookingServiceRequest service : request.services()) {
+                    if (service == null || service.spaceId() == null) continue;
+                    Space serviceSpace = spaces.findByIdAndCompanyId(service.spaceId(), actor.getCompany().getId())
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service space."));
+                    if (serviceSpace.getLocation() == null
+                            || !Objects.equals(serviceSpace.getLocation().getId(), explicit.getId())) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All selected spaces must belong to the booking location.");
+                    }
+                }
+            }
+            return explicit;
+        }
+        if (booking.getSpace() != null && booking.getSpace().getLocation() != null) {
+            return booking.getSpace().getLocation();
+        }
+        Location serviceLocation = null;
+        if (request.services() != null) {
+            for (SessionBookingController.BookingServiceRequest service : request.services()) {
+                if (service == null || service.spaceId() == null) continue;
+                Space space = spaces.findByIdAndCompanyId(service.spaceId(), actor.getCompany().getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service space."));
+                if (serviceLocation == null) serviceLocation = space.getLocation();
+                else if (!Objects.equals(serviceLocation.getId(), space.getLocation().getId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All spaces in one session must belong to the same location.");
+                }
+            }
+        }
+        if (serviceLocation != null) return serviceLocation;
+        if (booking.getLocation() != null) return booking.getLocation();
+        return locationService.requireDefault(actor.getCompany());
+    }
+
     private void applyChannelMetadata(
             SessionBooking booking,
             Long companyId,
@@ -1568,6 +1642,9 @@ public class SessionBookingCreationService {
                 }
                 booking.setType(type);
             }
+        }
+        if (locationService != null) {
+            booking.setLocation(resolveBookingLocation(req, booking, me));
         }
         booking.setNotes(req.notes() != null ? req.notes().trim() : "");
         boolean hasMeeting = meetingLink != null && !meetingLink.isBlank();

@@ -6,7 +6,7 @@ import com.example.app.company.Company;
 import com.example.app.session.ServiceGroup;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionType;
-import com.example.app.session.Space;
+import com.example.app.location.Location;
 import com.example.app.user.User;
 import jakarta.persistence.*;
 import java.time.Instant;
@@ -58,7 +58,7 @@ public class WaitlistRequest extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "location_id")
-    private Space location;
+    private Location location;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "target_type", nullable = false, length = 32)

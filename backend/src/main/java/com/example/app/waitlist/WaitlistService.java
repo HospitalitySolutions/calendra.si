@@ -5,6 +5,8 @@ import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.notification.TenantNotificationService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -49,6 +51,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -94,6 +97,9 @@ public class WaitlistService {
     private final WaitlistGuestNotificationService guestNotifications;
     private final int offerExpiringMinutes;
     private final int expiryBatchSize;
+
+    @Autowired(required = false)
+    private LocationRepository locations;
 
     public WaitlistService(
             WaitlistRequestRepository requests,
@@ -333,8 +339,7 @@ public class WaitlistService {
         Client client = clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found."));
         ServiceSelection selection = resolveServiceSelection(input, companyId);
-        Space location = input.locationId() == null ? null : spaces.findByIdAndCompanyId(input.locationId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
+        Location location = resolveLocation(input.locationId(), companyId);
         SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
@@ -422,8 +427,7 @@ public class WaitlistService {
         validateInput(input, cfg);
 
         ServiceSelection selection = resolveServiceSelection(input, companyId);
-        Space location = input.locationId() == null ? null : spaces.findByIdAndCompanyId(input.locationId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
+        Location location = resolveLocation(input.locationId(), companyId);
         SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
@@ -487,8 +491,7 @@ public class WaitlistService {
         row.setClient(clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.")));
         applyServiceSelection(row, selection);
-        row.setLocation(input.locationId() == null ? null : spaces.findByIdAndCompanyId(input.locationId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found.")));
+        row.setLocation(resolveLocation(input.locationId(), companyId));
         row.setTargetSession(input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found.")));
         row.setTargetType(input.targetType());
@@ -1291,7 +1294,12 @@ public class WaitlistService {
                                        List<WaitlistRequestEmployee> selectedEmployees, LocalDateTime start, LocalDateTime end,
                                        User employee, Space room, SessionBooking session) {
         if (start.toLocalDate().isBefore(request.getDateFrom()) || start.toLocalDate().isAfter(request.getDateTo())) return false;
-        if (request.getLocation() != null && (room == null || !Objects.equals(request.getLocation().getId(), room.getId()))) return false;
+        if (request.getLocation() != null) {
+            Long offeredLocationId = room != null && room.getLocation() != null
+                    ? room.getLocation().getId()
+                    : session != null && session.getLocation() != null ? session.getLocation().getId() : null;
+            if (!Objects.equals(request.getLocation().getId(), offeredLocationId)) return false;
+        }
         if ((request.getTargetType() == WaitlistTargetType.GROUP_SESSION || request.getTargetType() == WaitlistTargetType.COURSE_OCCURRENCE)
                 && request.getTargetSession() != null && (session == null || !Objects.equals(request.getTargetSession().getId(), session.getId()))) return false;
         if (request.getEmployeePreferenceType() == WaitlistEmployeePreferenceType.SPECIFIC) {
@@ -1834,6 +1842,16 @@ public class WaitlistService {
     private static Long companyId(Company company) {
         if (company == null || company.getId() == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found.");
         return company.getId();
+    }
+
+    private Location resolveLocation(Long locationId, Long companyId) {
+        if (locationId == null) return null;
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Location support is unavailable.");
+        }
+        return locations.findByIdAndCompanyId(locationId, companyId)
+                .filter(Location::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
     }
 
     private static Long companyId(User me) {

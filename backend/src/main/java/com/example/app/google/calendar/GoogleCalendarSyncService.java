@@ -2,6 +2,7 @@ package com.example.app.google.calendar;
 
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.location.LocationService;
 import com.example.app.session.CalendarTodo;
 import com.example.app.session.CalendarTodoRepository;
 import com.example.app.session.PersonalCalendarBlock;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +48,9 @@ public class GoogleCalendarSyncService {
     private final PersonalCalendarBlockRepository personalBlocks;
     private final CalendarTodoRepository todos;
     private final ClientRepository clients;
+
+    @Autowired(required = false)
+    private LocationService locationService;
 
     public GoogleCalendarSyncService(
             GoogleCalendarConfig config,
@@ -552,6 +557,7 @@ public class GoogleCalendarSyncService {
 
         SessionBooking booking = new SessionBooking();
         booking.setCompany(c.getCompany());
+        if (locationService != null) booking.setLocation(locationService.requireDefault(c.getCompany()));
         booking.setClient(client);
         booking.setConsultant(c.getUser());
         booking.setBookingGroupKey(UUID.randomUUID().toString());

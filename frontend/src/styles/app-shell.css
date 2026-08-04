@@ -3331,3 +3331,131 @@ a.credentials-popover-action-btn {
     padding-block: 6px;
   }
 }
+
+
+/* Phase 3: normalized physical-location management and workspace calendar scope. */
+.booking-locations-manager {
+  margin-bottom: 32px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+.booking-locations-heading-row,
+.booking-location-title-row,
+.booking-location-actions,
+.booking-location-form-actions,
+.calendar-workspace-scope-bar,
+.calendar-workspace-scope-buttons {
+  display: flex;
+  align-items: center;
+}
+.booking-locations-heading-row { justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.booking-locations-heading-row h3 { margin: 0 0 4px; font-size: 22px; }
+.booking-locations-heading-row p { margin: 0; color: var(--muted-color, #64748b); }
+.booking-location-grid { display: grid; gap: 12px; }
+.booking-location-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #dbe4f0;
+  border-radius: 16px;
+  background: #fff;
+}
+.booking-location-card.is-default { border-color: #93c5fd; background: #f8fbff; }
+.booking-location-card.is-inactive { opacity: .72; }
+.booking-location-title-row { gap: 8px; flex-wrap: wrap; }
+.booking-location-card h4 { margin: 0; font-size: 17px; }
+.booking-location-card p { margin: 6px 0 3px; color: #475569; }
+.booking-location-card small { color: #64748b; }
+.booking-location-default-pill,
+.booking-location-inactive-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.booking-location-default-pill { color: #1d4ed8; background: #dbeafe; }
+.booking-location-inactive-pill { color: #9f1239; background: #ffe4e6; }
+.booking-location-actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.booking-location-actions button {
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.booking-location-actions button.danger { color: #b91c1c; }
+.booking-location-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+.booking-location-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+.booking-location-form input:not([type="checkbox"]),
+.booking-space-select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 10px;
+  font: inherit;
+}
+.booking-location-checkbox { display: flex !important; grid-template-columns: auto 1fr; align-items: center; }
+.booking-location-form-actions { grid-column: 1 / -1; gap: 8px; justify-content: flex-end; }
+.calendar-workspace-scope-bar {
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.calendar-workspace-scope-buttons { gap: 6px; }
+.calendar-workspace-scope-button {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #475569;
+  font-weight: 750;
+  cursor: pointer;
+}
+.calendar-workspace-scope-button.is-active { border-color: #bfdbfe; background: #dbeafe; color: #1d4ed8; }
+.calendar-workspace-readonly-note { color: #64748b; font-size: 13px; }
+@media (max-width: 760px) {
+  .booking-locations-heading-row,
+  .booking-location-card,
+  .calendar-workspace-scope-bar { align-items: stretch; flex-direction: column; }
+  .booking-location-form { grid-template-columns: 1fr; }
+  .booking-location-actions { justify-content: flex-start; }
+  .calendar-workspace-scope-buttons { width: 100%; }
+  .calendar-workspace-scope-button { flex: 1; }
+}
+.calendar-location-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+.calendar-location-filter select {
+  min-width: 170px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 10px;
+  color: #0f172a;
+  font: inherit;
+}
+@media (max-width: 760px) {
+  .calendar-location-filter { align-items: stretch; flex-direction: column; }
+  .calendar-location-filter select { width: 100%; }
+}
