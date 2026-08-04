@@ -2367,6 +2367,57 @@ public class BillingController {
     }
 
 
+    /**
+     * Synchronizes historical billable sessions into open bills.
+     *
+     * Kept private but intentionally retained: BillingControllerBatchSyncRegressionTest
+     * invokes this method reflectively to verify legacy open-bill migration behavior.
+     */
+    private void syncOpenBillsFromPastSessions(Long companyId) {
+        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(), companyId);
+        for (SessionBooking sb : past) {
+            if (!SessionBillingSupport.hasTransactionServices(sb)) continue;
+            if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) continue;
+
+            var client = sb.getClient();
+            if (client == null) continue;
+
+            var consultant = resolveOpenBillConsultant(sb, companyId);
+            if (consultant == null) continue;
+
+            PayeeResolution payee = resolveSessionPayee(sb, client);
+            var linkedCompany = payee.linkedCompany();
+            final boolean companyBatchEnabled = payee.companyTarget();
+            final boolean clientBatchEnabled = payee.clientTarget();
+
+            var legacyOpen = openBillRepo.findBySessionBookingIdAndCompanyId(sb.getId(), companyId).orElse(null);
+            if (legacyOpen != null && legacyOpen.isManualSplitLocked()) {
+                continue;
+            }
+            var containingOpen = legacyOpen != null
+                    ? legacyOpen
+                    : openBillRepo.findContainingSession(companyId, sb.getId()).orElse(null);
+
+            OpenBill open = resolveSyncTargetOpenBill(sb, client, consultant, linkedCompany, companyBatchEnabled, clientBatchEnabled, containingOpen, companyId);
+            boolean changed = false;
+
+            if (legacyOpen != null && !sameOpenBill(legacyOpen, open)) {
+                open = moveOpenBillRowsIntoTarget(companyId, legacyOpen, open, sb.getId());
+            } else if (legacyOpen == null && containingOpen != null && !sameOpenBill(containingOpen, open)) {
+                // Existing batch bills can contain multiple sessions; do not move the whole batch when a single
+                // session payer changes. New payer selection is applied when the open bill is first created.
+                continue;
+            }
+
+            changed |= ensureSessionServiceLines(open, sb, companyId);
+            changed |= ensureAdvanceOffsetLines(open, sb, companyId);
+
+            if (changed || open.getId() == null) {
+                openBillRepo.save(open);
+            }
+        }
+    }
+
     private OpenBillResponse openBillResponseById(Long companyId, Long openBillId) {
         if (openBillId == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyIdAndIdIn(companyId, List.of(openBillId)), companyId)
@@ -2463,6 +2514,60 @@ public class BillingController {
         return newOpenBillSkeleton(session, client, consultant, session, OpenBill.BATCH_SCOPE_NONE, null, null);
     }
 
+    private OpenBill moveOpenBillRowsIntoTarget(Long companyId, OpenBill source, OpenBill target, Long fallbackSessionId) {
+        if (source == null || target == null || sameOpenBill(source, target)) {
+            return target;
+        }
+        if (source.getId() == null) {
+            return target;
+        }
+
+        Set<Long> movedSessionIds = source.getItems() == null
+                ? Set.of()
+                : source.getItems().stream()
+                .map(item -> item.getSourceSessionBookingId() != null ? item.getSourceSessionBookingId() : fallbackSessionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        mergeManualSessionNumbers(source, target);
+        if ((target.getReference() == null || target.getReference().isBlank())
+                && source.getReference() != null && !source.getReference().isBlank()) {
+            target.setReference(source.getReference());
+        }
+
+        OpenBill savedTarget = openBillRepo.saveAndFlush(target);
+        Long sourceOpenBillId = source.getId();
+        Long targetOpenBillId = savedTarget.getId();
+
+        // Hibernate orphanRemoval collections are intentionally not mutated here.
+        // We first persist the batch target, clear the persistence context, and
+        // then move the rows with bulk SQL. This prevents stale PersistentBag
+        // snapshots from causing EntityEntry.getMaybeLazySet()/non-threadsafe
+        // session failures when Open Bills is opened after enabling batch payment.
+        entityManager.flush();
+        entityManager.clear();
+
+        openBillRepo.moveItemsToOpenBill(sourceOpenBillId, targetOpenBillId, fallbackSessionId, companyId);
+        for (Long sessionId : movedSessionIds) {
+            advanceAllocationRepo.reassignOpenBillForSession(companyId, sourceOpenBillId, targetOpenBillId, sessionId);
+        }
+        deleteAdvanceAllocationsForOpenBill(companyId, sourceOpenBillId);
+        openBillRepo.deletePaymentSplitsByOpenBillIdAndCompanyId(sourceOpenBillId, companyId);
+        openBillRepo.deleteByIdAndCompanyId(sourceOpenBillId, companyId);
+        openBillRepo.flush();
+        advanceAllocationRepo.flush();
+        entityManager.clear();
+
+        return openBillRepo.findByIdWithItemsForBatchSync(targetOpenBillId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    private static void mergeManualSessionNumbers(OpenBill from, OpenBill to) {
+        for (Long manualNo : parseManualSessionNumbers(from.getManualSessionNumbersCsv())) {
+            appendManualSessionNumber(to, manualNo);
+        }
+    }
+
     private OpenBill newOpenBillSkeleton(
             SessionBooking session,
             com.example.app.client.Client client,
@@ -2490,6 +2595,10 @@ public class BillingController {
         String key = session.getBookingGroupKey();
         if (key != null && !key.isBlank()) return key;
         return null;
+    }
+
+    private boolean sameOpenBill(OpenBill a, OpenBill b) {
+        return a != null && b != null && a.getId() != null && a.getId().equals(b.getId());
     }
 
     private boolean ensureSessionServiceLines(OpenBill open, SessionBooking session, Long companyId) {
