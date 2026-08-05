@@ -57,6 +57,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       || (Array.isArray(type?.locationIds) && type.locationIds.some((id: unknown) => Number(id) === normalized)))
   }
   const formSelectableMetaTypes = typesForLocation(selectableMetaTypes, form?.locationId)
+  const bookedSessionSelectableMetaTypes = bookedSessionIsGroup
+    ? metaTypes.filter((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
+    : metaTypes
   const bookedSessionSelectableMetaTypesForLocation = typesForLocation(
     bookedSessionSelectableMetaTypes,
     selectedBookedSession?.location?.id,
@@ -212,9 +215,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
-  const bookedSessionSelectableMetaTypes = bookedSessionIsGroup
-    ? metaTypes.filter((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
-    : metaTypes
   const formatSessionTypeOptionLabel = (ty: any): string => {
     const code = String(ty?.name ?? '').trim()
     const description = String(ty?.description ?? '').trim()
