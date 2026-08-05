@@ -37,7 +37,7 @@ class ReceiptPdfServiceTest {
                     "TRR: SI56 1910 0001 2345 678",
                     "RAC-2026-00042",
                     "31.07.2026",
-                    "Ura in kraj izdaje 12:45, Maribor",
+                    "Izdano Maribor, 31.7.2026 12:45",
                     "Masaža hrbta",
                     "100.00 EUR",
                     "Popust",
@@ -160,7 +160,7 @@ class ReceiptPdfServiceTest {
             assertThat(normalizedText)
                     .contains("Skupaj brez DDV 44.00 EUR")
                     .contains("Popust - 4.40 EUR")
-                    .contains("Skupaj 39.60 EUR")
+                    .contains("Skupaj 44.00 EUR")
                     .contains("Za plačilo 39.60 EUR")
                     .contains("EOR: 9999cf00-089a-46e6-a3d8-bcbb0da779c7")
                     .contains("ZOI: e42bdfd7b3f10d69ed0eadb9add8d92c")
@@ -168,6 +168,20 @@ class ReceiptPdfServiceTest {
                     .doesNotContain("Davčne klavzule")
                     .doesNotContain("Brez DDV · osnova");
             assertThat(normalizedText.indexOf("Za plačilo 39.60 EUR")).isLessThan(normalizedText.indexOf("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1."));
+        }
+    }
+
+    @Test
+    void generate_canShowPaymentTypeWhenEnabledInLayout() throws Exception {
+        FolioPdfRequest request = sampleRequest(1);
+        PosReceiptLayoutConfig layout = PosReceiptLayoutConfig.defaultLayout();
+        layout.setShowPaymentDetails(true);
+
+        byte[] pdf = service.generate(request, layout, null);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
+            assertThat(normalizedText).contains("Bančno nakazilo 100.00");
         }
     }
 

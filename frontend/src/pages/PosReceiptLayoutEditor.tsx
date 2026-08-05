@@ -17,6 +17,7 @@ type PosReceiptLayout = {
   showRecipient: boolean
   showUnitPriceAndQuantity: boolean
   showVatBreakdown: boolean
+  showPaymentDetails: boolean
   showPaymentQr: boolean
   showFiscalQr: boolean
   showNotes: boolean
@@ -64,6 +65,7 @@ const DEFAULT_LAYOUT: PosReceiptLayout = {
   showRecipient: true,
   showUnitPriceAndQuantity: true,
   showVatBreakdown: true,
+  showPaymentDetails: false,
   showPaymentQr: true,
   showFiscalQr: true,
   showNotes: true,
@@ -155,6 +157,8 @@ export function PosReceiptLayoutEditor() {
         noTaxClauses: 'Ni izbranih dodatnih davčnih klavzul.',
         referenceText: 'Besedilo reference',
         referenceTextHint: 'Uporabite oznako {reference-number}, kjer naj se izpiše številka reference.',
+        showPaymentType: 'Prikaži vrsto plačila',
+        showPaymentTypeHint: 'V razdelku seštevkov prikaže uporabljena vrsta plačila (npr. Gotovina).',
         save: 'Shrani postavitev',
         reset: 'Ponastavi',
         test: 'Testno tiskanje',
@@ -179,6 +183,8 @@ export function PosReceiptLayoutEditor() {
         noTaxClauses: 'Nema izabranih dodatnih poreskih klauzula.',
         referenceText: 'Tekst reference',
         referenceTextHint: 'Koristite oznaku {reference-number} na mestu gde treba prikazati broj reference.',
+        showPaymentType: 'Prikaži vrstu plaćanja',
+        showPaymentTypeHint: 'U zbirnom delu prikazuje korišćenu vrstu plaćanja (npr. Gotovina).',
         save: 'Sačuvaj izgled',
         reset: 'Vrati podrazumevano',
         test: 'Probna štampa',
@@ -202,6 +208,8 @@ export function PosReceiptLayoutEditor() {
       noTaxClauses: 'No additional tax clauses selected.',
       referenceText: 'Reference text',
       referenceTextHint: 'Use {reference-number} where the invoice reference number should appear.',
+      showPaymentType: 'Show payment type',
+      showPaymentTypeHint: 'Shows the used payment type in the totals section (for example Cash).',
       save: 'Save layout',
       reset: 'Reset',
       test: 'Test print',
@@ -278,14 +286,14 @@ export function PosReceiptLayoutEditor() {
     try {
       const sample = {
         companyName: 'Calendra Studio', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', companyTaxId: 'SI12345678',
-        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' ? 'Račun:' : locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', dateOfService: '31.07.2026', dueDate: '07.08.2026',
+        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' ? 'Račun:' : locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', issueCity: 'Maribor', dateOfService: '31.07.2026', dueDate: '07.08.2026',
         recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana',
         services: [
           { date: '31.07.2026', description: 'Masaža hrbta in vratu', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
           { date: '31.07.2026', description: 'Individualno svetovanje z daljšim opisom storitve', qty: 2, nettPrice: 20.49, grossPrice: 25, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },
         ],
-        paymentMethods: [{ name: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', amountGross: 100 }],
-        paymentMethod: locale === 'sl' ? 'Bančno nakazilo' : locale === 'sr' ? 'Bankovni prenos' : 'Bank transfer', issuedBy: 'David Mirc', iban: 'SI56 1910 0001 2345 678', discountAmountGross: 10, toBePaidGross: 90,
+        paymentMethods: [{ name: locale === 'sl' ? 'Gotovina' : locale === 'sr' ? 'Gotovina' : 'Cash', amountGross: 90 }],
+        paymentMethod: locale === 'sl' ? 'Gotovina' : locale === 'sr' ? 'Gotovina' : 'Cash', issuedBy: 'David Mirc', iban: 'SI56 1910 0001 2345 678', discountAmountGross: 10, toBePaidGross: 90,
         paymentQrPayload: 'https://calendra.si/placilo/test',
         fiscalQr: 'https://calendra.si/fiscal/test', fiscalZoi: '1234567890', fiscalEor: 'EOR-2026-42',
         notes: 'REF-2026-001', locale,
@@ -333,12 +341,12 @@ export function PosReceiptLayoutEditor() {
 
   const previewSections: Record<string, ReactNode> = {
     company: <>{layout.showLogo ? <div className="pos58-preview-logo">LOGO</div> : null}<strong className="pos58-preview-company">Calendra Studio</strong><span>Glavna ulica 12</span><span>2000 Maribor</span><span>SI12345678</span><span>{locale === 'sl' ? 'TRR' : 'IBAN'}: SI56 … 5678</span></>,
-    document: <><hr /><strong className="pos58-preview-title">{locale === 'en' ? 'Invoice' : 'Račun'} 2026-00042</strong><div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Ura in kraj izdaje' : locale === 'sr' ? 'Vreme i mesto izdavanja' : 'Issue time and place'}</span><b>12:45, Maribor</b></div><div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum izvršene usluge' : 'Service date'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><b>07.08.2026</b></div><hr /></>,
+    document: <><hr /><strong className="pos58-preview-title">{locale === 'en' ? 'Invoice' : 'Račun št.:'} 2026-00042</strong><div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><b>Maribor, 31.7.2026 12:45</b></div><div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum izvršene usluge' : 'Service date'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><b>07.08.2026</b></div><hr /></>,
     recipient: <><strong>{labels.recipient}</strong><span>Ana Novak</span><span>Cesta 5, 1000 Ljubljana</span></>,
-    items: <><strong>{labels.items}</strong><hr /><b>Masaža hrbta in vratu</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '1' : ''}</span><b>50,00 EUR</b></div><b>Individualno svetovanje z daljšim opisom</b><span>31.07.2026</span><div><span>{layout.showUnitPriceAndQuantity ? '2' : ''}</span><b>50,00 EUR</b></div><hr /></>,
+    items: <><strong>{labels.items}</strong><div className="pos58-preview-items-table"><div className="pos58-preview-items-head"><span>{locale === 'sl' ? 'Artikel/Cena' : locale === 'sr' ? 'Artikal/Cena' : 'Item/Price'}</span><span>{layout.showUnitPriceAndQuantity ? (locale === 'sl' || locale === 'sr' ? 'Kol' : 'Qty') : ''}</span><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><span>{locale === 'sl' ? 'Vrednost' : locale === 'sr' ? 'Vrednost' : 'Value'}</span></div><hr /><div className="pos58-preview-item"><strong>Pazduhe</strong><div className="pos58-preview-item-row"><span>12,00</span><span>{layout.showUnitPriceAndQuantity ? '1x' : ''}</span><span>2,00</span><b>10,00</b></div></div><div className="pos58-preview-item"><strong>Bikini - mali</strong><div className="pos58-preview-item-row"><span>18,00</span><span>{layout.showUnitPriceAndQuantity ? '1x' : ''}</span><span>—</span><b>18,00</b></div></div><hr /></div></>,
     advancePayments: <></>,
-    totals: <><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Total excl. VAT'}</span><b>100,00 EUR</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 10,00 EUR</b></div><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>90,00 EUR</b></div><hr className="pos58-preview-summary-rule" /></>,
-    vat: <></>,
+    totals: <><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Total excl. VAT'}</span><b>30,00 EUR</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 2,00 EUR</b></div><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>28,00 EUR</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>28,00 EUR</b></div>{layout.showPaymentDetails ? <><div className="pos58-preview-summary-spacer" /><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Gotovina' : locale === 'sr' ? 'Gotovina' : 'Cash'}</span><b>28,00</b></div></> : null}<hr className="pos58-preview-summary-rule" /></>,
+    vat: <><strong>{labels.vat}</strong><div className="pos58-preview-summary-row"><span>22% · {locale === 'sl' ? 'osnova' : locale === 'sr' ? 'osnovica' : 'basis'} 22,95 EUR</span><b>5,05 EUR</b></div></>,
     paymentQr: <><div className="pos58-preview-qr" aria-label="UPN QR preview" /><small>{locale === 'sl' ? 'Skeniraj in plačaj' : locale === 'sr' ? 'Skeniraj i plati' : 'Scan and pay'}</small></>,
     fiscal: <><div className="pos58-preview-qr pos58-preview-qr--fiscal" /><span>ZOI: 1234567890…</span><span>EOR: 9999cf00-089a-46e6-a3d8-bcbb0da779c7</span></>,
     issuedBy: <div><span>{locale === 'sl' ? 'Izdal' : locale === 'sr' ? 'Izdao' : 'Issued by'}</span><b>David Mirc</b></div>,
@@ -365,6 +373,7 @@ export function PosReceiptLayoutEditor() {
             <ReceiptToggle checked={layout.showRecipient} onChange={(value) => patch('showRecipient', value)} label={labels.recipient} />
             <ReceiptToggle checked={layout.showUnitPriceAndQuantity} onChange={(value) => patch('showUnitPriceAndQuantity', value)} label={locale === 'sl' ? 'Količina' : locale === 'sr' ? 'Količina' : 'Quantity'} />
             <ReceiptToggle checked={layout.showVatBreakdown} onChange={(value) => patch('showVatBreakdown', value)} label={labels.vat} />
+            <ReceiptToggle checked={layout.showPaymentDetails} onChange={(value) => patch('showPaymentDetails', value)} label={copy.showPaymentType} hint={copy.showPaymentTypeHint} />
             <ReceiptToggle checked={layout.showPaymentQr} onChange={(value) => patch('showPaymentQr', value)} label={labels.paymentQr} hint={locale === 'sl' ? 'Prikaže se samo, ko so podatki za QR popolni.' : locale === 'sr' ? 'Prikazuje se samo kada su podaci za QR potpuni.' : 'Only shown when QR payment data is complete.'} />
             <ReceiptToggle checked={layout.showFiscalQr} onChange={(value) => patch('showFiscalQr', value)} label={labels.fiscal} hint={locale === 'sl' ? 'Vključi ZOI, EOR in fiskalno QR kodo.' : locale === 'sr' ? 'Uključuje ZOI, EOR i fiskalni QR kod.' : 'Includes ZOI, EOR and the fiscal QR code.'} />
             <ReceiptToggle checked={layout.showIssuedBy} onChange={(value) => patch('showIssuedBy', value)} label={labels.issuedBy} />

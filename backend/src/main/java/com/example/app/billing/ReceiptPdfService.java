@@ -189,6 +189,74 @@ public class ReceiptPdfService {
         }
     }
 
+    private static final class ItemColumnsHeaderBlock implements Block {
+        private final String priceLabel;
+        private final String quantityLabel;
+        private final String discountLabel;
+        private final String valueLabel;
+        private final float fontSize;
+        private final float lineHeight;
+        private final boolean showQuantity;
+
+        private ItemColumnsHeaderBlock(String priceLabel, String quantityLabel, String discountLabel, String valueLabel,
+                                       float fontSize, float lineHeight, boolean showQuantity) {
+            this.priceLabel = safe(priceLabel);
+            this.quantityLabel = safe(quantityLabel);
+            this.discountLabel = safe(discountLabel);
+            this.valueLabel = safe(valueLabel);
+            this.fontSize = fontSize;
+            this.lineHeight = lineHeight;
+            this.showQuantity = showQuantity;
+        }
+
+        @Override public float height() { return lineHeight; }
+
+        @Override public void draw(RenderContext context, float top) throws IOException {
+            PDFont font = context.fonts.bold();
+            float y = context.pdfY(top, fontSize);
+            drawText(context.stream, font, fontSize, context.left, y, priceLabel);
+            if (showQuantity) {
+                drawCentered(context, font, fontSize, column2Center(context), y, quantityLabel);
+            }
+            drawCentered(context, font, fontSize, column3Center(context), y, discountLabel);
+            drawRight(context, font, fontSize, context.left + context.width, y, valueLabel);
+        }
+    }
+
+    private static final class ItemColumnsValueBlock implements Block {
+        private final String unitPrice;
+        private final String quantity;
+        private final String discount;
+        private final String value;
+        private final float fontSize;
+        private final float lineHeight;
+        private final boolean showQuantity;
+
+        private ItemColumnsValueBlock(String unitPrice, String quantity, String discount, String value,
+                                      float fontSize, float lineHeight, boolean showQuantity) {
+            this.unitPrice = safe(unitPrice);
+            this.quantity = safe(quantity);
+            this.discount = safe(discount);
+            this.value = safe(value);
+            this.fontSize = fontSize;
+            this.lineHeight = lineHeight;
+            this.showQuantity = showQuantity;
+        }
+
+        @Override public float height() { return lineHeight; }
+
+        @Override public void draw(RenderContext context, float top) throws IOException {
+            PDFont font = context.fonts.regular();
+            float y = context.pdfY(top, fontSize);
+            drawText(context.stream, font, fontSize, context.left + mmToPt(2f), y, unitPrice);
+            if (showQuantity) {
+                drawCentered(context, font, fontSize, column2Center(context), y, quantity);
+            }
+            drawCentered(context, font, fontSize, column3Center(context), y, discount);
+            drawRight(context, context.fonts.bold(), fontSize, context.left + context.width, y, value);
+        }
+    }
+
     private static final class LogoBlock implements Block {
         private final byte[] imageBytes;
         private final float height;
@@ -293,7 +361,7 @@ public class ReceiptPdfService {
         sections.put("recipient", recipientBlocks(request, layout, fonts, typography, locale));
         sections.put("items", itemBlocks(request, layout, fonts, typography, locale));
         sections.put("advancePayments", advancePaymentBlocks(request, fonts, typography, locale));
-        sections.put("totals", totalBlocks(request, fonts, typography, locale));
+        sections.put("totals", totalBlocks(request, layout, fonts, typography, locale));
         sections.put("taxClauses", taxClauseBlocks(request, layout, fonts, typography, locale));
         sections.put("vat", vatBlocks(request, layout, fonts, typography, locale));
         sections.put("paymentQr", paymentQrBlocks(request, layout, typography, locale));
@@ -340,9 +408,11 @@ public class ReceiptPdfService {
         String number = safe(request.getFolioNumber());
         addWrapped(blocks, (label + " " + number).trim(), fonts.bold(), type.title(), type.lineHeight() + 1f, true, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         String[] issueParts = splitIssueDateAndTime(request.getFolioDate());
-        addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), formatReceiptDate(issueParts[0]), fonts, type, false);
-        String issueTimeAndPlace = joinNonBlank(Arrays.asList(issueParts[1], request.getIssueCity()), ", ");
-        addPair(blocks, word(locale, "Ura in kraj izdaje", "Vreme i mesto izdavanja", "Issue time and place"), issueTimeAndPlace, fonts, type, false);
+        String issuedValue = joinNonBlank(Arrays.asList(
+                safe(request.getIssueCity()).strip(),
+                joinNonBlank(Arrays.asList(formatReceiptDateCompact(issueParts[0]), issueParts[1]), " ")
+        ), ", ");
+        addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), issuedValue, fonts, type, false);
         addPair(blocks, word(locale, "Datum opravljene storitve", "Datum izvršene usluge", "Service date"), formatReceiptDate(request.getDateOfService()), fonts, type, false);
         addPair(blocks, word(locale, "Rok plačila", "Rok plaćanja", "Due date"), formatReceiptDate(request.getDueDate()), fonts, type, false);
         blocks.add(new RuleBlock(4f, 1f));
@@ -371,21 +441,33 @@ public class ReceiptPdfService {
         if (services.isEmpty()) return List.of();
         List<Block> blocks = new ArrayList<>();
         blocks.add(textBlock(word(locale, "Postavke", "Stavke", "Items"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
+        if (layout.isShowUnitPriceAndQuantity()) {
+            blocks.add(new ItemColumnsHeaderBlock(
+                    word(locale, "Artikel/Cena", "Artikal/Cena", "Item/Price"),
+                    word(locale, "Kol", "Kol", "Qty"),
+                    word(locale, "Popust", "Popust", "Discount"),
+                    word(locale, "Vrednost", "Vrednost", "Value"),
+                    type.small(), type.smallLineHeight(), true));
+        }
         blocks.add(new RuleBlock(1f, 4f));
         for (int index = 0; index < services.size(); index++) {
             FolioPdfRequest.ServiceLine service = services.get(index);
             addWrapped(blocks, firstNonBlank(service.getDescription(), "—"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
-            if (!blank(service.getDate())) {
-                addWrapped(blocks, formatReceiptDate(service.getDate()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
-            }
             BigDecimal total = lineGross(service);
             if (layout.isShowUnitPriceAndQuantity()) {
                 int qty = Math.max(1, service.getQty());
-                String left = String.valueOf(qty);
-                String tax = displayTaxRate(service.getTaxPercent());
-                if (!tax.isBlank()) left += "  " + tax;
-                blocks.add(pairBlock(left, money(total), fonts.regular(), type.small(), type.smallLineHeight(), false));
+                BigDecimal unitGross = lineUnitGross(service);
+                BigDecimal discount = lineDiscountGross(service);
+                blocks.add(new ItemColumnsValueBlock(
+                        moneyCompact(unitGross),
+                        qty + "x",
+                        discount.compareTo(BigDecimal.ZERO) > 0 ? moneyCompact(discount) : "—",
+                        moneyCompact(total),
+                        type.small(), type.smallLineHeight(), true));
             } else {
+                if (!blank(service.getDate())) {
+                    addWrapped(blocks, formatReceiptDate(service.getDate()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT);
+                }
                 blocks.add(pairBlock("", money(total), fonts.bold(), type.body(), type.lineHeight(), true));
             }
             if (index < services.size() - 1) blocks.add(new GapBlock(type.smallLineHeight() * 0.55f));
@@ -406,7 +488,7 @@ public class ReceiptPdfService {
         return blocks;
     }
 
-    private List<Block> totalBlocks(FolioPdfRequest request, FontSet fonts, Typography type, String locale) {
+    private List<Block> totalBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
         Totals totals = totals(request.getServices());
         BigDecimal discount = positive(request.getDiscountAmountGross());
         BigDecimal configuredSubtotalGross = positive(request.getSubtotalBeforeDiscountGross());
@@ -416,8 +498,6 @@ public class ReceiptPdfService {
         BigDecimal subtotalNet = subtotalNetBeforeDiscount(request, totals, configuredSubtotalGross, discount);
         List<Block> blocks = new ArrayList<>();
 
-        // Keep every summary row at the normal body size. Visual hierarchy comes
-        // from weight and divider lines rather than oversized thermal-printer text.
         blocks.add(pairBlock(word(locale, "Skupaj brez DDV", "Ukupno bez PDV-a", "Total excl. VAT"), money(subtotalNet), fonts.regular(), type.body(), type.lineHeight(), false));
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
@@ -426,11 +506,21 @@ public class ReceiptPdfService {
         if (usedAdvance.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Porabljeno predplačilo", "Iskorišćen avans", "Advance used"), "- " + money(usedAdvance), fonts.regular(), type.body(), type.lineHeight(), false));
         }
-        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(totals.gross()), fonts.bold(), type.body(), type.lineHeight(), true));
+        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
         BigDecimal toBePaid = positive(request.getToBePaidGross());
         if (toBePaid.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(new RuleBlock(3f, 4f));
             blocks.add(pairBlock(word(locale, "Za plačilo", "Za plaćanje", "Amount due"), money(toBePaid), fonts.bold(), type.body(), type.lineHeight(), true));
+        }
+        if (layout != null && layout.isShowPaymentDetails()) {
+            List<FolioPdfRequest.PaymentLine> paymentLines = normalizedPaymentLines(request, totals.gross(), toBePaid);
+            if (!paymentLines.isEmpty()) {
+                blocks.add(new GapBlock(2f));
+                for (FolioPdfRequest.PaymentLine paymentLine : paymentLines) {
+                    blocks.add(pairBlock(firstNonBlank(paymentLine.getName(), word(locale, "Plačilo", "Plaćanje", "Payment")),
+                            moneyCompact(scale(paymentLine.getAmountGross())), fonts.regular(), type.body(), type.lineHeight(), false));
+                }
+            }
         }
         blocks.add(new RuleBlock(4f, 1f));
         return blocks;
@@ -541,6 +631,22 @@ public class ReceiptPdfService {
         return clauses;
     }
 
+    private List<FolioPdfRequest.PaymentLine> normalizedPaymentLines(FolioPdfRequest request, BigDecimal grossTotal, BigDecimal toBePaid) {
+        List<FolioPdfRequest.PaymentLine> normalized = new ArrayList<>();
+        if (request != null && request.getPaymentMethods() != null) {
+            for (FolioPdfRequest.PaymentLine line : request.getPaymentMethods()) {
+                if (line == null || blank(line.getName())) continue;
+                normalized.add(new FolioPdfRequest.PaymentLine(line.getName(), scale(line.getAmountGross())));
+            }
+        }
+        if (!normalized.isEmpty()) return normalized;
+        if (request != null && !blank(request.getPaymentMethod())) {
+            BigDecimal amount = positive(toBePaid).compareTo(BigDecimal.ZERO) > 0 ? positive(toBePaid) : positive(grossTotal);
+            normalized.add(new FolioPdfRequest.PaymentLine(request.getPaymentMethod(), amount));
+        }
+        return normalized;
+    }
+
     private String[] splitIssueDateAndTime(String value) {
         String raw = safe(value).trim();
         if (raw.isBlank()) return new String[] {"", ""};
@@ -573,6 +679,29 @@ public class ReceiptPdfService {
         }
         try {
             return LocalDateTime.parse(raw.replace(' ', 'T')).toLocalDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+        } catch (DateTimeParseException ignored) {
+            return raw;
+        }
+    }
+
+    private String formatReceiptDateCompact(String value) {
+        String raw = safe(value).strip();
+        if (raw.isBlank()) return "";
+        for (DateTimeFormatter parser : List.of(
+                DateTimeFormatter.ISO_LOCAL_DATE,
+                DateTimeFormatter.ofPattern("d.M.yyyy"),
+                DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+                DateTimeFormatter.ofPattern("d-M-yyyy"),
+                DateTimeFormatter.ofPattern("dd-MM-yyyy")
+        )) {
+            try {
+                return LocalDate.parse(raw, parser).format(DateTimeFormatter.ofPattern("d.M.yyyy"));
+            } catch (DateTimeParseException ignored) {
+                // Try the next supported date representation.
+            }
+        }
+        try {
+            return LocalDateTime.parse(raw.replace(' ', 'T')).toLocalDate().format(DateTimeFormatter.ofPattern("d.M.yyyy"));
         } catch (DateTimeParseException ignored) {
             return raw;
         }
@@ -773,6 +902,17 @@ public class ReceiptPdfService {
         return scale(unit.multiply(BigDecimal.valueOf(Math.max(1, line.getQty()))));
     }
 
+    private static BigDecimal lineUnitGross(FolioPdfRequest.ServiceLine line) {
+        if (line == null || line.getGrossPrice() == null) return BigDecimal.ZERO;
+        return scale(line.getGrossPrice());
+    }
+
+    private static BigDecimal lineDiscountGross(FolioPdfRequest.ServiceLine line) {
+        if (line == null) return BigDecimal.ZERO;
+        BigDecimal undiscounted = lineUnitGross(line).multiply(BigDecimal.valueOf(Math.max(1, line.getQty())));
+        return positive(scale(undiscounted).subtract(lineGross(line)));
+    }
+
     private static String displayTaxRate(String raw) {
         String value = safe(raw).trim();
         String upper = value.toUpperCase(Locale.ROOT);
@@ -788,6 +928,24 @@ public class ReceiptPdfService {
         stream.endText();
     }
 
+    private static void drawCentered(RenderContext context, PDFont font, float size, float centerX, float y, String text) throws IOException {
+        float width = stringWidth(font, size, text);
+        drawText(context.stream, font, size, centerX - (width / 2f), y, text);
+    }
+
+    private static void drawRight(RenderContext context, PDFont font, float size, float rightX, float y, String text) throws IOException {
+        float width = stringWidth(font, size, text);
+        drawText(context.stream, font, size, rightX - width, y, text);
+    }
+
+    private static float column2Center(RenderContext context) {
+        return context.left + context.width * 0.56f;
+    }
+
+    private static float column3Center(RenderContext context) {
+        return context.left + context.width * 0.76f;
+    }
+
     private static float stringWidth(PDFont font, float size, String value) {
         try {
             return font.getStringWidth(safe(value)) / 1000f * size;
@@ -798,6 +956,10 @@ public class ReceiptPdfService {
 
     private static String money(BigDecimal value) {
         return scale(value).toPlainString() + " EUR";
+    }
+
+    private static String moneyCompact(BigDecimal value) {
+        return scale(value).toPlainString();
     }
 
     private static BigDecimal subtotalNetBeforeDiscount(FolioPdfRequest request, Totals totals, BigDecimal configuredSubtotalGross, BigDecimal discount) {

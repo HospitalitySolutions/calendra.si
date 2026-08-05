@@ -39,8 +39,8 @@ public class PosReceiptLayoutConfig {
     private boolean showRecipient = true;
     private boolean showUnitPriceAndQuantity = true;
     private boolean showVatBreakdown = true;
-    /** Retained only so older saved JSON can still be read. Payment details are no longer rendered. */
-    private boolean showPaymentDetails = true;
+    /** Controls whether the used payment type (for example Cash) is printed in the totals block. */
+    private boolean showPaymentDetails = false;
     private boolean showPaymentQr = true;
     /** Controls the complete fiscal block: ZOI, EOR and the fiscal QR code. */
     private boolean showFiscalQr = true;
