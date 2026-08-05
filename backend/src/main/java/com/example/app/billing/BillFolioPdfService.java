@@ -272,17 +272,20 @@ public class BillFolioPdfService {
             var ts = item.getTransactionService();
             String desc = invoiceLineDescription(item);
             BigDecimal totalGrossLine = item.getGrossPrice() != null ? item.getGrossPrice() : BigDecimal.ZERO;
-            int qty = item.getQuantity();
-            BigDecimal perUnitGross = qty > 0
-                    ? totalGrossLine.divide(BigDecimal.valueOf(qty), 2, RoundingMode.HALF_UP)
-                    : totalGrossLine;
+            int qty = item.getQuantity() == null || item.getQuantity() <= 0 ? 1 : item.getQuantity();
+            BigDecimal originalGrossLine = item.getOriginalGrossPrice() == null
+                    ? totalGrossLine
+                    : item.getOriginalGrossPrice().max(totalGrossLine);
+            BigDecimal perUnitGross = originalGrossLine.divide(BigDecimal.valueOf(qty), 2, RoundingMode.HALF_UP);
             String taxPct = ts != null && ts.getTaxRate() != null ? ts.getTaxRate().label : "0%";
             BigDecimal netTotal = (item.getNetPrice() != null ? item.getNetPrice() : BigDecimal.ZERO)
                     .multiply(BigDecimal.valueOf(qty));
             BigDecimal taxAmt = totalGrossLine.subtract(netTotal).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal originalUnitNet = netUnitFromGross(ts, perUnitGross);
 
-            var sl = new FolioPdfRequest.ServiceLine(desc, qty, item.getNetPrice(), perUnitGross);
+            var sl = new FolioPdfRequest.ServiceLine(desc, qty, originalUnitNet, perUnitGross);
             sl.setDate(fallbackDate);
+            sl.setTotalNettPrice(netTotal.setScale(2, RoundingMode.HALF_UP));
             sl.setTaxPercent(taxPct);
             sl.setTaxAmount(taxAmt);
             sl.setTotalPrice(totalGrossLine);
@@ -317,7 +320,10 @@ public class BillFolioPdfService {
             Integer qtyRaw = item.getQuantity();
             int qty = qtyRaw == null || qtyRaw <= 0 ? 1 : qtyRaw;
             BigDecimal billedGross = item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice();
-            BigDecimal nominalGross = nominalLineGross(ts, qty);
+            BigDecimal storedOriginalGross = item.getOriginalGrossPrice();
+            BigDecimal nominalGross = storedOriginalGross != null
+                    ? storedOriginalGross
+                    : nominalLineGross(ts, qty);
             if (nominalGross.compareTo(billedGross) > 0) {
                 nominalPriceDiscount = nominalPriceDiscount.add(nominalGross.subtract(billedGross));
             }
@@ -370,6 +376,16 @@ public class BillFolioPdfService {
             resolved = paymentSplitTotal;
         }
         return resolved.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal netUnitFromGross(TransactionService ts, BigDecimal grossUnit) {
+        BigDecimal safeGross = grossUnit == null ? BigDecimal.ZERO : grossUnit;
+        BigDecimal multiplier = ts != null && ts.getTaxRate() != null && ts.getTaxRate().multiplier != null
+                ? ts.getTaxRate().multiplier
+                : BigDecimal.ZERO;
+        BigDecimal divisor = BigDecimal.ONE.add(multiplier);
+        if (divisor.compareTo(BigDecimal.ZERO) <= 0) return safeGross.setScale(4, RoundingMode.HALF_UP);
+        return safeGross.divide(divisor, 4, RoundingMode.HALF_UP);
     }
 
     private BigDecimal nominalLineGross(TransactionService ts, int qty) {

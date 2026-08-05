@@ -407,10 +407,11 @@ public class ReceiptPdfService {
         String label = firstNonBlank(request.getFolioNumberLabel(), word(locale, "Račun", "Račun", "Invoice"));
         String number = safe(request.getFolioNumber());
         addWrapped(blocks, (label + " " + number).trim(), fonts.bold(), type.title(), type.lineHeight() + 1f, true, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
+        blocks.add(new GapBlock(type.smallLineHeight() * 0.7f));
         String[] issueParts = splitIssueDateAndTime(request.getFolioDate());
         String issuedValue = joinNonBlank(Arrays.asList(
                 safe(request.getIssueCity()).strip(),
-                joinNonBlank(Arrays.asList(formatReceiptDateCompact(issueParts[0]), issueParts[1]), " ")
+                joinNonBlank(Arrays.asList(formatReceiptDate(issueParts[0]), issueParts[1]), " ")
         ), ", ");
         addPair(blocks, word(locale, "Izdano", "Izdato", "Issued"), issuedValue, fonts, type, false);
         addPair(blocks, word(locale, "Datum opravljene storitve", "Datum izvršene usluge", "Service date"), formatReceiptDate(request.getDateOfService()), fonts, type, false);
@@ -515,7 +516,10 @@ public class ReceiptPdfService {
         if (layout != null && layout.isShowPaymentDetails()) {
             List<FolioPdfRequest.PaymentLine> paymentLines = normalizedPaymentLines(request, totals.gross(), toBePaid);
             if (!paymentLines.isEmpty()) {
-                blocks.add(new GapBlock(2f));
+                blocks.add(new GapBlock(type.smallLineHeight() * 0.75f));
+                blocks.add(textBlock(word(locale, "Način plačila:", "Način plaćanja:", "Payment method:"),
+                        fonts.regular(), type.body(), type.lineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
+                blocks.add(new GapBlock(1.5f));
                 for (FolioPdfRequest.PaymentLine paymentLine : paymentLines) {
                     blocks.add(pairBlock(firstNonBlank(paymentLine.getName(), word(locale, "Plačilo", "Plaćanje", "Payment")),
                             moneyCompact(scale(paymentLine.getAmountGross())), fonts.regular(), type.body(), type.lineHeight(), false));
@@ -534,7 +538,6 @@ public class ReceiptPdfService {
         }
         if (rows.isEmpty()) return List.of();
         List<Block> blocks = new ArrayList<>();
-        blocks.add(textBlock(word(locale, "DDV", "PDV", "VAT"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
         for (VatRow row : rows) {
             String left = vatLabel(row.bucket(), locale) + " · " + word(locale, "osnova", "osnovica", "basis") + " " + money(row.net());
             blocks.add(pairBlock(left, money(row.vat()), fonts.regular(), type.small(), type.smallLineHeight(), false));
@@ -891,6 +894,7 @@ public class ReceiptPdfService {
 
     private static BigDecimal lineNet(FolioPdfRequest.ServiceLine line) {
         if (line == null) return BigDecimal.ZERO;
+        if (line.getTotalNettPrice() != null) return scale(line.getTotalNettPrice());
         BigDecimal unit = line.getNettPrice() == null ? BigDecimal.ZERO : line.getNettPrice();
         return scale(unit.multiply(BigDecimal.valueOf(Math.max(1, line.getQty()))));
     }

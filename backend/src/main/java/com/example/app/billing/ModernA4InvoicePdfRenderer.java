@@ -450,17 +450,21 @@ final class ModernA4InvoicePdfRenderer {
 
     private void drawSignature(State state, byte[] signatureBytes, float x, float y, float width, float height) throws IOException {
         float pad = state.theme.pad;
-        sectionTitle(state, signatureLabel(state.locale), x, y, width);
+        float right = x + width - pad;
+        float labelBaseline = y + pad + state.theme.sectionTitle;
+        state.textRight(state.fonts.bold, state.theme.sectionTitle, right, labelBaseline, signatureLabel(state.locale).toUpperCase(Locale.ROOT), state.theme.accent);
+        float signatureWidth = Math.min(130f, width - 2 * pad);
         if (signatureBytes != null && signatureBytes.length > 0) {
             try {
                 PDImageXObject image = PDImageXObject.createFromByteArray(state.document, signatureBytes, "a4-signature");
-                state.drawImage(image, x + pad, y + 24f, Math.min(130f, width - 2 * pad), Math.min(36f, height - 30f));
+                state.drawImage(image, right - signatureWidth, y + 24f, signatureWidth, Math.min(36f, height - 30f));
                 return;
             } catch (IOException ignored) {
                 // Draw a signature line instead.
             }
         }
-        state.line(x + pad, y + Math.min(height - 10f, 46f), x + Math.min(width - pad, 150f), y + Math.min(height - 10f, 46f), new Color(190, 198, 210), 0.6f);
+        float lineY = y + Math.min(height - 10f, 46f);
+        state.line(right - signatureWidth, lineY, right, lineY, new Color(190, 198, 210), 0.6f);
     }
 
     private void drawFooterText(State state, FolioLayoutConfig layout, float x, float y, float width, float height) throws IOException {
@@ -534,8 +538,8 @@ final class ModernA4InvoicePdfRenderer {
         state.fillRect(x, y, width, height, fill);
         float[] widths = itemColumnWidths(width, showQty);
         String[] headers = showQty
-                ? new String[]{"#", descriptionLabel(state.locale), quantityLabel(state.locale), priceExVatLabel(state.locale), "DDV (%)", subtotalLabel(state.locale), discountColumnLabel(state.locale), grossTotalColumnLabel(state.locale)}
-                : new String[]{"#", descriptionLabel(state.locale), priceExVatLabel(state.locale), "DDV (%)", subtotalLabel(state.locale), discountColumnLabel(state.locale), grossTotalColumnLabel(state.locale)};
+                ? new String[]{"#", descriptionLabel(state.locale), quantityLabel(state.locale), priceExVatLabel(state.locale), "DDV (%)", unitGrossColumnLabel(state.locale), discountColumnLabel(state.locale), grossTotalColumnLabel(state.locale)}
+                : new String[]{"#", descriptionLabel(state.locale), priceExVatLabel(state.locale), "DDV (%)", unitGrossColumnLabel(state.locale), discountColumnLabel(state.locale), grossTotalColumnLabel(state.locale)};
         float currentX = x;
         float baseline = y + (height + state.theme.small) / 2f;
         Color headerColor = "COMPACT".equals(state.theme.template) ? state.theme.accent : MUTED;
@@ -551,8 +555,8 @@ final class ModernA4InvoicePdfRenderer {
     private void drawItemRow(State state, FolioPdfRequest.ServiceLine line, int number, float x, float y, float width, float height, boolean showQty) throws IOException {
         float[] widths = itemColumnWidths(width, showQty);
         String[] values = showQty
-                ? new String[]{String.valueOf(number), safe(line.getDescription()), String.valueOf(line.getQty()), money(line.getNettPrice(), state.locale), displayTax(line.getTaxPercent()), money(lineNet(line), state.locale), money(lineDiscountGross(line), state.locale), money(lineGross(line), state.locale)}
-                : new String[]{String.valueOf(number), safe(line.getDescription()), money(line.getNettPrice(), state.locale), displayTax(line.getTaxPercent()), money(lineNet(line), state.locale), money(lineDiscountGross(line), state.locale), money(lineGross(line), state.locale)};
+                ? new String[]{String.valueOf(number), safe(line.getDescription()), String.valueOf(line.getQty()), money(line.getNettPrice(), state.locale), displayTax(line.getTaxPercent()), money(line.getGrossPrice(), state.locale), money(lineDiscountGross(line), state.locale), money(lineGross(line), state.locale)}
+                : new String[]{String.valueOf(number), safe(line.getDescription()), money(line.getNettPrice(), state.locale), displayTax(line.getTaxPercent()), money(line.getGrossPrice(), state.locale), money(lineDiscountGross(line), state.locale), money(lineGross(line), state.locale)};
         float currentX = x;
         float baseline = y + state.theme.base + 6f;
         for (int i = 0; i < values.length; i++) {
@@ -677,8 +681,16 @@ final class ModernA4InvoicePdfRenderer {
     private void drawSectionFrame(State state, String section, float x, float y, float width, float height) throws IOException {
         if (state.theme.minimal || "company".equals(section)) return;
         if ("CLASSIC".equals(state.theme.template)) {
-            if ("totals".equals(section)) state.fillRect(x, y, width, height, tint(state.theme.accent, 0.96f));
-            state.rect(x, y, width, height, BORDER, 0.65f);
+            if ("totals".equals(section)) {
+                state.fillRect(x, y, width, height, tint(state.theme.accent, 0.96f));
+                // Keep the total block open at the top: the divider below the preceding
+                // advance/items section is sufficient and avoids a doubled line.
+                state.line(x, y, x, y + height, BORDER, 0.65f);
+                state.line(x + width, y, x + width, y + height, BORDER, 0.65f);
+                state.line(x, y + height, x + width, y + height, BORDER, 0.65f);
+            } else {
+                state.rect(x, y, width, height, BORDER, 0.65f);
+            }
             return;
         }
         if ("recipient".equals(section) || "document".equals(section) || "taxClauses".equals(section)) {
@@ -820,6 +832,7 @@ final class ModernA4InvoicePdfRenderer {
 
     private static BigDecimal lineNet(FolioPdfRequest.ServiceLine line) {
         if (line == null) return BigDecimal.ZERO;
+        if (line.getTotalNettPrice() != null) return line.getTotalNettPrice().setScale(2, RoundingMode.HALF_UP);
         return nvl(line.getNettPrice()).multiply(BigDecimal.valueOf(Math.max(0, line.getQty()))).setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -1099,6 +1112,24 @@ final class ModernA4InvoicePdfRenderer {
         return p + " " + c;
     }
 
+    private static String companyVatIdLine(String locale, String value) {
+        String normalized = safe(value);
+        if (normalized.isBlank()) return "";
+        String label = "sl".equals(locale) ? "ID št. za DDV: " : "sr".equals(locale) ? "PIB: " : "VAT ID: ";
+        return label + normalized;
+    }
+
+    private static String formatIban(String value) {
+        String compact = safe(value).replaceAll("\\s+", "");
+        if (compact.isBlank()) return "";
+        StringBuilder grouped = new StringBuilder(compact.length() + compact.length() / 4);
+        for (int i = 0; i < compact.length(); i++) {
+            if (i > 0 && i % 4 == 0) grouped.append(' ');
+            grouped.append(compact.charAt(i));
+        }
+        return grouped.toString();
+    }
+
     private static String firstNonBlank(String first, String second) {
         String a = safe(first);
         return a.isBlank() ? safe(second) : a;
@@ -1129,10 +1160,10 @@ final class ModernA4InvoicePdfRenderer {
         baseline += state.theme.line;
         state.text(state.fonts.regular, state.theme.base, x + pad, baseline, joinPostalCity(request.getCompanyPostalCode(), request.getCompanyCity()), TEXT);
         baseline += state.theme.line;
-        state.text(state.fonts.regular, state.theme.base, x + pad, baseline, safe(request.getCompanyTaxId()), TEXT);
+        state.text(state.fonts.regular, state.theme.base, x + pad, baseline, companyVatIdLine(state.locale, request.getCompanyTaxId()), TEXT);
         if (!safe(request.getIban()).isBlank()) {
             baseline += state.theme.line;
-            state.text(state.fonts.regular, state.theme.base, x + pad, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + safe(request.getIban()), TEXT);
+            state.text(state.fonts.regular, state.theme.base, x + pad, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + formatIban(request.getIban()), TEXT);
         }
         drawCenteredLogo(state, layout, logoBytes, centerX, y + 12f, rightX - centerX, 58f);
         state.text(state.fonts.bold, state.theme.title + 1f, rightX + 6f, y + 24f, documentTitle(request, state.locale), state.theme.accent);
@@ -1153,10 +1184,10 @@ final class ModernA4InvoicePdfRenderer {
         baseline += state.theme.line;
         state.text(state.fonts.regular, state.theme.base, x + pad, baseline, joinPostalCity(request.getCompanyPostalCode(), request.getCompanyCity()), TEXT);
         baseline += state.theme.line;
-        state.text(state.fonts.regular, state.theme.base, x + pad, baseline, safe(request.getCompanyTaxId()), TEXT);
+        state.text(state.fonts.regular, state.theme.base, x + pad, baseline, companyVatIdLine(state.locale, request.getCompanyTaxId()), TEXT);
         if (!safe(request.getIban()).isBlank()) {
             baseline += state.theme.line;
-            state.text(state.fonts.regular, state.theme.base, x + pad, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + safe(request.getIban()), TEXT);
+            state.text(state.fonts.regular, state.theme.base, x + pad, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + formatIban(request.getIban()), TEXT);
         }
         state.line(centerX, y + 8f, centerX, y + height - 10f, BORDER, 0.55f);
         state.line(rightX, y + 8f, rightX, y + height - 10f, BORDER, 0.55f);
@@ -1224,10 +1255,10 @@ final class ModernA4InvoicePdfRenderer {
         baseline += state.theme.line;
         state.text(state.fonts.regular, state.theme.base, leftX, baseline, joinPostalCity(request.getCompanyPostalCode(), request.getCompanyCity()), TEXT);
         baseline += state.theme.line;
-        state.text(state.fonts.regular, state.theme.base, leftX, baseline, safe(request.getCompanyTaxId()), TEXT);
+        state.text(state.fonts.regular, state.theme.base, leftX, baseline, companyVatIdLine(state.locale, request.getCompanyTaxId()), TEXT);
         if (!safe(request.getIban()).isBlank()) {
             baseline += state.theme.line;
-            state.text(state.fonts.regular, state.theme.base, leftX, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + safe(request.getIban()), TEXT);
+            state.text(state.fonts.regular, state.theme.base, leftX, baseline, ("sl".equals(state.locale) || "sr".equals(state.locale) ? "TRR: " : "IBAN: ") + formatIban(request.getIban()), TEXT);
         }
         drawCenteredLogo(state, layout, logoBytes, x, y + 8f, width, 62f);
     }
@@ -1278,13 +1309,14 @@ final class ModernA4InvoicePdfRenderer {
     private static String referenceLabel(String locale) { return "sl".equals(locale) ? "Referenca" : "sr".equals(locale) ? "Referenca" : "Reference"; }
     private static String fiscalLabel(String locale) { return "sl".equals(locale) ? "Fiskalni podatki" : "sr".equals(locale) ? "Fiskalni podaci" : "Fiscal details"; }
     private static String issuedByLabel(String locale) { return "sl".equals(locale) ? "Izdal" : "sr".equals(locale) ? "Izdao" : "Issued by"; }
-    private static String signatureLabel(String locale) { return "sl".equals(locale) ? "Podpis" : "sr".equals(locale) ? "Potpis" : "Signature"; }
+    private static String signatureLabel(String locale) { return "sl".equals(locale) ? "Odgovorna oseba" : "sr".equals(locale) ? "Odgovorno lice" : "Responsible person"; }
     private static String itemsLabel(String locale) { return "sl".equals(locale) ? "Postavke" : "sr".equals(locale) ? "Stavke" : "Items"; }
     private static String descriptionLabel(String locale) { return "en".equals(locale) ? "Description" : "Opis"; }
     private static String quantityLabel(String locale) { return "sl".equals(locale) ? "Količina" : "sr".equals(locale) ? "Količina" : "Quantity"; }
     private static String priceExVatLabel(String locale) { return "sl".equals(locale) ? "Cena brez DDV" : "sr".equals(locale) ? "Cena bez PDV-a" : "Price excl. VAT"; }
     private static String discountColumnLabel(String locale) { return "sl".equals(locale) ? "Popust" : "sr".equals(locale) ? "Popust" : "Discount"; }
-    private static String grossTotalColumnLabel(String locale) { return "sl".equals(locale) ? "Skupaj z DDV" : "sr".equals(locale) ? "Ukupno sa PDV-om" : "Total incl. VAT"; }
+    private static String unitGrossColumnLabel(String locale) { return "sl".equals(locale) ? "Cena z DDV" : "sr".equals(locale) ? "Cena sa PDV-om" : "Price incl. VAT"; }
+    private static String grossTotalColumnLabel(String locale) { return "sl".equals(locale) ? "Skupaj" : "sr".equals(locale) ? "Ukupno" : "Total"; }
     private static String scanPayLabel(String locale) { return "sl".equals(locale) ? "Skeniraj in plačaj" : "sr".equals(locale) ? "Skeniraj i plati" : "Scan and pay"; }
 
 

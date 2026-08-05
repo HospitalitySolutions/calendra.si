@@ -24,6 +24,10 @@ public class BillItem extends BaseEntity {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal grossPrice;
 
+    /** Gross line total before item-level and whole-invoice discounts were applied. */
+    @Column(name = "original_gross_price", precision = 12, scale = 2)
+    private BigDecimal originalGrossPrice;
+
     /** Optional product/name snapshot shown on invoice PDFs instead of the transaction service description. */
     @Column(name = "invoice_line_description", length = 512)
     private String invoiceLineDescription;

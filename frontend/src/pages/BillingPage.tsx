@@ -6302,7 +6302,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
             title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
           >
-            {billForm.billType === 'ADVANCE' ? <span>{lineDiscountButtonLabel}</span> : discountIconSvg()}
+            <span>{lineDiscountButtonLabel}</span>
           </button>
           {lineDiscountOpen && renderItemDiscountPopover(
             popupDraft,

@@ -211,6 +211,53 @@ class FolioPdfServiceTest {
         }
     }
 
+    @Test
+    void generate_usesUpdatedA4ItemColumnsCompanyDetailsAndDiscountedLineValues() throws Exception {
+        FolioPdfService service = new FolioPdfService();
+        FolioPdfRequest request = new FolioPdfRequest();
+        request.setCompanyName("Test d.o.o.");
+        request.setCompanyTaxId("SI12345678");
+        request.setIban("SI455465454225424XX");
+        request.setRecipientName("Prejemnik");
+        request.setFolioNumber("RAC-6");
+        request.setFolioDate("2026-08-05 13:51");
+        request.setDateOfService("2026-08-05");
+        request.setDueDate("2026-08-12");
+        request.setIssuedBy("David Mirc");
+        request.setLocale("sl");
+
+        FolioPdfRequest.ServiceLine line = new FolioPdfRequest.ServiceLine(
+                "Svetovanje",
+                2,
+                new BigDecimal("40.98"),
+                new BigDecimal("50.00")
+        );
+        line.setTaxPercent("22%");
+        line.setTotalNettPrice(new BigDecimal("73.77"));
+        line.setTaxAmount(new BigDecimal("16.23"));
+        line.setTotalPrice(new BigDecimal("90.00"));
+        request.setServices(List.of(line));
+        request.setSubtotalBeforeDiscountGross(new BigDecimal("100.00"));
+        request.setDiscountAmountGross(new BigDecimal("10.00"));
+        request.setToBePaidGross(new BigDecimal("90.00"));
+
+        byte[] pdf = service.generate(request);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(text)
+                    .contains("Cena z DDV")
+                    .contains("Skupaj")
+                    .contains("50,00 €")
+                    .contains("10,00 €")
+                    .contains("90,00 €")
+                    .contains("ID št. za DDV: SI12345678")
+                    .contains("TRR: SI45 5465 4542 2542 4XX")
+                    .contains("ODGOVORNA OSEBA")
+                    .doesNotContain("Skupaj z DDV");
+        }
+    }
+
     private static FolioPdfRequest.ServiceLine serviceLine(String description, String totalGross) {
         return serviceLine(description, "10.00", totalGross, "22%", "2.20");
     }

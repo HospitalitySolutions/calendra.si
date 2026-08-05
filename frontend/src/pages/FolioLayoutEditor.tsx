@@ -991,7 +991,7 @@ function A4PresetLayoutEditor() {
         fiscal: 'Fiskalni podatki',
         reference: 'Referenca',
         issuedBy: 'Izdal',
-        signature: 'Podpis',
+        signature: 'Odgovorna oseba',
         compact: 'Kompaktna',
         classic: 'Klasična',
         minimal: 'Minimalna',
@@ -1093,7 +1093,7 @@ function A4PresetLayoutEditor() {
         }
 
   const sectionLabels: Record<string, string> = locale === 'sl'
-    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', vat: 'Razčlenitev DDV', totals: 'Seštevki', taxClauses: 'Davčne klavzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', signature: 'Podpis', footer: 'Noga' }
+    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', vat: 'Razčlenitev DDV', totals: 'Seštevki', taxClauses: 'Davčne klavzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', signature: 'Odgovorna oseba', footer: 'Noga' }
     : locale === 'sr'
       ? { company: 'Kompanija i logo', document: 'Podaci računa', recipient: 'Primalac', items: 'Stavke', advancePayments: 'Avansi', vat: 'Pregled PDV-a', totals: 'Ukupni iznosi', taxClauses: 'Poreske klauzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podaci', issuedBy: 'Izdao', signature: 'Potpis', footer: 'Podnožje' }
       : { company: 'Company and logo', document: 'Invoice details', recipient: 'Recipient', items: 'Items', advancePayments: 'Advance payments', vat: 'VAT breakdown', totals: 'Totals', taxClauses: 'Tax clauses', reference: 'Reference', paymentQr: 'Payment QR', fiscal: 'Fiscal details', issuedBy: 'Issued by', signature: 'Signature', footer: 'Footer' }

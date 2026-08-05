@@ -37,7 +37,7 @@ class ReceiptPdfServiceTest {
                     "TRR: SI56 1910 0001 2345 678",
                     "RAC-2026-00042",
                     "31.07.2026",
-                    "Izdano Maribor, 31.7.2026 12:45",
+                    "Izdano Maribor, 31.07.2026 12:45",
                     "Masaža hrbta",
                     "100.00 EUR",
                     "Popust",
@@ -181,7 +181,7 @@ class ReceiptPdfServiceTest {
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String normalizedText = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
-            assertThat(normalizedText).contains("Bančno nakazilo 100.00");
+            assertThat(normalizedText).contains("Način plačila: Bančno nakazilo 100.00");
         }
     }
 

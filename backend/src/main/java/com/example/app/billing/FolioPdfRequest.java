@@ -110,6 +110,7 @@ public class FolioPdfRequest {
         private int qty;
         private BigDecimal nettPrice;
         private BigDecimal grossPrice;
+        private BigDecimal totalNettPrice;
         private String taxPercent;
         private BigDecimal taxAmount;
         private BigDecimal totalPrice;
@@ -133,6 +134,8 @@ public class FolioPdfRequest {
         public void setNettPrice(BigDecimal nettPrice) { this.nettPrice = nettPrice; }
         public BigDecimal getGrossPrice() { return grossPrice; }
         public void setGrossPrice(BigDecimal grossPrice) { this.grossPrice = grossPrice; }
+        public BigDecimal getTotalNettPrice() { return totalNettPrice; }
+        public void setTotalNettPrice(BigDecimal totalNettPrice) { this.totalNettPrice = totalNettPrice; }
         public String getTaxPercent() { return taxPercent; }
         public void setTaxPercent(String taxPercent) { this.taxPercent = taxPercent; }
         public BigDecimal getTaxAmount() { return taxAmount; }

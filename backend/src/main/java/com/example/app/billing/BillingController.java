@@ -4826,9 +4826,15 @@ public class BillingController {
         for (int i = 0; i < bill.getItems().size(); i++) {
             BillItem item = bill.getItems().get(i);
             if (item == null) continue;
+            BigDecimal currentGross = item.getGrossPrice() == null
+                    ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                    : item.getGrossPrice().max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            if (item.getOriginalGrossPrice() == null) {
+                item.setOriginalGrossPrice(currentGross);
+            }
             BigDecimal discountedGross = i < discounts.finalLineGrosses().size()
                     ? discounts.finalLineGrosses().get(i)
-                    : (item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice().setScale(2, RoundingMode.HALF_UP));
+                    : currentGross;
             if (discountedGross.compareTo(BigDecimal.ZERO) < 0) discountedGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             item.setGrossPrice(discountedGross);
             int qty = item.getQuantity() == null || item.getQuantity() <= 0 ? 1 : item.getQuantity();
