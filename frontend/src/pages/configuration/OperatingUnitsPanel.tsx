@@ -58,6 +58,7 @@ type LocationDraft = {
 
 type OperatingUnitsPanelProps = {
   locale: string
+  locationsEnabled: boolean
   spacesEnabled: boolean
   issuerOptions?: InvoiceIssuerOption[]
   onChanged?: () => void | Promise<void>
@@ -145,6 +146,7 @@ function icon(kind: 'pin' | 'building' | 'room' | 'info' | 'plus' | 'trash' | 'c
 
 export function OperatingUnitsPanel({
   locale,
+  locationsEnabled,
   spacesEnabled,
   issuerOptions = [],
   onChanged,
@@ -207,7 +209,7 @@ export function OperatingUnitsPanel({
       setIssuers(nextIssuers)
       setSpaces(nextSpaces)
       const requested = preferredLocationId ?? selectedLocationId
-      if (requested === 'new') {
+      if (requested === 'new' && locationsEnabled) {
         setSelectedLocationId('new')
         setDraft(blankDraft((nextIssuers.find((x: InvoiceIssuerOption) => x.defaultForCurrentUnit) ?? nextIssuers[0])?.id ?? null))
       } else {
@@ -223,7 +225,7 @@ export function OperatingUnitsPanel({
     } finally {
       setLoading(false)
     }
-  }, [issuerOptions, selectedLocationId, showToast, sl, spacesEnabled])
+  }, [issuerOptions, locationsEnabled, selectedLocationId, showToast, sl, spacesEnabled])
 
   useEffect(() => {
     void load()
@@ -244,7 +246,17 @@ export function OperatingUnitsPanel({
     setEditingSpaceId(null)
   }
 
+  useEffect(() => {
+    if (locationsEnabled || selectedLocationId !== 'new') return
+    const fallback = locations.find((location) => location.defaultLocation) ?? locations[0] ?? null
+    setSelectedLocationId(fallback?.id ?? null)
+    setDraft(fallback ? draftFromLocation(fallback) : blankDraft(defaultIssuer?.id ?? null))
+    setAddingSpace(false)
+    setEditingSpaceId(null)
+  }, [defaultIssuer?.id, locations, locationsEnabled, selectedLocationId])
+
   const beginNewLocation = () => {
+    if (!locationsEnabled) return
     setSelectedLocationId('new')
     setDraft(blankDraft(defaultIssuer?.id ?? null))
     setAddingSpace(false)
@@ -262,6 +274,10 @@ export function OperatingUnitsPanel({
   }
 
   const saveLocation = async () => {
+    if (!selectedLocation && !locationsEnabled) {
+      showToast('error', sl ? 'Dodajanje dodatnih lokacij ni omogočeno.' : 'Adding additional locations is not enabled.')
+      return
+    }
     if (!draft.name.trim()) {
       showToast('error', sl ? 'Vnesite ime lokacije.' : 'Enter a location name.')
       return
@@ -356,7 +372,7 @@ export function OperatingUnitsPanel({
           <h2>{sl ? 'Poslovne enote' : 'Business units'}</h2>
           <p>{sl ? 'Upravljajte lokacije in poslovne prostore. Naslov podjetja se odslej določa na lokaciji.' : 'Manage locations and rooms. The company physical address is now defined by its location.'}</p>
         </div>
-        <button type="button" className="ou-primary-button" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button>
+        {locationsEnabled ? <button type="button" className="ou-primary-button" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button> : null}
       </header>
 
       {bannerVisible ? (
@@ -394,7 +410,7 @@ export function OperatingUnitsPanel({
               </button>
             ) : null}
           </div>
-          <button type="button" className="ou-secondary-add" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button>
+          {locationsEnabled ? <button type="button" className="ou-secondary-add" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button> : null}
         </aside>
 
         <main className="ou-detail">

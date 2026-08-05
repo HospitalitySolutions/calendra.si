@@ -48,6 +48,7 @@ public class SettingsController {
     );
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Set<String> MODULE_VISIBILITY_SETTING_KEYS = Set.of(
+            SettingKey.LOCATIONS_ENABLED.name(),
             SettingKey.SPACES_ENABLED.name(),
             SettingKey.TYPES_ENABLED.name(),
             SettingKey.COURSES_ENABLED.name(),
@@ -223,8 +224,12 @@ public class SettingsController {
         latestGlobalSettingValue(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON)
                 .ifPresent(v -> values.put(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name(), v));
         applyTenantReservationRulesDefaults(values);
+        applyLocationModuleDefault(values);
         if (!isSuperAdmin(me)) {
             applyPlatformModuleVisibilityRules(values);
+            if (!locationFeatureEntitled(me, companyId)) {
+                values.put(SettingKey.LOCATIONS_ENABLED.name(), "false");
+            }
         }
         applyModuleSettingDependencies(values);
         values.putIfAbsent(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name(), "0");
@@ -246,6 +251,10 @@ public class SettingsController {
                         )
                 )
         );
+        if (normalizedPayload.containsKey(SettingKey.LOCATIONS_ENABLED.name())
+                && !locationFeatureEntitled(me, companyId)) {
+            normalizedPayload.put(SettingKey.LOCATIONS_ENABLED.name(), "false");
+        }
         boolean workspaceProjectionRequested = workspaceSubscriptions != null && "true".equalsIgnoreCase(
                 String.valueOf(payload.get("__workspaceSubscriptionProjection")));
         if (workspaceProjectionRequested) {
@@ -439,6 +448,41 @@ public class SettingsController {
         if (!billingEnabled) {
             values.put(SettingKey.MULTIPLE_COMPANIES_ENABLED.name(), "false");
         }
+    }
+
+    private boolean locationFeatureEntitled(User me, Long companyId) {
+        if (isSuperAdmin(me)) return true;
+        String packageName = repository.findByCompanyIdAndKey(companyId, SettingKey.SIGNUP_PACKAGE_NAME)
+                .map(AppSetting::getValue)
+                .map(value -> value == null ? "" : value.trim().toUpperCase(Locale.ROOT)
+                        .replace('-', '_').replace(' ', '_'))
+                .orElse("BASIC");
+        if ("PREMIUM".equals(packageName) || "BUSINESS".equals(packageName)) return true;
+        if (!"CUSTOM".equals(packageName)) return false;
+        return repository.findByCompanyIdAndKey(companyId, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS)
+                .map(AppSetting::getValue)
+                .map(value -> value == null ? "" : value)
+                .stream()
+                .flatMap(value -> Arrays.stream(value.split("[,;\\s]+")))
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .anyMatch(SettingKey.LOCATIONS_ENABLED.name()::equals);
+    }
+
+    private void applyLocationModuleDefault(Map<String, String> values) {
+        if (values == null || values.containsKey(SettingKey.LOCATIONS_ENABLED.name())) return;
+        String normalizedPackage = String.valueOf(
+                        values.getOrDefault(SettingKey.SIGNUP_PACKAGE_NAME.name(), "BASIC"))
+                .trim()
+                .toUpperCase(Locale.ROOT)
+                .replace('-', '_')
+                .replace(' ', '_');
+        // Existing Premium tenants keep the location feature enabled when the new
+        // setting has not been persisted yet. Custom tenants are opt-in through the
+        // Platform Admin feature selection and therefore default to OFF.
+        values.put(
+                SettingKey.LOCATIONS_ENABLED.name(),
+                Boolean.toString("PREMIUM".equals(normalizedPackage) || "BUSINESS".equals(normalizedPackage))
+        );
     }
 
     private Map<String, String> normalizeEmailSenderPayload(Long companyId, Map<String, String> payload) {
@@ -722,6 +766,7 @@ public class SettingsController {
 
     private static String defaultModuleVisibilityPackage(String moduleKey) {
         return switch (moduleKey) {
+            case "LOCATIONS_ENABLED" -> "PREMIUM";
             case "BILLING_ENABLED",
                     "MULTIPLE_COMPANIES_ENABLED",
                     "BILLING_INVOICES_ENABLED",

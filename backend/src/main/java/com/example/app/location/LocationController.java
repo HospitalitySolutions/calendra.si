@@ -12,11 +12,13 @@ import com.example.app.session.SpaceRepository;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.waitlist.WaitlistRequestRepository;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -122,6 +124,10 @@ public class LocationController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public LocationResponse create(@RequestBody LocationInput input, @AuthenticationPrincipal User me) {
+        if (locations.countByCompanyId(me.getCompany().getId()) > 0 && !additionalLocationsEnabled(me)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Additional locations are not enabled for this package.");
+        }
         String name = requiredName(input == null ? null : input.name());
         if (locations.existsByCompanyIdAndNameIgnoreCase(me.getCompany().getId(), name)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A location with this name already exists.");
@@ -192,6 +198,42 @@ public class LocationController {
                 locations.save(location);
             }
         });
+    }
+
+    private boolean additionalLocationsEnabled(User me) {
+        if (me == null || me.getCompany() == null || me.getCompany().getId() == null) return false;
+        Long companyId = me.getCompany().getId();
+        boolean explicitlyEnabled = settings.findByCompanyIdAndKey(companyId, SettingKey.LOCATIONS_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(false);
+        if (me.getRole() == Role.SUPER_ADMIN) return explicitlyEnabled;
+
+        String packageName = settings.findByCompanyIdAndKey(companyId, SettingKey.SIGNUP_PACKAGE_NAME)
+                .map(AppSetting::getValue)
+                .map(value -> value == null ? "" : value.trim().toUpperCase(Locale.ROOT)
+                        .replace('-', '_').replace(' ', '_'))
+                .orElse("BASIC");
+        if ("CUSTOM".equals(packageName)) {
+            return customFeatureEnabled(companyId, SettingKey.LOCATIONS_ENABLED.name()) && explicitlyEnabled;
+        }
+        if (!"PREMIUM".equals(packageName) && !"BUSINESS".equals(packageName)) return false;
+        // Existing Premium tenants created before LOCATIONS_ENABLED was introduced
+        // keep the feature on until they explicitly switch it off.
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.LOCATIONS_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> !"false".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(true);
+    }
+
+    private boolean customFeatureEnabled(Long companyId, String featureKey) {
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS)
+                .map(AppSetting::getValue)
+                .map(value -> value == null ? "" : value)
+                .stream()
+                .flatMap(value -> Arrays.stream(value.split("[,;\\s]+")))
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .anyMatch(featureKey.toUpperCase(Locale.ROOT)::equals);
     }
 
     private void apply(Location location, LocationInput input, Long companyId) {

@@ -592,6 +592,11 @@ public class SignupService {
             seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
         }
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
+        seedSetting(
+                company,
+                SettingKey.LOCATIONS_ENABLED,
+                Boolean.toString("PREMIUM".equals(normalizedPackageType))
+        );
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
@@ -1763,6 +1768,7 @@ public class SignupService {
         String normalizedTenantType = normalizeTenantConfigType(tenantType);
         boolean basicAllowed = hasMinPackage(packageType, "BASIC");
         boolean proAllowed = hasMinPackage(packageType, "PROFESSIONAL");
+        boolean premiumAllowed = "PREMIUM".equals(normalizePackageType(packageType, "BASIC"));
         boolean supportsOnlineSessions = "therapy".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
         boolean supportsGroupBookings = "gym".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
 
@@ -1771,6 +1777,7 @@ public class SignupService {
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
         seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, "false");
+        seedSetting(company, SettingKey.LOCATIONS_ENABLED, Boolean.toString(premiumAllowed));
         seedSetting(company, SettingKey.SPACES_ENABLED, Boolean.toString(proAllowed));
         seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
         seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
@@ -1802,6 +1809,7 @@ public class SignupService {
     }
 
     private void seedTenantDefaults(Company company, String companyName) {
+        seedSetting(company, SettingKey.LOCATIONS_ENABLED, "false");
         seedSetting(company, SettingKey.SPACES_ENABLED, "true");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
         seedSetting(company, SettingKey.SERVICE_GROUPS_ENABLED, "true");

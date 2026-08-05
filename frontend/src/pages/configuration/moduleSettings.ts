@@ -8,6 +8,7 @@ import {
 
 export type ModulesDraft = {
   MODULE_CONFIG_TYPE: TenantConfigType;
+  LOCATIONS_ENABLED: string;
   SPACES_ENABLED: string;
   TYPES_ENABLED: string;
   DEFAULT_SERVICE_BREAK_MINUTES: string;
@@ -91,6 +92,7 @@ export const MODULE_VISIBILITY_PACKAGES: Array<{
 ];
 
 const MODULE_VISIBILITY_KEYS = new Set<string>([
+  "LOCATIONS_ENABLED",
   "SPACES_ENABLED",
   "TYPES_ENABLED",
   "SERVICE_GROUPS_ENABLED",
@@ -169,6 +171,8 @@ const defaultModuleVisibilityPackage = (
   key: ModuleVisibilityRuleKey,
 ): ModuleVisibilityPackage => {
   switch (key) {
+    case "LOCATIONS_ENABLED":
+      return "PREMIUM";
     case "BILLING_ENABLED":
     case "MULTIPLE_COMPANIES_ENABLED":
     case "BILLING_INVOICES_ENABLED":
@@ -267,6 +271,11 @@ export const buildModulesDraftFromCommitted = (
 ): ModulesDraft => ({
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(
     s.MODULE_CONFIG_TYPE || g.tenantType,
+  ),
+  LOCATIONS_ENABLED: modulesStringSetting(
+    s,
+    "LOCATIONS_ENABLED",
+    normalizePackageType(s.SIGNUP_PACKAGE_NAME) === "PREMIUM",
   ),
   SPACES_ENABLED: s.SPACES_ENABLED === "true" ? "true" : "false",
   TYPES_ENABLED: modulesStringSetting(s, "TYPES_ENABLED", true),
@@ -589,6 +598,7 @@ export const modulesDraftToSettingsPatch = (
   draft: ModulesDraft,
 ): Record<string, string> => ({
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(draft.MODULE_CONFIG_TYPE),
+  LOCATIONS_ENABLED: draft.LOCATIONS_ENABLED,
   SPACES_ENABLED: draft.SPACES_ENABLED,
   TYPES_ENABLED: draft.TYPES_ENABLED,
   DEFAULT_SERVICE_BREAK_MINUTES: draft.DEFAULT_SERVICE_BREAK_MINUTES,

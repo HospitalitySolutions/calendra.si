@@ -1,6 +1,8 @@
 package com.example.app.settings;
 
 public enum SettingKey {
+    /** Enables creation of additional operating locations for the tenant. */
+    LOCATIONS_ENABLED,
     SPACES_ENABLED,
     TYPES_ENABLED,
     /** Enables course catalog and course-access entitlements. */

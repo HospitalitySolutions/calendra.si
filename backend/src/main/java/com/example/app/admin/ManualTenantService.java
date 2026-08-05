@@ -29,27 +29,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ManualTenantService {
-    private static final Logger log = LoggerFactory.getLogger(ManualTenantService.class);
     private static final Set<String> TENANT_TYPES = Set.of("salon", "gym", "therapy", "spa", "personal_training");
     private static final Set<String> ACCESS_STATUSES = Set.of("ACTIVE", "SUSPENDED", "CANCELLED");
     private static final Set<String> BILLING_STATUSES = Set.of("PENDING_PAYMENT", "PAID", "PAST_DUE");
 
     private static final List<FeatureDefinition> FEATURES = List.of(
+            new FeatureDefinition("LOCATIONS_ENABLED", "Multiple locations", SettingKey.LOCATIONS_ENABLED),
             new FeatureDefinition("SPACES_ENABLED", "Spaces / resources", SettingKey.SPACES_ENABLED),
             new FeatureDefinition("TYPES_ENABLED", "Services", SettingKey.TYPES_ENABLED),
             new FeatureDefinition("SERVICE_GROUPS_ENABLED", "Service groups", SettingKey.SERVICE_GROUPS_ENABLED),
@@ -112,10 +106,6 @@ public class ManualTenantService {
 
     @Autowired(required = false)
     private TenantCreatedAdminEmailService tenantCreatedAdminEmailService;
-
-    @Autowired(required = false)
-    @Qualifier("applicationTaskExecutor")
-    private TaskExecutor applicationTaskExecutor;
 
     public ManualTenantService(
             CompanyRepository companies,
@@ -315,56 +305,23 @@ public class ManualTenantService {
         if (owner == null || owner.getEmail() == null || owner.getEmail().isBlank()) {
             return;
         }
-        String recipientEmail = owner.getEmail();
-        String recipientFirstName = owner.getFirstName();
         String setupUrl = passwordResetService.createPasswordSetupUrl(owner, localeCode).orElse(null);
-        Runnable delivery = () -> {
-            if (signupWelcomeEmailService == null) {
-                passwordResetService.requestReset(recipientEmail, localeCode);
-                return;
-            }
-            try {
-                signupWelcomeEmailService.sendManualTenantWelcomeEmail(
-                        recipientEmail,
-                        recipientFirstName,
-                        companyName,
-                        packageName,
-                        localeCode,
-                        setupUrl
-                );
-            } catch (Exception e) {
-                log.warn("Failed to send manual-tenant welcome email after tenant creation: {}", e.getMessage());
-                passwordResetService.requestReset(recipientEmail, localeCode);
-            }
-        };
-        runAfterCommitAsync(delivery);
-    }
-
-    private void runAfterCommitAsync(Runnable task) {
-        if (task == null) return;
-        Runnable dispatch = () -> {
-            TaskExecutor executor = applicationTaskExecutor;
-            if (executor != null) {
-                try {
-                    executor.execute(task);
-                    return;
-                } catch (RuntimeException e) {
-                    log.warn("Could not queue manual-tenant post-commit task; running it inline: {}", e.getMessage());
-                }
-            }
-            task.run();
-        };
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    dispatch.run();
-                }
-            });
+        if (signupWelcomeEmailService == null) {
+            passwordResetService.requestReset(owner.getEmail(), localeCode);
             return;
         }
-        dispatch.run();
+        try {
+            signupWelcomeEmailService.sendManualTenantWelcomeEmail(
+                    owner.getEmail(),
+                    owner.getFirstName(),
+                    companyName,
+                    packageName,
+                    localeCode,
+                    setupUrl
+            );
+        } catch (Exception e) {
+            passwordResetService.requestReset(owner.getEmail(), localeCode);
+        }
     }
 
     private void seedBillingAndCompanySettings(Company company, ManualTenantRequest request, String packageName, String interval, int userCount, int smsCount, String paymentMethod, boolean initial) {
@@ -443,13 +400,14 @@ public class ManualTenantService {
             out.addAll(List.of("SPACES_ENABLED", "COURSES_ENABLED", "BILLING_ENABLED", "BILLING_INVOICES_ENABLED", "BILLING_BANK_TRANSFER_ENABLED", "BILLING_ONLINE_CARD_PAYMENTS_ENABLED", "BILLING_ADVANCE_ENABLED", "MULTIPLE_SESSIONS_PER_SPACE_ENABLED", "GROUP_BOOKING_ENABLED", "MULTIPLE_CLIENTS_PER_SESSION_ENABLED", "guestAppEnabled", "guestWalletEnabled", "guestOrdersEnabled", "guestBuyTabEnabled", "guestEntitlementsEnabled"));
         }
         if ("PREMIUM".equals(pkg)) {
-            out.addAll(List.of("INBOX_ENABLED", "GOOGLE_CALENDAR_MODULE_ENABLED", "SCANNER_MODULE_ENABLED", "WHATSAPP_MODULE_ENABLED", "AI_BOOKING_ENABLED", "guestInboxEnabled"));
+            out.addAll(List.of("LOCATIONS_ENABLED", "INBOX_ENABLED", "GOOGLE_CALENDAR_MODULE_ENABLED", "SCANNER_MODULE_ENABLED", "WHATSAPP_MODULE_ENABLED", "AI_BOOKING_ENABLED", "guestInboxEnabled"));
         }
         return out;
     }
 
     private void seedTenantDefaults(Company company, String companyName, String tenantType) {
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizeTenantType(tenantType));
+        seedSetting(company, SettingKey.LOCATIONS_ENABLED, "false");
         seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
         seedSetting(company, SettingKey.PERSONAL_TASK_PRESETS_JSON, "[]");
         seedSetting(company, SettingKey.INVOICE_COUNTER, "1");

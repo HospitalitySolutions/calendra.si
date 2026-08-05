@@ -1404,6 +1404,19 @@ export function ConfigurationPage() {
       return configured;
     return "PROFESSIONAL";
   }, [configuredSubscriptionPackage]);
+  const locationsFeatureEntitled = useMemo(() => {
+    if (isPlatformAdminTenant || activeSubscriptionPackage === "PREMIUM") {
+      return true;
+    }
+    if (activeSubscriptionPackage !== "CUSTOM") return false;
+    return String(settings.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS || "")
+      .split(/[,;\s]+/)
+      .some((key) => key.trim().toUpperCase() === "LOCATIONS_ENABLED");
+  }, [
+    activeSubscriptionPackage,
+    isPlatformAdminTenant,
+    settings.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS,
+  ]);
   const subscriptionTrialStart = String(
     settings.BILLING_SUBSCRIPTION_START || "",
   ).trim();
@@ -2634,6 +2647,8 @@ export function ConfigurationPage() {
     settingsLoaded && settings.WEBSITE_WIDGET_ENABLED !== "false";
   const googleCalendarModuleEnabledCommitted =
     settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== "false";
+  const locationsEnabledCommitted =
+    settingsLoaded && settings.LOCATIONS_ENABLED === "true";
   const spacesEnabledCommitted =
     settingsLoaded && settings.SPACES_ENABLED === "true";
 
@@ -3469,6 +3484,7 @@ export function ConfigurationPage() {
         effectiveSettings = {
           ...settings,
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
+          LOCATIONS_ENABLED: modulesDraftForSave.LOCATIONS_ENABLED,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           TYPES_ENABLED: modulesDraftForSave.TYPES_ENABLED,
           DEFAULT_SERVICE_BREAK_MINUTES: modulesDraftForSave.DEFAULT_SERVICE_BREAK_MINUTES,
@@ -5159,6 +5175,7 @@ export function ConfigurationPage() {
     "SCANNER_MODULE_ENABLED",
   ];
 
+  const locationsModuleVisibility = moduleVisibilityProps("LOCATIONS_ENABLED");
   const modulesDesignGroups: ModulesDesignGroup[] = [
     {
       id: "booking",
@@ -5170,6 +5187,20 @@ export function ConfigurationPage() {
       hideSwitch: true,
       onChange: () => undefined,
       rows: [
+        {
+          id: "booking-locations",
+          ...locationsModuleVisibility,
+          hidden: locationsModuleVisibility.hidden || !locationsFeatureEntitled,
+          icon: "spaces",
+          title: locale === "sl" ? "Lokacije" : "Locations",
+          subtitle:
+            locale === "sl"
+              ? "Omogoči dodajanje več poslovnih lokacij v zavihku Poslovne enote."
+              : "Allow additional business locations to be added in Business units.",
+          checked: moduleOn("LOCATIONS_ENABLED"),
+          onChange: (checked) =>
+            setModuleStringSetting("LOCATIONS_ENABLED", checked),
+        },
         {
           id: "booking-spaces",
           ...moduleVisibilityProps("SPACES_ENABLED"),
@@ -9569,6 +9600,7 @@ export function ConfigurationPage() {
                   />
                   <OperatingUnitsPanel
                     locale={locale}
+                    locationsEnabled={locationsEnabledCommitted}
                     spacesEnabled={spacesEnabledCommitted}
                     issuerOptions={locationIssuerOptions}
                     onChanged={load}

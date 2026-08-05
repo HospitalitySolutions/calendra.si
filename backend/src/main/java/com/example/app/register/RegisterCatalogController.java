@@ -39,6 +39,9 @@ public class RegisterCatalogController {
     @GetMapping("/payment-capabilities")
     public RegisterPaymentCapabilitiesResponse paymentCapabilities() {
         var caps = globalPaymentProviders.capabilities();
-        return new RegisterPaymentCapabilitiesResponse(caps.stripeEnabled(), caps.paypalEnabled());
+        return new RegisterPaymentCapabilitiesResponse(
+                globalPaymentProviders.isPlatformAdminStripeReady(),
+                caps.paypalEnabled()
+        );
     }
 }

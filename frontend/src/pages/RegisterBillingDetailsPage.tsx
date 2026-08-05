@@ -1018,7 +1018,7 @@ export function RegisterBillingDetailsPage() {
     useState<RegisterPaymentMethod>("BANK_TRANSFER");
   const [paymentCapabilities, setPaymentCapabilities] =
     useState<RegisterPaymentCapabilities>({
-      stripeEnabled: true,
+      stripeEnabled: false,
       paypalEnabled: false,
     });
   const [error, setError] = useState("");
@@ -1048,13 +1048,15 @@ export function RegisterBillingDetailsPage() {
       .then(({ data }) => {
         if (cancelled || !data) return;
         setPaymentCapabilities({
-          stripeEnabled: data.stripeEnabled !== false,
+          stripeEnabled: data.stripeEnabled === true,
           paypalEnabled: data.paypalEnabled === true,
         });
       })
       .catch(() => {
         if (!cancelled) {
-          setPaymentCapabilities({ stripeEnabled: true, paypalEnabled: false });
+          // Fail closed: a temporary capability lookup failure must not offer a
+          // card checkout that may not be configured on the Platform Admin account.
+          setPaymentCapabilities({ stripeEnabled: false, paypalEnabled: false });
         }
       });
     return () => {
