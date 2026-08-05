@@ -88,6 +88,15 @@ management:
       endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 app:
+  workspace-rollout:
+    shared-clients: ${APP_WORKSPACE_ROLLOUT_SHARED_CLIENTS:true}
+    consolidated-scheduling: ${APP_WORKSPACE_ROLLOUT_CONSOLIDATED_SCHEDULING:true}
+    consolidated-billing: ${APP_WORKSPACE_ROLLOUT_CONSOLIDATED_BILLING:true}
+    shared-services: ${APP_WORKSPACE_ROLLOUT_SHARED_SERVICES:true}
+    workspace-analytics: ${APP_WORKSPACE_ROLLOUT_ANALYTICS:true}
+    workspace-public-booking: ${APP_WORKSPACE_ROLLOUT_PUBLIC_BOOKING:true}
+    workspace-unit-management: ${APP_WORKSPACE_ROLLOUT_UNIT_MANAGEMENT:true}
+    integrity-health-enabled: ${APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED:false}
   public-base-url: ${APP_PUBLIC_BASE_URL:}
   demo-booking-public-base-url: ${APP_DEMO_BOOKING_PUBLIC_BASE_URL:https://calendra.si}
   demo-booking-management-base-url: ${APP_DEMO_BOOKING_MANAGEMENT_BASE_URL:${APP_AUTH_FRONTEND_URL:https://app.calendra.si}}

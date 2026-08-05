@@ -82,6 +82,9 @@ public class SessionBookingCreationService {
     @Autowired(required = false)
     private LocationService locationService;
 
+    @Autowired(required = false)
+    private WorkspaceSchedulingLockService workspaceSchedulingLocks;
+
     @Autowired
     public SessionBookingCreationService(
             SessionBookingRepository repo,
@@ -349,6 +352,7 @@ public class SessionBookingCreationService {
                 start,
                 end
         );
+        acquireWorkspaceSchedulingLocks(companyId, consultantId, servicePlan);
         validateBookingWindow(
                 companyId,
                 requestedClientIds,
@@ -478,6 +482,7 @@ public class SessionBookingCreationService {
         }
         servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
         var excludeIds = existingRows.stream().map(SessionBooking::getId).toList();
+        acquireWorkspaceSchedulingLocks(companyId, consultantId, servicePlan);
         validateBookingWindow(
                 companyId,
                 requestedClientIds,
@@ -810,6 +815,7 @@ public class SessionBookingCreationService {
         boolean spacesEnabled = isSpacesEnabled(companyId);
         boolean multipleSessionsPerSpaceEnabled = isMultipleSessionsPerSpaceEnabled(companyId);
         servicePlans.validateParticipantLimit(servicePlan, 1);
+        acquireWorkspaceSchedulingLocks(companyId, request.consultantId(), servicePlan);
         validateBookingWindow(
                 companyId,
                 List.of(client.getId()),
@@ -1017,6 +1023,7 @@ public class SessionBookingCreationService {
             boolean allowPersonalBlockOverlap
     ) {
         SessionServicePlanService.Plan plan = planExistingBookingEdit(booking, newStart, requestedEnd);
+        acquireWorkspaceSchedulingLocks(booking.getCompany().getId(), consultantId, plan);
         validateBookingWindow(
                 booking.getCompany().getId(),
                 clientIds,
@@ -1040,6 +1047,22 @@ public class SessionBookingCreationService {
             LocalDateTime requestedEnd
     ) {
         synchronizeServicePlan(booking, planExistingBookingEdit(booking, newStart, requestedEnd));
+    }
+
+    private void acquireWorkspaceSchedulingLocks(
+            Long companyId,
+            Long consultantId,
+            SessionServicePlanService.Plan servicePlan
+    ) {
+        if (workspaceSchedulingLocks == null || servicePlan == null || servicePlan.segments() == null) return;
+        List<Long> spaceIds = servicePlan.segments().stream()
+                .map(SessionServicePlanService.Segment::space)
+                .filter(Objects::nonNull)
+                .map(Space::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        workspaceSchedulingLocks.lock(companyId, consultantId, spaceIds);
     }
 
     private void synchronizeServicePlan(SessionBooking booking, SessionServicePlanService.Plan plan) {

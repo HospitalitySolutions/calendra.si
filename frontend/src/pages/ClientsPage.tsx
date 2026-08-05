@@ -11,6 +11,7 @@ import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { WorkspaceClientsPanel } from '../components/WorkspaceClientsPanel'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
+import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
@@ -3905,7 +3906,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </button>
                 )}
               </div>
-              {entityTab === 'clients' && sharedWorkspaceUnitCount > 1 && (
+              {entityTab === 'clients' && sharedWorkspaceUnitCount > 1 && isWorkspaceRolloutEnabled(me, 'SHARED_CLIENTS') && (
                 <button
                   type="button"
                   className="clients-workspace-button"
@@ -6101,11 +6102,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         </div>
       )}
 
-      <WorkspaceClientsPanel
+      {isWorkspaceRolloutEnabled(me, 'SHARED_CLIENTS') && <WorkspaceClientsPanel
         open={workspaceClientsOpen}
         onClose={() => setWorkspaceClientsOpen(false)}
         onChanged={loadClients}
-      />
+      />}
 
       {anonymizeConfirmClientId != null && (
         <div

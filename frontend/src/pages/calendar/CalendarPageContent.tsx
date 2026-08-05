@@ -64,6 +64,7 @@ import { subscribeBookingUpdates } from '../../lib/bookingRealtime'
 import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs } from '../../lib/consultantWorkingHours'
 import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, type BookingPaymentStatusValue, type User } from '../../lib/types'
 import { CALENDAR_TIME_SCALE_MINUTES_KEY, normalizeCalendarTimeScaleMinutes } from '../../lib/calendarTimeScale'
+import { isWorkspaceRolloutEnabled } from '../../lib/workspaceRollout'
 
 import {
   ANDROID_PINCH_ZOOM_MAX,
@@ -421,7 +422,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const canIssueOpenInvoice = canIssueOpenInvoices(user)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [], waitlistOffers: [] })
-  const canViewWorkspaceCalendar = (user.units?.length ?? 0) > 1
+  const canViewWorkspaceCalendar = (user.units?.length ?? 0) > 1 && isWorkspaceRolloutEnabled(user, 'CONSOLIDATED_SCHEDULING')
   const [calendarScope, setCalendarScope] = useState<'unit' | 'workspace'>('unit')
   const [locationFilterId, setLocationFilterId] = useState<number | null>(null)
   const workspaceCalendarReadOnly = canViewWorkspaceCalendar && calendarScope === 'workspace'

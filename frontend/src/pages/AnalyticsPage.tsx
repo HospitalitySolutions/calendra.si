@@ -21,6 +21,7 @@ import { useToast } from '../components/Toast'
 import { Card, EmptyState, PageHeader } from '../components/ui'
 import { fullName } from '../lib/format'
 import { hasEmployeePermission } from '../lib/employeePermissions'
+import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useLocale } from '../locale'
 
 /** Recharts `debounce` defaults to 0, so every ResizeObserver frame reflows charts. Sidebar width CSS transitions fire many resizes/sec; debouncing coalesces to one layout after the rail settles. */
@@ -2546,7 +2547,7 @@ export function AnalyticsPage() {
     <div className="stack gap-lg analytics-page">
       <PageHeader title={text.title} subtitle={text.subtitle} />
 
-      {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId && hasEmployeePermission(unit, 'REPORTS_ANALYTICS_VIEW')).length > 1 && (
+      {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && isWorkspaceRolloutEnabled(me, 'WORKSPACE_ANALYTICS') && (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId && hasEmployeePermission(unit, 'REPORTS_ANALYTICS_VIEW')).length > 1 && (
         <div className="analytics-scope-switch" role="tablist">
           <Link to="/analytics" className="active">{locale === 'sl' ? 'Trenutna enota' : locale === 'sr' ? 'Trenutna jedinica' : 'Current unit'}</Link>
           <Link to="/analytics/workspace">{locale === 'sl' ? 'Celoten delovni prostor' : locale === 'sr' ? 'Ceo radni prostor' : 'Entire workspace'}</Link>

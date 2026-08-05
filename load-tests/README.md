@@ -242,3 +242,17 @@ TEST_MODE=soak SOAK_DURATION=8h ./scripts/run-k6-production-readiness.sh load-te
 ```
 
 Store the k6 summary together with database, Redis, JVM, proxy, and provider metrics. A repository containing a test definition is not evidence of capacity until these runs pass against production-equivalent infrastructure and data.
+
+## Workspace public-booking smoke
+
+After enabling a workspace public-booking page in staging, validate the consolidated discovery and signed launch-token flow:
+
+```bash
+k6 run \
+  -e BASE_URL=https://staging.app.calendra.si \
+  -e ORIGIN=https://staging.calendra.si \
+  -e WORKSPACE_SLUG=your-workspace-slug \
+  load-tests/k6/workspace-booking-smoke.js
+```
+
+This is read-heavy and does not submit a final booking. It validates workspace branding, locations, grouped services, and the transition to a concrete unit booking URL.

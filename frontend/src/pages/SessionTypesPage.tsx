@@ -35,6 +35,7 @@ import {
   parseGuestAppSettings,
 } from "./configuration/guestWebsiteSettings";
 import { getDefaultAllowedRoute } from "../lib/packageAccess";
+import { isWorkspaceRolloutEnabled } from "../lib/workspaceRollout";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import {
   ServiceConfigDeleteButton,
@@ -2991,7 +2992,7 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
-              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && (
+              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && (
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
@@ -3161,7 +3162,7 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
-              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && (
+              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && (
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
@@ -4921,14 +4922,14 @@ export function SessionTypesPage() {
           </div>
         </div>
       ) : null}
-      <WorkspaceServiceManager
+      {isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && <WorkspaceServiceManager
         open={showWorkspaceServiceManager}
         onClose={() => setShowWorkspaceServiceManager(false)}
         sessionTypes={types}
         currentUnitId={me.activeUnitId ?? me.companyId}
         locale={locale}
         onChanged={load}
-      />
+      />}
     </div>
   );
 }

@@ -1,0 +1,11 @@
+package com.example.app.workspacehardening;
+
+public enum WorkspaceRolloutFeature {
+    SHARED_CLIENTS,
+    CONSOLIDATED_SCHEDULING,
+    CONSOLIDATED_BILLING,
+    SHARED_SERVICES,
+    WORKSPACE_ANALYTICS,
+    WORKSPACE_PUBLIC_BOOKING,
+    WORKSPACE_UNIT_MANAGEMENT
+}

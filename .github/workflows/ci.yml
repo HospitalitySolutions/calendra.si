@@ -40,6 +40,26 @@ jobs:
       - name: Test and package backend
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
+      - name: Upload backend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: |
+            backend/target/surefire-reports
+            backend/target/failsafe-reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload backend package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-package
+          path: backend/target/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
   frontend:
     name: Frontend production build
     runs-on: ubuntu-latest
@@ -78,8 +98,26 @@ jobs:
           NPM_CONFIG_FETCH_TIMEOUT: "60000"
         run: npm ci --no-audit --no-fund --prefer-online --loglevel=info
 
+      - name: Type-check frontend
+        run: npm run typecheck
+
+      - name: Lint frontend
+        run: npm run lint
+
       - name: Build frontend production bundle
         run: npm run build:production
+
+      - name: Enforce frontend bundle budget
+        run: npm run check:bundle
+
+      - name: Upload frontend production bundle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-production-bundle
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
 
   android:
     name: Android debug and release bundle
@@ -334,3 +372,18 @@ jobs:
             -e ERROR_RATE \
             -e QUICK \
             grafana/k6:latest run load-tests/k6/production-readiness.js
+
+      - name: Run workspace public-booking smoke
+        if: ${{ vars.WORKSPACE_BOOKING_SLUG != '' }}
+        env:
+          BASE_URL: ${{ vars.STAGING_BASE_URL }}
+          ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          WORKSPACE_SLUG: ${{ vars.WORKSPACE_BOOKING_SLUG }}
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BASE_URL \
+            -e ORIGIN \
+            -e WORKSPACE_SLUG \
+            grafana/k6:latest run load-tests/k6/workspace-booking-smoke.js

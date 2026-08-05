@@ -55,6 +55,8 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:}
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 app:
+  workspace-rollout:
+    integrity-health-enabled: ${APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED:true}
   public-base-url: ${APP_PUBLIC_BASE_URL:}
   demo-booking-public-base-url: ${APP_DEMO_BOOKING_PUBLIC_BASE_URL:https://calendra.si}
   demo-booking-management-base-url: ${APP_DEMO_BOOKING_MANAGEMENT_BASE_URL:${APP_AUTH_FRONTEND_URL:https://app.calendra.si}}
@@ -135,7 +137,7 @@ management:
         liveness:
           include: livenessState,ping
         readiness:
-          include: readinessState,db,redis
+          include: readinessState,db,redis,workspaceIntegrity
   tracing:
     enabled: ${MANAGEMENT_TRACING_ENABLED:false}
     sampling:

@@ -76,6 +76,7 @@ import {
   normalizePackageType,
 } from "../lib/packageAccess";
 import { hasAnyEmployeePermission, hasEmployeePermission } from "../lib/employeePermissions";
+import { isWorkspaceRolloutEnabled } from "../lib/workspaceRollout";
 import {
   companyProfileFromSettings,
   companyProfileToSettings,
@@ -13883,7 +13884,7 @@ export function ConfigurationPage() {
                 </Card>
               ) : tab === "website" ? (
                 <>
-                  {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_PUBLIC_BOOKING')) && <WorkspacePublicBookingSettingsSection locale={locale} />}
+                  {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_PUBLIC_BOOKING')) && isWorkspaceRolloutEnabled(me, 'WORKSPACE_PUBLIC_BOOKING') && <WorkspacePublicBookingSettingsSection locale={locale} />}
                 <Card className="settings-card website-payment-settings-moved">
                   <style>{`
                     .website-payment-settings-moved {

@@ -12,6 +12,7 @@ import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices }
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
+import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
@@ -8622,7 +8623,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>{historyFilterText.title}</span>
                       {activeHistoryFilterCount > 0 ? <strong className="billing-filter-btn__count">{activeHistoryFilterCount}</strong> : null}
                     </button>
-                    {(me.units?.length ?? 0) > 1 && (
+                    {(me.units?.length ?? 0) > 1 && isWorkspaceRolloutEnabled(me, 'CONSOLIDATED_BILLING') && (
                       <button
                         type="button"
                         className="billing-filter-btn"

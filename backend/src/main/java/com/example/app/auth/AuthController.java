@@ -4,6 +4,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.workspace.Workspace;
 import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
+import com.example.app.workspacehardening.WorkspaceRolloutProperties;
 import com.example.app.mfa.WebAuthnService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
@@ -77,6 +78,7 @@ public class AuthController {
     private final AuthCookieService authCookieService;
     private final AuthRateLimiter authRateLimiter;
     private WorkspaceSubscriptionService workspaceSubscriptions;
+    private WorkspaceRolloutProperties workspaceRollout;
 
     public AuthController(
             UserRepository users,
@@ -115,6 +117,11 @@ public class AuthController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void configureWorkspaceSubscriptions(WorkspaceSubscriptionService workspaceSubscriptions) {
         this.workspaceSubscriptions = workspaceSubscriptions;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureWorkspaceRollout(WorkspaceRolloutProperties workspaceRollout) {
+        this.workspaceRollout = workspaceRollout;
     }
 
     /**
@@ -309,6 +316,9 @@ public class AuthController {
         out.put("avatarPath", avatarPath);
         out.put("permissions", SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()));
         out.put("units", loginAccountService.activeMemberships(account).stream().map(this::serializeUnit).toList());
+        out.put("workspaceRolloutFeatures", workspaceRollout == null
+                ? WorkspaceRolloutProperties.allFeatureKeys()
+                : workspaceRollout.enabledFeatureKeys());
         if (workspaceSubscriptions != null) {
             try {
                 var entitlement = workspaceSubscriptions.entitlementSnapshot(user);

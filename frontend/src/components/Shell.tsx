@@ -744,10 +744,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       const message = typeof error?.response?.data?.message === 'string'
         ? error.response.data.message
         : (locale === 'sl'
-            ? 'Preklop lokacije ni uspel.'
+            ? 'Preklop enote ni uspel.'
             : locale === 'sr'
-              ? 'Promena lokacije nije uspela.'
-              : 'Could not switch location.')
+              ? 'Promena jedinice nije uspela.'
+              : 'Could not switch unit.')
       window.alert(message)
     }
   }
@@ -755,14 +755,14 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const unitBrand = availableUnits.length > 1 ? (
     <label className="unit-switcher" title={headerBrandLabel}>
       <span className="sr-only">
-        {locale === 'sl' ? 'Aktivna lokacija' : locale === 'sr' ? 'Aktivna lokacija' : 'Active location'}
+        {locale === 'sl' ? 'Aktivna enota' : locale === 'sr' ? 'Aktivna jedinica' : 'Active unit'}
       </span>
       <select
         className="unit-switcher-select"
         value={activeUnitId ?? ''}
         disabled={unitSwitching}
         onChange={(event) => void switchUnit(Number(event.target.value))}
-        aria-label={locale === 'sl' ? 'Izberi lokacijo' : locale === 'sr' ? 'Izaberi lokaciju' : 'Select location'}
+        aria-label={locale === 'sl' ? 'Izberi enoto' : locale === 'sr' ? 'Izaberi jedinicu' : 'Select unit'}
       >
         {availableUnits.map((unit) => (
           <option key={unit.id} value={unit.id}>{unit.name}</option>

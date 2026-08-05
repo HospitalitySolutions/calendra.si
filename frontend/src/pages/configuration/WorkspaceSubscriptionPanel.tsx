@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useToast } from '../../components/Toast'
 import { useLocale } from '../../locale'
+import { useAuthenticatedUser } from '../../authUserContext'
+import { isWorkspaceRolloutEnabled } from '../../lib/workspaceRollout'
 
 type Usage = {
   operatingUnits: number
@@ -88,6 +90,7 @@ const pct = (used: number, limit: number) => limit <= 0 ? 0 : Math.min(100, Math
 
 export function WorkspaceSubscriptionPanel() {
   const { locale } = useLocale()
+  const me = useAuthenticatedUser()
   const { showToast } = useToast()
   const sl = locale === 'sl'
   const [data, setData] = useState<Subscription | null>(null)
@@ -270,7 +273,7 @@ export function WorkspaceSubscriptionPanel() {
           <small>{sl ? 'Kapacitete določa izbrani paket in dodatki spodaj. Povečanje začne veljati po potrditvi spremembe naročnine.' : 'Capacity is determined by the selected plan and add-ons below. Increases apply after the subscription change is confirmed.'}</small>
         </section>
 
-        <section className="account-card account-subscription-card">
+        {isWorkspaceRolloutEnabled(me, 'WORKSPACE_UNIT_MANAGEMENT') && <section className="account-card account-subscription-card">
           <div className="account-plan-header"><h3>{sl ? 'Dodaj poslovno enoto' : 'Add operating unit'}</h3></div>
           {canCreateUnit ? (
             <>
@@ -283,7 +286,7 @@ export function WorkspaceSubscriptionPanel() {
               ? (sl ? 'Doseženo je največje število poslovnih enot. Za novo enoto nadgradite paket spodaj.' : 'The operating-unit limit has been reached. Upgrade the plan below to add another unit.')
               : (sl ? 'Izbrani paket ne vključuje dodatnih poslovnih enot. Paket lahko nadgradite spodaj.' : 'The selected plan does not include additional operating units. You can upgrade the plan below.')}</p>
           )}
-        </section>
+        </section>}
       </div>
 
       <section className="account-card account-subscription-card workspace-unit-usage-card">

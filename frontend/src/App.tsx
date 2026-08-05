@@ -27,6 +27,7 @@ import { startClockSync, stopClockSync } from './lib/clock'
 import { clearAuthStoragePreservingTheme } from './theme'
 import { AuthenticatedUserProvider } from './authUserContext'
 import { clearActiveUnitId, getActiveUnitId } from './lib/unitContext'
+import { isWorkspaceRolloutEnabled } from './lib/workspaceRollout'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
@@ -428,7 +429,7 @@ export default function App() {
   const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
   const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
   const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
-  const hasWorkspaceAnalyticsFeature = user.workspaceFeatures == null || user.workspaceFeatures.includes('WORKSPACE_ANALYTICS')
+  const hasWorkspaceAnalyticsFeature = (user.workspaceFeatures == null || user.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && isWorkspaceRolloutEnabled(user, 'WORKSPACE_ANALYTICS')
   const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
   const canViewDeliveryLogs = hasEmployeePermission(user, 'DELIVERY_LOGS_VIEW')
   const canViewConfiguration = hasAnyEmployeePermission(user, [

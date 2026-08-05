@@ -1,5 +1,6 @@
 export type Role = 'ADMIN' | 'CONSULTANT' | 'SUPER_ADMIN'
 export type PackageType = 'TRIAL' | 'BASIC' | 'PROFESSIONAL' | 'PREMIUM' | 'CUSTOM'
+export type WorkspaceRolloutFeature = 'SHARED_CLIENTS' | 'CONSOLIDATED_SCHEDULING' | 'CONSOLIDATED_BILLING' | 'SHARED_SERVICES' | 'WORKSPACE_ANALYTICS' | 'WORKSPACE_PUBLIC_BOOKING' | 'WORKSPACE_UNIT_MANAGEMENT'
 
 
 export type CustomFieldAppliesTo = 'CLIENT' | 'COMPANY' | 'GROUP'
@@ -51,6 +52,7 @@ export type User = {
   packageType?: PackageType
   workspaceSubscriptionStatus?: string
   workspaceFeatures?: string[]
+  workspaceRolloutFeatures?: WorkspaceRolloutFeature[]
   workspaceLimits?: {
     operatingUnits: number
     locations: number
