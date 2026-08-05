@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class InvoiceIssuanceService {
     private static final long INVOICE_SERIES_LOCK_NAMESPACE = 0x21L << 56;
+    private static final long LOCATION_SERIES_CREATION_LOCK_NAMESPACE = 0x22L << 56;
     private static final long ADVISORY_LOCK_ID_MASK = 0x00FFFFFFFFFFFFFFL;
 
     private final LegalEntityRepository legalEntities;
@@ -184,19 +185,19 @@ public class InvoiceIssuanceService {
             return locked;
         }
 
-        InvoiceSeries existing = seriesRepository
-                .findFirstByLocationIdAndLegalEntityIdOrderByActiveDescIdAsc(location.getId(), legalEntityId)
-                .filter(InvoiceSeries::isActive)
-                .orElse(null);
+        InvoiceSeries existing = findLocationSeries(location.getId(), legalEntityId);
         if (existing != null) {
-            lockInvoiceSeries(existing.getId());
-            InvoiceSeries locked = seriesRepository.findForUpdateById(existing.getId()).orElseThrow();
-            if (isLocationDefaultIssuer) {
-                location.setDefaultInvoiceSeries(locked);
-                locations.save(location);
-            }
-            validateSeries(locked, company.getId(), location);
-            return locked;
+            return lockAndAttachLocationSeries(existing, location, company.getId(), isLocationDefaultIssuer);
+        }
+
+        // Two requests can observe that no location-owned series exists at the same time.
+        // Serialize only this creation path, then re-read after acquiring the lock. The
+        // second transaction will see and reuse the row committed by the first instead of
+        // violating uq_invoice_series_legal_name with another "Location-{id}" insert.
+        lockLocationSeriesCreation(location.getId(), legalEntityId);
+        existing = findLocationSeries(location.getId(), legalEntityId);
+        if (existing != null) {
+            return lockAndAttachLocationSeries(existing, location, company.getId(), isLocationDefaultIssuer);
         }
 
         InvoiceSeries seed = assignment.getDefaultInvoiceSeries();
@@ -219,6 +220,44 @@ public class InvoiceIssuanceService {
             locations.save(location);
         }
         return created;
+    }
+
+    private InvoiceSeries findLocationSeries(Long locationId, Long legalEntityId) {
+        // Return an inactive row as well. The database uniqueness rule still reserves its
+        // Location-{id} name, so treating it as absent would cause a duplicate-key insert.
+        return seriesRepository
+                .findFirstByLocationIdAndLegalEntityIdOrderByActiveDescIdAsc(locationId, legalEntityId)
+                .orElse(null);
+    }
+
+    private InvoiceSeries lockAndAttachLocationSeries(
+            InvoiceSeries existing,
+            Location location,
+            Long companyId,
+            boolean isLocationDefaultIssuer
+    ) {
+        lockInvoiceSeries(existing.getId());
+        InvoiceSeries locked = seriesRepository.findForUpdateById(existing.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Location invoice counter no longer exists."));
+        if (isLocationDefaultIssuer
+                && (location.getDefaultInvoiceSeries() == null
+                || !Objects.equals(location.getDefaultInvoiceSeries().getId(), locked.getId()))) {
+            location.setDefaultInvoiceSeries(locked);
+            locations.save(location);
+        }
+        validateSeries(locked, companyId, location);
+        return locked;
+    }
+
+    private void lockLocationSeriesCreation(Long locationId, Long legalEntityId) {
+        if (locationId == null || locationId <= 0 || legalEntityId == null || legalEntityId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Location and invoice issuer are required.");
+        }
+        long pairHash = Integer.toUnsignedLong(Objects.hash(locationId, legalEntityId));
+        long key = LOCATION_SERIES_CREATION_LOCK_NAMESPACE | (pairHash & ADVISORY_LOCK_ID_MASK);
+        jdbc.execute("select pg_advisory_xact_lock(" + key + ")");
     }
 
     private InvoiceSeries resolveDefaultSeriesForUpdate(CompanyLegalEntity assignment, Long companyId, Location location) {
