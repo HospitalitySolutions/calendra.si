@@ -2,9 +2,14 @@ package com.example.app.session;
 
 import com.example.app.company.Company;
 import com.example.app.common.BaseEntity;
+import com.example.app.workspaceservice.WorkspaceServiceTemplate;
+import com.example.app.location.Location;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -19,6 +24,25 @@ public class SessionType extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workspace_service_template_id")
+    private WorkspaceServiceTemplate workspaceServiceTemplate;
+
+    /** When true, this unit offering may be booked at every location in the operating unit. */
+    @Column(name = "available_all_locations", nullable = false)
+    private boolean availableAllLocations = true;
+
+    /** Explicit location allowlist used only when {@link #availableAllLocations} is false. */
+    @JsonIgnore
+    @ManyToMany
+    @JoinTable(
+            name = "session_type_locations",
+            joinColumns = @JoinColumn(name = "session_type_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    private Set<Location> locations = new HashSet<>();
 
     @Column(nullable = false)
     private String name;

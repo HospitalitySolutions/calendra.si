@@ -4,7 +4,11 @@ import com.example.app.billing.PriceMath;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.settings.TenantFeatureAccessService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
+import com.example.app.workspaceservice.WorkspaceServiceTemplate;
+import com.example.app.workspaceservice.WorkspaceServiceTemplateRepository;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +41,8 @@ public class SessionTypeController {
     private final ServiceGroupRepository groupRepo;
     private final TenantFeatureAccessService featureAccess;
     private final SessionTypeBreakSettingsService breakSettings;
+    private final WorkspaceServiceTemplateRepository workspaceServiceTemplates;
+    private final LocationRepository locations;
 
     @Autowired
     public SessionTypeController(
@@ -45,7 +51,9 @@ public class SessionTypeController {
             SessionBookingRepository bookingRepo,
             ServiceGroupRepository groupRepo,
             TenantFeatureAccessService featureAccess,
-            SessionTypeBreakSettingsService breakSettings
+            SessionTypeBreakSettingsService breakSettings,
+            WorkspaceServiceTemplateRepository workspaceServiceTemplates,
+            LocationRepository locations
     ) {
         this.repo = repo;
         this.txRepo = txRepo;
@@ -53,6 +61,8 @@ public class SessionTypeController {
         this.groupRepo = groupRepo;
         this.featureAccess = featureAccess;
         this.breakSettings = breakSettings;
+        this.workspaceServiceTemplates = workspaceServiceTemplates;
+        this.locations = locations;
     }
 
     /** Backwards-compatible constructor used by existing controller unit tests. */
@@ -62,7 +72,7 @@ public class SessionTypeController {
             SessionBookingRepository bookingRepo,
             ServiceGroupRepository groupRepo
     ) {
-        this(repo, txRepo, bookingRepo, groupRepo, null, null);
+        this(repo, txRepo, bookingRepo, groupRepo, null, null, null, null);
     }
 
     public record TypeServiceItem(Long transactionServiceId, BigDecimal price) {}
@@ -83,6 +93,8 @@ public class SessionTypeController {
             List<String> guestLimitUserEmails,
             Long serviceGroupId,
             Integer sortOrder,
+            Boolean availableAllLocations,
+            List<Long> locationIds,
             List<TypeServiceItem> services
     ) {
         public TypeRequest(
@@ -116,6 +128,8 @@ public class SessionTypeController {
                     guestLimitUserEmails,
                     null,
                     null,
+                    true,
+                    List.of(),
                     services
             );
         }
@@ -150,6 +164,8 @@ public class SessionTypeController {
             boolean serviceGroupActive,
             Integer serviceGroupSortOrder,
             int sortOrder,
+            boolean availableAllLocations,
+            List<Long> locationIds,
             List<ServiceLinkDto> linkedServices
     ) {}
 
@@ -189,6 +205,17 @@ public class SessionTypeController {
             ensureSessionTypeCodeUnique(companyId, normalizedCode, null);
         }
         type.setCompany(me.getCompany());
+        if (workspaceServiceTemplates != null) {
+            WorkspaceServiceTemplate template = new WorkspaceServiceTemplate();
+            template.setWorkspace(me.getCompany().getWorkspace());
+            template.setOwnerCompany(me.getCompany());
+            template.setName(description);
+            template.setDescription(description);
+            template.setDefaultDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
+            template.setColor(normalizeSessionTypeColor(req.color()));
+            template.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
+            type.setWorkspaceServiceTemplate(workspaceServiceTemplates.save(template));
+        }
         type.setName(normalizedCode);
         type.setDescription(description);
         type.setInternalDescription(normalizeInternalDescription(req.internalDescription()));
@@ -208,6 +235,7 @@ public class SessionTypeController {
                 ? nextSortOrder(companyId, serviceGroup == null ? null : serviceGroup.getId())
                 : Math.max(0, req.sortOrder()));
         type.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
+        applyLocationVisibility(type, req, companyId, true);
         type = repo.save(type);
         saveLinkedServices(type, req.services(), companyId);
         final Long createdId = type.getId();
@@ -274,6 +302,7 @@ public class SessionTypeController {
             );
         }
         type.setActive(nextActive);
+        applyLocationVisibility(type, req, companyId, false);
         type.getLinkedServices().clear();
         repo.saveAndFlush(type);
         saveLinkedServices(type, req.services() != null ? req.services() : List.of(), companyId);
@@ -478,8 +507,41 @@ public class SessionTypeController {
                 groupsEnabled && t.getServiceGroup() != null && t.getServiceGroup().isActive(),
                 !groupsEnabled || t.getServiceGroup() == null ? null : t.getServiceGroup().getSortOrder(),
                 t.getGuestSortOrder(),
+                t.isAvailableAllLocations(),
+                t.getLocations().stream().map(Location::getId).sorted().toList(),
                 services
         );
+    }
+
+    private void applyLocationVisibility(SessionType type, TypeRequest request, Long companyId, boolean creating) {
+        if (locations == null) {
+            if (creating) type.setAvailableAllLocations(true);
+            return;
+        }
+        boolean visibilityProvided = request.availableAllLocations() != null || request.locationIds() != null;
+        if (!creating && !visibilityProvided) return;
+
+        boolean allLocations = request.availableAllLocations() == null
+                ? request.locationIds() == null || request.locationIds().isEmpty()
+                : Boolean.TRUE.equals(request.availableAllLocations());
+        type.setAvailableAllLocations(allLocations);
+        type.getLocations().clear();
+        if (allLocations) return;
+
+        List<Long> requestedIds = request.locationIds() == null ? List.of() : request.locationIds().stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (requestedIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Select at least one location or enable all locations.");
+        }
+        List<Location> resolved = locations.findAllByCompanyIdAndIdIn(companyId, requestedIds);
+        if (resolved.size() != requestedIds.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "One or more selected locations do not belong to this operating unit.");
+        }
+        type.getLocations().addAll(resolved);
     }
 
     private ServiceGroup resolveServiceGroup(Long companyId, Long serviceGroupId) {

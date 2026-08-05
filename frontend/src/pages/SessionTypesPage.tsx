@@ -17,6 +17,7 @@ import { useAuthenticatedUser } from "../authUserContext";
 import type {
   BillingService,
   Client,
+  Location as LocationT,
   ServiceGroup,
   SessionType as SessionTypeT,
   TaxRate,
@@ -45,6 +46,7 @@ import {
   type CardsMembershipsSectionHandle,
 } from "./CardsMembershipsSection";
 import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
+import { WorkspaceServiceManager } from "../components/WorkspaceServiceManager";
 
 const SESSION_TYPES_SUBTAB_GROUPS = "service-groups";
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
@@ -278,6 +280,8 @@ type TypeFormState = {
   priceCalculationMode: PriceCalculationMode;
   guestLimitUserEmailsText: string;
   serviceGroupId: string;
+  availableAllLocations: boolean;
+  locationIds: number[];
   serviceLines: TypeServiceLine[];
 };
 
@@ -308,6 +312,11 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.guestBookingMode !== b.guestBookingMode) return false;
   if (a.priceCalculationMode !== b.priceCalculationMode) return false;
   if (a.serviceGroupId !== b.serviceGroupId) return false;
+  if (a.availableAllLocations !== b.availableAllLocations) return false;
+  if (a.locationIds.length !== b.locationIds.length) return false;
+  const aLocationIds = [...a.locationIds].sort((left, right) => left - right);
+  const bLocationIds = [...b.locationIds].sort((left, right) => left - right);
+  if (aLocationIds.some((id, index) => id !== bLocationIds[index])) return false;
   if (a.serviceLines.length !== b.serviceLines.length) return false;
   for (let i = 0; i < a.serviceLines.length; i++) {
     if (
@@ -741,6 +750,7 @@ export function SessionTypesPage() {
   );
 
   const [boot, setBoot] = useState(true);
+  const [showWorkspaceServiceManager, setShowWorkspaceServiceManager] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const defaultServiceBreakMinutes = Math.max(
     0,
@@ -767,6 +777,7 @@ export function SessionTypesPage() {
   const showTransactionServices =
     !typesModuleEnabled && showTransactionServicesParam;
   const [types, setTypes] = useState<SessionTypeT[]>([]);
+  const [locations, setLocations] = useState<LocationT[]>([]);
   const [groups, setGroups] = useState<ServiceGroup[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -820,6 +831,8 @@ export function SessionTypesPage() {
     priceCalculationMode: "PER_CLIENT",
     guestLimitUserEmailsText: "",
     serviceGroupId: "",
+    availableAllLocations: true,
+    locationIds: [],
     serviceLines: [],
   });
   /** Snapshot when the type modal opens; used to detect edits (footer only when dirty). */
@@ -1084,19 +1097,21 @@ export function SessionTypesPage() {
     const settingsRes = await api.get("/settings");
     const nextSettings = settingsRes.data || {};
     const groupsEnabled = nextSettings.SERVICE_GROUPS_ENABLED !== "false";
-    const [typesRes, groupsRes, servicesRes, clientsRes] = await Promise.all([
+    const [typesRes, groupsRes, servicesRes, clientsRes, locationsRes] = await Promise.all([
       api.get("/types").catch(() => ({ data: [] })),
       groupsEnabled
         ? api.get("/service-groups").catch(() => ({ data: [] }))
         : Promise.resolve({ data: [] }),
       api.get("/billing/services").catch(() => ({ data: [] })),
       api.get<Client[]>("/clients").catch(() => ({ data: [] as Client[] })),
+      api.get<LocationT[]>("/locations").catch(() => ({ data: [] as LocationT[] })),
     ]);
     setSettings(nextSettings);
     setTypes(typesRes.data || []);
     setGroups(groupsRes.data || []);
     setServices(servicesRes.data || []);
     setClients((clientsRes.data || []).filter((client) => client.active !== false));
+    setLocations((locationsRes.data || []).filter((location) => location.active !== false));
   };
 
   useEffect(() => {
@@ -1441,6 +1456,16 @@ export function SessionTypesPage() {
       );
       return;
     }
+    if (!typeForm.availableAllLocations && typeForm.locationIds.length === 0) {
+      window.alert(
+        locale === "sl"
+          ? "Izberite vsaj eno lokacijo ali omogočite vse lokacije."
+          : locale === "sr"
+            ? "Izaberite najmanje jednu lokaciju ili omogućite sve lokacije."
+            : "Select at least one location or enable all locations.",
+      );
+      return;
+    }
     const effectiveGuestBookingMode = normalizeGuestBookingModeForModules(
       typeForm.guestBookingMode,
       websiteWidgetModuleEnabled,
@@ -1492,6 +1517,8 @@ export function SessionTypesPage() {
           String(editingType.serviceGroupId ?? "") === typeForm.serviceGroupId)
           ? editingType.sortOrder ?? 0
           : undefined,
+      availableAllLocations: typeForm.availableAllLocations,
+      locationIds: typeForm.availableAllLocations ? [] : typeForm.locationIds,
       services: typeForm.serviceLines.map((l) => ({
         // UI edits gross per line; API keeps the type-link price in net.
         // Convert using the selected transaction service tax rate.
@@ -1531,6 +1558,8 @@ export function SessionTypesPage() {
         priceCalculationMode: "PER_CLIENT",
         guestLimitUserEmailsText: "",
         serviceGroupId: "",
+        availableAllLocations: true,
+        locationIds: [],
         serviceLines: [],
       });
       setTypeFormSnapshot(null);
@@ -1976,6 +2005,8 @@ export function SessionTypesPage() {
         groupBookingModuleEnabled ? type.guestLimitUserEmails : [],
       ),
       serviceGroupId: type.serviceGroupId == null ? "" : String(type.serviceGroupId),
+      availableAllLocations: type.availableAllLocations !== false,
+      locationIds: type.locationIds || [],
       serviceLines: (type.linkedServices || []).map((ls) => ({
         transactionServiceId: ls.transactionServiceId,
         price:
@@ -2672,6 +2703,8 @@ export function SessionTypesPage() {
       priceCalculationMode: "PER_CLIENT",
       guestLimitUserEmailsText: "",
       serviceGroupId: "",
+      availableAllLocations: true,
+      locationIds: [],
       serviceLines: [],
     };
     setTypeForm(empty);
@@ -2958,6 +2991,17 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
+              {(me.units?.length ?? 0) > 1 && (
+                <button
+                  type="button"
+                  className="clients-modern-new-btn service-config-new-btn"
+                  onClick={() => setShowWorkspaceServiceManager(true)}
+                  title={locale === "sl" ? "Skupne storitve in kopiranje nastavitev" : "Workspace services and configuration copy"}
+                >
+                  <ServiceConfigTabIcon name="services" />
+                  <span>{isSessionTypesNarrow ? (locale === "sl" ? "Enote" : "Units") : (locale === "sl" ? "Skupne storitve" : "Workspace services")}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
@@ -3117,6 +3161,17 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
+              {(me.units?.length ?? 0) > 1 && (
+                <button
+                  type="button"
+                  className="clients-modern-new-btn service-config-new-btn"
+                  onClick={() => setShowWorkspaceServiceManager(true)}
+                  title={locale === "sl" ? "Skupne storitve in kopiranje nastavitev" : "Workspace services and configuration copy"}
+                >
+                  <ServiceConfigTabIcon name="services" />
+                  <span>{isSessionTypesNarrow ? (locale === "sl" ? "Enote" : "Units") : (locale === "sl" ? "Skupne storitve" : "Workspace services")}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
@@ -3910,6 +3965,54 @@ export function SessionTypesPage() {
                     </div>
                   )}
                 </div>
+
+                {locations.length > 1 ? (
+                  <div className="session-type-config-unified-card session-type-config-location-section">
+                    <div className="session-type-config-section-title">
+                      <span className="session-type-config-section-icon" aria-hidden>
+                        <ServiceConfigTabIcon name="types" />
+                      </span>
+                      <div>
+                        <h3>{locale === "sl" ? "Razpoložljivost po lokacijah" : locale === "sr" ? "Dostupnost po lokacijama" : "Location availability"}</h3>
+                        <p>{locale === "sl" ? "Določite, v katerih fizičnih lokacijah je storitev na voljo." : locale === "sr" ? "Odredite na kojim fizičkim lokacijama je usluga dostupna." : "Choose the physical locations where this service is available."}</p>
+                      </div>
+                    </div>
+                    <label className="session-type-break-override">
+                      <input
+                        type="checkbox"
+                        checked={typeForm.availableAllLocations}
+                        onChange={(event) => setTypeForm({
+                          ...typeForm,
+                          availableAllLocations: event.target.checked,
+                          locationIds: event.target.checked ? [] : typeForm.locationIds,
+                        })}
+                      />
+                      <span>{locale === "sl" ? "Na voljo na vseh lokacijah" : locale === "sr" ? "Dostupno na svim lokacijama" : "Available at all locations"}</span>
+                    </label>
+                    {!typeForm.availableAllLocations ? (
+                      <div className="workspace-copy-categories">
+                        {locations.map((location) => {
+                          const checked = typeForm.locationIds.includes(location.id);
+                          return (
+                            <label key={location.id}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => setTypeForm({
+                                  ...typeForm,
+                                  locationIds: event.target.checked
+                                    ? Array.from(new Set([...typeForm.locationIds, location.id]))
+                                    : typeForm.locationIds.filter((id) => id !== location.id),
+                                })}
+                              />
+                              <span>{location.name}{location.city ? ` · ${location.city}` : ""}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="session-type-config-unified-card session-type-config-booking-section">
                 <div className="session-type-config-section-title">
@@ -4818,6 +4921,14 @@ export function SessionTypesPage() {
           </div>
         </div>
       ) : null}
+      <WorkspaceServiceManager
+        open={showWorkspaceServiceManager}
+        onClose={() => setShowWorkspaceServiceManager(false)}
+        sessionTypes={types}
+        currentUnitId={me.activeUnitId ?? me.companyId}
+        locale={locale}
+        onChanged={load}
+      />
     </div>
   );
 }

@@ -258,6 +258,8 @@ export type SessionType = {
   serviceGroupActive?: boolean
   serviceGroupSortOrder?: number | null
   sortOrder?: number
+  availableAllLocations?: boolean
+  locationIds?: number[]
   createdAt?: string
   linkedServices?: TypeServiceLink[]
 }
@@ -652,4 +654,64 @@ export const taxLabels: Record<TaxRate, string> = {
   VAT_9_5: '9.5%',
   VAT_22: '22%',
   NO_VAT: 'NO VAT',
+}
+
+export type WorkspaceServiceOffering = {
+  sessionTypeId: number
+  companyId: number
+  companyName: string
+  code: string
+  description?: string | null
+  durationMinutes?: number | null
+  color?: string | null
+  active: boolean
+  availableAllLocations: boolean
+  locationNames: string[]
+}
+
+export type WorkspaceServiceTemplate = {
+  id: number
+  name: string
+  description?: string | null
+  defaultDurationMinutes?: number | null
+  color?: string | null
+  icon?: string | null
+  bookingInstructions?: string | null
+  active: boolean
+  ownerCompanyId: number
+  ownerCompanyName: string
+  offerings: WorkspaceServiceOffering[]
+}
+
+export type ConfigurationCopyCategory =
+  | 'SERVICES'
+  | 'WORKING_HOURS'
+  | 'BOOKING_RULES'
+  | 'NOTIFICATION_TEMPLATES'
+  | 'CUSTOM_FIELDS'
+  | 'LOCATIONS_AND_SPACES'
+  | 'PAYMENT_METHODS'
+  | 'INVOICE_SETTINGS'
+
+export type ConfigurationCopyItem = {
+  category: ConfigurationCopyCategory
+  action: 'CREATE' | 'UPDATE' | 'SKIP' | 'INCOMPATIBLE' | 'CREATE_OR_SKIP' | string
+  key: string
+  label: string
+  reason: string
+}
+
+export type ConfigurationCopyPreview = {
+  sourceCompanyId: number
+  sourceCompanyName: string
+  targetCompanyId: number
+  targetCompanyName: string
+  overwriteExisting: boolean
+  items: ConfigurationCopyItem[]
+  summary: {
+    createCount: number
+    updateCount: number
+    skipCount: number
+    incompatibleCount: number
+  }
 }

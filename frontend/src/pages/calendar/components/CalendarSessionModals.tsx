@@ -50,6 +50,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
   const formSpaces = spacesForLocation(form?.locationId)
   const bookedSpaces = spacesForLocation(selectedBookedSession?.location?.id)
+  const typesForLocation = (types: any[], locationId: unknown) => {
+    const normalized = Number(locationId)
+    if (!Number.isFinite(normalized) || normalized <= 0) return types
+    return types.filter((type: any) => type?.availableAllLocations !== false
+      || (Array.isArray(type?.locationIds) && type.locationIds.some((id: unknown) => Number(id) === normalized)))
+  }
+  const formSelectableMetaTypes = typesForLocation(selectableMetaTypes, form?.locationId)
+  const bookedSessionSelectableMetaTypesForLocation = typesForLocation(
+    bookedSessionSelectableMetaTypes,
+    selectedBookedSession?.location?.id,
+  )
   const locationFieldLabel = locale === 'sl' ? 'Lokacija' : locale === 'sr' ? 'Lokacija' : 'Location'
 
   const [bookedBillingActionMenu, setBookedBillingActionMenu] = useState<null | 'advance' | 'invoice'>(null)
@@ -2887,7 +2898,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     locale={locale}
                     services={bookedServiceDrafts}
                     segments={bookedServiceChain.segments}
-                    sessionTypes={bookedSessionSelectableMetaTypes}
+                    sessionTypes={bookedSessionSelectableMetaTypesForLocation}
                     spaces={bookedSpaces}
                     currency={currency}
                     totalSpanMinutes={bookedServiceChain.totalSpanMinutes}
@@ -5359,7 +5370,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     locale={locale}
                     services={formServiceDrafts}
                     segments={formServiceChain.segments}
-                    sessionTypes={selectableMetaTypes}
+                    sessionTypes={formSelectableMetaTypes}
                     spaces={formSpaces}
                     currency={currency}
                     totalSpanMinutes={formServiceChain.totalSpanMinutes}

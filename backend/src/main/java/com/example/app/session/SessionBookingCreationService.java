@@ -1031,6 +1031,28 @@ public class SessionBookingCreationService {
             guestEntitlementService.restoreCreditsForRemovedServices(booking, plan);
         }
         servicePlans.synchronize(booking, plan);
+        validateServiceLocationVisibility(booking, plan);
+    }
+
+    private void validateServiceLocationVisibility(
+            SessionBooking booking,
+            SessionServicePlanService.Plan plan
+    ) {
+        if (booking == null || booking.getLocation() == null || plan == null || plan.segments() == null) return;
+        Long locationId = booking.getLocation().getId();
+        for (SessionServicePlanService.Segment segment : plan.segments()) {
+            SessionType type = segment == null ? null : segment.type();
+            if (type == null || type.isAvailableAllLocations()) continue;
+            boolean allowed = type.getLocations().stream()
+                    .anyMatch(location -> Objects.equals(location.getId(), locationId));
+            if (!allowed) {
+                String serviceName = type.getDescription() == null || type.getDescription().isBlank()
+                        ? type.getName()
+                        : type.getDescription();
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Service '" + serviceName + "' is not available at the selected location.");
+            }
+        }
     }
 
     /**
