@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -66,6 +67,55 @@ public class SecurityConfig {
         this.csrfCookieFilter = csrfCookieFilter;
         this.tenantPermissionAuthorizationFilter = tenantPermissionAuthorizationFilter;
         this.unitContextValidationFilter = unitContextValidationFilter;
+    }
+
+
+    /**
+     * Security filters are managed by Spring Security and must not also be auto-registered
+     * as servlet-container filters. Double registration makes OncePerRequestFilter mark a
+     * request as already filtered before the ordered security chain runs. In particular,
+     * UnitContextValidationFilter could run before JwtAuthenticationFilter, leaving the
+     * LoginAccount principal unresolved to a tenant User and causing controller 500s.
+     */
+    @Bean
+    FilterRegistrationBean<JwtAuthenticationFilter> disableJwtAuthenticationFilterAutoRegistration(
+            JwtAuthenticationFilter filter
+    ) {
+        return disabledRegistration(filter);
+    }
+
+    @Bean
+    FilterRegistrationBean<UnitContextValidationFilter> disableUnitContextValidationFilterAutoRegistration(
+            UnitContextValidationFilter filter
+    ) {
+        return disabledRegistration(filter);
+    }
+
+    @Bean
+    FilterRegistrationBean<TenantPermissionAuthorizationFilter> disableTenantPermissionFilterAutoRegistration(
+            TenantPermissionAuthorizationFilter filter
+    ) {
+        return disabledRegistration(filter);
+    }
+
+    @Bean
+    FilterRegistrationBean<GuestJwtAuthenticationFilter> disableGuestJwtAuthenticationFilterAutoRegistration(
+            GuestJwtAuthenticationFilter filter
+    ) {
+        return disabledRegistration(filter);
+    }
+
+    @Bean
+    FilterRegistrationBean<CsrfCookieFilter> disableCsrfCookieFilterAutoRegistration(
+            CsrfCookieFilter filter
+    ) {
+        return disabledRegistration(filter);
+    }
+
+    private static <T extends jakarta.servlet.Filter> FilterRegistrationBean<T> disabledRegistration(T filter) {
+        FilterRegistrationBean<T> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
