@@ -215,7 +215,7 @@ export function WorkspaceSubscriptionPanel() {
           <span>{sl ? 'Obračunska enota' : 'Billing owner'}: {data.billingOwnerCompanyName || '—'}</span>
         </div>
         <div className="workspace-feature-chips">
-          {data.features.map(feature => <span key={feature}>{feature.replaceAll('_', ' ')}</span>)}
+          {data.features.map(feature => <span key={feature}>{feature.replace(/_/g, ' ')}</span>)}
         </div>
       </section>
 

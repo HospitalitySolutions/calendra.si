@@ -312,7 +312,7 @@ public class PlatformSubscriptionBillingService {
         Bill saved = createBillFromSignupOpenBill(open, platformCompany);
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT");
         SignupBillingInvoiceResult result = startSubscriptionBillPayment(saved, platformCompany);
-        if (BillPaymentStatus.PAID.name().equalsIgnoreCase(result.paymentStatus())) {
+        if (BillPaymentStatus.PAID.equalsIgnoreCase(result.paymentStatus())) {
             upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAID");
         }
         if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
