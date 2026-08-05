@@ -524,8 +524,10 @@ public class WorkspaceAnalyticsService {
                    """ + billFilters + """
                  group by b.issue_date, coalesce(nullif(trim(le.currency), ''), 'EUR')
                  order by b.issue_date, currency
-                """, params, rs -> byDate.computeIfAbsent(rs.getObject("day", LocalDate.class), ignored -> new MutableTrend())
-                        .revenue.put(rs.getString("currency"), money(rs.getBigDecimal("gross"))));
+                """, params, rs -> {
+                    byDate.computeIfAbsent(rs.getObject("day", LocalDate.class), ignored -> new MutableTrend())
+                            .revenue.put(rs.getString("currency"), money(rs.getBigDecimal("gross")));
+                });
 
         Map<LocalDate, ClientCounts> clientByDate = dailyClientCounts(resolved);
         clientByDate.forEach((date, counts) -> {
@@ -571,8 +573,10 @@ public class WorkspaceAnalyticsService {
                   join first_seen fs on fs.client_key = a.client_key
                  group by a.day
                  order by a.day
-                """, params, rs -> result.put(rs.getObject("day", LocalDate.class),
-                new ClientCounts(rs.getLong("new_clients"), rs.getLong("returning_clients"))));
+                """, params, rs -> {
+                    result.put(rs.getObject("day", LocalDate.class),
+                            new ClientCounts(rs.getLong("new_clients"), rs.getLong("returning_clients")));
+                });
         return result;
     }
 
@@ -693,7 +697,9 @@ public class WorkspaceAnalyticsService {
                   left join space s on s.location_id = l.id
                  where l.company_id in (:unitIds)
                  group by l.id
-                """, params, rs -> result.put(rs.getLong("location_id"), Math.max(1L, rs.getLong("resource_count"))));
+                """, params, rs -> {
+                    result.put(rs.getLong("location_id"), Math.max(1L, rs.getLong("resource_count")));
+                });
         return result;
     }
 
@@ -713,9 +719,10 @@ public class WorkspaceAnalyticsService {
                    and u.consultant = true
                    """ + filter + """
                  order by u.login_account_id, u.company_id, u.id
-                """, params, rs -> schedules
-                .computeIfAbsent(rs.getLong("login_account_id"), ignored -> new ArrayList<>())
-                .add(rs.getString("working_hours_json")));
+                """, params, rs -> {
+                    schedules.computeIfAbsent(rs.getLong("login_account_id"), ignored -> new ArrayList<>())
+                            .add(rs.getString("working_hours_json"));
+                });
         Map<Long, Long> result = new LinkedHashMap<>();
         schedules.forEach((loginAccountId, values) -> {
             Long minutes = availableMinutes(values, resolved.from(), resolved.to());
@@ -751,9 +758,10 @@ public class WorkspaceAnalyticsService {
                    and %s is not null
                    %s
                  group by %s, coalesce(nullif(trim(le.currency), ''), 'EUR')
-                """.formatted(idExpr, idExpr, filters, idExpr), params, rs -> grouped
-                .computeIfAbsent(rs.getLong("dimension_id"), ignored -> new LinkedHashMap<>())
-                .put(rs.getString("currency"), money(rs.getBigDecimal("gross"))));
+                """.formatted(idExpr, idExpr, filters, idExpr), params, rs -> {
+                    grouped.computeIfAbsent(rs.getLong("dimension_id"), ignored -> new LinkedHashMap<>())
+                            .put(rs.getString("currency"), money(rs.getBigDecimal("gross")));
+                });
         return grouped.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
                 entry -> currencyAmounts(entry.getValue()), (a, b) -> a, LinkedHashMap::new));
     }
@@ -836,8 +844,10 @@ public class WorkspaceAnalyticsService {
                    """ + filters + serviceFilters + """
                  group by coalesce(st.workspace_service_template_id, -st.id),
                           coalesce(nullif(trim(le.currency), ''), 'EUR')
-                """, params, rs -> grouped.computeIfAbsent(rs.getLong("service_key"), ignored -> new LinkedHashMap<>())
-                .put(rs.getString("currency"), money(rs.getBigDecimal("gross"))));
+                """, params, rs -> {
+                    grouped.computeIfAbsent(rs.getLong("service_key"), ignored -> new LinkedHashMap<>())
+                            .put(rs.getString("currency"), money(rs.getBigDecimal("gross")));
+                });
         return grouped.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
                 entry -> currencyAmounts(entry.getValue()), (a, b) -> a, LinkedHashMap::new));
     }
