@@ -13,11 +13,14 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.http.HttpHeaders;
@@ -53,6 +56,7 @@ public class AccountManagementInvoiceController {
     private final UserRepository users;
     private final InvoicePdfS3Service invoicePdfS3Service;
     private final BillFolioPdfService billFolioPdfService;
+    private final WorkspaceSubscriptionService workspaceSubscriptions;
 
     public AccountManagementInvoiceController(
             CompanyRepository companies,
@@ -62,12 +66,26 @@ public class AccountManagementInvoiceController {
             InvoicePdfS3Service invoicePdfS3Service,
             BillFolioPdfService billFolioPdfService
     ) {
+        this(companies, clientCompanies, bills, users, invoicePdfS3Service, billFolioPdfService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AccountManagementInvoiceController(
+            CompanyRepository companies,
+            ClientCompanyRepository clientCompanies,
+            BillRepository bills,
+            UserRepository users,
+            InvoicePdfS3Service invoicePdfS3Service,
+            BillFolioPdfService billFolioPdfService,
+            WorkspaceSubscriptionService workspaceSubscriptions
+    ) {
         this.companies = companies;
         this.clientCompanies = clientCompanies;
         this.bills = bills;
         this.users = users;
         this.invoicePdfS3Service = invoicePdfS3Service;
         this.billFolioPdfService = billFolioPdfService;
+        this.workspaceSubscriptions = workspaceSubscriptions;
     }
 
     public record ReceivedPlatformInvoiceResponse(
@@ -91,19 +109,21 @@ public class AccountManagementInvoiceController {
     @GetMapping("/received-invoices")
     @Transactional(readOnly = true)
     public List<ReceivedPlatformInvoiceResponse> receivedInvoices(@AuthenticationPrincipal User me) {
-        Company tenantCompany = me == null ? null : me.getCompany();
+        List<Company> tenantCompanies = subscriptionCompanies(me);
         Company platformCompany = resolvePlatformCompany().orElse(null);
-        if (tenantCompany == null || tenantCompany.getId() == null || platformCompany == null || platformCompany.getId() == null) {
+        if (tenantCompanies.isEmpty() || platformCompany == null || platformCompany.getId() == null) {
             return List.of();
         }
-        if (Objects.equals(tenantCompany.getId(), platformCompany.getId())) {
-            return List.of();
-        }
+        Set<Long> tenantIds = tenantCompanies.stream().map(Company::getId).filter(Objects::nonNull).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (tenantIds.contains(platformCompany.getId())) return List.of();
 
-        String subscriptionReference = subscriptionReference(tenantCompany.getId());
-        return bills.findAllByCompanyIdAndBillTypeAndBankTransferReferenceOrderByIssueDateDescIdDesc(
-                        platformCompany.getId(), BillType.INVOICE, subscriptionReference)
-                .stream()
+        return tenantIds.stream()
+                .flatMap(tenantId -> bills.findAllByCompanyIdAndBillTypeAndBankTransferReferenceOrderByIssueDateDescIdDesc(
+                        platformCompany.getId(), BillType.INVOICE, subscriptionReference(tenantId)).stream())
+                .collect(java.util.stream.Collectors.toMap(Bill::getId, bill -> bill, (left, right) -> left, java.util.LinkedHashMap::new))
+                .values().stream()
+                .sorted(Comparator.comparing(Bill::getIssueDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Bill::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(bill -> toResponse(bill, platformCompany))
                 .toList();
     }
@@ -115,19 +135,30 @@ public class AccountManagementInvoiceController {
             @RequestParam(name = "inline", defaultValue = "false") boolean inline,
             @AuthenticationPrincipal User me
     ) {
-        Company tenantCompany = me == null ? null : me.getCompany();
+        List<Company> tenantCompanies = subscriptionCompanies(me);
         Company platformCompany = resolvePlatformCompany().orElse(null);
-        if (tenantCompany == null || tenantCompany.getId() == null || platformCompany == null || platformCompany.getId() == null) {
+        if (tenantCompanies.isEmpty() || platformCompany == null || platformCompany.getId() == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        if (Objects.equals(tenantCompany.getId(), platformCompany.getId())) {
+        Set<String> allowedReferences = tenantCompanies.stream()
+                .map(Company::getId).filter(Objects::nonNull).map(AccountManagementInvoiceController::subscriptionReference)
+                .collect(java.util.stream.Collectors.toSet());
+        if (tenantCompanies.stream().map(Company::getId).anyMatch(platformCompany.getId()::equals)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
-        String subscriptionReference = subscriptionReference(tenantCompany.getId());
-        Bill bill = bills.findByIdAndCompanyIdAndBankTransferReference(id, platformCompany.getId(), subscriptionReference)
-                .filter(row -> row.getBillType() == BillType.INVOICE)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Bill bill;
+        if (workspaceSubscriptions == null || me.getCompany().getWorkspace() == null) {
+            bill = bills.findByIdAndCompanyIdAndBankTransferReference(
+                            id, platformCompany.getId(), subscriptionReference(me.getCompany().getId()))
+                    .filter(row -> row.getBillType() == BillType.INVOICE)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        } else {
+            bill = bills.findByIdAndCompanyId(id, platformCompany.getId())
+                    .filter(row -> row.getBillType() == BillType.INVOICE)
+                    .filter(row -> allowedReferences.contains(row.getBankTransferReference()))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        }
         byte[] pdf = invoicePdfS3Service.downloadIfPresent(bill);
         if (pdf == null) {
             pdf = billFolioPdfService.generate(bill, platformCompany.getId());
@@ -138,6 +169,14 @@ public class AccountManagementInvoiceController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    private List<Company> subscriptionCompanies(User me) {
+        if (me == null || me.getCompany() == null) return List.of();
+        if (workspaceSubscriptions == null || me.getCompany().getWorkspace() == null) return List.of(me.getCompany());
+        Long workspaceId = me.getCompany().getWorkspace().getId();
+        workspaceSubscriptions.requireWorkspaceAdministrator(me, workspaceId);
+        return companies.findAllByWorkspaceIdOrderByNameAscIdAsc(workspaceId);
     }
 
     private static String subscriptionReference(Long tenantCompanyId) {

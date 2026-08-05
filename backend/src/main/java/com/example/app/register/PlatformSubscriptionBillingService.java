@@ -42,6 +42,7 @@ import com.example.app.user.User;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.app.user.UserRepository;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -102,6 +103,7 @@ public class PlatformSubscriptionBillingService {
     private final ObjectMapper objectMapper;
 
     private InvoiceIssuanceService invoiceIssuanceService;
+    private WorkspaceSubscriptionService workspaceSubscriptions;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -152,6 +154,11 @@ public class PlatformSubscriptionBillingService {
         this.invoiceIssuanceService = invoiceIssuanceService;
     }
 
+    @Autowired(required = false)
+    void configureWorkspaceSubscriptionService(WorkspaceSubscriptionService workspaceSubscriptions) {
+        this.workspaceSubscriptions = workspaceSubscriptions;
+    }
+
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
     @Transactional(noRollbackFor = Exception.class)
     public void ensureForSignupTenant(
@@ -195,14 +202,24 @@ public class PlatformSubscriptionBillingService {
         int effectiveSmsCount = basicMonthlyTrial ? 0 : Math.max(0, smsCount == null ? 0 : smsCount);
         List<String> effectiveAddonKeys = basicMonthlyTrial ? List.of() : addonKeys;
 
-        String email = owner == null ? null : trimToNull(owner.getEmail());
-        String phone = owner == null ? null : trimToNull(owner.getPhone());
-        String firstName = owner == null ? null : trimToNull(owner.getFirstName());
-        String lastName = owner == null ? null : trimToNull(owner.getLastName());
-        String resolvedCompanyName = firstNonBlank(billingCompanyName, tenantCompany.getName(), fullName(firstName, lastName), email, "New Calendra tenant");
+        WorkspaceSubscriptionService.WorkspaceBillingProfile workspaceProfile = workspaceSubscriptions == null
+                ? null : workspaceSubscriptions.billingProfileForCompany(tenantCompany.getId());
+        String email = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.email(), owner == null ? null : trimToNull(owner.getEmail()));
+        String phone = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.phone(), owner == null ? null : trimToNull(owner.getPhone()));
+        String firstName = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.contactName(), owner == null ? null : trimToNull(owner.getFirstName()));
+        String lastName = workspaceProfile == null || workspaceProfile.contactName() == null
+                ? (owner == null ? null : trimToNull(owner.getLastName())) : null;
+        String resolvedCompanyName = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.companyName(), billingCompanyName,
+                tenantCompany.getName(), fullName(firstName, lastName), email, "New Calendra tenant");
+        String resolvedVatId = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.taxId(), vatId);
+        String resolvedAddress = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.address(), address);
+        String resolvedPostalCode = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.postalCode(), postalCode);
+        String resolvedCity = firstNonBlank(workspaceProfile == null ? null : workspaceProfile.city(), city);
 
-        ClientCompany payee = upsertPlatformPayeeCompany(platformCompany, tenantCompany, resolvedCompanyName, vatId, address, postalCode, city, email, phone);
-        Client client = upsertPlatformPayeeClient(platformCompany, payee, firstName, lastName, email, phone, address, postalCode, city, vatId);
+        ClientCompany payee = upsertPlatformPayeeCompany(platformCompany, tenantCompany, resolvedCompanyName, resolvedVatId,
+                resolvedAddress, resolvedPostalCode, resolvedCity, email, phone);
+        Client client = upsertPlatformPayeeClient(platformCompany, payee, firstName, lastName, email, phone,
+                resolvedAddress, resolvedPostalCode, resolvedCity, resolvedVatId);
         User consultant = resolvePlatformConsultant(platformCompany).orElse(null);
         if (consultant == null) {
             log.warn("Skipping platform subscription open bill for tenant {}: no platform consultant/user was found.", tenantCompany.getId());
@@ -242,6 +259,9 @@ public class PlatformSubscriptionBillingService {
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
 
         openBills.save(open);
+        if (workspaceSubscriptions != null) {
+            workspaceSubscriptions.syncFromLegacyCompany(tenantCompany.getId());
+        }
     }
 
     /**
@@ -255,6 +275,9 @@ public class PlatformSubscriptionBillingService {
             return SignupBillingInvoiceResult.empty();
         }
         Long tenantId = tenantCompany.getId();
+        if (!isWorkspaceBillingOwner(tenantId)) {
+            return SignupBillingInvoiceResult.empty();
+        }
         LocalDate billingStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
                 .map(AppSetting::getValue)
                 .map(this::parseDateOrNull)
@@ -288,7 +311,12 @@ public class PlatformSubscriptionBillingService {
 
         Bill saved = createBillFromSignupOpenBill(open, platformCompany);
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT");
-        return startSubscriptionBillPayment(saved, platformCompany);
+        SignupBillingInvoiceResult result = startSubscriptionBillPayment(saved, platformCompany);
+        if (BillPaymentStatus.PAID.name().equalsIgnoreCase(result.paymentStatus())) {
+            upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAID");
+        }
+        if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+        return result;
     }
 
     /**
@@ -537,6 +565,10 @@ public class PlatformSubscriptionBillingService {
         return startSubscriptionBillPayment(saved, platformCompany);
     }
 
+    private boolean isWorkspaceBillingOwner(Long companyId) {
+        return workspaceSubscriptions == null || workspaceSubscriptions.isBillingOwnerCompany(companyId);
+    }
+
     /**
      * Daily renewal: for every tenant whose current billing period has ended, promote any deferred
      * downgrade/interval change, advance the period, and issue the renewal invoice including the
@@ -556,7 +588,8 @@ public class PlatformSubscriptionBillingService {
             PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
             for (AppSetting endSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
                 Company tenant = endSetting == null ? null : endSetting.getCompany();
-                if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())) {
+                if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())
+                        || !isWorkspaceBillingOwner(tenant.getId())) {
                     continue;
                 }
                 // Evaluate each tenant against its own (possibly simulated) clock.
@@ -665,6 +698,9 @@ public class PlatformSubscriptionBillingService {
             Bill saved = createBillFromSignupOpenBill(open, platformCompany);
             startSubscriptionBillPayment(saved, platformCompany);
         }
+        if (workspaceSubscriptions != null) {
+            workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+        }
     }
 
     private static int packageRank(String normalizedPackage) {
@@ -747,7 +783,7 @@ public class PlatformSubscriptionBillingService {
                 continue;
             }
             Company tenant = companies.findById(tenantId).orElse(null);
-            if (tenant == null) {
+            if (tenant == null || !isWorkspaceBillingOwner(tenantId)) {
                 continue;
             }
             SimulatedTimeContext.set(tenantId);
@@ -803,7 +839,7 @@ public class PlatformSubscriptionBillingService {
             int changed = 0;
             for (AppSetting statusSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_STATUS)) {
                 Company tenant = statusSetting == null ? null : statusSetting.getCompany();
-                if (tenant == null || tenant.getId() == null) {
+                if (tenant == null || tenant.getId() == null || !isWorkspaceBillingOwner(tenant.getId())) {
                     continue;
                 }
                 String status = statusSetting.getValue() == null ? "" : statusSetting.getValue().trim().toUpperCase(Locale.ROOT);
@@ -819,6 +855,7 @@ public class PlatformSubscriptionBillingService {
                 LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
                 if (start != null && !start.plusDays(graceDays).isAfter(today)) {
                     upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAST_DUE");
+                    if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
                     changed++;
                 }
             }

@@ -9,6 +9,7 @@ import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.logging.LogSanitizer;
+import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -76,6 +77,9 @@ public class BillingEmailService {
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
+
+    @Autowired(required = false)
+    private WorkspaceEmailQuotaService workspaceEmailQuota;
 
     public BillingEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
@@ -201,7 +205,9 @@ public class BillingEmailService {
             helper.setSubject(subject);
             helper.setText(body, looksLikeHtml(body));
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
+            assertEmailQuota(bill);
             mailSender.send(message);
+            recordEmailUsage(bill);
             logBillEmailSent(bill, "BANK_TRANSFER_FOLIO", recipient, subject, body);
             log.info("Bank transfer folio emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
@@ -249,7 +255,9 @@ public class BillingEmailService {
             helper.setSubject(subject);
             helper.setText(body, looksLikeHtml(body));
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
+            assertEmailQuota(bill);
             mailSender.send(message);
+            recordEmailUsage(bill);
             logBillEmailSent(bill, "INVOICE_FOLIO", recipient, subject, body);
             log.info("Invoice folio emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
@@ -292,7 +300,9 @@ public class BillingEmailService {
             helper.setText(body, false);
             String filenamePrefix = slovenian ? "predracun-" : "proforma-";
             helper.addAttachment(filenamePrefix + safeBillNumber(bill) + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
+            assertEmailQuota(bill);
             mailSender.send(message);
+            recordEmailUsage(bill);
             logBillEmailSent(bill, "OPEN_BILL_PREVIEW_FOLIO", recipient, subject, body);
             log.info("Open-bill preview folio emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
             return recipient;
@@ -349,7 +359,9 @@ public class BillingEmailService {
                         "application/pdf"
                 );
             }
+            assertEmailQuota(bill);
             mailSender.send(message);
+            recordEmailUsage(bill);
             logBillEmailSent(bill, messageType, recipient, subject, stripHtmlForLog(body));
             log.info("Platform subscription invoice email sent billId={} companyId={} clientId={} recipient={}",
                     bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
@@ -767,7 +779,9 @@ public class BillingEmailService {
             helper.setTo(recipient);
             helper.setSubject(subject);
             helper.setText(body, false);
+            assertEmailQuota(bill);
             mailSender.send(message);
+            recordEmailUsage(bill);
             logBillEmailSent(bill, normalizeMessageType(logLabel), recipient, subject, body);
             log.info("{} emailed billId={} companyId={} clientId={} recipient={}", logLabel, bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
@@ -814,7 +828,9 @@ public class BillingEmailService {
             helper.setSubject(subject);
             helper.setText(body, looksLikeHtml(body));
             helper.addAttachment(bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
+            assertEmailQuota(bill);
             mailSender.send(message);
+            recordEmailUsage(bill);
             logBillEmailSent(bill, "PAID_BILL_RECEIPT", recipient, subject, body);
             log.info("Paid bill receipt emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
@@ -824,6 +840,16 @@ public class BillingEmailService {
     }
 
 
+
+    private void assertEmailQuota(Bill bill) {
+        if (workspaceEmailQuota == null || bill == null || isPlatformSubscriptionBill(bill)) return;
+        workspaceEmailQuota.assertCanSend(billCompanyId(bill), 1);
+    }
+
+    private void recordEmailUsage(Bill bill) {
+        if (workspaceEmailQuota == null || bill == null || isPlatformSubscriptionBill(bill)) return;
+        workspaceEmailQuota.increment(billCompanyId(bill), 1);
+    }
 
     private Long billCompanyId(Bill bill) {
         return bill == null || bill.getCompany() == null ? null : bill.getCompany().getId();

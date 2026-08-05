@@ -1,5 +1,6 @@
 package com.example.app.settings;
 
+import com.example.app.company.Company;
 import com.example.app.company.PlatformTenantAccountLinkService;
 import com.example.app.session.SessionTypeBreakSettingsService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
@@ -11,6 +12,7 @@ import com.example.app.billingissuer.InvoiceSeries;
 import com.example.app.billingissuer.InvoiceSeriesRepository;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.email.TenantEmailSenderResolver;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
 import java.util.Locale;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -108,6 +110,7 @@ public class SettingsController {
     private final SessionTypeBreakSettingsService sessionTypeBreakSettingsService;
     private CompanyLegalEntityRepository billingIssuerAssignments;
     private InvoiceSeriesRepository invoiceSeriesRepository;
+    private WorkspaceSubscriptionService workspaceSubscriptions;
 
     @Autowired
     public SettingsController(
@@ -146,6 +149,11 @@ public class SettingsController {
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
         this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null, null, null);
+    }
+
+    @Autowired(required = false)
+    void configureWorkspaceSubscriptions(WorkspaceSubscriptionService workspaceSubscriptions) {
+        this.workspaceSubscriptions = workspaceSubscriptions;
     }
 
     @Autowired(required = false)
@@ -209,6 +217,7 @@ public class SettingsController {
                         (a, b) -> b,
                         LinkedHashMap::new
                 ));
+        overlayWorkspaceSubscriptionProjection(me, companyId, values);
 
         latestGlobalSettingValue(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON)
                 .ifPresent(v -> values.put(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name(), v));
@@ -236,11 +245,24 @@ public class SettingsController {
                         )
                 )
         );
+        boolean workspaceProjectionRequested = workspaceSubscriptions != null && "true".equalsIgnoreCase(
+                String.valueOf(payload.get("__workspaceSubscriptionProjection")));
+        if (workspaceProjectionRequested) {
+            workspaceSubscriptions.requireWorkspaceAdministrator(me, me.getCompany().getWorkspace().getId());
+        }
+        Company workspaceBillingOwner = workspaceProjectionRequested ? workspaceSubscriptions.billingOwnerCompany(me) : null;
+        boolean projectToDifferentCompany = workspaceBillingOwner != null
+                && workspaceBillingOwner.getId() != null
+                && !workspaceBillingOwner.getId().equals(companyId);
         if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
         }
         Arrays.stream(SettingKey.values()).forEach(key -> {
             if (normalizedPayload.containsKey(key.name())) {
+                if (workspaceProjectionRequested && projectToDifferentCompany
+                        && isWorkspaceSubscriptionProjectionKey(key.name())) {
+                    return;
+                }
                 if (key == SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON && !isSuperAdmin(me)) {
                     return;
                 }
@@ -273,7 +295,15 @@ public class SettingsController {
         }
         disablePaymentMethodFiscalizationIfNeeded(companyId, normalizedPayload);
         synchronizeReservationRuleSettings(me, companyId, normalizedPayload);
-        platformTenantAccountLinkService.syncFromTenantSettings(me.getCompany(), normalizedPayload);
+        platformTenantAccountLinkService.syncFromTenantSettings(
+                projectToDifferentCompany ? workspaceBillingOwner : me.getCompany(), normalizedPayload);
+        if (workspaceSubscriptions != null && normalizedPayload.keySet().stream().anyMatch(this::isWorkspaceSubscriptionProjectionKey)) {
+            if (workspaceProjectionRequested) {
+                mirrorWorkspaceSubscriptionCapacity(workspaceBillingOwner, normalizedPayload);
+            } else {
+                workspaceSubscriptions.syncFromLegacyCompany(companyId);
+            }
+        }
         return all(me);
     }
 
@@ -468,6 +498,50 @@ public class SettingsController {
     private String existingOrPayload(Long companyId, Map<String, String> payload, SettingKey key) {
         if (payload != null && payload.containsKey(key.name())) return payload.get(key.name());
         return repository.findByCompanyIdAndKey(companyId, key).map(AppSetting::getValue).orElse("");
+    }
+
+    private void overlayWorkspaceSubscriptionProjection(User me, Long activeCompanyId, Map<String, String> values) {
+        if (workspaceSubscriptions == null || me == null || activeCompanyId == null || values == null) return;
+        Company owner = workspaceSubscriptions.billingOwnerCompany(me);
+        if (owner == null || owner.getId() == null || owner.getId().equals(activeCompanyId)) return;
+        repository.findAllByCompanyId(owner.getId()).stream()
+                .filter(setting -> isWorkspaceSubscriptionProjectionKey(setting.getKey()))
+                .forEach(setting -> values.put(setting.getKey(), decodeForRead(setting.getKey(), setting.getValue())));
+    }
+
+    private boolean isWorkspaceSubscriptionProjectionKey(String key) {
+        if (key == null || key.isBlank()) return false;
+        return key.startsWith("BILLING_SUBSCRIPTION_")
+                || key.equals(SettingKey.SIGNUP_PACKAGE_NAME.name())
+                || key.equals(SettingKey.SIGNUP_USER_COUNT.name())
+                || key.equals(SettingKey.SIGNUP_SMS_COUNT.name())
+                || key.equals(SettingKey.SIGNUP_ADDON_KEYS.name());
+    }
+
+    private void mirrorWorkspaceSubscriptionCapacity(Company owner, Map<String, String> payload) {
+        if (owner == null || owner.getId() == null) return;
+        Set<SettingKey> projectionKeys = EnumSet.of(
+                SettingKey.SIGNUP_USER_COUNT,
+                SettingKey.SIGNUP_SMS_COUNT,
+                SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT,
+                SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT,
+                SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS,
+                SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT,
+                SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT,
+                SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS
+        );
+        for (SettingKey key : projectionKeys) {
+            if (!payload.containsKey(key.name())) continue;
+            AppSetting setting = repository.findByCompanyIdAndKey(owner.getId(), key).orElseGet(() -> {
+                AppSetting created = new AppSetting();
+                created.setCompany(owner);
+                created.setKey(key.name());
+                return created;
+            });
+            setting.setValue(encodeForSave(key, payload.get(key.name())));
+            repository.save(setting);
+        }
+        workspaceSubscriptions.syncFromLegacyCompany(owner.getId());
     }
 
     private void persistSetting(User me, Long companyId, SettingKey key, String value) {

@@ -6,6 +6,7 @@ import com.example.app.billing.PaymentType;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.workspace.Workspace;
 import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.transaction.Transactional;
 import java.util.List;
@@ -47,6 +48,21 @@ public class CompanyProvisioningService {
         company = companies.saveAndFlush(company);
         company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
         return companies.save(company);
+    }
+
+    @Transactional
+    public Company createInWorkspace(String companyName, Workspace workspace) {
+        if (workspace == null || workspace.getId() == null) {
+            throw new IllegalArgumentException("Workspace is required.");
+        }
+        var company = new Company();
+        company.setName(companyName);
+        company.setWorkspace(workspace);
+        company = companies.saveAndFlush(company);
+        company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
+        Company saved = companies.save(company);
+        ensureDefaultPaymentMethods(saved);
+        return saved;
     }
 
     @Transactional

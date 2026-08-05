@@ -49,6 +49,25 @@ export type User = {
   /** Short public tenant identifier (e.g. widget URL segment); empty if not provisioned yet. */
   tenantCode?: string | null
   packageType?: PackageType
+  workspaceSubscriptionStatus?: string
+  workspaceFeatures?: string[]
+  workspaceLimits?: {
+    operatingUnits: number
+    locations: number
+    activeUsers: number
+    consultants: number
+    clients: number
+    monthlyBookings: number
+    smsParts: number
+    emailMessages: number
+    storageMb: number
+    publicBookingPages: number
+    analyticsRetentionDays: number
+    allowSmsOverage: boolean
+    allowEmailOverage: boolean
+    allowBookingOverage: boolean
+    apiAccess: boolean
+  }
   avatarPath?: string | null
   permissions?: string[]
   accessRoleId?: number | null

@@ -33,6 +33,7 @@ import {
 } from "./configuration/ConfigurationNotificationsSection";
 import { ConfigurationWaitlistSettingsSection } from "./configuration/ConfigurationWaitlistSettingsSection";
 import { BillingIssuersSection } from "./configuration/BillingIssuersSection";
+import { WorkspaceSubscriptionPanel } from "./configuration/WorkspaceSubscriptionPanel";
 import {
   BillingCertificateIcon,
   BillingEditIcon,
@@ -2131,6 +2132,7 @@ export function ConfigurationPage() {
     try {
       const payload = {
         ...settings,
+        __workspaceSubscriptionProjection: "true",
         SIGNUP_USER_COUNT: String(
           Math.max(1, currentUserCount, currentPaidUserLimit),
         ),
@@ -8464,6 +8466,7 @@ export function ConfigurationPage() {
                           </div>
                         </div>
                       )}
+                      <WorkspaceSubscriptionPanel />
                       <div className="account-subscription-grid">
                         <section className="account-card account-subscription-card">
                           <div className="account-plan-header">
@@ -13880,7 +13883,7 @@ export function ConfigurationPage() {
                 </Card>
               ) : tab === "website" ? (
                 <>
-                  <WorkspacePublicBookingSettingsSection locale={locale} />
+                  {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_PUBLIC_BOOKING')) && <WorkspacePublicBookingSettingsSection locale={locale} />}
                 <Card className="settings-card website-payment-settings-moved">
                   <style>{`
                     .website-payment-settings-moved {

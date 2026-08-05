@@ -13,6 +13,7 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.TenantSmsQuotaService;
+import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
 import com.example.app.session.SessionBooking;
 import com.example.app.sms.SmsGateway;
 import com.example.app.user.User;
@@ -93,6 +94,9 @@ public class WaitlistGuestNotificationService {
     private final TenantEmailSenderResolver emailSenderResolver;
     private final MessageDeliveryLogService deliveryLogs;
     private final String frontendBaseUrl;
+
+    @Autowired(required = false)
+    private WorkspaceEmailQuotaService workspaceEmailQuota;
 
     public WaitlistGuestNotificationService(
             ApplicationEventPublisher events,
@@ -187,6 +191,7 @@ public class WaitlistGuestNotificationService {
         if (subject.isBlank()) subject = " ";
         String html = normalizeEmailHtml(body);
         try {
+            if (workspaceEmailQuota != null) workspaceEmailQuota.assertCanSend(companyId, 1);
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
             applySender(helper, request.getCompany());
@@ -194,6 +199,7 @@ public class WaitlistGuestNotificationService {
             helper.setSubject(subject);
             helper.setText(html, true);
             mailSender.send(message);
+            if (workspaceEmailQuota != null) workspaceEmailQuota.increment(companyId, 1);
             deliverySent(request, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, html);
         } catch (Exception ex) {
             deliveryFailed(request, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, ex.getMessage());

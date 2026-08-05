@@ -2991,7 +2991,7 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
-              {(me.units?.length ?? 0) > 1 && (
+              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && (
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
@@ -3161,7 +3161,7 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
-              {(me.units?.length ?? 0) > 1 && (
+              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && (
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"

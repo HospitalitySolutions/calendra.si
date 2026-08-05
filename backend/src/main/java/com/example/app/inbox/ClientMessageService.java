@@ -27,6 +27,7 @@ import com.example.app.settings.TenantSmsQuotaService;
 import com.example.app.sms.SmsGateway;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.internet.MimeMessage;
@@ -103,6 +104,9 @@ public class ClientMessageService {
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
+
+    @Autowired(required = false)
+    private WorkspaceEmailQuotaService workspaceEmailQuota;
 
     public ClientMessageService(
             ClientMessageRepository messages,
@@ -1584,6 +1588,7 @@ public class ClientMessageService {
         String to = blankToNull(client.getEmail());
         if (to == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client does not have an email address.");
         if (!mailConfigured || mailSender == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is not configured on the server.");
+        if (workspaceEmailQuota != null) workspaceEmailQuota.assertCanSend(client.getCompany().getId(), 1);
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, asHtml, StandardCharsets.UTF_8.name());
@@ -1599,6 +1604,7 @@ public class ClientMessageService {
             if (replyTo != null && !replyTo.isBlank()) helper.setReplyTo(replyTo.trim());
             else if (me.getEmail() != null && !me.getEmail().isBlank()) helper.setReplyTo(me.getEmail().trim());
             mailSender.send(message);
+            if (workspaceEmailQuota != null) workspaceEmailQuota.increment(client.getCompany().getId(), 1);
             return new ChannelDeliveryResult(to, null, null);
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to send email: " + safeMessage(ex));

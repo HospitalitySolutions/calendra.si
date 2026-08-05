@@ -15,6 +15,7 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.TenantSmsQuotaService;
+import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionServiceSupport;
@@ -105,6 +106,9 @@ public class ReminderService {
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
+
+    @Autowired(required = false)
+    private WorkspaceEmailQuotaService workspaceEmailQuota;
 
     public ReminderService(
             @Autowired(required = false) JavaMailSender mailSender,
@@ -1334,6 +1338,7 @@ public class ReminderService {
     }
 
     private void sendHtmlMail(Company company, String to, String subject, String html) throws MessagingException {
+        if (workspaceEmailQuota != null && company != null) workspaceEmailQuota.assertCanSend(company.getId(), 1);
         String safeSubject = subject == null || subject.isBlank() ? " " : subject;
         String safeBody = normalizeEmailTemplateHtml(html);
         MimeMessage message = mailSender.createMimeMessage();
@@ -1343,6 +1348,7 @@ public class ReminderService {
         helper.setSubject(safeSubject);
         helper.setText(safeBody, true);
         mailSender.send(message);
+        if (workspaceEmailQuota != null && company != null) workspaceEmailQuota.increment(company.getId(), 1);
     }
 
     private static String normalizeEmailTemplateHtml(String value) {

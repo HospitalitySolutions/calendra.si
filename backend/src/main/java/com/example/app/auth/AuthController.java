@@ -3,6 +3,7 @@ package com.example.app.auth;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.workspace.Workspace;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
 import com.example.app.mfa.WebAuthnService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
@@ -75,6 +76,7 @@ public class AuthController {
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
     private final AuthRateLimiter authRateLimiter;
+    private WorkspaceSubscriptionService workspaceSubscriptions;
 
     public AuthController(
             UserRepository users,
@@ -108,6 +110,11 @@ public class AuthController {
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
         this.authRateLimiter = authRateLimiter;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureWorkspaceSubscriptions(WorkspaceSubscriptionService workspaceSubscriptions) {
+        this.workspaceSubscriptions = workspaceSubscriptions;
     }
 
     /**
@@ -302,6 +309,16 @@ public class AuthController {
         out.put("avatarPath", avatarPath);
         out.put("permissions", SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()));
         out.put("units", loginAccountService.activeMemberships(account).stream().map(this::serializeUnit).toList());
+        if (workspaceSubscriptions != null) {
+            try {
+                var entitlement = workspaceSubscriptions.entitlementSnapshot(user);
+                out.put("workspaceSubscriptionStatus", entitlement.status());
+                out.put("workspaceFeatures", entitlement.features());
+                out.put("workspaceLimits", entitlement.limits());
+            } catch (Exception ignored) {
+                // Keep authentication compatible while a migration is still being applied.
+            }
+        }
         return out;
     }
 
@@ -530,6 +547,15 @@ public class AuthController {
     }
 
     private String packageTypeForCompany(Company company) {
+        if (company == null) return "CUSTOM";
+        if (workspaceSubscriptions != null && company.getWorkspace() != null) {
+            try {
+                return normalizePackageType(
+                        workspaceSubscriptions.requireForWorkspace(company.getWorkspace().getId()).getPlanKey(), "CUSTOM");
+            } catch (Exception ignored) {
+                // Fall through to the legacy company projection during rolling upgrades.
+            }
+        }
         return settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_PACKAGE_NAME)
                 .map(AppSetting::getValue)
                 .map(value -> normalizePackageType(value, "CUSTOM"))

@@ -7,6 +7,8 @@ import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.widget.WidgetPublicAuditLogger;
+import com.example.app.workspacesubscription.WorkspaceFeature;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
 import com.example.app.widget.WidgetRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
@@ -37,6 +39,7 @@ public class WorkspacePublicBookingController {
     private final WorkspacePublicBookingTokenService tokens;
     private final WidgetRateLimiter rateLimiter;
     private final WidgetPublicAuditLogger audit;
+    private WorkspaceSubscriptionService workspaceSubscriptions;
 
     public WorkspacePublicBookingController(
             WorkspacePublicBookingSettingsRepository settings,
@@ -54,6 +57,11 @@ public class WorkspacePublicBookingController {
         this.tokens = tokens;
         this.rateLimiter = rateLimiter;
         this.audit = audit;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureWorkspaceSubscriptions(WorkspaceSubscriptionService workspaceSubscriptions) {
+        this.workspaceSubscriptions = workspaceSubscriptions;
     }
 
     public record ConfigResponse(
@@ -237,10 +245,17 @@ public class WorkspacePublicBookingController {
     private WorkspacePublicBookingSettings requirePublicSettings(String slug, HttpServletRequest request, boolean booking) {
         String normalized = slug == null ? "" : slug.trim();
         rateLimiter.check("workspace:" + normalized, audit.clientIp(request), booking);
-        return settings.findBySlugIgnoreCase(normalized)
+        WorkspacePublicBookingSettings row = settings.findBySlugIgnoreCase(normalized)
                 .filter(WorkspacePublicBookingSettings::isEnabled)
                 .filter(value -> value.getWorkspace().isActive())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (workspaceSubscriptions != null) {
+            var subscription = workspaceSubscriptions.requireForWorkspace(row.getWorkspace().getId());
+            if (!workspaceSubscriptions.hasFeature(subscription, WorkspaceFeature.WORKSPACE_PUBLIC_BOOKING)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            }
+        }
+        return row;
     }
 
     private List<Company> publicCompanies(WorkspacePublicBookingSettings row) {

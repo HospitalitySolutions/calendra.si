@@ -2,6 +2,8 @@ package com.example.app.configcopy;
 
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspacesubscription.WorkspaceEntitlementService;
+import com.example.app.workspacesubscription.WorkspaceFeature;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +22,7 @@ public class ConfigurationCopyController {
     private final ConfigurationCopyService service;
     private final UserRepository users;
     private final ConfigurationCopyAuditLogRepository auditLogs;
+    private WorkspaceEntitlementService entitlements;
 
     public ConfigurationCopyController(
             ConfigurationCopyService service,
@@ -31,6 +34,15 @@ public class ConfigurationCopyController {
         this.auditLogs = auditLogs;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureEntitlements(WorkspaceEntitlementService entitlements) {
+        this.entitlements = entitlements;
+    }
+
+    private void requireEntitlement(User me) {
+        if (entitlements != null) entitlements.requireFeature(me, WorkspaceFeature.CONFIGURATION_COPY);
+    }
+
     public record UnitOption(Long id, String name, boolean current) {}
     public record CopyHistoryItem(Long id, Long sourceCompanyId, String sourceCompanyName,
                                   Long targetCompanyId, String targetCompanyName,
@@ -40,6 +52,7 @@ public class ConfigurationCopyController {
     @GetMapping("/units")
     @Transactional(readOnly = true)
     public List<UnitOption> units(@AuthenticationPrincipal User me) {
+        requireEntitlement(me);
         Long workspaceId = me.getCompany().getWorkspace().getId();
         return users.findActiveWorkspaceMemberships(me.getLoginAccount().getId(), workspaceId).stream()
                 .filter(member -> member.getRole().name().equals("ADMIN") || member.getRole().name().equals("SUPER_ADMIN"))
@@ -52,6 +65,7 @@ public class ConfigurationCopyController {
     @GetMapping("/history")
     @Transactional(readOnly = true)
     public List<CopyHistoryItem> history(@AuthenticationPrincipal User me) {
+        requireEntitlement(me);
         Long workspaceId = me.getCompany().getWorkspace().getId();
         List<Long> administeredCompanyIds = users.findActiveWorkspaceMemberships(
                         me.getLoginAccount().getId(), workspaceId).stream()
@@ -74,6 +88,7 @@ public class ConfigurationCopyController {
             @RequestBody ConfigurationCopyService.CopyRequest request,
             @AuthenticationPrincipal User me
     ) {
+        requireEntitlement(me);
         return service.preview(request, me);
     }
 
@@ -82,6 +97,7 @@ public class ConfigurationCopyController {
             @RequestBody ConfigurationCopyService.CopyRequest request,
             @AuthenticationPrincipal User me
     ) {
+        requireEntitlement(me);
         return service.execute(request, me);
     }
 }

@@ -428,6 +428,7 @@ export default function App() {
   const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
   const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
   const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
+  const hasWorkspaceAnalyticsFeature = user.workspaceFeatures == null || user.workspaceFeatures.includes('WORKSPACE_ANALYTICS')
   const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
   const canViewDeliveryLogs = hasEmployeePermission(user, 'DELIVERY_LOGS_VIEW')
   const canViewConfiguration = hasAnyEmployeePermission(user, [
@@ -488,7 +489,7 @@ export default function App() {
           <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/analytics/workspace" element={canViewReports ? <WorkspaceAnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/analytics/workspace" element={canViewReports && hasWorkspaceAnalyticsFeature ? <WorkspaceAnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route

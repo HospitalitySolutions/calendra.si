@@ -6,6 +6,8 @@ import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
 import com.example.app.workspaceclient.WorkspaceClientAccessService;
+import com.example.app.workspacesubscription.WorkspaceEntitlementService;
+import com.example.app.workspacesubscription.WorkspaceFeature;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -32,6 +34,7 @@ public class WorkspacePublicBookingAdminController {
     private final CompanyRepository companies;
     private final LocationRepository locations;
     private final WorkspaceClientAccessService access;
+    private WorkspaceEntitlementService entitlements;
 
     public WorkspacePublicBookingAdminController(
             WorkspacePublicBookingSettingsRepository settings,
@@ -43,6 +46,15 @@ public class WorkspacePublicBookingAdminController {
         this.companies = companies;
         this.locations = locations;
         this.access = access;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureEntitlements(WorkspaceEntitlementService entitlements) {
+        this.entitlements = entitlements;
+    }
+
+    private void requireEntitlement(User me) {
+        if (entitlements != null) entitlements.requireFeature(me, WorkspaceFeature.WORKSPACE_PUBLIC_BOOKING);
     }
 
     public record UnitInput(Long companyId, boolean enabled) {}
@@ -91,6 +103,7 @@ public class WorkspacePublicBookingAdminController {
     @GetMapping
     @Transactional
     public SettingsResponse get(@AuthenticationPrincipal User me) {
+        requireEntitlement(me);
         requireWorkspaceAdmin(me);
         return response(requireSettings(me), me);
     }
@@ -98,6 +111,7 @@ public class WorkspacePublicBookingAdminController {
     @PutMapping
     @Transactional
     public SettingsResponse update(@RequestBody SettingsRequest request, @AuthenticationPrincipal User me) {
+        requireEntitlement(me);
         if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Settings are required.");
         WorkspacePublicBookingSettings row = requireSettings(me);
         List<Company> workspaceCompanies = requireWorkspaceAdmin(me);

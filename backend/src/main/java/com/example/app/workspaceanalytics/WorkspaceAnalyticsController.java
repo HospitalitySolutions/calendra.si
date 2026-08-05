@@ -1,6 +1,8 @@
 package com.example.app.workspaceanalytics;
 
 import com.example.app.user.User;
+import com.example.app.workspacesubscription.WorkspaceEntitlementService;
+import com.example.app.workspacesubscription.WorkspaceFeature;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
@@ -15,15 +17,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/analytics/workspace")
 public class WorkspaceAnalyticsController {
     private final WorkspaceAnalyticsService service;
+    private WorkspaceEntitlementService entitlements;
 
     public WorkspaceAnalyticsController(WorkspaceAnalyticsService service) {
         this.service = service;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureEntitlements(WorkspaceEntitlementService entitlements) {
+        this.entitlements = entitlements;
+    }
+
+    private void requireEntitlement(User me) {
+        if (entitlements != null) entitlements.requireFeature(me, WorkspaceFeature.WORKSPACE_ANALYTICS);
     }
 
     @GetMapping("/filters")
     public WorkspaceAnalyticsService.FiltersResponse filters(
             @AuthenticationPrincipal User me,
             @RequestParam(required = false) List<Long> unitIds) {
+        requireEntitlement(me);
         return service.filters(me, unitIds);
     }
 
@@ -41,6 +54,7 @@ public class WorkspaceAnalyticsController {
             @RequestParam(required = false) List<Long> sessionTypeIds,
             @RequestParam(required = false) List<String> bookingStatuses,
             @RequestParam(required = false) List<String> paymentStatuses) {
+        requireEntitlement(me);
         return service.overview(me, query(from, to, unitIds, locationIds, legalEntityIds, invoiceSeriesIds,
                 employeeLoginAccountIds, workspaceServiceTemplateIds, sessionTypeIds, bookingStatuses, paymentStatuses));
     }
@@ -60,6 +74,7 @@ public class WorkspaceAnalyticsController {
             @RequestParam(required = false) List<Long> sessionTypeIds,
             @RequestParam(required = false) List<String> bookingStatuses,
             @RequestParam(required = false) List<String> paymentStatuses) {
+        requireEntitlement(me);
         WorkspaceAnalyticsService.ExportPayload payload = service.export(me,
                 query(from, to, unitIds, locationIds, legalEntityIds, invoiceSeriesIds,
                         employeeLoginAccountIds, workspaceServiceTemplateIds, sessionTypeIds,

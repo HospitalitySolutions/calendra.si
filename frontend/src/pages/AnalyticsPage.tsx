@@ -2546,7 +2546,7 @@ export function AnalyticsPage() {
     <div className="stack gap-lg analytics-page">
       <PageHeader title={text.title} subtitle={text.subtitle} />
 
-      {(me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId && hasEmployeePermission(unit, 'REPORTS_ANALYTICS_VIEW')).length > 1 && (
+      {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId && hasEmployeePermission(unit, 'REPORTS_ANALYTICS_VIEW')).length > 1 && (
         <div className="analytics-scope-switch" role="tablist">
           <Link to="/analytics" className="active">{locale === 'sl' ? 'Trenutna enota' : locale === 'sr' ? 'Trenutna jedinica' : 'Current unit'}</Link>
           <Link to="/analytics/workspace">{locale === 'sl' ? 'Celoten delovni prostor' : locale === 'sr' ? 'Ceo radni prostor' : 'Entire workspace'}</Link>

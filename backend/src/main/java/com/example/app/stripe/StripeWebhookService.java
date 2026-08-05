@@ -11,6 +11,8 @@ import com.example.app.guest.order.GuestOrderService;
 import com.example.app.referral.ReferralRewardService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
+import com.example.app.workspacesubscription.WorkspaceUsageMeterService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
@@ -42,6 +44,8 @@ public class StripeWebhookService {
     private final GuestOrderService guestOrderService;
     private final AppSettingRepository appSettings;
     private final ReferralRewardService referralRewardService;
+    private WorkspaceSubscriptionService workspaceSubscriptions;
+    private WorkspaceUsageMeterService workspaceUsage;
 
     @Autowired
     public StripeWebhookService(
@@ -74,6 +78,15 @@ public class StripeWebhookService {
         this.guestOrderService = guestOrderService;
         this.appSettings = appSettings;
         this.referralRewardService = referralRewardService;
+    }
+
+    @Autowired(required = false)
+    void configureWorkspaceSubscriptionServices(
+            WorkspaceSubscriptionService workspaceSubscriptions,
+            WorkspaceUsageMeterService workspaceUsage
+    ) {
+        this.workspaceSubscriptions = workspaceSubscriptions;
+        this.workspaceUsage = workspaceUsage;
     }
 
     /** Backwards-compatible constructor for older unit tests. */
@@ -210,6 +223,7 @@ public class StripeWebhookService {
         }
         bill.setPaidAt(OffsetDateTime.now());
         finalizeBillPayment(bill);
+        recordPaymentTransaction(bill);
         markPlatformSubscriptionPaidIfApplicable(bill);
         return new BillCheckoutReconcileResult(true, false, stripeSessionStatus, stripePaymentStatus, "Bill marked as paid from Stripe checkout return.");
     }
@@ -247,7 +261,16 @@ public class StripeWebhookService {
         bill.setPaymentIntentId(paymentIntentId.isBlank() ? bill.getPaymentIntentId() : paymentIntentId);
         bill.setPaidAt(OffsetDateTime.now());
         finalizeBillPayment(bill);
+        recordPaymentTransaction(bill);
         markPlatformSubscriptionPaidIfApplicable(bill);
+    }
+
+    private void recordPaymentTransaction(Bill bill) {
+        if (workspaceUsage == null || bill == null || bill.getCompany() == null || bill.getCompany().getId() == null) return;
+        String reference = bill.getBankTransferReference();
+        if (reference != null && reference.startsWith("CALENDRA-SUBSCRIPTION:")) return;
+        workspaceUsage.incrementOnce(bill.getCompany().getId(), WorkspaceUsageMeterService.PAYMENT_TRANSACTIONS,
+                1, "BILL", bill.getId());
     }
 
     private void markPlatformSubscriptionPaidIfApplicable(Bill bill) {
@@ -265,6 +288,7 @@ public class StripeWebhookService {
                 setting.setValue("PAID");
                 appSettings.save(setting);
             });
+            if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
             grantReferralRewardIfApplicable(tenantId);
         } catch (Exception ignored) {
             // Keep the bill paid even if the subscription-status marker cannot be updated.
@@ -320,6 +344,7 @@ public class StripeWebhookService {
         bill.setPaymentStatus(BillPaymentStatus.PAID);
         bill.setPaidAt(OffsetDateTime.now());
         finalizeBillPayment(bill);
+        recordPaymentTransaction(bill);
         markPlatformSubscriptionPaidIfApplicable(bill);
     }
 
