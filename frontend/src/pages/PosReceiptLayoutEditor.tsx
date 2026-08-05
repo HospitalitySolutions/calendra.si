@@ -47,7 +47,7 @@ const DEFAULT_ORDER = [
   'footer',
 ]
 
-const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.'
+const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.'
 
 const TAX_CLAUSE_OPTIONS = [
   AUTO_NO_VAT_CLAUSE,
@@ -83,7 +83,10 @@ function normalizeTaxClauses(value: unknown): string[] {
   const unique = new Set<string>()
   for (const item of value) {
     if (typeof item !== 'string') continue
-    const trimmed = item.trim()
+    const trimmed = item.trim().replace(
+      'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
+      AUTO_NO_VAT_CLAUSE,
+    )
     if (trimmed) unique.add(trimmed)
   }
   return Array.from(unique)
@@ -341,12 +344,12 @@ export function PosReceiptLayoutEditor() {
 
   const previewSections: Record<string, ReactNode> = {
     company: <>{layout.showLogo ? <div className="pos58-preview-logo">LOGO</div> : null}<strong className="pos58-preview-company">Calendra Studio</strong><span>Glavna ulica 12</span><span>2000 Maribor</span><span>SI12345678</span><span>{locale === 'sl' ? 'TRR' : 'IBAN'}: SI56 … 5678</span></>,
-    document: <><hr /><strong className="pos58-preview-title">{locale === 'en' ? 'Invoice' : 'Račun št.:'} 2026-00042</strong><div className="pos58-preview-document-gap" /><div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><b>Maribor, 31.07.2026 12:45</b></div><div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum izvršene usluge' : 'Service date'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><b>07.08.2026</b></div><hr /></>,
+    document: <><hr /><strong className="pos58-preview-title">{locale === 'en' ? 'Invoice:' : 'Račun:'} MB-1-2026-00042</strong><div className="pos58-preview-document-gap" /><div><span>{locale === 'sl' ? 'Izdano' : locale === 'sr' ? 'Izdato' : 'Issued'}</span><b>Maribor, 31.07.2026 12:45</b></div><div><span>{locale === 'sl' ? 'Datum opravljene storitve' : locale === 'sr' ? 'Datum izvršene usluge' : 'Service date'}</span><b>31.07.2026</b></div><div><span>{locale === 'sl' ? 'Rok plačila' : locale === 'sr' ? 'Rok plaćanja' : 'Due date'}</span><b>07.08.2026</b></div><hr /></>,
     recipient: <><strong>{labels.recipient}</strong><span>Ana Novak</span><span>Cesta 5, 1000 Ljubljana</span></>,
     items: <><strong>{labels.items}</strong><div className="pos58-preview-items-table"><div className="pos58-preview-items-head"><span>{locale === 'sl' ? 'Artikel/Cena' : locale === 'sr' ? 'Artikal/Cena' : 'Item/Price'}</span><span>{layout.showUnitPriceAndQuantity ? (locale === 'sl' || locale === 'sr' ? 'Kol' : 'Qty') : ''}</span><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><span>{locale === 'sl' ? 'Vrednost' : locale === 'sr' ? 'Vrednost' : 'Value'}</span></div><hr /><div className="pos58-preview-item"><strong>Pazduhe</strong><div className="pos58-preview-item-row"><span>12,00</span><span>{layout.showUnitPriceAndQuantity ? '1x' : ''}</span><span>2,00</span><b>10,00</b></div></div><div className="pos58-preview-item"><strong>Bikini - mali</strong><div className="pos58-preview-item-row"><span>18,00</span><span>{layout.showUnitPriceAndQuantity ? '1x' : ''}</span><span>—</span><b>18,00</b></div></div><hr /></div></>,
     advancePayments: <></>,
-    totals: <><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Total excl. VAT'}</span><b>30,00 EUR</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 2,00 EUR</b></div><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj' : locale === 'sr' ? 'Ukupno' : 'Total'}</span><b>28,00 EUR</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo' : locale === 'sr' ? 'Za plaćanje' : 'Amount due'}</span><b>28,00 EUR</b></div>{layout.showPaymentDetails ? <><div className="pos58-preview-summary-spacer" /><span className="pos58-preview-payment-label">{locale === 'sl' ? 'Način plačila:' : locale === 'sr' ? 'Način plaćanja:' : 'Payment method:'}</span><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Gotovina' : locale === 'sr' ? 'Gotovina' : 'Cash'}</span><b>28,00</b></div></> : null}<hr className="pos58-preview-summary-rule" /></>,
-    vat: <><div className="pos58-preview-summary-row"><span>22% · {locale === 'sl' ? 'osnova' : locale === 'sr' ? 'osnovica' : 'basis'} 22,95 EUR</span><b>5,05 EUR</b></div></>,
+    totals: <><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Skupaj brez DDV' : locale === 'sr' ? 'Ukupno bez PDV-a' : 'Total excl. VAT'}</span><b>30,00</b></div><div className="pos58-preview-summary-row"><span>{locale === 'sl' || locale === 'sr' ? 'Popust' : 'Discount'}</span><b>- 2,00</b></div><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Skupaj EUR' : locale === 'sr' ? 'Ukupno EUR' : 'Total EUR'}</span><b>30,00</b></div><hr className="pos58-preview-summary-divider" /><div className="pos58-preview-summary-row pos58-preview-summary-row--strong"><span>{locale === 'sl' ? 'Za plačilo EUR' : locale === 'sr' ? 'Za plaćanje EUR' : 'Amount due EUR'}</span><b>28,00</b></div>{layout.showPaymentDetails ? <><div className="pos58-preview-summary-spacer" /><span className="pos58-preview-payment-label">{locale === 'sl' ? 'Način plačila:' : locale === 'sr' ? 'Način plaćanja:' : 'Payment method:'}</span><div className="pos58-preview-summary-row"><span>{locale === 'sl' ? 'Gotovina' : locale === 'sr' ? 'Gotovina' : 'Cash'}</span><b>28,00</b></div></> : null}<hr className="pos58-preview-summary-rule" /></>,
+    vat: <><div className="pos58-preview-summary-row"><span>22% · {locale === 'sl' ? 'osnova' : locale === 'sr' ? 'osnovica' : 'basis'} 22,95</span><b>5,05</b></div></>,
     paymentQr: <><div className="pos58-preview-qr" aria-label="UPN QR preview" /><small>{locale === 'sl' ? 'Skeniraj in plačaj' : locale === 'sr' ? 'Skeniraj i plati' : 'Scan and pay'}</small></>,
     fiscal: <><div className="pos58-preview-qr pos58-preview-qr--fiscal" /><span>ZOI: 1234567890…</span><span>EOR: 9999cf00-089a-46e6-a3d8-bcbb0da779c7</span></>,
     issuedBy: <div><span>{locale === 'sl' ? 'Izdal' : locale === 'sr' ? 'Izdao' : 'Issued by'}</span><b>David Mirc</b></div>,

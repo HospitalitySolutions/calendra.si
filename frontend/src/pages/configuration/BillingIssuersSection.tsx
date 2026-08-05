@@ -140,7 +140,7 @@ const emptySeries = (
   initialNumber: '1',
   resetPolicy: 'NONE',
   businessPremiseCode: '',
-  electronicDeviceId: '',
+  electronicDeviceId: '1',
   active: true,
   defaultForCurrentUnit: true,
 })
@@ -484,7 +484,7 @@ export function BillingIssuersSection({
             initialNumber: value.initialNumber,
             resetPolicy: value.resetPolicy,
             businessPremiseCode: value.businessPremiseCode ?? '',
-            electronicDeviceId: value.electronicDeviceId ?? '',
+            electronicDeviceId: value.electronicDeviceId?.trim() || '1',
             active: value.active,
             defaultForCurrentUnit: value.defaultForCurrentUnit,
           }

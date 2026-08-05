@@ -511,7 +511,7 @@ public class BillingIssuerController {
         value.setInitialNumber(input.initialNumber() == null || input.initialNumber().isBlank() ? value.getNextNumber() : input.initialNumber().trim());
         value.setResetPolicy(parseResetPolicy(input.resetPolicy()));
         value.setBusinessPremiseCode(trim(input.businessPremiseCode()));
-        value.setElectronicDeviceId(trim(input.electronicDeviceId()));
+        value.setElectronicDeviceId(defaultElectronicDeviceId(input.electronicDeviceId()));
         if (input.active() != null) value.setActive(input.active());
 
         Long requestedCompanyId = input.companyId();
@@ -680,6 +680,11 @@ public class BillingIssuerController {
         String result = trim(value);
         if (result == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
         return result;
+    }
+
+    private static String defaultElectronicDeviceId(String value) {
+        String normalized = trim(value);
+        return normalized == null ? "1" : normalized;
     }
 
     private static String trim(String value) {

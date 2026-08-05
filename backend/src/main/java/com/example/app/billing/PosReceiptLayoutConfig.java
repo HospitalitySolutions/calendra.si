@@ -17,6 +17,8 @@ public class PosReceiptLayoutConfig {
     public static final String DEFAULT_REFERENCE_TEXT_SL = "Prosimo, da se pri plačilu sklicujete na št.: {reference-number}";
     public static final String DEFAULT_REFERENCE_TEXT_EN = "Please use the following reference when making the payment: {reference-number}";
     public static final String DEFAULT_REFERENCE_TEXT_SR = "Molimo vas da se prilikom plaćanja pozovete na broj: {reference-number}";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
 
     public static final List<String> DEFAULT_SECTION_ORDER = List.of(
             "company",
@@ -100,7 +102,7 @@ public class PosReceiptLayoutConfig {
         if (input == null) return normalized;
         for (String clause : input) {
             if (clause == null) continue;
-            String trimmed = clause.trim();
+            String trimmed = clause.trim().replace(LEGACY_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE);
             if (!trimmed.isBlank() && !normalized.contains(trimmed)) normalized.add(trimmed);
         }
         return normalized;

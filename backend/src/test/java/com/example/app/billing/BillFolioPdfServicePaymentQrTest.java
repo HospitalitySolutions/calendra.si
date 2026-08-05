@@ -6,7 +6,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 
+import com.example.app.billingissuer.InvoiceSeries;
 import com.example.app.guest.model.GuestOrderRepository;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -129,6 +131,30 @@ class BillFolioPdfServicePaymentQrTest {
         assertThat(request.getDiscountAmountGross()).isEqualByComparingTo("12.00");
         assertThat(request.getSubtotalBeforeDiscountGross()).isEqualByComparingTo("157.60");
         assertThat(request.getToBePaidGross()).isEqualByComparingTo("145.60");
+    }
+
+    @Test
+    void generate_prefixesVisibleInvoiceNumberWithLocationPremiseAndDefaultDevice() {
+        Bill bill = bankTransferBill();
+        Location location = new Location();
+        location.setFiscalBusinessPremiseCode("MB");
+        InvoiceSeries series = new InvoiceSeries();
+        bill.setLocation(location);
+        bill.setInvoiceSeries(series);
+
+        service.generate(bill, COMPANY_ID, "sl");
+
+        assertThat(capturedRequest().getFolioNumber()).isEqualTo("MB-1-RAC-2026-81");
+    }
+
+    @Test
+    void displayInvoiceNumber_doesNotDuplicateAnExistingPrefix() {
+        Bill bill = bankTransferBill();
+        bill.setFiscalBusinessPremiseSnapshot("MB");
+        bill.setFiscalDeviceIdSnapshot("1");
+        bill.setBillNumber("MB-1-81");
+
+        assertThat(BillFolioPdfService.displayInvoiceNumber(bill)).isEqualTo("MB-1-81");
     }
 
     private Optional<AppSetting> setting(SettingKey key) {

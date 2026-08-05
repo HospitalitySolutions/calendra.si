@@ -39,7 +39,8 @@ class ReceiptPdfServiceTest {
                     "31.07.2026",
                     "Izdano Maribor, 31.07.2026 12:45",
                     "Masaža hrbta",
-                    "100.00 EUR",
+                    "Skupaj EUR 210.00",
+                    "Za plačilo EUR 100.00",
                     "Popust",
                     "Prosimo, da se pri plačilu sklicujete na št.: SI00 123",
                     "EOR-2026-42",
@@ -83,8 +84,10 @@ class ReceiptPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
             assertThat(normalizedText)
-                    .contains("Skupaj 100.00 EUR", "Popust - 10.00 EUR", "Za plačilo 90.00 EUR")
-                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .contains("Skupaj EUR 100.00", "Popust - 10.00", "Za plačilo EUR 90.00")
+                    .contains("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("100.00 EUR", "90.00 EUR", "10.00 EUR")
                     .doesNotContain("Davčne klavzule");
         }
     }
@@ -103,7 +106,7 @@ class ReceiptPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(allNoVatPdf)) {
             String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
             assertThat(normalizedText)
-                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .contains("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.")
                     .doesNotContain("Davčne klavzule");
         }
 
@@ -114,7 +117,7 @@ class ReceiptPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(mixedVatPdf)) {
             String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
             assertThat(normalizedText)
-                    .doesNotContain("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.");
+                    .doesNotContain("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.");
         }
     }
 
@@ -158,16 +161,16 @@ class ReceiptPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
             assertThat(normalizedText)
-                    .contains("Skupaj brez DDV 44.00 EUR")
-                    .contains("Popust - 4.40 EUR")
-                    .contains("Skupaj 44.00 EUR")
-                    .contains("Za plačilo 39.60 EUR")
+                    .contains("Skupaj brez DDV 44.00")
+                    .contains("Popust - 4.40")
+                    .contains("Skupaj EUR 44.00")
+                    .contains("Za plačilo EUR 39.60")
                     .contains("EOR: 9999cf00-089a-46e6-a3d8-bcbb0da779c7")
                     .contains("ZOI: e42bdfd7b3f10d69ed0eadb9add8d92c")
-                    .contains("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.")
+                    .contains("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.")
                     .doesNotContain("Davčne klavzule")
                     .doesNotContain("Brez DDV · osnova");
-            assertThat(normalizedText.indexOf("Za plačilo 39.60 EUR")).isLessThan(normalizedText.indexOf("DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1."));
+            assertThat(normalizedText.indexOf("Za plačilo EUR 39.60")).isLessThan(normalizedText.indexOf("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1."));
         }
     }
 

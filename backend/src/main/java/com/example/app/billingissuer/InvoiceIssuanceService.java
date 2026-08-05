@@ -109,7 +109,7 @@ public class InvoiceIssuanceService {
         bill.setInvoiceSeries(chosen);
         bill.setLocation(location);
         bill.setBillNumber(number);
-        applySnapshots(bill, issuer, chosen);
+        applySnapshots(bill, issuer, chosen, location);
         synchronizeLegacyCounterIfDefault(assignment, chosen, companyId);
     }
 
@@ -215,7 +215,7 @@ public class InvoiceIssuanceService {
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No active location is configured.")));
     }
 
-    public static void applySnapshots(Bill bill, LegalEntity issuer, InvoiceSeries series) {
+    public static void applySnapshots(Bill bill, LegalEntity issuer, InvoiceSeries series, Location location) {
         bill.setIssuerNameSnapshot(nonBlank(issuer.getName(), "Issuer"));
         bill.setIssuerAddressSnapshot(trim(issuer.getAddress()));
         bill.setIssuerPostalCodeSnapshot(trim(issuer.getPostalCode()));
@@ -228,8 +228,13 @@ public class InvoiceIssuanceService {
         bill.setIssuerEmailSnapshot(trim(issuer.getEmail()));
         bill.setIssuerTelephoneSnapshot(trim(issuer.getTelephone()));
         bill.setInvoiceSeriesNameSnapshot(nonBlank(series.getName(), "Default"));
-        bill.setFiscalBusinessPremiseSnapshot(trim(series.getBusinessPremiseCode()));
-        bill.setFiscalDeviceIdSnapshot(trim(series.getElectronicDeviceId()));
+        // The visible/fiscal invoice prefix is location-specific. Keep a snapshot so
+        // the issued document remains stable if the location is edited later.
+        bill.setFiscalBusinessPremiseSnapshot(nonBlank(
+                location == null ? null : location.getFiscalBusinessPremiseCode(),
+                "1"
+        ));
+        bill.setFiscalDeviceIdSnapshot(nonBlank(series.getElectronicDeviceId(), "1"));
     }
 
     private void synchronizeLegacyCounterIfDefault(CompanyLegalEntity assignment, InvoiceSeries series, Long companyId) {

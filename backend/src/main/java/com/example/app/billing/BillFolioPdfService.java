@@ -157,7 +157,7 @@ public class BillFolioPdfService {
 
     private FolioPdfRequest buildFolioPdfRequest(Bill bill, Long companyId, String locale) {
         var req = new FolioPdfRequest();
-        req.setFolioNumber(bill.getBillNumber());
+        req.setFolioNumber(displayInvoiceNumber(bill));
         req.setFolioNumberLabel(documentNumberPrefix(bill, locale));
         req.setFolioDate(formatIssueDateTime(bill));
         req.setFiscalZoi(bill.getFiscalZoi());
@@ -415,6 +415,41 @@ public class BillFolioPdfService {
             return stripLeadingServiceCode(description, code);
         }
         return code;
+    }
+
+    static String displayInvoiceNumber(Bill bill) {
+        if (bill == null) return "";
+        String number = trimValue(bill.getBillNumber());
+        if (number.isBlank()) return number;
+        if ("__OPEN_BILL_PROFORMA_PREVIEW__".equals(bill.getOrderId()) || number.startsWith("PREVIEW-OPEN-")) {
+            return number;
+        }
+
+        String businessPremise = firstNonBlankValue(
+                bill.getFiscalBusinessPremiseSnapshot(),
+                bill.getLocation() == null ? null : bill.getLocation().getFiscalBusinessPremiseCode(),
+                "1"
+        );
+        String deviceId = firstNonBlankValue(
+                bill.getFiscalDeviceIdSnapshot(),
+                bill.getInvoiceSeries() == null ? null : bill.getInvoiceSeries().getElectronicDeviceId(),
+                "1"
+        );
+        String prefix = businessPremise + "-" + deviceId + "-";
+        return number.startsWith(prefix) ? number : prefix + number;
+    }
+
+    private static String firstNonBlankValue(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            String normalized = trimValue(value);
+            if (!normalized.isBlank()) return normalized;
+        }
+        return "";
+    }
+
+    private static String trimValue(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private String documentNumberPrefix(Bill bill, String locale) {

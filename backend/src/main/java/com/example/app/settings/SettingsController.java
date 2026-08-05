@@ -633,7 +633,7 @@ public class SettingsController {
             defaultSeries.setBusinessPremiseCode(trimToNull(payload.get(SettingKey.FISCAL_BUSINESS_PREMISE_ID.name())));
         }
         if (payload.containsKey(SettingKey.FISCAL_DEVICE_ID.name())) {
-            defaultSeries.setElectronicDeviceId(trimToNull(payload.get(SettingKey.FISCAL_DEVICE_ID.name())));
+            defaultSeries.setElectronicDeviceId(nonBlankOrDefault(payload.get(SettingKey.FISCAL_DEVICE_ID.name()), "1"));
         }
         invoiceSeriesRepository.save(defaultSeries);
     }
@@ -642,6 +642,11 @@ public class SettingsController {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String nonBlankOrDefault(String submitted, String fallback) {
+        String normalized = trimToNull(submitted);
+        return normalized == null ? fallback : normalized;
     }
 
     private static String nonBlankOrCurrent(String submitted, String current) {

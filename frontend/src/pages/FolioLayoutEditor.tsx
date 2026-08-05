@@ -169,7 +169,7 @@ const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
   dueDate: { en: 'Due date', sl: 'Rok plačila', sr: 'Rok plaćanja' },
 }
 
-const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.'
+const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.'
 
 const TAX_CLAUSE_OPTIONS = [
   'Oprostitev DDV po 42. členu ZDDV-1.',
@@ -186,8 +186,11 @@ function normalizeTaxClauses(value: unknown): string[] {
   const unique = new Set<string>()
   for (const item of value) {
     if (typeof item !== 'string') continue
-    const trimmed = item.trim()
-    // The 94/1 BREZ DDV clause is automatic and must not be persisted as a
+    const trimmed = item.trim().replace(
+      'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
+      AUTO_NO_VAT_CLAUSE,
+    )
+    // The Article 94 BREZ DDV clause is automatic and must not be persisted as a
     // user-selectable additional clause.
     if (trimmed && trimmed !== AUTO_NO_VAT_CLAUSE) unique.add(trimmed)
   }
@@ -1138,7 +1141,7 @@ function A4PresetLayoutEditor() {
       setPreviewError(null)
       const sample = {
         companyName: 'Calendra Studio', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', issueCity: 'Maribor', companyTaxId: 'SI12345678',
-        folioNumber: '2026-00042', folioNumberLabel: locale === 'en' ? 'Invoice:' : 'Račun:', folioDate: '2026-07-31T12:45:00+02:00', dateOfService: '2026-07-31', dueDate: '2026-08-07',
+        folioNumber: 'MB-1-2026-00042', folioNumberLabel: locale === 'en' ? 'Invoice:' : 'Račun:', folioDate: '2026-07-31T12:45:00+02:00', dateOfService: '2026-07-31', dueDate: '2026-08-07',
         recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: '',
         services: [
           { date: '2026-07-31', description: locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage', qty: 1, nettPrice: 50, grossPrice: 61, taxPercent: '22%', taxAmount: 11, totalPrice: 61 },
@@ -1148,7 +1151,7 @@ function A4PresetLayoutEditor() {
         usedAdvancePaymentsGross: 10, subtotalBeforeDiscountGross: 100, discountAmountGross: 10, toBePaidGross: 90,
         paymentMethod: locale === 'en' ? 'Bank transfer' : locale === 'sr' ? 'Bankovni prenos' : 'Bančno nakazilo',
         issuedBy: 'David Mirc', iban: 'SI56 1234 5678 9012 3456', paymentQrPayload: 'https://calendra.si/placilo/REF-2026-001',
-        fiscalQr: 'https://calendra.si/fiscal/2026-00042', fiscalZoi: '1234567890', fiscalEor: '9999e010-089a-46e6-a3d8-bc0bd0a779c7',
+        fiscalQr: 'https://calendra.si/fiscal/MB-1-2026-00042', fiscalZoi: '1234567890', fiscalEor: '9999e010-089a-46e6-a3d8-bc0bd0a779c7',
         notes: 'REF-2026-001', locale,
       }
       try {
@@ -1265,7 +1268,7 @@ function A4PresetLayoutEditor() {
       if (dirty) await api.put('/billing/folio-layout', layout)
       const sample = {
         companyName: 'Calendra Studio d.o.o.', companyAddress: 'Glavna ulica 12', companyPostalCode: '2000', companyCity: 'Maribor', companyTaxId: 'SI12345678',
-        folioNumber: '2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', dateOfService: '31.07.2026', dueDate: '07.08.2026',
+        folioNumber: 'MB-1-2026-00042', folioNumberLabel: locale === 'sl' || locale === 'sr' ? 'Račun:' : 'Invoice:', folioDate: '31.07.2026 12:45', dateOfService: '31.07.2026', dueDate: '07.08.2026',
         recipientName: 'Ana Novak', recipientAddress: 'Cesta 5', recipientPostalCode: '1000', recipientCity: 'Ljubljana', recipientVatId: 'SI98765432',
         services: [
           { date: '31.07.2026', description: locale === 'sl' ? 'Masaža hrbta in vratu' : locale === 'sr' ? 'Masaža leđa i vrata' : 'Back and neck massage', qty: 1, nettPrice: 40.98, grossPrice: 50, taxPercent: '22%', taxAmount: 9.02, totalPrice: 50 },

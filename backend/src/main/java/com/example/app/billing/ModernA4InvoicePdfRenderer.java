@@ -45,7 +45,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 final class ModernA4InvoicePdfRenderer {
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
-    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
     private static final float PAGE_W = PDRectangle.A4.getWidth();
     private static final float PAGE_H = PDRectangle.A4.getHeight();
     private static final float MARGIN_X = 36f;
@@ -807,11 +807,18 @@ final class ModernA4InvoicePdfRenderer {
         }
         if (layout != null && layout.getTaxClauses() != null) {
             for (String clause : layout.getTaxClauses()) {
-                String normalized = safe(clause);
+                String normalized = normalizeNoVatClause(safe(clause));
                 if (!normalized.isBlank() && !AUTO_NO_VAT_CLAUSE.equals(normalized)) clauses.add(normalized);
             }
         }
         return new ArrayList<>(clauses);
+    }
+
+    private static String normalizeNoVatClause(String clause) {
+        return safe(clause).replace(
+                "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.",
+                AUTO_NO_VAT_CLAUSE
+        );
     }
 
     private static int advanceCount(FolioPdfRequest request) {

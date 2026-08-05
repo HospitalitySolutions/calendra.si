@@ -51,8 +51,8 @@ public class InvoiceSeries extends BaseEntity {
     private Integer lastResetYear;
     @Column(name = "business_premise_code", length = 64)
     private String businessPremiseCode;
-    @Column(name = "electronic_device_id", length = 64)
-    private String electronicDeviceId;
+    @Column(name = "electronic_device_id", nullable = false, length = 64)
+    private String electronicDeviceId = "1";
     @Column(nullable = false)
     private boolean active = true;
 }

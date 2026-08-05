@@ -47,7 +47,7 @@ public class ReceiptPdfService {
     private static final float PAYMENT_QR_SIZE_PT = mmToPt(31f);
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
-    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
 
     private enum Align { LEFT, CENTER, RIGHT }
     private enum VatBucket { VAT_22, VAT_9_5, VAT_0, NO_VAT }
@@ -218,7 +218,7 @@ public class ReceiptPdfService {
             if (showQuantity) {
                 drawCentered(context, font, fontSize, column2Center(context), y, quantityLabel);
             }
-            drawCentered(context, font, fontSize, column3Center(context), y, discountLabel);
+            drawRight(context, font, fontSize, column3Right(context), y, discountLabel);
             drawRight(context, font, fontSize, context.left + context.width, y, valueLabel);
         }
     }
@@ -252,7 +252,7 @@ public class ReceiptPdfService {
             if (showQuantity) {
                 drawCentered(context, font, fontSize, column2Center(context), y, quantity);
             }
-            drawCentered(context, font, fontSize, column3Center(context), y, discount);
+            drawRight(context, font, fontSize, column3Right(context), y, discount);
             drawRight(context, context.fonts.bold(), fontSize, context.left + context.width, y, value);
         }
     }
@@ -507,11 +507,11 @@ public class ReceiptPdfService {
         if (usedAdvance.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Porabljeno predplačilo", "Iskorišćen avans", "Advance used"), "- " + money(usedAdvance), fonts.regular(), type.body(), type.lineHeight(), false));
         }
-        blocks.add(pairBlock(word(locale, "Skupaj", "Ukupno", "Total"), money(subtotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
+        blocks.add(pairBlock(word(locale, "Skupaj EUR", "Ukupno EUR", "Total EUR"), money(subtotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
         BigDecimal toBePaid = positive(request.getToBePaidGross());
         if (toBePaid.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(new RuleBlock(3f, 4f));
-            blocks.add(pairBlock(word(locale, "Za plačilo", "Za plaćanje", "Amount due"), money(toBePaid), fonts.bold(), type.body(), type.lineHeight(), true));
+            blocks.add(pairBlock(word(locale, "Za plačilo EUR", "Za plaćanje EUR", "Amount due EUR"), money(toBePaid), fonts.bold(), type.body(), type.lineHeight(), true));
         }
         if (layout != null && layout.isShowPaymentDetails()) {
             List<FolioPdfRequest.PaymentLine> paymentLines = normalizedPaymentLines(request, totals.gross(), toBePaid);
@@ -628,10 +628,18 @@ public class ReceiptPdfService {
         if (layout == null || layout.getTaxClauses() == null) return clauses;
         for (String clause : layout.getTaxClauses()) {
             if (clause == null) continue;
-            String trimmed = clause.trim();
+            String trimmed = normalizeNoVatClause(clause.trim());
             if (!trimmed.isBlank() && !clauses.contains(trimmed)) clauses.add(trimmed);
         }
         return clauses;
+    }
+
+    private static String normalizeNoVatClause(String clause) {
+        if (clause == null) return "";
+        return clause.replace(
+                "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.",
+                AUTO_NO_VAT_CLAUSE
+        );
     }
 
     private List<FolioPdfRequest.PaymentLine> normalizedPaymentLines(FolioPdfRequest request, BigDecimal grossTotal, BigDecimal toBePaid) {
@@ -943,11 +951,11 @@ public class ReceiptPdfService {
     }
 
     private static float column2Center(RenderContext context) {
-        return context.left + context.width * 0.56f;
+        return context.left + context.width * 0.50f;
     }
 
-    private static float column3Center(RenderContext context) {
-        return context.left + context.width * 0.76f;
+    private static float column3Right(RenderContext context) {
+        return context.left + context.width * 0.75f;
     }
 
     private static float stringWidth(PDFont font, float size, String value) {
@@ -959,7 +967,7 @@ public class ReceiptPdfService {
     }
 
     private static String money(BigDecimal value) {
-        return scale(value).toPlainString() + " EUR";
+        return scale(value).toPlainString();
     }
 
     private static String moneyCompact(BigDecimal value) {
