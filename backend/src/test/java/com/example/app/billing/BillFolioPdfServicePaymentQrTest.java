@@ -49,19 +49,11 @@ class BillFolioPdfServicePaymentQrTest {
                 folioPdfService,
                 upnQrPayloadBuilder
         );
-        when(settings.findByCompanyIdAndKey(eq(COMPANY_ID), any(SettingKey.class)))
-                .thenAnswer(invocation -> setting(invocation.getArgument(1)));
-        when(folioPdfService.generate(
-                any(FolioPdfRequest.class),
-                any(FolioLayoutConfig.class),
-                nullable(byte[].class),
-                nullable(byte[].class)
-        ))
-                .thenReturn(new byte[] { 1 });
     }
 
     @Test
     void generate_bankTransferWithIncompleteCompanyData_skipsPaymentQrInsteadOfFailing() {
+        stubGenerationDependencies();
         settingValues.put(SettingKey.COMPANY_NAME, "Test d.o.o.");
         settingValues.put(SettingKey.COMPANY_IBAN, "SI56191000000123456");
 
@@ -75,6 +67,7 @@ class BillFolioPdfServicePaymentQrTest {
 
     @Test
     void generate_bankTransferWithCompleteCompanyData_includesUpnPaymentQr() {
+        stubGenerationDependencies();
         settingValues.put(SettingKey.COMPANY_NAME, "Test d.o.o.");
         settingValues.put(SettingKey.COMPANY_ADDRESS, "Glavna ulica 1");
         settingValues.put(SettingKey.COMPANY_POSTAL_CODE, "2000");
@@ -88,6 +81,7 @@ class BillFolioPdfServicePaymentQrTest {
 
     @Test
     void generate_usesConfiguredLocalTimezoneAndPhysicalCompanyCity() {
+        stubGenerationDependencies();
         settingValues.put(SettingKey.COMPANY_CITY, "Ljubljana");
         settingValues.put(SettingKey.COMPANY_PHYSICAL_CITY, "Maribor");
         Bill bill = bankTransferBill();
@@ -102,6 +96,7 @@ class BillFolioPdfServicePaymentQrTest {
 
     @Test
     void generate_detectsDiscountFromFinalPaymentSplitWhenStoredLinesAreUndiscounted() {
+        stubGenerationDependencies();
         Bill bill = bankTransferBill();
         bill.setTotalGross(new BigDecimal("157.60"));
 
@@ -135,6 +130,7 @@ class BillFolioPdfServicePaymentQrTest {
 
     @Test
     void generate_prefixesVisibleInvoiceNumberWithLocationPremiseAndDefaultDevice() {
+        stubGenerationDependencies();
         Bill bill = bankTransferBill();
         Location location = new Location();
         location.setFiscalBusinessPremiseCode("MB");
@@ -155,6 +151,18 @@ class BillFolioPdfServicePaymentQrTest {
         bill.setBillNumber("MB-1-81");
 
         assertThat(BillFolioPdfService.displayInvoiceNumber(bill)).isEqualTo("MB-1-81");
+    }
+
+    private void stubGenerationDependencies() {
+        when(settings.findByCompanyIdAndKey(eq(COMPANY_ID), any(SettingKey.class)))
+                .thenAnswer(invocation -> setting(invocation.getArgument(1)));
+        when(folioPdfService.generate(
+                any(FolioPdfRequest.class),
+                any(FolioLayoutConfig.class),
+                nullable(byte[].class),
+                nullable(byte[].class)
+        ))
+                .thenReturn(new byte[] { 1 });
     }
 
     private Optional<AppSetting> setting(SettingKey key) {
