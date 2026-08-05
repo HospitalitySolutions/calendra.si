@@ -81,60 +81,110 @@ public class UnitContextValidationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof LoginAccount account)) {
+        if (authentication == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
+        if (authentication.getPrincipal() instanceof User membership) {
+            installRequestContextIfMissing(membership, request);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (!(authentication.getPrincipal() instanceof LoginAccount account)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (!resolveAndInstall(account, request, response, authentication.getDetails())) {
+            return;
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+
+    /**
+     * Resolves the selected operating-unit membership and installs the tenant-scoped
+     * {@link User} authentication. JwtAuthenticationFilter also calls this method so
+     * controller principals remain correct even if a servlet container invokes this
+     * filter before the Spring Security chain.
+     */
+    boolean resolveAndInstall(
+            LoginAccount account,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object authenticationDetails
+    ) throws IOException {
         Long requestedCompanyId;
         try {
-            String requestedUnit = request.getHeader(UNIT_HEADER);
-            if ((requestedUnit == null || requestedUnit.isBlank())
-                    && request.getRequestURI().equals("/api/bookings/stream")) {
-                // Native EventSource does not support custom request headers.
-                requestedUnit = request.getParameter("unitId");
-            }
-            requestedCompanyId = parseUnitId(requestedUnit);
+            requestedCompanyId = requestedCompanyId(request);
         } catch (IllegalArgumentException ex) {
             writeError(response, HttpServletResponse.SC_BAD_REQUEST, ex.getMessage(), request);
-            return;
+            return false;
         }
 
         final User membership;
         try {
             membership = loginAccountService.requireMembership(account, requestedCompanyId);
-        } catch (SecurityException ex) {
+        } catch (SecurityException | IllegalStateException ex) {
             writeError(response, HttpServletResponse.SC_FORBIDDEN, ex.getMessage(), request);
-            return;
-        } catch (IllegalStateException ex) {
-            writeError(response, HttpServletResponse.SC_FORBIDDEN, ex.getMessage(), request);
-            return;
+            return false;
         }
 
         if (membership.getCompany() == null
                 || membership.getCompany().getWorkspace() == null
                 || !membership.getCompany().getWorkspace().isActive()) {
             writeError(response, HttpServletResponse.SC_FORBIDDEN, "The selected unit is unavailable.", request);
-            return;
+            return false;
         }
 
-        UnitContext context = new UnitContext(
+        request.setAttribute(UnitContext.REQUEST_ATTRIBUTE, new UnitContext(
                 account,
                 membership,
                 membership.getCompany(),
                 membership.getCompany().getWorkspace()
-        );
-        request.setAttribute(UnitContext.REQUEST_ATTRIBUTE, context);
+        ));
 
         UsernamePasswordAuthenticationToken unitAuthentication = new UsernamePasswordAuthenticationToken(
                 membership,
                 null,
                 authorityService.authoritiesFor(membership)
         );
-        unitAuthentication.setDetails(authentication.getDetails());
+        unitAuthentication.setDetails(authenticationDetails);
         SecurityContextHolder.getContext().setAuthentication(unitAuthentication);
+        return true;
+    }
 
-        filterChain.doFilter(request, response);
+    boolean requiresUnitContext(HttpServletRequest request) {
+        return !shouldNotFilter(request);
+    }
+
+    private Long requestedCompanyId(HttpServletRequest request) {
+        String requestedUnit = request.getHeader(UNIT_HEADER);
+        if ((requestedUnit == null || requestedUnit.isBlank())
+                && request.getRequestURI().equals("/api/bookings/stream")) {
+            // Native EventSource does not support custom request headers.
+            requestedUnit = request.getParameter("unitId");
+        }
+        return parseUnitId(requestedUnit);
+    }
+
+    private void installRequestContextIfMissing(User membership, HttpServletRequest request) {
+        if (request.getAttribute(UnitContext.REQUEST_ATTRIBUTE) != null
+                || membership == null
+                || membership.getLoginAccount() == null
+                || membership.getCompany() == null
+                || membership.getCompany().getWorkspace() == null) {
+            return;
+        }
+        request.setAttribute(UnitContext.REQUEST_ATTRIBUTE, new UnitContext(
+                membership.getLoginAccount(),
+                membership,
+                membership.getCompany(),
+                membership.getCompany().getWorkspace()
+        ));
     }
 
     private Long parseUnitId(String raw) {

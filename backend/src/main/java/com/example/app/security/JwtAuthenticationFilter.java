@@ -26,17 +26,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final LoginAccountRepository loginAccounts;
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
+    private final UnitContextValidationFilter unitContextValidationFilter;
 
     public JwtAuthenticationFilter(
             JwtService jwtService,
             LoginAccountRepository loginAccounts,
             SecurityCenterService securityCenterService,
-            AuthCookieService authCookieService
+            AuthCookieService authCookieService,
+            UnitContextValidationFilter unitContextValidationFilter
     ) {
         this.jwtService = jwtService;
         this.loginAccounts = loginAccounts;
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
+        this.unitContextValidationFilter = unitContextValidationFilter;
     }
 
     @Override
@@ -89,11 +92,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         return;
                     }
 
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(account, null, List.of());
-
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    Object authenticationDetails = new WebAuthenticationDetailsSource().buildDetails(request);
+                    if (unitContextValidationFilter.requiresUnitContext(request)) {
+                        if (!unitContextValidationFilter.resolveAndInstall(
+                                account,
+                                request,
+                                response,
+                                authenticationDetails
+                        )) {
+                            return;
+                        }
+                    } else {
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(account, null, List.of());
+                        authentication.setDetails(authenticationDetails);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
 
                     if (sessionId != null && !sessionId.isBlank()) {
                         securityCenterService.touchSession(account.getId(), sessionId, request);
