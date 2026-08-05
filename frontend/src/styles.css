@@ -12,12 +12,8 @@
 @import './styles/main/inbox-preview.css';
 @import './styles/main/inbox-tabs.css';
 @import './styles/main/inbox-workspace.css';
-@import './styles/main/billing-tabs.css';
-@import './styles/main/billing-open-bill-popup.css';
-@import './styles/main/billing-batch-payment.css';
 @import './styles/main/calendar-popup.css';
 @import './styles/main/calendar-popup-final.css';
-@import './styles/main/calendar-booking-mode.css';
 @import './styles/main/onboarding-tour.css';
 @import './styles/features/cards-membership-popup.css';
 

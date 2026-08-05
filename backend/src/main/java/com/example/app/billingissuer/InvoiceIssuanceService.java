@@ -12,18 +12,23 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class InvoiceIssuanceService {
+    private static final long INVOICE_SERIES_LOCK_NAMESPACE = 0x21L << 56;
+    private static final long ADVISORY_LOCK_ID_MASK = 0x00FFFFFFFFFFFFFFL;
+
     private final LegalEntityRepository legalEntities;
     private final CompanyLegalEntityRepository assignments;
     private final InvoiceSeriesRepository seriesRepository;
     private final CompanyRepository companies;
     private final LocationRepository locations;
     private final AppSettingRepository settings;
+    private final JdbcTemplate jdbc;
 
     public InvoiceIssuanceService(
             LegalEntityRepository legalEntities,
@@ -31,7 +36,8 @@ public class InvoiceIssuanceService {
             InvoiceSeriesRepository seriesRepository,
             CompanyRepository companies,
             LocationRepository locations,
-            AppSettingRepository settings
+            AppSettingRepository settings,
+            JdbcTemplate jdbc
     ) {
         this.legalEntities = legalEntities;
         this.assignments = assignments;
@@ -39,6 +45,7 @@ public class InvoiceIssuanceService {
         this.companies = companies;
         this.locations = locations;
         this.settings = settings;
+        this.jdbc = jdbc;
     }
 
     @Transactional
@@ -60,6 +67,7 @@ public class InvoiceIssuanceService {
         InvoiceSeries chosen;
         CompanyLegalEntity assignment;
         if (requestedSeriesId != null) {
+            lockInvoiceSeries(requestedSeriesId);
             InvoiceSeries candidate = seriesRepository.findForUpdateById(requestedSeriesId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series not found."));
             assignment = requireAssignment(companyId, candidate.getLegalEntity().getId());
@@ -151,7 +159,9 @@ public class InvoiceIssuanceService {
 
     private InvoiceSeries resolveDefaultSeriesForUpdate(CompanyLegalEntity assignment, Long companyId, Location location) {
         if (assignment.getDefaultInvoiceSeries() != null) {
-            InvoiceSeries locked = seriesRepository.findForUpdateById(assignment.getDefaultInvoiceSeries().getId())
+            Long seriesId = assignment.getDefaultInvoiceSeries().getId();
+            lockInvoiceSeries(seriesId);
+            InvoiceSeries locked = seriesRepository.findForUpdateById(seriesId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Default invoice series no longer exists."));
             if (locked.isActive()) {
                 validateSeries(locked, companyId, location);
@@ -164,9 +174,20 @@ public class InvoiceIssuanceService {
                 .filter(series -> series.getLocation() == null || Objects.equals(series.getLocation().getId(), location.getId()))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No active invoice series is available for the selected issuer."));
+        lockInvoiceSeries(candidate.getId());
         InvoiceSeries locked = seriesRepository.findForUpdateById(candidate.getId()).orElseThrow();
         validateSeries(locked, companyId, location);
         return locked;
+    }
+
+    private void lockInvoiceSeries(Long seriesId) {
+        if (seriesId == null || seriesId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series is required.");
+        }
+        long key = INVOICE_SERIES_LOCK_NAMESPACE | (seriesId & ADVISORY_LOCK_ID_MASK);
+        // PostgreSQL transaction-level advisory locking closes the read/increment/write race even
+        // when Hibernate uses follow-on locking for the entity query and across multiple app nodes.
+        jdbc.execute("select pg_advisory_xact_lock(" + key + ")");
     }
 
     private void validateSeries(InvoiceSeries series, Long companyId, Location location) {

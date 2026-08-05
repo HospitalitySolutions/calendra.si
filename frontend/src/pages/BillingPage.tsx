@@ -13,6 +13,9 @@ import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
+import '../styles/main/billing-tabs.css'
+import '../styles/main/billing-open-bill-popup.css'
+import '../styles/main/billing-batch-payment.css'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
