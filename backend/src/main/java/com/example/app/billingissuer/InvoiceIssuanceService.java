@@ -71,6 +71,7 @@ public class InvoiceIssuanceService {
 
         InvoiceSeries chosen;
         CompanyLegalEntity assignment;
+        Long redirectedLegacySeriesId = null;
         if (requestedSeriesId != null) {
             InvoiceSeries requested = seriesRepository.findById(requestedSeriesId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series not found."));
@@ -81,6 +82,7 @@ public class InvoiceIssuanceService {
             // Legacy clients may still submit the old unit-wide default series. Redirect those
             // requests to the location-owned series so every location keeps an independent counter.
             if (requested.getLocation() == null) {
+                redirectedLegacySeriesId = requested.getId();
                 chosen = resolveLocationSeriesForUpdate(assignment, company, location);
             } else {
                 lockInvoiceSeries(requestedSeriesId);
@@ -99,15 +101,15 @@ public class InvoiceIssuanceService {
         }
 
         int year = (issueDate == null ? LocalDate.now() : issueDate).getYear();
-        if (chosen.getResetPolicy() == InvoiceSeriesResetPolicy.YEARLY
-                && !Objects.equals(chosen.getLastResetYear(), year)) {
-            chosen.setNextNumber(nonBlank(chosen.getInitialNumber(), "1"));
-            chosen.setLastResetYear(year);
+        CounterAllocation allocation = allocateNumberAtomically(chosen.getId(), year);
+        String number = allocation.allocatedNumber();
+
+        // Keep the old unit-wide series as a read-compatible alias for clients/tests that still
+        // submit it. It is not used for allocation; it mirrors the location counter after the
+        // atomic update so it cannot introduce a second source of invoice numbers.
+        if (redirectedLegacySeriesId != null && !Objects.equals(redirectedLegacySeriesId, chosen.getId())) {
+            synchronizeLegacySeriesCounter(redirectedLegacySeriesId, chosen.getId());
         }
-        String number = nonBlank(chosen.getNextNumber(), "1");
-        chosen.setNextNumber(incrementAlphaNumeric(number));
-        chosen.setLastResetYear(year);
-        seriesRepository.save(chosen);
 
         LegalEntity issuer = chosen.getLegalEntity();
         bill.setCompany(company);
@@ -116,7 +118,7 @@ public class InvoiceIssuanceService {
         bill.setLocation(location);
         bill.setBillNumber(number);
         applySnapshots(bill, issuer, chosen, location);
-        synchronizeLegacyCounterIfDefault(assignment, chosen, companyId);
+        synchronizeLegacyCounterIfDefault(assignment, chosen, companyId, allocation.nextNumber());
     }
 
     @Transactional
@@ -214,7 +216,9 @@ public class InvoiceIssuanceService {
         created.setBusinessPremiseCode(trim(location.getFiscalBusinessPremiseCode()));
         created.setElectronicDeviceId(seed == null ? "1" : nonBlank(seed.getElectronicDeviceId(), "1"));
         created.setActive(true);
-        created = seriesRepository.save(created);
+        // The counter is allocated through JDBC immediately after this method returns. Flush the
+        // insert now so the atomic UPDATE ... RETURNING statement can see the row in this transaction.
+        created = seriesRepository.saveAndFlush(created);
         if (isLocationDefaultIssuer) {
             location.setDefaultInvoiceSeries(created);
             locations.save(location);
@@ -340,15 +344,104 @@ public class InvoiceIssuanceService {
         bill.setFiscalDeviceIdSnapshot(nonBlank(series.getElectronicDeviceId(), "1"));
     }
 
-    private void synchronizeLegacyCounterIfDefault(CompanyLegalEntity assignment, InvoiceSeries series, Long companyId) {
+    private CounterAllocation allocateNumberAtomically(Long seriesId, int year) {
+        if (seriesId == null || seriesId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series is required.");
+        }
+
+        // Allocation is a single PostgreSQL statement. SELECT ... FOR UPDATE serializes callers,
+        // while UPDATE ... RETURNING returns the number that belonged to this request. This avoids
+        // the read/increment/save race even if JPA and JdbcTemplate obtain connections differently.
+        List<CounterAllocation> allocations = jdbc.query("""
+                WITH locked AS (
+                    SELECT id,
+                           CASE
+                               WHEN reset_policy = 'YEARLY' AND last_reset_year IS DISTINCT FROM ?
+                                   THEN COALESCE(NULLIF(BTRIM(initial_number), ''), '1')
+                               ELSE COALESCE(NULLIF(BTRIM(next_number), ''), '1')
+                           END AS allocated
+                      FROM invoice_series
+                     WHERE id = ?
+                     FOR UPDATE
+                ),
+                parts AS (
+                    SELECT id,
+                           allocated,
+                           substring(allocated FROM '([0-9]+)$') AS digits
+                      FROM locked
+                ),
+                next_value AS (
+                    SELECT id,
+                           allocated,
+                           CASE
+                               WHEN digits IS NULL THEN allocated || '1'
+                               ELSE regexp_replace(allocated, '[0-9]+$', '') ||
+                                    lpad(
+                                        ((digits::numeric + 1)::text),
+                                        GREATEST(
+                                            char_length(digits),
+                                            char_length((digits::numeric + 1)::text)
+                                        ),
+                                        '0'
+                                    )
+                           END AS next_number
+                      FROM parts
+                ),
+                updated AS (
+                    UPDATE invoice_series series
+                       SET next_number = next_value.next_number,
+                           last_reset_year = ?,
+                           updated_at = CURRENT_TIMESTAMP
+                      FROM next_value
+                     WHERE series.id = next_value.id
+                    RETURNING next_value.allocated AS allocated_number,
+                              next_value.next_number AS next_number,
+                              series.last_reset_year AS last_reset_year
+                )
+                SELECT allocated_number, next_number, last_reset_year
+                  FROM updated
+                """, (rs, rowNum) -> new CounterAllocation(
+                rs.getString("allocated_number"),
+                rs.getString("next_number"),
+                rs.getInt("last_reset_year")
+        ), year, seriesId, year);
+
+        if (allocations.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice series no longer exists.");
+        }
+        return allocations.getFirst();
+    }
+
+    private void synchronizeLegacySeriesCounter(Long legacySeriesId, Long locationSeriesId) {
+        jdbc.update("""
+                UPDATE invoice_series legacy
+                   SET next_number = current_series.next_number,
+                       last_reset_year = current_series.last_reset_year,
+                       updated_at = CURRENT_TIMESTAMP
+                  FROM invoice_series current_series
+                 WHERE legacy.id = ?
+                   AND current_series.id = ?
+                   AND legacy.id <> current_series.id
+                """, legacySeriesId, locationSeriesId);
+    }
+
+    private void synchronizeLegacyCounterIfDefault(
+            CompanyLegalEntity assignment,
+            InvoiceSeries series,
+            Long companyId,
+            String nextNumber
+    ) {
         if (assignment.getDefaultInvoiceSeries() == null
                 || !Objects.equals(assignment.getDefaultInvoiceSeries().getId(), series.getId())) {
             return;
         }
         settings.findByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER).ifPresent(setting -> {
-            setting.setValue(series.getNextNumber());
+            setting.setValue(nextNumber);
             settings.save(setting);
         });
+    }
+
+    private record CounterAllocation(String allocatedNumber, String nextNumber, int lastResetYear) {
     }
 
     public static String incrementAlphaNumeric(String value) {
