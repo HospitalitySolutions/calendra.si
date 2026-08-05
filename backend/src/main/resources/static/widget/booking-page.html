@@ -321,6 +321,25 @@
         widget.setAttribute('base-url', window.location.origin);
         widget.setAttribute('locale', locale);
         widget.setAttribute('presentation', 'standalone');
+        const locationId = query.get('locationId');
+        const typeId = query.get('typeId');
+        const workspaceEmployeeSelection = query.get('workspaceEmployeeSelection');
+        const workspaceShowPrices = query.get('workspaceShowPrices');
+        if (locationId) widget.setAttribute('location-id', locationId);
+        if (typeId) widget.setAttribute('initial-service-id', typeId);
+        if (workspaceEmployeeSelection === '0') widget.setAttribute('employee-selection-allowed', 'false');
+        if (workspaceShowPrices === '0') widget.setAttribute('show-prices', 'false');
+        const workspaceSlug = query.get('workspace');
+        if (workspaceSlug) {
+          fetch(`/api/public/widget/workspaces/${encodeURIComponent(workspaceSlug)}/config`, { headers: { Accept: 'application/json' } })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (workspaceConfig) {
+              if (workspaceConfig && workspaceConfig.confirmationText) {
+                widget.setAttribute('confirmation-text', workspaceConfig.confirmationText);
+              }
+            })
+            .catch(function () {});
+        }
         widget.addEventListener('calendra-widget-ready', function () {
           loading.classList.add('is-hidden');
         });

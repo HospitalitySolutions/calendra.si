@@ -238,8 +238,19 @@ public final class GuestDtos {
             /** Explicit employee selected by the guest. The slot token remains authoritative. */
             String consultantId,
             /** 15-minute slot hold created when the guest enters payment/review. */
-            String holdToken
+            String holdToken,
+            /** Physical branch selected by the public workspace or tenant booking page. */
+            String locationId
     ) {
+        /** Source-compatible constructor for clients created before location-aware public booking. */
+        public CreateOrderRequest(
+                String companyId, String productId, String slotId, String paymentMethodType,
+                String entitlementId, String locale, String language,
+                List<SelectedServiceRequest> services, String consultantId, String holdToken
+        ) {
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, locale, language,
+                    services, consultantId, holdToken, null);
+        }
         /**
          * Accepts both the canonical ordered service objects and the legacy widget's
          * serviceIds array. This keeps already-cached widget versions from silently
@@ -257,7 +268,8 @@ public final class GuestDtos {
                 @JsonProperty("services") List<SelectedServiceRequest> services,
                 @JsonProperty("serviceIds") List<String> serviceIds,
                 @JsonProperty("consultantId") String consultantId,
-                @JsonProperty("holdToken") String holdToken
+                @JsonProperty("holdToken") String holdToken,
+                @JsonProperty("locationId") String locationId
         ) {
             List<SelectedServiceRequest> selected = services == null || services.isEmpty()
                     ? toSelectedServices(serviceIds)
@@ -272,7 +284,8 @@ public final class GuestDtos {
                     language,
                     selected,
                     consultantId,
-                    holdToken
+                    holdToken,
+                    locationId
             );
         }
 

@@ -25,6 +25,9 @@ public class Company extends BaseEntity {
     @Column(name = "tenant_code", unique = true, length = 64)
     private String tenantCode;
 
+    @Column(name = "workspace_public_booking_enabled", nullable = false)
+    private boolean workspacePublicBookingEnabled = true;
+
     @Column(name = "paypal_merchant_id", length = 255)
     private String paypalMerchantId;
 

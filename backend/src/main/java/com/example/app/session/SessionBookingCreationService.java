@@ -642,8 +642,23 @@ public class SessionBookingCreationService {
             boolean sendConfirmation,
             BookingSource bookingSource,
             List<SessionBookingController.BookingServiceRequest> services,
-            String bookingHoldToken
+            String bookingHoldToken,
+            Long locationId
     ) {
+        /** Source-compatible constructor for callers created before location-aware public booking. */
+        public ChannelBookingRequest(
+                Long companyId, Long clientId, Long consultantId, LocalDateTime start, LocalDateTime end,
+                Long spaceId, Long typeId, String notes, String meetingLink, Boolean online,
+                String meetingProvider, boolean allowPersonalBlockOverlap, String sourceChannel,
+                String sourceOrderId, String guestUserId, String bookingStatus, boolean sendConfirmation,
+                BookingSource bookingSource, List<SessionBookingController.BookingServiceRequest> services,
+                String bookingHoldToken
+        ) {
+            this(companyId, clientId, consultantId, start, end, spaceId, typeId, notes, meetingLink, online,
+                    meetingProvider, allowPersonalBlockOverlap, sourceChannel, sourceOrderId, guestUserId,
+                    bookingStatus, sendConfirmation, bookingSource, services, bookingHoldToken, null);
+        }
+
         public ChannelBookingRequest(
                 Long companyId,
                 Long clientId,
@@ -781,7 +796,8 @@ public class SessionBookingCreationService {
                 null,
                 null,
                 null,
-                request.services()
+                request.services(),
+                request.locationId()
         );
         SessionServicePlanService.Plan servicePlan = servicePlans.resolve(
                 internalRequest,

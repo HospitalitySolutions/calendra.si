@@ -234,7 +234,8 @@ public class GuestOrderService {
                 request.slotId(),
                 serviceLines,
                 paymentMethodType,
-                normalizedBookingSource
+                normalizedBookingSource,
+                request.locationId()
         );
         if (reusableOrder != null) {
             reusableOrder = refreshBookingHoldToken(reusableOrder, request.holdToken());
@@ -267,7 +268,8 @@ public class GuestOrderService {
                 normalizedBookingSource,
                 serviceLines,
                 request.consultantId(),
-                request.holdToken()
+                request.holdToken(),
+                request.locationId()
         ));
         order = orders.save(order);
 
@@ -295,7 +297,8 @@ public class GuestOrderService {
             String slotId,
             List<OrderServiceLine> serviceLines,
             GuestPaymentMethodType paymentMethodType,
-            BookingSource bookingSource
+            BookingSource bookingSource,
+            String locationId
     ) {
         if (guestUser == null || companyId == null || slotId == null || slotId.isBlank() || serviceLines == null || serviceLines.isEmpty() || paymentMethodType == null) {
             return null;
@@ -305,16 +308,23 @@ public class GuestOrderService {
                 .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
                 .filter(order -> order.getPaymentMethodType() == paymentMethodType)
                 .filter(order -> bookingSourceForOrder(order) == bookingSource)
-                .filter(order -> sameOrderSlotAndServices(order, slotId, serviceLines))
+                .filter(order -> sameOrderSlotAndServices(order, slotId, serviceLines, locationId))
                 .findFirst()
                 .orElse(null);
     }
 
-    private boolean sameOrderSlotAndServices(GuestOrder order, String slotId, List<OrderServiceLine> serviceLines) {
+    private boolean sameOrderSlotAndServices(
+            GuestOrder order,
+            String slotId,
+            List<OrderServiceLine> serviceLines,
+            String locationId
+    ) {
         try {
             Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
             Object storedSlot = map.get("slotId");
             if (storedSlot == null || !slotId.trim().equals(String.valueOf(storedSlot).trim())) return false;
+            String storedLocationId = normalizeId(map.get("locationId") == null ? null : String.valueOf(map.get("locationId")));
+            if (!Objects.equals(storedLocationId, normalizeId(locationId))) return false;
             Object rawServices = map.get("services");
             if (!(rawServices instanceof List<?> storedRows)) return serviceLines.size() == 1;
             if (storedRows.size() != serviceLines.size()) return false;
@@ -977,7 +987,8 @@ public class GuestOrderService {
             BookingSource bookingSource,
             List<OrderServiceLine> serviceLines,
             String consultantId,
-            String holdToken
+            String holdToken,
+            String locationId
     ) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
@@ -1005,6 +1016,7 @@ public class GuestOrderService {
             map.put("bookingSource", bookingSource == null ? null : bookingSource.name());
             map.put("consultantId", normalizeId(consultantId));
             map.put("bookingHoldToken", holdToken == null || holdToken.isBlank() ? null : holdToken.trim());
+            map.put("locationId", normalizeId(locationId));
             List<Map<String, Object>> lines = new ArrayList<>();
             for (OrderServiceLine line : serviceLines == null ? List.<OrderServiceLine>of() : serviceLines) {
                 Map<String, Object> service = new LinkedHashMap<>();
@@ -1635,6 +1647,18 @@ public class GuestOrderService {
         return value == null ? fallback : value.intValue();
     }
 
+    private Long extractLocationId(GuestOrder order) {
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return null;
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object raw = map.get("locationId");
+            if (raw == null || String.valueOf(raw).isBlank()) return null;
+            return Long.valueOf(String.valueOf(raw));
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private String extractBookingHoldToken(GuestOrder order) {
         if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return null;
         try {
@@ -1687,7 +1711,8 @@ public class GuestOrderService {
                     "CONFIRMED".equalsIgnoreCase(status),
                     bookingSourceForOrder(order),
                     extractBookingServices(order),
-                    extractBookingHoldToken(order)
+                    extractBookingHoldToken(order),
+                    extractLocationId(order)
             ));
             if (bookingSlotHolds != null) {
                 bookingSlotHolds.consume(order.getCompany().getId(), extractBookingHoldToken(order));

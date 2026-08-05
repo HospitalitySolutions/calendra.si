@@ -25,6 +25,12 @@ staging.calendra.si {
 			header_up X-Forwarded-Proto https
 		}
 	}
+	handle /book/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
 	handle /widget/* {
     		reverse_proxy backend:4000 {
     			header_up X-Forwarded-Proto https

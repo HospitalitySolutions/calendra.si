@@ -34,6 +34,10 @@ app.calendra.si {
 		import backend_cluster
 	}
 
+	handle /book/* {
+		import backend_cluster
+	}
+
 	handle /widget/* {
 		import backend_cluster
 	}
@@ -66,6 +70,10 @@ calendra.si {
 
 	handle /narocanje/* {
 		uri replace /narocanje/ /widget/
+		import backend_cluster
+	}
+
+	handle /book/* {
 		import backend_cluster
 	}
 

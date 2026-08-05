@@ -103,6 +103,7 @@ public class SecurityConfig {
                     || path.startsWith("/api/public-waitlists/")
                     || path.startsWith("/api/public/demo-bookings/")
                     || path.startsWith("/api/course-access/")
+                    || path.startsWith("/book/")
                     || path.startsWith("/widget/")
                     || path.startsWith("/api/inbox/webhooks/")
                     || path.equals("/api/stripe/webhook")
@@ -172,6 +173,7 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/public-waitlists/**").permitAll();
                     auth.requestMatchers("/api/public/demo-bookings/**").permitAll();
                     auth.requestMatchers("/widget/**").permitAll();
+                    auth.requestMatchers("/book/**").permitAll();
 
                     auth.requestMatchers("/api/inbox/webhooks/**").permitAll();
                     auth.requestMatchers("/error").permitAll();

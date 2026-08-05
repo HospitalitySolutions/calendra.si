@@ -13,6 +13,8 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     java.util.List<Company> findAllByNameContainingIgnoreCase(String name);
 
+    java.util.List<Company> findAllByWorkspaceIdOrderByNameAscIdAsc(Long workspaceId);
+
     @Query(
             "select c.id from Company c where lower(c.name) like lower(concat('%', :needle, '%')) "
                     + "or lower(c.tenantCode) like lower(concat('%', :needle, '%'))")

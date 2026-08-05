@@ -59,7 +59,40 @@ class PublicWidgetOrderClientMatchingTest {
     }
 
     @Test
-    void existingTenantLinkIsCorrectedToClientMatchingGuestEmail() throws Exception {
+    void onlinePaymentFlowDoesNotReuseHouseholdMemberWithSameEmail() throws Exception {
+        ClientRepository clients = mock(ClientRepository.class);
+        UserRepository users = mock(UserRepository.class);
+        PublicWidgetOrderService service = service(null, null, clients, users);
+        Company company = company(9L);
+        User owner = new User();
+        Client householdMember = new Client();
+        householdMember.setFirstName("Parent");
+        householdMember.setLastName("Person");
+        householdMember.setEmail("family@example.com");
+        householdMember.setPhone("040111000");
+
+        when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(9L, "family@example.com"))
+                .thenReturn(List.of(householdMember));
+        when(users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(9L)).thenReturn(Optional.of(owner));
+        when(clients.save(any(Client.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Client resolved = invokeMatchOrCreate(
+                service,
+                company,
+                "Child",
+                "Person",
+                "family@example.com",
+                "040111222"
+        );
+
+        assertNotSame(householdMember, resolved);
+        assertEquals("Child", resolved.getFirstName());
+        assertEquals("family@example.com", resolved.getEmail());
+        assertSame(owner, resolved.getAssignedTo());
+    }
+
+    @Test
+    void existingTenantLinkIsCorrectedToClientMatchingSubmittedIdentity() throws Exception {
         CompanyRepository companies = mock(CompanyRepository.class);
         GuestTenantLinkRepository links = mock(GuestTenantLinkRepository.class);
         ClientRepository clients = mock(ClientRepository.class);
@@ -73,7 +106,10 @@ class PublicWidgetOrderClientMatchingTest {
         Client wronglyLinked = new Client();
         wronglyLinked.setEmail("wrong@example.com");
         Client correct = new Client();
+        correct.setFirstName("Right");
+        correct.setLastName("Person");
         correct.setEmail("right@example.com");
+        correct.setPhone("040111222");
 
         GuestTenantLink existing = new GuestTenantLink();
         existing.setGuestUser(guest);

@@ -11,6 +11,8 @@ import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.session.AvailabilityBlockMetadata;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
@@ -32,6 +34,8 @@ import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspaceclient.WorkspaceClient;
+import com.example.app.workspaceclient.WorkspaceClientRepository;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
 import com.example.app.waitlist.WaitlistEmployeePreferenceType;
 import com.example.app.waitlist.WaitlistService;
@@ -67,6 +71,7 @@ import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -109,6 +114,12 @@ public class PublicBookingWidgetService {
     private final PaymentMethodRepository paymentMethods;
     private final StripeConnectService stripeConnectService;
     private final TimeService timeService;
+
+    @Autowired(required = false)
+    private LocationRepository locations;
+
+    @Autowired(required = false)
+    private WorkspaceClientRepository workspaceClients;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -248,10 +259,18 @@ public class PublicBookingWidgetService {
     }
 
     public List<PublicBookingWidgetController.WidgetServiceResponse> services(String tenantCode, HttpServletRequest request) {
+        return services(tenantCode, null, request);
+    }
+
+    public List<PublicBookingWidgetController.WidgetServiceResponse> services(
+            String tenantCode, Long locationId, HttpServletRequest request
+    ) {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "services");
+        Location location = requirePublicLocation(company, locationId, false);
         return types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
                 .filter(this::isWebsiteBookingEnabled)
+                .filter(type -> location == null || isAvailableAtLocation(type, location.getId()))
                 .sorted(Comparator
                         .comparing((SessionType type) -> publicGroup(type) == null ? Integer.MAX_VALUE : publicGroup(type).getSortOrder())
                         .thenComparing(type -> publicGroup(type) == null ? "" : publicGroup(type).getName(), String.CASE_INSENSITIVE_ORDER)
@@ -285,7 +304,7 @@ public class PublicBookingWidgetService {
             Long typeId,
             HttpServletRequest request
     ) {
-        return consultants(tenantCode, typeId, List.of(), request);
+        return consultants(tenantCode, typeId, List.of(), null, request);
     }
 
     @Transactional(readOnly = true)
@@ -295,9 +314,21 @@ public class PublicBookingWidgetService {
             List<Long> serviceIds,
             HttpServletRequest request
     ) {
+        return consultants(tenantCode, typeId, serviceIds, null, request);
+    }
+
+    public List<PublicBookingWidgetController.WidgetConsultantResponse> consultants(
+            String tenantCode,
+            Long typeId,
+            List<Long> serviceIds,
+            Long locationId,
+            HttpServletRequest request
+    ) {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "consultants");
+        Location location = requirePublicLocation(company, locationId, false);
         List<SessionType> chain = resolveServiceChain(company.getId(), typeId, serviceIds);
+        requireChainAvailableAtLocation(chain, location);
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         if (!rules.employeeSelectionAllowed() || chainContainsGroupOnlyService(chain)) {
             return List.of();
@@ -318,16 +349,24 @@ public class PublicBookingWidgetService {
             Long consultantId,
             HttpServletRequest request
     ) {
-        return availability(tenantCode, typeId, List.of(), dateText, consultantId, request);
+        return availability(tenantCode, typeId, List.of(), dateText, consultantId, null, request);
     }
 
     @Transactional(readOnly = true)
+    public PublicBookingWidgetController.AvailabilityResponse availability(
+            String tenantCode, Long typeId, List<Long> serviceIds, String dateText, Long consultantId,
+            HttpServletRequest request
+    ) {
+        return availability(tenantCode, typeId, serviceIds, dateText, consultantId, null, request);
+    }
+
     public PublicBookingWidgetController.AvailabilityResponse availability(
             String tenantCode,
             Long typeId,
             List<Long> serviceIds,
             String dateText,
             Long consultantId,
+            Long locationId,
             HttpServletRequest request
     ) {
         Company company = resolveCompany(tenantCode);
@@ -336,7 +375,9 @@ public class PublicBookingWidgetService {
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         LocalDate date = parseDate(dateText);
+        Location location = requirePublicLocation(company, locationId, false);
         List<SessionType> chain = resolveServiceChain(company.getId(), typeId, serviceIds);
+        requireChainAvailableAtLocation(chain, location);
         SessionType primaryType = chain.get(0);
         if (!dateAllowedByReservationRules(date, cfg, rules)) {
             return new PublicBookingWidgetController.AvailabilityResponse(
@@ -384,7 +425,7 @@ public class PublicBookingWidgetService {
         List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
         List<PublicBookingWidgetController.GroupSessionSlotResponse> groupSessions =
                 groupOnlyWebsiteBooking
-                        ? buildGroupSessions(company, cfg, primaryType, date, resolvedConsultantId)
+                        ? buildGroupSessions(company, cfg, primaryType, date, resolvedConsultantId, location)
                         : List.of();
         if (groupOnlyWebsiteBooking) {
             slots = List.of();
@@ -423,16 +464,24 @@ public class PublicBookingWidgetService {
             Long consultantId,
             HttpServletRequest request
     ) {
-        return availabilityMonth(tenantCode, typeId, List.of(), monthText, consultantId, request);
+        return availabilityMonth(tenantCode, typeId, List.of(), monthText, consultantId, null, request);
     }
 
     @Transactional(readOnly = true)
+    public PublicBookingWidgetController.AvailabilityMonthResponse availabilityMonth(
+            String tenantCode, Long typeId, List<Long> serviceIds, String monthText, Long consultantId,
+            HttpServletRequest request
+    ) {
+        return availabilityMonth(tenantCode, typeId, serviceIds, monthText, consultantId, null, request);
+    }
+
     public PublicBookingWidgetController.AvailabilityMonthResponse availabilityMonth(
             String tenantCode,
             Long typeId,
             List<Long> serviceIds,
             String monthText,
             Long consultantId,
+            Long locationId,
             HttpServletRequest request
     ) {
         Company company = resolveCompany(tenantCode);
@@ -440,7 +489,9 @@ public class PublicBookingWidgetService {
         guardPublicWidgetRequest(company, request, false, "availability-month");
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
+        Location location = requirePublicLocation(company, locationId, false);
         List<SessionType> chain = resolveServiceChain(company.getId(), typeId, serviceIds);
+        requireChainAvailableAtLocation(chain, location);
         SessionType primaryType = chain.get(0);
         YearMonth month = parseMonth(monthText);
         boolean groupOnlyWebsiteBooking = chain.size() == 1 && isGroupWebsiteBookingOnly(primaryType);
@@ -487,7 +538,8 @@ public class PublicBookingWidgetService {
                                 resolvedConsultantId,
                                 groupOnlyWebsiteBooking,
                                 rules,
-                                availabilitySnapshot
+                                availabilitySnapshot,
+                                location
                         )) {
                     availableDates.add(DATE_FORMAT.format(date));
                 }
@@ -516,10 +568,11 @@ public class PublicBookingWidgetService {
             Long consultantId,
             boolean groupOnlyWebsiteBooking,
             GuestSettingsService.GuestBookingRules rules,
-            WidgetAvailabilitySnapshot availabilitySnapshot
+            WidgetAvailabilitySnapshot availabilitySnapshot,
+            Location location
     ) {
         if (groupOnlyWebsiteBooking) {
-            return !buildGroupSessions(company, cfg, chain.get(0), date, consultantId).isEmpty();
+            return !buildGroupSessions(company, cfg, chain.get(0), date, consultantId, location).isEmpty();
         }
         if (cfg.availabilityEnabled()) {
             if (hasAnyBookableSlot(company, cfg, chain, date, consultantId, rules, availabilitySnapshot)) {
@@ -659,7 +712,9 @@ public class PublicBookingWidgetService {
         );
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
+        Location selectedLocation = requirePublicLocation(company, request.locationId(), true);
         List<SessionType> chain = resolveServiceChain(company.getId(), request.typeId(), extractServiceIds(request));
+        requireChainAvailableAtLocation(chain, selectedLocation);
         SessionType type = chain.get(0);
         List<Long> orderedServiceIds = chain.stream().map(SessionType::getId).toList();
         List<SessionBookingController.BookingServiceRequest> bookingServices = bookingServiceRequests(chain);
@@ -765,7 +820,8 @@ public class PublicBookingWidgetService {
                                         true,
                                         bookingSource,
                                         bookingServices,
-                                        null
+                                        null,
+                                        selectedLocation.getId()
                                 )
                         );
                         String consultantName = booking.getConsultant() == null
@@ -826,7 +882,9 @@ public class PublicBookingWidgetService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exact-time waitlist requests are disabled.");
         }
 
+        Location selectedLocation = requirePublicLocation(company, request.locationId(), true);
         List<SessionType> chain = resolveServiceChain(company.getId(), request.typeId(), extractServiceIds(request));
+        requireChainAvailableAtLocation(chain, selectedLocation);
         SessionType type = chain.get(0);
         if (chainContainsGroupOnlyService(chain)) {
             throw new ResponseStatusException(
@@ -900,7 +958,7 @@ public class PublicBookingWidgetService {
                                         type.getId(),
                                         WaitlistServiceScope.EXACT_SERVICE,
                                         null,
-                                        null,
+                                        selectedLocation.getId(),
                                         request.flexible() ? WaitlistTargetType.FLEXIBLE_WINDOW : WaitlistTargetType.EXACT_TIME,
                                         null,
                                         dateFrom,
@@ -999,6 +1057,11 @@ public class PublicBookingWidgetService {
         if (representative.getType() == null || !Objects.equals(representative.getType().getId(), type.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session does not match this service.");
         }
+        Location selectedLocation = requirePublicLocation(company, request.locationId(), true);
+        if (representative.getLocation() == null
+                || !Objects.equals(representative.getLocation().getId(), selectedLocation.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is not at this location.");
+        }
         WidgetConfig cfg = loadConfig(company.getId());
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         if (!slotAllowedByReservationRules(representative.getStartTime(), cfg, rules)) {
@@ -1078,7 +1141,8 @@ public class PublicBookingWidgetService {
             WidgetConfig cfg,
             SessionType type,
             LocalDate date,
-            Long consultantId
+            Long consultantId,
+            Location location
     ) {
         if (!isGroupWebsiteBookingOnly(type)) {
             return List.of();
@@ -1093,6 +1157,10 @@ public class PublicBookingWidgetService {
 
         Map<String, List<SessionBooking>> grouped = new LinkedHashMap<>();
         for (SessionBooking booking : candidates) {
+            if (location != null && (booking.getLocation() == null
+                    || !Objects.equals(booking.getLocation().getId(), location.getId()))) {
+                continue;
+            }
             if (consultantId != null) {
                 Long bookingConsultantId = booking.getConsultant() == null ? null : booking.getConsultant().getId();
                 if (!Objects.equals(bookingConsultantId, consultantId)) {
@@ -1893,13 +1961,15 @@ public class PublicBookingWidgetService {
         }
         String normalizedPhone = phone == null ? null : phone.trim();
 
-        // Website-widget identity is tenant + normalized email. A matching phone number alone
-        // must not attach a booking to a different client profile.
+        // Do not collapse household members merely because they share an email address.
+        // Reuse a unit client only when the submitted name and, when supplied, phone also match.
         Optional<Client> existing = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(
                         company.getId(),
                         normalizedEmail
                 )
                 .stream()
+                .filter(candidate -> matchesPublicIdentity(
+                        candidate, firstName, lastName, normalizedEmail, normalizedPhone))
                 .findFirst();
         if (existing.isPresent()) {
             Client client = existing.get();
@@ -1923,10 +1993,51 @@ public class PublicBookingWidgetService {
         client.setEmail(normalizedEmail);
         client.setPhone(normalizedPhone);
         client.setWhatsappPhone(normalizedPhone);
+        if (workspaceClients != null && company.getWorkspace() != null
+                && normalizedPhone != null && !normalizedPhone.isBlank()) {
+            String normalizedWorkspacePhone = WorkspaceClient.normalizePhone(normalizedPhone);
+            if (normalizedWorkspacePhone != null) {
+                workspaceClients.findExactActiveIdentity(
+                                company.getWorkspace().getId(),
+                                normalizedEmail,
+                                normalizedWorkspacePhone,
+                                firstName.trim(),
+                                lastName.trim(),
+                                org.springframework.data.domain.PageRequest.of(0, 1)
+                        )
+                        .stream()
+                        .findFirst()
+                        .ifPresent(client::setWorkspaceClient);
+            }
+        }
         client.setWhatsappOptIn(false);
         client.setActive(true);
         client.setBatchPaymentEnabled(false);
         return clients.save(client);
+    }
+
+
+    private static boolean matchesPublicIdentity(
+            Client client,
+            String firstName,
+            String lastName,
+            String normalizedEmail,
+            String phone
+    ) {
+        if (client == null || normalizedEmail == null
+                || !normalizedEmail.equals(Client.normalizeEmailStorage(client.getEmail()))) {
+            return false;
+        }
+        if (!sameText(client.getFirstName(), firstName) || !sameText(client.getLastName(), lastName)) {
+            return false;
+        }
+        String requestedPhone = WorkspaceClient.normalizePhone(phone);
+        return requestedPhone == null
+                || Objects.equals(requestedPhone, WorkspaceClient.normalizePhone(client.getPhone()));
+    }
+
+    private static boolean sameText(String first, String second) {
+        return first != null && second != null && first.trim().equalsIgnoreCase(second.trim());
     }
 
     private User resolveConsultantForBooking(Long companyId, Long consultantId, boolean availabilityEnabled) {
@@ -2103,6 +2214,42 @@ public class PublicBookingWidgetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available for website booking.");
         }
         return type;
+    }
+
+
+    private Location requirePublicLocation(Company company, Long locationId, boolean required) {
+        if (locationId == null) {
+            if (!required) return null;
+            if (locations == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required.");
+            }
+            return locations.findFirstByCompanyIdAndDefaultLocationTrue(company.getId())
+                    .filter(Location::isActive)
+                    .filter(Location::isPublicBookingEnabled)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required."));
+        }
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is unavailable.");
+        }
+        return locations.findByIdAndCompanyId(locationId, company.getId())
+                .filter(Location::isActive)
+                .filter(Location::isPublicBookingEnabled)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location."));
+    }
+
+    private void requireChainAvailableAtLocation(List<SessionType> chain, Location location) {
+        if (location == null || chain == null) return;
+        for (SessionType type : chain) {
+            if (!isAvailableAtLocation(type, location.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "The selected service is not available at this location.");
+            }
+        }
+    }
+
+    private boolean isAvailableAtLocation(SessionType type, Long locationId) {
+        return type != null && (type.isAvailableAllLocations() || type.getLocations().stream()
+                .anyMatch(location -> Objects.equals(location.getId(), locationId)));
     }
 
     private Company resolveCompany(String tenantCode) {

@@ -16,13 +16,21 @@ import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.order.GuestOrderService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
+import com.example.app.session.SessionType;
+import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.BookingSource;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspaceclient.WorkspaceClient;
+import com.example.app.workspaceclient.WorkspaceClientRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -51,6 +59,15 @@ public class PublicWidgetOrderService {
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final WidgetBookingIdempotencyService widgetBookingIdempotencyService;
+
+    @Autowired(required = false)
+    private LocationRepository publicLocations;
+
+    @Autowired(required = false)
+    private SessionTypeRepository sessionTypes;
+
+    @Autowired(required = false)
+    private WorkspaceClientRepository workspaceClients;
 
     public PublicWidgetOrderService(
             CompanyRepository companies,
@@ -159,8 +176,10 @@ public class PublicWidgetOrderService {
                 request.language(),
                 request.services(),
                 request.consultantId(),
-                request.holdToken()
+                request.holdToken(),
+                request.locationId()
         );
+        validatePublicLocationAndServices(company, normalized);
         String idempotencyKey = idempotencyKey(httpRequest);
         BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);
         return widgetBookingIdempotencyService.execute(
@@ -202,6 +221,75 @@ public class PublicWidgetOrderService {
     }
 
 
+
+    private void validatePublicLocationAndServices(Company company, GuestDtos.CreateOrderRequest request) {
+        if (request == null || request.locationId() == null || request.locationId().isBlank()) return;
+        if (publicLocations == null || sessionTypes == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location-aware booking is unavailable.");
+        }
+        Long locationId;
+        try {
+            locationId = Long.valueOf(request.locationId().trim());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location.");
+        }
+        Location location = publicLocations.findByIdAndCompanyId(locationId, company.getId())
+                .filter(Location::isActive)
+                .filter(Location::isPublicBookingEnabled)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location."));
+
+        List<Long> typeIds = request.services() == null ? List.of() : request.services().stream()
+                .filter(Objects::nonNull)
+                .map(service -> firstNonBlank(service.sessionTypeId(), sessionTypeIdFromProduct(service.productId())))
+                .filter(Objects::nonNull)
+                .map(value -> {
+                    try {
+                        return Long.valueOf(value.trim());
+                    } catch (NumberFormatException ex) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service.");
+                    }
+                })
+                .distinct()
+                .toList();
+        if (typeIds.isEmpty()) {
+            String fallback = sessionTypeIdFromProduct(request.productId());
+            if (fallback != null) {
+                try {
+                    typeIds = List.of(Long.valueOf(fallback));
+                } catch (NumberFormatException ex) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service.");
+                }
+            }
+        }
+        for (Long typeId : typeIds) {
+            SessionType type = sessionTypes.findByIdAndCompanyIdWithLinkedServices(typeId, company.getId())
+                    .filter(SessionType::isActive)
+                    .filter(SessionType::isWidgetGroupBookingEnabled)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service."));
+            boolean available = type.isAvailableAllLocations() || type.getLocations().stream()
+                    .anyMatch(value -> Objects.equals(value.getId(), location.getId()));
+            if (!available) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "The selected service is not offered at this location.");
+            }
+        }
+    }
+
+    private static String sessionTypeIdFromProduct(String productId) {
+        if (productId == null) return null;
+        String normalized = productId.trim();
+        return normalized.startsWith("session-") && normalized.length() > 8
+                ? normalized.substring(8)
+                : null;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return null;
+    }
 
     private static String idempotencyKey(HttpServletRequest request) {
         String value = request == null ? null : request.getHeader("Idempotency-Key");
@@ -303,7 +391,8 @@ public class PublicWidgetOrderService {
         Client linkedClient = existing == null ? null : existing.getClient();
         String publicLocale = preferredLocale(requestedLocale, guestUserLocale(guestUser));
         Client client;
-        if (linkedClient != null && normalizedEmailMatches(linkedClient, normalizedEmail)) {
+        if (linkedClient != null && matchesPublicIdentity(
+                linkedClient, firstName, lastName, normalizedEmail, phone)) {
             ClientOnlineAccessGuard.requireAllowed(linkedClient, publicLocale);
             client = linkedClient;
         } else {
@@ -338,10 +427,12 @@ public class PublicWidgetOrderService {
         if (normalizedEmail == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email is required.");
         }
-        // Keep the online-payment widget on the same identity rule as direct widget bookings:
-        // tenant + normalized email. Phone is contact data, not a client matching key.
+        // Match the direct public-booking rule: shared household contact details alone
+        // never identify a person. Name and, when supplied, phone must match as well.
         Client match = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail)
                 .stream()
+                .filter(candidate -> matchesPublicIdentity(
+                        candidate, firstName, lastName, normalizedEmail, phone))
                 .findFirst()
                 .orElse(null);
         if (match != null) {
@@ -359,13 +450,47 @@ public class PublicWidgetOrderService {
         client.setLastName(lastName);
         client.setEmail(normalizedEmail);
         client.setPhone(phone);
+        if (workspaceClients != null && company.getWorkspace() != null && phone != null && !phone.isBlank()) {
+            String normalizedWorkspacePhone = WorkspaceClient.normalizePhone(phone);
+            if (normalizedWorkspacePhone != null) {
+                workspaceClients.findExactActiveIdentity(
+                                company.getWorkspace().getId(),
+                                normalizedEmail,
+                                normalizedWorkspacePhone,
+                                firstName,
+                                lastName,
+                                org.springframework.data.domain.PageRequest.of(0, 1)
+                        )
+                        .stream()
+                        .findFirst()
+                        .ifPresent(client::setWorkspaceClient);
+            }
+        }
         client.setActive(true);
         return clients.save(client);
     }
 
-    private static boolean normalizedEmailMatches(Client client, String normalizedEmail) {
-        return normalizedEmail != null
-                && normalizedEmail.equals(Client.normalizeEmailStorage(client == null ? null : client.getEmail()));
+    private static boolean matchesPublicIdentity(
+            Client client,
+            String firstName,
+            String lastName,
+            String normalizedEmail,
+            String phone
+    ) {
+        if (client == null || normalizedEmail == null
+                || !normalizedEmail.equals(Client.normalizeEmailStorage(client.getEmail()))) {
+            return false;
+        }
+        if (!sameText(client.getFirstName(), firstName) || !sameText(client.getLastName(), lastName)) {
+            return false;
+        }
+        String requestedPhone = WorkspaceClient.normalizePhone(phone);
+        return requestedPhone == null
+                || Objects.equals(requestedPhone, WorkspaceClient.normalizePhone(client.getPhone()));
+    }
+
+    private static boolean sameText(String first, String second) {
+        return first != null && second != null && first.trim().equalsIgnoreCase(second.trim());
     }
 
     private static String guestUserLocale(GuestUser guestUser) {

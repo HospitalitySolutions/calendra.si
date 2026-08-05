@@ -20,16 +20,17 @@ import org.junit.jupiter.api.Test;
 class PublicBookingWidgetClientMatchingTest {
 
     @Test
-    void reusesExistingTenantClientByNormalizedEmail() throws Exception {
+    void reusesExistingTenantClientOnlyWhenSubmittedIdentityMatches() throws Exception {
         ClientRepository clients = mock(ClientRepository.class);
         PublicBookingWidgetService service = service(clients);
         Company company = company(42L);
         User actor = new User();
         Client existing = new Client();
         existing.setCompany(company);
-        existing.setFirstName("Existing");
-        existing.setLastName("Client");
+        existing.setFirstName("New");
+        existing.setLastName("Name");
         existing.setEmail("known@example.com");
+        existing.setPhone("+38640111222");
 
         when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(42L, "known@example.com"))
                 .thenReturn(List.of(existing));
@@ -50,6 +51,40 @@ class PublicBookingWidgetClientMatchingTest {
         assertSame(actor, resolved.getAssignedTo());
         assertEquals("+38640111222", resolved.getPhone());
         verify(clients, never()).findFirstCandidatesByCompanyIdAndNormalizedPhone(any(), any());
+    }
+
+    @Test
+    void createsNewClientWhenHouseholdMemberSharesEmailButIdentityDiffers() throws Exception {
+        ClientRepository clients = mock(ClientRepository.class);
+        PublicBookingWidgetService service = service(clients);
+        Company company = company(42L);
+        User actor = new User();
+        Client householdMember = new Client();
+        householdMember.setCompany(company);
+        householdMember.setFirstName("Parent");
+        householdMember.setLastName("Person");
+        householdMember.setEmail("family@example.com");
+        householdMember.setPhone("+38640111000");
+
+        when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(42L, "family@example.com"))
+                .thenReturn(List.of(householdMember));
+        when(clients.save(any(Client.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Client resolved = invokeFindOrCreate(
+                service,
+                company,
+                actor,
+                "Child",
+                "Person",
+                "family@example.com",
+                "+38640111222",
+                "sl"
+        );
+
+        assertNotSame(householdMember, resolved);
+        assertEquals("Child", resolved.getFirstName());
+        assertEquals("family@example.com", resolved.getEmail());
+        assertSame(company, resolved.getCompany());
     }
 
     @Test

@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="index,follow" />
+  <title>Naročanje | Calendra</title>
+  <style>
+    :root{--brand:#1672f3;--ink:#0f1b3d;--muted:#64748b;--line:#dce6f2;--soft:#f6f9fe;color-scheme:light}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:linear-gradient(135deg,#f8fbff,#eef5ff 48%,#fbfdff);min-height:100vh}
+    header{height:70px;background:rgba(255,255,255,.9);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(20px,calc((100vw - 1120px)/2));backdrop-filter:blur(12px)}
+    header img{height:28px} select,button{font:inherit}.lang{border:0;background:transparent;font-weight:700;color:#53627a}
+    main{width:min(1120px,calc(100% - 24px));margin:32px auto 60px}.shell{background:#fff;border:1px solid var(--line);border-radius:26px;box-shadow:0 26px 70px rgba(15,35,70,.1);overflow:hidden}
+    .hero{padding:34px 42px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:center}.logo{width:62px;height:62px;border-radius:18px;border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;background:#fff;color:var(--brand);font-size:24px;font-weight:900}.logo img{width:100%;height:100%;object-fit:cover}.hero h1{margin:0 0 6px;font-size:28px}.hero p{margin:0;color:var(--muted);line-height:1.5;white-space:pre-line}
+    .content{padding:32px 42px 40px}.steps{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}.step{padding:8px 12px;border-radius:999px;background:#edf2f7;color:#64748b;font-size:13px;font-weight:800}.step.active{background:color-mix(in srgb,var(--brand) 12%,white);color:var(--brand)}
+    h2{font-size:22px;margin:0 0 6px}.hint{color:var(--muted);margin:0 0 22px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);border-radius:18px;padding:18px;background:#fff;text-align:left;cursor:pointer;transition:.16s}.card:hover{border-color:var(--brand);transform:translateY(-1px)}.card.selected{border:2px solid var(--brand);background:color-mix(in srgb,var(--brand) 5%,white)}.card strong{display:block;font-size:16px}.card span{display:block;margin-top:5px;color:var(--muted);font-size:13px;line-height:1.4}.price{color:var(--brand)!important;font-weight:850}.actions{display:flex;justify-content:space-between;gap:12px;margin-top:28px}.btn{min-height:44px;padding:0 20px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:850;cursor:pointer}.btn.primary{margin-left:auto;border:0;background:var(--brand);color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}.error{padding:14px 16px;border-radius:12px;background:#fff2f2;color:#b42318;margin-bottom:18px}.empty{padding:22px;border:1px dashed var(--line);border-radius:16px;color:var(--muted);grid-column:1/-1}.hidden{display:none!important}.offering-list{margin-top:12px;display:grid;gap:8px}.offering{padding:11px 12px;border:1px solid var(--line);border-radius:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}.offering-copy{min-width:0}.offering-copy strong{font-size:14px}.offering-copy small{display:block;color:var(--muted);margin-top:4px;line-height:1.35}.offering button{border:0;border-radius:10px;background:var(--brand);color:#fff;padding:9px 13px;font-weight:800;cursor:pointer;flex:0 0 auto}.legal{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:24px;font-size:13px}.legal a{color:var(--muted);text-decoration:none}.legal a:hover{color:var(--brand)}
+    @media(max-width:720px){header{padding:0 16px}.hero,.content{padding:24px 20px}.grid{grid-template-columns:1fr}.hero h1{font-size:23px}.logo{width:54px;height:54px}.offering{align-items:flex-start;flex-direction:column}.offering button{width:100%}}
+  </style>
+</head>
+<body>
+<header><img src="/widget/calendra-transparent-logo.png" alt="Calendra"><select id="lang" class="lang"><option value="sl">Slovenščina</option><option value="en">English</option><option value="sr">Srpski</option></select></header>
+<main>
+  <section class="shell">
+    <div class="hero"><div id="logo" class="logo">C</div><div><h1 id="title">Naročanje</h1><p id="intro"></p></div></div>
+    <div class="content">
+      <div class="steps"><span id="step1" class="step active">1. Lokacija</span><span id="step2" class="step">2. Storitev</span><span class="step">3. Termin</span></div>
+      <div id="error" class="error hidden"></div>
+      <section id="locationStep"><h2 id="locationTitle">Izberite lokacijo</h2><p id="locationHint" class="hint"></p><div id="locations" class="grid"></div><div class="actions"><button id="backLocation" class="btn hidden">Nazaj</button></div></section>
+      <section id="serviceStep" class="hidden"><h2 id="serviceTitle">Izberite storitev</h2><p id="serviceHint" class="hint"></p><div id="services" class="grid"></div><div class="actions"><button id="back" class="btn">Nazaj</button></div></section>
+      <nav id="legal" class="legal hidden" aria-label="Legal"></nav>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+  const segments = location.pathname.split('/').filter(Boolean);
+  const slug = decodeURIComponent(segments[segments.length - 1] || '');
+  const query = new URLSearchParams(location.search);
+  let locale = (query.get('lang') || 'sl').toLowerCase();
+  if (!['sl', 'en', 'sr'].includes(locale)) locale = 'sl';
+
+  const copy = {
+    sl: { location:'Izberite lokacijo', locationHint:'Izberite poslovalnico, ki vam najbolj ustreza.', anyLocation:'Katerakoli lokacija', anyLocationHint:'Prikaži vse razpoložljive možnosti in izberi najprimernejšo.', service:'Izberite storitev', serviceHint:'Izberite storitev in konkretno lokacijo.', back:'Nazaj', from:'Od', continue:'Izberi termin', noLocations:'Trenutno ni objavljenih lokacij.', noServices:'Na tej lokaciji trenutno ni objavljenih storitev.', privacy:'Zasebnost', terms:'Pogoji uporabe', failed:'Naročanja trenutno ni mogoče naložiti.' },
+    en: { location:'Choose a location', locationHint:'Select the branch that suits you best.', anyLocation:'Any location', anyLocationHint:'Show every available option and choose the most suitable one.', service:'Choose a service', serviceHint:'Choose a service and a concrete location.', back:'Back', from:'From', continue:'Choose a time', noLocations:'No locations are currently published.', noServices:'No services are currently published for this selection.', privacy:'Privacy', terms:'Terms', failed:'Booking could not be loaded.' },
+    sr: { location:'Izaberite lokaciju', locationHint:'Izaberite poslovnicu koja vam najviše odgovara.', anyLocation:'Bilo koja lokacija', anyLocationHint:'Prikaži sve dostupne opcije i izaberi najpogodniju.', service:'Izaberite uslugu', serviceHint:'Izaberite uslugu i konkretnu lokaciju.', back:'Nazad', from:'Od', continue:'Izaberite termin', noLocations:'Trenutno nema objavljenih lokacija.', noServices:'Za ovaj izbor trenutno nema objavljenih usluga.', privacy:'Privatnost', terms:'Uslovi', failed:'Rezervacija trenutno nije dostupna.' }
+  };
+
+  let config = null;
+  let locations = [];
+  let services = [];
+  let selectedLocation = null;
+  let selectedService = null;
+  const byId = id => document.getElementById(id);
+  const api = path => fetch(`/api/public/widget/workspaces/${encodeURIComponent(slug)}${path}`, {
+    credentials: 'same-origin', headers: { Accept: 'application/json' }
+  }).then(async response => {
+    if (!response.ok) throw new Error((await response.json().catch(() => null))?.message || copy[locale].failed);
+    return response.json();
+  });
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
+  }
+  function showError(error) {
+    byId('error').textContent = error?.message || copy[locale].failed;
+    byId('error').classList.remove('hidden');
+  }
+  function address(row) {
+    return [row.address, [row.postalCode, row.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  }
+  function applyCopy() {
+    const text = copy[locale];
+    document.documentElement.lang = locale;
+    byId('lang').value = locale;
+    byId('locationTitle').textContent = text.location;
+    byId('locationHint').textContent = text.locationHint;
+    byId('serviceTitle').textContent = text.service;
+    byId('serviceHint').textContent = text.serviceHint;
+    byId('back').textContent = text.back;
+    byId('backLocation').textContent = text.back;
+    if (config) renderLegal();
+  }
+  function renderLegal() {
+    const host = byId('legal');
+    host.replaceChildren();
+    const links = [[config?.privacyUrl, copy[locale].privacy], [config?.termsUrl, copy[locale].terms]];
+    links.forEach(([href, label]) => {
+      if (!href) return;
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.textContent = label;
+      host.appendChild(anchor);
+    });
+    host.classList.toggle('hidden', host.childElementCount === 0);
+  }
+  function renderLocations() {
+    const host = byId('locations');
+    host.replaceChildren();
+    const serviceFirst = config?.locationSelectionMode === 'SERVICE_FIRST';
+    const allowedTokens = selectedService
+      ? new Set(selectedService.offerings.map(offering => offering.locationToken))
+      : null;
+    const rows = allowedTokens ? locations.filter(row => allowedTokens.has(row.token)) : locations;
+
+    if (!serviceFirst && config?.allowAnyLocation && rows.length > 1) {
+      const any = document.createElement('button');
+      any.type = 'button';
+      any.className = 'card';
+      any.innerHTML = `<strong>${escapeHtml(copy[locale].anyLocation)}</strong><span>${escapeHtml(copy[locale].anyLocationHint)}</span>`;
+      any.addEventListener('click', () => selectLocation(null));
+      host.appendChild(any);
+    }
+    rows.forEach(row => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'card';
+      button.innerHTML = `<strong>${escapeHtml(row.locationName)}</strong><span>${escapeHtml(row.unitName)}</span><span>${escapeHtml(address(row))}</span>`;
+      button.addEventListener('click', () => {
+        if (serviceFirst && selectedService) {
+          const offering = selectedService.offerings.find(item => item.locationToken === row.token);
+          if (offering) launch(offering);
+          return;
+        }
+        selectLocation(row);
+      });
+      host.appendChild(button);
+    });
+    if (!host.childElementCount) host.innerHTML = `<div class="empty">${escapeHtml(copy[locale].noLocations)}</div>`;
+  }
+  function selectLocation(row) {
+    selectedLocation = row;
+    byId('locationStep').classList.add('hidden');
+    byId('serviceStep').classList.remove('hidden');
+    byId('step1').classList.remove('active');
+    byId('step2').classList.add('active');
+    byId('back').classList.remove('hidden');
+    renderServices();
+  }
+  function selectService(service) {
+    selectedService = service;
+    byId('serviceStep').classList.add('hidden');
+    byId('locationStep').classList.remove('hidden');
+    byId('step1').classList.remove('active');
+    byId('step2').classList.add('active');
+    byId('backLocation').classList.remove('hidden');
+    renderLocations();
+  }
+  function renderServices() {
+    const host = byId('services');
+    host.replaceChildren();
+    const serviceFirst = config?.locationSelectionMode === 'SERVICE_FIRST';
+    services.forEach(service => {
+      const offerings = selectedLocation?.token
+        ? service.offerings.filter(offering => offering.locationToken === selectedLocation.token)
+        : service.offerings;
+      if (!offerings.length) return;
+      const price = service.fromPriceGross != null
+        ? `<span class="price">${escapeHtml(copy[locale].from)} ${Number(service.fromPriceGross).toFixed(2)} €</span>`
+        : '';
+      if (serviceFirst && !selectedService) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'card';
+        button.innerHTML = `<strong>${escapeHtml(service.name)}</strong><span>${escapeHtml(service.description || '')}</span>${price}`;
+        button.addEventListener('click', () => selectService(service));
+        host.appendChild(button);
+        return;
+      }
+      const card = document.createElement('article');
+      card.className = 'card';
+      card.innerHTML = `<strong>${escapeHtml(service.name)}</strong><span>${escapeHtml(service.description || '')}</span>${price}<div class="offering-list"></div>`;
+      const list = card.querySelector('.offering-list');
+      offerings.forEach(offering => {
+        const row = document.createElement('div');
+        row.className = 'offering';
+        const locationLabel = selectedLocation?.token ? '' : `${offering.locationName} · ${offering.unitName}`;
+        const details = [locationLabel, `${offering.durationMinutes || 60} min`, offering.priceGross != null ? `${Number(offering.priceGross).toFixed(2)} €` : ''].filter(Boolean).join(' · ');
+        row.innerHTML = `<div class="offering-copy"><strong>${escapeHtml(offering.localServiceName)}</strong><small>${escapeHtml(details)}</small></div><button type="button">${escapeHtml(copy[locale].continue)}</button>`;
+        row.querySelector('button').addEventListener('click', () => launch(offering));
+        list.appendChild(row);
+      });
+      host.appendChild(card);
+    });
+    if (!host.childElementCount) host.innerHTML = `<div class="empty">${escapeHtml(copy[locale].noServices)}</div>`;
+  }
+
+  async function launch(offering) {
+    try {
+      const response = await fetch(`/api/public/widget/workspaces/${encodeURIComponent(slug)}/launch`, {
+        method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ locationToken: offering.locationToken, offeringToken: offering.token, locale })
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.message || copy[locale].failed);
+      location.href = (await response.json()).bookingUrl;
+    } catch (error) {
+      showError(error);
+    }
+  }
+  function initializeFlow() {
+    const serviceFirst = config?.locationSelectionMode === 'SERVICE_FIRST';
+    selectedLocation = null;
+    selectedService = null;
+    byId('step1').textContent = serviceFirst ? `1. ${copy[locale].service}` : `1. ${copy[locale].location}`;
+    byId('step2').textContent = serviceFirst ? `2. ${copy[locale].location}` : `2. ${copy[locale].service}`;
+    byId('step1').classList.add('active');
+    byId('step2').classList.remove('active');
+    byId('back').classList.add('hidden');
+    byId('backLocation').classList.add('hidden');
+    if (serviceFirst) {
+      byId('locationStep').classList.add('hidden');
+      byId('serviceStep').classList.remove('hidden');
+      renderServices();
+      return;
+    }
+    byId('locationStep').classList.remove('hidden');
+    byId('serviceStep').classList.add('hidden');
+    renderLocations();
+    if (locations.length === 1) selectLocation(locations[0]);
+  }
+
+  byId('back').addEventListener('click', () => {
+    selectedLocation = null;
+    byId('serviceStep').classList.add('hidden');
+    byId('locationStep').classList.remove('hidden');
+    byId('step2').classList.remove('active');
+    byId('step1').classList.add('active');
+    byId('back').classList.add('hidden');
+    renderLocations();
+  });
+  byId('backLocation').addEventListener('click', () => {
+    selectedService = null;
+    byId('locationStep').classList.add('hidden');
+    byId('serviceStep').classList.remove('hidden');
+    byId('step2').classList.remove('active');
+    byId('step1').classList.add('active');
+    byId('backLocation').classList.add('hidden');
+    renderServices();
+  });
+  byId('lang').addEventListener('change', () => {
+    locale = byId('lang').value;
+    applyCopy();
+    renderLocations();
+    renderServices();
+  });
+  applyCopy();
+
+  Promise.all([api('/config'), api('/locations'), api('/services')]).then(([loadedConfig, loadedLocations, loadedServices]) => {
+    config = loadedConfig;
+    locations = loadedLocations;
+    services = loadedServices;
+    if (!query.get('lang') && ['sl', 'en', 'sr'].includes(config.defaultLanguage)) locale = config.defaultLanguage;
+    applyCopy();
+    document.title = `${config.pageTitle || config.workspaceName} | Calendra`;
+    byId('title').textContent = config.pageTitle || config.workspaceName;
+    byId('intro').textContent = config.introduction || '';
+    document.documentElement.style.setProperty('--brand', config.primaryColor || '#1672f3');
+    if (config.logoUrl) byId('logo').innerHTML = `<img src="${escapeHtml(config.logoUrl)}" alt="">`;
+    else byId('logo').textContent = (config.workspaceName || 'C').slice(0, 1).toUpperCase();
+    renderLegal();
+    initializeFlow();
+  }).catch(showError);
+})();
+</script>
+</body>
+</html>

@@ -16,4 +16,9 @@ public class PublicBookingPageController {
     public String bookingPage() {
         return "forward:/widget/booking-page.html";
     }
+
+    @GetMapping({"/book/{workspaceSlug:[a-z0-9-]+}", "/widget/workspace/{workspaceSlug:[a-z0-9-]+}"})
+    public String workspaceBookingPage() {
+        return "forward:/widget/workspace-booking-page.html";
+    }
 }

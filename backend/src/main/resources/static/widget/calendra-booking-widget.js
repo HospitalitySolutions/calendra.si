@@ -500,7 +500,7 @@
     }
 
     static get observedAttributes() {
-      return ['tenant', 'base-url', 'locale', 'primary-color', 'accent-color', 'presentation'];
+      return ['tenant', 'base-url', 'locale', 'primary-color', 'accent-color', 'presentation', 'location-id', 'initial-service-id', 'employee-selection-allowed', 'show-prices', 'confirmation-text'];
     }
 
     connectedCallback() {
@@ -639,6 +639,11 @@
         locale: this.getAttribute('locale') || this.dataset.locale || DEFAULTS.locale,
         primaryColor: this.getAttribute('primary-color') || this.dataset.primaryColor || DEFAULTS.primaryColor,
         accentColor: this.getAttribute('accent-color') || this.dataset.accentColor || DEFAULTS.accentColor,
+        locationId: this.getAttribute('location-id') || this.dataset.locationId || '',
+        initialServiceId: this.getAttribute('initial-service-id') || this.dataset.initialServiceId || '',
+        employeeSelectionAllowed: !['false', '0', 'no'].includes(String(this.getAttribute('employee-selection-allowed') || 'true').toLowerCase()),
+        showPrices: !['false', '0', 'no'].includes(String(this.getAttribute('show-prices') || 'true').toLowerCase()),
+        confirmationText: this.getAttribute('confirmation-text') || '',
       };
 
       const computed = getComputedStyle(this);
@@ -660,14 +665,24 @@
         throw new Error('Missing tenant code. Set the tenant attribute on <calendra-booking-widget>.');
       }
 
+      const locationQuery = this.options.locationId ? `?locationId=${encodeURIComponent(this.options.locationId)}` : '';
       const [config, services] = await Promise.all([
         this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/config`),
-        this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/services`),
+        this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/services${locationQuery}`),
       ]);
 
-      const selectedServiceId = services.length ? services[0].id : null;
-      const selectedService = services.length ? services[0] : null;
-      const firstGroupedService = services.find((item) => item && item.serviceGroupId != null && item.serviceGroupName);
+      const effectiveConfig = this.options.employeeSelectionAllowed
+        ? config
+        : { ...config, employeeSelectionStep: false };
+      const effectiveServices = this.options.showPrices
+        ? services
+        : services.map((item) => ({ ...item, priceLabel: null, priceGross: null }));
+      const requestedInitialId = Number(this.options.initialServiceId);
+      const selectedService = Number.isFinite(requestedInitialId)
+        ? (effectiveServices.find((item) => Number(item.id) === requestedInitialId) || effectiveServices[0] || null)
+        : (effectiveServices[0] || null);
+      const selectedServiceId = selectedService ? selectedService.id : null;
+      const firstGroupedService = effectiveServices.find((item) => item && item.serviceGroupId != null && item.serviceGroupName);
       const initiallyExpandedGroup = selectedService && selectedService.serviceGroupId != null && selectedService.serviceGroupName
         ? `group-${selectedService.serviceGroupId}`
         : firstGroupedService
@@ -675,12 +690,12 @@
           : null;
       const selectedDate = this.todayInWidgetTimezone();
 
-      const defaultPaymentMethod = this.defaultPaymentMethod(config);
+      const defaultPaymentMethod = this.defaultPaymentMethod(effectiveConfig);
 
       this.setState({
         loading: false,
-        config,
-        services,
+        config: effectiveConfig,
+        services: effectiveServices,
         expandedServiceGroupKeys: initiallyExpandedGroup ? [initiallyExpandedGroup] : [],
         selectedServiceId,
         selectedServiceIds: selectedServiceId != null ? [selectedServiceId] : [],
@@ -1283,6 +1298,7 @@
       const ids = this.selectedServiceIdsForRequest();
       if (ids.length) params.set('typeId', String(ids[0]));
       ids.forEach((id) => params.append('typeIds', String(id)));
+      if (this.options.locationId) params.set('locationId', String(this.options.locationId));
       return params;
     }
 
@@ -1921,6 +1937,7 @@
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',
             holdToken: this.state.slotHoldToken || null,
+            locationId: this.options.locationId || null,
           },
         });
 
@@ -2162,6 +2179,7 @@
             body: {
               typeId: this.state.selectedServiceId,
               consultantId: form.consultantId ? Number(form.consultantId) : null,
+              locationId: this.options.locationId ? Number(this.options.locationId) : null,
               flexible: Boolean(form.flexible),
               dateFrom: form.dateFrom,
               dateTo: form.flexible ? form.dateTo : form.dateFrom,
@@ -2698,6 +2716,7 @@
             <div class="success-icon" aria-hidden="true">${this.uiIcon('check')}</div>
             <div class="success-title">${escapeHtml(t.confirmed)}</div>
             <p class="success-services">${escapeHtml(success.serviceName || this.selectedServiceDisplayName() || t.sessionFallback)}</p>
+            ${this.options.confirmationText ? `<p class="workspace-confirmation-text">${escapeHtml(this.options.confirmationText)}</p>` : ''}
             <div class="success-details-grid">${successDetails}</div>
             <p class="success-email">
               <span class="success-email-icon" aria-hidden="true">${this.uiIcon('send')}</span>
@@ -3748,6 +3767,7 @@
         .success-icon svg { width: 43px; height: 43px; stroke-width: 2.2; }
         .success-title { font-size: clamp(30px, 3vw, 42px); line-height: 1.12; font-weight: 900; letter-spacing: -.035em; color: var(--calendra-text); }
         .success-services { margin: 20px 0 0; color: var(--calendra-muted); font-size: clamp(17px, 1.6vw, 21px); line-height: 1.5; }
+        .workspace-confirmation-text { max-width: 680px; margin: 14px 0 0; color: var(--calendra-muted); font-size: 15px; line-height: 1.6; white-space: pre-line; }
         .success-details-grid { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 34px 0 28px; }
         .success-detail-card {
           min-width: 0;

@@ -129,6 +129,7 @@ public class PublicBookingWidgetController {
             @NotBlank String startTime,
             Long consultantId,
             Long groupSessionId,
+            Long locationId,
             @NotBlank String firstName,
             @NotBlank String lastName,
             @NotBlank @Email String email,
@@ -151,6 +152,7 @@ public class PublicBookingWidgetController {
     public record WaitlistRequest(
             @NotNull Long typeId,
             Long consultantId,
+            Long locationId,
             boolean flexible,
             @NotBlank String dateFrom,
             @NotBlank String dateTo,
@@ -180,8 +182,12 @@ public class PublicBookingWidgetController {
     }
 
     @GetMapping("/{tenantCode}/services")
-    public List<WidgetServiceResponse> services(@PathVariable String tenantCode, HttpServletRequest request) {
-        return service.services(tenantCode, request);
+    public List<WidgetServiceResponse> services(
+            @PathVariable String tenantCode,
+            @RequestParam(required = false) Long locationId,
+            HttpServletRequest request
+    ) {
+        return service.services(tenantCode, locationId, request);
     }
 
     @GetMapping("/{tenantCode}/consultants")
@@ -189,9 +195,10 @@ public class PublicBookingWidgetController {
             @PathVariable String tenantCode,
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) List<Long> typeIds,
+            @RequestParam(required = false) Long locationId,
             HttpServletRequest request
     ) {
-        return service.consultants(tenantCode, typeId, typeIds, request);
+        return service.consultants(tenantCode, typeId, typeIds, locationId, request);
     }
 
     @GetMapping("/{tenantCode}/availability")
@@ -201,9 +208,10 @@ public class PublicBookingWidgetController {
             @RequestParam(required = false) List<Long> typeIds,
             @RequestParam String date,
             @RequestParam(required = false) Long consultantId,
+            @RequestParam(required = false) Long locationId,
             HttpServletRequest request
     ) {
-        return service.availability(tenantCode, typeId, typeIds, date, consultantId, request);
+        return service.availability(tenantCode, typeId, typeIds, date, consultantId, locationId, request);
     }
 
     @GetMapping("/{tenantCode}/availability-month")
@@ -213,9 +221,10 @@ public class PublicBookingWidgetController {
             @RequestParam(required = false) List<Long> typeIds,
             @RequestParam String month,
             @RequestParam(required = false) Long consultantId,
+            @RequestParam(required = false) Long locationId,
             HttpServletRequest request
     ) {
-        return service.availabilityMonth(tenantCode, typeId, typeIds, month, consultantId, request);
+        return service.availabilityMonth(tenantCode, typeId, typeIds, month, consultantId, locationId, request);
     }
 
     @PostMapping("/{tenantCode}/bookings")

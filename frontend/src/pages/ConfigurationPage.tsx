@@ -136,6 +136,7 @@ import {
   serializeWebsiteBookingRules,
   serializeWebsiteWidgetSettings
 } from "./configuration/guestWebsiteSettings";
+import { WorkspacePublicBookingSettingsSection } from "./configuration/WorkspacePublicBookingSettingsSection";
 import type {
   GuestAppAssetField,
   GuestAppSettingsForm,
@@ -13878,6 +13879,8 @@ export function ConfigurationPage() {
                   </div>
                 </Card>
               ) : tab === "website" ? (
+                <>
+                  <WorkspacePublicBookingSettingsSection locale={locale} />
                 <Card className="settings-card website-payment-settings-moved">
                   <style>{`
                     .website-payment-settings-moved {
@@ -13972,6 +13975,7 @@ export function ConfigurationPage() {
                     </button>
                   </div>
                 </Card>
+                </>
               ) : tab === "notifications" ? (
                 <ConfigurationNotificationsSection
                   settings={settings}

@@ -34,5 +34,24 @@ public interface WorkspaceClientRepository extends JpaRepository<WorkspaceClient
     @EntityGraph(attributePaths = {"workspace"})
     List<WorkspaceClient> findAllByWorkspaceIdAndStatusOrderByIdAsc(Long workspaceId, WorkspaceClientStatus status);
 
+    @EntityGraph(attributePaths = {"workspace"})
+    @Query("""
+            select wc from WorkspaceClient wc
+            where wc.workspace.id = :workspaceId
+              and wc.status = com.example.app.workspaceclient.WorkspaceClientStatus.ACTIVE
+              and wc.normalizedEmail = :normalizedEmail
+              and wc.normalizedPhone = :normalizedPhone
+              and lower(wc.firstName) = lower(:firstName)
+              and lower(wc.lastName) = lower(:lastName)
+            order by wc.id
+            """)
+    List<WorkspaceClient> findExactActiveIdentity(
+            @Param("workspaceId") Long workspaceId,
+            @Param("normalizedEmail") String normalizedEmail,
+            @Param("normalizedPhone") String normalizedPhone,
+            @Param("firstName") String firstName,
+            @Param("lastName") String lastName,
+            Pageable pageable);
+
     List<WorkspaceClient> findAllByIdIn(Collection<Long> ids);
 }

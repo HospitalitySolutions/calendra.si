@@ -26,6 +26,12 @@ app.calendra.si {
 		}
 	}
 
+	handle /book/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
 	handle /widget/* {
     		reverse_proxy backend:4000 {
     			header_up X-Forwarded-Proto https
@@ -63,6 +69,12 @@ calendra.si {
 
 	handle /narocanje/* {
 		uri replace /narocanje/ /widget/
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle /book/* {
 		reverse_proxy backend:4000 {
 			header_up X-Forwarded-Proto https
 		}
