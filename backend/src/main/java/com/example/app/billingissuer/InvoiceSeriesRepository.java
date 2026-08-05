@@ -23,6 +23,11 @@ public interface InvoiceSeriesRepository extends JpaRepository<InvoiceSeries, Lo
     @Query("select s from InvoiceSeries s join fetch s.legalEntity left join fetch s.company left join fetch s.location where s.id = :id")
     Optional<InvoiceSeries> findForUpdateById(@Param("id") Long id);
 
+
+    @EntityGraph(attributePaths = {"legalEntity", "company", "location"})
+    Optional<InvoiceSeries> findFirstByLocationIdAndLegalEntityIdOrderByActiveDescIdAsc(Long locationId, Long legalEntityId);
+    List<InvoiceSeries> findAllByLocationId(Long locationId);
+
     boolean existsByLegalEntityIdAndNameIgnoreCase(Long legalEntityId, String name);
     long countByLegalEntityId(Long legalEntityId);
 }

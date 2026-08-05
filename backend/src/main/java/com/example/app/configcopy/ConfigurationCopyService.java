@@ -421,6 +421,7 @@ public class ConfigurationCopyService {
             target.setAddress(source.getAddress());
             target.setPostalCode(source.getPostalCode());
             target.setCity(source.getCity());
+            target.setCountry(source.getCountry());
             target.setTimezone(source.getTimezone());
             target.setPhone(source.getPhone());
             target.setEmail(source.getEmail());

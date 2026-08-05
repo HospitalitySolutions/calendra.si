@@ -64,32 +64,37 @@ public class InvoiceIssuanceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Operating unit not found."));
         Location location = resolveLocation(companyId, requestedLocationId);
 
+        Long locationIssuerId = location.getDefaultLegalEntity() == null
+                ? null
+                : location.getDefaultLegalEntity().getId();
+
         InvoiceSeries chosen;
         CompanyLegalEntity assignment;
         if (requestedSeriesId != null) {
-            lockInvoiceSeries(requestedSeriesId);
-            InvoiceSeries candidate = seriesRepository.findForUpdateById(requestedSeriesId)
+            InvoiceSeries requested = seriesRepository.findById(requestedSeriesId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series not found."));
-            assignment = requireAssignment(companyId, candidate.getLegalEntity().getId());
-            if (requestedLegalEntityId != null && !Objects.equals(requestedLegalEntityId, candidate.getLegalEntity().getId())) {
+            assignment = requireAssignment(companyId, requested.getLegalEntity().getId());
+            if (requestedLegalEntityId != null && !Objects.equals(requestedLegalEntityId, requested.getLegalEntity().getId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series does not belong to the selected issuer.");
             }
-            validateSeries(candidate, companyId, location);
-            chosen = candidate;
-        } else {
-            Long legalEntityId = requestedLegalEntityId;
-            if (legalEntityId == null && location.getDefaultLegalEntity() != null) {
-                Long locationIssuerId = location.getDefaultLegalEntity().getId();
-                if (assignments.findByCompanyIdAndLegalEntityId(companyId, locationIssuerId)
-                        .filter(CompanyLegalEntity::isActive).isPresent()) {
-                    legalEntityId = locationIssuerId;
-                }
+            // Legacy clients may still submit the old unit-wide default series. Redirect those
+            // requests to the location-owned series so every location keeps an independent counter.
+            if (requested.getLocation() == null) {
+                chosen = resolveLocationSeriesForUpdate(assignment, company, location);
+            } else {
+                lockInvoiceSeries(requestedSeriesId);
+                InvoiceSeries candidate = seriesRepository.findForUpdateById(requestedSeriesId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series not found."));
+                validateSeries(candidate, companyId, location);
+                chosen = candidate;
             }
+        } else {
+            Long legalEntityId = requestedLegalEntityId == null ? locationIssuerId : requestedLegalEntityId;
             assignment = legalEntityId == null
                     ? assignments.findFirstByCompanyIdAndActiveTrueOrderByDefaultIssuerDescIdAsc(companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No invoice issuer is assigned to this operating unit."))
                     : requireAssignment(companyId, legalEntityId);
-            chosen = resolveDefaultSeriesForUpdate(assignment, companyId, location);
+            chosen = resolveLocationSeriesForUpdate(assignment, company, location);
         }
 
         int year = (issueDate == null ? LocalDate.now() : issueDate).getYear();
@@ -140,7 +145,8 @@ public class InvoiceIssuanceService {
                 .filter(series -> assignments.findByCompanyIdAndLegalEntityId(companyId, series.getLegalEntity().getId())
                         .filter(CompanyLegalEntity::isActive).isPresent())
                 .filter(series -> series.getCompany() == null || Objects.equals(series.getCompany().getId(), companyId))
-                .filter(series -> location == null || series.getLocation() == null || Objects.equals(series.getLocation().getId(), location.getId()))
+                .filter(series -> location == null
+                        || (series.getLocation() != null && Objects.equals(series.getLocation().getId(), location.getId())))
                 .sorted(Comparator.comparing((InvoiceSeries s) -> s.getLegalEntity().getName(), String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(InvoiceSeries::getName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(InvoiceSeries::getId))
@@ -155,6 +161,64 @@ public class InvoiceIssuanceService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice issuer is inactive.");
         }
         return assignment;
+    }
+
+    private InvoiceSeries resolveLocationSeriesForUpdate(
+            CompanyLegalEntity assignment,
+            Company company,
+            Location location
+    ) {
+        Long legalEntityId = assignment.getLegalEntity().getId();
+        boolean isLocationDefaultIssuer = location.getDefaultLegalEntity() == null
+                || Objects.equals(location.getDefaultLegalEntity().getId(), legalEntityId);
+        InvoiceSeries configured = isLocationDefaultIssuer ? location.getDefaultInvoiceSeries() : null;
+        if (configured != null
+                && configured.isActive()
+                && Objects.equals(configured.getLegalEntity().getId(), legalEntityId)
+                && configured.getLocation() != null
+                && Objects.equals(configured.getLocation().getId(), location.getId())) {
+            lockInvoiceSeries(configured.getId());
+            InvoiceSeries locked = seriesRepository.findForUpdateById(configured.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Location invoice counter no longer exists."));
+            validateSeries(locked, company.getId(), location);
+            return locked;
+        }
+
+        InvoiceSeries existing = seriesRepository
+                .findFirstByLocationIdAndLegalEntityIdOrderByActiveDescIdAsc(location.getId(), legalEntityId)
+                .filter(InvoiceSeries::isActive)
+                .orElse(null);
+        if (existing != null) {
+            lockInvoiceSeries(existing.getId());
+            InvoiceSeries locked = seriesRepository.findForUpdateById(existing.getId()).orElseThrow();
+            if (isLocationDefaultIssuer) {
+                location.setDefaultInvoiceSeries(locked);
+                locations.save(location);
+            }
+            validateSeries(locked, company.getId(), location);
+            return locked;
+        }
+
+        InvoiceSeries seed = assignment.getDefaultInvoiceSeries();
+        InvoiceSeries created = new InvoiceSeries();
+        created.setWorkspace(company.getWorkspace());
+        created.setLegalEntity(assignment.getLegalEntity());
+        created.setCompany(company);
+        created.setLocation(location);
+        created.setName("Location-" + location.getId());
+        created.setNextNumber(seed == null ? "1" : nonBlank(seed.getNextNumber(), "1"));
+        created.setInitialNumber(seed == null ? created.getNextNumber() : nonBlank(seed.getInitialNumber(), created.getNextNumber()));
+        created.setResetPolicy(seed == null || seed.getResetPolicy() == null ? InvoiceSeriesResetPolicy.NONE : seed.getResetPolicy());
+        created.setLastResetYear(LocalDate.now().getYear());
+        created.setBusinessPremiseCode(trim(location.getFiscalBusinessPremiseCode()));
+        created.setElectronicDeviceId(seed == null ? "1" : nonBlank(seed.getElectronicDeviceId(), "1"));
+        created.setActive(true);
+        created = seriesRepository.save(created);
+        if (isLocationDefaultIssuer) {
+            location.setDefaultInvoiceSeries(created);
+            locations.save(location);
+        }
+        return created;
     }
 
     private InvoiceSeries resolveDefaultSeriesForUpdate(CompanyLegalEntity assignment, Long companyId, Location location) {

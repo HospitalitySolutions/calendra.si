@@ -352,6 +352,10 @@ public class BillingIssuerController {
     @Transactional
     public InvoiceSeriesResponse createSeries(@RequestBody InvoiceSeriesInput input, @AuthenticationPrincipal User me) {
         if (input == null || input.legalEntityId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Issuer is required.");
+        if (input.locationId() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Location invoice counters are managed in Business units.");
+        }
         WorkspaceClientAccessService.AccessSnapshot access = accessService.snapshot(me);
         Long companyId = input.companyId() == null ? null : input.companyId();
         if (companyId != null) accessService.requireAdminForCompanies(me, List.of(companyId));
@@ -385,9 +389,14 @@ public class BillingIssuerController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public InvoiceSeriesResponse updateSeries(@PathVariable Long id, @RequestBody InvoiceSeriesInput input, @AuthenticationPrincipal User me) {
+        if (input == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice series is required.");
         WorkspaceClientAccessService.AccessSnapshot access = accessService.snapshot(me);
         InvoiceSeries value = series.findByIdAndWorkspaceId(id, access.workspaceId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (value.getLocation() != null || input.locationId() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Location invoice counters are managed in Business units.");
+        }
         Set<Long> affected = new LinkedHashSet<>();
         boolean sharedBefore = value.getCompany() == null;
         boolean sharedAfter = input.companyId() == null;
@@ -426,6 +435,10 @@ public class BillingIssuerController {
         WorkspaceClientAccessService.AccessSnapshot access = accessService.snapshot(me);
         InvoiceSeries value = series.findByIdAndWorkspaceId(id, access.workspaceId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (value.getLocation() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Location invoice counters are managed in Business units.");
+        }
         Set<Long> affected = new LinkedHashSet<>();
         if (value.getCompany() != null) affected.add(value.getCompany().getId());
         if (value.getCompany() == null) {

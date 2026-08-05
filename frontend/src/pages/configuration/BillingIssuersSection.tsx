@@ -178,7 +178,7 @@ export function BillingIssuersSection({
   )
   const canAddIssuer = allowMultipleCompanies || issuers.length === 0
   const selectedSeries = useMemo(
-    () => series.filter((x) => x.legalEntityId === selectedIssuerId),
+    () => series.filter((x) => x.legalEntityId === selectedIssuerId && x.locationId == null),
     [series, selectedIssuerId],
   )
 
@@ -584,6 +584,7 @@ export function BillingIssuersSection({
         .billing-issuer-item{width:100%;display:flex;justify-content:space-between;gap:10px;text-align:left;border:1px solid transparent;background:#f7f9fc;border-radius:12px;padding:12px;margin-bottom:8px;color:inherit}.billing-issuer-item.active{border-color:#7cbcf0;background:#eef7ff}
         .billing-issuer-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.billing-issuer-badge{font-size:12px;padding:3px 8px;border-radius:999px;background:#eaf1f8}.billing-issuer-badge.primary{background:#dff3e8;color:#14633b}
         .billing-issuer-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.billing-issuer-fields label{display:grid;gap:6px;font-size:13px}.billing-issuer-fields input,.billing-issuer-fields select{min-height:40px;border:1px solid #ccd7e5;border-radius:10px;padding:8px 10px}.billing-issuer-fields .wide{grid-column:1/-1}
+        .billing-series-location-note{grid-column:1/-1;padding:11px 12px;border:1px solid #cfe0ff;border-radius:10px;background:#f2f7ff;color:#3468ad;font-size:12px;line-height:1.45}
         .billing-issuer-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}.billing-series-table{display:grid;gap:8px;margin-top:12px}.billing-series-row{display:grid;grid-template-columns:1.4fr .8fr .8fr auto;gap:10px;align-items:center;padding:11px;border:1px solid #e1e9f3;border-radius:12px}.billing-unit-assignment{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.billing-unit-assignment button{border:1px solid #ccd7e5;border-radius:999px;background:#fff;padding:7px 10px}.billing-unit-assignment button.active{background:#eaf6ff;border-color:#7cbcf0}
         .billing-certificate-box{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:16px 0;padding:13px;border:1px solid #dfe8f2;border-radius:14px;background:#f8fbfe}.billing-certificate-box h4{margin:0 0 4px}.billing-certificate-box p{margin:0}.billing-certificate-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}.billing-certificate-actions input{max-width:250px}.billing-certificate-actions .danger,.billing-issuer-actions .danger{color:#a12b2b;border-color:#fecaca;background:#fff7f7}
         .billing-issuer-settings.companies-only{gap:14px}.billing-issuer-settings.companies-only .billing-issuer-grid{grid-template-columns:minmax(250px,.9fr) minmax(0,1.45fr)}
@@ -1059,111 +1060,11 @@ export function BillingIssuersSection({
                 }
               />
             </label>
-            <label>
-              <span>{sl ? 'Naslednja številka' : 'Next number'}</span>
-              <input
-                value={seriesDraft.nextNumber}
-                onChange={(e) =>
-                  setSeriesDraft({
-                    ...seriesDraft,
-                    nextNumber: e.target.value,
-                  })
-                }
-              />
-            </label>
-            <label>
-              <span>
-                {sl
-                  ? 'Začetna številka ob ponastavitvi'
-                  : 'Initial number on reset'}
-              </span>
-              <input
-                value={seriesDraft.initialNumber}
-                onChange={(e) =>
-                  setSeriesDraft({
-                    ...seriesDraft,
-                    initialNumber: e.target.value,
-                  })
-                }
-              />
-            </label>
-            <label>
-              <span>{sl ? 'Ponastavitev' : 'Reset'}</span>
-              <select
-                value={seriesDraft.resetPolicy}
-                onChange={(e) =>
-                  setSeriesDraft({
-                    ...seriesDraft,
-                    resetPolicy: e.target.value,
-                  })
-                }
-              >
-                <option value="NONE">{sl ? 'Brez' : 'None'}</option>
-                <option value="YEARLY">{sl ? 'Letno' : 'Yearly'}</option>
-              </select>
-            </label>
-            {seriesDraft.companyId != null && (
-              <label>
-                <span>
-                  {sl ? 'Lokacija (opcijsko)' : 'Location (optional)'}
-                </span>
-                <select
-                  value={seriesDraft.locationId ?? ''}
-                  onChange={(e) => {
-                    const locationId = Number(e.target.value) || null
-                    setSeriesDraft({
-                      ...seriesDraft,
-                      locationId,
-                      defaultForCurrentUnit: locationId
-                        ? false
-                        : seriesDraft.defaultForCurrentUnit,
-                    })
-                  }}
-                >
-                  <option value="">
-                    {sl ? 'Vse lokacije enote' : 'All unit locations'}
-                  </option>
-                  {locations
-                    .filter((x) => x.active !== false)
-                    .map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.name}
-                        {x.city ? ` · ${x.city}` : ''}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            )}
-            <label>
-              <span>
-                {sl ? 'Oznaka poslovnega prostora' : 'Business premise code'}
-              </span>
-              <input
-                value={seriesDraft.businessPremiseCode}
-                onChange={(e) =>
-                  setSeriesDraft({
-                    ...seriesDraft,
-                    businessPremiseCode: e.target.value,
-                  })
-                }
-              />
-            </label>
-            <label>
-              <span>
-                {sl
-                  ? 'Oznaka elektronske naprave'
-                  : 'Electronic device ID'}
-              </span>
-              <input
-                value={seriesDraft.electronicDeviceId}
-                onChange={(e) =>
-                  setSeriesDraft({
-                    ...seriesDraft,
-                    electronicDeviceId: e.target.value,
-                  })
-                }
-              />
-            </label>
+            <div className="billing-series-location-note">
+              {sl
+                ? 'Številčenje, začetna številka, ponastavitev ter oznaki poslovnega prostora in elektronske naprave se urejajo pri posamezni lokaciji v zavihku Poslovne enote.'
+                : 'Numbering, initial number, reset policy, business premise code and device ID are managed per location in the Business units tab.'}
+            </div>
             <label>
               <span>
                 {sl ? 'Privzeta za trenutno enoto' : 'Default for current unit'}

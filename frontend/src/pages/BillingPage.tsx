@@ -1267,10 +1267,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const defaultInvoiceLocationId = selectedLocationId && invoiceLocations.some((location) => location.id === selectedLocationId)
     ? selectedLocationId
     : invoiceLocations.find((location) => location.defaultLocation)?.id ?? invoiceLocations[0]?.id
-  const compatibleInvoiceSeries = useMemo(() => invoiceSeriesOptions.filter((series) =>
-    (!billForm.legalEntityId || series.legalEntityId === billForm.legalEntityId)
-    && (series.locationId == null || series.locationId === billForm.locationId),
-  ), [invoiceSeriesOptions, billForm.legalEntityId, billForm.locationId])
+  const compatibleInvoiceSeries = useMemo(() => {
+    if (!billForm.legalEntityId || !billForm.locationId) return []
+    const issuerSeries = invoiceSeriesOptions.filter((series) => series.legalEntityId === billForm.legalEntityId)
+    const locationSeries = issuerSeries.filter((series) => series.locationId === billForm.locationId)
+    // Prefer the location-owned counter. Generic series remain only as a legacy fallback;
+    // the backend converts their use into a dedicated location series on issuance.
+    return locationSeries.length > 0 ? locationSeries : issuerSeries.filter((series) => series.locationId == null)
+  }, [invoiceSeriesOptions, billForm.legalEntityId, billForm.locationId])
 
   useEffect(() => {
     if (invoiceIssuers.length === 0 || invoiceLocations.length === 0) return
@@ -1282,8 +1286,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         ? locationDefaultIssuerId : defaultInvoiceIssuerId
       const legalEntityId = current.legalEntityId && invoiceIssuers.some((issuer) => issuer.id === current.legalEntityId)
         ? current.legalEntityId : preferredIssuerId
-      const available = invoiceSeriesOptions.filter((series) => series.legalEntityId === legalEntityId
-        && (series.locationId == null || series.locationId === locationId))
+      const issuerSeries = invoiceSeriesOptions.filter((series) => series.legalEntityId === legalEntityId)
+      const locationSeries = issuerSeries.filter((series) => series.locationId === locationId)
+      const available = locationSeries.length > 0
+        ? locationSeries
+        : issuerSeries.filter((series) => series.locationId == null)
       const invoiceSeriesId = current.invoiceSeriesId && available.some((series) => series.id === current.invoiceSeriesId)
         ? current.invoiceSeriesId
         : (available.find((series) => series.defaultForCurrentUnit)?.id ?? available[0]?.id)
@@ -9617,7 +9624,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         ))}
                       </select>
                     </Field>
-                    <Field label={locale === 'sl' ? 'Številčna serija' : 'Invoice series'}>
+                    <Field label={locale === 'sl' ? 'Števec računov lokacije' : 'Location invoice counter'}>
                       <select
                         value={billForm.invoiceSeriesId ?? ''}
                         onChange={(event) => setBillForm((current) => ({
@@ -9629,7 +9636,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <option value="">{locale === 'sl' ? 'Izberite serijo' : 'Select series'}</option>
                         {compatibleInvoiceSeries.map((series) => (
                           <option key={series.id} value={series.id}>
-                            {series.name}{series.locationName ? ` · ${series.locationName}` : series.sharedAcrossUnits ? ` · ${locale === 'sl' ? 'skupna' : 'shared'}` : ''}
+                            {series.locationId != null
+                              ? `${locale === 'sl' ? 'Števec' : 'Counter'} · ${series.locationName || invoiceLocations.find((location) => location.id === series.locationId)?.name || series.name}`
+                              : `${series.name}${series.sharedAcrossUnits ? ` · ${locale === 'sl' ? 'skupna' : 'shared'}` : ''}`}
                           </option>
                         ))}
                       </select>
@@ -9638,8 +9647,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {invoiceIssuers.length === 0 || invoiceLocations.length === 0 || compatibleInvoiceSeries.length === 0 ? (
                     <p className="billing-invoice-issuer-warning">
                       {locale === 'sl'
-                        ? 'Manjka veljaven izdajatelj, lokacija ali številčna serija. Nastavite jih v Nastavitve → Obračunavanje → Izdajatelji in serije.'
-                        : 'A valid issuer, location or invoice series is missing. Configure it under Settings → Billing → Issuers & series.'}
+                        ? 'Manjka veljaven izdajatelj, lokacija ali števec računov. Nastavite jih v Nastavitve → Upravljanje računa → Poslovne enote.'
+                        : 'A valid issuer, location or invoice counter is missing. Configure it under Settings → Account management → Business units.'}
                     </p>
                   ) : null}
                 </section>

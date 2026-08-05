@@ -1,6 +1,7 @@
 package com.example.app.location;
 
 import com.example.app.common.BaseEntity;
+import com.example.app.billingissuer.InvoiceSeries;
 import com.example.app.billingissuer.LegalEntity;
 import com.example.app.company.Company;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -30,6 +31,8 @@ public class Location extends BaseEntity {
     @Column(name = "postal_code", length = 64)
     private String postalCode;
     private String city;
+    @Column(nullable = false, length = 2)
+    private String country = "SI";
     @Column(nullable = false, length = 64)
     private String timezone = "Europe/Ljubljana";
     @Column(length = 128)
@@ -50,4 +53,8 @@ public class Location extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "default_legal_entity_id")
     private LegalEntity defaultLegalEntity;
+
+    @ManyToOne
+    @JoinColumn(name = "default_invoice_series_id")
+    private InvoiceSeries defaultInvoiceSeries;
 }

@@ -17,6 +17,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     long countByLegalEntityId(Long legalEntityId);
     long countByInvoiceSeriesId(Long invoiceSeriesId);
+    long countByLocationId(Long locationId);
 
     @Query("""
             select b.id from Bill b
