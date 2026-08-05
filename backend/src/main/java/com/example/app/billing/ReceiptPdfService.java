@@ -47,7 +47,9 @@ public class ReceiptPdfService {
     private static final float PAYMENT_QR_SIZE_PT = mmToPt(31f);
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
-    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_NUMBERED_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
 
     private enum Align { LEFT, CENTER, RIGHT }
     private enum VatBucket { VAT_22, VAT_9_5, VAT_0, NO_VAT }
@@ -392,11 +394,11 @@ public class ReceiptPdfService {
         addWrapped(blocks, request.getCompanyAddress(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         addWrapped(blocks, joinPostalCity(request.getCompanyPostalCode(), request.getCompanyCity()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         if (!blank(request.getCompanyTaxId())) {
-            addWrapped(blocks, request.getCompanyTaxId(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
+            addWrapped(blocks, companyVatIdLine(locale, request.getCompanyTaxId()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         }
         if (!blank(request.getIban())) {
             String ibanLabel = "sl".equals(normalizeLocale(locale)) ? "TRR" : "IBAN";
-            addWrapped(blocks, ibanLabel + ": " + request.getIban(), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
+            addWrapped(blocks, ibanLabel + ": " + formatIban(request.getIban()), fonts.regular(), type.small(), type.smallLineHeight(), false, Align.CENTER, SAFE_CONTENT_WIDTH_PT);
         }
         return blocks;
     }
@@ -507,7 +509,8 @@ public class ReceiptPdfService {
         if (usedAdvance.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Porabljeno predplačilo", "Iskorišćen avans", "Advance used"), "- " + money(usedAdvance), fonts.regular(), type.body(), type.lineHeight(), false));
         }
-        blocks.add(pairBlock(word(locale, "Skupaj EUR", "Ukupno EUR", "Total EUR"), money(subtotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
+        BigDecimal invoiceTotalGross = subtotalGross.subtract(discount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        blocks.add(pairBlock(word(locale, "Skupaj EUR", "Ukupno EUR", "Total EUR"), money(invoiceTotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
         BigDecimal toBePaid = positive(request.getToBePaidGross());
         if (toBePaid.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(new RuleBlock(3f, 4f));
@@ -517,9 +520,6 @@ public class ReceiptPdfService {
             List<FolioPdfRequest.PaymentLine> paymentLines = normalizedPaymentLines(request, totals.gross(), toBePaid);
             if (!paymentLines.isEmpty()) {
                 blocks.add(new GapBlock(type.smallLineHeight() * 0.75f));
-                blocks.add(textBlock(word(locale, "Način plačila:", "Način plaćanja:", "Payment method:"),
-                        fonts.regular(), type.body(), type.lineHeight(), false, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
-                blocks.add(new GapBlock(1.5f));
                 for (FolioPdfRequest.PaymentLine paymentLine : paymentLines) {
                     blocks.add(pairBlock(firstNonBlank(paymentLine.getName(), word(locale, "Plačilo", "Plaćanje", "Payment")),
                             moneyCompact(scale(paymentLine.getAmountGross())), fonts.regular(), type.body(), type.lineHeight(), false));
@@ -581,8 +581,10 @@ public class ReceiptPdfService {
     }
 
     private List<Block> taxClauseBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
+        boolean allNoVat = allServicesExplicitlyNoVat(request == null ? null : request.getServices());
         List<String> clauses = normalizedTaxClauses(layout);
-        if (allServicesExplicitlyNoVat(request == null ? null : request.getServices()) && !clauses.contains(AUTO_NO_VAT_CLAUSE)) {
+        clauses.removeIf(AUTO_NO_VAT_CLAUSE::equals);
+        if (allNoVat) {
             clauses.add(0, AUTO_NO_VAT_CLAUSE);
         }
         if (clauses.isEmpty()) return List.of();
@@ -636,10 +638,31 @@ public class ReceiptPdfService {
 
     private static String normalizeNoVatClause(String clause) {
         if (clause == null) return "";
-        return clause.replace(
-                "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.",
-                AUTO_NO_VAT_CLAUSE
-        );
+        return clause
+                .replace(LEGACY_NUMBERED_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE)
+                .replace(LEGACY_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE);
+    }
+
+    private static String companyVatIdLine(String locale, String value) {
+        String normalized = safe(value).strip();
+        if (normalized.isBlank()) return "";
+        String label = switch (normalizeLocale(locale)) {
+            case "sl" -> "ID št. za DDV: ";
+            case "sr" -> "PIB: ";
+            default -> "VAT ID: ";
+        };
+        return label + normalized;
+    }
+
+    private static String formatIban(String value) {
+        String compact = safe(value).replaceAll("\\s+", "");
+        if (compact.isBlank()) return "";
+        StringBuilder grouped = new StringBuilder(compact.length() + compact.length() / 4);
+        for (int index = 0; index < compact.length(); index++) {
+            if (index > 0 && index % 4 == 0) grouped.append(' ');
+            grouped.append(compact.charAt(index));
+        }
+        return grouped.toString();
     }
 
     private List<FolioPdfRequest.PaymentLine> normalizedPaymentLines(FolioPdfRequest request, BigDecimal grossTotal, BigDecimal toBePaid) {

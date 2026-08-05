@@ -27,6 +27,23 @@ class PosReceiptLayoutConfigTest {
                 .containsEntry("sr", PosReceiptLayoutConfig.DEFAULT_REFERENCE_TEXT_SR);
     }
 
+
+    @Test
+    void normalize_removesSystemControlledNoVatClauseIncludingLegacyWording() {
+        PosReceiptLayoutConfig source = new PosReceiptLayoutConfig();
+        source.setTaxClauses(List.of(
+                "DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.",
+                "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.",
+                "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.",
+                "Oprostitev DDV po 42. členu ZDDV-1."
+        ));
+
+        PosReceiptLayoutConfig normalized = PosReceiptLayoutConfig.normalize(source);
+
+        assertThat(normalized.getTaxClauses())
+                .containsExactly("Oprostitev DDV po 42. členu ZDDV-1.");
+    }
+
     @Test
     void normalize_replacesUnsupportedFontSizeWithStandard() {
         PosReceiptLayoutConfig source = new PosReceiptLayoutConfig();

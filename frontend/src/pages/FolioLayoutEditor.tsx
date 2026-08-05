@@ -169,7 +169,11 @@ const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
   dueDate: { en: 'Due date', sl: 'Rok plačila', sr: 'Rok plaćanja' },
 }
 
-const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.'
+const AUTO_NO_VAT_CLAUSE = 'DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.'
+const LEGACY_AUTO_NO_VAT_CLAUSES = [
+  'DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.',
+  'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
+] as const
 
 const TAX_CLAUSE_OPTIONS = [
   'Oprostitev DDV po 42. členu ZDDV-1.',
@@ -186,10 +190,8 @@ function normalizeTaxClauses(value: unknown): string[] {
   const unique = new Set<string>()
   for (const item of value) {
     if (typeof item !== 'string') continue
-    const trimmed = item.trim().replace(
-      'DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.',
-      AUTO_NO_VAT_CLAUSE,
-    )
+    let trimmed = item.trim()
+    for (const legacyClause of LEGACY_AUTO_NO_VAT_CLAUSES) trimmed = trimmed.replace(legacyClause, AUTO_NO_VAT_CLAUSE)
     // The Article 94 BREZ DDV clause is automatic and must not be persisted as a
     // user-selectable additional clause.
     if (trimmed && trimmed !== AUTO_NO_VAT_CLAUSE) unique.add(trimmed)
@@ -988,7 +990,7 @@ function A4PresetLayoutEditor() {
         showLogo: 'Prikaži logotip',
         recipient: 'Prejemnik',
         quantity: 'Količina',
-        vatBreakdown: 'Razčlenitev DDV',
+        vatBreakdown: 'Znesek DDV',
         paymentQr: 'UPN QR',
         paymentQrHint: 'Prikaže se samo, ko so podatki za QR popolni.',
         fiscal: 'Fiskalni podatki',
@@ -1096,7 +1098,7 @@ function A4PresetLayoutEditor() {
         }
 
   const sectionLabels: Record<string, string> = locale === 'sl'
-    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', vat: 'Razčlenitev DDV', totals: 'Seštevki', taxClauses: 'Davčne klavzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', signature: 'Odgovorna oseba', footer: 'Noga' }
+    ? { company: 'Podjetje in logotip', document: 'Podatki računa', recipient: 'Prejemnik', items: 'Postavke', advancePayments: 'Predplačila', vat: 'Znesek DDV', totals: 'Seštevki', taxClauses: 'Davčne klavzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podatki', issuedBy: 'Izdal', signature: 'Odgovorna oseba', footer: 'Noga' }
     : locale === 'sr'
       ? { company: 'Kompanija i logo', document: 'Podaci računa', recipient: 'Primalac', items: 'Stavke', advancePayments: 'Avansi', vat: 'Pregled PDV-a', totals: 'Ukupni iznosi', taxClauses: 'Poreske klauzule', reference: 'Referenca', paymentQr: 'UPN QR', fiscal: 'Fiskalni podaci', issuedBy: 'Izdao', signature: 'Potpis', footer: 'Podnožje' }
       : { company: 'Company and logo', document: 'Invoice details', recipient: 'Recipient', items: 'Items', advancePayments: 'Advance payments', vat: 'VAT breakdown', totals: 'Totals', taxClauses: 'Tax clauses', reference: 'Reference', paymentQr: 'Payment QR', fiscal: 'Fiscal details', issuedBy: 'Issued by', signature: 'Signature', footer: 'Footer' }

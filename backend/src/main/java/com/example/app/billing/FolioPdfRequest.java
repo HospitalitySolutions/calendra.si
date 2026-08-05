@@ -52,7 +52,7 @@ public class FolioPdfRequest {
     private BigDecimal toBePaidGross;
     /** Total discount amount shown in the folio footer when greater than zero. */
     private BigDecimal discountAmountGross;
-    /** Gross subtotal before discount. When present, PDF renderers must use it for the Skupaj/Total row. */
+    /** Gross subtotal before discount, used to derive the displayed discount and final invoice total. */
     private BigDecimal subtotalBeforeDiscountGross;
     /** Total amount of advance/deposit payments used on this folio. */
     private BigDecimal usedAdvancePaymentsGross;

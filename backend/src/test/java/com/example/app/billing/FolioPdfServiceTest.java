@@ -84,7 +84,10 @@ class FolioPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String text = new PDFTextStripper().getText(document);
             assertThat(text).contains("Skupaj brez DDV 28,00 €");
-            assertThat(text).contains("Razčlenitev DDV 22%: 2,20 €; 9,5%: 0,95 €");
+            assertThat(text).contains("Znesek DDV");
+            assertThat(text).contains("22% 2,20 €");
+            assertThat(text).contains("9,5% 0,95 €");
+            assertThat(text).doesNotContain("Razčlenitev DDV");
             assertThat(text).contains("Skupaj 31,15 €");
             assertThat(text).contains("Za plačilo 31,15 €");
             assertThat(text).doesNotContain("Opis DDV");
@@ -93,7 +96,7 @@ class FolioPdfServiceTest {
             assertThat(text).doesNotContain("Vrednost DDV");
             assertThat(text).doesNotContain("DDV 0%");
             assertThat(text).doesNotContain("NO VAT");
-            assertThat(text).doesNotContain("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.");
+            assertThat(text).doesNotContain("DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.");
         }
     }
 
@@ -122,7 +125,7 @@ class FolioPdfServiceTest {
             assertThat(text).doesNotContain("DDV 0%");
             assertThat(text).doesNotContain("NO VAT");
             assertThat(normalizedText)
-                    .contains("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.")
+                    .contains("DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.")
                     .doesNotContain("Davčne klavzule");
         }
     }
@@ -147,7 +150,7 @@ class FolioPdfServiceTest {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String text = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
             assertThat(text)
-                    .doesNotContain("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.")
+                    .doesNotContain("DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.")
                     .doesNotContain("Davčne klavzule");
         }
     }
@@ -171,7 +174,7 @@ class FolioPdfServiceTest {
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String text = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
-            assertThat(text).doesNotContain("DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.");
+            assertThat(text).doesNotContain("DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.");
         }
     }
 
@@ -205,7 +208,8 @@ class FolioPdfServiceTest {
             assertThat(text)
                     .contains("02.08.2026")
                     .contains("17.08.2026")
-                    .contains("23:08, Maribor")
+                    .contains("Izdano Maribor, 02.08.2026 23:08")
+                    .doesNotContain("Ura in kraj izdaje")
                     .contains("Prosimo, da se pri plačilu sklicujete na št.: REF-2026-001")
                     .doesNotContain("2026-08-17");
         }

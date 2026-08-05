@@ -45,7 +45,9 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 final class ModernA4InvoicePdfRenderer {
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
-    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_NUMBERED_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
     private static final float PAGE_W = PDRectangle.A4.getWidth();
     private static final float PAGE_H = PDRectangle.A4.getHeight();
     private static final float MARGIN_X = 36f;
@@ -282,7 +284,7 @@ final class ModernA4InvoicePdfRenderer {
 
     private void drawVatBreakdown(State state, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
         float pad = state.theme.pad;
-        float baseline = sectionTitle(state, vatBreakdownLabel(state.locale), x, y, width);
+        float baseline = sectionTitle(state, vatAmountLabel(state.locale), x, y, width);
         List<VatRow> rows = vatRows(request.getServices());
         String[] headers = vatHeaders(state.locale);
         // Keep all VAT column titles fully visible. The previous narrow rate column
@@ -334,8 +336,12 @@ final class ModernA4InvoicePdfRenderer {
         drawTotalRow(state, x, width, pad, baseline, subtotalLabel(state.locale), money(net, state.locale), false);
         baseline += state.theme.line + 2f;
         if (showInlineVatBreakdown(request, state)) {
-            drawTotalRow(state, x, width, pad, baseline, vatBreakdownLabel(state.locale), inlineVatBreakdownValue(request, state.locale), false);
+            drawTotalRow(state, x, width, pad, baseline, vatAmountLabel(state.locale), "", false);
             baseline += state.theme.line + 2f;
+            for (VatRow row : vatRows(request.getServices())) {
+                drawIndentedTotalRow(state, x, width, pad, baseline, vatRate(row.bucket, state.locale), money(row.vat, state.locale));
+                baseline += state.theme.line + 2f;
+            }
         }
         if (discount.compareTo(BigDecimal.ZERO) != 0) {
             drawTotalRow(state, x, width, pad, baseline, discountLabel(state.locale), "-" + money(discount.abs(), state.locale), false);
@@ -352,6 +358,11 @@ final class ModernA4InvoicePdfRenderer {
         PDFont font = bold ? state.fonts.bold : state.fonts.regular;
         state.text(font, state.theme.base, x + pad, baseline, label, TEXT);
         state.textRight(font, state.theme.base, x + width - pad, baseline, value, TEXT);
+    }
+
+    private void drawIndentedTotalRow(State state, float x, float width, float pad, float baseline, String label, String value) throws IOException {
+        state.text(state.fonts.regular, state.theme.base, x + pad + 10f, baseline, label, TEXT);
+        state.textRight(state.fonts.regular, state.theme.base, x + width - pad, baseline, value, TEXT);
     }
 
     private void drawTaxClauses(State state, FolioLayoutConfig layout, FolioPdfRequest request, float x, float y, float width, float height) throws IOException {
@@ -452,19 +463,20 @@ final class ModernA4InvoicePdfRenderer {
         float pad = state.theme.pad;
         float right = x + width - pad;
         float labelBaseline = y + pad + state.theme.sectionTitle;
-        state.textRight(state.fonts.bold, state.theme.sectionTitle, right, labelBaseline, signatureLabel(state.locale).toUpperCase(Locale.ROOT), state.theme.accent);
         float signatureWidth = Math.min(130f, width - 2 * pad);
+        float signatureLeft = right - signatureWidth;
+        state.text(state.fonts.bold, state.theme.sectionTitle, signatureLeft, labelBaseline, signatureLabel(state.locale).toUpperCase(Locale.ROOT), state.theme.accent);
         if (signatureBytes != null && signatureBytes.length > 0) {
             try {
                 PDImageXObject image = PDImageXObject.createFromByteArray(state.document, signatureBytes, "a4-signature");
-                state.drawImage(image, right - signatureWidth, y + 24f, signatureWidth, Math.min(36f, height - 30f));
+                state.drawImage(image, signatureLeft, y + 24f, signatureWidth, Math.min(36f, height - 30f));
                 return;
             } catch (IOException ignored) {
                 // Draw a signature line instead.
             }
         }
         float lineY = y + Math.min(height - 10f, 46f);
-        state.line(right - signatureWidth, lineY, right, lineY, new Color(190, 198, 210), 0.6f);
+        state.line(signatureLeft, lineY, right, lineY, new Color(190, 198, 210), 0.6f);
     }
 
     private void drawFooterText(State state, FolioLayoutConfig layout, float x, float y, float width, float height) throws IOException {
@@ -617,7 +629,7 @@ final class ModernA4InvoicePdfRenderer {
                 case "recipient" -> 102f + (!safe(request.getRecipientVatId()).isBlank() ? state.theme.line : 0f);
                 case "advancePayments" -> 0f;
                 case "vat" -> 0f;
-                case "totals" -> 88f + (showInlineVatBreakdown(request, state) ? state.theme.line + 2f : 0f) + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
+                case "totals" -> 88f + inlineVatBreakdownExtraHeight(request, state) + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
                 case "taxClauses" -> Math.max(44f, estimateTaxClauses(state, layout, request, width));
                 case "reference" -> 108f;
                 case "paymentQr", "fiscal" -> 118f;
@@ -631,7 +643,7 @@ final class ModernA4InvoicePdfRenderer {
                 case "company" -> 112f;
                 case "document", "recipient" -> 112f;
                 case "vat" -> 0f;
-                case "totals" -> 102f + (showInlineVatBreakdown(request, state) ? state.theme.line + 2f : 0f) + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
+                case "totals" -> 102f + inlineVatBreakdownExtraHeight(request, state) + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
                 case "taxClauses" -> Math.max(82f, estimateTaxClauses(state, layout, request, width));
                 case "reference", "fiscal" -> 132f;
                 case "issuedBy", "signature" -> 72f;
@@ -643,7 +655,7 @@ final class ModernA4InvoicePdfRenderer {
                 case "company" -> 106f;
                 case "document", "recipient" -> 106f;
                 case "vat" -> 0f;
-                case "totals" -> 92f + (showInlineVatBreakdown(request, state) ? state.theme.line + 2f : 0f) + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
+                case "totals" -> 92f + inlineVatBreakdownExtraHeight(request, state) + (nvl(request.getDiscountAmountGross()).compareTo(BigDecimal.ZERO) != 0 ? state.theme.line + 2f : 0f);
                 case "taxClauses" -> Math.max(70f, estimateTaxClauses(state, layout, request, width));
                 case "reference", "fiscal" -> 122f;
                 case "issuedBy", "signature" -> 66f;
@@ -815,10 +827,9 @@ final class ModernA4InvoicePdfRenderer {
     }
 
     private static String normalizeNoVatClause(String clause) {
-        return safe(clause).replace(
-                "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.",
-                AUTO_NO_VAT_CLAUSE
-        );
+        return safe(clause)
+                .replace(LEGACY_NUMBERED_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE)
+                .replace(LEGACY_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE);
     }
 
     private static int advanceCount(FolioPdfRequest request) {
@@ -869,13 +880,9 @@ final class ModernA4InvoicePdfRenderer {
         return visible && !vatRows(request.getServices()).isEmpty();
     }
 
-    private static String inlineVatBreakdownValue(FolioPdfRequest request, String locale) {
-        List<VatRow> rows = vatRows(request.getServices());
-        List<String> parts = new ArrayList<>();
-        for (VatRow row : rows) {
-            parts.add(vatRate(row.bucket, locale) + ": " + money(row.vat, locale));
-        }
-        return String.join("; ", parts);
+    private static float inlineVatBreakdownExtraHeight(FolioPdfRequest request, State state) {
+        if (!showInlineVatBreakdown(request, state)) return 0f;
+        return (vatRows(request.getServices()).size() + 1) * (state.theme.line + 2f);
     }
 
     private enum VatBucket { VAT_22, VAT_9_5, VAT_0, NO_VAT }
@@ -980,12 +987,16 @@ final class ModernA4InvoicePdfRenderer {
         return parsed == null ? safe(raw) : parsed.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
     }
 
-    private static String issueTimePlace(FolioPdfRequest request) {
+    private static String issuedDateTimePlace(FolioPdfRequest request) {
         LocalDateTime parsed = parseDateTime(request.getFolioDate());
         String city = firstNonBlank(request.getIssueCity(), request.getCompanyCity());
-        if (parsed == null) return city;
-        String time = parsed.format(DateTimeFormatter.ofPattern("HH:mm"));
-        return city.isBlank() ? time : time + ", " + city;
+        String date = dateOnly(request.getFolioDate());
+        String dateTime = parsed == null
+                ? date
+                : parsed.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
+        if (city.isBlank()) return dateTime;
+        if (dateTime.isBlank()) return city;
+        return city + ", " + dateTime;
     }
 
     private static LocalDate parseDate(String raw) {
@@ -1236,10 +1247,9 @@ final class ModernA4InvoicePdfRenderer {
 
     private void drawDocumentRows(State state, FolioPdfRequest request, float x, float y, float width, float height, boolean cardStyle) throws IOException {
         float pad = state.theme.pad;
-        float rowH = (height - 2 * pad) / 4f;
+        float rowH = (height - 2 * pad) / 3f;
         String[][] rows = new String[][] {
-                {issuedLabel(state.locale), dateOnly(request.getFolioDate())},
-                {issuePlaceLabel(state.locale), issueTimePlace(request)},
+                {issuedLabel(state.locale), issuedDateTimePlace(request)},
                 {serviceDateLabel(state.locale), dateOnly(request.getDateOfService())},
                 {dueDateLabel(state.locale), dateOnly(request.getDueDate())}
         };
@@ -1247,7 +1257,7 @@ final class ModernA4InvoicePdfRenderer {
             float rowTop = y + pad + i * rowH;
             float baseline = rowTop + (rowH + state.theme.base) / 2f;
             state.text(state.fonts.regular, state.theme.base, x + pad, baseline, rows[i][0], cardStyle ? MUTED : TEXT);
-            Color valueColor = i == 3 && cardStyle ? state.theme.accent : TEXT;
+            Color valueColor = i == 2 && cardStyle ? state.theme.accent : TEXT;
             state.textRight(state.fonts.bold, state.theme.base, x + width - pad, baseline, fitText(state.fonts.bold, state.theme.base, width * 0.48f, rows[i][1]), valueColor);
             if (i < rows.length - 1) state.line(x + pad, rowTop + rowH, x + width - pad, rowTop + rowH, BORDER, 0.45f);
         }
@@ -1277,8 +1287,7 @@ final class ModernA4InvoicePdfRenderer {
         state.textRight(state.fonts.bold, state.theme.title - 0.2f, x + width - pad, titleY, safe(request.getFolioNumber()), TEXT);
         float rowY = titleY + 22f;
         String[][] rows = new String[][] {
-                {issuedLabel(state.locale), dateOnly(request.getFolioDate())},
-                {issuePlaceLabel(state.locale), issueTimePlace(request)},
+                {issuedLabel(state.locale), issuedDateTimePlace(request)},
                 {serviceDateLabel(state.locale), dateOnly(request.getDateOfService())},
                 {dueDateLabel(state.locale), dateOnly(request.getDueDate())}
         };
@@ -1302,13 +1311,12 @@ final class ModernA4InvoicePdfRenderer {
     }
 
     private static String issuedLabel(String locale) { return "sl".equals(locale) ? "Izdano" : "sr".equals(locale) ? "Izdato" : "Issued"; }
-    private static String issuePlaceLabel(String locale) { return "sl".equals(locale) ? "Ura in kraj izdaje" : "sr".equals(locale) ? "Vreme i mesto izdavanja" : "Issue time and place"; }
     private static String serviceDateLabel(String locale) { return "sl".equals(locale) ? "Datum opravljene storitve" : "sr".equals(locale) ? "Datum usluge" : "Service date"; }
     private static String dueDateLabel(String locale) { return "sl".equals(locale) ? "Rok plačila" : "sr".equals(locale) ? "Rok plaćanja" : "Due date"; }
     private static String recipientLabel(String locale) { return "sl".equals(locale) ? "Prejemnik" : "sr".equals(locale) ? "Primalac" : "Recipient"; }
     private static String advancesLabel(String locale) { return "sl".equals(locale) ? "Predplačila" : "sr".equals(locale) ? "Avansi" : "Advance payments"; }
     private static String advancesSingularLabel(String locale) { return "sl".equals(locale) ? "Predplačilo" : "sr".equals(locale) ? "Avans" : "Advance payment"; }
-    private static String vatBreakdownLabel(String locale) { return "sl".equals(locale) ? "Razčlenitev DDV" : "sr".equals(locale) ? "Pregled PDV-a" : "VAT breakdown"; }
+    private static String vatAmountLabel(String locale) { return "sl".equals(locale) ? "Znesek DDV" : "sr".equals(locale) ? "Iznos PDV-a" : "VAT amount"; }
     private static String subtotalLabel(String locale) { return "sl".equals(locale) ? "Skupaj brez DDV" : "sr".equals(locale) ? "Ukupno bez PDV-a" : "Subtotal excl. VAT"; }
     private static String discountLabel(String locale) { return "en".equals(locale) ? "Discount" : "Popust"; }
     private static String totalLabel(String locale) { return "sl".equals(locale) ? "Skupaj" : "sr".equals(locale) ? "Ukupno" : "Total"; }

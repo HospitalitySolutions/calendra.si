@@ -17,8 +17,9 @@ public class FolioLayoutConfig {
     /** The layout editor and renderer now reserve one service row by default; additional rows flow content down. */
     private static final int SERVICE_TABLE_BASELINE_ROWS = 1;
     private static final int LEGACY_SERVICE_TABLE_BASELINE_ROWS = 3;
-    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
-    private static final String LEGACY_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi točke prvega odstavka 94. člena ZDDV-1.";
+    private static final String LEGACY_NUMBERED_AUTO_NO_VAT_CLAUSE = "DDV ni obračunan na podlagi 1. točke prvega odstavka 94. člena ZDDV-1.";
 
     private float pageWidth = 595.28f;
     private float pageHeight = 841.89f;
@@ -557,8 +558,10 @@ public class FolioLayoutConfig {
         if (taxClauses == null) return normalized;
         for (String clause : taxClauses) {
             if (clause == null) continue;
-            String trimmed = clause.trim().replace(LEGACY_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE);
-            if (!trimmed.isEmpty() && !normalized.contains(trimmed)) normalized.add(trimmed);
+            String trimmed = clause.trim()
+                    .replace(LEGACY_NUMBERED_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE)
+                    .replace(LEGACY_AUTO_NO_VAT_CLAUSE, AUTO_NO_VAT_CLAUSE);
+            if (!trimmed.isEmpty() && !AUTO_NO_VAT_CLAUSE.equals(trimmed) && !normalized.contains(trimmed)) normalized.add(trimmed);
         }
         return normalized;
     }
