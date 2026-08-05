@@ -180,8 +180,12 @@ class ReceiptPdfServiceTest {
         byte[] pdf = service.generate(request, layout, null);
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
-            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\s+", " ").trim();
-            assertThat(normalizedText).contains("Način plačila: Bančno nakazilo 100.00");
+            String pdfText = new PDFTextStripper().getText(document)
+                    .replace("\r\n", "\n")
+                    .replace('\r', '\n');
+
+            assertThat(pdfText)
+                    .containsPattern("Način plačila:[ \t]*\n[ \t]*Bančno nakazilo 100\\.00");
         }
     }
 
