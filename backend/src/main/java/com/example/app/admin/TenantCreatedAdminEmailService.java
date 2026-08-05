@@ -12,8 +12,10 @@ import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -52,6 +54,10 @@ public class TenantCreatedAdminEmailService {
     private final String frontendBaseUrl;
     private final ZoneId displayZone;
 
+    @Autowired(required = false)
+    @Qualifier("applicationTaskExecutor")
+    private TaskExecutor applicationTaskExecutor;
+
     public TenantCreatedAdminEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.platform-admin-emails:info@calendra.si}") String configuredRecipients,
@@ -70,8 +76,8 @@ public class TenantCreatedAdminEmailService {
     }
 
     /**
-     * Queues the notification for delivery only after the surrounding tenant-creation
-     * transaction commits successfully. If no transaction is active, it sends immediately.
+     * Queues the notification only after the surrounding tenant-creation transaction commits.
+     * Delivery is dispatched through the application task executor so SMTP does not hold up the request.
      */
     public void notifyAfterCommit(TenantCreatedDetails details) {
         if (details == null) return;
@@ -80,12 +86,26 @@ public class TenantCreatedAdminEmailService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    sendSafely(details);
+                    dispatch(details);
                 }
             });
             return;
         }
-        sendSafely(details);
+        dispatch(details);
+    }
+
+    private void dispatch(TenantCreatedDetails details) {
+        Runnable delivery = () -> sendSafely(details);
+        TaskExecutor executor = applicationTaskExecutor;
+        if (executor != null) {
+            try {
+                executor.execute(delivery);
+                return;
+            } catch (RuntimeException ex) {
+                log.warn("Could not queue new-tenant admin email; sending it inline: {}", safeMessage(ex));
+            }
+        }
+        delivery.run();
     }
 
     private void sendSafely(TenantCreatedDetails details) {

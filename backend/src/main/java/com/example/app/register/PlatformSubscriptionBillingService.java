@@ -1393,14 +1393,17 @@ public class PlatformSubscriptionBillingService {
     }
 
     private LocalDate resolveInitialBillingStart(PlatformPlan plan, Long tenantId, LocalDate today) {
+        LocalDate storedStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
+                .map(AppSetting::getValue)
+                .map(this::parseDateOrNull)
+                .orElse(null);
+
+        // Platform Admin can create any package with a future start date. Keep that explicit date so
+        // the signup open bill remains pending and no invoice/PDF/email flow starts before it is due.
+        if (storedStart != null && storedStart.isAfter(today)) {
+            return storedStart;
+        }
         if (plan.interval() == BillingInterval.MONTHLY && plan.packageType() == PackageType.BASIC) {
-            LocalDate storedStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
-                    .map(AppSetting::getValue)
-                    .map(this::parseDateOrNull)
-                    .orElse(null);
-            if (storedStart != null && storedStart.isAfter(today)) {
-                return storedStart;
-            }
             return today.plusDays(BASIC_MONTHLY_TRIAL_DAYS);
         }
         return today;

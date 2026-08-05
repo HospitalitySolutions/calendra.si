@@ -6240,9 +6240,18 @@ export function PlatformAdminPage() {
         const { data } = await api.post<ManualTenantResponse>(
           "/platform-admin/tenancies/manual",
           payload,
+          { timeout: 120_000 },
         );
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const billingOutcome = data.checkoutUrl
+          ? `Stripe payment link: ${data.checkoutUrl}`
+          : data.billNumber
+            ? `Invoice ${data.billNumber} was emailed.`
+            : payload.subscriptionStart && payload.subscriptionStart > todayIso
+              ? `Billing is scheduled to start on ${payload.subscriptionStart}.`
+              : "No payment invoice was due.";
         setManualTenantResult(
-          `Tenant ${data.companyName || data.tenantCode} was created. ${data.checkoutUrl ? `Stripe payment link: ${data.checkoutUrl}` : data.billNumber ? `Invoice ${data.billNumber} was emailed.` : "Payment email was sent."}`,
+          `Tenant ${data.companyName || data.tenantCode} was created. ${billingOutcome}`,
         );
         await loadTenanciesList();
         if (data.tenantId) await loadDetail(data.tenantId);
