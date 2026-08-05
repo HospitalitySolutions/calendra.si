@@ -3687,3 +3687,90 @@ a.clients-contact-link:hover {
 [data-theme="dark"] .clients-assigned-multi-caret {
     color: #94a3b8 !important;
 }
+
+/* Location visibility selector for clients, companies and groups. Empty selection means all locations. */
+.clients-location-picker-field {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--color-surface, #fff);
+  min-width: 0;
+}
+
+.clients-location-picker-label {
+  color: var(--color-text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.clients-location-picker-field > small {
+  color: var(--color-text-muted);
+  font-size: .78rem;
+}
+
+.clients-location-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.clients-location-picker > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.clients-location-picker > summary::-webkit-details-marker { display: none; }
+
+.clients-location-picker[open] > summary {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #2563eb) 14%, transparent);
+}
+
+.clients-location-picker-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, .16);
+}
+
+.clients-location-picker-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text);
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clients-location-picker-menu button:hover,
+.clients-location-picker-menu button.is-selected {
+  background: color-mix(in srgb, var(--primary, #2563eb) 9%, transparent);
+}

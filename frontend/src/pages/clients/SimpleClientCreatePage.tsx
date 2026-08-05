@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
 export type SimpleClientCreateField = 'firstName' | 'lastName' | 'email' | 'phone'
 export type SimpleClientCreateDraft = Partial<Record<SimpleClientCreateField, string>>
@@ -20,6 +20,7 @@ export function SimpleClientCreatePage({
   onClose,
   onChange,
   onSubmit,
+  children,
 }: {
   title: string
   closeLabel: string
@@ -35,6 +36,7 @@ export function SimpleClientCreatePage({
   onClose: () => void
   onChange: (field: SimpleClientCreateField, value: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  children?: ReactNode
 }) {
   const fields: Array<{ key: SimpleClientCreateField; type: 'text' | 'email' | 'tel'; wide?: boolean }> = [
     { key: 'firstName', type: 'text' },
@@ -85,6 +87,7 @@ export function SimpleClientCreatePage({
                 </label>
               )
             })}
+            {children}
           </div>
           {error ? <div className="error">{error}</div> : null}
           {!keyboardOpen ? (

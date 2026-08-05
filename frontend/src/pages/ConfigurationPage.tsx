@@ -4207,17 +4207,20 @@ export function ConfigurationPage() {
     setShowNewLocation(false);
     resetLocationDraft();
     await load();
+    window.dispatchEvent(new Event('locations-updated'));
   };
 
   const makeDefaultLocation = async (location: OperatingLocation) => {
     await api.put(`/locations/${location.id}`, { ...location, defaultLocation: true });
     await load();
+    window.dispatchEvent(new Event('locations-updated'));
   };
 
   const removeLocation = async (location: OperatingLocation) => {
     if (!window.confirm(`Izbrišem lokacijo ${location.name}?`)) return;
     await api.delete(`/locations/${location.id}`);
     await load();
+    window.dispatchEvent(new Event('locations-updated'));
   };
 
   const saveEditedSpace = async (spaceId: number) => {

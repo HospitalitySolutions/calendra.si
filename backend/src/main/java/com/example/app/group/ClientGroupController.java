@@ -7,13 +7,19 @@ import com.example.app.customfield.CustomFieldService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,6 +35,9 @@ public class ClientGroupController {
     private final ClientCompanyRepository clientCompanies;
     private final SessionBookingRepository bookings;
     private final CustomFieldService customFieldService;
+
+    @Autowired(required = false)
+    private LocationRepository locations;
 
     public ClientGroupController(
             ClientGroupRepository groups,
@@ -50,12 +59,14 @@ public class ClientGroupController {
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
             Boolean individualPaymentEnabled,
+            List<Long> assignedLocationIds,
             Map<Long, String> customFieldValues
     ) {}
 
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
 
     public record CompanySummary(Long id, String name, boolean active) {}
+    public record LocationSummary(Long id, String name, String city) {}
 
     public record GroupResponse(
             Long id,
@@ -65,6 +76,7 @@ public class ClientGroupController {
             boolean batchPaymentEnabled,
             boolean individualPaymentEnabled,
             CompanySummary billingCompany,
+            List<LocationSummary> assignedLocations,
             List<ClientSummary> members,
             Instant createdAt,
             Instant updatedAt,
@@ -85,12 +97,16 @@ public class ClientGroupController {
     @Transactional(readOnly = true)
     public List<GroupResponse> list(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long locationId,
             @AuthenticationPrincipal User me
     ) {
         var companyId = me.getCompany().getId();
         var rows = (search == null || search.isBlank())
                 ? groups.findAllByCompanyIdOrderByNameAsc(companyId)
                 : groups.searchByCompanyId(companyId, search.trim());
+        if (locationId != null) {
+            rows = rows.stream().filter(row -> visibleAtLocation(row.getAssignedLocations(), locationId)).toList();
+        }
         Map<Long, Map<Long, String>> customValues = customFieldService.valuesForEntities(
                 companyId,
                 CustomFieldAppliesTo.GROUP,
@@ -234,6 +250,31 @@ public class ClientGroupController {
         if (req.individualPaymentEnabled() != null) {
             row.setIndividualPaymentEnabled(req.individualPaymentEnabled());
         }
+        applyAssignedLocations(row.getAssignedLocations(), req.assignedLocationIds(), me);
+    }
+
+    private void applyAssignedLocations(Set<Location> target, List<Long> requestedIds, User me) {
+        // Omitted by older clients: keep the existing visibility. Explicit [] means all locations.
+        if (requestedIds == null) return;
+        target.clear();
+        if (requestedIds.isEmpty()) return;
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Locations are unavailable");
+        }
+        LinkedHashSet<Long> ids = requestedIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        List<Location> selected = locations.findAllByCompanyIdAndIdIn(me.getCompany().getId(), ids);
+        if (selected.size() != ids.size() || selected.stream().anyMatch(location -> !location.isActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid assigned location");
+        }
+        target.addAll(selected);
+    }
+
+    private static boolean visibleAtLocation(Set<Location> assignedLocations, Long locationId) {
+        return assignedLocations == null || assignedLocations.isEmpty()
+                || assignedLocations.stream().anyMatch(location -> Objects.equals(location.getId(), locationId));
     }
 
     private GroupResponse toResponse(ClientGroup g) {
@@ -256,6 +297,10 @@ public class ClientGroupController {
                 g.isBatchPaymentEnabled(),
                 g.isIndividualPaymentEnabled(),
                 bc,
+                g.getAssignedLocations().stream()
+                        .sorted(Comparator.comparing(Location::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                        .map(location -> new LocationSummary(location.getId(), location.getName(), location.getCity()))
+                        .toList(),
                 members,
                 g.getCreatedAt(),
                 g.getUpdatedAt(),

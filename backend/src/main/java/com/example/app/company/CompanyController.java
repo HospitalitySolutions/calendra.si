@@ -8,12 +8,17 @@ import com.example.app.files.CompanyFile;
 import com.example.app.files.CompanyFileRepository;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.files.TenantFileS3Service;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ContentDisposition;
@@ -45,6 +50,9 @@ public class CompanyController {
     private final TenantFileS3Service fileStorage;
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
     private final CustomFieldService customFieldService;
+
+    @Autowired(required = false)
+    private LocationRepository locations;
 
     public CompanyController(
             ClientCompanyRepository companies,
@@ -84,6 +92,7 @@ public class CompanyController {
             String telephone,
             Boolean batchPaymentEnabled,
             Boolean suppressInvoiceEmails,
+            List<Long> assignedLocationIds,
             Map<Long, String> customFieldValues
     ) {
         public CompanyRequest(
@@ -98,9 +107,11 @@ public class CompanyController {
                 Boolean batchPaymentEnabled,
                 Boolean suppressInvoiceEmails
         ) {
-            this(name, address, postalCode, city, vatId, iban, email, telephone, batchPaymentEnabled, suppressInvoiceEmails, null);
+            this(name, address, postalCode, city, vatId, iban, email, telephone, batchPaymentEnabled, suppressInvoiceEmails, null, null);
         }
     }
+
+    public record LocationSummary(Long id, String name, String city) {}
 
     public record CompanyResponse(
             Long id,
@@ -114,6 +125,7 @@ public class CompanyController {
             String telephone,
             boolean batchPaymentEnabled,
             boolean suppressInvoiceEmails,
+            List<LocationSummary> assignedLocations,
             boolean active,
             Instant createdAt,
             Instant updatedAt,
@@ -136,12 +148,16 @@ public class CompanyController {
     @Transactional(readOnly = true)
     public List<CompanyResponse> list(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long locationId,
             @AuthenticationPrincipal User me
     ) {
         var ownerCompanyId = me.getCompany().getId();
         var rows = (search == null || search.isBlank())
                 ? companies.findAllByOwnerCompanyIdOrderByNameAsc(ownerCompanyId)
                 : companies.searchByOwnerCompanyId(ownerCompanyId, search.trim());
+        if (locationId != null) {
+            rows = rows.stream().filter(row -> visibleAtLocation(row.getAssignedLocations(), locationId)).toList();
+        }
         Map<Long, Map<Long, String>> customValues = customFieldService == null
                 ? Map.of()
                 : customFieldService.valuesForEntities(
@@ -164,7 +180,7 @@ public class CompanyController {
     public CompanyResponse create(@RequestBody CompanyRequest req, @AuthenticationPrincipal User me) {
         var row = new ClientCompany();
         row.setOwnerCompany(me.getCompany());
-        apply(row, req);
+        apply(row, req, me);
         assertUniqueCompanyFields(me.getCompany().getId(), row, null);
         ClientCompany saved = companies.save(row);
         if (customFieldService != null) {
@@ -178,7 +194,7 @@ public class CompanyController {
     public CompanyResponse update(@PathVariable Long id, @RequestBody CompanyRequest req, @AuthenticationPrincipal User me) {
         var row = companies.findByIdAndOwnerCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        apply(row, req);
+        apply(row, req, me);
         assertUniqueCompanyFields(me.getCompany().getId(), row, row.getId());
         ClientCompany saved = companies.save(row);
         if (customFieldService != null) {
@@ -340,6 +356,10 @@ public class CompanyController {
                 c.getTelephone(),
                 c.isBatchPaymentEnabled(),
                 c.isSuppressInvoiceEmails(),
+                c.getAssignedLocations().stream()
+                        .sorted(java.util.Comparator.comparing(Location::getName, java.util.Comparator.nullsLast(String::compareToIgnoreCase)))
+                        .map(location -> new LocationSummary(location.getId(), location.getName(), location.getCity()))
+                        .toList(),
                 c.isActive(),
                 c.getCreatedAt(),
                 c.getUpdatedAt(),
@@ -351,7 +371,7 @@ public class CompanyController {
         );
     }
 
-    private static void apply(ClientCompany row, CompanyRequest req) {
+    private void apply(ClientCompany row, CompanyRequest req, User me) {
         if (req == null || req.name() == null || req.name().trim().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Company name is required.");
         }
@@ -373,6 +393,31 @@ public class CompanyController {
         } else if (row.getId() == null) {
             row.setSuppressInvoiceEmails(false);
         }
+        applyAssignedLocations(row.getAssignedLocations(), req.assignedLocationIds(), me);
+    }
+
+    private void applyAssignedLocations(Set<Location> target, List<Long> requestedIds, User me) {
+        // Omitted by older clients: keep the existing visibility. Explicit [] means all locations.
+        if (requestedIds == null) return;
+        target.clear();
+        if (requestedIds.isEmpty()) return;
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Locations are unavailable");
+        }
+        LinkedHashSet<Long> ids = requestedIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        List<Location> selected = locations.findAllByCompanyIdAndIdIn(me.getCompany().getId(), ids);
+        if (selected.size() != ids.size() || selected.stream().anyMatch(location -> !location.isActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid assigned location");
+        }
+        target.addAll(selected);
+    }
+
+    private static boolean visibleAtLocation(Set<Location> assignedLocations, Long locationId) {
+        return assignedLocations == null || assignedLocations.isEmpty()
+                || assignedLocations.stream().anyMatch(location -> Objects.equals(location.getId(), locationId));
     }
 
     private static String normalize(String value) {

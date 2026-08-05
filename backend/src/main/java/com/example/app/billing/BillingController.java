@@ -27,6 +27,8 @@ import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.OrderStatus;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.stripe.StripeBillingService;
 import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.settings.AppSetting;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -114,6 +117,7 @@ public class BillingController {
     private final BillingModuleAccessService billingModuleAccess;
     private final TimeService timeService;
     private InvoiceIssuanceService invoiceIssuanceService;
+    private LocationRepository locations;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -157,6 +161,11 @@ public class BillingController {
     @org.springframework.beans.factory.annotation.Autowired
     void configureInvoiceIssuanceService(InvoiceIssuanceService invoiceIssuanceService) {
         this.invoiceIssuanceService = invoiceIssuanceService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureLocationRepository(LocationRepository locations) {
+        this.locations = locations;
     }
 
     @ModelAttribute
@@ -372,6 +381,7 @@ public class BillingController {
             String billType,
             String bookingGroupKey,
             List<PaymentSplitResponse> paymentSplits,
+            InvoiceLocationSummary location,
             List<OpenBillSessionSummary> sessions
     ) {}
     public record CheckoutSessionResponse(
@@ -401,7 +411,8 @@ public class BillingController {
             BigDecimal remainingNet,
             BigDecimal totalGross,
             BigDecimal usedGross,
-            BigDecimal remainingGross
+            BigDecimal remainingGross,
+            InvoiceLocationSummary location
     ) {}
     public record ApplyUnusedAdvanceRequest(Long advanceBillId, Long openBillId, Long sessionId, BigDecimal applyAmountNet, BigDecimal applyAmountGross) {}
     public record ApplyUnusedAdvanceResponse(Long openBillId, Long advanceBillId, BigDecimal remainingNet) {}
@@ -453,6 +464,7 @@ public class BillingController {
             Long consultantId,
             Long paymentMethodId,
             Long sessionId,
+            Long locationId,
             String billType,
             String reference,
             String discountType,
@@ -480,7 +492,7 @@ public class BillingController {
                 List<PaymentSplitRequest> paymentSplits,
                 List<ManualOpenBillLineRequest> items
         ) {
-            this(clientId, recipientCompanyId, consultantId, paymentMethodId, sessionId, billType, reference,
+            this(clientId, recipientCompanyId, consultantId, paymentMethodId, sessionId, null, billType, reference,
                     discountType, discountValue, discountAmountGross, discountedTotalGross, null, null, null, paymentSplits, items);
         }
     }
@@ -1017,6 +1029,7 @@ public class BillingController {
 
         var additional = new OpenBill();
         additional.setCompany(actor.getCompany());
+        additional.setLocation(sourceSession.getLocation());
         additional.setClient(resolvedClient);
         additional.setConsultant(consultant);
         additional.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
@@ -1087,6 +1100,7 @@ public class BillingController {
         final var resolvedClient = client;
         final var resolvedLinkedCompany = recipientCompany != null ? recipientCompany : resolvedClient.getBillingCompany();
         final var selectedSessionForOpenBill = selectedSession;
+        final var resolvedLocation = resolveOpenBillLocation(companyId, req.locationId(), selectedSessionForOpenBill);
         final boolean proxyCompanyClient = recipientCompany != null
                 && isCompanyProxyBillingClient(resolvedClient, companyId, recipientCompany.getId());
 
@@ -1104,6 +1118,7 @@ public class BillingController {
             open = openBillRepo.findContainingSession(companyId, selectedSessionForOpenBill.getId()).orElseGet(() -> {
                 var created = new OpenBill();
                 created.setCompany(actor.getCompany());
+                created.setLocation(resolvedLocation);
                 created.setClient(resolvedClient);
                 created.setConsultant(selectedSessionForOpenBill.getConsultant() != null
                         ? selectedSessionForOpenBill.getConsultant()
@@ -1118,9 +1133,10 @@ public class BillingController {
                 return created;
             });
         } else if (companyBatchEnabled) {
-            open = openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, resolvedLinkedCompany.getId()).orElseGet(() -> {
+            open = findCompanyBatchForLocation(companyId, resolvedLinkedCompany.getId(), resolvedLocation).orElseGet(() -> {
                 var created = new OpenBill();
                 created.setCompany(actor.getCompany());
+                created.setLocation(resolvedLocation);
                 created.setClient(resolvedClient);
                 created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
                 created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
@@ -1132,9 +1148,10 @@ public class BillingController {
                 return created;
             });
         } else if (clientBatchEnabled) {
-            open = openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, resolvedClient.getId()).orElseGet(() -> {
+            open = findClientBatchForLocation(companyId, resolvedClient.getId(), resolvedLocation).orElseGet(() -> {
                 var created = new OpenBill();
                 created.setCompany(actor.getCompany());
+                created.setLocation(resolvedLocation);
                 created.setClient(resolvedClient);
                 created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
                 created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
@@ -1148,6 +1165,7 @@ public class BillingController {
         } else {
             open = new OpenBill();
             open.setCompany(actor.getCompany());
+            open.setLocation(resolvedLocation);
             open.setClient(resolvedClient);
             open.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
             open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
@@ -1162,6 +1180,12 @@ public class BillingController {
             }
             open.setSessionBooking(null);
             open.setManualSplitLocked(false);
+        }
+
+        if (open.getLocation() == null) {
+            open.setLocation(resolvedLocation);
+        } else if (resolvedLocation != null && !Objects.equals(open.getLocation().getId(), resolvedLocation.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected open bill belongs to another location.");
         }
 
         Long selectedSessionId = selectedSessionForOpenBill != null ? selectedSessionForOpenBill.getId() : null;
@@ -2048,7 +2072,9 @@ public class BillingController {
                 issuerSelection == null ? null : issuerSelection.invoiceSeriesId(),
                 issuerSelection != null && issuerSelection.locationId() != null
                         ? issuerSelection.locationId()
-                        : resolveInvoiceLocationId(companyId, linkedSessionIds)
+                        : (open.getLocation() != null
+                            ? open.getLocation().getId()
+                            : resolveInvoiceLocationId(companyId, linkedSessionIds))
         );
         bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
         if (open.getItems() == null || open.getItems().isEmpty()) {
@@ -2515,6 +2541,59 @@ public class BillingController {
         return users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(companyId).orElse(null);
     }
 
+    private Location resolveOpenBillLocation(Long companyId, Long requestedLocationId, SessionBooking selectedSession) {
+        Location sessionLocation = selectedSession == null ? null : selectedSession.getLocation();
+        if (sessionLocation != null) {
+            if (requestedLocationId != null && !Objects.equals(sessionLocation.getId(), requestedLocationId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session belongs to another location.");
+            }
+            return sessionLocation;
+        }
+        if (requestedLocationId != null) {
+            if (locations == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to validate locationId.");
+            }
+            Location requested = locations.findByIdAndCompanyId(requestedLocationId, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid locationId."));
+            if (!requested.isActive()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected location is inactive.");
+            }
+            return requested;
+        }
+        if (locations == null) {
+            return null;
+        }
+        return locations.findFirstByCompanyIdAndDefaultLocationTrue(companyId)
+                .filter(Location::isActive)
+                .orElseGet(() -> locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId)
+                        .stream()
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    private static boolean sameLocation(OpenBill open, Location location) {
+        if (open == null || location == null || location.getId() == null) {
+            return open == null || open.getLocation() == null;
+        }
+        return open.getLocation() != null && Objects.equals(open.getLocation().getId(), location.getId());
+    }
+
+    private Optional<OpenBill> findCompanyBatchForLocation(Long companyId, Long recipientCompanyId, Location location) {
+        if (location == null || location.getId() == null) {
+            return openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, recipientCompanyId);
+        }
+        return openBillRepo.findBatchByCompanyTargetAndLocation(
+                companyId, OpenBill.BATCH_SCOPE_COMPANY, recipientCompanyId, location.getId());
+    }
+
+    private Optional<OpenBill> findClientBatchForLocation(Long companyId, Long clientId, Location location) {
+        if (location == null || location.getId() == null) {
+            return openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, clientId);
+        }
+        return openBillRepo.findBatchByClientTargetAndLocation(
+                companyId, OpenBill.BATCH_SCOPE_CLIENT, clientId, location.getId());
+    }
+
     private OpenBill resolveSyncTargetOpenBill(
             SessionBooking session,
             com.example.app.client.Client client,
@@ -2526,22 +2605,24 @@ public class BillingController {
             Long companyId
     ) {
         if (companyBatchEnabled) {
-            return openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, linkedCompany.getId())
+            return findCompanyBatchForLocation(companyId, linkedCompany.getId(), session.getLocation())
                     .orElseGet(() -> {
                         if (containingOpen != null
                                 && OpenBill.BATCH_SCOPE_COMPANY.equals(containingOpen.getBatchScope())
-                                && Objects.equals(containingOpen.getBatchTargetCompanyId(), linkedCompany.getId())) {
+                                && Objects.equals(containingOpen.getBatchTargetCompanyId(), linkedCompany.getId())
+                                && sameLocation(containingOpen, session.getLocation())) {
                             return containingOpen;
                         }
                         return newOpenBillSkeleton(session, client, consultant, null, OpenBill.BATCH_SCOPE_COMPANY, null, linkedCompany.getId());
                     });
         }
         if (clientBatchEnabled) {
-            return openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, client.getId())
+            return findClientBatchForLocation(companyId, client.getId(), session.getLocation())
                     .orElseGet(() -> {
                         if (containingOpen != null
                                 && OpenBill.BATCH_SCOPE_CLIENT.equals(containingOpen.getBatchScope())
-                                && Objects.equals(containingOpen.getBatchTargetClientId(), client.getId())) {
+                                && Objects.equals(containingOpen.getBatchTargetClientId(), client.getId())
+                                && sameLocation(containingOpen, session.getLocation())) {
                             return containingOpen;
                         }
                         return newOpenBillSkeleton(session, client, consultant, null, OpenBill.BATCH_SCOPE_CLIENT, client.getId(), null);
@@ -2618,6 +2699,7 @@ public class BillingController {
     ) {
         OpenBill open = new OpenBill();
         open.setCompany(session.getCompany());
+        open.setLocation(session.getLocation());
         open.setClient(client);
         open.setConsultant(consultant);
         open.setPaymentMethod(resolveDefaultPaymentMethod(session.getCompany().getId()));
@@ -3122,6 +3204,21 @@ public class BillingController {
         BigDecimal discountAmountGross = discountResult.totalDiscountGross();
         BigDecimal discountedTotalGross = discountResult.finalTotalGross();
         Integer resolvedDiscountItemIndex = null;
+        SessionBooking locationSession = o.getSessionBooking();
+        if (locationSession == null) {
+            locationSession = o.getItems().stream()
+                    .map(OpenBillItem::getSourceSessionBookingId)
+                    .filter(Objects::nonNull)
+                    .map(sessionsById::get)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
+        InvoiceLocationSummary locationSummary = o.getLocation() != null
+                ? new InvoiceLocationSummary(o.getLocation().getId(), o.getLocation().getName())
+                : (locationSession == null || locationSession.getLocation() == null
+                    ? null
+                    : new InvoiceLocationSummary(locationSession.getLocation().getId(), locationSession.getLocation().getName()));
         return new OpenBillResponse(
                 o.getId(),
                 sessionId,
@@ -3145,6 +3242,7 @@ public class BillingController {
                 o.getBillType() == null ? null : o.getBillType().name(),
                 o.getBookingGroupKey(),
                 toOpenBillPaymentSplitResponses(o, discountedTotalGross),
+                locationSummary,
                 sessions
         );
     }
@@ -3966,7 +4064,8 @@ public class BillingController {
                 remaining,
                 totalGross,
                 usedGross,
-                remainingGross
+                remainingGross,
+                advance.getLocation() == null ? null : new InvoiceLocationSummary(advance.getLocation().getId(), advance.getLocation().getName())
         );
     }
 

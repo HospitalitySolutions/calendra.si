@@ -4,9 +4,12 @@ import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -45,4 +48,13 @@ public class ClientGroup extends BaseEntity {
             inverseJoinColumns = @JoinColumn(name = "client_id")
     )
     private List<Client> members = new ArrayList<>();
+
+    /** Empty means the group is available in every physical location. */
+    @ManyToMany
+    @JoinTable(
+            name = "client_group_assigned_locations",
+            joinColumns = @JoinColumn(name = "group_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    private Set<Location> assignedLocations = new LinkedHashSet<>();
 }

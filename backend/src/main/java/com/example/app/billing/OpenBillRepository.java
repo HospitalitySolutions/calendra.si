@@ -100,8 +100,30 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
 
     @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
             "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
+            "WHERE o.company.id = :companyId AND o.batchScope = :batchScope AND o.batchTargetClientId = :clientId " +
+            "AND o.location.id = :locationId")
+    Optional<OpenBill> findBatchByClientTargetAndLocation(
+            @Param("companyId") Long companyId,
+            @Param("batchScope") String batchScope,
+            @Param("clientId") Long clientId,
+            @Param("locationId") Long locationId
+    );
+
+    @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
+            "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
             "WHERE o.company.id = :companyId AND o.batchScope = :batchScope AND o.batchTargetCompanyId = :recipientCompanyId")
     Optional<OpenBill> findBatchByCompanyTarget(Long companyId, String batchScope, Long recipientCompanyId);
+
+    @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
+            "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
+            "WHERE o.company.id = :companyId AND o.batchScope = :batchScope AND o.batchTargetCompanyId = :recipientCompanyId " +
+            "AND o.location.id = :locationId")
+    Optional<OpenBill> findBatchByCompanyTargetAndLocation(
+            @Param("companyId") Long companyId,
+            @Param("batchScope") String batchScope,
+            @Param("recipientCompanyId") Long recipientCompanyId,
+            @Param("locationId") Long locationId
+    );
 
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)

@@ -6,12 +6,13 @@ import { api, getApiErrorMessage } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
 import { useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
-import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, StoredFile, User } from '../lib/types'
+import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Location as BusinessLocation, StoredFile, User } from '../lib/types'
 import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { WorkspaceClientsPanel } from '../components/WorkspaceClientsPanel'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
+import { useSelectedLocationId } from '../lib/locationContext'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
@@ -153,6 +154,7 @@ type ClientForm = {
   viberConnected: boolean
   assignedToId?: number | null
   billingCompanyId?: number | null
+  assignedLocationIds: number[]
 }
 
 type CompanyForm = {
@@ -168,6 +170,7 @@ type CompanyForm = {
   batchPaymentEnabled: boolean
   /** Detail panel only; suppresses invoice emails to this company. */
   suppressInvoiceEmails: boolean
+  assignedLocationIds: number[]
 }
 
 type ClientSession = {
@@ -498,6 +501,7 @@ const emptyClientForm: ClientForm = {
   viberConnected: false,
   assignedToId: null,
   billingCompanyId: null,
+  assignedLocationIds: [],
 }
 
 const emptyCompanyForm: CompanyForm = {
@@ -511,6 +515,62 @@ const emptyCompanyForm: CompanyForm = {
   telephone: '',
   batchPaymentEnabled: false,
   suppressInvoiceEmails: false,
+  assignedLocationIds: [],
+}
+
+function AssignedLocationsPicker({
+  locations,
+  selectedIds,
+  onChange,
+  locale,
+}: {
+  locations: BusinessLocation[]
+  selectedIds: number[]
+  onChange: (ids: number[]) => void
+  locale: string
+}) {
+  if (locations.length <= 1) return null
+  const allLabel = locale === 'sl' ? 'Vse poslovalnice' : locale === 'sr' ? 'Sve lokacije' : 'All locations'
+  const label = locale === 'sl' ? 'Dodeljene poslovalnice' : locale === 'sr' ? 'Dodeljene lokacije' : 'Assigned locations'
+  const selectedLabel = selectedIds.length === 0
+    ? allLabel
+    : selectedIds.length === 1
+      ? locations.find((item) => item.id === selectedIds[0])?.name ?? allLabel
+      : locale === 'sl' ? `${selectedIds.length} izbranih poslovalnic` : `${selectedIds.length} locations selected`
+  const toggle = (id: number) => {
+    onChange(selectedIds.includes(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id])
+  }
+  return (
+    <div className="clients-location-picker-field">
+      <span className="clients-location-picker-label">{label}</span>
+      <details className="clients-location-picker">
+        <summary>
+          <span>{selectedLabel}</span>
+          <span aria-hidden>⌄</span>
+        </summary>
+        <div className="clients-location-picker-menu">
+          <button
+            type="button"
+            className={selectedIds.length === 0 ? 'is-selected' : ''}
+            onClick={() => onChange([])}
+          >
+            <span className={`clients-assigned-checkbox${selectedIds.length === 0 ? ' clients-assigned-checkbox--checked' : ''}`} aria-hidden />
+            <span>{allLabel}</span>
+          </button>
+          {locations.map((item) => {
+            const checked = selectedIds.includes(item.id)
+            return (
+              <button key={item.id} type="button" className={checked ? 'is-selected' : ''} onClick={() => toggle(item.id)}>
+                <span className={`clients-assigned-checkbox${checked ? ' clients-assigned-checkbox--checked' : ''}`} aria-hidden />
+                <span>{item.name}{item.city ? ` · ${item.city}` : ''}</span>
+              </button>
+            )
+          })}
+        </div>
+      </details>
+      <small>{locale === 'sl' ? 'Če ni izbrana nobena, je zapis viden v vseh poslovalnicah.' : 'Leave empty to make this record available in all locations.'}</small>
+    </div>
+  )
 }
 
 
@@ -1316,12 +1376,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         }
 
   const me = useAuthenticatedUser()
+  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId)
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const sharedWorkspaceUnitCount = (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId).length
   const [workspaceClientsOpen, setWorkspaceClientsOpen] = useState(false)
   const [entityTab, setEntityTab] = useState<EntityTab>('clients')
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [businessLocations, setBusinessLocations] = useState<BusinessLocation[]>([])
   const [companyBills, setCompanyBills] = useState<CompanyBillSummary[]>([])
   const [detailClientFiles, setDetailClientFiles] = useState<StoredFile[]>([])
   const [detailCompanyFiles, setDetailCompanyFiles] = useState<StoredFile[]>([])
@@ -1387,6 +1449,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     billingCompanyId: number | null
     assignedToId: number | null
     assignedToIds: number[]
+    assignedLocationIds: number[]
   }>({
     firstName: '',
     lastName: '',
@@ -1399,6 +1462,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     billingCompanyId: null,
     assignedToId: null,
     assignedToIds: [],
+    assignedLocationIds: [],
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
   const [companyDetailEditField, setCompanyDetailEditField] = useState<'name' | 'address' | 'postalCode' | 'city' | 'vatId' | 'iban' | 'email' | 'telephone' | null>(null)
@@ -1462,7 +1526,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [groupErrorMessage, setGroupErrorMessage] = useState('')
   const [groupActiveFilter, setGroupActiveFilter] = useState<'active' | 'inactive'>('active')
   const [showGroupModal, setShowGroupModal] = useState(false)
-  const [groupForm, setGroupForm] = useState<{ name: string; email: string }>({ name: '', email: '' })
+  const [groupForm, setGroupForm] = useState<{ name: string; email: string; assignedLocationIds: number[] }>({ name: '', email: '', assignedLocationIds: [] })
   const [savingGroup, setSavingGroup] = useState(false)
   const [detailGroup, setDetailGroup] = useState<ClientGroup | null>(null)
   const [detailGroupSessions, setDetailGroupSessions] = useState<ClientSession[]>([])
@@ -1476,12 +1540,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     batchPaymentEnabled: boolean
     individualPaymentEnabled: boolean
     billingCompanyId: number | null
+    assignedLocationIds: number[]
   }>({
     name: '',
     email: '',
     batchPaymentEnabled: false,
     individualPaymentEnabled: false,
     billingCompanyId: null,
+    assignedLocationIds: [],
   })
   const [savingGroupDetailEdit, setSavingGroupDetailEdit] = useState(false)
   const [activatingGroupId, setActivatingGroupId] = useState<number | null>(null)
@@ -1518,7 +1584,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setLoading(true)
     setErrorMessage('')
     try {
-      const response = await api.get(`/clients`)
+      const response = await api.get(`/clients`, { params: { locationId: selectedLocationId ?? undefined } })
       const rows = response.data ?? []
       setClients(rows)
       setDetailClient((current) => {
@@ -1537,7 +1603,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setLoadingCompanies(true)
     setCompanyErrorMessage('')
     try {
-      const response = await api.get<Company[]>('/companies', { params: { search: companySearch.trim() || undefined } })
+      const response = await api.get<Company[]>('/companies', { params: { search: companySearch.trim() || undefined, locationId: selectedLocationId ?? undefined } })
       setCompanies(response.data ?? [])
     } catch {
       setCompanyErrorMessage('Failed to load companies.')
@@ -1550,7 +1616,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setLoadingGroups(true)
     setGroupErrorMessage('')
     try {
-      const response = await api.get<ClientGroup[]>('/groups', { params: { search: groupSearch.trim() || undefined } })
+      const response = await api.get<ClientGroup[]>('/groups', { params: { search: groupSearch.trim() || undefined, locationId: selectedLocationId ?? undefined } })
       setGroups(response.data ?? [])
     } catch {
       setGroupErrorMessage('Failed to load groups.')
@@ -1564,6 +1630,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       const response = await api.get<Record<string, string>>('/settings')
       setSettings(response.data ?? {})
     } catch { /* ignore */ }
+  }
+
+  async function loadBusinessLocations() {
+    try {
+      const response = await api.get<BusinessLocation[]>('/locations')
+      setBusinessLocations((response.data ?? []).filter((item) => item.active !== false))
+    } catch {
+      setBusinessLocations([])
+    }
   }
 
   async function loadCustomFieldDefinitions() {
@@ -1585,19 +1660,29 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   useEffect(() => {
-    loadClients()
     loadSettings()
+    loadBusinessLocations()
     loadCustomFieldDefinitions()
     loadInboxGlobalCapabilities()
   }, [])
 
   useEffect(() => {
+    const refreshLocations = () => void loadBusinessLocations()
+    window.addEventListener('locations-updated', refreshLocations)
+    return () => window.removeEventListener('locations-updated', refreshLocations)
+  }, [])
+
+  useEffect(() => {
+    loadClients()
+  }, [selectedLocationId])
+
+  useEffect(() => {
     loadCompanies()
-  }, [companySearch])
+  }, [companySearch, selectedLocationId])
 
   useEffect(() => {
     if (groupBookingEnabled) loadGroups()
-  }, [groupSearch, groupBookingEnabled])
+  }, [groupSearch, groupBookingEnabled, selectedLocationId])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 720px)')
@@ -1625,7 +1710,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         setCompanyErrorMessage('')
       } else {
         setShowGroupModal(false)
-        setGroupForm({ name: '', email: '' })
+        setGroupForm({ name: '', email: '', assignedLocationIds: [] })
         setGroupCustomValues({})
         setGroupErrorMessage('')
       }
@@ -2244,6 +2329,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (groupDetailEditDraft.batchPaymentEnabled ?? false) !== (detailGroup.batchPaymentEnabled ?? false)
       || (groupDetailEditDraft.individualPaymentEnabled ?? false) !== (detailGroup.individualPaymentEnabled ?? false)
       || (groupDetailEditDraft.billingCompanyId ?? null) !== (detailGroup.billingCompany?.id ?? null)
+      || !sameNumberSet(groupDetailEditDraft.assignedLocationIds, (detailGroup.assignedLocations ?? []).map((item) => item.id))
       || !customFieldMapsEqual(detailGroupCustomValues, detailGroup.customFieldValues)
   }, [detailGroup, groupDetailEditDraft, detailGroupCustomValues])
 
@@ -2275,6 +2361,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (detailEditDraft.onlineBookingBlocked ?? false) !== (detailClient.onlineBookingBlocked ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
       || (isAdmin && !sameNumberSet(detailEditDraft.assignedToIds, assignedUsersForClient(detailClient).map((u) => u.id)))
+      || !sameNumberSet(detailEditDraft.assignedLocationIds, (detailClient.assignedLocations ?? []).map((item) => item.id))
       || !customFieldMapsEqual(detailClientCustomValues, detailClient.customFieldValues)
   }, [detailClient, detailEditDraft, isAdmin, detailClientCustomValues])
 
@@ -2290,6 +2377,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (companyDetailEditDraft.telephone ?? '') !== (detailCompany.telephone ?? '')
       || (companyDetailEditDraft.batchPaymentEnabled ?? false) !== (detailCompany.batchPaymentEnabled ?? false)
       || (companyDetailEditDraft.suppressInvoiceEmails ?? false) !== (detailCompany.suppressInvoiceEmails ?? false)
+      || !sameNumberSet(companyDetailEditDraft.assignedLocationIds, (detailCompany.assignedLocations ?? []).map((item) => item.id))
       || !customFieldMapsEqual(detailCompanyCustomValues, detailCompany.customFieldValues)
   }, [detailCompany, companyDetailEditDraft, detailCompanyCustomValues])
 
@@ -2334,6 +2422,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       billingCompanyId: c.billingCompany?.id ?? null,
       assignedToId: c.assignedTo?.id ?? null,
       assignedToIds: assignedUsersForClient(c).map((u) => u.id),
+      assignedLocationIds: (c.assignedLocations ?? []).map((item) => item.id),
     })
     setSessionTab('future')
     setClientDetailMainTab(initialTab)
@@ -2390,6 +2479,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       telephone: company.telephone ?? '',
       batchPaymentEnabled: company.batchPaymentEnabled ?? false,
       suppressInvoiceEmails: company.suppressInvoiceEmails ?? false,
+      assignedLocationIds: (company.assignedLocations ?? []).map((item) => item.id),
     })
     setCompanyFileSearch('')
   }
@@ -2404,6 +2494,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       batchPaymentEnabled: group.batchPaymentEnabled ?? false,
       individualPaymentEnabled: group.individualPaymentEnabled ?? false,
       billingCompanyId: group.billingCompany?.id ?? null,
+      assignedLocationIds: (group.assignedLocations ?? []).map((item) => item.id),
     })
     setGroupSessionTab('future')
     setGroupDetailMainTab('members')
@@ -2459,12 +2550,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         billingCompanyId: groupDetailEditDraft.billingCompanyId,
         batchPaymentEnabled: groupDetailEditDraft.batchPaymentEnabled,
         individualPaymentEnabled: groupDetailEditDraft.individualPaymentEnabled,
+        assignedLocationIds: groupDetailEditDraft.assignedLocationIds,
         customFieldValues: detailGroupCustomValues,
       }
       const response = await api.put<ClientGroup>(`/groups/${detailGroup.id}`, payload)
       const updated = response.data
       setDetailGroup(updated)
       setDetailGroupCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
+      setGroupDetailEditDraft({
+        name: updated.name ?? '',
+        email: updated.email ?? '',
+        batchPaymentEnabled: updated.batchPaymentEnabled ?? false,
+        individualPaymentEnabled: updated.individualPaymentEnabled ?? false,
+        billingCompanyId: updated.billingCompany?.id ?? null,
+        assignedLocationIds: (updated.assignedLocations ?? []).map((item) => item.id),
+      })
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch {
@@ -2525,7 +2625,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setSavingGroup(true)
     setGroupErrorMessage('')
     try {
-      await api.post('/groups', { name: groupForm.name.trim(), email: groupForm.email.trim() || null, customFieldValues: groupCustomValues })
+      await api.post('/groups', { name: groupForm.name.trim(), email: groupForm.email.trim() || null, assignedLocationIds: groupForm.assignedLocationIds, customFieldValues: groupCustomValues })
       closeGroupModal()
       loadGroups()
     } catch {
@@ -2614,6 +2714,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: detailEditDraft.suppressInvoiceEmails ?? false,
         onlineBookingBlocked: detailEditDraft.onlineBookingBlocked ?? false,
+        assignedLocationIds: detailEditDraft.assignedLocationIds,
         ...(isAdmin ? { assignedToIds: detailEditDraft.assignedToIds } : {}),
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
@@ -2632,6 +2733,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         billingCompanyId: response.data.billingCompany?.id ?? null,
         assignedToId: response.data.assignedTo?.id ?? null,
         assignedToIds: assignedUsersForClient(response.data).map((u) => u.id),
+        assignedLocationIds: (response.data.assignedLocations ?? []).map((item) => item.id),
       })
       setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setDetailEditField(null)
@@ -2659,6 +2761,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         customFieldValues: detailCompanyCustomValues,
         batchPaymentEnabled: companyDetailEditDraft.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: companyDetailEditDraft.suppressInvoiceEmails ?? false,
+        assignedLocationIds: companyDetailEditDraft.assignedLocationIds,
       }
       const response = await api.put<Company>(`/companies/${detailCompany.id}`, payload)
       setDetailCompany(response.data)
@@ -2674,6 +2777,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         telephone: response.data.telephone ?? '',
         batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
         suppressInvoiceEmails: response.data.suppressInvoiceEmails ?? false,
+        assignedLocationIds: (response.data.assignedLocations ?? []).map((item) => item.id),
       })
       setCompanies((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setCompanyDetailEditField(null)
@@ -3187,6 +3291,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           billingCompanyId: updated.billingCompany?.id ?? null,
           assignedToId: updated.assignedTo?.id ?? null,
           assignedToIds: assignedUsersForClient(updated).map((u) => u.id),
+          assignedLocationIds: (updated.assignedLocations ?? []).map((item) => item.id),
         })
         setDetailClientCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
       }
@@ -3258,7 +3363,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const closeGroupModal = () => {
     setShowGroupModal(false)
-    setGroupForm({ name: '', email: '' })
+    setGroupForm({ name: '', email: '', assignedLocationIds: [] })
     setGroupCustomValues({})
     setGroupErrorMessage('')
     releaseMobileCreateHistoryEntry()
@@ -3283,6 +3388,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         lastName: form.lastName.trim(),
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
+        assignedLocationIds: form.assignedLocationIds,
         preferredSlots: [],
         customFieldValues: clientCustomValues,
       }
@@ -3315,6 +3421,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         iban: companyForm.iban.trim() || null,
         email: companyForm.email.trim() || null,
         telephone: companyForm.telephone.trim() || null,
+        assignedLocationIds: companyForm.assignedLocationIds,
         customFieldValues: companyCustomValues,
       }
       await api.post('/companies', payload)
@@ -3739,7 +3846,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const createCurrentEntity = () => {
     if (entityTab === 'clients') return openNewModal()
     if (entityTab === 'companies') return openNewCompanyModal()
-    setGroupForm({ name: '', email: '' })
+    setGroupForm({ name: '', email: '', assignedLocationIds: [] })
     setGroupCustomValues({})
     setGroupErrorMessage('')
     pushMobileCreateHistoryEntry('groups')
@@ -4713,6 +4820,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <div className="clients-detail-fields clients-action-workspace-settings-grid">
                       {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
                       {renderClientEditableField('assignedToId', clientsCopy.assignedConsultant, true)}
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={detailEditDraft.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                     </div>
                     <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
                       {globalWhatsAppEnabled && (
@@ -4972,6 +5085,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
                 {companyDetailMainTab === 'nastavitve' && (
                   <div className="clients-action-workspace-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
+                    <div className="clients-detail-fields clients-action-workspace-settings-grid">
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={companyDetailEditDraft.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setCompanyDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
+                    </div>
                     <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
                     <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                       <span>{clientsCopy.batchPayment}</span>
@@ -5244,7 +5365,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 onClose={closeModal}
                 onChange={(field, value) => setForm((current) => ({ ...current, [field]: value }))}
                 onSubmit={handleSubmit}
-              />
+              >
+                <AssignedLocationsPicker
+                  locations={businessLocations}
+                  selectedIds={form.assignedLocationIds}
+                  onChange={(assignedLocationIds) => setForm((current) => ({ ...current, assignedLocationIds }))}
+                  locale={locale}
+                />
+              </SimpleClientCreatePage>
             ) : (
               <form className="clients-create-modal-form" autoComplete="off" onSubmit={handleSubmit}>
                 <div className="clients-action-workspace-header">
@@ -5266,6 +5394,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       {renderNewClientEditableField('lastName', clientsCopy.lastName)}
                       {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
                       {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={form.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setForm((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                     </div>
                     {errorMessage && <div className="error">{errorMessage}</div>}
                   </div>
@@ -5339,6 +5473,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <span>{clientsCopy.city}</span>
                         <input {...mobileAutofillGuardProps('calendra-new-company-city', 'words')} placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
                       </label>
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={companyForm.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setCompanyForm((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                       {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
                         setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
                       )}
@@ -5399,6 +5539,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <span>{clientsCopy.city}</span>
                         <input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
                       </label>
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={companyForm.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setCompanyForm((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                       {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
                         setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
                       )}
@@ -5747,6 +5893,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   <div className="clients-action-workspace-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
                     <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
                     {renderGroupEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
+                    <AssignedLocationsPicker
+                      locations={businessLocations}
+                      selectedIds={groupDetailEditDraft.assignedLocationIds}
+                      onChange={(assignedLocationIds) => setGroupDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
+                      locale={locale}
+                    />
                     <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                       <span>{clientsCopy.batchPayment}</span>
                       <button
@@ -5829,6 +5981,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <span>{clientsCopy.groupEmail}</span>
                         <input {...mobileAutofillGuardProps('calendra-new-group-email')} type="email" inputMode="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
                       </label>
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={groupForm.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setGroupForm((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                       {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
                         setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
                       )}
@@ -5869,6 +6027,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <span>{clientsCopy.groupEmail}</span>
                         <input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
                       </label>
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={groupForm.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setGroupForm((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                       {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
                         setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
                       )}

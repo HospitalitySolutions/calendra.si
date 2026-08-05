@@ -56,10 +56,12 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("assignedToId") Long assignedToId
     );
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany", "workspaceClient"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "assignedLocations", "billingCompany", "workspaceClient"})
     @Query("""
-            select c from Client c
+            select distinct c from Client c
+            left join c.assignedLocations assignedLocation
             where c.company.id = :companyId
+              and (:locationId is null or c.assignedLocations is empty or assignedLocation.id = :locationId)
               and (:search is null or :search = ''
                    or lower(coalesce(c.firstName, '')) like lower(concat('%', :search, '%'))
                    or lower(coalesce(c.lastName, '')) like lower(concat('%', :search, '%'))
@@ -69,15 +71,18 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             """)
     List<Client> findPageByCompanyId(
             @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId,
             @Param("search") String search,
             Pageable pageable);
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "billingCompany", "workspaceClient"})
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "assignedLocations", "billingCompany", "workspaceClient"})
     @Query("""
             select distinct c from Client c
             left join c.assignedUsers assignedUser
+            left join c.assignedLocations assignedLocation
             where c.company.id = :companyId
               and (c.assignedTo.id = :assignedToId or assignedUser.id = :assignedToId)
+              and (:locationId is null or c.assignedLocations is empty or assignedLocation.id = :locationId)
               and (:search is null or :search = ''
                    or lower(coalesce(c.firstName, '')) like lower(concat('%', :search, '%'))
                    or lower(coalesce(c.lastName, '')) like lower(concat('%', :search, '%'))
@@ -88,6 +93,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
     List<Client> findPageByAssignedToIdAndCompanyId(
             @Param("assignedToId") Long assignedToId,
             @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId,
             @Param("search") String search,
             Pageable pageable);
 

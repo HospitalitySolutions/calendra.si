@@ -13,6 +13,7 @@ import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
+import { useSelectedLocationId } from '../lib/locationContext'
 import '../styles/main/billing-tabs.css'
 import '../styles/main/billing-open-bill-popup.css'
 import '../styles/main/billing-batch-payment.css'
@@ -634,6 +635,8 @@ type BillingGiftCard = {
   billId?: number | null
   billNumber?: string | null
   orderReference?: string | null
+  locationId?: number | null
+  locationName?: string | null
 }
 type UnusedAdvance = {
   advanceBillId: number
@@ -649,6 +652,7 @@ type UnusedAdvance = {
   totalGross: number
   usedGross: number
   remainingGross: number
+  location?: { id: number; name: string } | null
 }
 
 /** API `billType`; missing values default to invoice. */
@@ -745,6 +749,7 @@ export type BillingPageProps = {
 
 export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = null, onEmbeddedClose, onEmbeddedSaved }: BillingPageProps = {}) {
   const me = useAuthenticatedUser()
+  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId)
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const canIssueOpenInvoice = canIssueOpenInvoices(me)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(me)
@@ -1193,8 +1198,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       api.get('/bookings').catch(() => ({ data: [] })),
       api.get('/billing/unused-advances').catch(() => ({ data: [] })),
       giftCardsEnabled ? api.get('/billing/gift-cards').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-      api.get('/clients'),
-      api.get('/companies'),
+      api.get('/clients', { params: { locationId: selectedLocationId ?? undefined } }),
+      api.get('/companies', { params: { locationId: selectedLocationId ?? undefined } }),
       isAdmin ? api.get('/users') : Promise.resolve({ data: [] }),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
       api.get('/billing/issuers').catch(() => ({ data: [] })),
@@ -1227,7 +1232,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (billingPollInFlightRef.current === request) billingPollInFlightRef.current = null
     }
     void request.then(clear, clear)
-  }, [])
+  }, [selectedLocationId])
   useEffect(() => {
     const poll = () => {
       if (document.visibilityState !== 'visible' || billingPollInFlightRef.current) return
@@ -1244,7 +1249,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', poll)
     }
-  }, [])
+  }, [selectedLocationId])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
   const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
@@ -1259,7 +1264,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const defaultInvoiceIssuerId = invoiceIssuers.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? invoiceIssuers[0]?.id
-  const defaultInvoiceLocationId = invoiceLocations.find((location) => location.defaultLocation)?.id ?? invoiceLocations[0]?.id
+  const defaultInvoiceLocationId = selectedLocationId && invoiceLocations.some((location) => location.id === selectedLocationId)
+    ? selectedLocationId
+    : invoiceLocations.find((location) => location.defaultLocation)?.id ?? invoiceLocations[0]?.id
   const compatibleInvoiceSeries = useMemo(() => invoiceSeriesOptions.filter((series) =>
     (!billForm.legalEntityId || series.legalEntityId === billForm.legalEntityId)
     && (series.locationId == null || series.locationId === billForm.locationId),
@@ -2072,11 +2079,34 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return locale === 'sl' ? 'Več zaposlenih' : 'Multiple employees'
   }
 
+  // Legacy/manual records may not have a physical location snapshot. Keep those visible
+  // instead of making existing accounting data disappear when a location is selected.
+  const matchesSelectedLocation = useCallback((locationId: number | null | undefined) => (
+    selectedLocationId == null || locationId == null || Number(locationId) === Number(selectedLocationId)
+  ), [selectedLocationId])
+
+  const locationFilteredBills = useMemo(
+    () => bills.filter((bill) => matchesSelectedLocation(bill.location?.id)),
+    [bills, matchesSelectedLocation],
+  )
+  const locationFilteredOpenBills = useMemo(
+    () => openBills.filter((openBill) => matchesSelectedLocation(openBill.location?.id)),
+    [openBills, matchesSelectedLocation],
+  )
+  const locationFilteredUnusedAdvances = useMemo(
+    () => unusedAdvances.filter((advance) => matchesSelectedLocation(advance.location?.id)),
+    [unusedAdvances, matchesSelectedLocation],
+  )
+  const locationFilteredGiftCards = useMemo(
+    () => giftCards.filter((card) => matchesSelectedLocation(card.locationId)),
+    [giftCards, matchesSelectedLocation],
+  )
+
   const filteredOpenBills = useMemo(() => {
     const q = openBillsSearch.trim().toLowerCase()
     const filtered = !q
-      ? openBills
-      : openBills.filter((ob) => {
+      ? locationFilteredOpenBills
+      : locationFilteredOpenBills.filter((ob) => {
         const sessionId = String(ob.sessionDisplayId || ob.sessionId || '').toLowerCase()
         const client = openBillClientLabel(ob).toLowerCase()
         const consultant = openBillConsultantLabel(ob).toLowerCase()
@@ -2086,13 +2116,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         return sessionId.includes(q) || client.includes(q) || consultant.includes(q) || session.includes(q) || method.includes(q) || groupClients.includes(q)
       })
     return groupOpenBillRowsForSession(filtered)
-  }, [openBills, openBillsSearch, locale])
+  }, [locationFilteredOpenBills, openBillsSearch, locale])
 
   const filteredHistoryBills = useMemo(() => {
     const q = historySearch.trim().toLowerCase()
     const from = historyDateFrom ? Date.parse(`${historyDateFrom}T00:00:00`) : Number.NEGATIVE_INFINITY
     const to = historyDateTo ? Date.parse(`${historyDateTo}T23:59:59`) : Number.POSITIVE_INFINITY
-    const byDate = bills.filter((bill) => {
+    const byDate = locationFilteredBills.filter((bill) => {
       const ts = Date.parse(String(bill.issueDate || ''))
       if (!Number.isFinite(ts)) return true
       return ts >= from && ts <= to
@@ -2129,7 +2159,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         method.includes(q)
       )
     })
-  }, [bills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, fiscalCashRegisterEnabled])
+  }, [locationFilteredBills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, fiscalCashRegisterEnabled])
 
   const sortedHistoryBills = useMemo(() => {
     const list = [...filteredHistoryBills]
@@ -2185,7 +2215,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const q = giftCardSearch.trim().toLowerCase()
     const from = giftCardDateFrom ? Date.parse(`${giftCardDateFrom}T00:00:00`) : Number.NEGATIVE_INFINITY
     const to = giftCardDateTo ? Date.parse(`${giftCardDateTo}T23:59:59`) : Number.POSITIVE_INFINITY
-    return giftCards.filter((card) => {
+    return locationFilteredGiftCards.filter((card) => {
       const issuedTs = Date.parse(String(card.issuedAt || ''))
       const dateMatches = !Number.isFinite(issuedTs) || (issuedTs >= from && issuedTs <= to)
       const statusMatches = giftCardStatusFilter === 'all' || card.status === giftCardStatusFilter
@@ -2201,7 +2231,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         card.orderReference,
       ].some((entry) => String(entry || '').toLowerCase().includes(q))
     })
-  }, [giftCards, giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
+  }, [locationFilteredGiftCards, giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
 
   const sortedGiftCards = useMemo(() => {
     return [...filteredGiftCards].sort((a, b) => {
@@ -2212,15 +2242,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [filteredGiftCards])
 
   const giftCardStats = useMemo(() => {
-    const active = giftCards.filter((card) => card.status === 'active').length
-    const partial = giftCards.filter((card) => card.status === 'partially_used').length
-    const used = giftCards.filter((card) => card.status === 'used').length
-    const expired = giftCards.filter((card) => card.status === 'expired').length
-    const outstanding = giftCards
+    const active = locationFilteredGiftCards.filter((card) => card.status === 'active').length
+    const partial = locationFilteredGiftCards.filter((card) => card.status === 'partially_used').length
+    const used = locationFilteredGiftCards.filter((card) => card.status === 'used').length
+    const expired = locationFilteredGiftCards.filter((card) => card.status === 'expired').length
+    const outstanding = locationFilteredGiftCards
       .filter((card) => card.status === 'active' || card.status === 'partially_used')
       .reduce((sum, card) => sum + Number(card.remainingGross || 0), 0)
     return { active, partial, used, expired, outstanding }
-  }, [giftCards])
+  }, [locationFilteredGiftCards])
 
   const giftCardsPagination = useMemo(() => {
     const total = sortedGiftCards.length
@@ -3145,7 +3175,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const openPayments = useMemo(() => {
     const q = openPaymentsSearch.trim().toLowerCase()
-    const unpaid = bills.filter((bill) => (bill.paymentStatus || 'open') !== 'paid' && (bill.paymentStatus || 'open') !== 'cancelled')
+    const unpaid = locationFilteredBills.filter((bill) => (bill.paymentStatus || 'open') !== 'paid' && (bill.paymentStatus || 'open') !== 'cancelled')
     const filtered = q
       ? unpaid.filter((bill) => {
         const billNo = String(bill.billNumber || '').toLowerCase()
@@ -3159,18 +3189,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       })
       : unpaid
     return [...filtered].sort((a, b) => Date.parse(String(b.issueDate || '')) - Date.parse(String(a.issueDate || '')))
-  }, [bills, openPaymentsSearch])
+  }, [locationFilteredBills, openPaymentsSearch])
 
   const filteredUnusedAdvances = useMemo(() => {
     const q = unusedAdvancesSearch.trim().toLowerCase()
-    if (!q) return unusedAdvances
-    return unusedAdvances.filter((advance) => {
+    if (!q) return locationFilteredUnusedAdvances
+    return locationFilteredUnusedAdvances.filter((advance) => {
       const clientLabel = `${advance.client?.firstName || ''} ${advance.client?.lastName || ''}`.trim().toLowerCase()
       const billNo = String(advance.billNumber || '').toLowerCase()
       const sessionId = `${advance.sessionId ?? ''} ${formatBillingSessionIdDisplay(advance.sessionId)}`.toLowerCase()
       return billNo.includes(q) || clientLabel.includes(q) || sessionId.includes(q)
     })
-  }, [unusedAdvances, unusedAdvancesSearch])
+  }, [locationFilteredUnusedAdvances, unusedAdvancesSearch])
 
   const openPaymentsTotal = useMemo(
     () => openPayments.reduce((sum, bill) => sum + billBankTransferDueAmount(bill), 0),
@@ -3218,6 +3248,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   useEffect(() => {
     setUnusedAdvancesPage(1)
   }, [unusedAdvancesSearch])
+
+  useEffect(() => {
+    setOpenPaymentsPage(1)
+    setUnusedAdvancesPage(1)
+    setGiftCardsPage(1)
+    setHistoryPage(1)
+    setSelectedHistoryBillIds([])
+  }, [selectedLocationId])
 
   useEffect(() => {
     if (openPaymentsPagination.page !== openPaymentsPage) setOpenPaymentsPage(openPaymentsPagination.page)

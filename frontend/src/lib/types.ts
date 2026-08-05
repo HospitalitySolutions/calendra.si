@@ -103,6 +103,7 @@ export type Client = {
   onlineBookingBlocked?: boolean
   assignedTo?: User | null
   assignedUsers?: User[] | null
+  assignedLocations?: Pick<Location, 'id' | 'name' | 'city'>[] | null
   billingCompany?: CompanySummary | null
   preferredSlots: PreferredSlot[]
   createdAt?: string
@@ -181,6 +182,7 @@ export type CompanySummary = {
   iban?: string | null
   email?: string | null
   telephone?: string | null
+  assignedLocations?: Pick<Location, 'id' | 'name' | 'city'>[] | null
 }
 
 export type Company = CompanySummary & {
@@ -197,6 +199,7 @@ export type ClientGroup = {
   batchPaymentEnabled?: boolean
   individualPaymentEnabled?: boolean
   billingCompany?: CompanySummary | null
+  assignedLocations?: Pick<Location, 'id' | 'name' | 'city'>[] | null
   members?: Client[]
   createdAt?: string
   updatedAt?: string
@@ -595,6 +598,7 @@ export type OpenBill = {
   batchTargetCompanyId?: number | null
   billType?: 'INVOICE' | 'ADVANCE' | null
   bookingGroupKey?: string | null
+  location?: InvoiceLocationSummary | null
   sessions?: OpenBillSessionSummary[]
 }
 

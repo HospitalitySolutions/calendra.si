@@ -69,7 +69,9 @@ public class BillingGiftCardController {
             String status,
             Long billId,
             String billNumber,
-            String orderReference
+            String orderReference,
+            Long locationId,
+            String locationName
     ) {}
 
     @GetMapping("/gift-cards")
@@ -152,7 +154,9 @@ public class BillingGiftCardController {
                 status(entitlement, valueGross, remainingGross),
                 bill == null ? (order == null ? null : order.getBillId()) : bill.getId(),
                 bill == null ? null : bill.getBillNumber(),
-                order == null ? null : order.getReferenceCode()
+                order == null ? null : order.getReferenceCode(),
+                bill == null || bill.getLocation() == null ? null : bill.getLocation().getId(),
+                bill == null || bill.getLocation() == null ? null : bill.getLocation().getName()
         );
     }
 

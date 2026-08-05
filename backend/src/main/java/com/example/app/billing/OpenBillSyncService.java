@@ -4,6 +4,7 @@ import com.example.app.client.Client;
 import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
 import com.example.app.session.SessionBookingRepository;
@@ -25,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -510,10 +512,10 @@ public class OpenBillSyncService {
 
         OpenBill target;
         if (OpenBill.BATCH_SCOPE_COMPANY.equals(batchTarget.scope())) {
-            target = openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, batchTarget.companyId())
+            target = findCompanyBatchForLocation(companyId, batchTarget.companyId(), source.getLocation())
                     .orElseGet(() -> newBatchOpenBillFromSource(source, OpenBill.BATCH_SCOPE_COMPANY, null, batchTarget.companyId()));
         } else {
-            target = openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, batchTarget.clientId())
+            target = findClientBatchForLocation(companyId, batchTarget.clientId(), source.getLocation())
                     .orElseGet(() -> newBatchOpenBillFromSource(source, OpenBill.BATCH_SCOPE_CLIENT, batchTarget.clientId(), null));
         }
         if (sameOpenBill(source, target)) return;
@@ -618,6 +620,7 @@ public class OpenBillSyncService {
     private OpenBill newBatchOpenBillFromSource(OpenBill source, String batchScope, Long batchTargetClientId, Long batchTargetCompanyId) {
         var target = new OpenBill();
         target.setCompany(source.getCompany());
+        target.setLocation(source.getLocation());
         target.setClient(source.getClient());
         target.setConsultant(source.getConsultant());
         target.setPaymentMethod(source.getPaymentMethod() != null ? source.getPaymentMethod() : resolveDefaultPaymentMethod(source.getCompany().getId()));
@@ -751,6 +754,29 @@ public class OpenBillSyncService {
         return changed;
     }
 
+    private Optional<OpenBill> findCompanyBatchForLocation(Long companyId, Long recipientCompanyId, Location location) {
+        if (location == null || location.getId() == null) {
+            return openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, recipientCompanyId);
+        }
+        return openBillRepo.findBatchByCompanyTargetAndLocation(
+                companyId, OpenBill.BATCH_SCOPE_COMPANY, recipientCompanyId, location.getId());
+    }
+
+    private Optional<OpenBill> findClientBatchForLocation(Long companyId, Long clientId, Location location) {
+        if (location == null || location.getId() == null) {
+            return openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, clientId);
+        }
+        return openBillRepo.findBatchByClientTargetAndLocation(
+                companyId, OpenBill.BATCH_SCOPE_CLIENT, clientId, location.getId());
+    }
+
+    private static boolean sameLocation(OpenBill open, Location location) {
+        if (open == null || location == null || location.getId() == null) {
+            return open == null || open.getLocation() == null;
+        }
+        return open.getLocation() != null && Objects.equals(open.getLocation().getId(), location.getId());
+    }
+
     private OpenBill resolveSyncTargetOpenBill(
             SessionBooking session,
             com.example.app.client.Client client,
@@ -762,22 +788,24 @@ public class OpenBillSyncService {
             Long companyId
     ) {
         if (companyBatchEnabled) {
-            return openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, linkedCompany.getId())
+            return findCompanyBatchForLocation(companyId, linkedCompany.getId(), session.getLocation())
                     .orElseGet(() -> {
                         if (containingOpen != null
                                 && OpenBill.BATCH_SCOPE_COMPANY.equals(containingOpen.getBatchScope())
-                                && Objects.equals(containingOpen.getBatchTargetCompanyId(), linkedCompany.getId())) {
+                                && Objects.equals(containingOpen.getBatchTargetCompanyId(), linkedCompany.getId())
+                                && sameLocation(containingOpen, session.getLocation())) {
                             return containingOpen;
                         }
                         return newOpenBillSkeleton(session, client, consultant, null, OpenBill.BATCH_SCOPE_COMPANY, null, linkedCompany.getId());
                     });
         }
         if (clientBatchEnabled) {
-            return openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, client.getId())
+            return findClientBatchForLocation(companyId, client.getId(), session.getLocation())
                     .orElseGet(() -> {
                         if (containingOpen != null
                                 && OpenBill.BATCH_SCOPE_CLIENT.equals(containingOpen.getBatchScope())
-                                && Objects.equals(containingOpen.getBatchTargetClientId(), client.getId())) {
+                                && Objects.equals(containingOpen.getBatchTargetClientId(), client.getId())
+                                && sameLocation(containingOpen, session.getLocation())) {
                             return containingOpen;
                         }
                         return newOpenBillSkeleton(session, client, consultant, null, OpenBill.BATCH_SCOPE_CLIENT, client.getId(), null);
@@ -800,6 +828,7 @@ public class OpenBillSyncService {
     ) {
         OpenBill open = new OpenBill();
         open.setCompany(session.getCompany());
+        open.setLocation(session.getLocation());
         open.setClient(client);
         open.setConsultant(consultant);
         open.setPaymentMethod(resolveDefaultPaymentMethod(session.getCompany().getId()));

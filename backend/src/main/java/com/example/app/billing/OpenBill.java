@@ -3,6 +3,7 @@ package com.example.app.billing;
 import com.example.app.company.Company;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.user.User;
 import jakarta.persistence.*;
@@ -28,6 +29,10 @@ public class OpenBill extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    @ManyToOne
+    @JoinColumn(name = "location_id")
+    private Location location;
 
     @ManyToOne(optional = false)
     private Client client;

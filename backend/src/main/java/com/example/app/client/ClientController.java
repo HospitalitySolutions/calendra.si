@@ -18,6 +18,8 @@ import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.order.GuestOrderService;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.security.SecurityUtils;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.user.Role;
@@ -71,6 +73,9 @@ public class ClientController {
 
     @Autowired(required = false)
     private WorkspaceClientService workspaceClientService;
+
+    @Autowired(required = false)
+    private LocationRepository locations;
 
     public ClientController(
             ClientRepository repository,
@@ -141,10 +146,12 @@ public class ClientController {
             Boolean batchPaymentEnabled,
             Boolean suppressInvoiceEmails,
             Boolean onlineBookingBlocked,
+            List<Long> assignedLocationIds,
             List<PreferredSlotRequest> preferredSlots,
             Map<Long, String> customFieldValues
     ) {}
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
+    public record LocationSummary(Long id, String name, String city) {}
     public record CompanySummary(
             Long id,
             String name,
@@ -175,6 +182,7 @@ public class ClientController {
             boolean onlineBookingBlocked,
             UserSummary assignedTo,
             List<UserSummary> assignedUsers,
+            List<LocationSummary> assignedLocations,
             CompanySummary billingCompany,
             Instant createdAt,
             Instant updatedAt,
@@ -236,14 +244,15 @@ public class ClientController {
             @AuthenticationPrincipal User me,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "100") int size,
-            @RequestParam(name = "search", required = false) String search
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "locationId", required = false) Long locationId
     ) {
         var companyId = me.getCompany().getId();
         var pageable = PageRequest.of(safePage(page), safeSize(size, 100, 500));
         String normalizedSearch = blankToNull(search);
         List<Client> rows = SecurityUtils.isAdmin(me)
-                ? repository.findPageByCompanyId(companyId, normalizedSearch, pageable)
-                : repository.findPageByAssignedToIdAndCompanyId(me.getId(), companyId, normalizedSearch, pageable);
+                ? repository.findPageByCompanyId(companyId, locationId, normalizedSearch, pageable)
+                : repository.findPageByAssignedToIdAndCompanyId(me.getId(), companyId, locationId, normalizedSearch, pageable);
         Set<Long> blockedIds = clientRemovalGuard.clientIdsWithRemovalBlock(
                 companyId,
                 rows.stream().map(Client::getId).toList());
@@ -626,6 +635,7 @@ public class ClientController {
             c.getAssignedUsers().add(me);
             c.setAssignedTo(me);
         }
+        applyAssignedLocations(c.getAssignedLocations(), req.assignedLocationIds(), me);
         c.getPreferredSlots().clear();
         if (req.preferredSlots() != null) {
             req.preferredSlots().forEach(ps -> {
@@ -678,6 +688,25 @@ public class ClientController {
         );
     }
 
+    private void applyAssignedLocations(Set<Location> target, List<Long> requestedIds, User me) {
+        // Omitted by older clients: keep the existing visibility. Explicit [] means all locations.
+        if (requestedIds == null) return;
+        target.clear();
+        if (requestedIds.isEmpty()) return;
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Locations are unavailable");
+        }
+        LinkedHashSet<Long> ids = requestedIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        List<Location> selected = locations.findAllByCompanyIdAndIdIn(me.getCompany().getId(), ids);
+        if (selected.size() != ids.size() || selected.stream().anyMatch(location -> !location.isActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid assigned location");
+        }
+        target.addAll(selected);
+    }
+
     private ClientResponse toResponse(Client c) {
         boolean blocked = clientRemovalGuard.isRemovalBlocked(c.getId(), c.getCompany().getId());
         return toResponse(c, blocked, null);
@@ -717,6 +746,10 @@ public class ClientController {
                 c.isOnlineBookingBlocked(),
                 assignedSummary,
                 assignedUserSummaries,
+                c.getAssignedLocations().stream()
+                        .sorted(Comparator.comparing(Location::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                        .map(location -> new LocationSummary(location.getId(), location.getName(), location.getCity()))
+                        .toList(),
                 toCompanySummary(c),
                 c.getCreatedAt(),
                 c.getUpdatedAt(),

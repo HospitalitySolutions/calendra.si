@@ -426,6 +426,10 @@
         display: none;
     }
 
+    .app-header-brand--calendar.app-header-brand--calendar-location-global {
+        display: block;
+    }
+
     .app-header.app-header--calendar {
         grid-template-columns: auto minmax(0, 1fr);
     }
@@ -443,6 +447,16 @@
         justify-self: stretch;
         justify-content: flex-end;
     }
+}
+
+.location-switcher {
+  max-width: min(290px, 34vw);
+}
+
+.location-switcher-select {
+  min-width: 170px;
+  max-width: 290px;
+  letter-spacing: normal;
 }
 
 .app-header-calendar-center {
@@ -601,6 +615,36 @@
     padding: 16px 18px;
 }
 
+.credentials-popover-account-column {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.credentials-popover-unit-switcher {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.credentials-popover-unit-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.credentials-popover-unit-switcher .unit-switcher,
+.credentials-popover-unit-switcher .unit-switcher-select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+
 .credentials-popover-user {
     display: flex;
     align-items: flex-start;
@@ -685,7 +729,7 @@ button.credentials-popover-user--clickable:focus-visible {
 
 .credentials-popover-divider {
     width: 1px;
-    margin: 0 4px;
+    margin: 0 12px;
     background: #e2e8f0;
     flex-shrink: 0;
     align-self: stretch;

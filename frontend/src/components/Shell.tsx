@@ -1,5 +1,5 @@
 import { isNativeAndroid } from '../lib/platform'
-import { PropsWithChildren, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react'
+import { PropsWithChildren, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -14,7 +14,8 @@ import { NotificationCenter } from './NotificationCenter'
 import { ReferAFriendModal } from './ReferAFriendModal'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
 import { setActiveUnitId } from '../lib/unitContext'
-import type { User } from '../lib/types'
+import { useSelectedLocationId } from '../lib/locationContext'
+import type { Location, User } from '../lib/types'
 import loginLogo from '../assets/login-logo.png'
 
 function AndroidNavIconCalendar() {
@@ -361,6 +362,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [unitSwitching, setUnitSwitching] = useState(false)
+  const [businessLocations, setBusinessLocations] = useState<Location[]>([])
   const configRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
   const profileAvatarInputRef = useRef<HTMLInputElement>(null)
@@ -725,6 +727,38 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       }] : [])
   const activeUnitId = user.activeUnitId ?? user.companyId
   const headerBrandLabel = user.activeUnitName || companyName
+  const [selectedLocationId, setSelectedLocationId] = useSelectedLocationId(activeUnitId)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadLocations = () => {
+      void api.get<Location[]>('/locations')
+        .then(({ data }) => {
+          if (!cancelled) setBusinessLocations(Array.isArray(data) ? data : [])
+        })
+        .catch(() => {
+          if (!cancelled) setBusinessLocations([])
+        })
+    }
+    loadLocations()
+    window.addEventListener('locations-updated', loadLocations)
+    return () => {
+      cancelled = true
+      window.removeEventListener('locations-updated', loadLocations)
+    }
+  }, [activeUnitId])
+
+  const activeBusinessLocations = useMemo(
+    () => businessLocations.filter((item) => item.active !== false),
+    [businessLocations],
+  )
+
+  useEffect(() => {
+    if (selectedLocationId == null) return
+    if (!activeBusinessLocations.some((item) => Number(item.id) === Number(selectedLocationId))) {
+      setSelectedLocationId(null)
+    }
+  }, [activeBusinessLocations, selectedLocationId, setSelectedLocationId])
 
   const switchUnit = async (targetUnitId: number) => {
     if (!targetUnitId || targetUnitId === activeUnitId || unitSwitching) return
@@ -775,6 +809,28 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   ) : (
     <span className="unit-switcher-static">{headerBrandLabel}</span>
   )
+
+  const locationBrand = activeBusinessLocations.length > 1 ? (
+    <label className="unit-switcher location-switcher" title={locale === 'sl' ? 'Izberi poslovalnico' : 'Select location'}>
+      <span className="sr-only">{locale === 'sl' ? 'Aktivna poslovalnica' : 'Active location'}</span>
+      <select
+        className="unit-switcher-select location-switcher-select"
+        value={selectedLocationId ?? ''}
+        onChange={(event) => setSelectedLocationId(event.target.value ? Number(event.target.value) : null)}
+        aria-label={locale === 'sl' ? 'Izberi poslovalnico' : 'Select location'}
+      >
+        <option value="">{locale === 'sl' ? 'Vse poslovalnice' : 'All locations'}</option>
+        {activeBusinessLocations.map((item) => (
+          <option key={item.id} value={item.id}>{item.name}</option>
+        ))}
+      </select>
+      <svg className="unit-switcher-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </label>
+  ) : unitBrand
+
+  const topRowBrand = !appHeaderMobileRow && activeBusinessLocations.length > 1 ? locationBrand : unitBrand
 
   const mobileNavTrigger = (
     <button
@@ -1119,52 +1175,62 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
           <div className="credentials-popover" role="dialog" aria-label={displayName}>
             <div className="credentials-popover-header">{displayName}</div>
             <div className="credentials-popover-body">
-              {user.role === 'CONSULTANT' ? (
-                <button
-                  type="button"
-                  className="credentials-popover-user credentials-popover-user--clickable"
-                  onClick={() => {
-                    setAccountOpen(false)
-                    navigate('/my-profile')
-                  }}
-                  aria-label={t('myProfileEditAria')}
-                >
-                  <span
-                    className="clients-name-avatar credentials-popover-avatar credentials-popover-avatar--uploadable"
-                    aria-hidden
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      openProfileAvatarPicker()
-                    }}
-                  >
-                    {userAvatarSrc ? <img className="clients-name-avatar-image" src={userAvatarSrc} alt="" /> : initials}
-                  </span>
-                  <div className="credentials-popover-user-text">
-                    <div className="credentials-popover-name">{displayName}</div>
-                    <div className="credentials-popover-email">{user.email}</div>
-                  </div>
-                </button>
-              ) : (
-                <div className="credentials-popover-user">
+              <div className="credentials-popover-account-column">
+                {user.role === 'CONSULTANT' ? (
                   <button
                     type="button"
-                    className="credentials-avatar-upload-btn"
-                    onClick={openProfileAvatarPicker}
-                    disabled={uploadingAvatar}
-                    title={locale === 'sl' ? 'Naloži sliko profila' : 'Upload profile image'}
-                    aria-label={locale === 'sl' ? 'Naloži sliko profila' : 'Upload profile image'}
+                    className="credentials-popover-user credentials-popover-user--clickable"
+                    onClick={() => {
+                      setAccountOpen(false)
+                      navigate('/my-profile')
+                    }}
+                    aria-label={t('myProfileEditAria')}
                   >
-                    <span className="clients-name-avatar credentials-popover-avatar" aria-hidden>
+                    <span
+                      className="clients-name-avatar credentials-popover-avatar credentials-popover-avatar--uploadable"
+                      aria-hidden
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        openProfileAvatarPicker()
+                      }}
+                    >
                       {userAvatarSrc ? <img className="clients-name-avatar-image" src={userAvatarSrc} alt="" /> : initials}
                     </span>
+                    <div className="credentials-popover-user-text">
+                      <div className="credentials-popover-name">{displayName}</div>
+                      <div className="credentials-popover-email">{user.email}</div>
+                    </div>
                   </button>
-                  <div className="credentials-popover-user-text">
-                    <div className="credentials-popover-name">{displayName}</div>
-                    <div className="credentials-popover-email">{user.email}</div>
+                ) : (
+                  <div className="credentials-popover-user">
+                    <button
+                      type="button"
+                      className="credentials-avatar-upload-btn"
+                      onClick={openProfileAvatarPicker}
+                      disabled={uploadingAvatar}
+                      title={locale === 'sl' ? 'Naloži sliko profila' : 'Upload profile image'}
+                      aria-label={locale === 'sl' ? 'Naloži sliko profila' : 'Upload profile image'}
+                    >
+                      <span className="clients-name-avatar credentials-popover-avatar" aria-hidden>
+                        {userAvatarSrc ? <img className="clients-name-avatar-image" src={userAvatarSrc} alt="" /> : initials}
+                      </span>
+                    </button>
+                    <div className="credentials-popover-user-text">
+                      <div className="credentials-popover-name">{displayName}</div>
+                      <div className="credentials-popover-email">{user.email}</div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                {availableUnits.length > 1 && activeBusinessLocations.length > 1 && (
+                  <div className="credentials-popover-unit-switcher">
+                    <span className="credentials-popover-unit-label">
+                      {locale === 'sl' ? 'Podjetje' : locale === 'sr' ? 'Preduzeće' : 'Company'}
+                    </span>
+                    {unitBrand}
+                  </div>
+                )}
+              </div>
               <div className="credentials-popover-divider" aria-hidden />
               <div className="credentials-popover-actions">
                 <div className="credentials-popover-actions-title">{t('actions')}</div>
@@ -1521,10 +1587,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 {mobileNavTrigger}
                 {calendarShellSlots.toolbarMonthLabel}
                 <div
-                  className={`app-header-brand app-header-brand--calendar${calendarShellSlots.brand ? ' app-header-brand--calendar-location' : ''}`}
-                  title={calendarShellSlots.brand ? undefined : headerBrandLabel}
+                  className={`app-header-brand app-header-brand--calendar${activeBusinessLocations.length > 1 ? ' app-header-brand--calendar-location app-header-brand--calendar-location-global' : calendarShellSlots.brand ? ' app-header-brand--calendar-location' : ''}`}
+                  title={activeBusinessLocations.length > 1 ? undefined : calendarShellSlots.brand ? undefined : headerBrandLabel}
                 >
-                  {calendarShellSlots.brand ?? unitBrand}
+                  {!appHeaderMobileRow && activeBusinessLocations.length > 1 ? locationBrand : calendarShellSlots.brand ?? unitBrand}
                 </div>
                 {calendarShellSlots.left}
               </div>
@@ -1548,7 +1614,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
               <div className="app-header-mobile-leading">
                 {mobileNavTrigger}
                 <div className="app-header-brand" title={headerBrandLabel}>
-                  {unitBrand}
+                  {topRowBrand}
                 </div>
                 {isClientsRoute && (
                   <div className="app-header-clients-title" aria-live="polite">

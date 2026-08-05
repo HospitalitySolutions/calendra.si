@@ -1,13 +1,18 @@
 package com.example.app.company;
 
 import com.example.app.common.BaseEntity;
+import com.example.app.location.Location;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -48,6 +53,15 @@ public class ClientCompany extends BaseEntity {
     /** When true, invoice emails are never sent to this company, overriding the tenant-wide delivery setting. */
     @Column(nullable = false)
     private boolean suppressInvoiceEmails = false;
+
+    /** Empty means the company is available in every physical location. */
+    @ManyToMany
+    @JoinTable(
+            name = "client_company_assigned_locations",
+            joinColumns = @JoinColumn(name = "client_company_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    private Set<Location> assignedLocations = new LinkedHashSet<>();
 
     /** Trim, remove whitespace, uppercase, empty → null — consistent uniqueness checks per tenant. */
     public static String normalizeVatIdStorage(String vatId) {

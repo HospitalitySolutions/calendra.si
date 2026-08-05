@@ -4,6 +4,7 @@ import com.example.app.company.Company;
 import com.example.app.company.ClientCompany;
 import com.example.app.common.BaseEntity;
 import com.example.app.user.User;
+import com.example.app.location.Location;
 import com.example.app.workspaceclient.WorkspaceClient;
 import jakarta.persistence.*;
 import java.time.Instant;
@@ -80,6 +81,15 @@ public class Client extends BaseEntity {
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
     private Set<User> assignedUsers = new LinkedHashSet<>();
+
+    /** Empty means the client is available in every physical location. */
+    @ManyToMany
+    @JoinTable(
+            name = "client_assigned_locations",
+            joinColumns = @JoinColumn(name = "client_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    private Set<Location> assignedLocations = new LinkedHashSet<>();
 
     @ManyToOne
     @JoinColumn(name = "billing_company_id")

@@ -65,6 +65,7 @@ import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs
 import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, type BookingPaymentStatusValue, type User } from '../../lib/types'
 import { CALENDAR_TIME_SCALE_MINUTES_KEY, normalizeCalendarTimeScaleMinutes } from '../../lib/calendarTimeScale'
 import { isWorkspaceRolloutEnabled } from '../../lib/workspaceRollout'
+import { useSelectedLocationId } from '../../lib/locationContext'
 
 import {
   ANDROID_PINCH_ZOOM_MAX,
@@ -424,7 +425,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [], waitlistOffers: [] })
   const canViewWorkspaceCalendar = (user.units?.length ?? 0) > 1 && isWorkspaceRolloutEnabled(user, 'CONSOLIDATED_SCHEDULING')
   const [calendarScope, setCalendarScope] = useState<'unit' | 'workspace'>('unit')
-  const [locationFilterId, setLocationFilterId] = useState<number | null>(null)
+  const [locationFilterId, setLocationFilterId] = useSelectedLocationId(user.activeUnitId ?? user.companyId)
   const workspaceCalendarReadOnly = canViewWorkspaceCalendar && calendarScope === 'workspace'
   const previousCalendarScopeRef = useRef<'unit' | 'workspace'>('unit')
   const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now())
@@ -1802,14 +1803,14 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const loadMetaOnly = async () => {
     const [s, clients, users, locations, spaces, types, groups] = await Promise.all([
       api.get('/settings'),
-      api.get('/clients'),
+      api.get('/clients', { params: { locationId: locationFilterId ?? undefined } }),
       isTenantAdmin
         ? api.get('/users').catch(() => ({ data: [] }))
         : Promise.resolve({ data: [user] }),
       api.get('/locations').catch(() => ({ data: [] })),
       api.get('/spaces'),
       api.get('/types'),
-      api.get('/groups').catch(() => ({ data: [] })),
+      api.get('/groups', { params: { locationId: locationFilterId ?? undefined } }).catch(() => ({ data: [] })),
     ])
     applySettingsAndMeta(s, clients, users, locations, spaces, types, groups)
   }
@@ -1820,14 +1821,14 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const calendarRequest = api.get(workspaceCalendarReadOnly ? '/bookings/calendar/workspace' : '/bookings/calendar', { params: { from: fromStr, to: toStr } })
     const metaRequest = Promise.all([
       api.get('/settings'),
-      api.get('/clients'),
+      api.get('/clients', { params: { locationId: locationFilterId ?? undefined } }),
       isTenantAdmin
         ? api.get('/users').catch(() => ({ data: [] }))
         : Promise.resolve({ data: [user] }),
       api.get('/locations').catch(() => ({ data: [] })),
       api.get('/spaces'),
       api.get('/types'),
-      api.get('/groups').catch(() => ({ data: [] })),
+      api.get('/groups', { params: { locationId: locationFilterId ?? undefined } }).catch(() => ({ data: [] })),
     ])
     const [calendarResult, metaResult] = await Promise.allSettled([calendarRequest, metaRequest])
 
@@ -2238,7 +2239,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const metaInterval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshMetaSafely()
     }, CALENDAR_META_POLL_MS)
-    const refreshClients = () => api.get('/clients').then((r) => {
+    const refreshClients = () => api.get('/clients', { params: { locationId: locationFilterId ?? undefined } }).then((r) => {
       const updated: any[] = r.data ?? []
       setMeta((prev: any) => ({ ...prev, clients: updated }))
       setForm((f: any) => {
@@ -2272,6 +2273,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     window.addEventListener('todos-updated', onTodosUpdated)
     window.addEventListener('clients-updated', refreshClients)
     window.addEventListener('settings-updated', onSettingsUpdated)
+    window.addEventListener('locations-updated', onSettingsUpdated)
     window.addEventListener('users-updated', onSettingsUpdated)
     window.addEventListener('online', onOnline)
     const unsubscribeBookingRealtime = subscribeBookingUpdates(onBookingUpdated)
@@ -2285,6 +2287,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       window.removeEventListener('todos-updated', onTodosUpdated)
       window.removeEventListener('clients-updated', refreshClients)
       window.removeEventListener('settings-updated', onSettingsUpdated)
+      window.removeEventListener('locations-updated', onSettingsUpdated)
       window.removeEventListener('users-updated', onSettingsUpdated)
       window.removeEventListener('online', onOnline)
       unsubscribeBookingRealtime()
@@ -2298,7 +2301,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         datesSetCalendarLoadTimerRef.current = null
       }
     }
-  }, [])
+  }, [locationFilterId])
 
   useEffect(() => {
     const PENDING_EXTERNAL_TODO_KEY = 'openCalendarTodo'
