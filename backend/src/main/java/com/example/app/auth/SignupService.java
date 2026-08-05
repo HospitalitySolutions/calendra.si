@@ -630,6 +630,19 @@ public class SignupService {
                 selectedAddonKeys
         );
 
+        // Notify the platform owner as soon as the tenant itself has been created.
+        // Free/basic trials skip the billing-details page entirely, so sending this
+        // notification from saveSignupBillingDetails() misses those registrations.
+        // notifyAfterCommit() guarantees that no message is sent if provisioning rolls back.
+        notifyPlatformAdminTenantCreated(
+                company,
+                owner,
+                "",
+                normalizedPackageType,
+                interval,
+                null
+        );
+
         if (!passwordProvided) {
             seedSetting(company, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING, "true");
             final String setupToken;
@@ -750,7 +763,6 @@ public class SignupService {
         seedGuestAppTenantType(company, normalizedTenantType);
         applyModuleConfigPreset(company, normalizedTenantType, normalizedPackageType);
 
-        boolean firstBillingDetailsCompletion = settingValue(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, "").isBlank();
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, stringOrEmpty(request.paymentMethod()));
         tryEnsurePlatformSubscriptionOpenBill(
@@ -770,16 +782,6 @@ public class SignupService {
         );
 
         PlatformSubscriptionBillingService.SignupBillingInvoiceResult invoice = tryCreateSignupSubscriptionInvoice(company);
-        if (firstBillingDetailsCompletion) {
-            notifyPlatformAdminTenantCreated(
-                    company,
-                    owner,
-                    normalizedTenantType,
-                    normalizedPackageType,
-                    interval,
-                    request.paymentMethod()
-            );
-        }
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("ok", true);
         response.put("packageType", normalizedPackageType);

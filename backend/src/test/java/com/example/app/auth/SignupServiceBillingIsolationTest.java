@@ -5,8 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.example.app.admin.TenantCreatedAdminEmailService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
@@ -34,6 +37,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class SignupServiceBillingIsolationTest {
@@ -45,6 +49,7 @@ class SignupServiceBillingIsolationTest {
     @Mock private SecurityCenterService securityCenterService;
     @Mock private AuthCookieService authCookieService;
     @Mock private SignupEmailIntentRepository signupEmailIntents;
+    @Mock private TenantCreatedAdminEmailService tenantCreatedAdminEmailService;
 
     private SignupService service;
     private final AtomicLong userIds = new AtomicLong(100L);
@@ -67,6 +72,7 @@ class SignupServiceBillingIsolationTest {
                 "",
                 ""
         );
+        ReflectionTestUtils.setField(service, "tenantCreatedAdminEmailService", tenantCreatedAdminEmailService);
 
         when(passwordEncoder.encode(any())).thenAnswer(inv -> "enc:" + inv.getArgument(0));
         when(users.findAllByEmailIgnoreCase(any())).thenReturn(List.of());
@@ -152,6 +158,7 @@ class SignupServiceBillingIsolationTest {
 
         assertEquals("0.00", settingValue(10L, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT));
         assertEquals(beforeDetailsStart, settingValue(10L, SettingKey.BILLING_SUBSCRIPTION_START));
+        verify(tenantCreatedAdminEmailService, times(1)).notifyAfterCommit(any());
     }
 
     private String settingValue(Long companyId, SettingKey key) {
