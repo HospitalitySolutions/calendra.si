@@ -1,7 +1,9 @@
 package com.example.app.session;
 
+import com.example.app.location.Location;
 import com.example.app.location.LocationService;
 import com.example.app.user.User;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,33 +24,62 @@ public class SpaceController {
 
     public record SpaceInput(String name, String description, Long locationId) {}
 
+    /**
+     * API-safe location data used by a space response.
+     *
+     * Returning the Location JPA entity here would expose detached lazy relations
+     * after the repository transaction has closed (open-in-view is disabled).
+     */
+    public record SpaceLocationResponse(
+            Long id,
+            String name,
+            String timezone,
+            boolean active
+    ) {}
+
+    /**
+     * Do not return Space entities directly. Space contains tenant and location
+     * relations and serializing those entities outside a transaction can trigger
+     * LazyInitializationException / Hibernate proxy serialization failures.
+     */
+    public record SpaceResponse(
+            Long id,
+            String name,
+            String description,
+            Instant createdAt,
+            Instant updatedAt,
+            SpaceLocationResponse location
+    ) {}
+
     @GetMapping
-    public List<Space> list(@AuthenticationPrincipal User me) {
-        return repo.findAllByCompanyId(me.getCompany().getId());
+    public List<SpaceResponse> list(@AuthenticationPrincipal User me) {
+        return repo.findAllByCompanyId(me.getCompany().getId()).stream()
+                .map(SpaceController::response)
+                .toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public Space create(@RequestBody SpaceInput input, @AuthenticationPrincipal User me) {
+    public SpaceResponse create(@RequestBody SpaceInput input, @AuthenticationPrincipal User me) {
         Space space = new Space();
         space.setCompany(me.getCompany());
         space.setName(requiredName(input == null ? null : input.name()));
-        space.setDescription(input == null ? null : input.description());
+        space.setDescription(trim(input == null ? null : input.description()));
         space.setLocation(locations.requireForCompany(input == null ? null : input.locationId(), me.getCompany()));
-        return repo.save(space);
+        return response(repo.save(space));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public Space update(@PathVariable Long id, @RequestBody SpaceInput input, @AuthenticationPrincipal User me) {
+    public SpaceResponse update(@PathVariable Long id, @RequestBody SpaceInput input, @AuthenticationPrincipal User me) {
         Space existing = repo.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         existing.setName(requiredName(input == null ? null : input.name()));
-        existing.setDescription(input == null ? null : input.description());
+        existing.setDescription(trim(input == null ? null : input.description()));
         if (input != null && input.locationId() != null) {
             existing.setLocation(locations.requireForCompany(input.locationId(), me.getCompany()));
         }
-        return repo.save(existing);
+        return response(repo.save(existing));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -59,8 +90,35 @@ public class SpaceController {
         repo.delete(existing);
     }
 
+    private static SpaceResponse response(Space space) {
+        Location location = space.getLocation();
+        SpaceLocationResponse locationResponse = location == null
+                ? null
+                : new SpaceLocationResponse(
+                        location.getId(),
+                        location.getName(),
+                        location.getTimezone(),
+                        location.isActive()
+                );
+        return new SpaceResponse(
+                space.getId(),
+                space.getName(),
+                space.getDescription(),
+                space.getCreatedAt(),
+                space.getUpdatedAt(),
+                locationResponse
+        );
+    }
+
     private static String requiredName(String value) {
-        if (value == null || value.trim().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Space name is required.");
-        return value.trim();
+        String trimmed = trim(value);
+        if (trimmed == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Space name is required.");
+        }
+        return trimmed;
+    }
+
+    private static String trim(String value) {
+        return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 }
