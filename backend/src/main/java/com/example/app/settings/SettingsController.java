@@ -62,6 +62,7 @@ public class SettingsController {
             SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED.name(),
             SettingKey.GROUP_BOOKING_ENABLED.name(),
             SettingKey.BILLING_ENABLED.name(),
+            SettingKey.MULTIPLE_COMPANIES_ENABLED.name(),
             SettingKey.BILLING_INVOICES_ENABLED.name(),
             SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED.name(),
             SettingKey.BILLING_BANK_TRANSFER_ENABLED.name(),
@@ -402,14 +403,24 @@ public class SettingsController {
         Map<String, String> normalized = new LinkedHashMap<>(payload == null ? Map.of() : payload);
         String multipleClientsKey = SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED.name();
         String groupBookingKey = SettingKey.GROUP_BOOKING_ENABLED.name();
-        if (!normalized.containsKey(multipleClientsKey) && !normalized.containsKey(groupBookingKey)) {
-            return normalized;
+        if (normalized.containsKey(multipleClientsKey) || normalized.containsKey(groupBookingKey)) {
+            boolean multipleClientsEnabled = "true".equalsIgnoreCase(
+                    String.valueOf(payloadOrStored(companyId, normalized, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED)).trim()
+            );
+            if (!multipleClientsEnabled) {
+                normalized.put(groupBookingKey, "false");
+            }
         }
-        boolean multipleClientsEnabled = "true".equalsIgnoreCase(
-                String.valueOf(payloadOrStored(companyId, normalized, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED)).trim()
-        );
-        if (!multipleClientsEnabled) {
-            normalized.put(groupBookingKey, "false");
+
+        String billingKey = SettingKey.BILLING_ENABLED.name();
+        String multipleCompaniesKey = SettingKey.MULTIPLE_COMPANIES_ENABLED.name();
+        if (normalized.containsKey(billingKey) || normalized.containsKey(multipleCompaniesKey)) {
+            boolean billingEnabled = "true".equalsIgnoreCase(
+                    String.valueOf(payloadOrStored(companyId, normalized, SettingKey.BILLING_ENABLED)).trim()
+            );
+            if (!billingEnabled) {
+                normalized.put(multipleCompaniesKey, "false");
+            }
         }
         return normalized;
     }
@@ -421,6 +432,12 @@ public class SettingsController {
         );
         if (!multipleClientsEnabled) {
             values.put(SettingKey.GROUP_BOOKING_ENABLED.name(), "false");
+        }
+        boolean billingEnabled = "true".equalsIgnoreCase(
+                String.valueOf(values.getOrDefault(SettingKey.BILLING_ENABLED.name(), "false")).trim()
+        );
+        if (!billingEnabled) {
+            values.put(SettingKey.MULTIPLE_COMPANIES_ENABLED.name(), "false");
         }
     }
 
@@ -701,6 +718,7 @@ public class SettingsController {
     private static String defaultModuleVisibilityPackage(String moduleKey) {
         return switch (moduleKey) {
             case "BILLING_ENABLED",
+                    "MULTIPLE_COMPANIES_ENABLED",
                     "BILLING_INVOICES_ENABLED",
                     "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
                     "BILLING_BANK_TRANSFER_ENABLED",

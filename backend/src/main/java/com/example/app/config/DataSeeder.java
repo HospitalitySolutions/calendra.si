@@ -130,6 +130,7 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");
         seedSetting(company, SettingKey.WAITLIST_ENABLED, "true");
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
+        seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, "false");
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
         seedSetting(company, SettingKey.AI_BOOKING_ENABLED, "false");

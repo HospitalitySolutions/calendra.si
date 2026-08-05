@@ -23,6 +23,8 @@ public enum SettingKey {
     /** Enables service-group management and service grouping across tenant and public surfaces. */
     SERVICE_GROUPS_ENABLED,
     BILLING_ENABLED,
+    /** Enables multiple invoice-issuing legal entities and per-location company assignment. */
+    MULTIPLE_COMPANIES_ENABLED,
     BILLING_INVOICES_ENABLED,
     BILLING_ONLINE_CARD_PAYMENTS_ENABLED,
     BILLING_BANK_TRANSFER_ENABLED,

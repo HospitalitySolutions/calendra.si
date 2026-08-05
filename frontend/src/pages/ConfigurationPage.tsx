@@ -196,7 +196,14 @@ type BillingSubtab =
   | "giftCard"
   | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
-type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "referrals" | "security" | "legal";
+type AccountSubtab =
+  | "company"
+  | "operatingUnits"
+  | "receivedInvoices"
+  | "subscription"
+  | "referrals"
+  | "security"
+  | "legal";
 type PersonalTaskPreset = { id: string; name: string; color: string };
 type AccountPlanIconKind = "leaf" | "star" | "crown" | "custom";
 type AccountPlanCard = {
@@ -878,6 +885,9 @@ function AccountSubtabIcon({ kind }: { kind: AccountSubtab }) {
   if (kind === "company") {
     return <svg {...common}><path d="M3 21h18"/><path d="M6 21V7l6-3 6 3v14"/><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></svg>;
   }
+  if (kind === "operatingUnits") {
+    return <svg {...common}><path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M8 12h2M14 12h2M8 16h2M14 16h2"/></svg>;
+  }
   if (kind === "receivedInvoices") {
     return <svg {...common}><path d="M6 2h9l3 3v17H6z"/><path d="M14 2v5h5"/><path d="M9 12h6M9 16h4"/></svg>;
   }
@@ -891,6 +901,89 @@ function AccountSubtabIcon({ kind }: { kind: AccountSubtab }) {
     return <svg {...common}><path d="M12 2 5 5v6c0 5 3.5 8.5 7 11 3.5-2.5 7-6 7-11V5z"/><path d="m9 12 2 2 4-4"/></svg>;
   }
   return <svg {...common}><path d="M12 3v18M5 7h14"/><path d="m5 7-3 6h6zM19 7l-3 6h6z"/><path d="M7 21h10"/></svg>;
+}
+
+type AccountManagementSubtabsProps = {
+  active: AccountSubtab;
+  onSelect: (next: AccountSubtab) => void;
+  showOperatingUnits: boolean;
+  referralLabel: string;
+  legalLabel: string;
+  locale: string;
+};
+
+function AccountManagementSubtabs({
+  active,
+  onSelect,
+  showOperatingUnits,
+  referralLabel,
+  legalLabel,
+  locale,
+}: AccountManagementSubtabsProps) {
+  const items: Array<{ id: AccountSubtab; label: string }> = [
+    { id: "company", label: locale === "sl" ? "Podjetje" : "Company" },
+    ...(showOperatingUnits
+      ? [{
+          id: "operatingUnits" as AccountSubtab,
+          label: locale === "sl" ? "Poslovne enote" : "Business units",
+        }]
+      : []),
+    {
+      id: "receivedInvoices",
+      label: locale === "sl" ? "Prejeti računi" : "Received invoices",
+    },
+    { id: "subscription", label: locale === "sl" ? "Naročnina" : "Subscription" },
+    { id: "referrals", label: referralLabel },
+    { id: "security", label: locale === "sl" ? "Varnost" : "Security" },
+    { id: "legal", label: legalLabel },
+  ];
+  return (
+    <>
+      <style>{`
+        .account-management-shell {
+          --account-blue: #2167ff;
+          --account-blue-soft: #eef4ff;
+          --account-ink: #142655;
+          --account-muted: #67748e;
+          --account-line: #dbe5f2;
+          --account-surface: #ffffff;
+          color: var(--account-ink);
+          width: min(100%, 1560px);
+        }
+        .account-subtabs {display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid rgba(226,232,240,.95);padding-bottom:10px;margin-bottom:18px;}
+        .account-subtab {appearance:none;border:1px solid transparent;background:transparent;color:#475569;font-weight:700;font-size:15px;padding:10px 14px;border-radius:10px;cursor:pointer;box-shadow:none;outline:none;transition:color .18s ease,background .18s ease,box-shadow .18s ease,border-color .18s ease;}
+        .account-subtab>svg {display:none}.account-subtab:hover{color:#0f172a;background:#f8fafc}.account-subtab.active{color:#2563eb;background:#eaf2ff;border-color:rgba(37,99,235,.16);box-shadow:inset 0 0 0 1px rgba(37,99,235,.1),0 3px 10px rgba(37,99,235,.18)}
+        @media(max-width:720px){
+          .account-management-shell{width:100%;max-width:none;background:#fff}
+          .account-subtabs{width:100%;min-height:76px;display:flex;align-items:stretch;gap:0;flex-wrap:nowrap;margin:0 0 14px;padding:0 4px;border:0;border-radius:0;background:linear-gradient(135deg,#0b71ee 0%,#0865db 100%);overflow-x:auto;scrollbar-width:none;box-shadow:none}
+          .account-subtabs::-webkit-scrollbar{display:none}
+          .account-subtab{position:relative;flex:1 0 52px;min-width:52px;min-height:76px;padding:8px 2px 10px;border:0;border-radius:0;background:transparent;color:rgba(255,255,255,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:clamp(8px,2.3vw,10.5px);font-weight:700;line-height:1.08;letter-spacing:-.02em;text-align:center;box-shadow:none}
+          .account-subtab:hover,.account-subtab:focus-visible,.account-subtab.active{color:#fff;background:transparent;border-color:transparent;box-shadow:none;transform:none;outline:none}
+          .account-subtab.active{font-weight:800}.account-subtab.active::after{content:"";position:absolute;left:7px;right:7px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:#fff}
+          .account-subtab svg{display:block;width:19px;height:19px;flex:0 0 19px}.account-subtab-label{display:block;max-width:100%;white-space:normal;text-wrap:balance}
+        }
+      `}</style>
+      <div
+        className="account-subtabs"
+        role="tablist"
+        aria-label={locale === "sl" ? "Upravljanje računa" : "Account management"}
+      >
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={active === item.id}
+            className={active === item.id ? "account-subtab active" : "account-subtab"}
+            onClick={() => onSelect(item.id)}
+          >
+            <AccountSubtabIcon kind={item.id} />
+            <span className="account-subtab-label">{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
 }
 
 function useQuery() {
@@ -2517,6 +2610,12 @@ export function ConfigurationPage() {
   );
   const billingEnabledCommitted =
     settingsLoaded && settings.BILLING_ENABLED !== "false";
+  const multipleCompaniesEnabledCommitted =
+    billingEnabledCommitted && settings.MULTIPLE_COMPANIES_ENABLED === "true";
+  const defaultLocationIssuer =
+    locationIssuerOptions.find((issuer) => issuer.defaultForCurrentUnit) ??
+    locationIssuerOptions[0] ??
+    null;
   const giftCardsEnabledCommitted =
     billingEnabledCommitted && settings.BILLING_GIFT_CARDS_ENABLED === "true";
   const fiscalCashRegisterEnabledCommitted =
@@ -2614,6 +2713,18 @@ export function ConfigurationPage() {
       setTab("company");
       setAccountSubtab("security");
       navigate("/configuration?tab=company&subtab=security", { replace: true });
+    } else if (q === "booking") {
+      if (isConfigTabAvailable("booking")) {
+        setTab("booking");
+        setAccountSubtab("operatingUnits");
+        navigate("/configuration?tab=company&subtab=operatingUnits", {
+          replace: true,
+        });
+      } else {
+        const fallback = getUnavailableConfigTabFallback("booking");
+        setTab(fallback);
+        navigate(`/configuration?tab=${fallback}`, { replace: true });
+      }
     } else if (q === "googleCalendar") {
       setTab("integrations");
       if (googleCalendarModuleEnabledCommitted) {
@@ -2637,13 +2748,26 @@ export function ConfigurationPage() {
     if (
       q === "company" &&
       (subtabQuery === "company" ||
+        subtabQuery === "operatingUnits" ||
         subtabQuery === "receivedInvoices" ||
         subtabQuery === "subscription" ||
         subtabQuery === "referrals" ||
         subtabQuery === "security" ||
         subtabQuery === "legal")
     ) {
-      setAccountSubtab(subtabQuery);
+      if (subtabQuery === "operatingUnits") {
+        if (isConfigTabAvailable("booking")) {
+          setTab("booking");
+          setAccountSubtab("operatingUnits");
+        } else {
+          setTab("company");
+          setAccountSubtab("company");
+          navigate("/configuration?tab=company", { replace: true });
+        }
+      } else {
+        setTab("company");
+        setAccountSubtab(subtabQuery);
+      }
     }
     if (q === "integrations") {
       if (
@@ -2743,6 +2867,7 @@ export function ConfigurationPage() {
     notificationsEnabledCommitted,
     guestAppEnabledCommitted,
     websiteWidgetEnabledCommitted,
+    spacesEnabledCommitted,
     googleCalendarModuleEnabledCommitted,
     inboxGlobalCapabilities.whatsappEnabled,
     inboxGlobalCapabilities.viberEnabled,
@@ -2878,6 +3003,13 @@ export function ConfigurationPage() {
 
   const setAccountSubtabAndUrl = (next: typeof accountSubtab) => {
     setAccountSubtab(next);
+    if (next === "operatingUnits") {
+      if (!isConfigTabAvailable("booking")) return;
+      setTab("booking");
+      navigate("/configuration?tab=company&subtab=operatingUnits");
+      return;
+    }
+    setTab("company");
     navigate(
       next === "company"
         ? "/configuration?tab=company"
@@ -3231,7 +3363,6 @@ export function ConfigurationPage() {
   const configNavItems = useMemo((): ConfigNavItem[] => {
     const items: ConfigNavItem[] = [
       { id: "company", icon: "company" },
-      { id: "booking", icon: "booking" },
       { id: "billing", icon: "billing" },
       { id: "guestApp", icon: "guestApp" },
       { id: "notifications", icon: "notifications" },
@@ -3319,6 +3450,7 @@ export function ConfigurationPage() {
               : "false",
         };
         if (modulesDraftForSave.BILLING_ENABLED !== "true") {
+          modulesDraftForSave.MULTIPLE_COMPANIES_ENABLED = "false";
           modulesDraftForSave.BILLING_INVOICES_ENABLED = "false";
           modulesDraftForSave.BILLING_ONLINE_CARD_PAYMENTS_ENABLED = "false";
           modulesDraftForSave.BILLING_BANK_TRANSFER_ENABLED = "false";
@@ -3356,6 +3488,8 @@ export function ConfigurationPage() {
             modulesDraftForSave.MULTIPLE_CLIENTS_PER_SESSION_ENABLED,
           GROUP_BOOKING_ENABLED: modulesDraftForSave.GROUP_BOOKING_ENABLED,
           BILLING_ENABLED: modulesDraftForSave.BILLING_ENABLED,
+          MULTIPLE_COMPANIES_ENABLED:
+            modulesDraftForSave.MULTIPLE_COMPANIES_ENABLED,
           BILLING_INVOICES_ENABLED:
             modulesDraftForSave.BILLING_INVOICES_ENABLED,
           BILLING_ONLINE_CARD_PAYMENTS_ENABLED:
@@ -4049,7 +4183,7 @@ export function ConfigurationPage() {
   const resetLocationDraft = () => setLocationDraft({
     name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "",
     publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "",
-    defaultLegalEntityId: locationIssuerOptions.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? locationIssuerOptions[0]?.id ?? null,
+    defaultLegalEntityId: defaultLocationIssuer?.id ?? null,
   });
 
   const startEditLocation = (location: OperatingLocation) => {
@@ -4060,7 +4194,7 @@ export function ConfigurationPage() {
       city: location.city || "", timezone: location.timezone || "Europe/Ljubljana", phone: location.phone || "",
       email: location.email || "", publicBookingEnabled: location.publicBookingEnabled !== false,
       active: location.active !== false, fiscalBusinessPremiseCode: location.fiscalBusinessPremiseCode || "",
-      defaultLegalEntityId: location.defaultLegalEntityId ?? locationIssuerOptions.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? locationIssuerOptions[0]?.id ?? null,
+      defaultLegalEntityId: location.defaultLegalEntityId ?? defaultLocationIssuer?.id ?? null,
     });
   };
 
@@ -4850,6 +4984,9 @@ export function ConfigurationPage() {
         return {
           ...d,
           BILLING_ENABLED: checked ? "true" : "false",
+          MULTIPLE_COMPANIES_ENABLED: checked
+            ? d.MULTIPLE_COMPANIES_ENABLED
+            : "false",
           BILLING_INVOICES_ENABLED: checked ? "true" : "false",
           BILLING_ONLINE_CARD_PAYMENTS_ENABLED: checked ? "true" : "false",
           BILLING_BANK_TRANSFER_ENABLED: checked ? "true" : "false",
@@ -4900,6 +5037,7 @@ export function ConfigurationPage() {
         next.GROUP_BOOKING_ENABLED = "false";
       }
       if (next.BILLING_ENABLED !== "true") {
+        next.MULTIPLE_COMPANIES_ENABLED = "false";
         next.BILLING_INVOICES_ENABLED = "false";
         next.BILLING_ONLINE_CARD_PAYMENTS_ENABLED = "false";
         next.BILLING_BANK_TRANSFER_ENABLED = "false";
@@ -4984,6 +5122,7 @@ export function ConfigurationPage() {
 
   const billingModuleKeys: ModulesStringKey[] = [
     "BILLING_ENABLED",
+    "MULTIPLE_COMPANIES_ENABLED",
     "BILLING_INVOICES_ENABLED",
     "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
     "BILLING_BANK_TRANSFER_ENABLED",
@@ -5275,6 +5414,22 @@ export function ConfigurationPage() {
           onChange: (checked) =>
             setModuleStringSetting("BILLING_ENABLED", checked),
           children: [
+            {
+              id: "billing-multiple-companies",
+              ...moduleVisibilityProps("MULTIPLE_COMPANIES_ENABLED"),
+              icon: "invoice",
+              title: locale === "sl" ? "Več podjetij" : "Multiple companies",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči dodajanje več podjetij za izdajo računov in povezovanje posamezne lokacije s podjetjem."
+                  : "Enable multiple invoice-issuing companies and connect each location to a company.",
+              checked:
+                moduleOn("BILLING_ENABLED") &&
+                moduleOn("MULTIPLE_COMPANIES_ENABLED"),
+              disabled: !moduleOn("BILLING_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting("MULTIPLE_COMPANIES_ENABLED", checked),
+            },
             {
               id: "billing-gift-cards",
               ...moduleVisibilityProps("BILLING_GIFT_CARDS_ENABLED"),
@@ -5931,7 +6086,8 @@ export function ConfigurationPage() {
                     key={entry.id}
                     type="button"
                     className={
-                      tab === entry.id
+                      tab === entry.id ||
+                      (entry.id === "company" && tab === "booking")
                         ? "config-nav-item active"
                         : "config-nav-item"
                     }
@@ -6006,6 +6162,10 @@ export function ConfigurationPage() {
               background: #eaf2ff;
               border-color: rgba(37, 99, 235, 0.16);
               box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1), 0 3px 10px rgba(37, 99, 235, 0.18);
+            }
+            .account-multiple-companies-section {
+              padding: 22px;
+              margin: 0 0 18px;
             }
             .account-card {
               background: var(--account-surface);
@@ -7243,6 +7403,7 @@ export function ConfigurationPage() {
                 text-wrap: balance;
               }
               .account-company-grid,
+              .account-multiple-companies-section,
               .account-company-overview,
               .account-company-sections-stack,
               .account-company-footer {
@@ -7251,6 +7412,11 @@ export function ConfigurationPage() {
               }
               .account-company-grid {
                 margin-bottom: 12px;
+              }
+              .account-multiple-companies-section {
+                padding: 14px;
+                margin-bottom: 12px;
+                border-radius: 16px;
               }
               .account-company-overview {
                 margin-bottom: 12px;
@@ -7404,84 +7570,17 @@ export function ConfigurationPage() {
               }
             }
           `}</style>
-                  <div
-                    className="account-subtabs"
-                    role="tablist"
-                    aria-label="Account management subtabs"
-                  >
-                    <button
-                      type="button"
-                      className={
-                        accountSubtab === "company"
-                          ? "account-subtab active"
-                          : "account-subtab"
-                      }
-                      onClick={() => setAccountSubtabAndUrl("company")}
-                    >
-                      <AccountSubtabIcon kind="company" />
-                      <span className="account-subtab-label">Podjetje</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        accountSubtab === "receivedInvoices"
-                          ? "account-subtab active"
-                          : "account-subtab"
-                      }
-                      onClick={() => setAccountSubtabAndUrl("receivedInvoices")}
-                    >
-                      <AccountSubtabIcon kind="receivedInvoices" />
-                      <span className="account-subtab-label">Prejeti računi</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        accountSubtab === "subscription"
-                          ? "account-subtab active"
-                          : "account-subtab"
-                      }
-                      onClick={() => setAccountSubtabAndUrl("subscription")}
-                    >
-                      <AccountSubtabIcon kind="subscription" />
-                      <span className="account-subtab-label">Naročnina</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        accountSubtab === "referrals"
-                          ? "account-subtab active"
-                          : "account-subtab"
-                      }
-                      onClick={() => setAccountSubtabAndUrl("referrals")}
-                    >
-                      <AccountSubtabIcon kind="referrals" />
-                      <span className="account-subtab-label">{t("referMenuItem")}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        accountSubtab === "security"
-                          ? "account-subtab active"
-                          : "account-subtab"
-                      }
-                      onClick={() => setAccountSubtabAndUrl("security")}
-                    >
-                      <AccountSubtabIcon kind="security" />
-                      <span className="account-subtab-label">Varnost</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        accountSubtab === "legal"
-                          ? "account-subtab active"
-                          : "account-subtab"
-                      }
-                      onClick={() => setAccountSubtabAndUrl("legal")}
-                    >
-                      <AccountSubtabIcon kind="legal" />
-                      <span className="account-subtab-label">{legalTexts.subtab}</span>
-                    </button>
-                  </div>
+                  <AccountManagementSubtabs
+                    active={accountSubtab}
+                    onSelect={setAccountSubtabAndUrl}
+                    showOperatingUnits={
+                      spacesEnabledCommitted &&
+                      hasEmployeePermission(me, "SPACES_VIEW")
+                    }
+                    referralLabel={t("referMenuItem")}
+                    legalLabel={legalTexts.subtab}
+                    locale={locale}
+                  />
 
                   {accountSubtab === "company" ? (
                     <>
@@ -7582,6 +7681,16 @@ export function ConfigurationPage() {
                           </div>
                         </section>
                       </div>
+
+                      {multipleCompaniesEnabledCommitted ? (
+                        <section className="account-card account-multiple-companies-section">
+                          <BillingIssuersSection
+                            locale={locale}
+                            mode="companies"
+                            onIssuersChanged={load}
+                          />
+                        </section>
+                      ) : null}
 
                       {companySectionVisibility.overview ? (
                         <section className="account-card account-company-overview">
@@ -9559,7 +9668,19 @@ export function ConfigurationPage() {
                   ) : null}
                 </div>
               ) : tab === "booking" ? (
-                <div className="booking-modern-shell">
+                <div className="account-management-shell account-management-shell--operating-units">
+                  <AccountManagementSubtabs
+                    active="operatingUnits"
+                    onSelect={setAccountSubtabAndUrl}
+                    showOperatingUnits={
+                      spacesEnabledCommitted &&
+                      hasEmployeePermission(me, "SPACES_VIEW")
+                    }
+                    referralLabel={t("referMenuItem")}
+                    legalLabel={legalTexts.subtab}
+                    locale={locale}
+                  />
+                  <div className="booking-modern-shell">
                   <style>{`
             .booking-modern-shell {
               --booking-blue: #0f62fe;
@@ -10281,24 +10402,12 @@ export function ConfigurationPage() {
             }
           `}</style>
                   <section className="booking-panel-card">
-                    <div className="booking-tabs-card">
-                      <div className="booking-tabs" role="tablist" aria-label="Nastavitve prostorov">
-                        <button
-                          type="button"
-                          className="booking-tab is-active"
-                          role="tab"
-                          aria-selected="true"
-                        >
-                          Prostori
-                        </button>
-                      </div>
-                    </div>
                     <div className="booking-content-panel">
                       <section className="booking-locations-manager" aria-labelledby="booking-locations-heading">
                         <div className="booking-locations-heading-row">
                           <div>
                             <h3 id="booking-locations-heading">Lokacije</h3>
-                            <p>Upravljajte fizične poslovalnice. Prostori in termini so vedno vezani na eno lokacijo.</p>
+                            <p>Upravljajte fizične poslovalnice, njihove prostore in podjetje, ki za posamezno lokacijo izdaja račune.</p>
                           </div>
                           <button
                             type="button"
@@ -10347,13 +10456,18 @@ export function ConfigurationPage() {
                               <span>Oznaka poslovnega prostora</span>
                               <input value={locationDraft.fiscalBusinessPremiseCode} onChange={(event) => setLocationDraft((draft) => ({ ...draft, fiscalBusinessPremiseCode: event.target.value }))} placeholder="Za kasnejšo nastavitev fiskalizacije" />
                             </label>
-                            <label>
-                              <span>Privzeti izdajatelj računov</span>
-                              <select value={locationDraft.defaultLegalEntityId ?? ""} onChange={(event) => setLocationDraft((draft) => ({ ...draft, defaultLegalEntityId: event.target.value ? Number(event.target.value) : null }))}>
-                                <option value="">Izberite izdajatelja</option>
-                                {locationIssuerOptions.map((issuer) => <option key={issuer.id} value={issuer.id}>{issuer.name}</option>)}
-                              </select>
-                            </label>
+                            {multipleCompaniesEnabledCommitted ? (
+                              <label>
+                                <span>Podjetje za izdajo računov</span>
+                                <select value={locationDraft.defaultLegalEntityId ?? ""} onChange={(event) => setLocationDraft((draft) => ({ ...draft, defaultLegalEntityId: event.target.value ? Number(event.target.value) : null }))}>
+                                  <option value={defaultLocationIssuer?.id ?? ""}>Uporabi glavno podjetje{defaultLocationIssuer ? ` · ${defaultLocationIssuer.name}` : ""}</option>
+                                  {locationIssuerOptions
+                                    .filter((issuer) => issuer.id !== defaultLocationIssuer?.id)
+                                    .map((issuer) => <option key={issuer.id} value={issuer.id}>{issuer.name}</option>)}
+                                </select>
+                                <small>Isto podjetje je lahko povezano z več lokacijami, vsaka lokacija pa ima lahko svoje podjetje.</small>
+                              </label>
+                            ) : null}
                             <label className="booking-location-checkbox">
                               <input type="checkbox" checked={locationDraft.publicBookingEnabled} onChange={(event) => setLocationDraft((draft) => ({ ...draft, publicBookingEnabled: event.target.checked }))} />
                               <span>Vidna pri spletnem naročanju</span>
@@ -10379,7 +10493,10 @@ export function ConfigurationPage() {
                                   {!location.active ? <span className="booking-location-inactive-pill">Neaktivna</span> : null}
                                 </div>
                                 <p>{[location.address, location.postalCode, location.city].filter(Boolean).join(", ") || "Naslov ni določen"}</p>
-                                <small>{location.timezone}{location.publicBookingEnabled ? " · spletno naročanje" : " · skrita pri spletnem naročanju"}{location.defaultLegalEntityName ? ` · ${location.defaultLegalEntityName}` : ""}</small>
+                                <small>{location.timezone}{location.publicBookingEnabled ? " · spletno naročanje" : " · skrita pri spletnem naročanju"}</small>
+                                {multipleCompaniesEnabledCommitted ? (
+                                  <small className="booking-location-company">Podjetje za račune: <strong>{location.defaultLegalEntityName || defaultLocationIssuer?.name || "Glavno podjetje"}</strong></small>
+                                ) : null}
                               </div>
                               <div className="booking-location-actions">
                                 {!location.defaultLocation && location.active ? <button type="button" onClick={() => void makeDefaultLocation(location)}>Nastavi kot privzeto</button> : null}
@@ -10750,6 +10867,7 @@ export function ConfigurationPage() {
                       ) : null}
                     </div>
                   </section>
+                  </div>
                 </div>
               ) : tab === "billing" ? (
                 <div className="billing-modern-shell">
@@ -11638,7 +11756,10 @@ export function ConfigurationPage() {
                     </div>
 
                     {billingSubtab === "issuers" ? (
-                      <BillingIssuersSection locale={locale} />
+                      <BillingIssuersSection
+                        locale={locale}
+                        allowMultipleCompanies={multipleCompaniesEnabledCommitted}
+                      />
                     ) : billingSubtab === "settings" ? (
                       <div className="billing-card billing-settings-card">
                         <div className="billing-section-heading-row">

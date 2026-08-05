@@ -1767,6 +1767,7 @@ public class SignupService {
         seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, Boolean.toString(basicAllowed && supportsOnlineSessions));
         seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
+        seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, "false");
         seedSetting(company, SettingKey.SPACES_ENABLED, Boolean.toString(proAllowed));
         seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
@@ -1807,6 +1808,7 @@ public class SignupService {
         seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");
         seedSetting(company, SettingKey.WAITLIST_ENABLED, "true");
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
+        seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
         seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
         seedSetting(company, SettingKey.TODOS_ENABLED, "true");

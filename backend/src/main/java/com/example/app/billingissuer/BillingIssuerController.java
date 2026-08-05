@@ -8,6 +8,8 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.example.app.settings.SettingsCryptoService;
 import com.example.app.user.User;
 import com.example.app.workspaceclient.WorkspaceClientAccessService;
@@ -48,6 +50,7 @@ public class BillingIssuerController {
     private final LocationRepository locations;
     private final BillRepository bills;
     private final WorkspaceClientAccessService accessService;
+    private final AppSettingRepository settings;
     private final SettingsCryptoService crypto;
 
     public BillingIssuerController(
@@ -59,6 +62,7 @@ public class BillingIssuerController {
             LocationRepository locations,
             BillRepository bills,
             WorkspaceClientAccessService accessService,
+            AppSettingRepository settings,
             SettingsCryptoService crypto
     ) {
         this.legalEntities = legalEntities;
@@ -69,6 +73,7 @@ public class BillingIssuerController {
         this.locations = locations;
         this.bills = bills;
         this.accessService = accessService;
+        this.settings = settings;
         this.crypto = crypto;
     }
 
@@ -204,6 +209,7 @@ public class BillingIssuerController {
     public LegalEntityResponse createIssuer(@RequestBody LegalEntityInput input, @AuthenticationPrincipal User me) {
         requireInput(input);
         Long workspaceId = me.getCompany().getWorkspace().getId();
+        requireMultipleCompaniesEnabledForAdditionalIssuer(me.getCompany().getId(), null);
         String name = required(input.name(), "Issuer name is required.");
         if (legalEntities.existsByWorkspaceIdAndNameIgnoreCase(workspaceId, name)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An issuer with this name already exists in the workspace.");
@@ -273,6 +279,7 @@ public class BillingIssuerController {
         accessService.requireAdminForCompanies(me, List.of(input.companyId()));
         LegalEntity entity = legalEntities.findByIdAndWorkspaceId(id, access.workspaceId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        requireMultipleCompaniesEnabledForAdditionalIssuer(input.companyId(), id);
         Company company = companies.findById(input.companyId())
                 .filter(candidate -> Objects.equals(candidate.getWorkspace().getId(), access.workspaceId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Operating unit belongs to another workspace."));
@@ -645,6 +652,24 @@ public class BillingIssuerController {
         String normalized = value == null || value.isBlank() ? fallback : value.trim().toUpperCase();
         if (normalized.length() != length) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid code length.");
         return normalized;
+    }
+
+    private void requireMultipleCompaniesEnabledForAdditionalIssuer(Long companyId, Long legalEntityId) {
+        if (companyId == null) return;
+        boolean alreadyAssigned = legalEntityId != null
+                && assignments.findByCompanyIdAndLegalEntityId(companyId, legalEntityId).isPresent();
+        if (alreadyAssigned || assignments.findAllByCompanyIdOrderByDefaultIssuerDescIdAsc(companyId).isEmpty()) {
+            return;
+        }
+        boolean enabled = settings.findByCompanyIdAndKey(companyId, SettingKey.MULTIPLE_COMPANIES_ENABLED)
+                .map(row -> "true".equalsIgnoreCase(String.valueOf(row.getValue()).trim()))
+                .orElse(false);
+        if (!enabled) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Enable Multiple companies in App settings before adding another invoice-issuing company."
+            );
+        }
     }
 
     private static void requireInput(Object input) {

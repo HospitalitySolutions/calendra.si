@@ -25,6 +25,7 @@ export type ModulesDraft = {
   MULTIPLE_CLIENTS_PER_SESSION_ENABLED: string;
   GROUP_BOOKING_ENABLED: string;
   BILLING_ENABLED: string;
+  MULTIPLE_COMPANIES_ENABLED: string;
   BILLING_INVOICES_ENABLED: string;
   BILLING_ONLINE_CARD_PAYMENTS_ENABLED: string;
   BILLING_BANK_TRANSFER_ENABLED: string;
@@ -106,6 +107,7 @@ const MODULE_VISIBILITY_KEYS = new Set<string>([
   "MULTIPLE_CLIENTS_PER_SESSION_ENABLED",
   "GROUP_BOOKING_ENABLED",
   "BILLING_ENABLED",
+  "MULTIPLE_COMPANIES_ENABLED",
   "BILLING_INVOICES_ENABLED",
   "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
   "BILLING_BANK_TRANSFER_ENABLED",
@@ -168,6 +170,7 @@ const defaultModuleVisibilityPackage = (
 ): ModuleVisibilityPackage => {
   switch (key) {
     case "BILLING_ENABLED":
+    case "MULTIPLE_COMPANIES_ENABLED":
     case "BILLING_INVOICES_ENABLED":
     case "BILLING_ONLINE_CARD_PAYMENTS_ENABLED":
     case "BILLING_BANK_TRANSFER_ENABLED":
@@ -301,6 +304,11 @@ export const buildModulesDraftFromCommitted = (
     s.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === "true" ? "true" : "false",
   GROUP_BOOKING_ENABLED: s.GROUP_BOOKING_ENABLED === "true" ? "true" : "false",
   BILLING_ENABLED: modulesStringSetting(s, "BILLING_ENABLED", true),
+  MULTIPLE_COMPANIES_ENABLED: modulesStringSetting(
+    s,
+    "MULTIPLE_COMPANIES_ENABLED",
+    false,
+  ),
   BILLING_INVOICES_ENABLED: modulesStringSetting(
     s,
     "BILLING_INVOICES_ENABLED",
@@ -547,6 +555,11 @@ export const normalizeModulesDraftDependencies = (
     draft.GROUP_BOOKING_ENABLED === "true"
       ? "true"
       : "false",
+  MULTIPLE_COMPANIES_ENABLED:
+    draft.BILLING_ENABLED === "true" &&
+    draft.MULTIPLE_COMPANIES_ENABLED === "true"
+      ? "true"
+      : "false",
   BILLING_FISCAL_CASH_REGISTER_ENABLED:
     draft.BILLING_ENABLED === "true" &&
     draft.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true"
@@ -595,6 +608,7 @@ export const modulesDraftToSettingsPatch = (
     draft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED,
   GROUP_BOOKING_ENABLED: draft.GROUP_BOOKING_ENABLED,
   BILLING_ENABLED: draft.BILLING_ENABLED,
+  MULTIPLE_COMPANIES_ENABLED: draft.MULTIPLE_COMPANIES_ENABLED,
   BILLING_INVOICES_ENABLED: draft.BILLING_INVOICES_ENABLED,
   BILLING_ONLINE_CARD_PAYMENTS_ENABLED:
     draft.BILLING_ONLINE_CARD_PAYMENTS_ENABLED,

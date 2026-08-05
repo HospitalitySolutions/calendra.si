@@ -51,6 +51,7 @@ public class ManualTenantService {
             new FeatureDefinition("ONLINE_SESSION_BOOKING_ENABLED", "Online session booking", SettingKey.ONLINE_SESSION_BOOKING_ENABLED),
             new FeatureDefinition("WEBSITE_WIDGET_ENABLED", "Website widget", SettingKey.WEBSITE_WIDGET_ENABLED),
             new FeatureDefinition("BILLING_ENABLED", "Billing", SettingKey.BILLING_ENABLED),
+            new FeatureDefinition("MULTIPLE_COMPANIES_ENABLED", "Multiple invoicing companies", SettingKey.MULTIPLE_COMPANIES_ENABLED),
             new FeatureDefinition("BILLING_INVOICES_ENABLED", "Invoices", SettingKey.BILLING_INVOICES_ENABLED),
             new FeatureDefinition("BILLING_ONLINE_CARD_PAYMENTS_ENABLED", "Online card payments", SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED),
             new FeatureDefinition("BILLING_BANK_TRANSFER_ENABLED", "Bank transfer payments", SettingKey.BILLING_BANK_TRANSFER_ENABLED),
@@ -509,6 +510,9 @@ public class ManualTenantService {
         }
         if (!out.contains("MULTIPLE_CLIENTS_PER_SESSION_ENABLED")) {
             out.remove("GROUP_BOOKING_ENABLED");
+        }
+        if (!out.contains("BILLING_ENABLED")) {
+            out.remove("MULTIPLE_COMPANIES_ENABLED");
         }
         return out;
     }
