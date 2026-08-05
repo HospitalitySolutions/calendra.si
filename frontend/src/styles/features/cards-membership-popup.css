@@ -764,3 +764,67 @@ button.cards-product-modal-close.booking-side-panel-close:hover {
         max-height: none;
     }
 }
+
+.cards-product-courses-panel {
+    gap: 16px;
+}
+
+.cards-product-course-section-icon {
+    color: #1672f3;
+}
+
+.cards-product-linked-courses-list {
+    display: grid;
+    gap: 10px;
+}
+
+.cards-product-linked-course-card {
+    width: 100%;
+}
+
+.cards-product-linked-course-icon {
+    color: #1672f3;
+}
+
+.cards-product-course-panel-hint {
+    display: block;
+    margin-top: 2px;
+}
+
+.cards-product-nested-modal-backdrop.booking-side-panel-backdrop {
+    z-index: 1800;
+}
+
+.cards-product-course-picker-modal.modal.large-modal.booking-side-panel {
+    max-width: 840px;
+}
+
+.cards-product-course-picker-body {
+    padding-bottom: 18px;
+}
+
+.cards-product-course-picker-results {
+    display: grid;
+}
+
+.cards-product-course-picker-options {
+    display: grid;
+    gap: 10px;
+    max-height: 420px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+[data-theme="dark"] .cards-product-course-picker-modal.modal.large-modal.booking-side-panel {
+    background: #091220;
+}
+
+@media (max-width: 760px) {
+    .cards-product-course-picker-modal.modal.large-modal.booking-side-panel {
+        max-width: min(100vw - 16px, 840px);
+    }
+
+    .cards-product-linked-courses-list {
+        gap: 12px;
+    }
+}

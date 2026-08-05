@@ -53,12 +53,55 @@ type GuestAdminProduct = {
   updatedAt?: string;
 };
 
-type CourseOption = {
+type CourseMediaType = "VIDEO" | "AUDIO";
+type CourseStatus = "DRAFT" | "PROCESSING" | "ACTIVE" | "HIDDEN";
+
+type Course = {
   id: number;
+  guestProductId?: number | null;
   title: string;
-  mediaType: string;
-  status: string;
+  description?: string | null;
+  mediaType: CourseMediaType;
+  status: CourseStatus;
+  priceGross: number;
+  currency: string;
   active: boolean;
+  guestVisible: boolean;
+  sortOrder: number;
+  thumbnailUrl?: string | null;
+  bunnyLibraryId?: string | null;
+  bunnyLibraryName?: string | null;
+  bunnyVideoId?: string | null;
+  bunnyStoragePath?: string | null;
+  bunnyCdnUrl?: string | null;
+  fileName?: string | null;
+  contentType?: string | null;
+};
+
+type DirectVideoUploadSession = {
+  uploadType: "TUS";
+  uploadUrl: string;
+  bunnyLibraryId: string;
+  bunnyLibraryName?: string | null;
+  bunnyVideoId: string;
+  authorizationSignature: string;
+  authorizationExpire: number;
+  fileName: string;
+  contentType: string;
+  title: string;
+};
+
+type CourseFormState = {
+  title: string;
+  description: string;
+  mediaType: CourseMediaType;
+  status: CourseStatus;
+  priceGross: string;
+  currency: string;
+  active: boolean;
+  guestVisible: boolean;
+  sortOrder: string;
+  thumbnailUrl: string;
 };
 
 type GuestProductFormState = {
@@ -113,6 +156,100 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   transactionServiceId: "",
   includedCourseIds: [],
 });
+
+const defaultCourseForm = (): CourseFormState => ({
+  title: "",
+  description: "",
+  mediaType: "VIDEO",
+  status: "DRAFT",
+  priceGross: "0.00",
+  currency: "EUR",
+  active: true,
+  guestVisible: true,
+  sortOrder: "0",
+  thumbnailUrl: "",
+});
+
+function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function resolveTusLocation(location: string, endpoint: string): string {
+  try {
+    return new URL(location, endpoint).toString();
+  } catch {
+    return location;
+  }
+}
+
+async function uploadVideoToBunnyTus(
+  file: File,
+  session: DirectVideoUploadSession,
+  onProgress: (progress: number) => void,
+) {
+  const authHeaders = {
+    AuthorizationSignature: session.authorizationSignature,
+    AuthorizationExpire: String(session.authorizationExpire),
+    LibraryId: String(session.bunnyLibraryId),
+    VideoId: session.bunnyVideoId,
+  };
+  const metadata = [
+    `filetype ${base64Utf8(file.type || session.contentType || "video/mp4")}`,
+    `title ${base64Utf8(file.name || session.title || "course-video")}`,
+  ].join(",");
+
+  const createRes = await fetch(session.uploadUrl, {
+    method: "POST",
+    headers: {
+      "Tus-Resumable": "1.0.0",
+      "Upload-Length": String(file.size),
+      "Upload-Metadata": metadata,
+      ...authHeaders,
+    },
+  });
+  if (!createRes.ok) {
+    throw new Error(`Bunny TUS upload could not be started (${createRes.status}).`);
+  }
+  const location = createRes.headers.get("Location");
+  if (!location) {
+    throw new Error("Bunny TUS upload did not return an upload location.");
+  }
+
+  const uploadUrl = resolveTusLocation(location, session.uploadUrl);
+  const chunkSize = 8 * 1024 * 1024;
+  let offset = 0;
+  onProgress(0);
+
+  while (offset < file.size) {
+    const nextOffset = Math.min(offset + chunkSize, file.size);
+    const chunk = file.slice(offset, nextOffset);
+    const patchRes = await fetch(uploadUrl, {
+      method: "PATCH",
+      headers: {
+        "Tus-Resumable": "1.0.0",
+        "Content-Type": "application/offset+octet-stream",
+        "Upload-Offset": String(offset),
+        ...authHeaders,
+      },
+      body: chunk,
+    });
+    if (!patchRes.ok) {
+      throw new Error(`Bunny TUS upload failed (${patchRes.status}).`);
+    }
+    const returnedOffset = Number(patchRes.headers.get("Upload-Offset"));
+    offset =
+      Number.isFinite(returnedOffset) && returnedOffset > offset
+        ? returnedOffset
+        : nextOffset;
+    onProgress(file.size > 0 ? (offset / file.size) * 100 : 100);
+  }
+  onProgress(100);
+}
 
 const normalizeGuestProductFormForType = (
   current: GuestProductFormState,
@@ -360,6 +497,59 @@ function CourseSelectionCheckIcon() {
   );
 }
 
+
+function CourseSectionIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="m10 9 5 3-5 3V9z" />
+    </svg>
+  );
+}
+
+function CourseUploadIcon() {
+  return (
+    <svg
+      width="30"
+      height="30"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 16V7" />
+      <path d="m8 11 4-4 4 4" />
+      <path d="M20 16.5A4.5 4.5 0 0 0 15.5 12h-.76A6 6 0 1 0 6 17.32" />
+      <path d="M6 20h12" />
+    </svg>
+  );
+}
+
+function formatCourseUploadSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
+}
+
 function guestProductWalletSubtitle(product: GuestAdminProduct): string {
   const bits: string[] = [];
   if (product.autoRenews) bits.push("Auto-renew enabled");
@@ -403,7 +593,25 @@ export const CardsMembershipsSection = forwardRef<
   const [transactionServices, setTransactionServices] = useState<
     BillingService[]
   >([]);
-  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [showCoursePickerModal, setShowCoursePickerModal] = useState(false);
+  const [coursePickerQuery, setCoursePickerQuery] = useState("");
+  const [pendingCourseIds, setPendingCourseIds] = useState<string[]>([]);
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState<number | null>(null);
+  const [courseForm, setCourseForm] = useState<CourseFormState>(
+    defaultCourseForm,
+  );
+  const [savingCourse, setSavingCourse] = useState(false);
+  const [courseUploadFile, setCourseUploadFile] = useState<File | null>(null);
+  const [courseUploadProgress, setCourseUploadProgress] = useState<number | null>(
+    null,
+  );
+  const [uploadingCourseId, setUploadingCourseId] = useState<number | null>(
+    null,
+  );
+  const [deleteOldCourseMediaOnReplace, setDeleteOldCourseMediaOnReplace] =
+    useState(true);
   const [openProductMenuId, setOpenProductMenuId] = useState<number | null>(
     null,
   );
@@ -428,9 +636,9 @@ export const CardsMembershipsSection = forwardRef<
           .catch(() => ({ data: [] as BillingService[] })),
         coursesEnabled
           ? api
-              .get<CourseOption[]>("/courses")
-              .catch(() => ({ data: [] as CourseOption[] }))
-          : Promise.resolve({ data: [] as CourseOption[] }),
+              .get<Course[]>("/courses")
+              .catch(() => ({ data: [] as Course[] }))
+          : Promise.resolve({ data: [] as Course[] }),
       ]);
       setGuestProducts(
         (productsRes.data || []).filter(
@@ -581,6 +789,196 @@ export const CardsMembershipsSection = forwardRef<
       ),
     );
     setShowGuestProductModal(true);
+  };
+
+  const selectedCourses = useMemo(
+    () =>
+      guestProductForm.includedCourseIds
+        .map((courseId) =>
+          courses.find((course) => String(course.id) === String(courseId)) ??
+          null,
+        )
+        .filter((course): course is Course => course != null),
+    [courses, guestProductForm.includedCourseIds],
+  );
+
+  const editingCourse = useMemo(
+    () =>
+      editingCourseId == null
+        ? null
+        : courses.find((course) => course.id === editingCourseId) ?? null,
+    [courses, editingCourseId],
+  );
+
+  const editingCourseHasMedia = Boolean(
+    editingCourse?.bunnyVideoId ||
+      editingCourse?.bunnyStoragePath ||
+      editingCourse?.bunnyCdnUrl,
+  );
+
+  const existingCourseMediaLabel = editingCourse
+    ? editingCourse.mediaType === "VIDEO"
+      ? editingCourse.bunnyVideoId
+        ? `Video ${editingCourse.bunnyVideoId}`
+        : null
+      : editingCourse.fileName ||
+        editingCourse.bunnyStoragePath ||
+        editingCourse.bunnyCdnUrl ||
+        null
+    : null;
+
+  const availableCoursesForPicker = useMemo(() => {
+    const query = coursePickerQuery.trim().toLowerCase();
+    return courses
+      .slice()
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .filter((course) => {
+        if (!query) return true;
+        return [course.title, course.description, course.mediaType, course.status]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+      });
+  }, [coursePickerQuery, courses]);
+
+  const openCoursePicker = () => {
+    setPendingCourseIds(guestProductForm.includedCourseIds);
+    setCoursePickerQuery("");
+    setShowCoursePickerModal(true);
+  };
+
+  const openNewCourseModal = () => {
+    setEditingCourseId(null);
+    setCourseForm(defaultCourseForm());
+    setCourseUploadFile(null);
+    setCourseUploadProgress(null);
+    setDeleteOldCourseMediaOnReplace(true);
+    setShowCourseModal(true);
+  };
+
+  const openEditCourseModal = (course: Course) => {
+    setEditingCourseId(course.id);
+    setCourseForm({
+      title: course.title || "",
+      description: course.description || "",
+      mediaType: course.mediaType || "VIDEO",
+      status: course.status || "DRAFT",
+      priceGross: Number(course.priceGross || 0).toFixed(2),
+      currency: course.currency || "EUR",
+      active: course.active,
+      guestVisible: course.guestVisible,
+      sortOrder: String(course.sortOrder ?? 0),
+      thumbnailUrl: course.thumbnailUrl || "",
+    });
+    setCourseUploadFile(null);
+    setCourseUploadProgress(null);
+    setDeleteOldCourseMediaOnReplace(true);
+    setShowCourseModal(true);
+  };
+
+  const removeSelectedCourse = (courseId: number | string) => {
+    setGuestProductForm((current) => ({
+      ...current,
+      includedCourseIds: current.includedCourseIds.filter(
+        (id) => id !== String(courseId),
+      ),
+    }));
+  };
+
+  const uploadCourseMedia = async (
+    courseId: number,
+    file: File,
+    deleteOldMedia: boolean,
+  ) => {
+    setUploadingCourseId(courseId);
+    setCourseUploadProgress(0);
+    try {
+      if (courseForm.mediaType === "VIDEO") {
+        const sessionRes = await api.post<DirectVideoUploadSession>(
+          `/courses/${courseId}/media/direct-upload`,
+          {
+            fileName: file.name,
+            contentType: file.type || "video/mp4",
+            sizeBytes: file.size,
+          },
+          { params: { deleteOld: deleteOldMedia } },
+        );
+        await uploadVideoToBunnyTus(file, sessionRes.data, (progress) =>
+          setCourseUploadProgress(progress),
+        );
+        await api.post(`/courses/${courseId}/media/direct-complete`, {
+          bunnyVideoId: sessionRes.data.bunnyVideoId,
+          fileName: file.name,
+          contentType: file.type || sessionRes.data.contentType || "video/mp4",
+        });
+      } else {
+        const body = new FormData();
+        body.append("file", file);
+        await api.post(`/courses/${courseId}/media`, body, {
+          headers: { "Content-Type": "multipart/form-data" },
+          params: { deleteOld: deleteOldMedia },
+        });
+        setCourseUploadProgress(100);
+      }
+    } finally {
+      setUploadingCourseId(null);
+      setCourseUploadProgress(null);
+    }
+  };
+
+  const submitCourse = async (event: FormEvent) => {
+    event.preventDefault();
+    if (savingCourse) return;
+    setSavingCourse(true);
+    try {
+      const payload = {
+        title: courseForm.title.trim(),
+        description: courseForm.description.trim() || null,
+        mediaType: courseForm.mediaType,
+        status: courseForm.status,
+        priceGross: Number(courseForm.priceGross.replace(",", ".")) || 0,
+        currency: courseForm.currency.trim().toUpperCase() || "EUR",
+        active: courseForm.active,
+        guestVisible: courseForm.guestVisible,
+        sortOrder: Number.parseInt(courseForm.sortOrder, 10) || 0,
+        thumbnailUrl: courseForm.thumbnailUrl.trim() || null,
+      };
+      const res = editingCourseId
+        ? await api.put<Course>(`/courses/${editingCourseId}`, payload)
+        : await api.post<Course>("/courses", payload);
+      if (courseUploadFile) {
+        await uploadCourseMedia(
+          res.data.id,
+          courseUploadFile,
+          Boolean(
+            editingCourseId &&
+              editingCourseHasMedia &&
+              deleteOldCourseMediaOnReplace,
+          ),
+        );
+      }
+      await loadGuestProducts();
+      setGuestProductForm((current) => ({
+        ...current,
+        includedCourseIds: Array.from(
+          new Set([...current.includedCourseIds, String(res.data.id)]),
+        ),
+      }));
+      setShowCourseModal(false);
+      showToast(
+        "success",
+        locale === "sl" ? "Tečaj je shranjen." : "Course saved.",
+      );
+    } catch (err: any) {
+      showToast(
+        "error",
+        err?.response?.data?.message ||
+          (locale === "sl"
+            ? "Tečaja ni bilo mogoče shraniti."
+            : "Could not save course."),
+      );
+    } finally {
+      setSavingCourse(false);
+    }
   };
 
   const submitGuestProduct = async (e: FormEvent) => {
@@ -1527,82 +1925,113 @@ export const CardsMembershipsSection = forwardRef<
                 (guestProductForm.productType === "MEMBERSHIP" ||
                   guestProductForm.productType === "COURSE") && (
                   <div className="field full-span cards-product-courses-field">
-                    <span className="field-label">
-                      {locale === "sl"
-                        ? "Vključeni tečaji"
-                        : "Included courses"}
-                    </span>
-                    <div className="service-config-course-picker cards-product-course-picker">
-                      {courses.length === 0 ? (
-                        <div className="muted cards-product-empty-courses">
-                          {locale === "sl"
-                            ? "Ni ustvarjenih tečajev. Dodajte jih v zavihku Tečaji."
-                            : "No courses created yet. Add courses in the Courses tab."}
+                    <div className="session-type-config-unified-card session-type-config-unified-card--group cards-product-courses-panel">
+                      <div className="session-type-config-unified-card-header">
+                        <div className="session-type-config-section-title">
+                          <span className="session-type-config-section-icon session-type-config-section-icon--group cards-product-course-section-icon" aria-hidden>
+                            <CourseSectionIcon />
+                          </span>
+                          <div>
+                            <h3>
+                              {locale === "sl" ? "Tečaji" : "Courses"}
+                            </h3>
+                            <p>
+                              {guestProductForm.productType === "COURSE"
+                                ? locale === "sl"
+                                  ? "Izberite tečaje, ki jih gost prejme po nakupu te ugodnosti."
+                                  : "Choose the courses guests receive after buying this entitlement."
+                                : locale === "sl"
+                                  ? "Izberite tečaje, ki so dostopni v sklopu aktivne članarine."
+                                  : "Choose the courses available while the membership is active."}
+                            </p>
+                          </div>
                         </div>
-                      ) : (
-                        courses.map((course) => {
-                          const selected =
-                            guestProductForm.includedCourseIds.includes(
-                              String(course.id),
-                            );
-                          return (
-                            <label
+                        <div className="session-type-config-unified-actions">
+                          <button
+                            type="button"
+                            className="secondary small-btn"
+                            onClick={openCoursePicker}
+                          >
+                            + {locale === "sl" ? "Dodaj obstoječi" : "Add existing"}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary small-btn"
+                            onClick={openNewCourseModal}
+                          >
+                            + {locale === "sl" ? "Ustvari novo" : "Create new"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {selectedCourses.length > 0 ? (
+                        <div className="cards-product-linked-courses-list">
+                          {selectedCourses.map((course) => (
+                            <div
                               key={course.id}
-                              className={`cards-product-course-option${selected ? " is-selected" : ""}`}
+                              className="session-type-linked-card cards-product-linked-course-card"
                             >
-                              <span className="cards-product-course-checkbox">
-                                <input
-                                  type="checkbox"
-                                  checked={selected}
-                                  onChange={(e) =>
-                                    setGuestProductForm((current) => ({
-                                      ...current,
-                                      includedCourseIds: e.target.checked
-                                        ? Array.from(
-                                            new Set([
-                                              ...current.includedCourseIds,
-                                              String(course.id),
-                                            ]),
-                                          )
-                                        : current.includedCourseIds.filter(
-                                            (id) => id !== String(course.id),
-                                          ),
-                                    }))
-                                  }
-                                />
-                                <span className="cards-product-course-checkmark">
-                                  <CourseSelectionCheckIcon />
+                              <span
+                                className="session-type-linked-card-icon session-type-linked-card-icon--group cards-product-linked-course-icon"
+                                aria-hidden
+                              >
+                                <CourseSectionIcon />
+                              </span>
+                              <span className="session-type-linked-card-copy">
+                                <strong>{course.title}</strong>
+                                <span>
+                                  {course.description?.trim()
+                                    ? course.description
+                                    : guestProductForm.productType === "COURSE"
+                                      ? locale === "sl"
+                                        ? "Gost dobi doživljenjski dostop po nakupu te ugodnosti."
+                                        : "Guest gets lifetime access after purchase."
+                                      : locale === "sl"
+                                        ? "Članarina omogoča dostop do tega tečaja, dokler je aktivna."
+                                        : "Membership grants access while it is active."}
                                 </span>
                               </span>
-                              <span className="cards-product-course-copy">
-                                <strong>
-                                  {course.title}
-                                  <span>({course.mediaType})</span>
-                                </strong>
-                                <small>
-                                  {guestProductForm.productType === "COURSE"
-                                    ? locale === "sl"
-                                      ? "Gost dobi doživljenjski dostop po nakupu te ugodnosti."
-                                      : "Guest gets lifetime access after buying this entitlement."
-                                    : locale === "sl"
-                                      ? "Članarina omogoča dostop do izbranih tečajev, dokler je aktivna."
-                                      : "Membership grants access to selected courses while it is active."}
-                                </small>
-                              </span>
-                            </label>
-                          );
-                        })
+                              <div className="session-type-linked-card-actions">
+                                <button
+                                  type="button"
+                                  className="secondary slim-btn"
+                                  onClick={() => openEditCourseModal(course)}
+                                >
+                                  {locale === "sl" ? "Uredi" : "Edit"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger secondary slim-btn"
+                                  onClick={() => removeSelectedCourse(course.id)}
+                                >
+                                  {locale === "sl" ? "Odstrani" : "Remove"}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="session-type-linked-empty">
+                          {courses.length === 0
+                            ? locale === "sl"
+                              ? "Ni še ustvarjenih tečajev. Najprej ustvarite novega."
+                              : "No courses exist yet. Create your first one."
+                            : locale === "sl"
+                              ? "Noben tečaj še ni povezan s to ugodnostjo."
+                              : "No courses are linked to this entitlement yet."}
+                        </div>
                       )}
+
+                      <span className="field-hint cards-product-course-panel-hint">
+                        {guestProductForm.productType === "COURSE"
+                          ? locale === "sl"
+                            ? "Gost dobi doživljenjski dostop do izbranih tečajev po nakupu te ugodnosti."
+                            : "Guests get lifetime access to selected courses after buying this entitlement."
+                          : locale === "sl"
+                            ? "Članarina omogoča dostop do izbranih tečajev, dokler je aktivna."
+                            : "Guests with this membership can access selected courses while the membership is active."}
+                      </span>
                     </div>
-                    <span className="field-hint">
-                      {guestProductForm.productType === "COURSE"
-                        ? locale === "sl"
-                          ? "Gost dobi doživljenjski dostop do izbranih tečajev po nakupu te ugodnosti."
-                          : "Guests get lifetime access to selected courses after buying this entitlement."
-                        : locale === "sl"
-                          ? "Članarina omogoča dostop do izbranih tečajev, dokler je aktivna."
-                          : "Guests with this membership can access selected courses while the membership is active."}
-                    </span>
                   </div>
                 )}
               <div className="form-actions full-span booking-side-panel-footer cards-product-modal-footer">
@@ -1624,6 +2053,398 @@ export const CardsMembershipsSection = forwardRef<
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {showCoursePickerModal && (
+        <div
+          className="modal-backdrop booking-side-panel-backdrop cards-product-modal-backdrop cards-product-nested-modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setShowCoursePickerModal(false)}
+        >
+          <div
+            className="modal large-modal booking-side-panel cards-product-modal cards-product-course-picker-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cards-course-picker-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="cards-product-modal-header">
+              <div className="cards-product-modal-heading">
+                <span className="cards-product-modal-icon" aria-hidden>
+                  <CourseSectionIcon />
+                </span>
+                <div className="cards-product-modal-title">
+                  <h2 id="cards-course-picker-title">
+                    {locale === "sl" ? "Dodaj obstoječi tečaj" : "Add existing course"}
+                  </h2>
+                  <p>
+                    {locale === "sl"
+                      ? "Izberite enega ali več že ustvarjenih tečajev."
+                      : "Choose one or more courses that already exist."}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="secondary booking-side-panel-close cards-product-modal-close"
+                onClick={() => setShowCoursePickerModal(false)}
+                aria-label={locale === "sl" ? "Zapri" : "Close"}
+              >
+                ×
+              </button>
+            </div>
+            <div className="form-grid booking-side-panel-body cards-product-modal-body cards-product-course-picker-body">
+              <div className="field full-span">
+                <input
+                  value={coursePickerQuery}
+                  onChange={(e) => setCoursePickerQuery(e.target.value)}
+                  placeholder={locale === "sl" ? "Išči tečaje ..." : "Search courses ..."}
+                />
+              </div>
+              <div className="field full-span cards-product-course-picker-results">
+                {availableCoursesForPicker.length === 0 ? (
+                  <div className="session-type-linked-empty">
+                    {locale === "sl"
+                      ? "Ni najdenih tečajev."
+                      : "No courses found."}
+                  </div>
+                ) : (
+                  <div className="cards-product-course-picker-options">
+                    {availableCoursesForPicker.map((course) => {
+                      const selected = pendingCourseIds.includes(String(course.id));
+                      return (
+                        <label
+                          key={course.id}
+                          className={`cards-product-course-option${selected ? " is-selected" : ""}`}
+                        >
+                          <span className="cards-product-course-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={(e) =>
+                                setPendingCourseIds((current) =>
+                                  e.target.checked
+                                    ? Array.from(
+                                        new Set([...current, String(course.id)]),
+                                      )
+                                    : current.filter(
+                                        (id) => id !== String(course.id),
+                                      ),
+                                )
+                              }
+                            />
+                            <span className="cards-product-course-checkmark">
+                              <CourseSelectionCheckIcon />
+                            </span>
+                          </span>
+                          <span className="cards-product-course-copy">
+                            <strong>
+                              {course.title}
+                              <span>({course.mediaType})</span>
+                            </strong>
+                            <small>
+                              {course.description?.trim() ||
+                                (locale === "sl"
+                                  ? "Brez opisa"
+                                  : "No description")}
+                            </small>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="booking-side-panel-footer cards-product-modal-footer">
+              <div className="cards-product-modal-footer-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setShowCoursePickerModal(false)}
+                >
+                  {locale === "sl" ? "Prekliči" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  className="gapp-primary-button"
+                  onClick={() => {
+                    setGuestProductForm((current) => ({
+                      ...current,
+                      includedCourseIds: pendingCourseIds,
+                    }));
+                    setShowCoursePickerModal(false);
+                  }}
+                >
+                  <GuestConfigSaveIcon />
+                  {locale === "sl" ? "Dodaj izbrane" : "Add selected"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCourseModal && (
+        <div
+          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop course-edit-modal-backdrop cards-product-nested-modal-backdrop"
+          role="presentation"
+          onMouseDown={() => {
+            if (!savingCourse && uploadingCourseId == null) {
+              setShowCourseModal(false);
+            }
+          }}
+        >
+          <div
+            className="modal large-modal booking-side-panel session-type-config-modal course-edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cards-course-edit-modal-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="session-type-config-modal-header course-edit-modal-header">
+              <div className="session-type-config-modal-heading course-edit-modal-heading">
+                <span className="session-type-config-modal-icon course-edit-modal-icon" aria-hidden>
+                  <CourseSectionIcon />
+                </span>
+                <div>
+                  <h2 id="cards-course-edit-modal-title">
+                    {editingCourseId
+                      ? locale === "sl"
+                        ? "Uredi tečaj"
+                        : "Edit course"
+                      : locale === "sl"
+                        ? "Nov tečaj"
+                        : "New course"}
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="secondary session-type-config-modal-close course-edit-modal-close"
+                aria-label={locale === "sl" ? "Zapri" : "Close"}
+                onClick={() => {
+                  if (!savingCourse && uploadingCourseId == null) {
+                    setShowCourseModal(false);
+                  }
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <form
+              id="cards-product-course-form"
+              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body course-edit-modal-body"
+              onSubmit={submitCourse}
+            >
+              <section className="session-type-config-section course-edit-card">
+                <div className="form-grid two course-edit-grid course-edit-grid--two">
+                  <Field label={locale === "sl" ? "Naslov tečaja *" : "Course title *"}>
+                    <input
+                      required
+                      value={courseForm.title}
+                      onChange={(e) =>
+                        setCourseForm((current) => ({
+                          ...current,
+                          title: e.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label={locale === "sl" ? "Tip medija" : "Media type"}>
+                    <span className="course-edit-select-wrap">
+                      <span className="course-edit-select-icon" aria-hidden>
+                        <CourseSectionIcon />
+                      </span>
+                      <select
+                        className="course-edit-select"
+                        value={courseForm.mediaType}
+                        onChange={(e) =>
+                          setCourseForm((current) => ({
+                            ...current,
+                            mediaType: e.target.value as CourseMediaType,
+                          }))
+                        }
+                      >
+                        <option value="VIDEO">Video</option>
+                        <option value="AUDIO">Audio</option>
+                      </select>
+                    </span>
+                  </Field>
+                </div>
+
+                <div className="field course-edit-upload-field">
+                  <span className="field-label">Bunny upload</span>
+                  <label
+                    className={`course-edit-upload-dropzone${courseUploadFile ? " has-file" : ""}`}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setCourseUploadFile(e.dataTransfer.files?.[0] ?? null);
+                    }}
+                  >
+                    <input
+                      className="course-edit-file-input"
+                      type="file"
+                      accept={courseForm.mediaType === "AUDIO" ? "audio/*" : "video/*"}
+                      onChange={(e) =>
+                        setCourseUploadFile(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    <span className="course-edit-upload-icon" aria-hidden>
+                      <CourseUploadIcon />
+                    </span>
+                    <span className="course-edit-upload-copy">
+                      <strong>
+                        {courseUploadFile
+                          ? courseUploadFile.name
+                          : locale === "sl"
+                            ? "Povlecite datoteko sem ali kliknite za izbiro"
+                            : "Drag a file here or click to choose"}
+                      </strong>
+                      <span>
+                        {courseUploadFile
+                          ? formatCourseUploadSize(courseUploadFile.size)
+                          : courseForm.mediaType === "VIDEO"
+                            ? locale === "sl"
+                              ? "Podprti formati: MP4, MOV, WebM, AVI (največ 2 GB)"
+                              : "Supported formats: MP4, MOV, WebM, AVI (max 2 GB)"
+                            : locale === "sl"
+                              ? "Podprti formati: MP3, WAV, M4A, AAC"
+                              : "Supported formats: MP3, WAV, M4A, AAC"}
+                      </span>
+                    </span>
+                    <span className="course-edit-upload-button">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 3v12" />
+                        <path d="m7 8 5-5 5 5" />
+                        <path d="M5 21h14" />
+                      </svg>
+                      {locale === "sl" ? "Izberi datoteko" : "Choose file"}
+                    </span>
+                  </label>
+                  {existingCourseMediaLabel && (
+                    <div className="course-edit-upload-note">
+                      <strong>
+                        {locale === "sl"
+                          ? "Trenutna Bunny datoteka"
+                          : "Current Bunny file"}
+                        :
+                      </strong>{" "}
+                      {existingCourseMediaLabel}
+                    </div>
+                  )}
+                  {courseUploadFile && (
+                    <div className="course-edit-upload-note">
+                      {courseForm.mediaType === "VIDEO"
+                        ? locale === "sl"
+                          ? "Video se bo naložil neposredno v Bunny Stream."
+                          : "Video will upload directly to Bunny Stream."
+                        : locale === "sl"
+                          ? "Audio se naloži prek zaščitenega Calendra nalaganja."
+                          : "Audio uploads through protected Calendra upload."}
+                    </div>
+                  )}
+                  {editingCourseId &&
+                    courseUploadFile &&
+                    editingCourseHasMedia && (
+                      <label className="course-edit-replace-media-option">
+                        <input
+                          type="checkbox"
+                          checked={deleteOldCourseMediaOnReplace}
+                          onChange={(e) =>
+                            setDeleteOldCourseMediaOnReplace(e.target.checked)
+                          }
+                        />
+                        <span>
+                          {locale === "sl"
+                            ? "Ob zamenjavi izbriši prejšnjo Bunny datoteko"
+                            : "Delete previous Bunny file when replacing media"}
+                        </span>
+                      </label>
+                    )}
+                  {editingCourseId &&
+                    courseUploadFile &&
+                    editingCourseHasMedia &&
+                    deleteOldCourseMediaOnReplace && (
+                      <div className="course-edit-upload-note">
+                        {locale === "sl"
+                          ? "Stari audio/video bo odstranjen iz Bunny, zato ga ne bo treba brisati ročno."
+                          : "The old audio/video will be removed from Bunny so you do not need to delete it manually."}
+                      </div>
+                    )}
+                  {courseUploadProgress != null && (
+                    <div
+                      className="course-edit-upload-progress"
+                      aria-label={locale === "sl" ? "Napredek nalaganja" : "Upload progress"}
+                    >
+                      <span
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.min(100, courseUploadProgress),
+                          )}%`,
+                        }}
+                      />
+                      <strong>
+                        {Math.max(
+                          0,
+                          Math.min(100, courseUploadProgress),
+                        ).toFixed(0)}%
+                      </strong>
+                    </div>
+                  )}
+                </div>
+
+                <Field label={locale === "sl" ? "Opis" : "Description"}>
+                  <span className="course-edit-textarea-wrap">
+                    <textarea
+                      rows={5}
+                      maxLength={1000}
+                      placeholder={
+                        locale === "sl"
+                          ? "Vnesite opis tečaja ..."
+                          : "Enter course description ..."
+                      }
+                      value={courseForm.description}
+                      onChange={(e) =>
+                        setCourseForm((current) => ({
+                          ...current,
+                          description: e.target.value,
+                        }))
+                      }
+                    />
+                    <span className="course-edit-character-count">
+                      {courseForm.description.length} / 1000
+                    </span>
+                  </span>
+                </Field>
+              </section>
+            </form>
+            <div className="booking-side-panel-footer session-type-config-modal-footer course-edit-modal-footer">
+              <button
+                form="cards-product-course-form"
+                type="submit"
+                className="gapp-primary-button course-edit-save-button"
+                disabled={savingCourse || uploadingCourseId != null}
+              >
+                <GuestConfigSaveIcon />
+                {savingCourse || uploadingCourseId != null
+                  ? courseUploadProgress != null
+                    ? `${locale === "sl" ? "Nalaganje" : "Uploading"} ${courseUploadProgress.toFixed(0)}%`
+                    : locale === "sl"
+                      ? "Shranjevanje…"
+                      : "Saving…"
+                  : editingCourseId
+                    ? locale === "sl"
+                      ? "Shrani spremembe"
+                      : "Save changes"
+                    : locale === "sl"
+                      ? "Ustvari tečaj"
+                      : "Create course"}
+              </button>
+            </div>
           </div>
         </div>
       )}

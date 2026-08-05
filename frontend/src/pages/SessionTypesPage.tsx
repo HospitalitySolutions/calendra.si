@@ -771,7 +771,8 @@ export function SessionTypesPage() {
   ).guestAppEnabled;
   const guestBookingDisabledByModules =
     !websiteWidgetModuleEnabled && !guestAppModuleEnabled;
-  const showCourses = showCoursesParam && coursesModuleEnabled;
+  // Course management now lives inside Ugodnosti create/edit modals.
+  const showCourses = false;
   const showServiceGroups = false;
   // Billing services are managed inside Storitve whenever the Storitve module is enabled.
   // Keep the former standalone view only as a fallback for tenants where Storitve itself is disabled.
@@ -2904,19 +2905,6 @@ export function SessionTypesPage() {
                 <span>{t("sessionTypesSubtabCards")}</span>
                 <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
               </button>
-              {coursesModuleEnabled && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={showCourses}
-                  className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
-                  onClick={() => setSessionTypesSubtab("courses")}
-                >
-                  <ServiceConfigTabIcon name="types" />
-                  <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
-                  <span className="service-config-tab-count">{coursesFilteredCount}</span>
-                </button>
-              )}
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
@@ -3092,19 +3080,6 @@ export function SessionTypesPage() {
                 <span>{t("sessionTypesSubtabCards")}</span>
                 <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
               </button>
-              {coursesModuleEnabled && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={showCourses}
-                  className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
-                  onClick={() => setSessionTypesSubtab("courses")}
-                >
-                  <ServiceConfigTabIcon name="types" />
-                  <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
-                  <span className="service-config-tab-count">{coursesFilteredCount}</span>
-                </button>
-              )}
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
