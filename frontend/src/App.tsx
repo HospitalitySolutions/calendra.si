@@ -71,6 +71,7 @@ function lazyWithReload<T extends ComponentType<any>>(
 
 const CalendarPage = lazyWithReload(() => import('./pages/CalendarPage'), CHUNK_RELOAD_KEY)
 const AnalyticsPage = lazyWithReload(() => import('./pages/AnalyticsPage').then((mod) => ({ default: mod.AnalyticsPage })), CHUNK_RELOAD_KEY)
+const WorkspaceAnalyticsPage = lazyWithReload(() => import('./pages/WorkspaceAnalyticsPage').then((mod) => ({ default: mod.WorkspaceAnalyticsPage })), CHUNK_RELOAD_KEY)
 const InboxPage = lazyWithReload(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
 const BillingPage = lazyWithReload(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
 const ClientsPage = lazyWithReload(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
@@ -487,6 +488,7 @@ export default function App() {
           <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/analytics/workspace" element={canViewReports ? <WorkspaceAnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
