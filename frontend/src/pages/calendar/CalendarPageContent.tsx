@@ -471,6 +471,12 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     () => metaSpaces.filter((space: any) => space?.active !== false),
     [metaSpaces],
   )
+  const locationScopedMetaSpaces = useMemo(
+    () => locationFilterId == null
+      ? metaSpaces
+      : metaSpaces.filter((space: any) => Number(space?.location?.id ?? space?.locationId) === Number(locationFilterId)),
+    [metaSpaces, locationFilterId],
+  )
   useEffect(() => {
     if (locationFilterId == null) return
     if (!activeMetaLocations.some((item: any) => Number(item?.id) === Number(locationFilterId))) {
@@ -480,7 +486,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   /** Hide Zaposleni when admin has no real choice (0–1 consultants). */
   const showBookingConsultantRow = isTenantAdmin && metaConsultants.length > 1
   /** Hide Prostor when there is no real choice (0–1 spaces). */
-  const showBookingSpaceRow = settings.SPACES_ENABLED !== 'false' && metaSpaces.length > 1
+  const showBookingSpaceRow = settings.SPACES_ENABLED !== 'false' && locationScopedMetaSpaces.length > 1
   /** Hide Storitev (+ bundled Online on web) when no session types exist. */
   const showBookingTypeRow = settings.TYPES_ENABLED !== 'false' && selectableMetaTypes.length > 0
   const metaGroups: any[] = Array.isArray(meta.groups) ? meta.groups : EMPTY_ARR
@@ -583,6 +589,15 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const selectedSpaceStillExists = metaSpaces.some((space: any) => Number(space.id) === Number(spaceFilterId))
     if (!selectedSpaceStillExists) setSpaceFilterId(null)
   }, [calendarMetaLoaded, metaSpaces, spaceFilterId])
+
+  useEffect(() => {
+    if (locationFilterId == null || spaceFilterId == null) return
+    const selectedSpaceMatchesLocation = metaSpaces.some((space: any) => (
+      Number(space?.id) === Number(spaceFilterId)
+      && Number(space?.location?.id ?? space?.locationId) === Number(locationFilterId)
+    ))
+    if (!selectedSpaceMatchesLocation) setSpaceFilterId(null)
+  }, [locationFilterId, metaSpaces, spaceFilterId])
 
   useEffect(() => {
     writePersistedCalendarNavigationState(calendarNavigationKey, {
@@ -4083,7 +4098,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         spaceFilterId={spaceFilterId}
         onSpaceFilterChange={handleSpaceFilterChange}
         consultantUsers={metaConsultants}
-        spaces={metaSpaces}
+        spaces={locationScopedMetaSpaces}
       />
     ),
     [
@@ -4095,7 +4110,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       handleConsultantFilterChange,
       handleSpaceFilterChange,
       metaConsultants,
-      metaSpaces,
+      locationScopedMetaSpaces,
     ],
   )
 
@@ -4442,12 +4457,17 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const services = normalizeCalendarServiceDrafts(nextServices)
       const chain = buildCalendarServiceChain(currentForm.startTime, services, currentForm.endTime)
       const first = services.find((service) => service.typeId != null) ?? services[0]
+      const firstSpace = first?.spaceId != null
+        ? metaSpaces.find((space: any) => Number(space?.id) === Number(first.spaceId)) ?? null
+        : null
+      const firstSpaceLocationId = firstSpace?.location?.id ?? firstSpace?.locationId ?? null
       const allDay = isLocalBookingAllDay(currentForm.startTime, currentForm.endTime)
       return {
         ...currentForm,
         services,
         typeId: first?.typeId ?? null,
         spaceId: first?.spaceId ?? null,
+        locationId: firstSpaceLocationId ?? locationFilterId ?? currentForm.locationId ?? null,
         endTime: allDay ? currentForm.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : currentForm.endTime,
       }
     })
@@ -4461,12 +4481,23 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const first = services.find((service) => service.typeId != null) ?? services[0]
       const firstType = first?.typeId != null ? metaTypes.find((type: any) => Number(type?.id) === Number(first.typeId)) ?? null : null
       const firstSpace = first?.spaceId != null ? metaSpaces.find((space: any) => Number(space?.id) === Number(first.spaceId)) ?? null : null
+      const firstSpaceLocationId = firstSpace?.location?.id ?? firstSpace?.locationId ?? null
+      const nextLocation = firstSpace?.location
+        ?? (firstSpaceLocationId != null
+          ? metaLocations.find((item: any) => Number(item?.id) === Number(firstSpaceLocationId)) ?? null
+          : null)
+        ?? (locationFilterId != null
+          ? metaLocations.find((item: any) => Number(item?.id) === Number(locationFilterId)) ?? null
+          : null)
+        ?? current.location
+        ?? null
       const allDay = isLocalBookingAllDay(current.startTime, current.endTime)
       return {
         ...current,
         services,
         type: firstType,
         space: firstSpace,
+        location: nextLocation,
         endTime: allDay ? current.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : current.endTime,
         availabilityEndTime: allDay ? current.endTime : bookingServicesPayload(services).length > 0 ? chain.availabilityEndTime : current.availabilityEndTime,
         totalServiceMinutes: chain.totalServiceMinutes,
@@ -7308,9 +7339,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         )
     const availableConsultants = metaUsers.filter((u: any) => u.consultant)
     const defaultConsultantId = consultantId || availableConsultants[0]?.id || user.id
-    const locationSpaces = locationFilterId == null
-      ? metaSpaces
-      : metaSpaces.filter((space: any) => Number(space?.location?.id) === Number(locationFilterId))
+    const locationSpaces = locationScopedMetaSpaces
     const defaultSpaceId = preselectedSpaceId !== undefined ? preselectedSpaceId : (locationSpaces[0]?.id ?? null)
     const defaultSpace = metaSpaces.find((space: any) => Number(space?.id) === Number(defaultSpaceId))
     const defaultLocationId = defaultSpace?.location?.id ?? locationFilterId ?? metaLocations.find((item: any) => item?.defaultLocation)?.id ?? metaLocations[0]?.id ?? null
@@ -7568,6 +7597,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     calendarData.todos,
     metaUsers,
     metaSpaces,
+    locationScopedMetaSpaces,
     metaTypes,
     user.id,
     selectedBookedSession?.id,
@@ -8046,7 +8076,32 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         {calendarToolbarMonthLabel}
       </span>
     ) : null
+    const headerLocationFilter = !compactCalendarFormLayout
+      && calendarScope === 'unit'
+      && activeMetaLocations.length > 1
+      ? (
+          <label className="calendar-header-location-filter">
+            <span>{locale === 'sl' ? 'Poslovalnica' : locale === 'sr' ? 'Lokacija' : 'Location'}</span>
+            <span className="calendar-header-location-select-wrap">
+              <select
+                value={locationFilterId ?? ''}
+                onChange={(event) => setLocationFilterId(event.target.value ? Number(event.target.value) : null)}
+                aria-label={locale === 'sl' ? 'Izberi poslovalnico' : locale === 'sr' ? 'Izaberi lokaciju' : 'Select location'}
+              >
+                <option value="">{locale === 'sl' ? 'Vse poslovalnice' : locale === 'sr' ? 'Sve lokacije' : 'All locations'}</option>
+                {activeMetaLocations.map((item: any) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </span>
+          </label>
+        )
+      : null
     return {
+      brand: headerLocationFilter,
       /* Narrow calendar: arrows removed — prev/next remains via rail (wider) or swipe; controls stay in header right */
       left: calendarMobileHeaderNav ? null : calendarHeaderCompact ? dateNav : null,
       center: calendarMobileHeaderNav ? null : calendarHeaderCompact ? null : dateNav,
@@ -8066,6 +8121,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     calendarSpacesFeatureActive,
     calendarToolbarMonthLabel,
     calendarToolbarTitle,
+    compactCalendarFormLayout,
+    calendarScope,
+    activeMetaLocations,
+    locationFilterId,
     shellCalendarFilters,
     calendarMode,
     bookableEnabled,
@@ -12089,7 +12148,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     updateTodo,
   ])
 
-  const calendarSessionModalProps = {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openCalendarGroupDetail,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentGroupNameDraft,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft}
+  const calendarSessionModalProps = {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openCalendarGroupDetail,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentGroupNameDraft,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft}
 
   return (
     <div className={isNativeAndroid ? 'calendar-page-android-root' : 'calendar-page-web-root'}>
@@ -12125,7 +12184,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           </button>
         </div>
       )}
-      {!isNativeAndroid && (canViewWorkspaceCalendar || activeMetaLocations.length > 1) ? (
+      {!isNativeAndroid && (canViewWorkspaceCalendar || (compactCalendarFormLayout && activeMetaLocations.length > 1)) ? (
         <div className="calendar-workspace-scope-bar" role="group" aria-label={locale === 'sl' ? 'Obseg koledarja' : 'Calendar scope'}>
           {canViewWorkspaceCalendar ? (
             <div className="calendar-workspace-scope-buttons">
@@ -12137,7 +12196,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               </button>
             </div>
           ) : null}
-          {calendarScope === 'unit' && activeMetaLocations.length > 1 ? (
+          {compactCalendarFormLayout && calendarScope === 'unit' && activeMetaLocations.length > 1 ? (
             <label className="calendar-location-filter">
               <span>{locale === 'sl' ? 'Poslovalnica' : locale === 'sr' ? 'Lokacija' : 'Location'}</span>
               <select value={locationFilterId ?? ''} onChange={(event) => setLocationFilterId(event.target.value ? Number(event.target.value) : null)}>

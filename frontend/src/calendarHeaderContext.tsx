@@ -7,6 +7,8 @@ import {
 } from 'react'
 
 export type CalendarShellHeaderSlots = {
+  /** Optional calendar-only replacement for the default company / unit brand. */
+  brand?: ReactNode
   /** Empty balancing column (keeps date centered) or null */
   left: ReactNode
   center: ReactNode

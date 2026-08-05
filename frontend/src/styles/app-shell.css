@@ -3459,3 +3459,80 @@ a.credentials-popover-action-btn {
   .calendar-location-filter { align-items: stretch; flex-direction: column; }
   .calendar-location-filter select { width: 100%; }
 }
+
+/* Calendar desktop: the physical-location filter replaces the company label in the top row. */
+.app-header .app-header-brand--calendar.app-header-brand--calendar-location {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: none;
+  overflow: visible;
+  letter-spacing: normal;
+  color: var(--color-text, #0f172a);
+}
+
+.calendar-header-location-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-text-muted, #475569);
+  font-size: 0.76rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.calendar-header-location-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 172px;
+  max-width: min(250px, 24vw);
+}
+
+.calendar-header-location-select-wrap select {
+  width: 100%;
+  min-height: 34px;
+  appearance: none;
+  border: 1px solid var(--border, #d7e0eb);
+  border-radius: 9px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #0f172a);
+  padding: 6px 30px 6px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-header-location-select-wrap select:focus-visible {
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.calendar-header-location-select-wrap svg {
+  position: absolute;
+  right: 9px;
+  pointer-events: none;
+  color: var(--color-text-muted, #64748b);
+}
+
+@media (max-width: 1240px) {
+  .calendar-header-location-filter > span:first-child {
+    display: none;
+  }
+
+  .calendar-header-location-select-wrap {
+    min-width: 150px;
+    max-width: 190px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-header .app-header-brand--calendar.app-header-brand--calendar-location {
+    display: none;
+  }
+}

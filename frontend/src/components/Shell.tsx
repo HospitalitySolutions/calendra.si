@@ -1520,8 +1520,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
               <div className="app-header-calendar-left">
                 {mobileNavTrigger}
                 {calendarShellSlots.toolbarMonthLabel}
-                <div className="app-header-brand app-header-brand--calendar" title={headerBrandLabel}>
-                  {unitBrand}
+                <div
+                  className={`app-header-brand app-header-brand--calendar${calendarShellSlots.brand ? ' app-header-brand--calendar-location' : ''}`}
+                  title={calendarShellSlots.brand ? undefined : headerBrandLabel}
+                >
+                  {calendarShellSlots.brand ?? unitBrand}
                 </div>
                 {calendarShellSlots.left}
               </div>
