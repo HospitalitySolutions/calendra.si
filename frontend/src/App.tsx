@@ -492,7 +492,7 @@ export default function App() {
   const billingAllowed = billingModuleEnabled && canViewBilling
   const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
   const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
-  const inboxAllowed = (inboxModuleEnabled && canViewInbox) || canViewDeliveryLogs
+  const inboxAllowed = inboxModuleEnabled && (canViewInbox || canViewDeliveryLogs)
   const canScanWalletEntitlements = scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
   const preferredFallbackRoute = getDefaultAllowedRoute(user.packageType)
   const routeCandidates = [

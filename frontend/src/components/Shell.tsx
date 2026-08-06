@@ -342,7 +342,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const billingAllowed = billingModuleEnabled && canViewBilling
   const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
   const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
-  const inboxAllowed = (inboxModuleEnabled && canViewInbox) || canViewDeliveryLogs
+  const inboxAllowed = inboxModuleEnabled && (canViewInbox || canViewDeliveryLogs)
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const appointmentsNavLabel = locale === 'sl' ? 'Čakalna vrsta' : locale === 'sr' ? 'Lista čekanja' : 'Waitlist'

@@ -92,6 +92,11 @@ public class BillingIssuerController {
             String currency,
             String fiscalEnvironment,
             String softwareSupplierTaxNumber,
+            String fiscalCadastralNumber,
+            String fiscalBuildingNumber,
+            String fiscalBuildingSectionNumber,
+            String fiscalHouseNumber,
+            String fiscalHouseNumberAdditional,
             String certificatePassword,
             Boolean active
     ) {}
@@ -120,6 +125,11 @@ public class BillingIssuerController {
             String currency,
             String fiscalEnvironment,
             String softwareSupplierTaxNumber,
+            String fiscalCadastralNumber,
+            String fiscalBuildingNumber,
+            String fiscalBuildingSectionNumber,
+            String fiscalHouseNumber,
+            String fiscalHouseNumberAdditional,
             boolean certificatePasswordConfigured,
             boolean active,
             boolean assignedToCurrentUnit,
@@ -512,6 +522,11 @@ public class BillingIssuerController {
         entity.setCurrency(normalizeCode(input.currency(), "EUR", 3));
         entity.setFiscalEnvironment("PROD".equalsIgnoreCase(trim(input.fiscalEnvironment())) ? "PROD" : "TEST");
         entity.setSoftwareSupplierTaxNumber(trim(input.softwareSupplierTaxNumber()));
+        entity.setFiscalCadastralNumber(trim(input.fiscalCadastralNumber()));
+        entity.setFiscalBuildingNumber(trim(input.fiscalBuildingNumber()));
+        entity.setFiscalBuildingSectionNumber(trim(input.fiscalBuildingSectionNumber()));
+        entity.setFiscalHouseNumber(trim(input.fiscalHouseNumber()));
+        entity.setFiscalHouseNumberAdditional(trim(input.fiscalHouseNumberAdditional()));
         if (input.certificatePassword() != null) {
             entity.setCertificatePasswordEncrypted(input.certificatePassword().isBlank() ? null : crypto.encrypt(input.certificatePassword().trim()));
         }
@@ -611,7 +626,9 @@ public class BillingIssuerController {
                 entity.getId(), entity.getName(), entity.getAddress(), entity.getPostalCode(), entity.getCity(),
                 entity.getCountry(), entity.getTaxNumber(), entity.getVatId(), entity.getIban(), entity.getBic(),
                 entity.getEmail(), entity.getTelephone(), entity.getCurrency(), entity.getFiscalEnvironment(),
-                entity.getSoftwareSupplierTaxNumber(), entity.getCertificatePasswordEncrypted() != null && !entity.getCertificatePasswordEncrypted().isBlank(),
+                entity.getSoftwareSupplierTaxNumber(), entity.getFiscalCadastralNumber(), entity.getFiscalBuildingNumber(),
+                entity.getFiscalBuildingSectionNumber(), entity.getFiscalHouseNumber(), entity.getFiscalHouseNumberAdditional(),
+                entity.getCertificatePasswordEncrypted() != null && !entity.getCertificatePasswordEncrypted().isBlank(),
                 entity.isActive(), current != null && current.isActive(), current != null && current.isDefaultIssuer(),
                 current == null || current.getDefaultInvoiceSeries() == null ? null : current.getDefaultInvoiceSeries().getId(),
                 visibleAssignments.stream().map(row -> new UnitAssignmentResponse(

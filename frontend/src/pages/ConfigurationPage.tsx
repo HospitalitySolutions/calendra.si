@@ -33,6 +33,7 @@ import {
 } from "./configuration/ConfigurationNotificationsSection";
 import { ConfigurationWaitlistSettingsSection } from "./configuration/ConfigurationWaitlistSettingsSection";
 import { BillingIssuersSection } from "./configuration/BillingIssuersSection";
+import { CompanyBillingEntitiesSection } from "./configuration/CompanyBillingEntitiesSection";
 import { OperatingUnitsPanel } from "./configuration/OperatingUnitsPanel";
 import { WorkspaceSubscriptionPanel } from "./configuration/WorkspaceSubscriptionPanel";
 import {
@@ -1128,6 +1129,7 @@ const parseRegisteredPremises = (raw: string | undefined): string[] => {
 
 export function ConfigurationPage() {
   const me = useAuthenticatedUser();
+  const canManageOperatingUnits = hasEmployeePermission(me, 'SETTINGS_VIEW');
   const canViewConfiguration = hasAnyEmployeePermission(me, [
     'SETTINGS_VIEW',
     'SPACES_VIEW',
@@ -2723,21 +2725,30 @@ export function ConfigurationPage() {
       return;
     }
     const subtabQuery = query.get("subtab");
+    if (
+      q === "billing" &&
+      (subtabQuery === "issuers" || subtabQuery === "fiscal")
+    ) {
+      setTab("company");
+      setAccountSubtab("company");
+      navigate("/configuration?tab=company", { replace: true });
+      return;
+    }
     if (q === "security") {
       setTab("company");
       setAccountSubtab("security");
       navigate("/configuration?tab=company&subtab=security", { replace: true });
     } else if (q === "booking") {
-      if (isConfigTabAvailable("booking")) {
-        setTab("booking");
+      if (canManageOperatingUnits) {
+        setTab("company");
         setAccountSubtab("operatingUnits");
         navigate("/configuration?tab=company&subtab=operatingUnits", {
           replace: true,
         });
       } else {
-        const fallback = getUnavailableConfigTabFallback("booking");
-        setTab(fallback);
-        navigate(`/configuration?tab=${fallback}`, { replace: true });
+        setTab("company");
+        setAccountSubtab("company");
+        navigate("/configuration?tab=company", { replace: true });
       }
     } else if (q === "googleCalendar") {
       setTab("integrations");
@@ -2770,8 +2781,8 @@ export function ConfigurationPage() {
         subtabQuery === "legal")
     ) {
       if (subtabQuery === "operatingUnits") {
-        if (isConfigTabAvailable("booking")) {
-          setTab("booking");
+        if (canManageOperatingUnits) {
+          setTab("company");
           setAccountSubtab("operatingUnits");
         } else {
           setTab("company");
@@ -2885,6 +2896,7 @@ export function ConfigurationPage() {
     googleCalendarModuleEnabledCommitted,
     inboxGlobalCapabilities.whatsappEnabled,
     inboxGlobalCapabilities.viberEnabled,
+    canManageOperatingUnits,
   ]);
 
   useEffect(() => {
@@ -3017,12 +3029,6 @@ export function ConfigurationPage() {
 
   const setAccountSubtabAndUrl = (next: typeof accountSubtab) => {
     setAccountSubtab(next);
-    if (next === "operatingUnits") {
-      if (!isConfigTabAvailable("booking")) return;
-      setTab("booking");
-      navigate("/configuration?tab=company&subtab=operatingUnits");
-      return;
-    }
     setTab("company");
     navigate(
       next === "company"
@@ -4829,7 +4835,6 @@ export function ConfigurationPage() {
   };
 
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
-    { id: "issuers", label: locale === "sl" ? "Izdajatelji in serije" : "Issuers & series" },
     { id: "paymentMethods", label: t("configBillingPaymentMethodsTab") },
     ...(stripePaymentsAvailableCommitted
       ? [
@@ -4842,14 +4847,6 @@ export function ConfigurationPage() {
     ...(paymentGlobalCapabilities.paypalEnabled
       ? [
           { id: "paypal", label: "PayPal" } satisfies {
-            id: BillingSubtab;
-            label: string;
-          },
-        ]
-      : []),
-    ...(fiscalCashRegisterEnabledCommitted
-      ? [
-          { id: "fiscal", label: t("configBillingFiscalTab") } satisfies {
             id: BillingSubtab;
             label: string;
           },
@@ -4873,6 +4870,14 @@ export function ConfigurationPage() {
     : billingSubtabs;
 
   useEffect(() => {
+    if (
+      billingSubtab === "issuers" ||
+      billingSubtab === "settings" ||
+      billingSubtab === "fiscal"
+    ) {
+      setBillingSubtab("paymentMethods");
+      return;
+    }
     if (!stripePaymentsAvailableCommitted && billingSubtab === "stripe") {
       setBillingSubtab("paymentMethods");
     }
@@ -4883,9 +4888,6 @@ export function ConfigurationPage() {
       setBillingSubtab("paymentMethods");
     }
     if (!giftCardsEnabledCommitted && billingSubtab === "giftCard") {
-      setBillingSubtab("paymentMethods");
-    }
-    if (!fiscalCashRegisterEnabledCommitted && billingSubtab === "fiscal") {
       setBillingSubtab("paymentMethods");
     }
   }, [
@@ -7712,12 +7714,13 @@ export function ConfigurationPage() {
                         </section>
                       </div>
 
-                      {multipleCompaniesEnabledCommitted ? (
+                      {billingEnabledCommitted ? (
                         <section className="account-card account-multiple-companies-section">
-                          <BillingIssuersSection
+                          <CompanyBillingEntitiesSection
                             locale={locale}
-                            mode="companies"
-                            onIssuersChanged={load}
+                            allowMultipleCompanies={multipleCompaniesEnabledCommitted}
+                            fiscalEnabled={fiscalCashRegisterEnabledCommitted}
+                            onChanged={load}
                           />
                         </section>
                       ) : null}
@@ -8173,6 +8176,14 @@ export function ConfigurationPage() {
                         </div>
                       </div>
                     </>
+                  ) : accountSubtab === "operatingUnits" ? (
+                    <OperatingUnitsPanel
+                      locale={locale}
+                      locationsEnabled={locationsEnabledCommitted}
+                      spacesEnabled={spacesEnabledCommitted}
+                      issuerOptions={locationIssuerOptions}
+                      onChanged={load}
+                    />
                   ) : accountSubtab === "receivedInvoices" ? (
                     <>
                       <div className="account-metrics-grid">

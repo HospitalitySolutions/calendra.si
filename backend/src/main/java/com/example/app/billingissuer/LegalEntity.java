@@ -48,6 +48,16 @@ public class LegalEntity extends BaseEntity {
     private String fiscalEnvironment = "TEST";
     @Column(name = "software_supplier_tax_number", length = 64)
     private String softwareSupplierTaxNumber;
+    @Column(name = "fiscal_cadastral_number", length = 64)
+    private String fiscalCadastralNumber;
+    @Column(name = "fiscal_building_number", length = 64)
+    private String fiscalBuildingNumber;
+    @Column(name = "fiscal_building_section_number", length = 64)
+    private String fiscalBuildingSectionNumber;
+    @Column(name = "fiscal_house_number", length = 64)
+    private String fiscalHouseNumber;
+    @Column(name = "fiscal_house_number_additional", length = 64)
+    private String fiscalHouseNumberAdditional;
     @JsonIgnore
     @Column(name = "certificate_password_encrypted", columnDefinition = "text")
     private String certificatePasswordEncrypted;
