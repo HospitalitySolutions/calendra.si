@@ -14,6 +14,7 @@ type ManageInfo = {
   startsAtLabel: string
   consultantName?: string
   bookingStatus: string
+  groupSession: boolean
   canModify: boolean
   canCancel: boolean
   modifyBlockedReason?: string | null
@@ -866,18 +867,20 @@ export function PublicBookingManagePage() {
     currentBooking: 'Trenutni termin',
     service: 'Storitev',
     provider: 'Izvajalec',
-    modify: 'Spremeni termin',
-    cancel: 'Odpovej termin',
+    modify: info?.groupSession ? 'Prestavi prijavo' : 'Spremeni termin',
+    cancel: info?.groupSession ? 'Odpovej prijavo' : 'Odpovej termin',
     chooseDate: 'Izberite datum',
-    chooseSlot: 'Izberite nov termin',
-    noSlots: 'Za izbrani datum ni prostih terminov.',
-    confirmModify: 'Shrani nov termin',
-    confirmCancelTitle: 'Ali res želite odpovedati termin?',
-    confirmCancel: 'Potrdi odpoved termina',
-    keepBooking: 'Obdrži termin',
-    cancelled: 'Termin je bil uspešno odpovedan.',
-    modified: 'Termin je bil uspešno spremenjen.',
-    paymentNote: 'Če je bilo plačilo že izvedeno, bo podjetje vračilo obravnavalo v skladu s svojimi pogoji.',
+    chooseSlot: info?.groupSession ? 'Izberite drug skupinski termin' : 'Izberite nov termin',
+    noSlots: info?.groupSession ? 'Za izbrani datum ni drugih razpisanih skupinskih terminov.' : 'Za izbrani datum ni prostih terminov.',
+    confirmModify: info?.groupSession ? 'Prestavi mojo prijavo' : 'Shrani nov termin',
+    confirmCancelTitle: info?.groupSession ? 'Ali res želite odpovedati svojo prijavo?' : 'Ali res želite odpovedati termin?',
+    confirmCancel: info?.groupSession ? 'Potrdi odpoved prijave' : 'Potrdi odpoved termina',
+    keepBooking: info?.groupSession ? 'Obdrži prijavo' : 'Obdrži termin',
+    cancelled: info?.groupSession ? 'Vaša prijava je bila uspešno odpovedana. Skupinski termin ostaja aktiven.' : 'Termin je bil uspešno odpovedan.',
+    modified: info?.groupSession ? 'Vaša prijava je bila uspešno prestavljena.' : 'Termin je bil uspešno spremenjen.',
+    paymentNote: info?.groupSession
+      ? 'Odpovedana bo samo vaša prijava. Skupinski termin in prijave drugih gostov ostanejo nespremenjeni. Če je bilo plačilo že izvedeno, bo podjetje vračilo obravnavalo v skladu s svojimi pogoji.'
+      : 'Če je bilo plačilo že izvedeno, bo podjetje vračilo obravnavalo v skladu s svojimi pogoji.',
     cannotModify: 'Termina ni več mogoče spremeniti.',
     cannotCancel: 'Termina ni več mogoče odpovedati.',
     loadSlotsFailed: 'Prostih terminov ni bilo mogoče naložiti.',
@@ -889,23 +892,25 @@ export function PublicBookingManagePage() {
     currentBooking: 'Current booking',
     service: 'Service',
     provider: 'Employee',
-    modify: 'Modify booking',
-    cancel: 'Cancel booking',
+    modify: info?.groupSession ? 'Move my booking' : 'Modify booking',
+    cancel: info?.groupSession ? 'Cancel my booking' : 'Cancel booking',
     chooseDate: 'Choose date',
-    chooseSlot: 'Choose a new time slot',
-    noSlots: 'No available slots for this date.',
-    confirmModify: 'Save new time',
-    confirmCancelTitle: 'Are you sure you want to cancel this booking?',
-    confirmCancel: 'Confirm cancellation',
-    keepBooking: 'Keep booking',
-    cancelled: 'Your booking was cancelled successfully.',
-    modified: 'Your booking was rescheduled successfully.',
-    paymentNote: 'If payment has already been made, the business will handle any refund according to its own terms.',
+    chooseSlot: info?.groupSession ? 'Choose another group session' : 'Choose a new time slot',
+    noSlots: info?.groupSession ? 'There are no other scheduled group sessions for this date.' : 'No available slots for this date.',
+    confirmModify: info?.groupSession ? 'Move my booking' : 'Save new time',
+    confirmCancelTitle: info?.groupSession ? 'Are you sure you want to cancel your booking?' : 'Are you sure you want to cancel this booking?',
+    confirmCancel: info?.groupSession ? 'Confirm booking cancellation' : 'Confirm cancellation',
+    keepBooking: info?.groupSession ? 'Keep my booking' : 'Keep booking',
+    cancelled: info?.groupSession ? 'Your booking was cancelled successfully. The group session remains active.' : 'Your booking was cancelled successfully.',
+    modified: info?.groupSession ? 'Your booking was moved successfully.' : 'Your booking was rescheduled successfully.',
+    paymentNote: info?.groupSession
+      ? 'Only your booking will be cancelled. The group session and all other guests remain unchanged. If payment has already been made, the business will handle any refund according to its own terms.'
+      : 'If payment has already been made, the business will handle any refund according to its own terms.',
     cannotModify: 'This booking can no longer be changed.',
     cannotCancel: 'This booking can no longer be cancelled.',
     loadSlotsFailed: 'Could not load available slots.',
     submitFailed: 'Could not save the change.',
-  }, [sl])
+  }, [info?.groupSession, sl])
 
   useEffect(() => {
     let cancelled = false
@@ -968,7 +973,12 @@ export function PublicBookingManagePage() {
     setBusy(true)
     setError('')
     try {
-      const res = await api.post(`/public-bookings/manage/${encodeURIComponent(token)}/reschedule`, { startTime: selectedSlot }, {
+      const selected = slots.find((slot) => slot.slotId === selectedSlot)
+      if (!selected) return
+      const payload = info?.groupSession
+        ? { targetGroupSessionId: Number(selected.slotId) }
+        : { startTime: selected.startTime }
+      const res = await api.post(`/public-bookings/manage/${encodeURIComponent(token)}/reschedule`, payload, {
         headers: { 'X-Skip-CSRF-Prefetch': 'true' },
       })
       setSuccess(`${copy.modified} ${formatDateTime(res.data?.startTime, locale)}`)
@@ -1097,8 +1107,8 @@ export function PublicBookingManagePage() {
                           <button
                             key={slot.slotId}
                             type="button"
-                            onClick={() => setSelectedSlot(slot.startTime)}
-                            className={`public-manage-slot${selectedSlot === slot.startTime ? ' public-manage-slot--active' : ''}`}
+                            onClick={() => setSelectedSlot(slot.slotId)}
+                            className={`public-manage-slot${selectedSlot === slot.slotId ? ' public-manage-slot--active' : ''}`}
                           >
                             {slot.label}
                           </button>

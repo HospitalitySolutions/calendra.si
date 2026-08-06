@@ -14,6 +14,7 @@ import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
+import com.example.app.session.SessionServicePlanService;
 import com.example.app.session.SessionType;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -58,6 +59,7 @@ public class PublicBookingManageService {
     private final SessionBookingRepository bookings;
     private final BookableSlotRepository bookableSlots;
     private final SessionBookingCreationService bookingCreationService;
+    private final SessionServicePlanService servicePlans;
     private final ReminderService reminderService;
     private final BookingChangePublisher bookingChangePublisher;
     private final OpenBillSyncService openBillSyncService;
@@ -72,6 +74,7 @@ public class PublicBookingManageService {
             SessionBookingRepository bookings,
             BookableSlotRepository bookableSlots,
             SessionBookingCreationService bookingCreationService,
+            SessionServicePlanService servicePlans,
             ReminderService reminderService,
             BookingChangePublisher bookingChangePublisher,
             OpenBillSyncService openBillSyncService,
@@ -85,6 +88,7 @@ public class PublicBookingManageService {
         this.bookings = bookings;
         this.bookableSlots = bookableSlots;
         this.bookingCreationService = bookingCreationService;
+        this.servicePlans = servicePlans;
         this.reminderService = reminderService;
         this.bookingChangePublisher = bookingChangePublisher;
         this.openBillSyncService = openBillSyncService;
@@ -109,7 +113,9 @@ public class PublicBookingManageService {
             return new PublicBookingManageController.AvailabilityResponse(dateText, List.of());
         }
         LocalDate date = parseDate(dateText);
-        List<PublicBookingManageController.AvailabilitySlotResponse> slots = buildAvailabilitySlots(company, booking, date, rules);
+        List<PublicBookingManageController.AvailabilitySlotResponse> slots = isGroupSession(booking)
+                ? buildGroupSessionAvailabilitySlots(company, booking, date, rules)
+                : buildAvailabilitySlots(company, booking, date, rules);
         return new PublicBookingManageController.AvailabilityResponse(DATE_FORMAT.format(date), slots);
     }
 
@@ -125,6 +131,9 @@ public class PublicBookingManageService {
         TenantReservationRulesService.TenantReservationRules rules = rules(company.getId());
         if (!canModify(booking, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, modifyBlockedReason(booking, rules));
+        }
+        if (isGroupSession(booking)) {
+            return moveGroupParticipant(token, booking, request, company, rules);
         }
         SessionType type = booking.getType();
         if (type == null) {
@@ -194,7 +203,12 @@ public class PublicBookingManageService {
         if (!canCancel(booking, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, cancelBlockedReason(booking, rules));
         }
+        if (isGroupSession(booking)) {
+            companies.findByIdForUpdate(company.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
+        }
         booking.setBookingStatus(SessionBookingStatus.CANCELLED);
+        Optional<SessionBooking> placeholder = ensureGroupSessionRemainsWhenParticipantLeaves(booking);
         if (request != null && request.reason() != null && !request.reason().isBlank()) {
             String existing = booking.getNotes() == null ? "" : booking.getNotes().trim();
             String note = "Public cancellation reason: " + request.reason().trim();
@@ -205,7 +219,10 @@ public class PublicBookingManageService {
         bookingCreationService.restoreGuestCreditsForBookings(List.of(booking));
         openBillSyncService.removeSessionRowsFromOpenBills(company.getId(), List.of(booking.getId()));
         openBillSyncService.syncSessionGroup(company.getId(), groupKey(booking));
-        openBillSyncService.enqueueBookingsSync(company.getId(), List.of(booking));
+        List<SessionBooking> rowsToSync = new ArrayList<>();
+        rowsToSync.add(booking);
+        placeholder.ifPresent(rowsToSync::add);
+        openBillSyncService.enqueueBookingsSync(company.getId(), rowsToSync);
         bookingChangePublisher.publish(
                 company.getId(),
                 booking.getId(),
@@ -233,6 +250,7 @@ public class PublicBookingManageService {
                 booking.getStartTime() == null ? "" : booking.getStartTime().format(HUMAN_FORMAT),
                 booking.getConsultant() == null ? "" : consultantName(booking.getConsultant()),
                 SessionBookingStatus.normalizeStored(booking.getBookingStatus()),
+                isGroupSession(booking),
                 canModify(booking, rules),
                 canCancel(booking, rules),
                 modifyBlockedReason(booking, rules),
@@ -304,6 +322,309 @@ public class PublicBookingManageService {
                 .toList();
     }
 
+    private List<PublicBookingManageController.AvailabilitySlotResponse> buildGroupSessionAvailabilitySlots(
+            Company company,
+            SessionBooking booking,
+            LocalDate date,
+            TenantReservationRulesService.TenantReservationRules rules
+    ) {
+        if (date == null || booking.getType() == null || booking.getClient() == null) return List.of();
+        LocalDate today = timeService.localDate(zoneId);
+        if (date.isBefore(today) || date.isAfter(today.plusDays(rules.maxAdvanceBookingDays()))) return List.of();
+
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to = date.plusDays(1).atStartOfDay();
+        List<SessionBooking> candidates = bookings.findPublicGroupSessionCandidates(
+                company.getId(),
+                booking.getType().getId(),
+                from,
+                to
+        );
+        if (candidates == null || candidates.isEmpty()) return List.of();
+
+        Map<String, List<SessionBooking>> grouped = candidates.stream()
+                .collect(Collectors.groupingBy(
+                        this::groupKey,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        String currentGroupKey = groupKey(booking);
+        List<PublicBookingManageController.AvailabilitySlotResponse> out = new ArrayList<>();
+        for (Map.Entry<String, List<SessionBooking>> entry : grouped.entrySet()) {
+            if (Objects.equals(entry.getKey(), currentGroupKey)) continue;
+            List<SessionBooking> activeRows = activeGroupRows(entry.getValue());
+            if (activeRows.isEmpty()) continue;
+            SessionBooking representative = activeRows.stream()
+                    .min(Comparator.comparing(SessionBooking::getId))
+                    .orElse(null);
+            if (representative == null || representative.getClientGroup() == null) continue;
+            if (representative.getType() == null
+                    || !Objects.equals(representative.getType().getId(), booking.getType().getId())) continue;
+            if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneId))) continue;
+            if (!slotAllowedByReservationRules(representative.getStartTime(), rules)) continue;
+            if (groupContainsClient(activeRows, booking.getClient().getId())) continue;
+
+            int bookedParticipants = activeParticipantCount(activeRows);
+            Integer maxParticipants = representative.getType().getMaxParticipantsPerSession();
+            if (maxParticipants != null && bookedParticipants >= maxParticipants) continue;
+
+            List<Long> excludeIds = new ArrayList<>(activeRows.stream()
+                    .map(SessionBooking::getId)
+                    .filter(Objects::nonNull)
+                    .toList());
+            if (booking.getId() != null) excludeIds.add(booking.getId());
+            try {
+                bookingCreationService.validateBookingWindow(
+                        company.getId(),
+                        clientIdsOf(List.of(booking)),
+                        representative.getConsultant() == null ? null : representative.getConsultant().getId(),
+                        representative.getSpace() == null ? null : representative.getSpace().getId(),
+                        representative.getStartTime(),
+                        representative.getEndTime(),
+                        representative.getType().getId(),
+                        excludeIds,
+                        bookingCreationService.isSpacesEnabled(company.getId()),
+                        bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
+                        true,
+                        isOnline(representative),
+                        false
+                );
+            } catch (ResponseStatusException ignored) {
+                continue;
+            }
+
+            String label = groupSessionSlotLabel(representative);
+            out.add(new PublicBookingManageController.AvailabilitySlotResponse(
+                    String.valueOf(representative.getId()),
+                    label,
+                    representative.getStartTime().format(DATE_TIME_FORMAT),
+                    representative.getEndTime().format(DATE_TIME_FORMAT)
+            ));
+        }
+        return out.stream()
+                .sorted(Comparator.comparing(PublicBookingManageController.AvailabilitySlotResponse::startTime))
+                .toList();
+    }
+
+    private PublicBookingManageController.RescheduleResponse moveGroupParticipant(
+            PublicBookingManageToken token,
+            SessionBooking booking,
+            PublicBookingManageController.RescheduleRequest request,
+            Company company,
+            TenantReservationRulesService.TenantReservationRules rules
+    ) {
+        if (booking.getClient() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This group-session link is not assigned to a guest.");
+        }
+        companies.findByIdForUpdate(company.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
+        Long targetId = request == null ? null : request.targetGroupSessionId();
+        if (targetId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select another group session.");
+        }
+        SessionBooking requestedTarget = bookings.findByIdAndCompanyId(targetId, company.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session was not found."));
+        if (!isGroupSession(requestedTarget)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected booking is not a group session.");
+        }
+        if (Objects.equals(groupKey(booking), groupKey(requestedTarget))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a different group session.");
+        }
+
+        List<SessionBooking> targetRows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(
+                groupKey(requestedTarget), company.getId());
+        List<SessionBooking> activeTargetRows = activeGroupRows(targetRows);
+        SessionBooking target = activeTargetRows.stream()
+                .min(Comparator.comparing(SessionBooking::getId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is no longer available."));
+        if (target.getType() == null || booking.getType() == null
+                || !Objects.equals(target.getType().getId(), booking.getType().getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session uses a different service.");
+        }
+        if (!target.getStartTime().isAfter(timeService.localDateTime(zoneId))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
+        }
+        if (!slotAllowedByReservationRules(target.getStartTime(), rules)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is outside the allowed reservation window.");
+        }
+        Long clientId = booking.getClient().getId();
+        if (groupContainsClient(activeTargetRows, clientId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You are already booked into the selected group session.");
+        }
+        int bookedParticipants = activeParticipantCount(activeTargetRows);
+        Integer maxParticipants = target.getType().getMaxParticipantsPerSession();
+        if (maxParticipants != null && bookedParticipants >= maxParticipants) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session has no available spaces.");
+        }
+
+        List<Long> excludeIds = new ArrayList<>(activeTargetRows.stream()
+                .map(SessionBooking::getId)
+                .filter(Objects::nonNull)
+                .toList());
+        excludeIds.add(booking.getId());
+        bookingCreationService.validateBookingWindow(
+                company.getId(),
+                List.of(clientId),
+                target.getConsultant() == null ? null : target.getConsultant().getId(),
+                target.getSpace() == null ? null : target.getSpace().getId(),
+                target.getStartTime(),
+                target.getEndTime(),
+                target.getType().getId(),
+                excludeIds,
+                bookingCreationService.isSpacesEnabled(company.getId()),
+                bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
+                true,
+                isOnline(target),
+                false
+        );
+
+        String oldGroupKey = groupKey(booking);
+        LocalDateTime oldStart = booking.getStartTime();
+        LocalDateTime oldEnd = booking.getEndTime();
+        Optional<SessionBooking> placeholder = ensureGroupSessionRemainsWhenParticipantLeaves(booking);
+
+        copyGroupSessionFields(target, booking);
+        booking.setBookingStatus(SessionBookingStatus.RESERVED);
+        booking = bookings.save(booking);
+        token.setExpiresAt(booking.getEndTime().atZone(zoneId).toInstant());
+
+        reminderService.sendSessionRescheduled(booking, oldStart, oldEnd);
+        bookingChangePublisher.publish(
+                company.getId(),
+                booking.getId(),
+                booking.getStartTime(),
+                booking.getEndTime(),
+                BookingChangePublisher.BOOKING_RESCHEDULED,
+                "PUBLIC_LINK",
+                oldStart
+        );
+        openBillSyncService.syncSessionGroup(company.getId(), oldGroupKey);
+        openBillSyncService.syncSessionGroup(company.getId(), groupKey(booking));
+        List<SessionBooking> rowsToSync = new ArrayList<>();
+        rowsToSync.add(booking);
+        placeholder.ifPresent(rowsToSync::add);
+        openBillSyncService.enqueueBookingsSync(company.getId(), rowsToSync);
+
+        return new PublicBookingManageController.RescheduleResponse(
+                booking.getType().getName(),
+                booking.getStartTime().format(DATE_TIME_FORMAT),
+                booking.getEndTime().format(DATE_TIME_FORMAT),
+                booking.getStartTime().format(HUMAN_FORMAT)
+        );
+    }
+
+    private Optional<SessionBooking> ensureGroupSessionRemainsWhenParticipantLeaves(SessionBooking participant) {
+        if (!isGroupSession(participant) || participant.getClient() == null) return Optional.empty();
+        List<SessionBooking> rows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(
+                groupKey(participant), participant.getCompany().getId());
+        boolean hasActivePlaceholder = rows.stream()
+                .filter(row -> !Objects.equals(row.getId(), participant.getId()))
+                .anyMatch(row -> row.getClient() == null && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+        boolean hasOtherActiveParticipant = rows.stream()
+                .filter(row -> !Objects.equals(row.getId(), participant.getId()))
+                .anyMatch(row -> row.getClient() != null && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+        if (hasActivePlaceholder || hasOtherActiveParticipant) return Optional.empty();
+
+        SessionBooking placeholder = new SessionBooking();
+        placeholder.setCompany(participant.getCompany());
+        placeholder.setLocation(participant.getLocation());
+        placeholder.setBookingGroupKey(groupKey(participant));
+        placeholder.setRecurrenceSeriesKey(participant.getRecurrenceSeriesKey());
+        placeholder.setConsultant(participant.getConsultant());
+        servicePlans.copy(participant, placeholder);
+        if (placeholder.getLocation() == null) placeholder.setLocation(participant.getLocation());
+        placeholder.setNotes(participant.getNotes());
+        placeholder.setMeetingLink(participant.getMeetingLink());
+        placeholder.setMeetingProvider(participant.getMeetingProvider());
+        placeholder.setMeetingProvisioningStatus(participant.getMeetingProvisioningStatus());
+        placeholder.setMeetingProvisioningError(participant.getMeetingProvisioningError());
+        placeholder.setMeetingProvisioningAttempts(participant.getMeetingProvisioningAttempts());
+        placeholder.setMeetingProvisioningStartedAt(participant.getMeetingProvisioningStartedAt());
+        placeholder.setMeetingProvisioningNextAttemptAt(participant.getMeetingProvisioningNextAttemptAt());
+        placeholder.setMeetingConfirmationPending(false);
+        placeholder.setBookingStatus(SessionBookingStatus.RESERVED);
+        placeholder.setSourceChannel("STAFF");
+        placeholder.setBookingSource(com.example.app.session.BookingSource.MANUAL);
+        placeholder.setClientGroup(participant.getClientGroup());
+        placeholder.setSessionGroupEmailOverride(participant.getSessionGroupEmailOverride());
+        placeholder.setSessionGroupBillingCompany(participant.getSessionGroupBillingCompany());
+        placeholder = bookings.save(placeholder);
+        bookings.flush();
+        bookingChangePublisher.publish(
+                participant.getCompany().getId(),
+                placeholder.getId(),
+                placeholder.getStartTime(),
+                placeholder.getEndTime(),
+                BookingChangePublisher.BOOKING_CREATED,
+                "PUBLIC_LINK",
+                null
+        );
+        return Optional.of(placeholder);
+    }
+
+    private void copyGroupSessionFields(SessionBooking source, SessionBooking target) {
+        target.setCompany(source.getCompany());
+        target.setLocation(source.getLocation());
+        target.setBookingGroupKey(groupKey(source));
+        target.setRecurrenceSeriesKey(source.getRecurrenceSeriesKey());
+        target.setConsultant(source.getConsultant());
+        servicePlans.copy(source, target);
+        if (target.getLocation() == null) target.setLocation(source.getLocation());
+        target.setNotes(source.getNotes());
+        target.setMeetingLink(source.getMeetingLink());
+        target.setMeetingProvider(source.getMeetingProvider());
+        target.setMeetingProvisioningStatus(source.getMeetingProvisioningStatus());
+        target.setMeetingProvisioningError(source.getMeetingProvisioningError());
+        target.setMeetingProvisioningAttempts(source.getMeetingProvisioningAttempts());
+        target.setMeetingProvisioningStartedAt(source.getMeetingProvisioningStartedAt());
+        target.setMeetingProvisioningNextAttemptAt(source.getMeetingProvisioningNextAttemptAt());
+        target.setMeetingConfirmationPending(source.isMeetingConfirmationPending());
+        target.setClientGroup(source.getClientGroup());
+        target.setSessionGroupEmailOverride(source.getSessionGroupEmailOverride());
+        target.setSessionGroupBillingCompany(source.getSessionGroupBillingCompany());
+    }
+
+    private List<SessionBooking> activeGroupRows(List<SessionBooking> rows) {
+        if (rows == null) return List.of();
+        return rows.stream()
+                .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))
+                .toList();
+    }
+
+    private boolean groupContainsClient(List<SessionBooking> rows, Long clientId) {
+        if (clientId == null || rows == null) return false;
+        return rows.stream()
+                .map(SessionBooking::getClient)
+                .filter(Objects::nonNull)
+                .map(Client::getId)
+                .anyMatch(clientId::equals);
+    }
+
+    private int activeParticipantCount(List<SessionBooking> rows) {
+        if (rows == null) return 0;
+        return Math.toIntExact(rows.stream()
+                .map(SessionBooking::getClient)
+                .filter(Objects::nonNull)
+                .map(Client::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .count());
+    }
+
+    private String groupSessionSlotLabel(SessionBooking representative) {
+        StringBuilder label = new StringBuilder(representative.getStartTime().format(SLOT_LABEL_FORMAT));
+        if (representative.getConsultant() != null) {
+            String name = consultantName(representative.getConsultant());
+            if (!name.isBlank()) label.append(" · ").append(name);
+        }
+        if (representative.getLocation() != null
+                && representative.getLocation().getName() != null
+                && !representative.getLocation().getName().isBlank()) {
+            label.append(" · ").append(representative.getLocation().getName().trim());
+        }
+        return label.toString();
+    }
+
     private List<LocalTime> bookableStarts(Company company, SessionBooking booking, LocalDate date, Long consultantId, int duration) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         List<LocalTime> starts = new ArrayList<>();
@@ -333,7 +654,6 @@ public class PublicBookingManageService {
     private boolean canModify(SessionBooking booking, TenantReservationRulesService.TenantReservationRules rules) {
         if (!isManageableBooking(booking)) return false;
         if (rules != null && !rules.modificationAllowed()) return false;
-        if (booking.getClientGroup() != null) return false;
         return beforeCutoff(booking, rules.rescheduleUntilHours());
     }
 
@@ -347,7 +667,6 @@ public class PublicBookingManageService {
         if (canModify(booking, rules)) return null;
         if (!isManageableBooking(booking)) return "This booking can no longer be changed.";
         if (rules != null && !rules.modificationAllowed()) return "This booking cannot be changed online.";
-        if (booking != null && booking.getClientGroup() != null) return "Group sessions cannot be rescheduled from this link.";
         return "This booking can no longer be changed because the reschedule deadline has passed.";
     }
 
@@ -370,6 +689,10 @@ public class PublicBookingManageService {
         if (booking == null || booking.getId() == null || booking.getCompany() == null) return false;
         String stored = SessionBookingStatus.normalizeStored(booking.getBookingStatus());
         return SessionBookingStatus.RESERVED.equals(stored);
+    }
+
+    private boolean isGroupSession(SessionBooking booking) {
+        return booking != null && booking.getClientGroup() != null;
     }
 
     private TenantReservationRulesService.TenantReservationRules rules(Long companyId) {

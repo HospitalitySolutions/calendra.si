@@ -1,7 +1,6 @@
 package com.example.app.widget.manage;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +29,7 @@ public class PublicBookingManageController {
             String startsAtLabel,
             String consultantName,
             String bookingStatus,
+            boolean groupSession,
             boolean canModify,
             boolean canCancel,
             String modifyBlockedReason,
@@ -50,7 +50,7 @@ public class PublicBookingManageController {
             List<AvailabilitySlotResponse> slots
     ) {}
 
-    public record RescheduleRequest(@NotBlank String startTime) {}
+    public record RescheduleRequest(String startTime, Long targetGroupSessionId) {}
 
     public record RescheduleResponse(
             String serviceName,

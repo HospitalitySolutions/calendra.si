@@ -186,10 +186,15 @@ public class TenantNotificationService {
 
         String clientName = clientName(booking.getClient());
         String serviceName = serviceName(booking);
+        boolean groupParticipantChange = booking.getClientGroup() != null && booking.getClient() != null;
         String title = switch (kind) {
             case BookingChangePublisher.BOOKING_CREATED -> "Nova rezervacija";
-            case BookingChangePublisher.BOOKING_RESCHEDULED -> "Termin je bil prestavljen";
-            case BookingChangePublisher.BOOKING_CANCELLED -> "Termin je bil odpovedan";
+            case BookingChangePublisher.BOOKING_RESCHEDULED -> groupParticipantChange
+                    ? "Prijava na skupinski termin je bila prestavljena"
+                    : "Termin je bil prestavljen";
+            case BookingChangePublisher.BOOKING_CANCELLED -> groupParticipantChange
+                    ? "Prijava na skupinski termin je bila odpovedana"
+                    : "Termin je bil odpovedan";
             default -> "Sprememba rezervacije";
         };
         String message = bookingMessage(kind, clientName, serviceName, booking.getStartTime(), previousStartTime);

@@ -75,6 +75,19 @@ public class BookingChangePublisher {
         safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind, origin, previousStartTime);
     }
 
+
+    private boolean isParticipantOnlyGroupChange(Long bookingId) {
+        if (bookingId == null) return false;
+        try {
+            return sessionBookings.findById(bookingId)
+                    .map(booking -> booking.getClientGroup() != null && booking.getClient() != null)
+                    .orElse(false);
+        } catch (Exception ex) {
+            log.debug("Could not determine whether bookingId={} is a group participant row.", bookingId, ex);
+            return false;
+        }
+    }
+
     private void safelyPublishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind, String origin, LocalDateTime previousStartTime) {
         try {
             publishAfterCommit(companyId, bookingId, startTime, endTime, kind, origin, previousStartTime);
@@ -92,7 +105,9 @@ public class BookingChangePublisher {
         realtimeService.publishBookingUpdated(companyId, bookingId, startTime, endTime, kind);
         bookingReminderService.reconcileBookingAfterCommit(bookingId, kind);
 
-        if (BOOKING_CANCELLED.equals(kind) || BOOKING_DELETED.equals(kind) || BOOKING_RESCHEDULED.equals(kind)) {
+        boolean participantOnlyGroupChange = isParticipantOnlyGroupChange(bookingId);
+        if ((BOOKING_CANCELLED.equals(kind) || BOOKING_DELETED.equals(kind) || BOOKING_RESCHEDULED.equals(kind))
+                && !participantOnlyGroupChange) {
             try {
                 WaitlistService waitlist = waitlistServiceProvider == null ? null : waitlistServiceProvider.getIfAvailable();
                 if (waitlist != null) {

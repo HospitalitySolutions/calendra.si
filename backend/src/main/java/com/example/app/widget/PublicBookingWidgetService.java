@@ -1210,14 +1210,20 @@ public class PublicBookingWidgetService {
         if (rows == null || rows.isEmpty()) {
             return null;
         }
-        SessionBooking representative = rows.stream()
+        List<SessionBooking> activeRows = rows.stream()
+                .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))
+                .toList();
+        if (activeRows.isEmpty()) {
+            return null;
+        }
+        SessionBooking representative = activeRows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
-                .orElse(rows.get(0));
+                .orElse(activeRows.get(0));
         SessionType type = representative.getType();
         if (type == null || !isGroupWebsiteBookingOnly(type)) {
             return null;
         }
-        int bookedParticipants = (int) rows.stream()
+        int bookedParticipants = (int) activeRows.stream()
                 .map(SessionBooking::getClient)
                 .filter(Objects::nonNull)
                 .map(Client::getId)
