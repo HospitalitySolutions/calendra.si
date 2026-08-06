@@ -468,16 +468,43 @@ public class GuestCatalogService {
     }
 
     /**
-     * Resolves a public website service by its session-type id. This method is
-     * retained for the original multi-service widget contract and delegates to
-     * the same product resolution used by Calendra Connect.
+     * Resolves a service exposed by the public website widget.
+     *
+     * Website visibility is intentionally independent from guest-app visibility.
+     * A tenant may expose a scheduled group session in the website widget while
+     * keeping the same service hidden from Calendra Connect. Reusing
+     * {@link #resolveProduct(Long, String, GuestUser)} here therefore caused the
+     * widget to list a service successfully and then reject it while creating the
+     * order with "This service is not available in the guest app.".
      */
     @Transactional(readOnly = true)
     public ResolvedProduct resolveWebsiteSessionProduct(Long companyId, Long sessionTypeId) {
         if (sessionTypeId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing service identifier.");
         }
-        return resolveProduct(companyId, "session-" + sessionTypeId, null);
+        SessionType type = sessionTypes.findById(sessionTypeId)
+                .filter(candidate -> candidate.getCompany() != null
+                        && Objects.equals(candidate.getCompany().getId(), companyId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+        if (!type.isActive() || !type.isWidgetGroupBookingEnabled()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This service is not available in the website widget."
+            );
+        }
+        BigDecimal price = sessionTypePriceGross(type);
+        String productType = type.getMaxParticipantsPerSession() == null
+                ? "SESSION_SINGLE"
+                : "CLASS_TICKET";
+        return new ResolvedProduct(
+                null,
+                type,
+                type.getName(),
+                productType,
+                price,
+                tenantCurrency(companyId),
+                true
+        );
     }
 
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {

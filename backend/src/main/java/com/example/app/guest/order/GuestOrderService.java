@@ -207,7 +207,13 @@ public class GuestOrderService {
         Long companyId = parseId(request.companyId());
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         ClientOnlineAccessGuard.requireAllowed(link.getClient(), guestUser == null ? null : guestUser.getLanguage());
-        List<OrderServiceLine> serviceLines = resolveOrderServiceLines(companyId, request, guestUser, link.getClient());
+        List<OrderServiceLine> serviceLines = resolveOrderServiceLines(
+                companyId,
+                request,
+                guestUser,
+                link.getClient(),
+                channel
+        );
         var product = serviceLines.get(0).product();
         if (serviceLines.size() > 1) {
             GuestSettingsService.GuestPublicSettings publicSettings = guestSettings.publicSettings(companyId);
@@ -415,10 +421,26 @@ public class GuestOrderService {
                 ? new BigDecimal("0.01") : deposit;
     }
 
-    private List<OrderServiceLine> resolveOrderServiceLines(Long companyId, GuestDtos.CreateOrderRequest request, GuestUser guestUser, Client client) {
+    private List<OrderServiceLine> resolveOrderServiceLines(
+            Long companyId,
+            GuestDtos.CreateOrderRequest request,
+            GuestUser guestUser,
+            Client client,
+            PaymentChannel channel
+    ) {
         List<GuestDtos.SelectedServiceRequest> requested = request.services();
         if (requested == null || requested.isEmpty()) {
-            GuestCatalogService.ResolvedProduct product = catalogService.resolveProduct(companyId, request.productId(), guestUser);
+            String productId = normalizeId(request.productId());
+            GuestCatalogService.ResolvedProduct product;
+            if (channel == PaymentChannel.WEBSITE && productId != null && productId.startsWith("session-")) {
+                Long sessionTypeId = parseRequiredId(
+                        productId.substring("session-".length()),
+                        "Invalid service identifier."
+                );
+                product = catalogService.resolveWebsiteSessionProduct(companyId, sessionTypeId);
+            } else {
+                product = catalogService.resolveProduct(companyId, productId, guestUser);
+            }
             List<OrderServiceLine> legacy = List.of(new OrderServiceLine(0, product, normalizeId(request.entitlementId()), null));
             validateSelectedEntitlementLines(client, companyId, legacy);
             return legacy;
@@ -437,7 +459,10 @@ public class GuestOrderService {
             String sessionTypeId = normalizeId(item.sessionTypeId());
             GuestCatalogService.ResolvedProduct resolved;
             if (sessionTypeId != null && (productId == null || productId.equals("session-" + sessionTypeId))) {
-                resolved = catalogService.resolveWebsiteSessionProduct(companyId, parseRequiredId(sessionTypeId, "Invalid service identifier."));
+                Long parsedSessionTypeId = parseRequiredId(sessionTypeId, "Invalid service identifier.");
+                resolved = channel == PaymentChannel.WEBSITE
+                        ? catalogService.resolveWebsiteSessionProduct(companyId, parsedSessionTypeId)
+                        : catalogService.resolveProduct(companyId, "session-" + parsedSessionTypeId, guestUser);
             } else {
                 resolved = catalogService.resolveProduct(companyId, productId, guestUser);
             }
