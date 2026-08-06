@@ -22,6 +22,7 @@ import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.PersonalCalendarBlockRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingController;
 import com.example.app.session.SessionType;
