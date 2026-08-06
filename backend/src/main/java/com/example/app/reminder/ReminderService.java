@@ -1128,9 +1128,11 @@ public class ReminderService {
                     appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
                             .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b))
             );
+            // Group bookings are reschedulable through the public manage flow
+            // (PublicBookingManageService.moveGroupParticipant), so they get the same
+            // reschedule button as individual bookings.
             boolean canModify = rules.modificationAllowed()
-                    && canUsePublicManageAction(booking, rules.rescheduleUntilHours())
-                    && booking.getClientGroup() == null;
+                    && canUsePublicManageAction(booking, rules.rescheduleUntilHours());
             boolean canCancel = rules.cancellationAllowed()
                     && canUsePublicManageAction(booking, rules.cancelUntilHours());
             // #region agent log
