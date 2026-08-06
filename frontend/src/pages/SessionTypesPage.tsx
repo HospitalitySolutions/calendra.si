@@ -1126,7 +1126,7 @@ export function SessionTypesPage() {
 
     setGuestAppClientsLoading(true);
     const request = api
-      .get<Client[]>("/clients", { params: { size: 500 } })
+      .get<Client[]>("/clients/options", { params: { size: 500 } })
       .then((response) => {
         setClients((response.data || []).filter((client) => client.active !== false));
         guestAppClientsLoadedRef.current = true;

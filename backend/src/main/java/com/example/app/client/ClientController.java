@@ -191,6 +191,21 @@ public class ClientController {
             Long workspaceClientId
     ) {}
 
+    /** Lightweight client payload used by selectors on Calendar, Billing, Inbox and service configuration. */
+    public record ClientOptionResponse(
+            Long id,
+            String firstName,
+            String lastName,
+            String email,
+            String phone,
+            String whatsappPhone,
+            boolean whatsappOptIn,
+            boolean viberConnected,
+            boolean guestAppLinked,
+            boolean active,
+            CompanySummary billingCompany
+    ) {}
+
     public record ClientSessionResponse(
             Long id,
             LocalDateTime startTime,
@@ -277,6 +292,35 @@ public class ClientController {
                         blockedIds.contains(c.getId()),
                         customValues.get(c.getId()),
                         guestAppLinkedIds.contains(c.getId())))
+                .toList();
+    }
+
+    @GetMapping("/options")
+    @Transactional(readOnly = true)
+    public List<ClientOptionResponse> options(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "500") int size,
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "locationId", required = false) Long locationId
+    ) {
+        var companyId = me.getCompany().getId();
+        var pageable = PageRequest.of(safePage(page), safeSize(size, 500, 1000));
+        String normalizedSearch = blankToNull(search);
+        List<Client> rows = SecurityUtils.isAdmin(me)
+                ? repository.findOptionPageByCompanyId(companyId, locationId, normalizedSearch, pageable)
+                : repository.findOptionPageByAssignedToIdAndCompanyId(me.getId(), companyId, locationId, normalizedSearch, pageable);
+        Set<Long> guestAppLinkedIds = rows.isEmpty()
+                ? Set.of()
+                : guestTenantLinks.findAllByCompanyIdAndStatusAndClientIdIn(
+                                companyId,
+                                GuestTenantLinkStatus.ACTIVE,
+                                rows.stream().map(Client::getId).toList())
+                        .stream()
+                        .map(link -> link.getClient().getId())
+                        .collect(java.util.stream.Collectors.toSet());
+        return rows.stream()
+                .map(client -> toOptionResponse(client, guestAppLinkedIds.contains(client.getId())))
                 .toList();
     }
 
@@ -786,6 +830,22 @@ public class ClientController {
                                 ? Map.of()
                                 : customFieldService.valuesForEntity(c.getCompany().getId(), CustomFieldAppliesTo.CLIENT, c.getId()),
                 c.getWorkspaceClient() == null ? null : c.getWorkspaceClient().getId()
+        );
+    }
+
+    private ClientOptionResponse toOptionResponse(Client client, boolean guestAppLinked) {
+        return new ClientOptionResponse(
+                client.getId(),
+                client.getFirstName(),
+                client.getLastName(),
+                client.getEmail(),
+                client.getPhone(),
+                client.getWhatsappPhone(),
+                client.isWhatsappOptIn(),
+                client.isViberConnected(),
+                guestAppLinked,
+                client.isActive(),
+                toCompanySummary(client)
         );
     }
 

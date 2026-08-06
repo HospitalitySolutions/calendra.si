@@ -798,7 +798,7 @@ export function AnalyticsInboxTab() {
   const clientsQuery = useQuery<Client[]>({
     queryKey: ['inbox-clients'],
     queryFn: async () => {
-      const res = await api.get<Client[]>('/clients')
+      const res = await api.get<Client[]>('/clients/options', { params: { size: 500 } })
       return res.data ?? []
     },
   })

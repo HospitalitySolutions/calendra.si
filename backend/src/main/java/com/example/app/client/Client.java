@@ -7,6 +7,7 @@ import com.example.app.user.User;
 import com.example.app.location.Location;
 import com.example.app.workspaceclient.WorkspaceClient;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -75,6 +76,7 @@ public class Client extends BaseEntity {
     private User assignedTo;
 
     @ManyToMany
+    @BatchSize(size = 100)
     @JoinTable(
             name = "client_assigned_users",
             joinColumns = @JoinColumn(name = "client_id"),
@@ -84,6 +86,7 @@ public class Client extends BaseEntity {
 
     /** Empty means the client is available in every physical location. */
     @ManyToMany
+    @BatchSize(size = 100)
     @JoinTable(
             name = "client_assigned_locations",
             joinColumns = @JoinColumn(name = "client_id"),

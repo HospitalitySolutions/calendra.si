@@ -404,7 +404,7 @@ export function AppointmentsPage() {
       return
     }
     const request = Promise.allSettled([
-      api.get('/clients', { params: { size: 500 } }),
+      api.get('/clients/options', { params: { size: 500 } }),
       api.get('/service-groups'),
       api.get('/locations'),
     ]).then(([clientsResult, groupsResult, locationsResult]) => {

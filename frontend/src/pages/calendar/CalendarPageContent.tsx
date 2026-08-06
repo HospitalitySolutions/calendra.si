@@ -1803,7 +1803,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const loadMetaOnly = async () => {
     const [s, clients, users, locations, spaces, types, groups] = await Promise.all([
       api.get('/settings'),
-      api.get('/clients', { params: { locationId: locationFilterId ?? undefined } }),
+      api.get('/clients/options', { params: { size: 500, locationId: locationFilterId ?? undefined } }),
       isTenantAdmin
         ? api.get('/users').catch(() => ({ data: [] }))
         : Promise.resolve({ data: [user] }),
@@ -1821,7 +1821,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const calendarRequest = api.get(workspaceCalendarReadOnly ? '/bookings/calendar/workspace' : '/bookings/calendar', { params: { from: fromStr, to: toStr } })
     const metaRequest = Promise.all([
       api.get('/settings'),
-      api.get('/clients', { params: { locationId: locationFilterId ?? undefined } }),
+      api.get('/clients/options', { params: { size: 500, locationId: locationFilterId ?? undefined } }),
       isTenantAdmin
         ? api.get('/users').catch(() => ({ data: [] }))
         : Promise.resolve({ data: [user] }),
@@ -2239,7 +2239,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const metaInterval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshMetaSafely()
     }, CALENDAR_META_POLL_MS)
-    const refreshClients = () => api.get('/clients', { params: { locationId: locationFilterId ?? undefined } }).then((r) => {
+    const refreshClients = () => api.get('/clients/options', { params: { size: 500, locationId: locationFilterId ?? undefined } }).then((r) => {
       const updated: any[] = r.data ?? []
       setMeta((prev: any) => ({ ...prev, clients: updated }))
       setForm((f: any) => {

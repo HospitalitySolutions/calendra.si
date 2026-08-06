@@ -1205,7 +1205,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         ? api.get('/billing/gift-cards').catch(() => ({ data: [] }))
         : { data: [] },
     )
-    const clientsRequest = api.get('/clients', { params: { locationId: selectedLocationId ?? undefined } })
+    const clientsRequest = api.get('/clients/options', { params: { size: 500, locationId: selectedLocationId ?? undefined } })
     const companiesRequest = api.get('/companies', { params: { locationId: selectedLocationId ?? undefined } })
     const usersRequest = isAdmin ? api.get('/users') : Promise.resolve({ data: [] })
     const paymentMethodsRequest = api.get('/billing/payment-methods').catch(() => ({ data: [] }))

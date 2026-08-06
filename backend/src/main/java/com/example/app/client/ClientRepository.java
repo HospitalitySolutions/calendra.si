@@ -56,7 +56,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("assignedToId") Long assignedToId
     );
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "assignedLocations", "billingCompany", "workspaceClient"})
+    @EntityGraph(attributePaths = {"assignedTo", "billingCompany", "workspaceClient"})
     @Query("""
             select distinct c from Client c
             left join c.assignedLocations assignedLocation
@@ -75,7 +75,7 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("search") String search,
             Pageable pageable);
 
-    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "assignedLocations", "billingCompany", "workspaceClient"})
+    @EntityGraph(attributePaths = {"assignedTo", "billingCompany", "workspaceClient"})
     @Query("""
             select distinct c from Client c
             left join c.assignedUsers assignedUser
@@ -91,6 +91,47 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             order by c.lastName asc, c.firstName asc, c.id asc
             """)
     List<Client> findPageByAssignedToIdAndCompanyId(
+            @Param("assignedToId") Long assignedToId,
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = {"billingCompany"})
+    @Query("""
+            select distinct c from Client c
+            left join c.assignedLocations assignedLocation
+            where c.company.id = :companyId
+              and (:locationId is null or c.assignedLocations is empty or assignedLocation.id = :locationId)
+              and (:search is null or :search = ''
+                   or lower(coalesce(c.firstName, '')) like lower(concat('%', :search, '%'))
+                   or lower(coalesce(c.lastName, '')) like lower(concat('%', :search, '%'))
+                   or lower(coalesce(c.email, '')) like lower(concat('%', :search, '%'))
+                   or lower(coalesce(c.phone, '')) like lower(concat('%', :search, '%')))
+            order by c.lastName asc, c.firstName asc, c.id asc
+            """)
+    List<Client> findOptionPageByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = {"billingCompany"})
+    @Query("""
+            select distinct c from Client c
+            left join c.assignedUsers assignedUser
+            left join c.assignedLocations assignedLocation
+            where c.company.id = :companyId
+              and (c.assignedTo.id = :assignedToId or assignedUser.id = :assignedToId)
+              and (:locationId is null or c.assignedLocations is empty or assignedLocation.id = :locationId)
+              and (:search is null or :search = ''
+                   or lower(coalesce(c.firstName, '')) like lower(concat('%', :search, '%'))
+                   or lower(coalesce(c.lastName, '')) like lower(concat('%', :search, '%'))
+                   or lower(coalesce(c.email, '')) like lower(concat('%', :search, '%'))
+                   or lower(coalesce(c.phone, '')) like lower(concat('%', :search, '%')))
+            order by c.lastName asc, c.firstName asc, c.id asc
+            """)
+    List<Client> findOptionPageByAssignedToIdAndCompanyId(
             @Param("assignedToId") Long assignedToId,
             @Param("companyId") Long companyId,
             @Param("locationId") Long locationId,
