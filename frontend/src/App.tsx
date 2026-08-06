@@ -70,19 +70,42 @@ function lazyWithReload<T extends ComponentType<any>>(
   })
 }
 
+const importBillingPage = () => import('./pages/BillingPage')
+const importClientsPage = () => import('./pages/ClientsPage')
+const importAppointmentsPage = () => import('./pages/AppointmentsPage')
+const importSessionTypesPage = () => import('./pages/SessionTypesPage')
+
+const routeModulePrefetchers: Array<{ matches: (pathname: string) => boolean; load: () => Promise<unknown> }> = [
+  { matches: (pathname) => pathname === '/clients' || pathname.startsWith('/clients/'), load: importClientsPage },
+  { matches: (pathname) => pathname === '/appointments' || pathname.startsWith('/appointments/'), load: importAppointmentsPage },
+  { matches: (pathname) => pathname === '/session-types' || pathname.startsWith('/session-types/'), load: importSessionTypesPage },
+  { matches: (pathname) => pathname === '/billing' || pathname.startsWith('/billing/') || pathname.startsWith('/open-bills/'), load: importBillingPage },
+]
+const prefetchedRouteModules = new Set<() => Promise<unknown>>()
+
+function prefetchRouteModule(pathname: string) {
+  const entry = routeModulePrefetchers.find((candidate) => candidate.matches(pathname))
+  if (!entry || prefetchedRouteModules.has(entry.load)) return
+  prefetchedRouteModules.add(entry.load)
+  void entry.load().catch(() => {
+    // Allow a later navigation attempt to retry a transient chunk download failure.
+    prefetchedRouteModules.delete(entry.load)
+  })
+}
+
 const CalendarPage = lazyWithReload(() => import('./pages/CalendarPage'), CHUNK_RELOAD_KEY)
 const AnalyticsPage = lazyWithReload(() => import('./pages/AnalyticsPage').then((mod) => ({ default: mod.AnalyticsPage })), CHUNK_RELOAD_KEY)
 const WorkspaceAnalyticsPage = lazyWithReload(() => import('./pages/WorkspaceAnalyticsPage').then((mod) => ({ default: mod.WorkspaceAnalyticsPage })), CHUNK_RELOAD_KEY)
 const InboxPage = lazyWithReload(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
-const BillingPage = lazyWithReload(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
-const ClientsPage = lazyWithReload(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
-const AppointmentsPage = lazyWithReload(() => import('./pages/AppointmentsPage').then((mod) => ({ default: mod.AppointmentsPage })), CHUNK_RELOAD_KEY)
+const BillingPage = lazyWithReload(() => importBillingPage().then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
+const ClientsPage = lazyWithReload(() => importClientsPage().then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
+const AppointmentsPage = lazyWithReload(() => importAppointmentsPage().then((mod) => ({ default: mod.AppointmentsPage })), CHUNK_RELOAD_KEY)
 const ConfigurationPage = lazyWithReload(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })), CHUNK_RELOAD_KEY)
 const ConsultantsPage = lazyWithReload(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })), CHUNK_RELOAD_KEY)
 const SecurityPage = lazyWithReload(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })), CHUNK_RELOAD_KEY)
 const PlatformAdminPage = lazyWithReload(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })), CHUNK_RELOAD_KEY)
 const HelpPage = lazyWithReload(() => import('./pages/HelpPage').then((mod) => ({ default: mod.HelpPage })), CHUNK_RELOAD_KEY)
-const SessionTypesPage = lazyWithReload(() => import('./pages/SessionTypesPage').then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
+const SessionTypesPage = lazyWithReload(() => importSessionTypesPage().then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
 const WalletScannerPage = lazyWithReload(() => import('./pages/WalletScannerPage').then((mod) => ({ default: mod.WalletScannerPage })), CHUNK_RELOAD_KEY)
 const ConsumablesPage = lazyWithReload(() => import('./pages/ConsumablesPage').then((mod) => ({ default: mod.ConsumablesPage })), CHUNK_RELOAD_KEY)
 const NotificationsPage = lazyWithReload(() => import('./pages/NotificationsPage').then((mod) => ({ default: mod.NotificationsPage })), CHUNK_RELOAD_KEY)
@@ -139,6 +162,32 @@ export default function App() {
   useEffect(() => {
     clearToasts()
   }, [clearToasts, location.pathname, location.search])
+
+  useEffect(() => {
+    if (!user || typeof document === 'undefined') return
+
+    const prefetchFromEvent = (event: Event) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const anchor = target.closest<HTMLAnchorElement>('a[href]')
+      if (!anchor) return
+      try {
+        const url = new URL(anchor.href, window.location.href)
+        if (url.origin === window.location.origin) prefetchRouteModule(url.pathname)
+      } catch {
+        // Ignore malformed or non-navigation links.
+      }
+    }
+
+    document.addEventListener('pointerover', prefetchFromEvent, true)
+    document.addEventListener('pointerdown', prefetchFromEvent, true)
+    document.addEventListener('focusin', prefetchFromEvent, true)
+    return () => {
+      document.removeEventListener('pointerover', prefetchFromEvent, true)
+      document.removeEventListener('pointerdown', prefetchFromEvent, true)
+      document.removeEventListener('focusin', prefetchFromEvent, true)
+    }
+  }, [user])
 
   useEffect(() => {
     void ensureCsrfToken().catch(() => undefined)

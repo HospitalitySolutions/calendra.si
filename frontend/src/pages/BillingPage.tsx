@@ -1188,43 +1188,104 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const load = async () => {
-    const settingsRes = await api.get('/settings').catch(() => ({ data: {} as Record<string, string> }))
-    const giftCardsEnabled = settingsRes.data?.BILLING_ENABLED !== 'false'
-      && settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'true'
-    const [servicesRes, billsRes, openBillsRes, bookingsRes, unusedAdvancesRes, giftCardsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes, issuersRes, seriesRes, locationsRes] = await Promise.all([
-      api.get('/billing/services'),
-      api.get('/billing/bills'),
-      api.get('/billing/open-bills'),
-      api.get('/bookings').catch(() => ({ data: [] })),
-      api.get('/billing/unused-advances').catch(() => ({ data: [] })),
-      giftCardsEnabled ? api.get('/billing/gift-cards').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-      api.get('/clients', { params: { locationId: selectedLocationId ?? undefined } }),
-      api.get('/companies', { params: { locationId: selectedLocationId ?? undefined } }),
-      isAdmin ? api.get('/users') : Promise.resolve({ data: [] }),
-      api.get('/billing/payment-methods').catch(() => ({ data: [] })),
-      api.get('/billing/issuers').catch(() => ({ data: [] })),
-      api.get('/billing/invoice-series').catch(() => ({ data: [] })),
-      api.get('/locations').catch(() => ({ data: [] })),
+    // Start every request together, but publish each result as soon as it arrives.
+    // A slow optional endpoint must not keep the visible open-bills view empty.
+    const settingsRequest = api.get('/settings').catch(() => ({ data: {} as Record<string, string> }))
+    const servicesRequest = api.get('/billing/services')
+    const billsRequest = api.get('/billing/bills')
+    const openBillsRequest = api.get('/billing/open-bills')
+    const bookingsRequest = api.get('/bookings').catch(() => ({ data: [] }))
+    const unusedAdvancesRequest = settingsRequest.then((settingsResponse) =>
+      settingsResponse.data?.BILLING_ADVANCE_ENABLED === 'false'
+        ? { data: [] }
+        : api.get('/billing/unused-advances').catch(() => ({ data: [] })),
+    )
+    const giftCardsRequest = settingsRequest.then((settingsResponse) =>
+      settingsResponse.data?.BILLING_GIFT_CARDS_ENABLED === 'true'
+        ? api.get('/billing/gift-cards').catch(() => ({ data: [] }))
+        : { data: [] },
+    )
+    const clientsRequest = api.get('/clients', { params: { locationId: selectedLocationId ?? undefined } })
+    const companiesRequest = api.get('/companies', { params: { locationId: selectedLocationId ?? undefined } })
+    const usersRequest = isAdmin ? api.get('/users') : Promise.resolve({ data: [] })
+    const paymentMethodsRequest = api.get('/billing/payment-methods').catch(() => ({ data: [] }))
+    const issuersRequest = api.get('/billing/issuers').catch(() => ({ data: [] }))
+    const seriesRequest = api.get('/billing/invoice-series').catch(() => ({ data: [] }))
+    const locationsRequest = api.get('/locations').catch(() => ({ data: [] }))
+
+    const settingsTask = settingsRequest.then((response) => {
+      setSettings(response.data || {})
+      return response.data || {}
+    })
+    const servicesTask = servicesRequest.then((response) => {
+      setServices(response.data || [])
+      setServicesLoaded(true)
+    })
+    const billsTask = billsRequest.then((response) => {
+      setBills((response.data || []).map((bill: Bill) => normalizeBill(bill)))
+    })
+    const openBillsTask = openBillsRequest.then((response) => {
+      const normalized = (response.data || []).map((openBill: OpenBill) => normalizeOpenBill(openBill)) as OpenBill[]
+      setOpenBills(normalized)
+      return normalized
+    })
+    const bookingsTask = bookingsRequest.then((response) => setBookings(response.data || []))
+    const unusedAdvancesTask = unusedAdvancesRequest.then((response) => setUnusedAdvances(response.data || []))
+    const giftCardsTask = giftCardsRequest.then((response) => setGiftCards(response.data || []))
+    const clientsTask = clientsRequest.then((response) => setClients(response.data || []))
+    const companiesTask = companiesRequest.then((response) => setCompanies(response.data || []))
+    const usersTask = usersRequest.then((response) => setUsers(response.data || []))
+    const paymentMethodsTask = paymentMethodsRequest.then((response) => {
+      setPaymentMethods((response.data || []).map((method: PaymentMethod) => normalizePaymentMethod(method)!))
+    })
+    const issuersTask = issuersRequest.then((response) => {
+      setInvoiceIssuers((response.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active))
+    })
+    const seriesTask = seriesRequest.then((response) => {
+      setInvoiceSeriesOptions((response.data || []).filter((series: InvoiceSeriesOption) => series.active))
+    })
+    const locationsTask = locationsRequest.then((response) => {
+      setInvoiceLocations((response.data || []).filter((location: Location) => location.active !== false))
+    })
+
+    await Promise.all([
+      settingsTask,
+      servicesTask,
+      billsTask,
+      openBillsTask,
+      bookingsTask,
+      unusedAdvancesTask,
+      giftCardsTask,
+      clientsTask,
+      companiesTask,
+      usersTask,
+      paymentMethodsTask,
+      issuersTask,
+      seriesTask,
+      locationsTask,
     ])
-    setSettings(settingsRes.data || {})
-    setServices(servicesRes.data)
-    setServicesLoaded(true)
-    setBills((billsRes.data || []).map((b: Bill) => normalizeBill(b)))
-    setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)))
-    setBookings(bookingsRes.data || [])
-    setUnusedAdvances(settingsRes.data?.BILLING_ADVANCE_ENABLED === 'false' ? [] : (unusedAdvancesRes.data || []))
-    setGiftCards(settingsRes.data?.BILLING_GIFT_CARDS_ENABLED === 'true' ? (giftCardsRes.data || []) : [])
-    setClients(clientsRes.data)
-    setCompanies(companiesRes.data || [])
-    setUsers(usersRes.data)
-    setPaymentMethods((paymentMethodsRes.data || []).map((p: PaymentMethod) => normalizePaymentMethod(p)!))
-    setInvoiceIssuers((issuersRes.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active))
-    setInvoiceSeriesOptions((seriesRes.data || []).filter((series: InvoiceSeriesOption) => series.active))
-    setInvoiceLocations((locationsRes.data || []).filter((location: Location) => location.active !== false))
-    return {
-      openBills: (openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)) as OpenBill[],
-    }
+    return { openBills: await openBillsTask }
   }
+
+  const refreshBillingRows = async () => {
+    const requests: Array<Promise<void>> = [
+      api.get('/billing/open-bills').then((response) => {
+        setOpenBills((response.data || []).map((openBill: OpenBill) => normalizeOpenBill(openBill)))
+      }),
+      api.get('/billing/bills').then((response) => {
+        setBills((response.data || []).map((bill: Bill) => normalizeBill(bill)))
+      }),
+      api.get('/bookings').then((response) => setBookings(response.data || [])).catch(() => undefined),
+    ]
+    if (billingTab === 'unusedAdvances' && advanceBillingEnabled) {
+      requests.push(api.get('/billing/unused-advances').then((response) => setUnusedAdvances(response.data || [])).catch(() => undefined))
+    }
+    if (billingTab === 'giftCards' && giftCardsEnabled) {
+      requests.push(api.get('/billing/gift-cards').then((response) => setGiftCards(response.data || [])).catch(() => undefined))
+    }
+    await Promise.all(requests)
+  }
+
   useEffect(() => {
     const request = load()
     billingPollInFlightRef.current = request
@@ -1236,7 +1297,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   useEffect(() => {
     const poll = () => {
       if (document.visibilityState !== 'visible' || billingPollInFlightRef.current) return
-      const request = load()
+      const request = refreshBillingRows()
       billingPollInFlightRef.current = request
       const clear = () => {
         if (billingPollInFlightRef.current === request) billingPollInFlightRef.current = null
@@ -1249,7 +1310,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', poll)
     }
-  }, [selectedLocationId])
+  }, [billingTab, selectedLocationId])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
   const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'

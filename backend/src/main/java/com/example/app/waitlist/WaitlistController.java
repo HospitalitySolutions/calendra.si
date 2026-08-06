@@ -42,6 +42,24 @@ public class WaitlistController {
         return service.list(me, view, dateFrom, dateTo, serviceId, employeeId, locationId, targetType, source, status, search);
     }
 
+    @GetMapping("/overview")
+    public WaitlistService.OverviewView overview(
+            @AuthenticationPrincipal User me,
+            @RequestParam(required = false, defaultValue = "ACTIVE") String view,
+            @RequestParam(required = false) LocalDate dateFrom,
+            @RequestParam(required = false) LocalDate dateTo,
+            @RequestParam(required = false) Long serviceId,
+            @RequestParam(required = false) Long employeeId,
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search
+    ) {
+        assertEnabled(me);
+        return service.overview(me, view, dateFrom, dateTo, serviceId, employeeId, locationId, targetType, source, status, search);
+    }
+
     @GetMapping("/{id}")
     public WaitlistService.RequestView detail(@AuthenticationPrincipal User me, @PathVariable Long id) {
         assertEnabled(me);

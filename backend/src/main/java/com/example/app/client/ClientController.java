@@ -262,7 +262,22 @@ public class ClientController {
                         companyId,
                         CustomFieldAppliesTo.CLIENT,
                         rows.stream().map(Client::getId).toList());
-        return rows.stream().map(c -> toResponse(c, blockedIds.contains(c.getId()), customValues.get(c.getId()))).toList();
+        Set<Long> guestAppLinkedIds = rows.isEmpty()
+                ? Set.of()
+                : guestTenantLinks.findAllByCompanyIdAndStatusAndClientIdIn(
+                                companyId,
+                                GuestTenantLinkStatus.ACTIVE,
+                                rows.stream().map(Client::getId).toList())
+                        .stream()
+                        .map(link -> link.getClient().getId())
+                        .collect(java.util.stream.Collectors.toSet());
+        return rows.stream()
+                .map(c -> toResponse(
+                        c,
+                        blockedIds.contains(c.getId()),
+                        customValues.get(c.getId()),
+                        guestAppLinkedIds.contains(c.getId())))
+                .toList();
     }
 
     @GetMapping("/{id}")
@@ -717,15 +732,26 @@ public class ClientController {
     }
 
     private ClientResponse toResponse(Client c, boolean removalBlocked, Map<Long, String> prefetchedCustomValues) {
+        return toResponse(c, removalBlocked, prefetchedCustomValues, null);
+    }
+
+    private ClientResponse toResponse(
+            Client c,
+            boolean removalBlocked,
+            Map<Long, String> prefetchedCustomValues,
+            Boolean prefetchedGuestAppLinked
+    ) {
         List<UserSummary> assignedUserSummaries = assignedUsersForResponse(c).stream()
                 .map(this::toUserSummary)
                 .toList();
         UserSummary assignedSummary = assignedUserSummaries.isEmpty() ? null : assignedUserSummaries.get(0);
-        boolean guestAppLinked = guestTenantLinks.existsByCompanyIdAndClientIdAndStatus(
-                c.getCompany().getId(),
-                c.getId(),
-                GuestTenantLinkStatus.ACTIVE
-        );
+        boolean guestAppLinked = prefetchedGuestAppLinked != null
+                ? prefetchedGuestAppLinked
+                : guestTenantLinks.existsByCompanyIdAndClientIdAndStatus(
+                        c.getCompany().getId(),
+                        c.getId(),
+                        GuestTenantLinkStatus.ACTIVE
+                );
 
         return new ClientResponse(
                 c.getId(),

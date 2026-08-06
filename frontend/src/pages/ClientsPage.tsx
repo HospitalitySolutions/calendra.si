@@ -1673,16 +1673,16 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [])
 
   useEffect(() => {
-    loadClients()
-  }, [selectedLocationId])
+    if (entityTab === 'clients') void loadClients()
+  }, [entityTab, selectedLocationId])
 
   useEffect(() => {
-    loadCompanies()
-  }, [companySearch, selectedLocationId])
+    if (entityTab === 'companies') void loadCompanies()
+  }, [companySearch, entityTab, selectedLocationId])
 
   useEffect(() => {
-    if (groupBookingEnabled) loadGroups()
-  }, [groupSearch, groupBookingEnabled, selectedLocationId])
+    if (entityTab === 'groups' && groupBookingEnabled) void loadGroups()
+  }, [entityTab, groupSearch, groupBookingEnabled, selectedLocationId])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 720px)')

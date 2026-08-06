@@ -783,6 +783,9 @@ export function SessionTypesPage() {
   const [groups, setGroups] = useState<ServiceGroup[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [guestAppClientsLoading, setGuestAppClientsLoading] = useState(false);
+  const guestAppClientsLoadedRef = useRef(false);
+  const guestAppClientsLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [editingType, setEditingType] = useState<SessionTypeT | null>(null);
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ServiceGroup | null>(null);
@@ -1096,25 +1099,48 @@ export function SessionTypesPage() {
   }, [openServiceMenuId]);
 
   const load = async () => {
-    const settingsRes = await api.get("/settings");
-    const nextSettings = settingsRes.data || {};
-    const groupsEnabled = nextSettings.SERVICE_GROUPS_ENABLED !== "false";
-    const [typesRes, groupsRes, servicesRes, clientsRes, locationsRes] = await Promise.all([
+    // Load the visible service configuration in parallel. Client data is deliberately
+    // excluded here and fetched only when the group-booking user picker is opened.
+    const [settingsRes, typesRes, groupsRes, servicesRes, locationsRes] = await Promise.all([
+      api.get("/settings").catch(() => ({ data: {} as Record<string, string> })),
       api.get("/types").catch(() => ({ data: [] })),
-      groupsEnabled
-        ? api.get("/service-groups").catch(() => ({ data: [] }))
-        : Promise.resolve({ data: [] }),
+      api.get("/service-groups").catch(() => ({ data: [] })),
       api.get("/billing/services").catch(() => ({ data: [] })),
-      api.get<Client[]>("/clients").catch(() => ({ data: [] as Client[] })),
       api.get<LocationT[]>("/locations").catch(() => ({ data: [] as LocationT[] })),
     ]);
+    const nextSettings = settingsRes.data || {};
+    const groupsEnabled = nextSettings.SERVICE_GROUPS_ENABLED !== "false";
     setSettings(nextSettings);
     setTypes(typesRes.data || []);
-    setGroups(groupsRes.data || []);
+    setGroups(groupsEnabled ? groupsRes.data || [] : []);
     setServices(servicesRes.data || []);
-    setClients((clientsRes.data || []).filter((client) => client.active !== false));
     setLocations((locationsRes.data || []).filter((location) => location.active !== false));
   };
+
+  const loadGuestAppClients = useCallback(async () => {
+    if (guestAppClientsLoadedRef.current) return;
+    if (guestAppClientsLoadPromiseRef.current) {
+      await guestAppClientsLoadPromiseRef.current;
+      return;
+    }
+
+    setGuestAppClientsLoading(true);
+    const request = api
+      .get<Client[]>("/clients", { params: { size: 500 } })
+      .then((response) => {
+        setClients((response.data || []).filter((client) => client.active !== false));
+        guestAppClientsLoadedRef.current = true;
+      })
+      .catch(() => {
+        setClients([]);
+      })
+      .finally(() => {
+        setGuestAppClientsLoading(false);
+        guestAppClientsLoadPromiseRef.current = null;
+      });
+    guestAppClientsLoadPromiseRef.current = request;
+    await request;
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1126,6 +1152,23 @@ export function SessionTypesPage() {
       setSessionTypesSubtab("types");
     }
   }, [boot, serviceGroupsModuleEnabled, setSessionTypesSubtab, showServiceGroupsParam]);
+
+  useEffect(() => {
+    if (
+      showTypeModal &&
+      typeModalActiveTab === "group" &&
+      typeForm.groupBookingEnabled &&
+      guestAppModuleEnabled
+    ) {
+      void loadGuestAppClients();
+    }
+  }, [
+    guestAppModuleEnabled,
+    loadGuestAppClients,
+    showTypeModal,
+    typeForm.groupBookingEnabled,
+    typeModalActiveTab,
+  ]);
 
   useEffect(() => {
     if (
@@ -4386,7 +4429,11 @@ export function SessionTypesPage() {
                                     : "Limit to guest app clients"
                                 }
                               >
-                                {filteredGuestLimitClients.length === 0 ? (
+                                {guestAppClientsLoading ? (
+                                  <div className="guest-limit-client-empty">
+                                    {locale === "sl" ? "Nalaganje klientov…" : "Loading clients…"}
+                                  </div>
+                                ) : filteredGuestLimitClients.length === 0 ? (
                                   <div className="guest-limit-client-empty">
                                     {locale === "sl"
                                       ? "Ni klientov z guest app dostopom."

@@ -283,6 +283,10 @@ export function AppointmentsPage() {
   const [employees, setEmployees] = useState<LookupItem[]>([])
   const [locations, setLocations] = useState<LookupItem[]>([])
   const [spaces, setSpaces] = useState<LookupItem[]>([])
+  const createLookupsLoadedRef = useRef(false)
+  const createLookupsPromiseRef = useRef<Promise<void> | null>(null)
+  const offerLookupsLoadedRef = useRef(false)
+  const offerLookupsPromiseRef = useRef<Promise<void> | null>(null)
   const [saving, setSaving] = useState(false)
   const [, setTick] = useState(0)
   const modalSelectionEpoch = useRef(0)
@@ -337,12 +341,17 @@ export function AppointmentsPage() {
       setError('')
     }
     try {
-      const { data } = await api.get('/waitlists', { params: {
+      const { data } = await api.get('/waitlists/overview', { params: {
         view, search: search || undefined, serviceId: serviceFilter || undefined, employeeId: employeeFilter || undefined,
         source: sourceFilter || undefined, dateFrom: dateFromFilter || undefined, dateTo: dateToFilter || undefined,
       } })
-      const list = Array.isArray(data) ? data as WaitlistRequest[] : []
+      const list = Array.isArray(data?.rows) ? data.rows as WaitlistRequest[] : []
       setRows(list)
+      setViewCounts({
+        ACTIVE: Number(data?.counts?.active || 0),
+        OFFERED: Number(data?.counts?.offered || 0),
+        HISTORY: Number(data?.counts?.history || 0),
+      })
       if (preserveSelection) return
       const targetId = preferredId ?? queryRequestId
       if (targetId) {
@@ -361,39 +370,15 @@ export function AppointmentsPage() {
     }
   }, [view, search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
 
-  const loadViewCounts = useCallback(async () => {
-    try {
-      const views: Array<'ACTIVE' | 'OFFERED' | 'HISTORY'> = ['ACTIVE', 'OFFERED', 'HISTORY']
-      const responses = await Promise.all(views.map(async item => {
-        const { data } = await api.get('/waitlists', { params: {
-          view: item, search: search || undefined, serviceId: serviceFilter || undefined, employeeId: employeeFilter || undefined,
-          source: sourceFilter || undefined, dateFrom: dateFromFilter || undefined, dateTo: dateToFilter || undefined,
-        } })
-        return [item, Array.isArray(data) ? data.length : 0] as const
-      }))
-      setViewCounts({
-        ACTIVE: responses.find(([item]) => item === 'ACTIVE')?.[1] ?? 0,
-        OFFERED: responses.find(([item]) => item === 'OFFERED')?.[1] ?? 0,
-        HISTORY: responses.find(([item]) => item === 'HISTORY')?.[1] ?? 0,
-      })
-    } catch {
-      // keep the previous tab counts when count loading fails
-    }
-  }, [search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter])
-
   const loadLookups = useCallback(async () => {
-    const settingsResult = await api.get<Record<string, string>>('/settings').catch(() => ({ data: {} as Record<string, string> }))
-    const groupsEnabled = settingsResult.data?.SERVICE_GROUPS_ENABLED !== 'false'
-    setServiceGroupsModuleEnabled(groupsEnabled)
-    const [clientsResult, servicesResult, groupsResult, employeesResult, locationsResult, spacesResult] = await Promise.allSettled([
-      api.get('/clients', { params: { size: 500 } }),
+    // Only load data needed by the visible waitlist and its filters.
+    const [settingsResult, servicesResult, employeesResult] = await Promise.allSettled([
+      api.get<Record<string, string>>('/settings'),
       api.get('/types'),
-      groupsEnabled ? api.get('/service-groups') : Promise.resolve({ data: [] }),
       api.get('/users/consultants'),
-      api.get('/locations'),
-      api.get('/spaces'),
     ])
-    if (clientsResult.status === 'fulfilled') setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data.filter((client: any) => client?.active !== false) : [])
+    const groupsEnabled = settingsResult.status !== 'fulfilled' || settingsResult.value.data?.SERVICE_GROUPS_ENABLED !== 'false'
+    setServiceGroupsModuleEnabled(groupsEnabled)
     if (servicesResult.status === 'fulfilled') {
       const value = Array.isArray(servicesResult.value.data) ? servicesResult.value.data : []
       setServices(
@@ -406,25 +391,68 @@ export function AppointmentsPage() {
           }),
       )
     }
-    if (groupsEnabled && groupsResult.status === 'fulfilled') {
-      const value = Array.isArray(groupsResult.value.data) ? groupsResult.value.data : []
-      setServiceGroups(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name, active: item.active !== false, serviceCount: Number(item.serviceCount || 0) })))
-    } else {
-      setServiceGroups([])
-    }
     if (employeesResult.status === 'fulfilled') {
       const value = Array.isArray(employeesResult.value.data) ? employeesResult.value.data : []
       setEmployees(value.map((item: any) => ({ id: item.id, name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email || `#${item.id}` })))
     }
-    if (locationsResult.status === 'fulfilled') {
-      const value = Array.isArray(locationsResult.value.data) ? locationsResult.value.data : []
-      setLocations(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
-    }
-    if (spacesResult.status === 'fulfilled') {
-      const value = Array.isArray(spacesResult.value.data) ? spacesResult.value.data : []
-      setSpaces(value.map((item: any) => ({ id: item.id, name: item.name || `#${item.id}`, locationId: item.location?.id ?? null })))
-    }
   }, [])
+
+  const loadCreateLookups = useCallback(async () => {
+    if (createLookupsLoadedRef.current) return
+    if (createLookupsPromiseRef.current) {
+      await createLookupsPromiseRef.current
+      return
+    }
+    const request = Promise.allSettled([
+      api.get('/clients', { params: { size: 500 } }),
+      api.get('/service-groups'),
+      api.get('/locations'),
+    ]).then(([clientsResult, groupsResult, locationsResult]) => {
+      if (clientsResult.status === 'fulfilled') {
+        setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data.filter((client: any) => client?.active !== false) : [])
+      }
+      if (groupsResult.status === 'fulfilled') {
+        const value = Array.isArray(groupsResult.value.data) ? groupsResult.value.data : []
+        setServiceGroups(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name, active: item.active !== false, serviceCount: Number(item.serviceCount || 0) })))
+      }
+      if (locationsResult.status === 'fulfilled') {
+        const value = Array.isArray(locationsResult.value.data) ? locationsResult.value.data : []
+        setLocations(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
+      }
+      createLookupsLoadedRef.current = true
+    }).finally(() => {
+      createLookupsPromiseRef.current = null
+    })
+    createLookupsPromiseRef.current = request
+    await request
+  }, [])
+
+  const loadOfferLookups = useCallback(async () => {
+    if (offerLookupsLoadedRef.current) return
+    if (offerLookupsPromiseRef.current) {
+      await offerLookupsPromiseRef.current
+      return
+    }
+    const request = Promise.allSettled([
+      api.get('/locations'),
+      api.get('/spaces'),
+    ]).then(([locationsResult, spacesResult]) => {
+      if (locationsResult.status === 'fulfilled') {
+        const value = Array.isArray(locationsResult.value.data) ? locationsResult.value.data : []
+        setLocations(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
+      }
+      if (spacesResult.status === 'fulfilled') {
+        const value = Array.isArray(spacesResult.value.data) ? spacesResult.value.data : []
+        setSpaces(value.map((item: any) => ({ id: item.id, name: item.name || `#${item.id}`, locationId: item.location?.id ?? null })))
+      }
+      offerLookupsLoadedRef.current = true
+    }).finally(() => {
+      offerLookupsPromiseRef.current = null
+    })
+    offerLookupsPromiseRef.current = request
+    await request
+  }, [])
+
 
   useEffect(() => {
     if (skipNextRowsReload.current) {
@@ -433,8 +461,13 @@ export function AppointmentsPage() {
     }
     void loadRows()
   }, [loadRows])
-  useEffect(() => { void loadViewCounts() }, [loadViewCounts])
   useEffect(() => { void loadLookups() }, [loadLookups])
+  useEffect(() => {
+    if (showCreate) void loadCreateLookups()
+  }, [loadCreateLookups, showCreate])
+  useEffect(() => {
+    if (showOffer) void loadOfferLookups()
+  }, [loadOfferLookups, showOffer])
   useEffect(() => {
     const timer = window.setInterval(() => setTick(value => value + 1), 1000)
     return () => window.clearInterval(timer)

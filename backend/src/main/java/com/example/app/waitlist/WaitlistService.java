@@ -279,8 +279,29 @@ public class WaitlistService {
             String otherSlotsUrl
     ) {}
 
+    public record ViewCounts(long active, long offered, long history) {}
+
+    public record OverviewView(List<RequestView> rows, ViewCounts counts) {}
+
     @Transactional
     public List<RequestView> list(
+            User me,
+            String view,
+            LocalDate dateFrom,
+            LocalDate dateTo,
+            Long serviceId,
+            Long employeeId,
+            Long locationId,
+            String targetType,
+            String source,
+            String status,
+            String search
+    ) {
+        return overview(me, view, dateFrom, dateTo, serviceId, employeeId, locationId, targetType, source, status, search).rows();
+    }
+
+    @Transactional
+    public OverviewView overview(
             User me,
             String view,
             LocalDate dateFrom,
@@ -305,8 +326,7 @@ public class WaitlistService {
         Map<Long, List<WaitlistRequestService>> serviceMap = rows.isEmpty() ? Map.of() : requestServices.findAllByRequestIdIn(ids(rows)).stream()
                 .collect(Collectors.groupingBy(row -> row.getRequest().getId()));
 
-        return rows.stream()
-                .filter(row -> viewMatches(row, normalizedView))
+        List<WaitlistRequest> filteredRows = rows.stream()
                 .filter(row -> dateFrom == null || !row.getDateTo().isBefore(dateFrom))
                 .filter(row -> dateTo == null || !row.getDateFrom().isAfter(dateTo))
                 .filter(row -> serviceId == null || requestContainsService(row, serviceMap.getOrDefault(row.getId(), List.of()), serviceId))
@@ -316,8 +336,18 @@ public class WaitlistService {
                 .filter(row -> status == null || status.isBlank() || row.getStatus().name().equalsIgnoreCase(status))
                 .filter(row -> employeeMatchesFilter(row, employeeMap.getOrDefault(row.getId(), List.of()), employeeId))
                 .filter(row -> searchMatches(row, serviceMap.getOrDefault(row.getId(), List.of()), normalizedSearch))
+                .toList();
+
+        ViewCounts counts = new ViewCounts(
+                filteredRows.stream().filter(row -> viewMatches(row, "ACTIVE")).count(),
+                filteredRows.stream().filter(row -> viewMatches(row, "OFFERED")).count(),
+                filteredRows.stream().filter(row -> viewMatches(row, "HISTORY")).count()
+        );
+        List<RequestView> selectedRows = filteredRows.stream()
+                .filter(row -> viewMatches(row, normalizedView))
                 .map(row -> toView(row, windowMap.getOrDefault(row.getId(), List.of()), employeeMap.getOrDefault(row.getId(), List.of()), serviceMap.getOrDefault(row.getId(), List.of()), false))
                 .toList();
+        return new OverviewView(selectedRows, counts);
     }
 
     @Transactional(readOnly = true)
