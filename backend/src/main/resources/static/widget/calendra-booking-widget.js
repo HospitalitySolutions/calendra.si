@@ -122,6 +122,9 @@
       consultantRequiredHint: 'Choose a consultant to see available slots.',
       noSlots: 'No available slots for this date.',
       verificationRequired: 'Please complete the verification challenge.',
+      verificationExpired: 'Verification expired. Please complete it again.',
+      verificationFailed: 'Verification failed. Please complete it again.',
+      verificationUnavailable: 'Verification is temporarily unavailable. Please try again later.',
       noConsultants: 'No consultants available for this service.',
       chooseTime: 'Choose a time',
       refreshAvailability: 'Refresh availability',
@@ -303,6 +306,9 @@
       consultantRequiredHint: 'Najprej izberite zaposlenega za prikaz prostih terminov.',
       noSlots: 'Za izbrani datum ni prostih terminov.',
       verificationRequired: 'Izpolnite varnostni preveritveni izziv.',
+      verificationExpired: 'Varnostno preverjanje je poteklo. Izpolnite ga znova.',
+      verificationFailed: 'Varnostno preverjanje ni uspelo. Izpolnite ga znova.',
+      verificationUnavailable: 'Varnostno preverjanje trenutno ni na voljo. Poskusite znova pozneje.',
       noConsultants: 'Za to storitev ni razpoložljivih zaposlenih.',
       chooseTime: 'Izberite uro',
       refreshAvailability: 'Osveži razpoložljivost',
@@ -1008,6 +1014,8 @@
         const message = data?.message || data?.error || `Request failed with status ${response.status}`;
         const error = new Error(message);
         error.status = response.status;
+        error.code = data?.code || '';
+        error.responseBody = data;
         error.widgetDisabled = response.status === 404 && /widget.*disabled|disabled.*widget|website widget is disabled/i.test(String(message));
         throw error;
       }
@@ -1241,6 +1249,24 @@
 
     normalizeError(error, fallback) {
       return error instanceof Error ? error.message : fallback;
+    }
+
+    isTurnstileError(error) {
+      const code = String(error?.code || '').toUpperCase();
+      const message = String(error?.message || '').toLowerCase();
+      return code.startsWith('WIDGET_TURNSTILE_')
+        || /verification challenge|turnstile|varnostno preverjanje/.test(message);
+    }
+
+    turnstileErrorMessage(error) {
+      const t = this.text();
+      const code = String(error?.code || '').toUpperCase();
+      if (code === 'WIDGET_TURNSTILE_REQUIRED') return t.verificationRequired;
+      if (code === 'WIDGET_TURNSTILE_EXPIRED') return t.verificationExpired;
+      if (code === 'WIDGET_TURNSTILE_MISCONFIGURED' || code === 'WIDGET_TURNSTILE_UNAVAILABLE') {
+        return t.verificationUnavailable;
+      }
+      return t.verificationFailed;
     }
 
     isStaleSlotError(error, message = '') {
@@ -1997,7 +2023,6 @@
           selectedGroupSession: null,
         });
       } catch (error) {
-        const status = Number(error?.status || 0);
         const message = this.normalizeError(error, t.bookingFailed);
         if (this.isStaleSlotError(error, message) && bookingSlot) {
           this.availabilityCache.clear();
@@ -2016,9 +2041,14 @@
           void this.loadAvailability();
           void this.loadMonthAvailability();
         } else {
-          // Stay on Plačilo in pregled for configuration/payment/billing validation errors
-          // so the guest does not think the selected slot disappeared when checkout failed.
-          this.setState({ saving: false, error: message, activeStep: 'details' });
+          // Turnstile tokens are single-use. The guest-session endpoint may already have
+          // consumed the token even when a later validation/order/checkout step fails,
+          // so every retry from the review step must start with a fresh challenge.
+          const errorMessage = this.isTurnstileError(error)
+            ? this.turnstileErrorMessage(error)
+            : message;
+          this.resetTurnstile();
+          this.setState({ saving: false, error: errorMessage, activeStep: 'details', turnstileToken: '' });
           this.scheduleTurnstileMount();
         }
       } finally {
