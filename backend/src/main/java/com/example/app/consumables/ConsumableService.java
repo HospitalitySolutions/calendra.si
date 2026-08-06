@@ -19,6 +19,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -258,6 +259,36 @@ public class ConsumableService {
             }
         }
         return saved;
+    }
+
+    /**
+     * Moves session-level consumable rows away from participant booking rows that are
+     * about to be deleted. Manual consumable edits remain attached to the logical
+     * group session, while automatic defaults can still be recalculated afterwards.
+     */
+    @Transactional
+    public int reanchorSessionConsumablesBeforeBookingDeletion(
+            Long companyId,
+            Long anchorBookingId,
+            Collection<Long> removedBookingIds
+    ) {
+        if (companyId == null || anchorBookingId == null
+                || removedBookingIds == null || removedBookingIds.isEmpty()) {
+            return 0;
+        }
+        List<Long> ids = removedBookingIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return 0;
+        }
+        return sessionConsumables.reanchorBeforeBookingDeletion(
+                companyId,
+                anchorBookingId,
+                ids
+        );
     }
 
     @Transactional

@@ -1,7 +1,9 @@
 package com.example.app.widget.manage;
 
+import java.util.Collection;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,4 +21,15 @@ public interface PublicBookingManageTokenRepository extends JpaRepository<Public
               AND t.revokedAt IS NULL
             """)
     Optional<PublicBookingManageToken> findActiveByTokenHash(@Param("tokenHash") String tokenHash);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            DELETE FROM PublicBookingManageToken t
+            WHERE t.company.id = :companyId
+              AND t.booking.id IN :bookingIds
+            """)
+    int deleteByCompanyIdAndBookingIds(
+            @Param("companyId") Long companyId,
+            @Param("bookingIds") Collection<Long> bookingIds
+    );
 }

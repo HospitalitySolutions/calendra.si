@@ -25,6 +25,7 @@ import com.example.app.user.UserRepository;
 import com.example.app.zoom.ZoomService;
 import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
+import com.example.app.widget.manage.PublicBookingManageTokenRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -84,6 +85,9 @@ public class SessionBookingCreationService {
 
     @Autowired(required = false)
     private WorkspaceSchedulingLockService workspaceSchedulingLocks;
+
+    @Autowired(required = false)
+    private PublicBookingManageTokenRepository publicBookingManageTokens;
 
     @Autowired
     public SessionBookingCreationService(
@@ -699,11 +703,16 @@ public class SessionBookingCreationService {
                 .filter(row -> row.getClient() == null)
                 .findFirst()
                 .orElse(null);
-        SessionBooking placeholderCandidate = otherParticipantRows.isEmpty() && existingPlaceholder == null
+        boolean convertRemovedRowToPlaceholder = otherParticipantRows.isEmpty() && existingPlaceholder == null;
+        SessionBooking placeholderCandidate = convertRemovedRowToPlaceholder
                 ? targetRows.stream()
                     .min((left, right) -> left.getId().compareTo(right.getId()))
                     .orElse(null)
                 : null;
+        SessionBooking anchor = convertRemovedRowToPlaceholder
+                ? Objects.requireNonNull(placeholderCandidate)
+                : (existingPlaceholder != null ? existingPlaceholder : otherParticipantRows.get(0));
+        String groupKey = SessionBookingController.groupKey(representative);
         List<Long> removedIds = targetRows.stream()
                 .map(SessionBooking::getId)
                 .filter(Objects::nonNull)
@@ -715,7 +724,7 @@ public class SessionBookingCreationService {
         for (SessionBooking target : targetRows) {
             reminderService.sendSessionCancelled(target);
             restoreGuestCreditForBooking(target);
-            if (placeholderCandidate == null || !Objects.equals(target.getId(), placeholderCandidate.getId())) {
+            if (!convertRemovedRowToPlaceholder || !Objects.equals(target.getId(), anchor.getId())) {
                 bookingChangePublisher.publish(
                         companyId,
                         target.getId(),
@@ -726,12 +735,30 @@ public class SessionBookingCreationService {
             }
         }
 
-        SessionBooking anchor;
-        if (otherParticipantRows.isEmpty() && existingPlaceholder == null) {
+        // Website/widget management links belong to the removed guest, including
+        // the row that may be retained as an empty-session placeholder. They must
+        // be physically removed before deleting the booking rows because the token
+        // table keeps a required booking foreign key.
+        if (publicBookingManageTokens != null && !removedIds.isEmpty()) {
+            publicBookingManageTokens.deleteByCompanyIdAndBookingIds(companyId, removedIds);
+        }
+
+        // Session consumables are stored once per logical group but reference one
+        // concrete participant row. Move that reference to the surviving anchor
+        // before any participant row is deleted, otherwise the FK can reject flush.
+        if (consumableService != null && !removedIds.isEmpty()) {
+            consumableService.reanchorSessionConsumablesBeforeBookingDeletion(
+                    companyId,
+                    anchor.getId(),
+                    removedIds
+            );
+        }
+
+        if (convertRemovedRowToPlaceholder) {
             // Reuse the oldest removed participant row as the empty-session
             // placeholder. This keeps the logical booking id stable for the
             // calendar side-panel route and avoids closing the editor.
-            SessionBooking keep = Objects.requireNonNull(placeholderCandidate);
+            SessionBooking keep = anchor;
             for (SessionBooking target : targetRows) {
                 if (Objects.equals(target.getId(), keep.getId())) continue;
                 repo.delete(target);
@@ -753,12 +780,10 @@ public class SessionBookingCreationService {
             for (SessionBooking target : targetRows) {
                 repo.delete(target);
             }
-            anchor = existingPlaceholder != null ? existingPlaceholder : otherParticipantRows.get(0);
         }
         repo.flush();
 
         List<SessionBooking> refreshed = loadGroupedRows(anchor, companyId);
-        String groupKey = SessionBookingController.groupKey(anchor);
         openBillSyncService.syncSessionGroup(companyId, groupKey);
         openBillSyncService.enqueueBookingsSync(companyId, refreshed);
         if (consumableService != null) {
