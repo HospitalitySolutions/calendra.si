@@ -448,6 +448,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const metaClients: any[] = Array.isArray(meta.clients) ? meta.clients : EMPTY_ARR
   const metaTypes: any[] = Array.isArray(meta.types) ? meta.types : EMPTY_ARR
   const multipleClientsPerSessionEnabled = settings.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true'
+  const multipleSessionsPerSpaceEnabled = settings.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true'
   /** Settings map values are usually strings; tolerate booleans / casing so group mode does not silently break. */
   const groupBookingEnabled = (() => {
     const v = settings.GROUP_BOOKING_ENABLED as unknown
@@ -4710,7 +4711,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     const isMonthGridView = view === 'dayGridMonth' || view === 'resourceDayGridMonth'
 
-    const multipleSessionsPerSpaceEnabled = settings.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true'
     /** When multiple physical sessions per space are allowed, do not flag break vs. another booking in that same space (mirrors backend space overlap rules). */
     const ignoreSameSpaceBreakOverlap = (a: any, other: any) => {
       if (!multipleSessionsPerSpaceEnabled || !spacesEnabled) return false
@@ -13736,7 +13736,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             const openQuickAddFromEvent = (e: ReactMouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => {
               e.preventDefault()
               e.stopPropagation()
-              if (isViewOnly) return
+              if (isViewOnly || !multipleSessionsPerSpaceEnabled) return
               const start = arg.event.start ? toLocalDateTimeString(arg.event.start) : normalizeToLocalDateTime(String(props.startTime || props.start || ''))
               const end = arg.event.end ? toLocalDateTimeString(arg.event.end) : normalizeToLocalDateTime(String(props.endTime || props.end || ''))
               if (!start || !end) return
@@ -13748,7 +13748,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 consultantResourceId: bookingsUseResourceColumns ? resourceId : undefined,
               })
             }
-            const quickAddButton = !isViewOnly && overlapHiddenCount === 0 && (props.kind === 'booked' || props.kind === 'personal') ? (
+            const quickAddButton = !isViewOnly && multipleSessionsPerSpaceEnabled && overlapHiddenCount === 0 && (props.kind === 'booked' || props.kind === 'personal') ? (
               <span
                 role="button"
                 tabIndex={0}

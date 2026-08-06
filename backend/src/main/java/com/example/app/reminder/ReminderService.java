@@ -70,6 +70,9 @@ public class ReminderService {
             MODIFY_BUTTON_TOKEN,
             CANCEL_BUTTON_TOKEN
     );
+    private static final Pattern TEMPLATE_TOKEN_PATTERN = Pattern.compile(
+            "(?is)\\{\\{(?:(?!\\}\\}).)*\\}\\}"
+    );
     private static final Pattern CONDITIONAL_HTML_BLOCK_PATTERN = Pattern.compile(
             "(?is)<(p|li|blockquote|h[1-6]|td|th|tr)\\b[^>]*>.*?</\\1\\s*>"
     );
@@ -1232,7 +1235,7 @@ public class ReminderService {
             return "";
         }
 
-        String prepared = input;
+        String prepared = normalizeRichTextTemplateTokens(input, tokens == null ? Map.of() : tokens);
         boolean htmlTemplate = containsHtmlMarkup(prepared);
         for (String token : CONDITIONAL_MANAGE_EMAIL_TOKENS) {
             String value = tokens == null ? "" : tokens.getOrDefault(token, "");
@@ -1249,6 +1252,33 @@ public class ReminderService {
             return cleanupEmptyEmailHtml(rendered);
         }
         return cleanupPlainTextEmailBody(rendered);
+    }
+
+    /**
+     * contentEditable may split a tag such as {{gumb_za_prenarocanje}} across spans.
+     * Restore the canonical token before conditional removal and replacement so email
+     * action buttons are rendered even after rich-text formatting edits.
+     */
+    private static String normalizeRichTextTemplateTokens(String input, Map<String, String> tokens) {
+        if (input == null || input.isEmpty() || tokens == null || tokens.isEmpty()) return input;
+        Matcher matcher = TEMPLATE_TOKEN_PATTERN.matcher(input);
+        StringBuffer out = new StringBuffer(input.length());
+        while (matcher.find()) {
+            String raw = matcher.group();
+            String normalized = raw
+                    .replaceAll("(?is)<[^>]+>", "")
+                    .replace("&nbsp;", "")
+                    .replace("&#160;", "")
+                    .replace("&#xA0;", "")
+                    .replace("&#8203;", "")
+                    .replace("&#x200B;", "")
+                    .replace("\u200B", "")
+                    .replaceAll("\\s+", "");
+            String replacement = tokens.containsKey(normalized) ? normalized : raw;
+            matcher.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(out);
+        return out.toString();
     }
 
     private static String removeHtmlContentContainingUnavailableToken(String html, String token) {

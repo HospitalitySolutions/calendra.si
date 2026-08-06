@@ -65,13 +65,14 @@ public final class SessionServiceSupport {
         List<SessionService> services = orderedServices(booking);
         if (!services.isEmpty()) {
             return services.stream()
-                    .map(SessionService::getServiceNameSnapshot)
+                    .map(SessionServiceSupport::serviceDescription)
                     .filter(name -> name != null && !name.isBlank())
                     .reduce((left, right) -> left + " + " + right)
                     .orElse("Session");
         }
-        return booking != null && booking.getType() != null && booking.getType().getName() != null
-                ? booking.getType().getName() : "Session";
+        return booking != null && booking.getType() != null
+                ? typeDescription(booking.getType())
+                : "Session";
     }
 
     public static String serviceListText(SessionBooking booking) {
@@ -81,10 +82,30 @@ public final class SessionServiceSupport {
         for (int i = 0; i < services.size(); i++) {
             SessionService service = services.get(i);
             if (i > 0) out.append("\n");
-            out.append(i + 1).append(". ").append(service.getServiceNameSnapshot())
+            out.append(i + 1).append(". ").append(serviceDescription(service))
                     .append(" (").append(service.getDurationMinutesSnapshot()).append(" min)");
         }
         return out.toString();
+    }
+
+    private static String serviceDescription(SessionService service) {
+        if (service == null) return "Session";
+        SessionType type = service.getSessionType();
+        if (type != null && type.getDescription() != null && !type.getDescription().isBlank()) {
+            return type.getDescription().trim();
+        }
+        if (service.getServiceNameSnapshot() != null && !service.getServiceNameSnapshot().isBlank()) {
+            return service.getServiceNameSnapshot().trim();
+        }
+        return typeDescription(type);
+    }
+
+    private static String typeDescription(SessionType type) {
+        if (type == null) return "Session";
+        if (type.getDescription() != null && !type.getDescription().isBlank()) {
+            return type.getDescription().trim();
+        }
+        return type.getName() != null && !type.getName().isBlank() ? type.getName().trim() : "Session";
     }
 
     public static List<SessionService> mutableOrderedCopy(SessionBooking booking) {

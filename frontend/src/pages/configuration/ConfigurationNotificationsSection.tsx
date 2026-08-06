@@ -871,7 +871,7 @@ const notificationTemplateTags = [
   { label: "Podjetje (čakalna vrsta)", token: "{{companyName}}" },
   { label: "Ime stranke", token: "{{ime_stranke}}" },
   { label: "Priimek stranke", token: "{{priimek_stranke}}" },
-  { label: "Ime storitve", token: "{{ime_storitve}}" },
+  { label: "Opis storitve", token: "{{ime_storitve}}" },
   { label: "Datum", token: "{{datum}}" },
   { label: "Čas", token: "{{cas}}" },
   { label: "Naslov lokacije", token: "{{naslov_lokacije}}" },

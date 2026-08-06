@@ -70,7 +70,12 @@ public class CustomFieldController {
             @RequestParam(required = false) CustomFieldAppliesTo appliesTo,
             @AuthenticationPrincipal User me
     ) {
-        requireEnabled(me);
+        // Client/company/group screens load custom-field definitions as optional metadata.
+        // Returning an empty list avoids a noisy 404 whenever the feature is disabled,
+        // while create/update/delete operations remain protected by requireEnabled().
+        if (!isEnabled(me)) {
+            return List.of();
+        }
         var rows = appliesTo == null
                 ? definitions.findAllByCompanyIdOrderByAppliesToAscSortOrderAscNameAscIdAsc(me.getCompany().getId())
                 : definitions.findAllByCompanyIdAndAppliesToOrderBySortOrderAscNameAscIdAsc(me.getCompany().getId(), appliesTo);
@@ -133,9 +138,15 @@ public class CustomFieldController {
         row.setOptionsJson(customFieldService.serializeOptions(req.options()));
     }
 
+    private boolean isEnabled(User me) {
+        return me != null
+                && me.getCompany() != null
+                && (me.getRole() == Role.SUPER_ADMIN
+                || featureAccess.areCustomFieldsEnabled(me.getCompany().getId()));
+    }
+
     private void requireEnabled(User me) {
-        if (me == null || me.getCompany() == null ||
-                (me.getRole() != Role.SUPER_ADMIN && !featureAccess.areCustomFieldsEnabled(me.getCompany().getId()))) {
+        if (!isEnabled(me)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Custom fields are disabled for this tenant.");
         }
     }

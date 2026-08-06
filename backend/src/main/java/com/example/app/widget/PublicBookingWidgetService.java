@@ -1068,6 +1068,7 @@ public class PublicBookingWidgetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is outside the allowed reservation window.");
         }
 
+        assertWebsiteGroupBookingEmailAllowed(type, request.email());
         User actor = representative.getConsultant() != null ? representative.getConsultant() : resolveAdminActor(company.getId());
         lockTenantForClientMatch(company);
         Client client = findOrCreateClient(company, actor, request);
@@ -1102,6 +1103,31 @@ public class PublicBookingWidgetService {
                 consultantName
         );
     }
+
+    private void assertWebsiteGroupBookingEmailAllowed(SessionType type, String email) {
+        Set<String> allowedEmails = parseGuestLimitUserEmails(type == null ? null : type.getGuestLimitUserEmails());
+        if (allowedEmails.isEmpty()) return;
+        String normalizedEmail = normalizeEmail(email);
+        if (!allowedEmails.contains(normalizedEmail)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This group session is limited to invited email addresses."
+            );
+        }
+    }
+
+    private static Set<String> parseGuestLimitUserEmails(String raw) {
+        if (raw == null || raw.isBlank()) return Set.of();
+        return raw.lines()
+                .map(PublicBookingWidgetService::normalizeEmail)
+                .filter(value -> !value.isBlank())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private static String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
     void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
         guardPublicWidgetRequest(company, request, action, () -> widgetRateLimiter.check(
                 company.getTenantCode(),

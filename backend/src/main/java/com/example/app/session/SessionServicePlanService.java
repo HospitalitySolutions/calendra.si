@@ -53,7 +53,7 @@ public class SessionServicePlanService {
                     endTime,
                     durationMinutes,
                     breakMinutes,
-                    type == null ? null : type.getName(),
+                    type == null ? null : visibleServiceDescription(type),
                     type == null ? null : type.getColor(),
                     priceModeName(type),
                     type == null || type.getServiceGroup() == null ? null : type.getServiceGroup().getId(),
@@ -246,7 +246,7 @@ public class SessionServicePlanService {
             service.setDurationMinutesSnapshot(segment.durationMinutes());
             service.setBreakMinutesSnapshot(segment.breakMinutes());
             service.setServiceNameSnapshot(
-                    segment.serviceNameSnapshot() == null ? segment.type().getName() : segment.serviceNameSnapshot());
+                    segment.serviceNameSnapshot() == null ? visibleServiceDescription(segment.type()) : segment.serviceNameSnapshot());
             service.setColorSnapshot(segment.colorSnapshot());
             service.setPriceCalculationModeSnapshot(
                     segment.priceCalculationModeSnapshot() == null
@@ -363,6 +363,14 @@ public class SessionServicePlanService {
     public void copy(SessionBooking source, SessionBooking target) {
         if (source == null || target == null) return;
         synchronize(target, fromBooking(source));
+    }
+
+    private static String visibleServiceDescription(SessionType type) {
+        if (type == null) return null;
+        if (type.getDescription() != null && !type.getDescription().isBlank()) {
+            return type.getDescription().trim();
+        }
+        return type.getName();
     }
 
     private SessionType requireActiveType(Long typeId, Long companyId) {

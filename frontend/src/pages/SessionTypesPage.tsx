@@ -404,6 +404,14 @@ function guestLimitUserEmailsTextFromApi(emails?: string[] | null): string {
     : "";
 }
 
+function normalizeGuestLimitEmail(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+function isValidGuestLimitEmail(raw: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeGuestLimitEmail(raw));
+}
+
 
 function clientFullName(
   client: Pick<Client, "firstName" | "lastName" | "email">,
@@ -1363,6 +1371,13 @@ export function SessionTypesPage() {
     [clients, locale],
   );
 
+  const guestLimitManualEmail = useMemo(() => {
+    const email = normalizeGuestLimitEmail(guestLimitClientQuery);
+    return isValidGuestLimitEmail(email) && !guestLimitSelectedEmails.includes(email)
+      ? email
+      : "";
+  }, [guestLimitClientQuery, guestLimitSelectedEmails]);
+
   const filteredGuestLimitClients = useMemo(() => {
     const q = guestLimitClientQuery.trim().toLowerCase();
     if (!q) return guestAppClients;
@@ -1385,6 +1400,19 @@ export function SessionTypesPage() {
         nextEmails.join("\n"),
       ),
     }));
+  }, []);
+
+  const addGuestLimitEmail = useCallback((email: string) => {
+    const normalized = normalizeGuestLimitEmail(email);
+    if (!isValidGuestLimitEmail(normalized)) return;
+    setTypeForm((prev) => ({
+      ...prev,
+      guestLimitUserEmailsText: normalizeGuestLimitUserEmailsText(
+        [...parseGuestLimitUserEmails(prev.guestLimitUserEmailsText), normalized].join("\n"),
+      ),
+    }));
+    setGuestLimitClientQuery("");
+    setGuestLimitPickerOpen(true);
   }, []);
 
   const toggleGuestLimitClientEmail = useCallback((email: string) => {
@@ -4391,10 +4419,15 @@ export function SessionTypesPage() {
                                     onFocus={() =>
                                       setGuestLimitPickerOpen(true)
                                     }
+                                    onKeyDown={(e) => {
+                                      if (e.key !== "Enter" || !guestLimitManualEmail) return;
+                                      e.preventDefault();
+                                      addGuestLimitEmail(guestLimitManualEmail);
+                                    }}
                                     placeholder={
                                       locale === "sl"
-                                        ? "Poišči kliente z guest app dostopom…"
-                                        : "Search guest app clients…"
+                                        ? "Poišči stranko ali vnesi e-pošto…"
+                                        : "Search a client or enter an email…"
                                     }
                                   />
                                 </span>
@@ -4425,19 +4458,35 @@ export function SessionTypesPage() {
                                 role="listbox"
                                 aria-label={
                                   locale === "sl"
-                                    ? "Omeji na stranke z guest app dostopom"
-                                    : "Limit to guest app clients"
+                                    ? "Omeji na uporabnike po e-pošti"
+                                    : "Limit to users by email"
                                 }
                               >
+                                {guestLimitManualEmail ? (
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={false}
+                                    className="guest-limit-client-option guest-limit-client-option--email"
+                                    onClick={() => addGuestLimitEmail(guestLimitManualEmail)}
+                                  >
+                                    <span className="guest-limit-client-check" aria-hidden>+</span>
+                                    <span className="guest-limit-client-avatar" aria-hidden>@</span>
+                                    <span className="guest-limit-client-copy">
+                                      <strong>{locale === "sl" ? "Dodaj e-poštni naslov" : "Add email address"}</strong>
+                                      <span>{guestLimitManualEmail}</span>
+                                    </span>
+                                  </button>
+                                ) : null}
                                 {guestAppClientsLoading ? (
                                   <div className="guest-limit-client-empty">
-                                    {locale === "sl" ? "Nalaganje klientov…" : "Loading clients…"}
+                                    {locale === "sl" ? "Nalaganje strank…" : "Loading clients…"}
                                   </div>
-                                ) : filteredGuestLimitClients.length === 0 ? (
+                                ) : filteredGuestLimitClients.length === 0 && !guestLimitManualEmail ? (
                                   <div className="guest-limit-client-empty">
                                     {locale === "sl"
-                                      ? "Ni klientov z guest app dostopom."
-                                      : "No guest app clients found."}
+                                      ? "Vnesite veljaven e-poštni naslov ali poiščite stranko."
+                                      : "Enter a valid email address or search for a client."}
                                   </div>
                                 ) : (
                                   filteredGuestLimitClients.map((client) => {
@@ -4485,8 +4534,8 @@ export function SessionTypesPage() {
                                 )}
                                 <div className="guest-limit-client-helper">
                                   {locale === "sl"
-                                    ? "Prikazani so samo klienti, ki uporabljajo guest app."
-                                    : "Only clients with guest app access are shown."}
+                                    ? "Izberite obstoječo stranko ali dodajte poljuben e-poštni naslov. Rezervacija prek widgeta bo dovoljena le ob ujemanju e-pošte."
+                                    : "Select an existing client or add any email address. Website-widget booking is allowed only when the email matches."}
                                 </div>
                               </div>
                             ) : null}

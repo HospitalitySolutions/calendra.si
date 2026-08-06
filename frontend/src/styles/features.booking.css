@@ -2501,8 +2501,16 @@ button.session-type-config-add-service {
     box-shadow: none;
 }
 
-.guest-limit-client-option.is-selected {
+.guest-limit-client-option.is-selected,
+.guest-limit-client-option--email {
     background: rgba(37, 99, 235, 0.08);
+}
+
+.guest-limit-client-option--email .guest-limit-client-check {
+    border-color: #2563eb;
+    color: #2563eb;
+    font-size: 1rem;
+    font-weight: 850;
 }
 
 .guest-limit-client-check {
