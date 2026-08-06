@@ -7,6 +7,7 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailLayoutRenderer;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.logging.LogSanitizer;
 import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
@@ -73,6 +74,7 @@ public class BillingEmailService {
     private final String fallbackFrom;
     private final boolean mailConfigured;
     private final TenantEmailSenderResolver emailSenderResolver;
+    private final TenantEmailLayoutRenderer emailLayoutRenderer;
     private final String frontendBaseUrl;
 
     @Autowired(required = false)
@@ -86,6 +88,7 @@ public class BillingEmailService {
             AppSettingRepository appSettingRepository,
             ClientCompanyRepository clientCompanyRepository,
             @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver,
+            @Autowired(required = false) TenantEmailLayoutRenderer emailLayoutRenderer,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername,
@@ -98,6 +101,7 @@ public class BillingEmailService {
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.mailConfigured = mailSender != null && mailHost != null && !mailHost.isBlank();
         this.emailSenderResolver = emailSenderResolver;
+        this.emailLayoutRenderer = emailLayoutRenderer;
         this.frontendBaseUrl = normalizeBaseUrl(frontendBaseUrl);
     }
 
@@ -203,7 +207,7 @@ public class BillingEmailService {
             String subject = resolveInvoiceDeliverySubject(bill);
             String body = resolveInvoiceDeliveryBody(bill);
             helper.setSubject(subject);
-            helper.setText(body, looksLikeHtml(body));
+            setInvoiceDeliveryBody(helper, bill, body);
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             assertEmailQuota(bill);
             mailSender.send(message);
@@ -253,7 +257,7 @@ public class BillingEmailService {
             String subject = resolveInvoiceDeliverySubject(bill);
             String body = resolveInvoiceDeliveryBody(bill);
             helper.setSubject(subject);
-            helper.setText(body, looksLikeHtml(body));
+            setInvoiceDeliveryBody(helper, bill, body);
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             assertEmailQuota(bill);
             mailSender.send(message);
@@ -826,7 +830,7 @@ public class BillingEmailService {
             String subject = resolveInvoiceDeliverySubject(bill);
             String body = resolveInvoiceDeliveryBody(bill);
             helper.setSubject(subject);
-            helper.setText(body, looksLikeHtml(body));
+            setInvoiceDeliveryBody(helper, bill, body);
             helper.addAttachment(bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             assertEmailQuota(bill);
             mailSender.send(message);
@@ -1170,5 +1174,17 @@ public class BillingEmailService {
     private boolean looksLikeHtml(String value) {
         if (value == null || value.isBlank()) return false;
         return value.contains("<") && value.contains(">");
+    }
+
+    /**
+     * Tenant invoice delivery emails use the shared branded layout; the template body only
+     * provides the text content. Falls back to the raw body when the renderer is unavailable.
+     */
+    private void setInvoiceDeliveryBody(MimeMessageHelper helper, Bill bill, String body) throws MessagingException {
+        if (emailLayoutRenderer != null) {
+            helper.setText(emailLayoutRenderer.render(bill == null ? null : bill.getCompany(), body), true);
+            return;
+        }
+        helper.setText(body, looksLikeHtml(body));
     }
 }

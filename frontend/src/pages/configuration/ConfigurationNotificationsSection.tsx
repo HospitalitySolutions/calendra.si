@@ -53,6 +53,184 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+/**
+ * Email templates only carry text content with light formatting; the visual design
+ * (layout, colors, typography) is applied by the backend branded email layout.
+ * These tags mirror the backend TenantEmailLayoutRenderer allowlist.
+ */
+const EMAIL_EDITOR_ALLOWED_TAGS = new Set([
+  "P",
+  "DIV",
+  "BR",
+  "STRONG",
+  "B",
+  "EM",
+  "I",
+  "U",
+  "A",
+  "UL",
+  "OL",
+  "LI",
+  "BLOCKQUOTE",
+]);
+
+// Inline styles matching the backend TenantEmailLayoutRenderer so Predogled shows the sent design.
+const EMAIL_PREVIEW_PARAGRAPH_STYLE =
+  "margin:0 0 14px;color:#475569;font-size:16px;line-height:1.65";
+const EMAIL_PREVIEW_LINK_STYLE =
+  "color:#1769ea;text-decoration:underline;font-weight:600";
+const EMAIL_PREVIEW_LIST_STYLE =
+  "margin:0 0 14px;padding:0 0 0 24px;color:#475569;font-size:16px;line-height:1.65";
+const EMAIL_PREVIEW_LIST_ITEM_STYLE = "margin:0 0 6px";
+const EMAIL_PREVIEW_BLOCKQUOTE_STYLE =
+  "margin:0 0 14px;padding:10px 16px;border-left:3px solid #d7e3f4;color:#58677e;font-size:15px;line-height:1.6";
+const EMAIL_PREVIEW_PRIMARY_BUTTON_STYLE =
+  "display:inline-block;margin:4px 8px 12px 0;padding:13px 20px;border-radius:12px;background:#1769ea;color:#ffffff;text-decoration:none;font-size:15px;line-height:20px;font-weight:700";
+const EMAIL_PREVIEW_SECONDARY_BUTTON_STYLE =
+  "display:inline-block;margin:4px 8px 12px 0;padding:12px 20px;border-radius:12px;border:1px solid #c9d8ef;background:#f6f9ff;color:#1769ea;text-decoration:none;font-size:15px;line-height:20px;font-weight:700";
+
+const replaceDisallowedEmailElement = (element: Element) => {
+  if (/^H[1-6]$/.test(element.tagName)) {
+    // Typography belongs to the design: headings degrade to a bold paragraph.
+    const paragraph = document.createElement("p");
+    const strong = document.createElement("strong");
+    while (element.firstChild) strong.appendChild(element.firstChild);
+    paragraph.appendChild(strong);
+    element.replaceWith(paragraph);
+    return paragraph;
+  }
+  if (element.tagName === "SCRIPT" || element.tagName === "STYLE") {
+    element.remove();
+    return null;
+  }
+  element.replaceWith(...Array.from(element.childNodes));
+  return null;
+};
+
+/**
+ * Reduces editor HTML to the allowed light-formatting tags and strips all attributes
+ * except link targets, so stored email templates contain only text content.
+ */
+const sanitizeEmailEditorHtml = (html: string): string => {
+  if (typeof document === "undefined") return html;
+  const root = document.createElement("div");
+  root.innerHTML = html;
+  const walk = (parent: Element) => {
+    for (const child of Array.from(parent.children)) {
+      walk(child);
+      if (!EMAIL_EDITOR_ALLOWED_TAGS.has(child.tagName)) {
+        const replacement = replaceDisallowedEmailElement(child);
+        if (replacement) walk(replacement);
+        continue;
+      }
+      const href =
+        child.tagName === "A" ? child.getAttribute("href") : null;
+      const buttonKind =
+        child.tagName === "A"
+          ? child.getAttribute("data-email-button")
+          : null;
+      for (const attribute of Array.from(child.attributes)) {
+        child.removeAttribute(attribute.name);
+      }
+      if (href) child.setAttribute("href", href);
+      if (buttonKind) child.setAttribute("data-email-button", buttonKind);
+    }
+  };
+  walk(root);
+  return root.innerHTML;
+};
+
+/** Applies the branded design's inline styles to sanitized content for the email preview. */
+const styleEmailPreviewContent = (html: string): string => {
+  if (typeof document === "undefined") return html;
+  const root = document.createElement("div");
+  root.innerHTML = sanitizeEmailEditorHtml(html);
+  const walk = (parent: Element) => {
+    for (const child of Array.from(parent.children)) {
+      walk(child);
+      switch (child.tagName) {
+        case "P":
+        case "DIV":
+          child.setAttribute("style", EMAIL_PREVIEW_PARAGRAPH_STYLE);
+          break;
+        case "UL":
+        case "OL":
+          child.setAttribute("style", EMAIL_PREVIEW_LIST_STYLE);
+          break;
+        case "LI":
+          child.setAttribute("style", EMAIL_PREVIEW_LIST_ITEM_STYLE);
+          break;
+        case "BLOCKQUOTE":
+          child.setAttribute("style", EMAIL_PREVIEW_BLOCKQUOTE_STYLE);
+          break;
+        case "A": {
+          const buttonKind = child.getAttribute("data-email-button");
+          child.setAttribute(
+            "style",
+            buttonKind === "primary"
+              ? EMAIL_PREVIEW_PRIMARY_BUTTON_STYLE
+              : buttonKind === "secondary"
+                ? EMAIL_PREVIEW_SECONDARY_BUTTON_STYLE
+                : EMAIL_PREVIEW_LINK_STYLE,
+          );
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  };
+  walk(root);
+  return root.innerHTML;
+};
+
+const templatePreviewSampleValues: Record<string, string> = {
+  "{{ime_podjetja}}": "2TEN",
+  "{{ime_stranke}}": "Maja",
+  "{{priimek_stranke}}": "Novak",
+  "{{ime_storitve}}": "Individualni trening",
+  "{{datum}}": "12. junij 2026",
+  "{{cas}}": "09:30",
+  "{{naslov_lokacije}}": "Cesta v Mestni log 55, 1000 Ljubljana",
+  "{{fizicni_naslov}}": "Cesta v Mestni log 55, 1000 Ljubljana, Slovenija",
+  "{{fizicni_naslov_ulica}}": "Cesta v Mestni log 55",
+  "{{fizicna_postna_stevilka}}": "1000",
+  "{{fizicno_mesto}}": "Ljubljana",
+  "{{fizicna_drzava}}": "Slovenija",
+  "{{ime_lokacije}}": "Studio Center",
+  "{{telefon_lokacije}}": "+386 40 123 456",
+  "{{povezava_za_prenarocanje}}":
+    "https://app.calendra.si/public-booking/manage/demo?action=modify",
+  "{{povezava_za_odpoved}}":
+    "https://app.calendra.si/public-booking/manage/demo?action=cancel",
+  "{{gumb_za_prenarocanje}}": "Spremeni termin",
+  "{{gumb_za_odpoved}}": "Odpovej termin",
+  "{{kategorija_storitve}}": "Fitnes",
+  "{{ime_izvajalca}}": "Ana",
+  "{{telefon_izvajalca}}": "+386 41 555 111",
+  "{{prvotni_termin}}": "10. junij 2026 ob 10:00",
+  "{{online_povezava}}": "https://meet.google.com/abc-defg-hij",
+  "{{online_link}}": "https://meet.google.com/abc-defg-hij",
+  "{{tip_izvedbe}}": "Online",
+  "{{guestName}}": "Maja Novak",
+  "{{invoiceNumber}}": "INV-2026-0012",
+  "{{invoiceDate}}": "12. junij 2026",
+  "{{dueDate}}": "27. junij 2026",
+  "{{amount}}": "61,00 €",
+  "{{guestEmail}}": "maja.novak@example.com",
+  "{{companyName}}": "2TEN",
+  "{{companyEmail}}": "info@2ten.si",
+  "{{companyPhone}}": "+386 40 000 000",
+  "{{physicalFullAddress}}":
+    "Cesta v Mestni log 55, 1000 Ljubljana, Slovenija",
+  "{{physicalAddress}}": "Cesta v Mestni log 55",
+  "{{physicalPostalCode}}": "1000",
+  "{{physicalCity}}": "Ljubljana",
+  "{{physicalCountry}}": "Slovenija",
+  "{{companyWebsite}}": "2ten.si",
+  "{{paymentLink}}": "https://2ten.si/placilo/inv-2026-0012",
+};
+
 const notificationEvents: NotificationEventDefinition[] = [
   {
     id: "newSession",
@@ -1689,7 +1867,29 @@ export function ConfigurationNotificationsSection({
   const syncTemplateBodyFromEditor = (id: NotificationEventKind) => {
     const element = templateBodyRef.current;
     if (!element) return;
-    setTemplateBody(id, element.innerHTML);
+    // Email bodies only carry text content; the backend layout owns the design,
+    // so pasted styling and disallowed markup are stripped before storing.
+    setTemplateBody(
+      id,
+      channel === "email"
+        ? sanitizeEmailEditorHtml(element.innerHTML)
+        : element.innerHTML,
+    );
+  };
+
+  const handleTemplateEditorPaste = (
+    id: NotificationEventKind,
+    event: React.ClipboardEvent<HTMLDivElement>,
+  ) => {
+    if (channel !== "email") return;
+    event.preventDefault();
+    const text = event.clipboardData.getData("text/plain");
+    try {
+      document.execCommand("insertText", false, text);
+    } catch {
+      // ignore browser execCommand failures
+    }
+    syncTemplateBodyFromEditor(id);
   };
 
   const execTemplateCommand = (
@@ -1730,57 +1930,62 @@ export function ConfigurationNotificationsSection({
   };
 
   const getTemplatePreviewText = (body: string) => {
-    const replacements: Record<string, string> = {
-      "{{ime_podjetja}}": "2TEN",
-      "{{ime_stranke}}": "Maja",
-      "{{priimek_stranke}}": "Novak",
-      "{{ime_storitve}}": "Individualni trening",
-      "{{datum}}": "12. junij 2026",
-      "{{cas}}": "09:30",
-      "{{naslov_lokacije}}": "Cesta v Mestni log 55, 1000 Ljubljana",
-      "{{fizicni_naslov}}": "Cesta v Mestni log 55, 1000 Ljubljana, Slovenija",
-      "{{fizicni_naslov_ulica}}": "Cesta v Mestni log 55",
-      "{{fizicna_postna_stevilka}}": "1000",
-      "{{fizicno_mesto}}": "Ljubljana",
-      "{{fizicna_drzava}}": "Slovenija",
-      "{{ime_lokacije}}": "Studio Center",
-      "{{telefon_lokacije}}": "+386 40 123 456",
-      "{{povezava_za_prenarocanje}}": "https://app.calendra.si/public-booking/manage/demo?action=modify",
-      "{{povezava_za_odpoved}}": "https://app.calendra.si/public-booking/manage/demo?action=cancel",
-      "{{gumb_za_prenarocanje}}": "Spremeni termin",
-      "{{gumb_za_odpoved}}": "Odpovej termin",
-      "{{kategorija_storitve}}": "Fitnes",
-      "{{ime_izvajalca}}": "Ana",
-      "{{telefon_izvajalca}}": "+386 41 555 111",
-      "{{prvotni_termin}}": "10. junij 2026 ob 10:00",
-      "{{online_povezava}}": "https://meet.google.com/abc-defg-hij",
-      "{{online_link}}": "https://meet.google.com/abc-defg-hij",
-      "{{tip_izvedbe}}": "Online",
-      "{{guestName}}": "Maja Novak",
-      "{{invoiceNumber}}": "INV-2026-0012",
-      "{{invoiceDate}}": "12. junij 2026",
-      "{{dueDate}}": "27. junij 2026",
-      "{{amount}}": "61,00 €",
-      "{{guestEmail}}": "maja.novak@example.com",
-      "{{companyName}}": "2TEN",
-      "{{companyEmail}}": "info@2ten.si",
-      "{{companyPhone}}": "+386 40 000 000",
-      "{{physicalFullAddress}}": "Cesta v Mestni log 55, 1000 Ljubljana, Slovenija",
-      "{{physicalAddress}}": "Cesta v Mestni log 55",
-      "{{physicalPostalCode}}": "1000",
-      "{{physicalCity}}": "Ljubljana",
-      "{{physicalCountry}}": "Slovenija",
-      "{{companyWebsite}}": "2ten.si",
-      "{{paymentLink}}": "https://2ten.si/placilo/inv-2026-0012",
-    };
     const plain = body
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|blockquote|li)>/gi, "\n")
       .replace(/<li>/gi, "• ")
       .replace(/<[^>]+>/g, "");
-    return Object.entries(replacements).reduce(
+    return Object.entries(templatePreviewSampleValues).reduce(
       (text, [token, value]) => text.split(token).join(value),
       plain,
+    );
+  };
+
+  /**
+   * Builds the branded email preview: replaces tokens with sample values, injects
+   * sample action buttons, applies the design's inline styles and wraps the content
+   * in a replica of the backend email layout (logo header, card, footer).
+   */
+  const getEmailTemplatePreviewHtml = (body: string) => {
+    let html = body;
+    const buttonSamples: Record<string, { label: string; kind: string }> = {
+      "{{gumb_za_prenarocanje}}": {
+        label: "Spremeni termin",
+        kind: "primary",
+      },
+      "{{gumb_za_odpoved}}": { label: "Odpovej termin", kind: "secondary" },
+    };
+    for (const [token, button] of Object.entries(buttonSamples)) {
+      html = html
+        .split(token)
+        .join(
+          `<a href="https://app.calendra.si" data-email-button="${button.kind}">${button.label}</a>`,
+        );
+    }
+    html = Object.entries(templatePreviewSampleValues).reduce(
+      (text, [token, value]) => text.split(token).join(escapeHtml(value)),
+      html,
+    );
+    const content = styleEmailPreviewContent(html);
+
+    const companyName = (settings.COMPANY_NAME || "").trim();
+    const logoUrl = (settings.COMPANY_LOGO_URL || "").trim();
+    const header = /^https?:\/\//i.test(logoUrl)
+      ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)}" style="display:block;max-width:220px;max-height:56px;height:auto;border:0">`
+      : companyName
+        ? `<div style="font-size:22px;line-height:1.3;font-weight:800;letter-spacing:-.4px;color:#0f172a">${escapeHtml(companyName)}</div>`
+        : "";
+    const footer = companyName
+      ? `To sporočilo vam je poslal/a ${escapeHtml(companyName)} prek platforme Calendra.`
+      : "To sporočilo je bilo poslano prek platforme Calendra.";
+    return (
+      `<div style="background:#f4f7fb;padding:24px 12px;border-radius:10px">` +
+      `<div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #e3eaf4;border-radius:24px;box-shadow:0 18px 44px rgba(15,23,42,.08);overflow:hidden;font-family:Arial,'Helvetica Neue',sans-serif;color:#0f172a;text-align:left">` +
+      (header ? `<div style="padding:30px 34px 0">${header}</div>` : "") +
+      `<div style="padding:24px 34px 26px">${content}` +
+      `<div style="height:1px;background:#e8eef6;margin:26px 0 16px"></div>` +
+      `<p style="margin:0;color:#9aa6b8;font-size:12px;line-height:1.6">${footer}</p>` +
+      `</div></div></div>`
     );
   };
 
@@ -2518,6 +2723,11 @@ export function ConfigurationNotificationsSection({
         .notif-template-preview-empty {
           color: var(--notif-muted);
           font-style: italic;
+        }
+        .notif-template-preview-email {
+          white-space: normal;
+          padding: 14px;
+          background: #eef2f9;
         }
         .notif-template-close {
           display: none;
@@ -3832,29 +4042,33 @@ export function ConfigurationNotificationsSection({
                           className="notif-template-toolbar"
                           aria-label="Orodna vrstica predloge"
                         >
-                          <select
-                            className="notif-template-format"
-                            aria-label="Slog besedila"
-                            value="normal"
-                            onMouseDown={
-                              keepTemplateSelectionOnToolbarMouseDown
-                            }
-                            onChange={(event) =>
-                              applyTemplateBlockStyle(
-                                selectedEvent.id,
-                                event.target.value,
-                              )
-                            }
-                          >
-                            <option value="normal">Normalno</option>
-                            <option value="heading">Naslov</option>
-                            <option value="subheading">Podnaslov</option>
-                            <option value="small">Drobno</option>
-                          </select>
-                          <span
-                            className="notif-template-toolbar-divider"
-                            aria-hidden
-                          />
+                          {channel !== "email" ? (
+                            <>
+                              <select
+                                className="notif-template-format"
+                                aria-label="Slog besedila"
+                                value="normal"
+                                onMouseDown={
+                                  keepTemplateSelectionOnToolbarMouseDown
+                                }
+                                onChange={(event) =>
+                                  applyTemplateBlockStyle(
+                                    selectedEvent.id,
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                <option value="normal">Normalno</option>
+                                <option value="heading">Naslov</option>
+                                <option value="subheading">Podnaslov</option>
+                                <option value="small">Drobno</option>
+                              </select>
+                              <span
+                                className="notif-template-toolbar-divider"
+                                aria-hidden
+                              />
+                            </>
+                          ) : null}
                           <button
                             type="button"
                             className="notif-template-toolbar-button"
@@ -3947,24 +4161,26 @@ export function ConfigurationNotificationsSection({
                           >
                             <NotificationToolbarIcon kind="numbers" />
                           </button>
-                          <button
-                            type="button"
-                            className="notif-template-toolbar-button"
-                            aria-label="Citat"
-                            title="Citat"
-                            onMouseDown={
-                              keepTemplateSelectionOnToolbarMouseDown
-                            }
-                            onClick={() =>
-                              execTemplateCommand(
-                                selectedEvent.id,
-                                "formatBlock",
-                                "blockquote",
-                              )
-                            }
-                          >
-                            <NotificationToolbarIcon kind="quote" />
-                          </button>
+                          {channel !== "email" ? (
+                            <button
+                              type="button"
+                              className="notif-template-toolbar-button"
+                              aria-label="Citat"
+                              title="Citat"
+                              onMouseDown={
+                                keepTemplateSelectionOnToolbarMouseDown
+                              }
+                              onClick={() =>
+                                execTemplateCommand(
+                                  selectedEvent.id,
+                                  "formatBlock",
+                                  "blockquote",
+                                )
+                              }
+                            >
+                              <NotificationToolbarIcon kind="quote" />
+                            </button>
+                          ) : null}
                           <span className="notif-template-toolbar-spacer" />
                           <button
                             type="button"
@@ -3987,34 +4203,56 @@ export function ConfigurationNotificationsSection({
                           </button>
                         </div>
                         {previewTemplate ? (
-                          <div
-                            className={
-                              getNotificationTemplateBody(
-                                settings,
-                                channel,
-                                selectedEvent.id,
-                                selectedTemplateVariant,
-                              ).trim()
-                                ? "notif-template-preview-pane"
-                                : "notif-template-preview-pane notif-template-preview-empty"
-                            }
-                          >
-                            {getNotificationTemplateBody(
-                              settings,
-                              channel,
-                              selectedEvent.id,
-                              selectedTemplateVariant,
-                            ).trim()
-                              ? getTemplatePreviewText(
+                          channel === "email" &&
+                          getNotificationTemplateBody(
+                            settings,
+                            channel,
+                            selectedEvent.id,
+                            selectedTemplateVariant,
+                          ).trim() ? (
+                            <div
+                              className="notif-template-preview-pane notif-template-preview-email"
+                              dangerouslySetInnerHTML={{
+                                __html: getEmailTemplatePreviewHtml(
                                   getNotificationTemplateBody(
                                     settings,
                                     channel,
                                     selectedEvent.id,
                                     selectedTemplateVariant,
                                   ),
-                                )
-                              : "Predloga je prazna."}
-                          </div>
+                                ),
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className={
+                                getNotificationTemplateBody(
+                                  settings,
+                                  channel,
+                                  selectedEvent.id,
+                                  selectedTemplateVariant,
+                                ).trim()
+                                  ? "notif-template-preview-pane"
+                                  : "notif-template-preview-pane notif-template-preview-empty"
+                              }
+                            >
+                              {getNotificationTemplateBody(
+                                settings,
+                                channel,
+                                selectedEvent.id,
+                                selectedTemplateVariant,
+                              ).trim()
+                                ? getTemplatePreviewText(
+                                    getNotificationTemplateBody(
+                                      settings,
+                                      channel,
+                                      selectedEvent.id,
+                                      selectedTemplateVariant,
+                                    ),
+                                  )
+                                : "Predloga je prazna."}
+                            </div>
+                          )
                         ) : (
                           <div
                             ref={templateBodyRef}
@@ -4027,6 +4265,12 @@ export function ConfigurationNotificationsSection({
                             }
                             onBlur={() =>
                               syncTemplateBodyFromEditor(selectedEvent.id)
+                            }
+                            onPaste={(event) =>
+                              handleTemplateEditorPaste(
+                                selectedEvent.id,
+                                event,
+                              )
                             }
                           />
                         )}

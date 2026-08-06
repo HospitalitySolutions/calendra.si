@@ -5,6 +5,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailLayoutRenderer;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
@@ -106,6 +107,7 @@ public class ReminderService {
     private final String frontendBaseUrl;
     private final PublicBookingManageTokenService publicBookingManageTokenService;
     private final TenantEmailSenderResolver emailSenderResolver;
+    private final TenantEmailLayoutRenderer emailLayoutRenderer;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -127,7 +129,8 @@ public class ReminderService {
             GuestPushService guestPushService,
             TenantSmsQuotaService smsQuotaService,
             @Autowired(required = false) PublicBookingManageTokenService publicBookingManageTokenService,
-            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver
+            @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver,
+            @Autowired(required = false) TenantEmailLayoutRenderer emailLayoutRenderer
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
@@ -145,6 +148,7 @@ public class ReminderService {
         this.smsQuotaService = smsQuotaService;
         this.publicBookingManageTokenService = publicBookingManageTokenService;
         this.emailSenderResolver = emailSenderResolver;
+        this.emailLayoutRenderer = emailLayoutRenderer;
     }
 
     /**
@@ -1169,7 +1173,10 @@ public class ReminderService {
         }
         String background = primary ? "#2563eb" : "#f3f4f6";
         String color = primary ? "#ffffff" : "#111827";
+        // The inline style is a fallback for the legacy non-layout path; the branded layout
+        // sanitizer restyles anchors marked with the data-email-button attribute.
         return "<a href=\"" + escapeHtmlAttribute(url)
+                + "\" " + TenantEmailLayoutRenderer.BUTTON_ATTRIBUTE + "=\"" + (primary ? "primary" : "secondary")
                 + "\" style=\"display:inline-block;margin:0 8px 8px 0;padding:10px 14px;border-radius:8px;background:"
                 + background
                 + ";color:"
@@ -1370,7 +1377,9 @@ public class ReminderService {
     private void sendHtmlMail(Company company, String to, String subject, String html) throws MessagingException {
         if (workspaceEmailQuota != null && company != null) workspaceEmailQuota.assertCanSend(company.getId(), 1);
         String safeSubject = subject == null || subject.isBlank() ? " " : subject;
-        String safeBody = normalizeEmailTemplateHtml(html);
+        String safeBody = emailLayoutRenderer != null
+                ? emailLayoutRenderer.render(company, html)
+                : normalizeEmailTemplateHtml(html);
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
         applyClientSender(helper, company);

@@ -4,6 +4,7 @@ import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.email.TenantEmailLayoutRenderer;
 import com.example.app.email.TenantEmailSenderResolver;
 import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
@@ -92,6 +93,7 @@ public class WaitlistGuestNotificationService {
     private final GuestNotificationService guestNotifications;
     private final GuestPushService guestPush;
     private final TenantEmailSenderResolver emailSenderResolver;
+    private final TenantEmailLayoutRenderer emailLayoutRenderer;
     private final MessageDeliveryLogService deliveryLogs;
     private final String frontendBaseUrl;
 
@@ -115,6 +117,7 @@ public class WaitlistGuestNotificationService {
             GuestNotificationService guestNotifications,
             GuestPushService guestPush,
             @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver,
+            @Autowired(required = false) TenantEmailLayoutRenderer emailLayoutRenderer,
             @Autowired(required = false) MessageDeliveryLogService deliveryLogs
     ) {
         this.events = events;
@@ -131,6 +134,7 @@ public class WaitlistGuestNotificationService {
         this.guestNotifications = guestNotifications;
         this.guestPush = guestPush;
         this.emailSenderResolver = emailSenderResolver;
+        this.emailLayoutRenderer = emailLayoutRenderer;
         this.deliveryLogs = deliveryLogs;
         this.frontendBaseUrl = normalizeBaseUrl(frontendBaseUrl);
     }
@@ -189,7 +193,9 @@ public class WaitlistGuestNotificationService {
         String body = replaceTokens(node.path("bodyHtml").asText(""), tokens).trim();
         if (subject.isBlank() && body.isBlank()) return;
         if (subject.isBlank()) subject = " ";
-        String html = normalizeEmailHtml(body);
+        String html = emailLayoutRenderer != null
+                ? emailLayoutRenderer.render(request.getCompany(), body)
+                : normalizeEmailHtml(body);
         try {
             if (workspaceEmailQuota != null) workspaceEmailQuota.assertCanSend(companyId, 1);
             MimeMessage message = mailSender.createMimeMessage();
@@ -200,7 +206,8 @@ public class WaitlistGuestNotificationService {
             helper.setText(html, true);
             mailSender.send(message);
             if (workspaceEmailQuota != null) workspaceEmailQuota.increment(companyId, 1);
-            deliverySent(request, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, html);
+            // Log the template content rather than the full branded layout HTML.
+            deliverySent(request, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, body);
         } catch (Exception ex) {
             deliveryFailed(request, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, ex.getMessage());
             log.warn("Failed to send waitlist email companyId={} requestId={} kind={}: {}",
