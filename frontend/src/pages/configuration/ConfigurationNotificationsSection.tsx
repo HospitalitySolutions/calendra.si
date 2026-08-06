@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import type { AppLocale } from "../../locale";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../../components/GuestConfigSaveIcon";
@@ -944,10 +944,14 @@ function availableTagsLabel(locale: AppLocale) {
 }
 
 function templateTagButtonText(
-  tag: { token: string; localizedLabel?: Record<AppLocale, string> },
+  tag: {
+    token: string;
+    label?: string;
+    localizedLabel?: Record<AppLocale, string>;
+  },
   locale: AppLocale,
 ) {
-  return tag.localizedLabel?.[locale] || tag.token;
+  return tag.localizedLabel?.[locale] || tag.label || tag.token;
 }
 
 
@@ -1409,6 +1413,7 @@ export function ConfigurationNotificationsSection({
   const [templateVariant, setTemplateVariant] =
     useState<NotificationTemplateVariant>("regular");
   const templateBodyRef = useRef<HTMLDivElement | null>(null);
+  const compactTemplateHistoryEntryRef = useRef(false);
 
   const channelCopy: Record<
     NotificationChannel,
@@ -1547,14 +1552,26 @@ export function ConfigurationNotificationsSection({
     }
   }, [onlineSessionBookingEnabled, selectedOnlineTemplateEnabled]);
 
+  const closeTemplateEditor = useCallback(() => {
+    if (
+      isCompactNotificationsLayout &&
+      compactTemplateHistoryEntryRef.current &&
+      typeof window !== "undefined"
+    ) {
+      window.history.back();
+      return;
+    }
+    setEditingEvent(null);
+  }, [isCompactNotificationsLayout]);
+
   useEffect(() => {
     if (!selectedEvent) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setEditingEvent(null);
+      if (event.key === "Escape") closeTemplateEditor();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedEvent]);
+  }, [closeTemplateEditor, selectedEvent]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1570,6 +1587,34 @@ export function ConfigurationNotificationsSection({
     mediaQuery.addListener(syncCompactLayout);
     return () => mediaQuery.removeListener(syncCompactLayout);
   }, []);
+
+  useEffect(() => {
+    if (
+      !selectedEvent ||
+      !isCompactNotificationsLayout ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const marker = `notification-template-${selectedEvent.id}-${Date.now()}`;
+    window.history.pushState(
+      { ...window.history.state, calendraNotificationTemplate: marker },
+      "",
+      window.location.href,
+    );
+    compactTemplateHistoryEntryRef.current = true;
+
+    const handlePopState = () => {
+      compactTemplateHistoryEntryRef.current = false;
+      setEditingEvent(null);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [isCompactNotificationsLayout, selectedEvent]);
 
   useEffect(() => {
     if (!selectedEvent || !isCompactNotificationsLayout) return;
@@ -2253,13 +2298,29 @@ export function ConfigurationNotificationsSection({
           font-weight: 850;
           line-height: 1.4;
         }
+        .notif-template-tags-heading {
+          color: inherit;
+          font: inherit;
+          letter-spacing: 0.01em;
+        }
+        .notif-template-tag-scroll {
+          margin-top: 10px;
+          outline: none;
+        }
+        .notif-template-tag-scroll:focus-visible {
+          border-radius: 12px;
+          box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.13);
+        }
         .notif-template-tag-list {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
-          margin-top: 10px;
         }
         .notif-template-tag {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0;
           border: 1px solid rgba(18, 148, 74, 0.18);
           border-radius: 999px;
           background: #eaf8f0;
@@ -2270,6 +2331,10 @@ export function ConfigurationNotificationsSection({
           cursor: pointer;
           box-shadow: 0 5px 12px rgba(21, 148, 71, 0.06);
           transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+        }
+        .notif-template-tag svg,
+        .notif-template-tag [class*="icon"] {
+          display: none !important;
         }
         .notif-template-tag:hover {
           background: #ddf3e7;
@@ -2719,6 +2784,186 @@ export function ConfigurationNotificationsSection({
             grid-column: 2 / -1;
             grid-row: auto;
           }
+          .notif-template-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            padding: 0;
+            border: 0;
+            background: #ffffff;
+            overflow: hidden;
+            overscroll-behavior: contain;
+          }
+          .notif-template-card {
+            width: 100vw;
+            max-width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            min-height: 0;
+            max-height: 100dvh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            padding: 0 24px calc(32px + env(safe-area-inset-bottom));
+            border: 0;
+            border-radius: 0;
+            background: #ffffff;
+            box-shadow: none;
+            animation: notif-template-fullscreen-in 160ms ease-out;
+          }
+          @keyframes notif-template-fullscreen-in {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          .notif-template-header {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            display: grid;
+            grid-template-columns: 52px minmax(0, 1fr);
+            align-items: center;
+            justify-content: start;
+            gap: 16px;
+            min-height: 96px;
+            margin: 0 -24px 24px;
+            padding: max(18px, env(safe-area-inset-top)) 24px 16px;
+            border-bottom: 0;
+            background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+            box-shadow: 0 10px 24px rgba(7, 75, 176, 0.18);
+          }
+          .notif-template-header h4 {
+            grid-column: 2;
+            grid-row: 1;
+            min-width: 0;
+            margin: 0;
+            color: #ffffff;
+            font-size: clamp(22px, 3vw, 30px);
+            line-height: 1.12;
+            font-weight: 850;
+            letter-spacing: -0.035em;
+          }
+          .notif-template-title-event {
+            display: none;
+          }
+          .notif-template-close {
+            position: static;
+            grid-column: 1;
+            grid-row: 1;
+            display: grid;
+            place-items: center;
+            width: 52px;
+            height: 52px;
+            margin: 0;
+            border: 1px solid rgba(255, 255, 255, 0.34);
+            border-radius: 15px;
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: none;
+          }
+          .notif-template-close svg {
+            width: 24px;
+            height: 24px;
+          }
+          .notif-template-close:hover {
+            background: rgba(255, 255, 255, 0.16);
+          }
+          .notif-template-close:active {
+            transform: scale(0.98);
+          }
+          .notif-status-pill,
+          .notif-template-subtitle {
+            display: none;
+          }
+          .notif-online-toggle-row {
+            margin-bottom: 14px;
+          }
+          .notif-template-variant-tabs {
+            margin-bottom: 14px;
+          }
+          .notif-template-toolbar {
+            gap: 4px;
+            overflow-x: auto;
+            overscroll-behavior-x: contain;
+            -webkit-overflow-scrolling: touch;
+          }
+          .notif-template-toolbar > * {
+            flex: 0 0 auto;
+          }
+          .notif-template-toolbar-spacer {
+            flex: 1 0 10px;
+          }
+          .notif-template-textarea,
+          .notif-template-preview-pane {
+            min-height: 220px;
+          }
+          .notif-template-tags {
+            position: relative;
+            margin: 24px 0 0;
+            padding: 18px;
+            border: 1px solid #dce6f4;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            box-shadow: 0 12px 26px rgba(8, 23, 58, 0.055);
+          }
+          .notif-template-tags-heading {
+            color: #263a5e;
+            font-size: 13px;
+            font-weight: 850;
+            letter-spacing: 0.035em;
+            text-transform: uppercase;
+          }
+          .notif-template-tag-scroll {
+            max-height: min(42dvh, 460px);
+            margin-top: 14px;
+            padding: 2px 10px 8px 2px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            scrollbar-width: thin;
+            scrollbar-color: #a9b6c9 transparent;
+          }
+          .notif-template-tag-scroll::-webkit-scrollbar {
+            width: 7px;
+          }
+          .notif-template-tag-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .notif-template-tag-scroll::-webkit-scrollbar-thumb {
+            border-radius: 999px;
+            background: #a9b6c9;
+          }
+          .notif-template-tag-list {
+            width: 100%;
+            max-width: 100%;
+            gap: 10px;
+          }
+          .notif-template-tag {
+            flex: 0 1 auto;
+            min-width: 0;
+            max-width: 100%;
+            min-height: 38px;
+            padding: 8px 14px;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: anywhere;
+            font-size: 12.5px;
+            line-height: 1.2;
+            text-align: center;
+          }
         }
         @media (max-width: 640px) {
           .notif-page-shell {
@@ -2993,84 +3238,27 @@ export function ConfigurationNotificationsSection({
             margin: 10px -12px -12px;
             padding: 0 12px;
           }
-          .notif-template-panel {
-            position: fixed;
-            inset: 0;
-            z-index: 10000;
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            padding: 0;
-            border: 0;
-            background: #fff;
-            overflow: hidden;
-            overscroll-behavior: contain;
-          }
           .notif-template-card {
-            width: 100vw;
-            max-width: 100vw;
-            min-height: 100vh;
-            min-height: 100dvh;
-            max-height: none;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: max(18px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
-            border: 0;
-            border-radius: 0;
-            background: #fff;
-            box-shadow: none;
-            animation: notif-template-fullscreen-in 160ms ease-out;
-          }
-          @keyframes notif-template-fullscreen-in {
-            from {
-              opacity: 0;
-              transform: translateY(8px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
+            padding: 0 16px calc(28px + env(safe-area-inset-bottom));
           }
           .notif-template-header {
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            align-items: flex-start;
-            gap: 10px;
-            margin: calc(-1 * max(18px, env(safe-area-inset-top))) -16px 12px;
-            padding: max(18px, env(safe-area-inset-top)) 70px 14px 16px;
-            border-bottom: 1px solid #edf2f8;
-            background: rgba(255, 255, 255, 0.97);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            grid-template-columns: 46px minmax(0, 1fr);
+            gap: 13px;
+            min-height: 84px;
+            margin: 0 -16px 18px;
+            padding: max(14px, env(safe-area-inset-top)) 16px 14px;
           }
           .notif-template-header h4 {
-            font-size: 18px;
+            font-size: 22px;
           }
           .notif-template-close {
-            position: absolute;
-            top: max(10px, env(safe-area-inset-top));
-            right: 16px;
-            display: grid;
-            place-items: center;
-            flex: 0 0 auto;
-            width: 44px;
-            height: 44px;
-            margin: 0;
-            border-radius: 999px;
-            color: #07173b;
-            background: #f2f6ff;
-            box-shadow: 0 8px 18px rgba(8, 23, 58, 0.08);
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
           }
-          .notif-template-close:active {
-            transform: scale(0.98);
-          }
-          .notif-status-pill {
-            display: none;
-          }
-          .notif-template-subtitle {
-            display: none;
+          .notif-template-close svg {
+            width: 22px;
+            height: 22px;
           }
           .notif-online-toggle-row {
             margin-bottom: 12px;
@@ -3081,8 +3269,6 @@ export function ConfigurationNotificationsSection({
           }
           .notif-template-toolbar {
             gap: 3px;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
           }
           .notif-template-format {
             min-width: 116px;
@@ -3095,26 +3281,21 @@ export function ConfigurationNotificationsSection({
             min-height: 190px;
           }
           .notif-template-tags {
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: 0;
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 16px;
+          }
+          .notif-template-tag-scroll {
+            max-height: 34dvh;
+            padding-right: 8px;
           }
           .notif-template-tag-list {
-            flex-wrap: wrap;
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
-            overflow-y: visible;
-            padding-bottom: 0;
+            gap: 9px;
           }
           .notif-template-tag {
-            flex: 0 1 auto;
-            min-width: 0;
-            max-width: 100%;
-            white-space: normal;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-            font-size: 11px;
+            min-height: 36px;
+            padding: 8px 12px;
+            font-size: 12px;
           }
           .notif-savebar {
             padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
@@ -3491,7 +3672,7 @@ export function ConfigurationNotificationsSection({
                   aria-label={`${channelCopy[channel].editLabel}: ${selectedEvent.title}`}
                   onClick={(event) => {
                     if (event.currentTarget === event.target)
-                      setEditingEvent(null);
+                      closeTemplateEditor();
                   }}
                 >
                   <div
@@ -3501,14 +3682,11 @@ export function ConfigurationNotificationsSection({
                     onClick={(event) => event.stopPropagation()}
                   >
                     <div className="notif-template-header">
-                      <h4>
-                        {channelCopy[channel].editLabel}: {selectedEvent.title}
-                      </h4>
                       <button
                         type="button"
                         className="notif-template-close"
-                        aria-label="Zapri predlogo"
-                        onClick={() => setEditingEvent(null)}
+                        aria-label="Nazaj na obvestila"
+                        onClick={closeTemplateEditor}
                       >
                         <svg
                           width="18"
@@ -3525,6 +3703,14 @@ export function ConfigurationNotificationsSection({
                           <path d="m6 6 12 12" />
                         </svg>
                       </button>
+                      <h4>
+                        <span className="notif-template-title-label">
+                          {channelCopy[channel].editLabel}
+                        </span>
+                        <span className="notif-template-title-event">
+                          : {selectedEvent.title}
+                        </span>
+                      </h4>
                       <span
                         className={
                           getNotificationEnabled(
@@ -3847,9 +4033,16 @@ export function ConfigurationNotificationsSection({
                       </div>
                     </div>
                     <div className="notif-template-tags">
-                      {availableTagsLabel(locale)}
-                      <div className="notif-template-tag-list">
-                        {(selectedEvent.id === "invoiceDelivery"
+                      <div className="notif-template-tags-heading">
+                        {availableTagsLabel(locale)}
+                      </div>
+                      <div
+                        className="notif-template-tag-scroll"
+                        tabIndex={0}
+                        aria-label={availableTagsLabel(locale)}
+                      >
+                        <div className="notif-template-tag-list">
+                          {(selectedEvent.id === "invoiceDelivery"
                           ? invoiceDeliveryTemplateTags
                           : selectedTemplateVariant === "online"
                             ? channel === "email" && selectedEventSupportsBookingManageTags
@@ -3858,19 +4051,20 @@ export function ConfigurationNotificationsSection({
                             : channel === "email" && selectedEventSupportsBookingManageTags
                               ? emailNotificationTemplateTags
                               : notificationTemplateTags
-                        ).map((tag) => (
-                          <button
-                            key={tag.token}
-                            type="button"
-                            className="notif-template-tag"
-                            onClick={() =>
-                              appendTemplateToken(selectedEvent.id, tag.token)
-                            }
-                            title={tag.token}
-                          >
-                            {templateTagButtonText(tag, locale)}
-                          </button>
-                        ))}
+                          ).map((tag) => (
+                            <button
+                              key={tag.token}
+                              type="button"
+                              className="notif-template-tag"
+                              onClick={() =>
+                                appendTemplateToken(selectedEvent.id, tag.token)
+                              }
+                              title={tag.token}
+                            >
+                              {templateTagButtonText(tag, locale)}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
