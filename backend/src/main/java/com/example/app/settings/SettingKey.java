@@ -13,6 +13,8 @@ public enum SettingKey {
     WEBSITE_WIDGET_ENABLED,
     /** Enables all tenant waitlist functionality across staff, calendar, widget and guest surfaces. */
     WAITLIST_ENABLED,
+    /** Enables tenant-defined custom fields and their configuration tab. */
+    CUSTOM_FIELDS_ENABLED,
     MODULE_CONFIG_TYPE,
     AI_BOOKING_ENABLED,
     /** Personal time blocks on the calendar (and personal-task presets tab). */

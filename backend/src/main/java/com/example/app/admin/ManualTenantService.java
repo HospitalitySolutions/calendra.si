@@ -83,6 +83,7 @@ public class ManualTenantService {
             new FeatureDefinition("TODOS_ENABLED", "Calendar todos", SettingKey.TODOS_ENABLED),
             new FeatureDefinition("NO_SHOW_ENABLED", "No-show handling", SettingKey.NO_SHOW_ENABLED),
             new FeatureDefinition("WAITLIST_ENABLED", "Waitlist", SettingKey.WAITLIST_ENABLED),
+            new FeatureDefinition("CUSTOM_FIELDS_ENABLED", "Custom fields", SettingKey.CUSTOM_FIELDS_ENABLED),
             new FeatureDefinition("MULTIPLE_SESSIONS_PER_SPACE_ENABLED", "Multiple sessions per resource", SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED),
             new FeatureDefinition("MULTIPLE_CLIENTS_PER_SESSION_ENABLED", "Multiple clients per session", SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED),
             new FeatureDefinition("GROUP_BOOKING_ENABLED", "Group booking", SettingKey.GROUP_BOOKING_ENABLED),
@@ -431,6 +432,7 @@ public class ManualTenantService {
         guest.put("buyTabEnabled", selected.contains("guestBuyTabEnabled"));
         guest.put("entitlementsEnabled", selected.contains("guestEntitlementsEnabled"));
         guest.put("inboxEnabled", selected.contains("guestInboxEnabled"));
+        guest.put("multipleServicesEnabled", false);
         seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, toJsonObject(guest));
         seedSetting(company, SettingKey.WEBSITE_WIDGET_SETTINGS_JSON, "{}");
         companyProvisioningService.ensureDefaultPaymentMethods(company);
@@ -439,12 +441,47 @@ public class ManualTenantService {
     private Set<String> defaultFeaturesFor(String packageName) {
         String pkg = normalizePackage(packageName);
         Set<String> out = new LinkedHashSet<>();
-        out.addAll(List.of("TYPES_ENABLED", "SERVICE_GROUPS_ENABLED", "BOOKABLE_ENABLED", "WAITLIST_ENABLED", "ONLINE_SESSION_BOOKING_ENABLED", "WEBSITE_WIDGET_ENABLED", "COMMUNICATION_ENABLED", "NOTIFICATIONS_ENABLED", "NOTIFICATIONS_EMAIL_ALERTS_ENABLED", "NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED", "PERSONAL_ENABLED", "TODOS_ENABLED", "NO_SHOW_ENABLED", "SECURITY_MODULE_ENABLED", "SECURITY_SESSION_SECURITY_ENABLED"));
+        out.addAll(List.of(
+                "TYPES_ENABLED",
+                "SERVICE_GROUPS_ENABLED",
+                "BOOKABLE_ENABLED",
+                "WEBSITE_WIDGET_ENABLED",
+                "COMMUNICATION_ENABLED",
+                "NOTIFICATIONS_ENABLED",
+                "NOTIFICATIONS_EMAIL_ALERTS_ENABLED",
+                "NOTIFICATIONS_SMS_ALERTS_ENABLED",
+                "NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED",
+                "PERSONAL_ENABLED",
+                "TODOS_ENABLED",
+                "SECURITY_MODULE_ENABLED",
+                "SECURITY_SESSION_SECURITY_ENABLED"
+        ));
         if ("PROFESSIONAL".equals(pkg) || "PREMIUM".equals(pkg)) {
-            out.addAll(List.of("SPACES_ENABLED", "COURSES_ENABLED", "BILLING_ENABLED", "BILLING_INVOICES_ENABLED", "BILLING_BANK_TRANSFER_ENABLED", "BILLING_ONLINE_CARD_PAYMENTS_ENABLED", "BILLING_ADVANCE_ENABLED", "MULTIPLE_SESSIONS_PER_SPACE_ENABLED", "GROUP_BOOKING_ENABLED", "MULTIPLE_CLIENTS_PER_SESSION_ENABLED", "guestAppEnabled", "guestWalletEnabled", "guestOrdersEnabled", "guestBuyTabEnabled", "guestEntitlementsEnabled"));
+            out.addAll(List.of(
+                    "BILLING_ENABLED",
+                    "BILLING_INVOICES_ENABLED",
+                    "BILLING_BANK_TRANSFER_ENABLED",
+                    "BILLING_GIFT_CARDS_ENABLED",
+                    "BILLING_FISCAL_CASH_REGISTER_ENABLED"
+            ));
         }
         if ("PREMIUM".equals(pkg)) {
-            out.addAll(List.of("LOCATIONS_ENABLED", "INBOX_ENABLED", "GOOGLE_CALENDAR_MODULE_ENABLED", "SCANNER_MODULE_ENABLED", "WHATSAPP_MODULE_ENABLED", "AI_BOOKING_ENABLED", "guestInboxEnabled"));
+            out.addAll(List.of(
+                    "LOCATIONS_ENABLED",
+                    "SPACES_ENABLED",
+                    "COURSES_ENABLED",
+                    "WAITLIST_ENABLED",
+                    "INBOX_ENABLED",
+                    "GOOGLE_CALENDAR_MODULE_ENABLED",
+                    "SCANNER_MODULE_ENABLED",
+                    "WHATSAPP_MODULE_ENABLED",
+                    "guestAppEnabled",
+                    "guestWalletEnabled",
+                    "guestOrdersEnabled",
+                    "guestBuyTabEnabled",
+                    "guestEntitlementsEnabled",
+                    "guestInboxEnabled"
+            ));
         }
         return out;
     }
@@ -453,9 +490,14 @@ public class ManualTenantService {
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizeTenantType(tenantType));
         seedSetting(company, SettingKey.LOCATIONS_ENABLED, "false");
         seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
+        seedSetting(company, SettingKey.CALENDAR_TIME_SCALE_MINUTES, "30");
+        seedSetting(company, SettingKey.DEFAULT_SERVICE_BREAK_MINUTES, "0");
+        seedSetting(company, SettingKey.WORKING_HOURS_START, "08:00");
+        seedSetting(company, SettingKey.WORKING_HOURS_END, "18:00");
         seedSetting(company, SettingKey.PERSONAL_TASK_PRESETS_JSON, "[]");
         seedSetting(company, SettingKey.INVOICE_COUNTER, "1");
         seedSetting(company, SettingKey.ORDER_COUNTER, "1");
+        seedSetting(company, SettingKey.DEFAULT_INVOICE_PRINT_FORMAT, "A4");
         seedSetting(company, SettingKey.COMPANY_NAME, companyName);
         seedSetting(company, SettingKey.COMPANY_ADDRESS, "");
         seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, "");

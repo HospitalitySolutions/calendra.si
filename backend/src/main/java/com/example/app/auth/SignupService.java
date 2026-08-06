@@ -592,11 +592,8 @@ public class SignupService {
             seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
         }
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
-        seedSetting(
-                company,
-                SettingKey.LOCATIONS_ENABLED,
-                Boolean.toString("PREMIUM".equals(normalizedPackageType))
-        );
+        applyModuleConfigPreset(company, "salon", normalizedPackageType);
+        seedGuestAppTenantType(company, "salon", normalizedPackageType);
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
@@ -765,7 +762,7 @@ public class SignupService {
 
         String normalizedTenantType = normalizeTenantConfigType(request.tenantType());
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizedTenantType);
-        seedGuestAppTenantType(company, normalizedTenantType);
+        seedGuestAppTenantType(company, normalizedTenantType, normalizedPackageType);
         applyModuleConfigPreset(company, normalizedTenantType, normalizedPackageType);
 
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
@@ -1766,27 +1763,52 @@ public class SignupService {
 
     private void applyModuleConfigPreset(Company company, String tenantType, String packageType) {
         String normalizedTenantType = normalizeTenantConfigType(tenantType);
-        boolean basicAllowed = hasMinPackage(packageType, "BASIC");
+        String normalizedPackage = normalizePackageType(packageType, "BASIC");
         boolean proAllowed = hasMinPackage(packageType, "PROFESSIONAL");
-        boolean premiumAllowed = "PREMIUM".equals(normalizePackageType(packageType, "BASIC"));
+        boolean premiumAllowed = "PREMIUM".equals(normalizedPackage);
+        boolean professionalDefaults = "PROFESSIONAL".equals(normalizedPackage) || "TRIAL".equals(normalizedPackage);
         boolean supportsOnlineSessions = "therapy".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
         boolean supportsGroupBookings = "gym".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
 
-        seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, Boolean.toString(basicAllowed && supportsOnlineSessions));
-        seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");
-        seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
+        seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED,
+                Boolean.toString(!professionalDefaults && supportsOnlineSessions));
+        seedSetting(company, SettingKey.NO_SHOW_ENABLED, Boolean.toString(!professionalDefaults));
+        seedSetting(company, SettingKey.WAITLIST_ENABLED, Boolean.toString(premiumAllowed));
+        seedSetting(company, SettingKey.CUSTOM_FIELDS_ENABLED, "false");
+        seedSetting(company, SettingKey.WEBSITE_WIDGET_ENABLED, "true");
+        seedSetting(company, SettingKey.BILLING_ENABLED, Boolean.toString(proAllowed));
+        seedSetting(company, SettingKey.BILLING_INVOICES_ENABLED, Boolean.toString(proAllowed));
+        seedSetting(company, SettingKey.BILLING_BANK_TRANSFER_ENABLED, Boolean.toString(proAllowed));
+        seedSetting(company, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, "false");
+        seedSetting(company, SettingKey.BILLING_PAYPAL_ENABLED, "false");
+        seedSetting(company, SettingKey.BILLING_GIFT_CARDS_ENABLED, Boolean.toString(proAllowed));
+        seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, Boolean.toString(proAllowed));
+        seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED,
+                Boolean.toString(proAllowed && !professionalDefaults));
         seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
-        seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, "false");
         seedSetting(company, SettingKey.LOCATIONS_ENABLED, Boolean.toString(premiumAllowed));
-        seedSetting(company, SettingKey.SPACES_ENABLED, Boolean.toString(proAllowed));
-        seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
-        seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
-        seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
+        seedSetting(company, SettingKey.SPACES_ENABLED, Boolean.toString(proAllowed && !professionalDefaults));
+        seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED,
+                Boolean.toString(proAllowed && !professionalDefaults && supportsGroupBookings));
+        seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED,
+                Boolean.toString(proAllowed && !professionalDefaults && supportsGroupBookings));
+        seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED,
+                Boolean.toString(proAllowed && !professionalDefaults && supportsGroupBookings));
         seedSetting(company, SettingKey.AI_BOOKING_ENABLED, "false");
+        seedSetting(company, SettingKey.NOTIFICATIONS_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_EMAIL_ALERTS_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_SMS_ALERTS_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED, "false");
+        seedSetting(company, SettingKey.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED, "true");
+        seedSetting(company, SettingKey.GOOGLE_CALENDAR_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.SCANNER_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.INBOX_ENABLED, Boolean.toString(premiumAllowed));
+        seedSetting(company, SettingKey.WHATSAPP_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.VIBER_MODULE_ENABLED, "false");
         seedDefaultEmailSenderSettings(company);
     }
 
-    private void seedGuestAppTenantType(Company company, String tenantType) {
+    private void seedGuestAppTenantType(Company company, String tenantType, String packageType) {
         String normalizedTenantType = normalizeTenantConfigType(tenantType);
         Map<String, Object> guestSettings = new LinkedHashMap<>();
         settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
@@ -1801,6 +1823,14 @@ public class SignupService {
                     }
                 });
         guestSettings.put("tenantType", normalizedTenantType);
+        boolean premiumDefaults = "PREMIUM".equals(normalizePackageType(packageType, "BASIC"));
+        guestSettings.put("guestAppEnabled", premiumDefaults);
+        guestSettings.put("walletEnabled", premiumDefaults);
+        guestSettings.put("ordersEnabled", premiumDefaults);
+        guestSettings.put("buyTabEnabled", premiumDefaults);
+        guestSettings.put("entitlementsEnabled", premiumDefaults);
+        guestSettings.put("inboxEnabled", premiumDefaults);
+        guestSettings.put("multipleServicesEnabled", false);
         try {
             seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, objectMapper.writeValueAsString(guestSettings));
         } catch (Exception e) {
@@ -1810,14 +1840,17 @@ public class SignupService {
 
     private void seedTenantDefaults(Company company, String companyName) {
         seedSetting(company, SettingKey.LOCATIONS_ENABLED, "false");
-        seedSetting(company, SettingKey.SPACES_ENABLED, "true");
+        seedSetting(company, SettingKey.SPACES_ENABLED, "false");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
         seedSetting(company, SettingKey.SERVICE_GROUPS_ENABLED, "true");
+        seedSetting(company, SettingKey.COURSES_ENABLED, "false");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
-        seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, "true");
-        seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");
-        seedSetting(company, SettingKey.WAITLIST_ENABLED, "true");
-        seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "true");
+        seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, "false");
+        seedSetting(company, SettingKey.WEBSITE_WIDGET_ENABLED, "true");
+        seedSetting(company, SettingKey.NO_SHOW_ENABLED, "false");
+        seedSetting(company, SettingKey.WAITLIST_ENABLED, "false");
+        seedSetting(company, SettingKey.CUSTOM_FIELDS_ENABLED, "false");
+        seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "false");
         seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
         seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
@@ -1826,9 +1859,30 @@ public class SignupService {
         seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED, "false");
         seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, "false");
         seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
+        seedSetting(company, SettingKey.CALENDAR_TIME_SCALE_MINUTES, "30");
+        seedSetting(company, SettingKey.DEFAULT_SERVICE_BREAK_MINUTES, "0");
+        seedSetting(company, SettingKey.WORKING_HOURS_START, "08:00");
+        seedSetting(company, SettingKey.WORKING_HOURS_END, "18:00");
         seedSetting(company, SettingKey.PERSONAL_TASK_PRESETS_JSON, "[]");
         seedSetting(company, SettingKey.INVOICE_COUNTER, "1");
         seedSetting(company, SettingKey.ORDER_COUNTER, "1");
+        seedSetting(company, SettingKey.DEFAULT_INVOICE_PRINT_FORMAT, "A4");
+        seedSetting(company, SettingKey.COMMUNICATION_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_EMAIL_ALERTS_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_SMS_ALERTS_ENABLED, "true");
+        seedSetting(company, SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED, "false");
+        seedSetting(company, SettingKey.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED, "true");
+        seedSetting(company, SettingKey.GOOGLE_CALENDAR_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.SCANNER_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.INBOX_ENABLED, "false");
+        seedSetting(company, SettingKey.WHATSAPP_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.VIBER_MODULE_ENABLED, "false");
+        seedSetting(company, SettingKey.AI_BOOKING_ENABLED, "false");
+        seedSetting(company, SettingKey.SECURITY_MODULE_ENABLED, "true");
+        seedSetting(company, SettingKey.SECURITY_SESSION_SECURITY_ENABLED, "true");
+        seedSetting(company, SettingKey.SECURITY_PASSKEYS_ENABLED, "false");
+        seedSetting(company, SettingKey.SECURITY_API_INTEGRATIONS_ENABLED, "false");
         seedSetting(company, SettingKey.COMPANY_NAME, companyName);
         seedSetting(company, SettingKey.COMPANY_ADDRESS, "");
         seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, "");

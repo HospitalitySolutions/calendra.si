@@ -1311,7 +1311,7 @@ export function AnalyticsPage() {
   }, [settingsQuery.data, me.email])
 
   const billingReportsEnabled = (settingsQuery.data?.BILLING_ENABLED ?? 'true') !== 'false'
-  const waitlistReportsEnabled = (settingsQuery.data?.WAITLIST_ENABLED ?? 'true') !== 'false'
+  const waitlistReportsEnabled = settingsQuery.data?.WAITLIST_ENABLED === 'true'
   const serviceGroupsReportsEnabled = (settingsQuery.data?.SERVICE_GROUPS_ENABLED ?? 'true') !== 'false'
 
   useEffect(() => {

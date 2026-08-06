@@ -438,7 +438,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const todosModuleEnabled = settings.TODOS_ENABLED !== 'false'
   const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== 'false'
-  const waitlistModuleEnabled = settings.WAITLIST_ENABLED !== 'false'
+  const waitlistModuleEnabled = settings.WAITLIST_ENABLED === 'true'
   const [meta, setMeta] = useState({ clients: [], users: [], locations: [], spaces: [], types: [] } as any)
   const [calendarMetaLoaded, setCalendarMetaLoaded] = useState(false)
   const EMPTY_ARR: any[] = useMemo(() => [], [])

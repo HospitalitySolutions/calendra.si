@@ -136,7 +136,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       return false
     }
   })()
-  const waitlistModuleEnabled = settings?.WAITLIST_ENABLED !== 'false'
+  const waitlistModuleEnabled = settings?.WAITLIST_ENABLED === 'true'
   const allDayDateRangeLabels = {
     startLabel: locale === 'sl' ? 'Od datuma' : 'From date',
     endLabel: locale === 'sl' ? 'Do datuma' : 'To date',

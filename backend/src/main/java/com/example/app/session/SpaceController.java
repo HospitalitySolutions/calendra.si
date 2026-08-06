@@ -53,7 +53,7 @@ public class SpaceController {
 
     @GetMapping
     public List<SpaceResponse> list(@AuthenticationPrincipal User me) {
-        return repo.findAllByCompanyId(me.getCompany().getId()).stream()
+        return repo.findSummariesByCompanyId(me.getCompany().getId()).stream()
                 .map(SpaceController::response)
                 .toList();
     }
@@ -99,6 +99,25 @@ public class SpaceController {
                         location.getName(),
                         location.getTimezone(),
                         location.isActive()
+                );
+        return new SpaceResponse(
+                space.getId(),
+                space.getName(),
+                space.getDescription(),
+                space.getCreatedAt(),
+                space.getUpdatedAt(),
+                locationResponse
+        );
+    }
+
+    private static SpaceResponse response(SpaceRepository.SpaceSummary space) {
+        SpaceLocationResponse locationResponse = space.getLocationId() == null
+                ? null
+                : new SpaceLocationResponse(
+                        space.getLocationId(),
+                        space.getLocationName(),
+                        space.getLocationTimezone(),
+                        Boolean.TRUE.equals(space.getLocationActive())
                 );
         return new SpaceResponse(
                 space.getId(),

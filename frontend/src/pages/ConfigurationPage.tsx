@@ -1051,6 +1051,18 @@ const setWorkingHoursFallback = (start: string, end: string) => {
 };
 
 const PERSONAL_TASK_PRESETS_KEY = "PERSONAL_TASK_PRESETS_JSON";
+const configurationDraftSnapshot = (
+  settings: Record<string, string>,
+  guestApp: GuestAppSettingsForm,
+  presets: PersonalTaskPreset[],
+) =>
+  JSON.stringify({
+    settings: Object.entries(settings).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+    guestApp,
+    presets,
+  });
 const DEFAULT_PERSONAL_TASK_COLOR = "#F97316";
 const GUEST_PUBLIC_NAME_MAX_LENGTH = 120;
 const GUEST_PUBLIC_ADDRESS_MAX_LENGTH = 200;
@@ -1339,6 +1351,7 @@ export function ConfigurationPage() {
   const [paymentCapabilitiesLoaded, setPaymentCapabilitiesLoaded] =
     useState(false);
   const [modulesDraft, setModulesDraft] = useState<ModulesDraft | null>(null);
+  const committedConfigurationSnapshotRef = useRef("");
   const [expandedModuleRows, setExpandedModuleRows] = useState<string[]>(
     DEFAULT_EXPANDED_MODULE_ROWS,
   );
@@ -1406,19 +1419,26 @@ export function ConfigurationPage() {
       return configured;
     return "PROFESSIONAL";
   }, [configuredSubscriptionPackage]);
-  const locationsFeatureEntitled = useMemo(() => {
-    if (isPlatformAdminTenant || activeSubscriptionPackage === "PREMIUM") {
-      return true;
-    }
-    if (activeSubscriptionPackage !== "CUSTOM") return false;
-    return String(settings.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS || "")
-      .split(/[,;\s]+/)
-      .some((key) => key.trim().toUpperCase() === "LOCATIONS_ENABLED");
-  }, [
-    activeSubscriptionPackage,
-    isPlatformAdminTenant,
-    settings.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS,
-  ]);
+  const selectedCustomFeatureKeys = useMemo(
+    () =>
+      new Set(
+        String(settings.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS || "")
+          .split(/[,;\s]+/)
+          .map((key) => key.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    [settings.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS],
+  );
+  const premiumFeatureEntitled = (featureKey: string) =>
+    isPlatformAdminTenant ||
+    activeSubscriptionPackage === "PREMIUM" ||
+    (activeSubscriptionPackage === "CUSTOM" &&
+      selectedCustomFeatureKeys.has(featureKey));
+  const locationsFeatureEntitled = premiumFeatureEntitled("LOCATIONS_ENABLED");
+  const waitlistFeatureEntitled = premiumFeatureEntitled("WAITLIST_ENABLED");
+  const customFieldsFeatureEntitled = premiumFeatureEntitled(
+    "CUSTOM_FIELDS_ENABLED",
+  );
   const subscriptionTrialStart = String(
     settings.BILLING_SUBSCRIPTION_START || "",
   ).trim();
@@ -1535,12 +1555,14 @@ export function ConfigurationPage() {
   ): Pick<ModulesDesignLine, "hidden" | "visibilityControl"> => ({
     hidden:
       !isPlatformAdminTenant &&
-      !moduleVisibilityAllowed(
-        moduleVisibilityRules,
-        key,
-        activeSubscriptionPackage,
-        companyTenantType,
-      ),
+      ((activeSubscriptionPackage === "CUSTOM" &&
+        !selectedCustomFeatureKeys.has(String(key).toUpperCase())) ||
+        !moduleVisibilityAllowed(
+          moduleVisibilityRules,
+          key,
+          activeSubscriptionPackage,
+          companyTenantType,
+        )),
     visibilityControl: moduleVisibilityControl(key),
   });
 
@@ -2644,11 +2666,17 @@ export function ConfigurationPage() {
   const notificationsEnabledCommitted =
     settingsLoaded && settings.NOTIFICATIONS_ENABLED !== "false";
   const waitlistEnabledCommitted =
-    settingsLoaded && settings.WAITLIST_ENABLED !== "false";
+    settingsLoaded &&
+    waitlistFeatureEntitled &&
+    settings.WAITLIST_ENABLED === "true";
+  const customFieldsEnabledCommitted =
+    settingsLoaded &&
+    customFieldsFeatureEntitled &&
+    settings.CUSTOM_FIELDS_ENABLED === "true";
   const websiteWidgetEnabledCommitted =
     settingsLoaded && settings.WEBSITE_WIDGET_ENABLED !== "false";
   const googleCalendarModuleEnabledCommitted =
-    settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== "false";
+    settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED === "true";
   const locationsEnabledCommitted =
     settingsLoaded && settings.LOCATIONS_ENABLED === "true";
   const spacesEnabledCommitted =
@@ -2672,8 +2700,16 @@ export function ConfigurationPage() {
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
     if (tabId === "website") return false;
-    if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "customFields" || tabId === "integrations")
+    if (tabId === "company" || tabId === "modules" || tabId === "reservationRules")
       return true;
+    if (tabId === "customFields") return customFieldsEnabledCommitted;
+    if (tabId === "integrations")
+      return (
+        settingsLoaded &&
+        paymentCapabilitiesLoaded &&
+        (googleCalendarModuleEnabledCommitted ||
+          stripePaymentsAvailableCommitted)
+      );
     if (!settingsLoaded) return false;
     if (tabId === "booking") return settingsLoaded;
     if (tabId === "billing") return billingEnabledCommitted;
@@ -3141,6 +3177,14 @@ export function ConfigurationPage() {
         parsedWebsiteBookingRules,
         nextWebsiteSettings.paymentOnLocation,
       );
+    const nextPersonalTaskPresets = parsePersonalTaskPresets(
+      settingsData[PERSONAL_TASK_PRESETS_KEY],
+    );
+    committedConfigurationSnapshotRef.current = configurationDraftSnapshot(
+      nextSettings,
+      nextGuestApp,
+      nextPersonalTaskPresets,
+    );
     setSettings(nextSettings);
     setSubscriptionBillingInterval(
       String(
@@ -3230,9 +3274,7 @@ export function ConfigurationPage() {
     setGuestBookingRules(nextGuestBookingRules);
     setWebsiteSettings(nextWebsiteSettings);
     setWebsiteBookingRules(nextWebsiteBookingRules);
-    setPersonalTaskPresets(
-      parsePersonalTaskPresets(settingsData[PERSONAL_TASK_PRESETS_KEY]),
-    );
+    setPersonalTaskPresets(nextPersonalTaskPresets);
     setLocations(locationsRes.data || []);
     setLocationIssuerOptions((locationIssuersRes.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active));
     setSpaces(spacesRes.data || []);
@@ -3379,6 +3421,16 @@ export function ConfigurationPage() {
       JSON.stringify(modulesDraft) !== JSON.stringify(committedModulesDraft),
     [tab, modulesDraft, committedModulesDraft],
   );
+  const configurationDraftDirty = useMemo(
+    () =>
+      settingsLoaded &&
+      configurationDraftSnapshot(
+        settings,
+        guestAppSettings,
+        personalTaskPresets,
+      ) !== committedConfigurationSnapshotRef.current,
+    [settingsLoaded, settings, guestAppSettings, personalTaskPresets],
+  );
 
   const configNavItems = useMemo((): ConfigNavItem[] => {
     const items: ConfigNavItem[] = [
@@ -3404,6 +3456,10 @@ export function ConfigurationPage() {
     billingEnabledCommitted,
     notificationsEnabledCommitted,
     spacesEnabledCommitted,
+    paymentCapabilitiesLoaded,
+    googleCalendarModuleEnabledCommitted,
+    stripePaymentsAvailableCommitted,
+    customFieldsEnabledCommitted,
   ]);
 
   useEffect(() => {
@@ -3494,9 +3550,12 @@ export function ConfigurationPage() {
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           TYPES_ENABLED: modulesDraftForSave.TYPES_ENABLED,
           DEFAULT_SERVICE_BREAK_MINUTES: modulesDraftForSave.DEFAULT_SERVICE_BREAK_MINUTES,
+          SERVICE_GROUPS_ENABLED: modulesDraftForSave.SERVICE_GROUPS_ENABLED,
           COURSES_ENABLED: modulesDraftForSave.COURSES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
+          WAITLIST_ENABLED: modulesDraftForSave.WAITLIST_ENABLED,
+          CUSTOM_FIELDS_ENABLED: modulesDraftForSave.CUSTOM_FIELDS_ENABLED,
           ONLINE_SESSION_BOOKING_ENABLED:
             modulesDraftForSave.ONLINE_SESSION_BOOKING_ENABLED,
           WEBSITE_WIDGET_ENABLED: modulesDraftForSave.WEBSITE_WIDGET_ENABLED,
@@ -3681,18 +3740,25 @@ export function ConfigurationPage() {
         WORKING_HOURS_END: data?.WORKING_HOURS_END || normalizedEnd,
         [PERSONAL_TASK_PRESETS_KEY]: String(persistedPresetsRaw || ""),
       };
+      const persistedGuestApp = parseGuestAppSettings(
+        merged[GUEST_APP_SETTINGS_KEY],
+      );
+      const persistedPersonalTaskPresets = parsePersonalTaskPresets(
+        String(persistedPresetsRaw || ""),
+      );
+      committedConfigurationSnapshotRef.current = configurationDraftSnapshot(
+        merged,
+        persistedGuestApp,
+        persistedPersonalTaskPresets,
+      );
       setSettings(merged);
-      setGuestAppSettings(
-        parseGuestAppSettings(merged[GUEST_APP_SETTINGS_KEY]),
-      );
-      setPersonalTaskPresets(
-        parsePersonalTaskPresets(String(persistedPresetsRaw || "")),
-      );
+      setGuestAppSettings(persistedGuestApp);
+      setPersonalTaskPresets(persistedPersonalTaskPresets);
       if (opts?.applyModulesDraft && modulesDraft && tab === "modules") {
         setModulesDraft(
           buildModulesDraftFromCommitted(
             merged,
-            parseGuestAppSettings(merged[GUEST_APP_SETTINGS_KEY]),
+            persistedGuestApp,
           ),
         );
       }
@@ -5232,6 +5298,9 @@ export function ConfigurationPage() {
         {
           id: "booking-waitlist",
           ...moduleVisibilityProps("WAITLIST_ENABLED"),
+          hidden:
+            moduleVisibilityProps("WAITLIST_ENABLED").hidden ||
+            !waitlistFeatureEntitled,
           icon: "calendar",
           title: locale === "sl" ? "Čakalne vrste" : "Waitlist",
           subtitle:
@@ -5243,11 +5312,31 @@ export function ConfigurationPage() {
             setModuleStringSetting("WAITLIST_ENABLED", checked),
         },
         {
+          id: "booking-custom-fields",
+          ...moduleVisibilityProps("CUSTOM_FIELDS_ENABLED"),
+          hidden:
+            moduleVisibilityProps("CUSTOM_FIELDS_ENABLED").hidden ||
+            !customFieldsFeatureEntitled,
+          icon: "sliders",
+          title: locale === "sl" ? "Polja po meri" : "Custom fields",
+          subtitle:
+            locale === "sl"
+              ? "Omogoči polja po meri in njihov zavihek v nastavitvah."
+              : "Enable custom fields and their configuration tab.",
+          checked: moduleOn("CUSTOM_FIELDS_ENABLED"),
+          onChange: (checked) =>
+            setModuleStringSetting("CUSTOM_FIELDS_ENABLED", checked),
+        },
+        {
           id: "booking-online-session-booking",
           ...moduleVisibilityProps("ONLINE_SESSION_BOOKING_ENABLED"),
           icon: "calendar",
-          title: "Online Session Booking",
-          subtitle: "Allow option to book guest to an online session.",
+          title:
+            locale === "sl" ? "Termini preko spleta" : "Online session booking",
+          subtitle:
+            locale === "sl"
+              ? "Omogoči rezervacijo termina, ki poteka preko spleta."
+              : "Allow guests to book an online session.",
           checked: moduleOn("ONLINE_SESSION_BOOKING_ENABLED"),
           onChange: (checked) =>
             setModuleStringSetting("ONLINE_SESSION_BOOKING_ENABLED", checked),
@@ -13481,7 +13570,9 @@ export function ConfigurationPage() {
                         </div>
                       ))}
                     </div>
-                    {(!isTabletConfigViewport || modulesDraftDirty) ? (
+                    {(!isTabletConfigViewport ||
+                      modulesDraftDirty ||
+                      configurationDraftDirty) ? (
                       <div className="gapp-savebar">
                         <button
                           type="button"

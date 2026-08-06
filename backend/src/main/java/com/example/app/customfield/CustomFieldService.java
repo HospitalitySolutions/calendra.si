@@ -1,6 +1,7 @@
 package com.example.app.customfield;
 
 import com.example.app.company.Company;
+import com.example.app.settings.TenantFeatureAccessService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,20 +30,23 @@ public class CustomFieldService {
     private final CustomFieldDefinitionRepository definitions;
     private final CustomFieldValueRepository values;
     private final ObjectMapper objectMapper;
+    private final TenantFeatureAccessService featureAccess;
 
     public CustomFieldService(
             CustomFieldDefinitionRepository definitions,
             CustomFieldValueRepository values,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TenantFeatureAccessService featureAccess
     ) {
         this.definitions = definitions;
         this.values = values;
         this.objectMapper = objectMapper;
+        this.featureAccess = featureAccess;
     }
 
     @Transactional(readOnly = true)
     public Map<Long, String> valuesForEntity(Long companyId, CustomFieldAppliesTo appliesTo, Long entityId) {
-        if (entityId == null) {
+        if (!featureAccess.areCustomFieldsEnabled(companyId) || entityId == null) {
             return Map.of();
         }
         Map<Long, Map<Long, String>> grouped = valuesForEntities(companyId, appliesTo, List.of(entityId));
@@ -51,7 +55,7 @@ public class CustomFieldService {
 
     @Transactional(readOnly = true)
     public Map<Long, Map<Long, String>> valuesForEntities(Long companyId, CustomFieldAppliesTo appliesTo, Collection<Long> entityIds) {
-        if (entityIds == null || entityIds.isEmpty()) {
+        if (!featureAccess.areCustomFieldsEnabled(companyId) || entityIds == null || entityIds.isEmpty()) {
             return Map.of();
         }
         Set<Long> ids = entityIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
@@ -76,7 +80,8 @@ public class CustomFieldService {
             Long entityId,
             Map<Long, String> rawValues
     ) {
-        if (company == null || company.getId() == null || entityId == null) {
+        if (company == null || company.getId() == null || entityId == null
+                || !featureAccess.areCustomFieldsEnabled(company.getId())) {
             return;
         }
         Map<Long, String> incoming = rawValues == null ? Collections.emptyMap() : rawValues;

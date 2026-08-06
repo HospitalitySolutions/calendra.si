@@ -17,6 +17,7 @@ export type ModulesDraft = {
   BOOKABLE_ENABLED: string;
   NO_SHOW_ENABLED: string;
   WAITLIST_ENABLED: string;
+  CUSTOM_FIELDS_ENABLED: string;
   ONLINE_SESSION_BOOKING_ENABLED: string;
   WEBSITE_WIDGET_ENABLED: string;
   AI_BOOKING_ENABLED: string;
@@ -100,6 +101,7 @@ const MODULE_VISIBILITY_KEYS = new Set<string>([
   "BOOKABLE_ENABLED",
   "NO_SHOW_ENABLED",
   "WAITLIST_ENABLED",
+  "CUSTOM_FIELDS_ENABLED",
   "ONLINE_SESSION_BOOKING_ENABLED",
   "WEBSITE_WIDGET_ENABLED",
   "AI_BOOKING_ENABLED",
@@ -172,6 +174,8 @@ const defaultModuleVisibilityPackage = (
 ): ModuleVisibilityPackage => {
   switch (key) {
     case "LOCATIONS_ENABLED":
+    case "WAITLIST_ENABLED":
+    case "CUSTOM_FIELDS_ENABLED":
       return "PREMIUM";
     case "BILLING_ENABLED":
     case "MULTIPLE_COMPANIES_ENABLED":
@@ -289,12 +293,17 @@ export const buildModulesDraftFromCommitted = (
   ),
   COURSES_ENABLED: modulesStringSetting(s, "COURSES_ENABLED", true),
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === "true" ? "true" : "false",
-  NO_SHOW_ENABLED: modulesStringSetting(s, "NO_SHOW_ENABLED", true),
-  WAITLIST_ENABLED: modulesStringSetting(s, "WAITLIST_ENABLED", true),
+  NO_SHOW_ENABLED: modulesStringSetting(s, "NO_SHOW_ENABLED", false),
+  WAITLIST_ENABLED: modulesStringSetting(s, "WAITLIST_ENABLED", false),
+  CUSTOM_FIELDS_ENABLED: modulesStringSetting(
+    s,
+    "CUSTOM_FIELDS_ENABLED",
+    false,
+  ),
   ONLINE_SESSION_BOOKING_ENABLED: modulesStringSetting(
     s,
     "ONLINE_SESSION_BOOKING_ENABLED",
-    true,
+    false,
   ),
   WEBSITE_WIDGET_ENABLED: modulesStringSetting(
     s,
@@ -326,7 +335,7 @@ export const buildModulesDraftFromCommitted = (
   BILLING_ONLINE_CARD_PAYMENTS_ENABLED: modulesStringSetting(
     s,
     "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
-    true,
+    false,
   ),
   BILLING_BANK_TRANSFER_ENABLED: modulesStringSetting(
     s,
@@ -341,17 +350,17 @@ export const buildModulesDraftFromCommitted = (
   BILLING_GIFT_CARDS_ENABLED: modulesStringSetting(
     s,
     "BILLING_GIFT_CARDS_ENABLED",
-    false,
+    true,
   ),
   BILLING_FISCAL_CASH_REGISTER_ENABLED: modulesStringSetting(
     s,
     "BILLING_FISCAL_CASH_REGISTER_ENABLED",
-    false,
+    true,
   ),
   BILLING_ADVANCE_ENABLED: modulesStringSetting(
     s,
     "BILLING_ADVANCE_ENABLED",
-    true,
+    false,
   ),
   COMMUNICATION_ENABLED: modulesStringSetting(s, "COMMUNICATION_ENABLED", true),
   NOTIFICATIONS_ENABLED: modulesStringSetting(s, "NOTIFICATIONS_ENABLED", true),
@@ -363,12 +372,12 @@ export const buildModulesDraftFromCommitted = (
   NOTIFICATIONS_SMS_ALERTS_ENABLED: modulesStringSetting(
     s,
     "NOTIFICATIONS_SMS_ALERTS_ENABLED",
-    false,
+    true,
   ),
   NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesStringSetting(
     s,
     "NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED",
-    true,
+    false,
   ),
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesStringSetting(
     s,
@@ -378,12 +387,12 @@ export const buildModulesDraftFromCommitted = (
   GOOGLE_CALENDAR_MODULE_ENABLED: modulesStringSetting(
     s,
     "GOOGLE_CALENDAR_MODULE_ENABLED",
-    true,
+    false,
   ),
   SCANNER_MODULE_ENABLED: modulesStringSetting(
     s,
     "SCANNER_MODULE_ENABLED",
-    true,
+    false,
   ),
   INBOX_ENABLED: modulesStringSetting(s, "INBOX_ENABLED", true),
   WHATSAPP_MODULE_ENABLED: modulesStringSetting(
@@ -607,6 +616,7 @@ export const modulesDraftToSettingsPatch = (
   BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,
   NO_SHOW_ENABLED: draft.NO_SHOW_ENABLED,
   WAITLIST_ENABLED: draft.WAITLIST_ENABLED,
+  CUSTOM_FIELDS_ENABLED: draft.CUSTOM_FIELDS_ENABLED,
   ONLINE_SESSION_BOOKING_ENABLED: draft.ONLINE_SESSION_BOOKING_ENABLED,
   WEBSITE_WIDGET_ENABLED: draft.WEBSITE_WIDGET_ENABLED,
   AI_BOOKING_ENABLED: draft.AI_BOOKING_ENABLED,

@@ -2,6 +2,7 @@ package com.example.app.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,14 +41,15 @@ class SpaceControllerResponseTest {
 
     @Test
     void listReturnsApiDtoWithoutSerializingTenantEntityGraph() throws Exception {
-        Location location = location(7L, "Glavna lokacija");
-        Space space = new Space();
-        space.setId(11L);
-        space.setCompany(company);
-        space.setLocation(location);
-        space.setName("Soba 1");
-        space.setDescription("Prvo nadstropje");
-        when(repo.findAllByCompanyId(42L)).thenReturn(List.of(space));
+        SpaceRepository.SpaceSummary space = mock(SpaceRepository.SpaceSummary.class);
+        when(space.getId()).thenReturn(11L);
+        when(space.getName()).thenReturn("Soba 1");
+        when(space.getDescription()).thenReturn("Prvo nadstropje");
+        when(space.getLocationId()).thenReturn(7L);
+        when(space.getLocationName()).thenReturn("Glavna lokacija");
+        when(space.getLocationTimezone()).thenReturn("Europe/Ljubljana");
+        when(space.getLocationActive()).thenReturn(true);
+        when(repo.findSummariesByCompanyId(42L)).thenReturn(List.of(space));
 
         List<SpaceController.SpaceResponse> response = controller.list(me);
 

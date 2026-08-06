@@ -136,7 +136,7 @@ export default function App() {
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
-  const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(true)
+  const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(false)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
 
 
@@ -198,7 +198,7 @@ export default function App() {
       setBillingModuleEnabled(true)
       setInboxModuleEnabled(true)
       setScannerModuleEnabled(true)
-      setWaitlistModuleEnabled(true)
+      setWaitlistModuleEnabled(false)
       return
     }
 
@@ -210,7 +210,7 @@ export default function App() {
             setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
             setInboxModuleEnabled(res.data?.INBOX_ENABLED !== 'false')
             setScannerModuleEnabled(res.data?.SCANNER_MODULE_ENABLED !== 'false')
-            setWaitlistModuleEnabled(res.data?.WAITLIST_ENABLED !== 'false')
+            setWaitlistModuleEnabled(res.data?.WAITLIST_ENABLED === 'true')
           }
         })
         .catch(() => {
@@ -218,7 +218,7 @@ export default function App() {
             setBillingModuleEnabled(true)
             setInboxModuleEnabled(true)
             setScannerModuleEnabled(true)
-            setWaitlistModuleEnabled(true)
+            setWaitlistModuleEnabled(false)
           }
         })
     }

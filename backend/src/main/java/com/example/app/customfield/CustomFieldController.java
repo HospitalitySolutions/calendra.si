@@ -1,5 +1,7 @@
 package com.example.app.customfield;
 
+import com.example.app.settings.TenantFeatureAccessService;
+import com.example.app.user.Role;
 import com.example.app.user.User;
 import java.time.Instant;
 import java.util.List;
@@ -23,15 +25,18 @@ public class CustomFieldController {
     private final CustomFieldDefinitionRepository definitions;
     private final CustomFieldValueRepository values;
     private final CustomFieldService customFieldService;
+    private final TenantFeatureAccessService featureAccess;
 
     public CustomFieldController(
             CustomFieldDefinitionRepository definitions,
             CustomFieldValueRepository values,
-            CustomFieldService customFieldService
+            CustomFieldService customFieldService,
+            TenantFeatureAccessService featureAccess
     ) {
         this.definitions = definitions;
         this.values = values;
         this.customFieldService = customFieldService;
+        this.featureAccess = featureAccess;
     }
 
     public record CustomFieldDefinitionRequest(
@@ -65,6 +70,7 @@ public class CustomFieldController {
             @RequestParam(required = false) CustomFieldAppliesTo appliesTo,
             @AuthenticationPrincipal User me
     ) {
+        requireEnabled(me);
         var rows = appliesTo == null
                 ? definitions.findAllByCompanyIdOrderByAppliesToAscSortOrderAscNameAscIdAsc(me.getCompany().getId())
                 : definitions.findAllByCompanyIdAndAppliesToOrderBySortOrderAscNameAscIdAsc(me.getCompany().getId(), appliesTo);
@@ -74,6 +80,7 @@ public class CustomFieldController {
     @PostMapping
     @Transactional
     public CustomFieldDefinitionResponse create(@RequestBody CustomFieldDefinitionRequest req, @AuthenticationPrincipal User me) {
+        requireEnabled(me);
         var row = new CustomFieldDefinition();
         row.setCompany(me.getCompany());
         apply(row, req, true);
@@ -87,6 +94,7 @@ public class CustomFieldController {
             @RequestBody CustomFieldDefinitionRequest req,
             @AuthenticationPrincipal User me
     ) {
+        requireEnabled(me);
         var row = definitions.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         apply(row, req, false);
@@ -96,6 +104,7 @@ public class CustomFieldController {
     @DeleteMapping("/{id}")
     @Transactional
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        requireEnabled(me);
         var row = definitions.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         values.deleteAllByCompanyIdAndFieldDefinitionId(me.getCompany().getId(), row.getId());
@@ -122,6 +131,13 @@ public class CustomFieldController {
         row.setSortOrder(req.sortOrder() == null ? 0 : req.sortOrder());
         row.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
         row.setOptionsJson(customFieldService.serializeOptions(req.options()));
+    }
+
+    private void requireEnabled(User me) {
+        if (me == null || me.getCompany() == null ||
+                (me.getRole() != Role.SUPER_ADMIN && !featureAccess.areCustomFieldsEnabled(me.getCompany().getId()))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Custom fields are disabled for this tenant.");
+        }
     }
 
     private CustomFieldDefinitionResponse toResponse(CustomFieldDefinition row) {

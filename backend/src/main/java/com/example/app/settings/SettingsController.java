@@ -56,6 +56,8 @@ public class SettingsController {
             SettingKey.NO_SHOW_ENABLED.name(),
             SettingKey.ONLINE_SESSION_BOOKING_ENABLED.name(),
             SettingKey.WEBSITE_WIDGET_ENABLED.name(),
+            SettingKey.WAITLIST_ENABLED.name(),
+            SettingKey.CUSTOM_FIELDS_ENABLED.name(),
             SettingKey.AI_BOOKING_ENABLED.name(),
             SettingKey.PERSONAL_ENABLED.name(),
             SettingKey.TODOS_ENABLED.name(),
@@ -254,6 +256,9 @@ public class SettingsController {
         if (normalizedPayload.containsKey(SettingKey.LOCATIONS_ENABLED.name())
                 && !locationFeatureEntitled(me, companyId)) {
             normalizedPayload.put(SettingKey.LOCATIONS_ENABLED.name(), "false");
+        }
+        if (!isSuperAdmin(me)) {
+            enforceTenantModuleVisibilityOnSave(companyId, normalizedPayload);
         }
         boolean workspaceProjectionRequested = workspaceSubscriptions != null && "true".equalsIgnoreCase(
                 String.valueOf(payload.get("__workspaceSubscriptionProjection")));
@@ -741,13 +746,37 @@ public class SettingsController {
         }
         String tenantPackage = values.getOrDefault(SettingKey.SIGNUP_PACKAGE_NAME.name(), "BASIC");
         String tenantConfigType = normalizeModuleConfigType(values.get(SettingKey.MODULE_CONFIG_TYPE.name()));
+        Set<String> selectedCustomFeatures = parseFeatureKeyCsv(
+                values.get(SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS.name()));
+        boolean customPackage = "CUSTOM".equals(normalizeTenantPackage(tenantPackage));
         Map<String, Map<String, Object>> finalRules = rules;
         MODULE_VISIBILITY_SETTING_KEYS.forEach(moduleKey -> {
             Map<String, Object> rule = finalRules.get(moduleKey);
-            if (moduleVisibleForTenant(moduleKey, rule, tenantPackage, tenantConfigType)) {
+            if ((!customPackage || selectedCustomFeatures.contains(moduleKey))
+                    && moduleVisibleForTenant(moduleKey, rule, tenantPackage, tenantConfigType)) {
                 return;
             }
             values.put(moduleKey, "false");
+        });
+    }
+
+    private void enforceTenantModuleVisibilityOnSave(Long companyId, Map<String, String> normalizedPayload) {
+        Map<String, String> effective = repository.findAllByCompanyId(companyId).stream()
+                .filter(s -> isKnownSettingKey(s.getKey()))
+                .collect(java.util.stream.Collectors.toMap(
+                        AppSetting::getKey,
+                        s -> decodeForRead(s.getKey(), s.getValue()),
+                        (a, b) -> b,
+                        LinkedHashMap::new
+                ));
+        effective.putAll(normalizedPayload);
+        latestGlobalSettingValue(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON)
+                .ifPresent(v -> effective.put(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name(), v));
+        applyPlatformModuleVisibilityRules(effective);
+        MODULE_VISIBILITY_SETTING_KEYS.forEach(moduleKey -> {
+            if ("false".equalsIgnoreCase(effective.get(moduleKey))) {
+                normalizedPayload.put(moduleKey, "false");
+            }
         });
     }
 
@@ -766,7 +795,7 @@ public class SettingsController {
 
     private static String defaultModuleVisibilityPackage(String moduleKey) {
         return switch (moduleKey) {
-            case "LOCATIONS_ENABLED" -> "PREMIUM";
+            case "LOCATIONS_ENABLED", "WAITLIST_ENABLED", "CUSTOM_FIELDS_ENABLED" -> "PREMIUM";
             case "BILLING_ENABLED",
                     "MULTIPLE_COMPANIES_ENABLED",
                     "BILLING_INVOICES_ENABLED",
@@ -792,6 +821,25 @@ public class SettingsController {
             case "PROFESSIONAL", "PRO", "TRIAL" -> 2;
             default -> 1;
         };
+    }
+
+    private static String normalizeTenantPackage(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "CUSTOM" -> "CUSTOM";
+            case "PREMIUM" -> "PREMIUM";
+            case "PROFESSIONAL", "PRO", "TRIAL" -> "PROFESSIONAL";
+            default -> "BASIC";
+        };
+    }
+
+    private static Set<String> parseFeatureKeyCsv(String raw) {
+        if (raw == null || raw.isBlank()) return Set.of();
+        return Arrays.stream(raw.split("[,;\\s]+"))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(value -> value.toUpperCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     private static String normalizeModuleVisibilityPackage(Object raw) {
