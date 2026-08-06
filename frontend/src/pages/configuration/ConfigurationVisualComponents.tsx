@@ -108,7 +108,10 @@ export type ModulesDesignIconKind =
   | "key"
   | "link"
   | "sliders"
-  | "scanner";
+  | "scanner"
+  | "settings"
+  | "customFields"
+  | "language";
 
 export type ModulesDesignLine = {
   id: string;
@@ -121,6 +124,7 @@ export type ModulesDesignLine = {
   onChange?: (checked: boolean) => void;
   valueControl?: ReactNode;
   visibilityControl?: ReactNode;
+  className?: string;
   children?: ModulesDesignLine[];
 };
 
@@ -282,6 +286,23 @@ export function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
           <path d="M7 20H5a1 1 0 0 1-1-1v-2" {...common} />
           <path d="M7 8h10M7 12h10M7 16h6" {...common} />
         </>
+      ) : kind === "settings" ? (
+        <>
+          <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" {...common} />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21h-4v-.08A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.4v-4h.12A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.66 3.8l.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6A1.7 1.7 0 0 0 10 2.52V2.4h4v.12A1.7 1.7 0 0 0 15 4.2a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.08.4h.12v4h-.12a1.7 1.7 0 0 0-1.68 1Z" {...common} />
+        </>
+      ) : kind === "customFields" ? (
+        <>
+          <rect x="4" y="5" width="6" height="6" rx="1.2" {...common} />
+          <rect x="14" y="5" width="6" height="6" rx="1.2" {...common} />
+          <rect x="4" y="15" width="6" height="4" rx="1.2" {...common} />
+          <path d="M14 16h6M14 19h4" {...common} />
+        </>
+      ) : kind === "language" ? (
+        <>
+          <circle cx="12" cy="12" r="9" {...common} />
+          <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" {...common} />
+        </>
       ) : (
         <>
           <path d="M9.5 14.5 14.5 9.5" {...common} />
@@ -317,6 +338,7 @@ export function ModulesDesignSettingLine({
     hasChildren ? "has-children" : "",
     hasValueControl ? "is-value-row" : "",
     disabled ? "is-disabled" : "",
+    line.className || "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -421,7 +443,7 @@ export function ModulesDesignGroupCard({
 }) {
   const visibleRows = group.rows.filter((line) => !line.hidden);
   const [compactExpanded, setCompactExpanded] = useState(
-    group.id === "booking",
+    group.id === "other",
   );
   if (visibleRows.length === 0) return null;
 

@@ -70,7 +70,7 @@ import googleCalendarLogo from "../assets/google-calendar-logo.png";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../components/GuestConfigSaveIcon";
 import { ModernTimePicker } from "../components/ModernTimePicker";
 import { ReferAFriendCard } from "../components/ReferAFriendCard";
-import { useLocale } from "../locale";
+import { useLocale, type AppLocale } from "../locale";
 import { getCalendraLegalLinks } from "../lib/legalLinks";
 import {
   getDefaultAllowedRoute,
@@ -1153,7 +1153,7 @@ export function ConfigurationPage() {
   ]);
   const navigate = useNavigate();
   const query = useQuery();
-  const { t, locale } = useLocale();
+  const { t, locale, setLocale } = useLocale();
   const { showToast } = useToast();
 
   const [tab, setTab] = useState<Tab>("company");
@@ -5311,22 +5311,6 @@ export function ConfigurationPage() {
             setModuleStringSetting("WAITLIST_ENABLED", checked),
         },
         {
-          id: "booking-custom-fields",
-          ...moduleVisibilityProps("CUSTOM_FIELDS_ENABLED"),
-          hidden:
-            moduleVisibilityProps("CUSTOM_FIELDS_ENABLED").hidden ||
-            !customFieldsFeatureEntitled,
-          icon: "sliders",
-          title: locale === "sl" ? "Polja po meri" : "Custom fields",
-          subtitle:
-            locale === "sl"
-              ? "Omogoči polja po meri in njihov zavihek v nastavitvah."
-              : "Enable custom fields and their configuration tab.",
-          checked: moduleOn("CUSTOM_FIELDS_ENABLED"),
-          onChange: (checked) =>
-            setModuleStringSetting("CUSTOM_FIELDS_ENABLED", checked),
-        },
-        {
           id: "booking-online-session-booking",
           ...moduleVisibilityProps("ONLINE_SESSION_BOOKING_ENABLED"),
           icon: "calendar",
@@ -6070,6 +6054,78 @@ export function ConfigurationPage() {
           checked: moduleOn("SCANNER_MODULE_ENABLED"),
           onChange: (checked) =>
             setModuleStringSetting("SCANNER_MODULE_ENABLED", checked),
+        },
+      ],
+    },
+    {
+      id: "other",
+      title:
+        locale === "sl" ? "Ostalo" : locale === "sr" ? "Ostalo" : "Other",
+      subtitle:
+        locale === "sl"
+          ? "Dodatne nastavitve aplikacije."
+          : locale === "sr"
+            ? "Dodatna podešavanja aplikacije."
+            : "Additional application settings.",
+      icon: "settings",
+      tone: "blue",
+      checked: true,
+      hideSwitch: true,
+      onChange: () => undefined,
+      rows: [
+        {
+          id: "other-custom-fields",
+          ...moduleVisibilityProps("CUSTOM_FIELDS_ENABLED"),
+          hidden:
+            moduleVisibilityProps("CUSTOM_FIELDS_ENABLED").hidden ||
+            !customFieldsFeatureEntitled,
+          icon: "customFields",
+          title:
+            locale === "sl"
+              ? "Polja po meri"
+              : locale === "sr"
+                ? "Prilagođena polja"
+                : "Custom fields",
+          subtitle:
+            locale === "sl"
+              ? "Omogočite polja po meri za beleženje dodatnih informacij."
+              : locale === "sr"
+                ? "Omogućite prilagođena polja za dodatne informacije."
+                : "Enable custom fields for additional information.",
+          checked: moduleOn("CUSTOM_FIELDS_ENABLED"),
+          onChange: (checked) =>
+            setModuleStringSetting("CUSTOM_FIELDS_ENABLED", checked),
+        },
+        {
+          id: "other-language",
+          className: "is-language-setting",
+          icon: "language",
+          title:
+            locale === "sl" ? "Jezik" : locale === "sr" ? "Jezik" : "Language",
+          subtitle:
+            locale === "sl"
+              ? "Izberite privzeti jezik aplikacije."
+              : locale === "sr"
+                ? "Izaberite podrazumevani jezik aplikacije."
+                : "Select the default application language.",
+          valueControl: (
+            <select
+              className="modules-design-language-select"
+              value={locale}
+              onChange={(event) => setLocale(event.target.value as AppLocale)}
+              aria-label={
+                locale === "sl"
+                  ? "Izberite jezik aplikacije"
+                  : locale === "sr"
+                    ? "Izaberite jezik aplikacije"
+                    : "Select application language"
+              }
+            >
+              <option value="sl">Slovenščina</option>
+              <option value="en">English</option>
+              <option value="sr">Srpski</option>
+            </select>
+          ),
         },
       ],
     },
@@ -13541,7 +13597,7 @@ export function ConfigurationPage() {
                       {[
                         ["booking", "services"],
                         ["billing", "communication"],
-                        ["guest-app", "integrations"],
+                        ["guest-app", "integrations", "other"],
                       ].map((columnIds) => (
                         <div
                           key={columnIds.join("-")}

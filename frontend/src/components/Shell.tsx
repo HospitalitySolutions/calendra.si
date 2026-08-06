@@ -6,7 +6,6 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
 import { useLocale } from '../locale'
-import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
 import { OnboardingTour } from './OnboardingTour'
@@ -353,17 +352,14 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
-  const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [, setSessionUserBump] = useState(0)
-  const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [supportEmailModalOpen, setSupportEmailModalOpen] = useState(false)
   const [referAFriendModalOpen, setReferAFriendModalOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [unitSwitching, setUnitSwitching] = useState(false)
   const [businessLocations, setBusinessLocations] = useState<Location[]>([])
-  const configRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
   const profileAvatarInputRef = useRef<HTMLInputElement>(null)
   const mainAreaRef = useRef<HTMLDivElement>(null)
@@ -506,12 +502,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (configRef.current && !configRef.current.contains(e.target as Node)) setConfigOpen(false)
       if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false)
     }
-    if (configOpen || accountOpen) document.addEventListener('click', handleClickOutside)
+    if (accountOpen) document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
-  }, [configOpen, accountOpen])
+  }, [accountOpen])
 
   useLayoutEffect(() => {
     setMobileNavOpen(false)
@@ -1033,22 +1028,6 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                 <span className="mobile-nav-overlay-link-label">{t('tabSecurity')}</span>
               </NavLink>
             )}
-            <button
-              type="button"
-              className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
-              onClick={() => {
-                setLanguageModalOpen(true)
-                setMobileNavOpen(false)
-              }}
-            >
-              <span className="mobile-nav-overlay-link-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                </svg>
-              </span>
-              <span className="mobile-nav-overlay-link-label">{t('language')}</span>
-            </button>
           </div>
         </div>
         <footer className="mobile-nav-overlay-footer">
@@ -1115,7 +1094,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
 
   const staffNotificationCenter = (
     <NotificationCenter
-      onOpen={() => { setConfigOpen(false); setAccountOpen(false) }}
+      onOpen={() => { setAccountOpen(false) }}
       todosEnabled={showHeaderTodo}
       todos={visibleTodos}
       onOpenTodo={openTodo}
@@ -1127,45 +1106,32 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const headerActionsRest = (
     <>
       {!appHeaderMobileRow && staffNotificationCenter}
-      <div className="config-cog-wrap" ref={configRef}>
-        <button
-          type="button"
-          className="config-cog"
-          data-onboarding-nav="configuration"
-          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setConfigOpen((o) => !o); setAccountOpen(false) }}
-          title={t('settingsGroup')}
-          aria-label={t('settingsGroup')}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
-        {configOpen && (
-          <div className="config-dropdown">
-            {canViewConfiguration && (
-              <button type="button" className="config-dropdown-item" onClick={() => { navigate('/configuration'); setConfigOpen(false) }}>
-                {t('settingsGroup')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="config-dropdown-item"
-              onClick={() => {
-                setConfigOpen(false)
-                setLanguageModalOpen(true)
-              }}
-            >
-              {t('language')}
-            </button>
-          </div>
-        )}
-      </div>
+      {canViewConfiguration && (
+        <div className="config-cog-wrap">
+          <button
+            type="button"
+            className="config-cog"
+            data-onboarding-nav="configuration"
+            onClick={() => {
+              window.dispatchEvent(new Event('close-staff-notifications'))
+              setAccountOpen(false)
+              navigate('/configuration')
+            }}
+            title={t('settingsGroup')}
+            aria-label={t('settingsGroup')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+      )}
       <div className="header-credentials-wrap" ref={accountRef}>
         <button
           type="button"
           className="header-credentials-trigger"
-          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setAccountOpen((o) => !o); setConfigOpen(false) }}
+          onClick={() => { window.dispatchEvent(new Event('close-staff-notifications')); setAccountOpen((o) => !o) }}
           title={displayName}
           aria-expanded={accountOpen}
           aria-haspopup="dialog"
@@ -1686,7 +1652,6 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}
-      {languageModalOpen && <LanguageModal onClose={() => setLanguageModalOpen(false)} />}
       {supportEmailModalOpen && <SupportEmailModal locale={locale} onClose={() => setSupportEmailModalOpen(false)} />}
       {referAFriendModalOpen && <ReferAFriendModal onClose={() => setReferAFriendModalOpen(false)} />}
       <OnboardingTour

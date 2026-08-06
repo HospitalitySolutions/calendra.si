@@ -1111,6 +1111,24 @@ a.config-nav-item {
     cursor: not-allowed;
 }
 .modules-design-setting-line.is-subparameter:not(.has-children) .modules-design-row-chevron { display: none; }
+.modules-design-language-select {
+    width: min(260px, 100%);
+    min-height: 40px;
+    padding: 0 38px 0 13px;
+    border: 1px solid #d5deea;
+    border-radius: 11px;
+    background: #ffffff;
+    color: #14213d;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.modules-design-language-select:focus {
+    outline: none;
+    border-color: #2f80ed;
+    box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.14);
+}
 .modules-design-setting-icon {
     display: grid;
     place-items: center;
@@ -1330,7 +1348,8 @@ a.config-nav-item {
 .modules-design-group-card--id-billing,
 .modules-design-group-card--id-communication,
 .modules-design-group-card--id-guest-app,
-.modules-design-group-card--id-integrations {
+.modules-design-group-card--id-integrations,
+.modules-design-group-card--id-other {
     grid-column: auto;
     grid-row: auto;
 }
@@ -1623,6 +1642,56 @@ a.config-nav-item {
         border-radius: 15px;
         font-size: 16px;
         box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+    }
+}
+
+@media (max-width: 1024px) {
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-settings-panel {
+        display: block;
+        margin: 0;
+        border: 0;
+        border-top: 1px solid #d6e5f4;
+        border-radius: 0;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-setting-line {
+        min-height: 86px;
+        padding: 15px 18px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-setting-copy > span {
+        display: block;
+        margin-top: 4px;
+        color: #71809a;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-setting-copy strong {
+        font-size: 14px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-setting-line.is-language-setting {
+        grid-template-columns: 28px minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        padding-bottom: 18px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .is-language-setting .modules-design-row-control {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+        margin-top: 4px;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-language-select {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 12px;
+        font-size: 15px;
     }
 }
 
