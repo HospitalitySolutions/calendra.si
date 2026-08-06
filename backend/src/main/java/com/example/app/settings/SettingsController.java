@@ -761,15 +761,14 @@ public class SettingsController {
     }
 
     private void enforceTenantModuleVisibilityOnSave(Long companyId, Map<String, String> normalizedPayload) {
-        Map<String, String> effective = repository.findAllByCompanyId(companyId).stream()
-                .filter(s -> isKnownSettingKey(s.getKey()))
-                .collect(java.util.stream.Collectors.toMap(
-                        AppSetting::getKey,
-                        s -> decodeForRead(s.getKey(), s.getValue()),
-                        (a, b) -> b,
-                        LinkedHashMap::new
-                ));
-        effective.putAll(normalizedPayload);
+        // Visibility enforcement only depends on subscription metadata and the
+        // platform rules. Loading every tenant setting here duplicated the full
+        // settings query that save() already performs when returning all(me), and
+        // also broke the tenant-isolation interaction contract.
+        Map<String, String> effective = new LinkedHashMap<>(normalizedPayload);
+        loadStoredSettingIfAbsent(effective, companyId, SettingKey.SIGNUP_PACKAGE_NAME);
+        loadStoredSettingIfAbsent(effective, companyId, SettingKey.MODULE_CONFIG_TYPE);
+        loadStoredSettingIfAbsent(effective, companyId, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS);
         latestGlobalSettingValue(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON)
                 .ifPresent(v -> effective.put(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name(), v));
         applyPlatformModuleVisibilityRules(effective);
@@ -778,6 +777,18 @@ public class SettingsController {
                 normalizedPayload.put(moduleKey, "false");
             }
         });
+    }
+
+    private void loadStoredSettingIfAbsent(
+            Map<String, String> values,
+            Long companyId,
+            SettingKey key
+    ) {
+        if (values.containsKey(key.name())) return;
+        repository.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(value -> decodeForRead(key.name(), value))
+                .ifPresent(value -> values.put(key.name(), value));
     }
 
     private boolean moduleVisibleForTenant(String moduleKey, Map<String, Object> rule, String tenantPackage, String tenantConfigType) {
