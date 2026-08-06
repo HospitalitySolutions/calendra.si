@@ -10614,6 +10614,327 @@ export function ConfigurationPage() {
               .billing-bottom-bar { flex-direction: column; align-items: stretch; }
               .billing-bottom-status { margin-left: 0; }
             }
+
+            /* Mobile/tablet payment methods redesign. The tab band remains flush with
+               the shell header, uses the same blue gradient, and always fills the row. */
+            @media (max-width: 1024px) {
+              .billing-tabs-card {
+                width: 100%;
+                background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%) !important;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 1px 0 rgba(8,101,219,.32);
+              }
+              .billing-subtabs {
+                width: 100%;
+                padding: 0;
+                justify-content: center;
+                overflow: visible;
+              }
+              .billing-subtab {
+                flex: 1 1 0;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 16px 12px 19px;
+              }
+              .billing-subtab-content {
+                width: 100%;
+                justify-content: center;
+              }
+              .billing-subtab.active::after {
+                left: 32px;
+                right: 32px;
+              }
+              .billing-card.billing-table-card,
+              .billing-card.billing-channel-settings-card {
+                box-sizing: border-box;
+                width: calc(100% - 32px);
+                margin-left: 16px;
+                margin-right: 16px;
+                border-radius: 24px;
+                border-color: rgba(203, 213, 225, .82);
+                box-shadow: 0 18px 48px rgba(15, 23, 42, .08);
+              }
+              .billing-card.billing-table-card {
+                margin-top: 20px;
+              }
+              .billing-card-header {
+                padding: 24px 26px 20px;
+              }
+              .billing-method-table {
+                padding: 0 20px 22px;
+              }
+              .billing-channel-settings-card {
+                margin-top: 20px;
+                padding: 24px 26px;
+              }
+            }
+
+            /* Tablet layout: retain useful table structure while using the redesigned cards. */
+            @media (min-width: 701px) and (max-width: 1024px) {
+              .billing-method-head {
+                display: grid;
+                grid-template-columns: minmax(0, 1.2fr) minmax(0, .72fr) minmax(0, .8fr) minmax(0, 1.15fr) 52px;
+                gap: 12px;
+                padding: 16px 16px 12px;
+                font-size: 11.5px;
+              }
+              .billing-method-head--no-fiscal {
+                grid-template-columns: minmax(0, 1.25fr) minmax(0, .72fr) minmax(0, 1.2fr) 52px;
+              }
+              .billing-method-row {
+                grid-template-columns: minmax(0, 1.2fr) minmax(0, .72fr) minmax(0, .8fr) minmax(0, 1.15fr) 52px;
+                gap: 12px;
+                align-items: center;
+                min-height: 86px;
+                padding: 15px 16px;
+              }
+              .billing-method-row--no-fiscal {
+                grid-template-columns: minmax(0, 1.25fr) minmax(0, .72fr) minmax(0, 1.2fr) 52px;
+              }
+              .billing-method-name {
+                gap: 11px;
+                min-width: 0;
+              }
+              .billing-method-name > span:last-child {
+                min-width: 0;
+                overflow-wrap: anywhere;
+              }
+              .billing-method-icon {
+                width: 42px;
+                height: 42px;
+              }
+              .billing-pill {
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+              .billing-availability-select {
+                width: 100%;
+                min-width: 0;
+              }
+              .billing-action-btn {
+                width: 44px;
+                height: 44px;
+              }
+              .billing-row-actions {
+                justify-content: flex-end;
+              }
+              .billing-channel-settings-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+              }
+              .billing-channel-settings-actions .billing-primary-button {
+                min-width: 228px;
+              }
+            }
+
+            /* Phone layout: stacked payment cards with chips, full-width actions and
+               a combined settings card, matching the approved first preview. */
+            @media (max-width: 700px) {
+              .billing-subtab {
+                min-height: 64px;
+                padding-top: 17px;
+                padding-bottom: 19px;
+                font-size: 16px;
+              }
+              .billing-subtab.active::after {
+                left: 28px;
+                right: 28px;
+                height: 4px;
+              }
+              .billing-card.billing-table-card,
+              .billing-card.billing-channel-settings-card {
+                width: calc(100% - 20px);
+                margin-left: 10px;
+                margin-right: 10px;
+                border-radius: 26px;
+              }
+              .billing-card-header {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 24px 22px 20px;
+              }
+              .billing-card-header-main {
+                align-items: flex-start;
+                gap: 16px;
+              }
+              .billing-card-header-main .billing-section-icon {
+                width: 58px;
+                height: 58px;
+                border-radius: 18px;
+              }
+              .billing-card-header .billing-section-title {
+                font-size: 20px;
+                line-height: 1.2;
+              }
+              .billing-card-header .billing-section-kicker {
+                margin-top: 6px;
+                font-size: 14px;
+                line-height: 1.48;
+              }
+              .billing-card-header > .billing-primary-button {
+                width: 100%;
+                min-height: 52px;
+                border-radius: 14px;
+                font-size: 15px;
+              }
+              .billing-method-table {
+                padding: 0 16px 18px;
+              }
+              .billing-method-head {
+                display: none;
+              }
+              .billing-method-table-body {
+                display: grid;
+                gap: 0;
+                border: 1px solid #dce7f3;
+                border-radius: 20px;
+                overflow: hidden;
+                background: #fff;
+              }
+              .billing-method-row,
+              .billing-method-row--no-fiscal {
+                display: grid;
+                grid-template-columns: auto auto minmax(0, 1fr) 50px;
+                grid-template-areas:
+                  "name name name actions"
+                  "type fiscal spacer actions"
+                  "availability availability availability availability";
+                gap: 10px 10px;
+                align-items: start;
+                min-height: 0;
+                padding: 20px;
+                border-top: 1px solid #e5edf7;
+                background: #fff;
+              }
+              .billing-method-row--no-fiscal {
+                grid-template-areas:
+                  "name name name actions"
+                  "type type spacer actions"
+                  "availability availability availability availability";
+              }
+              .billing-method-row:first-of-type {
+                border-top: 0;
+              }
+              .billing-method-row:hover {
+                background: #fff;
+              }
+              .billing-method-name {
+                grid-area: name;
+                gap: 14px;
+                min-width: 0;
+                padding-right: 4px;
+                font-size: 17px;
+              }
+              .billing-method-name > span:last-child {
+                min-width: 0;
+                overflow-wrap: anywhere;
+              }
+              .billing-method-icon {
+                width: 48px;
+                height: 48px;
+              }
+              .billing-method-row > .billing-pill {
+                grid-area: type;
+                justify-self: start;
+                margin-left: 62px;
+              }
+              .billing-method-row > .billing-select {
+                grid-area: type;
+                width: 100%;
+                margin-left: 62px;
+              }
+              .billing-method-row > .billing-fiscal-toggle-button {
+                grid-area: fiscal;
+                justify-self: start;
+              }
+              .billing-method-row > .billing-availability-select,
+              .billing-method-row > .billing-availability-static {
+                grid-area: availability;
+                width: 100%;
+                max-width: none;
+                min-height: 48px;
+                margin-top: 4px;
+              }
+              .billing-method-row > .billing-availability-static {
+                min-height: auto;
+                padding-left: 62px;
+                font-size: 14px;
+              }
+              .billing-row-actions {
+                grid-area: actions;
+                justify-self: end;
+                align-self: start;
+                justify-content: flex-end;
+              }
+              .billing-action-btn {
+                width: 48px;
+                height: 48px;
+                border-radius: 14px;
+              }
+              .billing-row-actions:has(.billing-secondary-button) {
+                grid-area: availability;
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-top: 4px;
+              }
+              .billing-row-actions:has(.billing-secondary-button) > button {
+                width: 100%;
+              }
+              .billing-channel-settings-card {
+                padding: 24px 20px 20px;
+              }
+              .billing-channel-settings-head {
+                margin-bottom: 18px;
+              }
+              .billing-channel-settings-head .billing-section-title {
+                font-size: 20px;
+                line-height: 1.25;
+              }
+              .billing-channel-settings-head .billing-section-kicker {
+                font-size: 14px;
+                line-height: 1.48;
+              }
+              .billing-channel-settings-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 0;
+                border: 1px solid #dbe7fb;
+                border-radius: 20px;
+                overflow: hidden;
+                background: #fff;
+              }
+              .billing-channel-setting {
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+                background: #fff;
+                padding: 20px;
+              }
+              .billing-channel-setting + .billing-channel-setting {
+                border-top: 1px solid #e5edf7;
+              }
+              .billing-channel-setting-title {
+                font-size: 16px;
+              }
+              .billing-channel-setting-copy {
+                font-size: 13.5px;
+              }
+              .billing-channel-settings-actions {
+                margin-top: 18px;
+                padding-top: 18px;
+              }
+              .billing-channel-settings-actions .billing-primary-button {
+                width: 100%;
+                min-height: 52px;
+                border-radius: 14px;
+                font-size: 15px;
+              }
+            }
           `}</style>
 
                   <div className="billing-card billing-main-panel">
