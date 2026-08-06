@@ -19,8 +19,8 @@ spring:
         enabled: ${APP_INVOICE_S3_ENABLED:false}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/calendradb}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER:}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
   flyway:
     # Disabled by default so local/dev schemas can still be created by Hibernate.
     # Staging/production explicitly enable Flyway and use ddl-auto=validate.

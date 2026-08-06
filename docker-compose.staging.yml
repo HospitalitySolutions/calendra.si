@@ -1,29 +1,32 @@
+name: calendra-staging
+
 services:
   proxy:
     image: caddy:2
     restart: unless-stopped
     ports:
-      - "${STAGING_HTTP_PORT:-8080}:80"
-      - "${STAGING_HTTPS_PORT:-8443}:443"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
     volumes:
-      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
       - caddy_staging_data:/data
       - caddy_staging_config:/config
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
 
   db:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-calendra_staging}
       POSTGRES_USER: ${POSTGRES_USER:-calendra}
-      # Intentionally no default: load from AWS Secrets Manager before starting compose.
-      # Recommended: scripts/docker-compose-with-aws-secrets.sh staging up -d --build
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be loaded from AWS Secrets Manager for staging}
     volumes:
-      - postgres_staging_data:/var/lib/postgresql/data
+      - postgres_staging_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calendra} -d ${POSTGRES_DB:-calendra_staging}"]
       interval: 5s
@@ -43,50 +46,46 @@ services:
       retries: 20
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # Use the same immutable CI-built image format as production.
+    # Deploy an exact Git SHA to staging, test it, then promote the same SHA to production.
+    image: ${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}/calendra-backend:${CALENDRA_IMAGE_TAG:?CALENDRA_IMAGE_TAG must be an immutable Git SHA}
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: staging
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 4000
-      # Datasource URL/username/password are loaded by Spring from AWS Secrets Manager.
-      # Keep SPRING_DATASOURCE_* out of docker-compose so the secret remains the source of truth.
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      APP_RATE_LIMIT_BACKEND: ${APP_RATE_LIMIT_BACKEND:-auto}
-      APP_WIDGET_RATE_LIMIT_BACKEND: ${APP_WIDGET_RATE_LIMIT_BACKEND:-auto}
-      APP_WORKSPACE_ROLLOUT_SHARED_CLIENTS: ${APP_WORKSPACE_ROLLOUT_SHARED_CLIENTS:-true}
-      APP_WORKSPACE_ROLLOUT_CONSOLIDATED_SCHEDULING: ${APP_WORKSPACE_ROLLOUT_CONSOLIDATED_SCHEDULING:-true}
-      APP_WORKSPACE_ROLLOUT_CONSOLIDATED_BILLING: ${APP_WORKSPACE_ROLLOUT_CONSOLIDATED_BILLING:-true}
-      APP_WORKSPACE_ROLLOUT_SHARED_SERVICES: ${APP_WORKSPACE_ROLLOUT_SHARED_SERVICES:-true}
-      APP_WORKSPACE_ROLLOUT_ANALYTICS: ${APP_WORKSPACE_ROLLOUT_ANALYTICS:-true}
-      APP_WORKSPACE_ROLLOUT_PUBLIC_BOOKING: ${APP_WORKSPACE_ROLLOUT_PUBLIC_BOOKING:-true}
-      APP_WORKSPACE_ROLLOUT_UNIT_MANAGEMENT: ${APP_WORKSPACE_ROLLOUT_UNIT_MANAGEMENT:-true}
-      APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED: ${APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED:-true}
-      APP_WIDGET_REQUIRE_ALLOWED_ORIGIN: ${APP_WIDGET_REQUIRE_ALLOWED_ORIGIN:-false}
-      APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS: ${APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS:-false}
-      APP_JWT_SECRET: ${APP_JWT_SECRET}
-      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3000}
       AWS_REGION: ${AWS_REGION:-eu-central-1}
       AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
       AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-calendra-staging}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-2g}
+    cpus: ${BACKEND_CPU_LIMIT:-2.0}
+    stop_grace_period: 45s
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS http://localhost:4000/api/actuator/health/readiness | grep -q '"status":"UP"'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-      args:
-        BUILD_SCRIPT: ${FRONTEND_BUILD_SCRIPT:-build}
+    image: ${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}/calendra-frontend:${CALENDRA_IMAGE_TAG:?CALENDRA_IMAGE_TAG must be an immutable Git SHA}
     restart: unless-stopped
+    mem_limit: ${FRONTEND_MEMORY_LIMIT:-512m}
+    cpus: ${FRONTEND_CPU_LIMIT:-0.5}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_staging_data:

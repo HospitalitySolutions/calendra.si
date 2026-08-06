@@ -1,6 +1,17 @@
 (function () {
+  const scriptOrigin = (() => {
+    try {
+      const scriptSrc = document.currentScript && document.currentScript.src;
+      return scriptSrc ? new URL(scriptSrc, window.location.href).origin : window.location.origin;
+    } catch (_) {
+      return window.location.origin;
+    }
+  })();
+
   const DEFAULTS = {
-    baseUrl: 'https://app.calendra.si',
+    // Use the environment that served the widget script. Production remains app.calendra.si,
+    // while staging automatically uses staging.calendra.si. Consumers can still override base-url.
+    baseUrl: scriptOrigin,
     tenant: '',
     locale: 'en',
     primaryColor: '',

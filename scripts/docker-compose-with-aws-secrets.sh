@@ -16,9 +16,9 @@ Production examples:
   scripts/docker-compose-with-aws-secrets.sh production up -d --no-build --wait
 
 Staging example:
-  scripts/docker-compose-with-aws-secrets.sh staging up -d --build
+  CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh staging deploy
 
-Calling the script with only "production" defaults to the safe production deploy action.
+Calling the script with only an environment defaults to the safe immutable-image deploy action.
 It pulls backend/frontend from GHCR and starts Compose with --no-build.
 
 The script reads POSTGRES_PASSWORD from the AWS Secrets Manager JSON used by the selected
@@ -164,31 +164,27 @@ compose() {
   docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"
 }
 
-# Production defaults to pulling immutable CI-built images. Staging keeps its existing
-# source-build behavior unless the caller provides explicit Compose arguments.
+# Both staging and production deploy immutable CI-built images by default.
 if [[ $# -eq 0 ]]; then
-  if [[ "$ENVIRONMENT" == "production" || "$ENVIRONMENT" == "prod" ]]; then
-    set -- deploy
-  else
-    set -- up -d --build
-  fi
+  set -- deploy
 fi
 
 if [[ "${1:-}" == "deploy" ]]; then
-  if [[ "$ENVIRONMENT" != "production" && "$ENVIRONMENT" != "prod" ]]; then
-    echo "The deploy shortcut is currently supported only for production." >&2
-    exit 2
-  fi
   shift
   if [[ $# -ne 0 ]]; then
-    echo "The production deploy shortcut does not accept additional arguments." >&2
+    echo "The deploy shortcut does not accept additional arguments." >&2
+    exit 2
+  fi
+
+  if [[ "$ENVIRONMENT" == "staging" && ! "${CALENDRA_IMAGE_TAG:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "Staging requires CALENDRA_IMAGE_TAG to be the full 40-character Git SHA published by GitHub Actions." >&2
     exit 2
   fi
 
   echo "Pulling Calendra images tagged '${CALENDRA_IMAGE_TAG:-latest}' from '${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}'..."
   compose pull backend frontend
 
-  echo "Starting production without a local image build..."
+  echo "Starting ${ENVIRONMENT} without a local image build..."
   exec docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" up -d --no-build --wait
 fi
 
