@@ -31,7 +31,6 @@ import {
   buildNotificationSettingsJson,
   mergeNotificationSettingsJsonIntoFlat,
 } from "./configuration/ConfigurationNotificationsSection";
-import { ConfigurationWaitlistSettingsSection } from "./configuration/ConfigurationWaitlistSettingsSection";
 import { BillingIssuersSection } from "./configuration/BillingIssuersSection";
 import { CompanyBillingEntitiesSection } from "./configuration/CompanyBillingEntitiesSection";
 import { OperatingUnitsPanel } from "./configuration/OperatingUnitsPanel";
@@ -152,7 +151,7 @@ import type {
   WebsiteWidgetSettingsForm
 } from "./configuration/guestWebsiteSettings";
 
-import { ReservationRulesSettingsSection } from "./configuration/ReservationRulesSettingsSection";
+import { ReservationRulesTabbedSettings } from "./configuration/ReservationRulesTabbedSettings";
 import { ConfigurationCustomFieldsSection } from "./configuration/ConfigurationCustomFieldsSection";
 
 import {
@@ -6088,7 +6087,7 @@ export function ConfigurationPage() {
   const usesMobileTabletDetailLayout =
     isCompactConfigViewport ||
     (isTabletConfigViewport &&
-      ["booking", "billing", "website", "notifications", "customFields", "modules"].includes(
+      ["booking", "billing", "website", "notifications", "reservationRules", "customFields", "modules"].includes(
         tab,
       ));
   const showCompactConfigOverview =
@@ -6109,7 +6108,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : usesMobileTabletDetailLayout
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "reservationRules" ? " config-shell--reservation-rules-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -13526,21 +13525,13 @@ export function ConfigurationPage() {
                   globallyEnabled={inboxGlobalCapabilities.viberEnabled}
                 />
               ) : tab === "reservationRules" ? (
-                <div className="reservation-rules-page-stack">
-                  <Card className="settings-card modules-design-card reservation-rules-page-card">
-                    <ReservationRulesSettingsSection
-                      settings={settings}
-                      setSettings={setSettings}
-                      saving={savingSettings}
-                      onSave={() => saveSettings()}
-                    />
-                  </Card>
-                  {waitlistEnabledCommitted ? (
-                    <Card className="settings-card modules-design-card reservation-rules-page-card reservation-rules-waitlist-card">
-                      <ConfigurationWaitlistSettingsSection />
-                    </Card>
-                  ) : null}
-                </div>
+                <ReservationRulesTabbedSettings
+                  settings={settings}
+                  setSettings={setSettings}
+                  saving={savingSettings}
+                  onSave={() => saveSettings()}
+                  waitlistEnabled={waitlistEnabledCommitted}
+                />
               ) : tab === "customFields" ? (
                 <ConfigurationCustomFieldsSection />
               ) : tab === "modules" && modulesDraftDisplay ? (

@@ -392,6 +392,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const configurationTab = isConfigurationRoute ? new URLSearchParams(location.search).get('tab') : null
   const isAccountManagementRoute = isConfigurationRoute && configurationTab === 'company'
   const isNotificationsConfigurationRoute = isConfigurationRoute && configurationTab === 'notifications'
+  const isReservationRulesConfigurationRoute = isConfigurationRoute && configurationTab === 'reservationRules'
+  const isBlueTabbedConfigurationRoute =
+    isNotificationsConfigurationRoute || isReservationRulesConfigurationRoute
   const isBillingConfigurationRoute = isConfigurationRoute && configurationTab === 'billing'
   const isWhiteConfigurationDetailRoute =
     isConfigurationRoute &&
@@ -533,7 +536,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
 
   /** Calendar overlays and compact-page sticky rows use the measured shell header bottom as their viewport offset. */
   useLayoutEffect(() => {
-    if ((!isCalendarRoute && !isNotificationsConfigurationRoute) || isNativeAndroid) return
+    if ((!isCalendarRoute && !isBlueTabbedConfigurationRoute) || isNativeAndroid) return
     const main = mainAreaRef.current
     const header = headerRef.current
     if (!main || !header) return
@@ -559,7 +562,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       window.visualViewport?.removeEventListener('resize', sync)
       main.style.removeProperty('--calendar-shell-header-sticky-below')
     }
-  }, [isCalendarRoute, isNotificationsConfigurationRoute, isNativeAndroid, location.pathname])
+  }, [isBlueTabbedConfigurationRoute, isCalendarRoute, isNativeAndroid, location.pathname])
 
   useEffect(() => {
     if (!mobileNavOpen) return
@@ -1555,7 +1558,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isInboxRoute ? 'main-area main-area--inbox' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isEmployeesRoute ? 'main-area main-area--employees' : isAnalyticsRoute ? 'main-area main-area--analytics' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : isNotificationsConfigurationRoute ? 'main-area main-area--configuration-notifications' : isBillingConfigurationRoute ? 'main-area main-area--configuration-billing' : isWhiteConfigurationDetailRoute ? 'main-area main-area--configuration-detail-white' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isInboxRoute ? 'main-area main-area--inbox' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isEmployeesRoute ? 'main-area main-area--employees' : isAnalyticsRoute ? 'main-area main-area--analytics' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : isNotificationsConfigurationRoute ? 'main-area main-area--configuration-notifications' : isReservationRulesConfigurationRoute ? 'main-area main-area--configuration-reservation-rules' : isBillingConfigurationRoute ? 'main-area main-area--configuration-billing' : isWhiteConfigurationDetailRoute ? 'main-area main-area--configuration-detail-white' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1574,7 +1577,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                     ? 'app-header app-header--employees'
                     : isAnalyticsRoute
                     ? 'app-header app-header--analytics'
-                    : isNotificationsConfigurationRoute
+                    : isBlueTabbedConfigurationRoute
                     ? 'app-header app-header--billing app-header--notifications'
                     : isBillingRoute || isConfigurationRoute
                     ? 'app-header app-header--billing'
@@ -1662,6 +1665,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                             ? (locale === 'sl' ? 'Spletni vtičnik' : locale === 'sr' ? 'Veb dodatak' : 'Website widget')
                             : configurationTab === 'notifications'
                               ? (locale === 'sl' ? 'Obvestila' : locale === 'sr' ? 'Obaveštenja' : 'Notifications')
+                              : configurationTab === 'reservationRules'
+                                ? (locale === 'sl' ? 'Rezervacijska pravila' : locale === 'sr' ? 'Pravila rezervacije' : 'Reservation rules')
                               : configurationTab === 'customFields'
                                 ? (locale === 'sl' ? 'Polja po meri' : locale === 'sr' ? 'Prilagođena polja' : 'Custom fields')
                                 : configurationTab === 'modules'
@@ -1677,7 +1682,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isInboxRoute ? 'content content--inbox' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isInboxRoute ? 'content content--inbox' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isReservationRulesConfigurationRoute ? 'content content--configuration-reservation-rules' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}

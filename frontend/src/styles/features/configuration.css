@@ -2335,3 +2335,417 @@ a.config-nav-item {
         box-shadow: none;
     }
 }
+
+/* Reservation rules: mobile/tablet tabbed layout matching the Obvestila header and channel tabs. */
+.reservation-rules-compact-tabs {
+    display: none;
+}
+
+.reservation-rules-section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.reservation-rules-section-copy {
+    min-width: 0;
+}
+
+.reservation-rules-section-icon,
+.reservation-rules-row-icon {
+    display: none;
+}
+
+.reservation-rules-section-icon svg,
+.reservation-rules-row-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+@media (max-width: 1024px) {
+    .main-area--configuration-reservation-rules {
+        background: #ffffff;
+    }
+
+    .main-area--configuration-reservation-rules > .content.content--configuration-reservation-rules {
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .main-area--configuration-reservation-rules .stack.gap-lg {
+        width: 100%;
+        gap: 0;
+    }
+
+    .config-shell--detail.config-shell--reservation-rules-mobile {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+
+    .config-shell--reservation-rules-mobile .config-content {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+    }
+
+    .reservation-rules-page-stack.reservation-rules-tabbed-page {
+        display: block;
+        width: 100%;
+        padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .reservation-rules-compact-tabs {
+        display: grid;
+        align-items: stretch;
+        gap: 0;
+        width: 100%;
+        margin: -1px 0 0;
+        padding: 0;
+        border: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        position: -webkit-sticky;
+        position: sticky;
+        top: var(--calendar-shell-header-sticky-below, 62px);
+        z-index: 190;
+    }
+
+    .reservation-rules-compact-tab {
+        position: relative;
+        min-width: 0;
+        min-height: 72px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 12px 10px 14px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.73);
+        font: inherit;
+        font-size: 14px;
+        line-height: 1.15;
+        font-weight: 800;
+        text-align: center;
+        white-space: nowrap;
+        cursor: pointer;
+        overflow: hidden;
+        box-shadow: none;
+    }
+
+    .reservation-rules-compact-tab:hover,
+    .reservation-rules-compact-tab:focus-visible {
+        color: #ffffff;
+        background: transparent;
+    }
+
+    .reservation-rules-compact-tab:focus-visible {
+        outline: 2px solid rgba(255,255,255,.82);
+        outline-offset: -5px;
+    }
+
+    .reservation-rules-compact-tab::after {
+        content: '';
+        position: absolute;
+        left: 14%;
+        right: 14%;
+        bottom: 0;
+        height: 4px;
+        border-radius: 999px 999px 0 0;
+        background: transparent;
+        transform: scaleX(.3);
+        opacity: 0;
+        transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+    }
+
+    .reservation-rules-compact-tab.is-active {
+        color: #ffffff;
+    }
+
+    .reservation-rules-compact-tab.is-active::after {
+        background: #ffffff;
+        transform: scaleX(1);
+        opacity: 1;
+    }
+
+    .reservation-rules-compact-tab-icon {
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        width: 25px;
+        height: 25px;
+    }
+
+    .reservation-rules-compact-tab-icon svg {
+        display: block;
+        width: 25px;
+        height: 25px;
+    }
+
+    .reservation-rules-tab-panel {
+        display: none;
+        width: 100%;
+        padding: 16px;
+    }
+
+    .reservation-rules-tab-panel.is-active {
+        display: block;
+    }
+
+    .reservation-rules-page-card.modules-design-card.settings-card {
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .reservation-rules-shell {
+        gap: 16px;
+        margin: 0;
+    }
+
+    .reservation-rules-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .reservation-rules-card,
+    .reservation-rules-card--wide {
+        grid-column: 1 / -1;
+    }
+
+    .reservation-rules-card.general-settings-card {
+        padding: 20px;
+        border: 1px solid #dce7f6;
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .055);
+    }
+
+    .reservation-rules-section-header {
+        align-items: center;
+        margin-bottom: 18px;
+    }
+
+    .reservation-rules-section-icon,
+    .reservation-rules-row-icon {
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        color: #0f62fe;
+        background: linear-gradient(135deg, #edf4ff 0%, #e7f0ff 100%);
+    }
+
+    .reservation-rules-section-header h3 {
+        font-size: 18px;
+        line-height: 1.2;
+    }
+
+    .reservation-rules-section-header p {
+        margin-top: 4px;
+        font-size: 12.5px;
+    }
+
+    .reservation-rules-toggle-row {
+        grid-template-columns: 46px minmax(0, 1fr) auto;
+        gap: 14px;
+        min-height: 76px;
+        margin: 0;
+        padding: 13px 0;
+        border: 0;
+        border-radius: 0;
+        border-bottom: 1px solid #e8eef7;
+        background: transparent;
+    }
+
+    .reservation-rules-toggle-row + .reservation-rules-toggle-row {
+        margin-top: 0;
+    }
+
+    .reservation-rules-toggle-row + .reservation-rules-deadline-grid {
+        margin-top: 14px;
+    }
+
+    .reservation-rules-toggle-row:last-child {
+        border-bottom: 0;
+    }
+
+    .reservation-rules-toggle-row strong {
+        font-size: 14.5px;
+        line-height: 1.25;
+    }
+
+    .reservation-rules-toggle-row p {
+        margin-top: 4px;
+        font-size: 12.5px;
+        line-height: 1.35;
+    }
+
+    .reservation-rules-card--employee .reservation-rules-toggle-row {
+        border-bottom: 0;
+    }
+
+    .reservation-rules-card .general-settings-form-grid {
+        gap: 14px;
+    }
+
+    .reservation-rules-card .general-settings-field {
+        gap: 8px;
+        font-size: 13px;
+    }
+
+    .reservation-rules-card .general-settings-field input,
+    .reservation-rules-card .general-settings-field select {
+        min-height: 50px;
+        border-radius: 13px;
+        background: #fbfdff;
+        font-size: 15px;
+    }
+
+    .reservation-rules-card .general-settings-field small {
+        font-size: 11.5px;
+    }
+
+    .reservation-rules-shell .gapp-switch,
+    .waitlist-settings-shell .gapp-switch {
+        width: 58px;
+        height: 34px;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .reservation-rules-shell .gapp-switch.active,
+    .waitlist-settings-shell .gapp-switch.active {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .reservation-rules-shell .gapp-switch-label,
+    .waitlist-settings-shell .gapp-switch-label {
+        display: none;
+    }
+
+    .reservation-rules-shell .gapp-switch-knob,
+    .waitlist-settings-shell .gapp-switch-knob {
+        left: 4px;
+        width: 26px;
+        height: 26px;
+    }
+
+    .reservation-rules-shell .gapp-switch.active .gapp-switch-knob,
+    .waitlist-settings-shell .gapp-switch.active .gapp-switch-knob {
+        transform: translateX(24px);
+    }
+
+    .reservation-rules-savebar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 210;
+        display: block;
+        margin: 0;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.95) 28%, #ffffff 100%);
+    }
+
+    .reservation-rules-savebar .general-settings-save-button {
+        width: 100%;
+        min-width: 0;
+        min-height: 52px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #1c78ff 0%, #0f62fe 100%);
+        box-shadow: 0 14px 28px rgba(15, 98, 254, .24);
+    }
+}
+
+@media (min-width: 760px) and (max-width: 1024px) {
+    .reservation-rules-tab-panel {
+        padding: 20px clamp(20px, 3vw, 32px);
+    }
+
+    .reservation-rules-card.general-settings-card {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 640px) {
+    .reservation-rules-compact-tab {
+        min-height: 66px;
+        gap: 8px;
+        padding: 11px 6px 12px;
+        font-size: 13px;
+    }
+
+    .reservation-rules-compact-tab-icon,
+    .reservation-rules-compact-tab-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .reservation-rules-tab-panel {
+        padding: 14px 12px;
+    }
+
+    .reservation-rules-card.general-settings-card {
+        padding: 16px;
+        border-radius: 16px;
+    }
+
+    .reservation-rules-section-header p,
+    .reservation-rules-card .general-settings-field small {
+        display: none;
+    }
+
+    .reservation-rules-card--booking .general-settings-form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .reservation-rules-card--booking .general-settings-field {
+        min-width: 0;
+    }
+
+    .reservation-rules-card--booking .general-settings-field > span:first-child {
+        min-height: 32px;
+        font-size: 12px;
+        line-height: 1.3;
+    }
+
+    .reservation-rules-toggle-row {
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 12px;
+    }
+
+    .reservation-rules-row-icon,
+    .reservation-rules-section-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+    }
+
+    .reservation-rules-toggle-row p {
+        font-size: 12px;
+    }
+
+    .reservation-rules-deadline-grid,
+    .reservation-rules-card--no-show .general-settings-form-grid {
+        grid-template-columns: 1fr;
+    }
+}

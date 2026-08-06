@@ -36,6 +36,30 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
 }
 
+type WaitlistSettingsIconKind =
+  | "availability"
+  | "people"
+  | "clock"
+  | "grid"
+  | "calendar"
+  | "person"
+  | "personAdd"
+  | "refresh"
+  | "shield"
+  | "limits"
+  | "info";
+
+function waitlistIconForKey(key: keyof WaitlistSettings): WaitlistSettingsIconKind {
+  if (key === "enabled" || key === "widgetEnabled" || key === "guestAppEnabled") return "people";
+  if (key === "exactTimeEnabled") return "clock";
+  if (key === "flexibleWindowsEnabled") return "calendar";
+  if (key === "employeePreferenceEnabled") return "person";
+  if (key === "staffManualEntryEnabled") return "personAdd";
+  if (key === "autoOfferEnabled") return "refresh";
+  if (key === "closeEquivalentAfterBooking") return "shield";
+  return "grid";
+}
+
 export function ConfigurationWaitlistSettingsSection() {
   const [value, setValue] = useState<WaitlistSettings>(defaults);
   const [loading, setLoading] = useState(true);
@@ -104,7 +128,10 @@ export function ConfigurationWaitlistSettingsSection() {
     disabled = false,
   ) => (
     <div className={`waitlist-setting-row${disabled ? " is-disabled" : ""}`}>
-      <span>
+      <span className="waitlist-setting-icon" aria-hidden>
+        <WaitlistSettingsIcon kind={waitlistIconForKey(key)} />
+      </span>
+      <span className="waitlist-setting-copy">
         <strong>{title}</strong>
         <small>{description}</small>
       </span>
@@ -129,11 +156,13 @@ export function ConfigurationWaitlistSettingsSection() {
         .waitlist-settings-intro p { margin:0; max-width:760px; color:#64748b; line-height:1.55; }
         .waitlist-settings-badge { flex:0 0 auto; border-radius:999px; padding:7px 12px; background:#eaf2ff; color:#0f62fe; font-size:12px; font-weight:900; }
         .waitlist-settings-grid { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(280px,.7fr); gap:20px; align-items:start; }
-        .waitlist-settings-card { border:1px solid #dce4f0; border-radius:18px; background:#fff; overflow:hidden; }
-        .waitlist-settings-card h4 { margin:0; padding:18px 20px; border-bottom:1px solid #e9eef6; color:#16264b; font-size:16px; }
-        .waitlist-setting-row { min-height:78px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:15px 20px; border-bottom:1px solid #edf2f7; }
+        .waitlist-settings-card { border:1px solid #dce4f0; border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 12px 30px rgba(15,23,42,.05); }
+        .waitlist-card-heading { display:flex; align-items:center; gap:12px; margin:0; padding:18px 20px; border-bottom:1px solid #e9eef6; color:#16264b; font-size:16px; font-weight:850; }
+        .waitlist-card-heading-icon, .waitlist-setting-icon, .waitlist-info-icon { display:grid; place-items:center; flex:0 0 auto; width:40px; height:40px; border-radius:12px; color:#0f62fe; background:#eaf2ff; }
+        .waitlist-card-heading-icon svg, .waitlist-setting-icon svg, .waitlist-info-icon svg { width:22px; height:22px; }
+        .waitlist-setting-row { min-height:78px; display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:center; gap:14px; padding:14px 18px; border-bottom:1px solid #edf2f7; }
         .waitlist-setting-row:last-child { border-bottom:0; }
-        .waitlist-setting-row > span { min-width:0; display:grid; gap:5px; }
+        .waitlist-setting-copy { min-width:0; display:grid; gap:5px; }
         .waitlist-setting-row strong { color:#14254a; font-size:14px; }
         .waitlist-setting-row small { color:#64748b; font-size:13px; line-height:1.42; }
         .waitlist-setting-row.is-disabled { opacity:.52; }
@@ -142,18 +171,41 @@ export function ConfigurationWaitlistSettingsSection() {
         .waitlist-number-row span { display:grid; gap:5px; }
         .waitlist-number-row strong { color:#14254a; font-size:14px; }
         .waitlist-number-row small { color:#64748b; font-size:13px; line-height:1.42; }
-        .waitlist-number-row input { width:100%; min-height:44px; border:1px solid #d3deed; border-radius:11px; padding:0 12px; color:#102044; font:inherit; font-weight:750; }
-        .waitlist-settings-info { padding:20px; display:grid; gap:14px; }
+        .waitlist-number-row input { width:100%; min-height:44px; border:1px solid #d3deed; border-radius:11px; padding:0 12px; color:#102044; background:#f8fbff; font:inherit; font-weight:750; outline:none; }
+        .waitlist-number-row input:focus { border-color:#93c5fd; background:#fff; box-shadow:0 0 0 4px rgba(59,130,246,.12); }
+        .waitlist-settings-info { padding:20px; display:grid; grid-template-columns:40px minmax(0,1fr); gap:14px; }
+        .waitlist-settings-info-copy { display:grid; gap:14px; min-width:0; }
         .waitlist-settings-info strong { color:#14254a; }
         .waitlist-settings-info p { margin:0; color:#64748b; font-size:13px; line-height:1.5; }
         .waitlist-settings-flow { margin:0; padding-left:20px; display:grid; gap:9px; color:#33476f; font-size:13px; line-height:1.4; }
+        .waitlist-settings-flow li::marker { color:#0f62fe; font-weight:850; }
         .waitlist-settings-savebar { display:flex; align-items:center; justify-content:flex-end; gap:14px; }
-        .waitlist-settings-savebar button { min-height:46px; border:0; border-radius:12px; padding:0 20px; background:#0f62fe; color:#fff; font:inherit; font-weight:850; cursor:pointer; box-shadow:0 10px 24px rgba(15,98,254,.22); }
+        .waitlist-settings-savebar button { min-height:46px; border:0; border-radius:12px; padding:0 20px; background:linear-gradient(180deg,#1c78ff 0%,#0f62fe 100%); color:#fff; font:inherit; font-weight:850; cursor:pointer; box-shadow:0 10px 24px rgba(15,98,254,.22); }
         .waitlist-settings-savebar button:disabled { opacity:.58; cursor:not-allowed; }
         .waitlist-settings-message { color:#15803d; font-size:13px; font-weight:750; }
         .waitlist-settings-error { color:#b91c1c; font-size:13px; font-weight:750; }
         .waitlist-settings-loading { padding:34px; color:#64748b; }
-        @media(max-width:900px){ .waitlist-settings-grid{grid-template-columns:1fr}.waitlist-settings-intro{flex-direction:column}.waitlist-settings-savebar{align-items:stretch;flex-direction:column}.waitlist-settings-savebar button{width:100%} }
+        @media(max-width:1024px){
+          .waitlist-settings-shell{gap:16px}
+          .waitlist-settings-intro{display:none}
+          .waitlist-settings-card{border-radius:18px;box-shadow:0 10px 24px rgba(15,23,42,.045)}
+          .waitlist-settings-savebar{position:fixed;left:0;right:0;bottom:0;z-index:210;display:grid;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.95) 28%,#fff 100%)}
+          .waitlist-settings-savebar button{width:100%;min-height:52px;border-radius:14px}
+          .waitlist-settings-message{justify-self:center}
+        }
+        @media(max-width:900px){
+          .waitlist-settings-grid{grid-template-columns:1fr}
+        }
+        @media(max-width:640px){
+          .waitlist-settings-card{border-radius:16px}
+          .waitlist-card-heading{padding:16px}
+          .waitlist-setting-row{grid-template-columns:42px minmax(0,1fr) auto;gap:12px;padding:14px}
+          .waitlist-setting-row small{display:none}
+          .waitlist-setting-icon{width:42px;height:42px}
+          .waitlist-number-row{grid-template-columns:1fr 104px;gap:12px;padding:14px}
+          .waitlist-number-row small{display:none}
+          .waitlist-settings-info{padding:16px}
+        }
       `}</style>
 
       <div className="waitlist-settings-intro">
@@ -172,7 +224,12 @@ export function ConfigurationWaitlistSettingsSection() {
 
       <div className="waitlist-settings-grid">
         <div className="waitlist-settings-card">
-          <h4>Dostopnost in način delovanja</h4>
+          <div className="waitlist-card-heading">
+            <span className="waitlist-card-heading-icon" aria-hidden>
+              <WaitlistSettingsIcon kind="availability" />
+            </span>
+            <span>Dostopnost in način delovanja</span>
+          </div>
           {switchRow(
             "enabled",
             "Omogoči čakalno vrsto",
@@ -224,7 +281,12 @@ export function ConfigurationWaitlistSettingsSection() {
 
         <div className="waitlist-settings-shell">
           <div className="waitlist-settings-card">
-            <h4>Omejitve in ponudba</h4>
+            <div className="waitlist-card-heading">
+              <span className="waitlist-card-heading-icon" aria-hidden>
+                <WaitlistSettingsIcon kind="limits" />
+              </span>
+              <span>Omejitve in ponudba</span>
+            </div>
             <label className="waitlist-number-row">
               <span>
                 <strong>Veljavnost ponudbe</strong>
@@ -282,17 +344,22 @@ export function ConfigurationWaitlistSettingsSection() {
           </div>
 
           <div className="waitlist-settings-card waitlist-settings-info">
-            <strong>Kako deluje</strong>
-            <ol className="waitlist-settings-flow">
-              <li>Odpoved ali premik sprosti termin.</li>
-              <li>Preveri se celotna razpoložljivost, vključno s pavzo, prostori in viri.</li>
-              <li>Termin se začasno zadrži za prvega ustreznega gosta.</li>
-              <li>Po zavrnitvi ali poteku se ponudba pošlje naslednjemu.</li>
-            </ol>
-            <p>
-              Osebje lahko ponudbo vedno pošlje ročno ali rezervira termin za
-              drugo stranko z izrecno potrditvijo preglasitve.
-            </p>
+            <span className="waitlist-info-icon" aria-hidden>
+              <WaitlistSettingsIcon kind="info" />
+            </span>
+            <div className="waitlist-settings-info-copy">
+              <strong>Kako deluje</strong>
+              <ol className="waitlist-settings-flow">
+                <li>Obiskovalci oddajo povpraševanje po terminu.</li>
+                <li>Sistem preveri razpoložljivost, velikost in pravila blokov.</li>
+                <li>Termin se lahko samodejno ali ročno ponudi stranki.</li>
+                <li>Po potrditvi se ponudba odstrani iz čakalne vrste.</li>
+              </ol>
+              <p>
+                Osebje lahko ponudbo vedno pošlje ročno ali rezervira termin za
+                drugo stranko z izrecno potrditvijo preglasitve.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -304,5 +371,77 @@ export function ConfigurationWaitlistSettingsSection() {
         </button>
       </div>
     </div>
+  );
+}
+
+function WaitlistSettingsIcon({ kind }: { kind: WaitlistSettingsIconKind }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {kind === "availability" ? (
+        <>
+          <rect x="5" y="5" width="14" height="15" rx="3" {...common} />
+          <path d="M8 3v4M16 3v4M8.5 12h7M8.5 16h4" {...common} />
+        </>
+      ) : kind === "people" ? (
+        <>
+          <circle cx="8" cy="8" r="3" {...common} />
+          <circle cx="16.5" cy="8.5" r="2.5" {...common} />
+          <path d="M3.5 20a4.5 4.5 0 0 1 9 0M13 19.5a3.8 3.8 0 0 1 7.5.2" {...common} />
+        </>
+      ) : kind === "clock" ? (
+        <>
+          <circle cx="12" cy="12" r="8" {...common} />
+          <path d="M12 7.5V12l3 2" {...common} />
+        </>
+      ) : kind === "grid" ? (
+        <>
+          <rect x="4" y="4" width="6" height="6" rx="1.2" {...common} />
+          <rect x="14" y="4" width="6" height="6" rx="1.2" {...common} />
+          <rect x="4" y="14" width="6" height="6" rx="1.2" {...common} />
+          <rect x="14" y="14" width="6" height="6" rx="1.2" {...common} />
+        </>
+      ) : kind === "calendar" ? (
+        <>
+          <rect x="4" y="5.5" width="16" height="14.5" rx="2.8" {...common} />
+          <path d="M8 3.5v4M16 3.5v4M4 10h16M12 12.5v5M9.5 15h5" {...common} />
+        </>
+      ) : kind === "person" ? (
+        <>
+          <circle cx="12" cy="8" r="3.2" {...common} />
+          <path d="M5.5 20a6.5 6.5 0 0 1 13 0" {...common} />
+        </>
+      ) : kind === "personAdd" ? (
+        <>
+          <circle cx="9" cy="8" r="3" {...common} />
+          <path d="M3.5 20a5.5 5.5 0 0 1 11 0M18 9v6M15 12h6" {...common} />
+        </>
+      ) : kind === "refresh" ? (
+        <>
+          <path d="M7 7.5A7 7 0 0 1 19 12M17 5.5v4h-4M17 16.5A7 7 0 0 1 5 12M7 18.5v-4h4" {...common} />
+        </>
+      ) : kind === "shield" ? (
+        <path d="M12 3 5.5 5.5v5.7c0 4.2 2.7 7.6 6.5 9.1 3.8-1.5 6.5-4.9 6.5-9.1V5.5L12 3Z" {...common} />
+      ) : kind === "limits" ? (
+        <>
+          <path d="M5 7h14M5 17h14M5 12h14" {...common} />
+          <circle cx="9" cy="7" r="2" {...common} />
+          <circle cx="15" cy="12" r="2" {...common} />
+          <circle cx="11" cy="17" r="2" {...common} />
+        </>
+      ) : (
+        <>
+          <circle cx="12" cy="12" r="8.2" {...common} />
+          <path d="M12 10.5v5M12 7.5h.01" {...common} />
+        </>
+      )}
+    </svg>
   );
 }

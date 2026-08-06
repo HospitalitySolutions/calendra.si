@@ -101,13 +101,13 @@ const TEXT: Record<'en' | 'sl', Copy> = {
   sl: {
     title: "Rezervacijska pravila",
     subtitle: "Skupna pravila za rezervacije v aplikaciji za stranke in spletnem vtičniku.",
-    bookingWindowTitle: "Okno za rezervacije",
+    bookingWindowTitle: "Okno za rezervacijo",
     bookingWindowSubtitle: "Določite, kako hitro in kako daleč vnaprej se lahko stranke naročijo.",
     changesTitle: "Spremembe s strani strank",
     changesSubtitle: "Določite, do kdaj lahko stranke prestavijo ali odpovejo termin.",
     employeeTitle: "Izbira zaposlenega",
     employeeSubtitle: "Določite, ali lahko stranka izbere zaposlenega ali ga sistem dodeli samodejno.",
-    noShowTitle: "Pravilo za No Show",
+    noShowTitle: "Pravila za No Show",
     noShowSubtitle: "No-show lahko ostane ročen ali pa ga Calendra samodejno označi po začetku termina.",
     minNotice: "Najmanj časa pred terminom",
     minNoticeHint: "Primer: 120 minut pomeni, da se lahko stranka naroči najmanj 2 uri vnaprej.",
@@ -118,11 +118,11 @@ const TEXT: Record<'en' | 'sl', Copy> = {
     cancel: "Odpoved termina dovoljena do",
     cancelHint: "Bližje kot toliko ur pred terminom stranka termina ne more več odpovedati.",
     allowCancellation: "Odpoved rezervacije",
-    allowCancellationHint: "Ko je izklopljeno, stranka rezervacije ne more odpovedati (spletna povezava in aplikacija). Ko je vklopljeno, velja zgornji rok za odpoved.",
+    allowCancellationHint: "Kupci lahko odpovejo svojo rezervacijo.",
     allowModification: "Sprememba rezervacije",
-    allowModificationHint: "Ko je izklopljeno, stranka rezervacije ne more prestaviti (spletna povezava in aplikacija). Ko je vklopljeno, velja zgornji rok za spremembo.",
+    allowModificationHint: "Kupci lahko spremenijo svojo rezervacijo.",
     allowEmployeeChoice: "Dovoli izbiro zaposlenega",
-    allowEmployeeChoiceHint: "Ko je izklopljeno, stranka izbere storitev in termin; Calendra v ozadju dodeli razpoložljivega zaposlenega.",
+    allowEmployeeChoiceHint: "Kupci lahko izberejo želenega zaposlenega.",
     noShowMode: "Način No Show",
     manualNoShow: "Samo ročno",
     automaticNoShow: "Samodejno po začetku",
@@ -213,8 +213,8 @@ export function ReservationRulesSettingsSection({
   return (
     <section className="general-settings-shell reservation-rules-shell">
       <div className="general-settings-grid reservation-rules-grid">
-        <article className="general-settings-card">
-          <SectionHeader title={text.bookingWindowTitle} subtitle={text.bookingWindowSubtitle} />
+        <article className="general-settings-card reservation-rules-card reservation-rules-card--booking">
+          <SectionHeader icon="calendar" title={text.bookingWindowTitle} subtitle={text.bookingWindowSubtitle} />
           <div className="general-settings-form-grid">
             <NumericField
               label={text.minNotice}
@@ -237,9 +237,12 @@ export function ReservationRulesSettingsSection({
           </div>
         </article>
 
-        <article className="general-settings-card">
-          <SectionHeader title={text.changesTitle} subtitle={text.changesSubtitle} />
+        <article className="general-settings-card reservation-rules-card reservation-rules-card--changes">
+          <SectionHeader icon="changes" title={text.changesTitle} subtitle={text.changesSubtitle} />
           <div className="reservation-rules-toggle-row">
+            <span className="reservation-rules-row-icon" aria-hidden>
+              <ReservationRuleIcon kind="cancel" />
+            </span>
             <div>
               <strong>{text.allowCancellation}</strong>
               <p>{text.allowCancellationHint}</p>
@@ -250,6 +253,9 @@ export function ReservationRulesSettingsSection({
             />
           </div>
           <div className="reservation-rules-toggle-row">
+            <span className="reservation-rules-row-icon" aria-hidden>
+              <ReservationRuleIcon kind="modify" />
+            </span>
             <div>
               <strong>{text.allowModification}</strong>
               <p>{text.allowModificationHint}</p>
@@ -288,9 +294,12 @@ export function ReservationRulesSettingsSection({
         </article>
 
 
-        <article className="general-settings-card reservation-rules-card--wide">
-          <SectionHeader title={text.employeeTitle} subtitle={text.employeeSubtitle} />
+        <article className="general-settings-card reservation-rules-card reservation-rules-card--wide reservation-rules-card--employee">
+          <SectionHeader icon="employee" title={text.employeeTitle} subtitle={text.employeeSubtitle} />
           <div className="reservation-rules-toggle-row">
+            <span className="reservation-rules-row-icon" aria-hidden>
+              <ReservationRuleIcon kind="employee" />
+            </span>
             <div>
               <strong>{text.allowEmployeeChoice}</strong>
               <p>{text.allowEmployeeChoiceHint}</p>
@@ -302,8 +311,8 @@ export function ReservationRulesSettingsSection({
           </div>
         </article>
 
-        <article className="general-settings-card reservation-rules-card--wide">
-          <SectionHeader title={text.noShowTitle} subtitle={text.noShowSubtitle} />
+        <article className="general-settings-card reservation-rules-card reservation-rules-card--wide reservation-rules-card--no-show">
+          <SectionHeader icon="noShow" title={text.noShowTitle} subtitle={text.noShowSubtitle} />
           <div className="general-settings-form-grid">
             <label className="general-settings-field">
               <span>{text.noShowMode}</span>
@@ -343,12 +352,79 @@ export function ReservationRulesSettingsSection({
   );
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+type ReservationRuleIconKind =
+  | "calendar"
+  | "changes"
+  | "cancel"
+  | "modify"
+  | "employee"
+  | "noShow";
+
+function SectionHeader({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: ReservationRuleIconKind;
+  title: string;
+  subtitle: string;
+}) {
   return (
-    <div className="general-settings-section-header">
-      <h3>{title}</h3>
-      <p>{subtitle}</p>
+    <div className="general-settings-section-header reservation-rules-section-header">
+      <span className="reservation-rules-section-icon" aria-hidden>
+        <ReservationRuleIcon kind={icon} />
+      </span>
+      <span className="reservation-rules-section-copy">
+        <h3>{title}</h3>
+        <p>{subtitle}</p>
+      </span>
     </div>
+  );
+}
+
+function ReservationRuleIcon({ kind }: { kind: ReservationRuleIconKind }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {kind === "calendar" ? (
+        <>
+          <rect x="4" y="5.5" width="16" height="14.5" rx="2.8" {...common} />
+          <path d="M8 3.5v4M16 3.5v4M4 10h16M9 14h6M12 11v6" {...common} />
+        </>
+      ) : kind === "changes" ? (
+        <>
+          <path d="M12 3 5.5 5.5v5.7c0 4.2 2.7 7.6 6.5 9.1 3.8-1.5 6.5-4.9 6.5-9.1V5.5L12 3Z" {...common} />
+          <circle cx="12" cy="9" r="2.2" {...common} />
+          <path d="M8.8 15.2a3.6 3.6 0 0 1 6.4 0" {...common} />
+        </>
+      ) : kind === "cancel" ? (
+        <>
+          <path d="m5 18 3.5-.8L18 7.7 15.3 5 5.8 14.5 5 18Z" {...common} />
+          <path d="m13.8 6.5 2.7 2.7" {...common} />
+        </>
+      ) : kind === "modify" ? (
+        <>
+          <path d="M7 7.5A7 7 0 0 1 19 12M17 5.5v4h-4M17 16.5A7 7 0 0 1 5 12M7 18.5v-4h4" {...common} />
+        </>
+      ) : kind === "employee" ? (
+        <>
+          <circle cx="12" cy="8" r="3.2" {...common} />
+          <path d="M5.5 20a6.5 6.5 0 0 1 13 0" {...common} />
+        </>
+      ) : (
+        <>
+          <circle cx="12" cy="12" r="8.2" {...common} />
+          <path d="m9 9 6 6M15 9l-6 6" {...common} />
+        </>
+      )}
+    </svg>
   );
 }
 
