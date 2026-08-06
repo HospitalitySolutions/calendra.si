@@ -626,6 +626,166 @@ public class SessionBookingCreationService {
         return response;
     }
 
+    /**
+     * Staff-only convenience operation used by the calendar group-attendee panel.
+     * It changes this occurrence only and deliberately does not mutate the saved
+     * membership list on {@link ClientGroup}.
+     */
+    @Transactional
+    public SessionBookingController.BookingResponse addGroupSessionParticipant(
+            Long representativeBookingId,
+            Long clientId,
+            User me
+    ) {
+        if (me == null || me.getCompany() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        Long companyId = me.getCompany().getId();
+        SessionBooking representative = repo.findByIdAndCompanyId(representativeBookingId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group session not found."));
+        authorizeStaffGroupSessionMutation(representative, me);
+
+        SessionBooking joined = joinClientToGroupSession(new GroupJoinRequest(
+                companyId,
+                representative.getId(),
+                clientId,
+                "STAFF",
+                null,
+                null,
+                SessionBookingStatus.RESERVED,
+                true,
+                BookingSource.MANUAL
+        ), false, false);
+        List<SessionBooking> refreshed = loadGroupedRows(joined, companyId);
+        return SessionBookingController.toGroupedResponse(refreshed);
+    }
+
+    /**
+     * Removes a guest from one group-session occurrence while preserving the
+     * empty group session itself. Existing invoices and guest credits attached
+     * to the removed participant row are cleaned up in the same way as a normal
+     * participant removal through the full booking editor.
+     */
+    @Transactional
+    public SessionBookingController.BookingResponse removeGroupSessionParticipant(
+            Long representativeBookingId,
+            Long clientId,
+            User me
+    ) {
+        if (me == null || me.getCompany() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        if (clientId == null || clientId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client is required.");
+        }
+
+        Long companyId = me.getCompany().getId();
+        SessionBooking representative = repo.findByIdAndCompanyId(representativeBookingId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group session not found."));
+        authorizeStaffGroupSessionMutation(representative, me);
+        List<SessionBooking> existingRows = new ArrayList<>(loadGroupedRows(representative, companyId));
+
+        List<SessionBooking> targetRows = existingRows.stream()
+                .filter(row -> row.getClient() != null && Objects.equals(row.getClient().getId(), clientId))
+                .toList();
+        if (targetRows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Guest is not booked into this group session.");
+        }
+
+        List<SessionBooking> otherParticipantRows = existingRows.stream()
+                .filter(row -> row.getClient() != null && !Objects.equals(row.getClient().getId(), clientId))
+                .toList();
+        SessionBooking existingPlaceholder = existingRows.stream()
+                .filter(row -> row.getClient() == null)
+                .findFirst()
+                .orElse(null);
+        SessionBooking placeholderCandidate = otherParticipantRows.isEmpty() && existingPlaceholder == null
+                ? targetRows.stream()
+                    .min((left, right) -> left.getId().compareTo(right.getId()))
+                    .orElse(null)
+                : null;
+        List<Long> removedIds = targetRows.stream()
+                .map(SessionBooking::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (!removedIds.isEmpty()) {
+            openBillSyncService.removeSessionRowsFromOpenBills(companyId, removedIds);
+        }
+        for (SessionBooking target : targetRows) {
+            reminderService.sendSessionCancelled(target);
+            restoreGuestCreditForBooking(target);
+            if (placeholderCandidate == null || !Objects.equals(target.getId(), placeholderCandidate.getId())) {
+                bookingChangePublisher.publish(
+                        companyId,
+                        target.getId(),
+                        target.getStartTime(),
+                        target.getEndTime(),
+                        BookingChangePublisher.BOOKING_DELETED
+                );
+            }
+        }
+
+        SessionBooking anchor;
+        if (otherParticipantRows.isEmpty() && existingPlaceholder == null) {
+            // Reuse the oldest removed participant row as the empty-session
+            // placeholder. This keeps the logical booking id stable for the
+            // calendar side-panel route and avoids closing the editor.
+            SessionBooking keep = Objects.requireNonNull(placeholderCandidate);
+            for (SessionBooking target : targetRows) {
+                if (Objects.equals(target.getId(), keep.getId())) continue;
+                repo.delete(target);
+            }
+            keep.setClient(null);
+            keep.setGuestUserId(null);
+            keep.setSourceOrderId(null);
+            keep.setSourceChannel("STAFF");
+            keep.setBookingSource(BookingSource.MANUAL);
+            keep.setBilledAt(null);
+            keep.setReminderSentAt(null);
+            keep.setNotificationBeforeSentAt(null);
+            keep.setNotificationAfterSentAt(null);
+            keep.setPayeeType(null);
+            keep.setPayeeCompany(null);
+            clearSessionPayeeCustomData(keep);
+            anchor = repo.save(keep);
+        } else {
+            for (SessionBooking target : targetRows) {
+                repo.delete(target);
+            }
+            anchor = existingPlaceholder != null ? existingPlaceholder : otherParticipantRows.get(0);
+        }
+        repo.flush();
+
+        List<SessionBooking> refreshed = loadGroupedRows(anchor, companyId);
+        String groupKey = SessionBookingController.groupKey(anchor);
+        openBillSyncService.syncSessionGroup(companyId, groupKey);
+        openBillSyncService.enqueueBookingsSync(companyId, refreshed);
+        if (consumableService != null) {
+            consumableService.ensureSessionDefaultsForBookings(refreshed, companyId);
+        }
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(refreshed);
+        bookingChangePublisher.publish(
+                companyId,
+                response.id(),
+                response.startTime(),
+                response.endTime(),
+                BookingChangePublisher.BOOKING_UPDATED
+        );
+        return response;
+    }
+
+    private void authorizeStaffGroupSessionMutation(SessionBooking representative, User me) {
+        if (representative == null || representative.getClientGroup() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session is not a group session.");
+        }
+        if (!SecurityUtils.isAdmin(me)
+                && (representative.getConsultant() == null
+                || !Objects.equals(representative.getConsultant().getId(), me.getId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+    }
+
 
     public record ChannelBookingRequest(
             Long companyId,
@@ -875,6 +1035,14 @@ public class SessionBookingCreationService {
 
     @Transactional
     public SessionBooking joinClientToGroupSession(GroupJoinRequest request) {
+        return joinClientToGroupSession(request, true, true);
+    }
+
+    private SessionBooking joinClientToGroupSession(
+            GroupJoinRequest request,
+            boolean requireFutureSession,
+            boolean enforceGuestEligibility
+    ) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group join request is required.");
         }
@@ -894,8 +1062,12 @@ public class SessionBookingCreationService {
         if (representative.getClientGroup() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session is not a group session.");
         }
-        if (!representative.getStartTime().isAfter(timeService.localDateTime(bookingZone))) {
+        LocalDateTime now = timeService.localDateTime(bookingZone);
+        if (requireFutureSession && !representative.getStartTime().isAfter(now)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
+        }
+        if (!requireFutureSession && !representative.getEndTime().isAfter(now)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session has already ended.");
         }
 
         List<SessionBooking> existingRows = loadGroupedRows(representative, companyId);
@@ -915,7 +1087,9 @@ public class SessionBookingCreationService {
         if (alreadyBooked) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This guest is already booked into the selected group session.");
         }
-        validateGroupSessionJoinCapacity(type, existingRows, client);
+        if (enforceGuestEligibility) {
+            validateGroupSessionJoinCapacity(type, existingRows, client);
+        }
         long activeParticipants = existingRows.stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))

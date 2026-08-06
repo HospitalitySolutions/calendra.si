@@ -236,6 +236,8 @@ public class SessionBookingController {
             List<BookingRequest> futureOccurrences
     ) {}
 
+    public record GroupParticipantRequest(Long clientId) {}
+
     public record BookingPayeeRequest(
             Long clientId,
             String payeeType,
@@ -396,6 +398,35 @@ public class SessionBookingController {
     @PutMapping("/{id}")
     public BookingResponse update(@PathVariable Long id, @RequestBody BookingRequest req, @AuthenticationPrincipal User me) {
         return bookingCreationService.update(id, req, me);
+    }
+
+    /**
+     * Adds one existing client to a persisted group session without changing the
+     * group's permanent membership list or any of the session's other details.
+     */
+    @PostMapping("/{id}/participants")
+    public BookingResponse addParticipant(
+            @PathVariable Long id,
+            @RequestBody GroupParticipantRequest req,
+            @AuthenticationPrincipal User me
+    ) {
+        if (req == null || req.clientId() == null || req.clientId() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client is required.");
+        }
+        return bookingCreationService.addGroupSessionParticipant(id, req.clientId(), me);
+    }
+
+    /**
+     * Removes one client from this occurrence only. The client remains a member
+     * of the saved group and can be added to another occurrence later.
+     */
+    @DeleteMapping("/{id}/participants/{clientId}")
+    public BookingResponse removeParticipant(
+            @PathVariable Long id,
+            @PathVariable Long clientId,
+            @AuthenticationPrincipal User me
+    ) {
+        return bookingCreationService.removeGroupSessionParticipant(id, clientId, me);
     }
 
     @PutMapping("/{id}/series")
