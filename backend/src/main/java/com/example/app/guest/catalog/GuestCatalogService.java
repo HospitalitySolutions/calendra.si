@@ -507,6 +507,35 @@ public class GuestCatalogService {
         );
     }
 
+    /**
+     * Resolves a persisted wallet product for an order that was already created by tenant staff.
+     *
+     * Staff-side Client > Wallet purchases are intentionally allowed for active products even when
+     * the product is hidden from the guest app. Once the invoice has been created, fulfillment must
+     * also remain possible if guest visibility (or the active flag) is changed before payment.
+     * Guest-app availability checks therefore do not belong in this post-payment resolution path.
+     */
+    @Transactional(readOnly = true)
+    public ResolvedProduct resolveStaffWalletProduct(Long companyId, Long productId) {
+        if (productId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
+        }
+        GuestProduct product = guestProducts.findByIdAndCompanyId(productId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
+        if (product.getCourse() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This product cannot be fulfilled as a wallet entitlement.");
+        }
+        return new ResolvedProduct(
+                product,
+                product.getSessionType(),
+                product.getName(),
+                product.getProductType() == null ? ProductType.PACK.name() : product.getProductType().name(),
+                product.getPriceGross(),
+                product.getCurrency(),
+                product.isBookable()
+        );
+    }
+
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {
         if (productId == null || productId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         if (productId.startsWith("session-")) {

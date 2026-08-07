@@ -42,6 +42,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -53,6 +55,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class GuestOrderService {
+    private static final Logger log = LoggerFactory.getLogger(GuestOrderService.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final List<String> ALL_ALLOWED_GUEST_PRODUCT_TYPES = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
 
@@ -1763,15 +1766,25 @@ public class GuestOrderService {
             String productTypeName = String.valueOf(productType);
             if (!("PACK".equals(productTypeName) || "MEMBERSHIP".equals(productTypeName) || "CLASS_TICKET".equals(productTypeName) || "GIFT_CARD".equals(productTypeName) || "COURSE".equals(productTypeName))) return;
             Long guestProductIdLong = Long.parseLong(String.valueOf(guestProductId));
-            GuestProduct product = catalogService.resolveProduct(order.getCompany().getId(), String.valueOf(guestProductIdLong), order.getGuestUser()).persistedProduct();
+            boolean staffClientWalletOrder = isStaffClientWalletOrder(map);
+            GuestProduct product = staffClientWalletOrder
+                    ? catalogService.resolveStaffWalletProduct(order.getCompany().getId(), guestProductIdLong).persistedProduct()
+                    : catalogService.resolveProduct(order.getCompany().getId(), String.valueOf(guestProductIdLong), order.getGuestUser()).persistedProduct();
             if (product != null) {
                 boolean alreadyExists = entitlements.findBySourceOrderIdAndProductId(order.getId(), product.getId()).isPresent();
                 GuestEntitlement entitlement = entitlementService.ensureEntitlementForOrder(order, product);
-                if (!alreadyExists && isStaffClientWalletOrder(map)) {
+                if (!alreadyExists && staffClientWalletOrder) {
                     notifications.webEntitlementAdded(entitlement);
                 }
             }
-        } catch (Exception ignore) {
+        } catch (Exception ex) {
+            log.warn(
+                    "Failed to create wallet entitlement for paid guest order orderId={} companyId={}: {}",
+                    order == null ? null : order.getId(),
+                    order == null || order.getCompany() == null ? null : order.getCompany().getId(),
+                    ex.getMessage(),
+                    ex
+            );
         }
     }
 
