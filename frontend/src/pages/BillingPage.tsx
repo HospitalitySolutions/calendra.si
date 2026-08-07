@@ -271,6 +271,9 @@ type OpenBillPaymentSplitDraft = {
   amountGross: string
   kind?: 'payment' | 'entitlement'
   entitlementCode?: string
+  entitlementId?: number
+  entitlementName?: string
+  entitlementType?: string
   sourceAdvanceBillId?: number | null
   advanceSelections?: AdvancePaymentSelectionDraft[]
 }
@@ -304,7 +307,7 @@ type EntitlementScanResponse = {
   result?: string | null
   message?: string | null
   client?: { firstName?: string | null; lastName?: string | null } | null
-  entitlement?: { id?: number | null; code?: string | null; productName?: string | null } | null
+  entitlement?: { id?: number | null; code?: string | null; productName?: string | null; entitlementType?: string | null } | null
 }
 
 type EntitlementWalletOption = {
@@ -2931,13 +2934,35 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return locale === 'sl' ? 'Ugodnost' : 'Entitlement'
   }
 
+  function openBillEntitlementSettlementSelection(ob: OpenBill, totalGross: number) {
+    const splits = getOpenBillPaymentSplits(ob, totalGross)
+    if (splits.length !== 1) return null
+    const split = splits[0]
+    if (!isEntitlementPaymentSplit(split)) return null
+    const code = String(split.entitlementCode || '').trim()
+    if (!code) return null
+    const amount = paymentSplitEffectiveGross(split)
+    if (Math.abs(amount - totalGross) > 0.01) return null
+    const paymentClientId = getEntitlementPaymentClientIdForOpenBill(ob)
+    const paymentBookingId = getEntitlementPaymentBookingIdForOpenBill(ob, paymentClientId)
+    if (!paymentBookingId) return null
+    return { split, code, paymentClientId, paymentBookingId, totalGross }
+  }
+
+  function openBillEntitlementSelectionIsValid(ob: OpenBill, totalGross: number) {
+    const splits = getOpenBillPaymentSplits(ob, totalGross)
+    const hasEntitlement = splits.some(isEntitlementPaymentSplit)
+    if (!hasEntitlement) return true
+    return openBillEntitlementSettlementSelection(ob, totalGross) != null
+  }
+
   function entitlementErrorMessage(result?: string | null, message?: string | null) {
     if (message) return message
     if (result === 'INVALID_CODE') return locale === 'sl' ? 'Koda ugodnosti ni veljavna.' : 'The entitlement code is invalid.'
     if (result === 'EXPIRED') return locale === 'sl' ? 'Ugodnost je potekla.' : 'The entitlement has expired.'
     if (result === 'NO_VISITS_REMAINING') return locale === 'sl' ? 'Ugodnost nima več preostalih obiskov.' : 'No visits remain on this entitlement.'
     if (result === 'DUPLICATE_SCAN') return locale === 'sl' ? 'Ta ugodnost je bila pravkar uporabljena.' : 'This entitlement was just used.'
-    if (result === 'UNSUPPORTED_PAYMENT_ENTITLEMENT') return locale === 'sl' ? 'Za plačilo lahko uporabite samo vstopnice in pakete.' : 'Only tickets and packs can be used for payment.'
+    if (result === 'UNSUPPORTED_PAYMENT_ENTITLEMENT') return locale === 'sl' ? 'Za kritje termina lahko uporabite karte, pakete in članstva.' : 'Tickets, packs and memberships can cover a session.'
     if (result === 'SERVICE_TYPE_MISMATCH') return locale === 'sl' ? 'Ugodnost ni vezana na storitev tega računa.' : 'The entitlement is not linked to this bill service.'
     if (result === 'PAYMENT_BOOKING_NOT_FOUND') return locale === 'sl' ? 'Termina za plačilo ni bilo mogoče najti.' : 'The payment booking could not be found.'
     if (result === 'PAYMENT_CLIENT_MISMATCH') return locale === 'sl' ? 'Ugodnost pripada drugemu klientu.' : 'The entitlement belongs to a different client.'
@@ -3038,12 +3063,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function selectEntitlementPaymentMethod(ob: OpenBill, splitKey: string, totalGross: number) {
-    const current = getOpenBillPaymentSplits(ob, totalGross)
-    setOpenBillPaymentSplits(ob, current.map((split) => (
-      split.key === splitKey
-        ? { ...split, kind: 'entitlement', paymentMethodId: undefined, amountGross: formatPaymentAmountInput(0), entitlementCode: undefined }
-        : split
-    )))
+    // Selection is only committed after the entitlement has been validated. Closing the
+    // picker must leave the previous payment method untouched and must not consume credit.
     openEntitlementPaymentChooser(ob, splitKey, totalGross)
   }
 
@@ -3101,16 +3122,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  function applyEntitlementPaymentLocally(target: EntitlementPaymentTarget, code?: string | null) {
+  function applyEntitlementPaymentLocally(target: EntitlementPaymentTarget, entitlement?: EntitlementScanResponse['entitlement'], fallbackCode?: string | null) {
     const ob = detailOpenBill?.id === target.openBillId ? detailOpenBill : openBills.find((entry) => entry.id === target.openBillId)
     if (!ob) return
-    const current = getOpenBillPaymentSplits(ob, target.totalGross)
-    const amount = paymentSplitAmountToMatchRow(current, target.splitKey, target.totalGross)
-    setOpenBillPaymentSplits(ob, current.map((split) => (
-      split.key === target.splitKey
-        ? { ...split, kind: 'entitlement', paymentMethodId: undefined, amountGross: formatPaymentAmountInput(amount), entitlementCode: code || split.entitlementCode }
-        : split
-    )))
+    const code = String(entitlement?.code || fallbackCode || '').trim()
+    // A membership/pass is prepaid coverage, not another payment method. Once selected it
+    // covers the complete linked service bill and removes cash/card split rows from this bill.
+    setOpenBillPaymentSplits(ob, [{
+      key: target.splitKey,
+      kind: 'entitlement',
+      paymentMethodId: undefined,
+      amountGross: formatPaymentAmountInput(target.totalGross),
+      entitlementCode: code || undefined,
+      entitlementId: entitlement?.id == null ? undefined : Number(entitlement.id),
+      entitlementName: entitlement?.productName || undefined,
+      entitlementType: entitlement?.entitlementType || undefined,
+    }])
   }
 
   async function submitEntitlementPaymentCode(rawCode: string, source: EntitlementScanSource) {
@@ -3142,15 +3169,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           || data.entitlement?.productName
           || data.entitlement?.code
           || code
-        applyEntitlementPaymentLocally(entitlementPaymentTarget, data.entitlement?.code || code)
+        applyEntitlementPaymentLocally(entitlementPaymentTarget, data.entitlement, code)
         setEntitlementScanResult({
           tone: 'success',
-          text: locale === 'sl' ? 'Ugodnost je uporabljena kot plačilo.' : 'Entitlement applied as payment.',
+          text: locale === 'sl' ? 'Ugodnost je izbrana za kritje termina.' : 'Entitlement selected to cover the session.',
           detail,
         })
-        showToast('success', locale === 'sl' ? 'Ugodnost je uporabljena kot plačilo.' : 'Entitlement applied as payment.')
+        showToast('success', locale === 'sl' ? 'Ugodnost bo ob zaključku pokrila termin brez novega računa.' : 'The entitlement will cover the session without issuing another invoice.')
         stopEntitlementCamera()
-        await load()
         window.setTimeout(() => closeEntitlementPaymentModal(), 450)
       } else {
         setEntitlementScanResult({ tone: 'error', text: entitlementErrorMessage(data.result, data.message), detail: data.entitlement?.productName || undefined })
@@ -3182,14 +3208,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (locale === 'sl') {
       if (option.entitlementType === 'PACK') return 'Paket'
       if (option.entitlementType === 'TICKET') return 'Karta'
+      if (option.entitlementType === 'MEMBERSHIP') return 'Članstvo'
       return 'Ugodnost'
     }
     if (option.entitlementType === 'PACK') return 'Pack'
     if (option.entitlementType === 'TICKET') return 'Ticket'
+    if (option.entitlementType === 'MEMBERSHIP') return 'Membership'
     return 'Entitlement'
   }
 
   function entitlementWalletRemainingLabel(option: EntitlementWalletOption) {
+    if (option.entitlementType === 'MEMBERSHIP') {
+      if (option.validUntil) {
+        const date = new Date(option.validUntil)
+        if (!Number.isNaN(date.getTime())) {
+          return locale === 'sl'
+            ? `Aktivno do ${date.toLocaleDateString('sl-SI')}`
+            : `Active until ${date.toLocaleDateString('en-GB')}`
+        }
+      }
+      return locale === 'sl' ? 'Aktivno članstvo' : 'Active membership'
+    }
     const remaining = Number(option.remainingUses ?? 0)
     const total = Number(option.totalUses ?? 0)
     if (locale === 'sl') {
@@ -3851,10 +3890,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     !isAdvancePaymentSplit(split)
     || validateAdvanceSelections(getAdvanceSelectionsForSplit(split), createEligibleUnusedAdvances, createBillPayableGross)
   ))
-  const detailPaymentSelectionValid = !detailOpenBill || getOpenBillPaymentSplits(detailOpenBill, detailOpenBillTransactionGross).every((split) => (
-    !isAdvancePaymentSplit(split)
-    || validateAdvanceSelections(getAdvanceSelectionsForSplit(split), detailEligibleUnusedAdvances, detailOpenBillTransactionGross)
-  ))
+  const detailPaymentSelectionValid = !detailOpenBill || (
+    getOpenBillPaymentSplits(detailOpenBill, detailOpenBillTransactionGross).every((split) => (
+      !isAdvancePaymentSplit(split)
+      || validateAdvanceSelections(getAdvanceSelectionsForSplit(split), detailEligibleUnusedAdvances, detailOpenBillTransactionGross)
+    ))
+    && openBillEntitlementSelectionIsValid(detailOpenBill, detailOpenBillTransactionGross)
+  )
   const billCanSubmit = billForm.items.length > 0
     && (billForm.billingTarget === 'PERSON' ? Boolean(billForm.clientId) : Boolean(billForm.recipientCompanyId))
     && Boolean(billForm.legalEntityId && billForm.invoiceSeriesId && billForm.locationId)
@@ -4762,7 +4804,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
-    const printWindow = afterCreatePdfAction === 'print'
+    const targetEntitlementSettlement = openBillEntitlementSettlementSelection(target, openBillPayableGross(target))
+    if (targetEntitlementSettlement && onePayeeRelatedBills && onePayeeRelatedBills.length > 1) {
+      showToast('error', locale === 'sl'
+        ? 'Ugodnost lahko zaključi samo posamezen račun za en termin. Najprej izklopite združevanje plačnikov.'
+        : 'An entitlement can settle only one bill for one session. Turn off combined payees first.')
+      return
+    }
+    const printWindow = afterCreatePdfAction === 'print' && !targetEntitlementSettlement
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingFromOpenId(target.id)
@@ -4787,6 +4836,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         return
       }
       await api.put(`/billing/open-bills/${sourceOpenBill.id}`, buildOpenBillUpdatePayload(sourceOpenBill, items))
+
+      const entitlementSettlement = openBillEntitlementSettlementSelection(sourceOpenBill, openBillPayableGross(sourceOpenBill))
+      if (entitlementSettlement) {
+        const { data } = await api.post(`/billing/open-bills/${sourceOpenBill.id}/settle-entitlement`, {
+          entitlementCode: entitlementSettlement.code,
+          paymentBookingId: entitlementSettlement.paymentBookingId,
+          paymentClientId: entitlementSettlement.paymentClientId,
+        })
+        setOpenBills((prev) => prev.filter((x) => x.id !== sourceOpenBill.id))
+        setOpenBillEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
+        setOpenBillDetailsEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
+        setOpenBillPaymentEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
+        setOpenBillDiscountEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
+        showToast('success', locale === 'sl'
+          ? `${data?.entitlementName || 'Ugodnost'} je pokrila termin. Nov račun ni bil izdan.`
+          : `${data?.entitlementName || 'Entitlement'} covered the session. No new invoice was issued.`)
+        const snapshot = await load()
+        await onEmbeddedSaved?.()
+        const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, snapshot.openBills)
+        if (!movedToNextTab) {
+          if (openBillEditorRootId === sourceOpenBill.id) setOpenBillEditorRootId(null)
+          setDetailOpenBill((prev) => (prev?.id === sourceOpenBill.id ? null : prev))
+          if (activeOpenBillId === sourceOpenBill.id) closeDetailOpenBill()
+        }
+        return
+      }
 
       const { data } = await api.post(`/billing/open-bills/${sourceOpenBill.id}/create-bill`)
       if (data?.id) setBills((prev) => [normalizeBill(data), ...prev])
@@ -5513,11 +5588,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const availableMethods = effectiveType === 'ADVANCE'
       ? visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method))
       : visiblePaymentMethods
+    const hasEntitlementCoverage = splits.some(isEntitlementPaymentSplit)
     return (
       <section className="billing-invoice-payment-card">
         <div className="billing-invoice-section-title-row">
-          <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
-          <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
+          <h3>{hasEntitlementCoverage ? (locale === 'sl' ? 'Kritje z ugodnostjo' : 'Entitlement coverage') : (locale === 'sl' ? 'Načini plačila' : 'Payment methods')}</h3>
+          <span>{hasEntitlementCoverage ? (locale === 'sl' ? 'predplačano' : 'prepaid') : `${splits.length} ${splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}`}</span>
         </div>
         <div className="billing-invoice-payment-list">
           {splits.length > 0 ? splits.map((split) => {
@@ -5547,6 +5623,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     updateOpenBillPaymentSplit(ob, split.key, {
                       kind: 'payment',
                       entitlementCode: undefined,
+                      entitlementId: undefined,
+                      entitlementName: undefined,
+                      entitlementType: undefined,
                       paymentMethodId,
                       amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(nextAdvanceSelections)) : split.amountGross,
                       advanceSelections: nextAdvanceSelections,
@@ -5560,7 +5639,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {methodOptions.map((method) => (
                     <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
                   ))}
-                  <option value={ENTITLEMENT_PAYMENT_OPTION_VALUE}>{entitlementPaymentLabel()}</option>
+                  {effectiveType === 'INVOICE' && <option value={ENTITLEMENT_PAYMENT_OPTION_VALUE}>{entitlementPaymentLabel()}</option>}
                 </select>
                 <input
                   className="billing-invoice-payment-amount-input"
@@ -5625,6 +5704,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 >
                   🗑
                 </button>
+                {isEntitlement && split.entitlementCode && (
+                  <div className="billing-invoice-entitlement-summary">
+                    <div>
+                      <strong>{locale === 'sl' ? 'Krito z ugodnostjo' : 'Covered by entitlement'}{split.entitlementName ? `: ${split.entitlementName}` : ''}</strong>
+                      <small>{locale === 'sl' ? 'Predplačana ugodnost pokrije termin. Nov račun ne bo izdan.' : 'The prepaid entitlement covers this session. No new invoice will be issued.'}</small>
+                    </div>
+                    <b>{currency(paymentSplitEffectiveGross(split))}</b>
+                  </div>
+                )}
                 {isAdvanceSplit && (
                   <div className="billing-invoice-advance-summary">
                     <strong>{advanceSelections.length > 0 ? describeAdvanceSelectionCount(advanceSelections.length) : (locale === 'sl' ? 'Predplačila niso izbrana.' : 'No advances selected.')}</strong>
@@ -5639,10 +5727,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <button
             type="button"
             className="billing-invoice-add-dashed"
-            disabled={availableMethods.length === 0}
+            disabled={availableMethods.length === 0 || hasEntitlementCoverage}
             onClick={() => addOpenBillPaymentSplit(ob, totalGross)}
           >
-            + {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}
+            + {hasEntitlementCoverage
+              ? (locale === 'sl' ? 'Ugodnost krije celoten račun' : 'Entitlement covers the full bill')
+              : (locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method')}
           </button>
           {renderPaymentRemainingToMatch(splits, totalGross)}
         </div>
@@ -5954,7 +6044,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           {!canScanBill && (
             <div className="billing-entitlement-result billing-entitlement-result--error" role="status">
               <strong>{locale === 'sl' ? 'Ta račun ni povezan s terminom.' : 'This bill is not linked to a booking.'}</strong>
-              <span>{locale === 'sl' ? 'Ugodnost lahko uporabite kot plačilo samo pri računih, ki imajo povezavo na termin.' : 'Entitlements can only be applied as payment when the bill is linked to a booking.'}</span>
+              <span>{locale === 'sl' ? 'Ugodnost lahko uporabite za kritje samo pri računih, ki imajo povezavo na termin.' : 'Entitlements can only cover bills that are linked to a booking.'}</span>
             </div>
           )}
 
@@ -6045,7 +6135,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 ))}
                 {walletOptionCount === 0 && !entitlementWalletLoading && (
                   <div className="billing-entitlement-wallet-empty">
-                    {locale === 'sl' ? 'Plačnik nima razpoložljivih kart ali paketov za to storitev.' : 'The payee has no available tickets or packs for this service.'}
+                    {locale === 'sl' ? 'Plačnik nima razpoložljivih kart, paketov ali članstev za to storitev.' : 'The payee has no available tickets, packs or memberships for this service.'}
                   </div>
                 )}
                 {entitlementWalletLoading && (
@@ -7227,10 +7317,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const detailVatRows = vatBreakdownRowsForItems(detailDiscountedItems)
     const detailDiscountGross = calculateDiscountGross(detailSubtotalGross, detailDiscountDraft, totalsItems)
     const detailGross = payableGrossAfterDiscount(detailSubtotalGross, detailDiscountDraft, totalsItems)
+    const activeEntitlementSettlement = onePayeeForAll ? null : openBillEntitlementSettlementSelection(activeBill, detailGross)
     const activeBillSelectableServices = selectableServicesForOpenBill(activeBill)
     const totalOpenBills = onePayeeForAll ? 1 : relatedOpenBills.length
     const totalLineItems = relatedOpenBills.reduce((sum, entry) => sum + getOpenBillItems(entry).length, 0)
     const totalAcrossBills = relatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0)
+    const totalUnpaidAcrossBills = relatedOpenBills.reduce((sum, entry) => {
+      const gross = openBillPayableGross(entry)
+      return sum + (openBillEntitlementSettlementSelection(entry, gross) ? 0 : gross)
+    }, 0)
     const addBillSourceBill = baseRelatedOpenBills[0] ?? rootBill
     const addBillSessionId = addBillSourceBill.sessionId
       ?? getOpenBillIncludedSessions(addBillSourceBill).find((s) => Number(s.sessionId) > 0)?.sessionId
@@ -7604,8 +7699,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               {detailDiscountGross > 0.005 && (
                 <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(detailDiscountGross)}</strong></div>
               )}
+              {activeEntitlementSettlement && (
+                <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--entitlement">
+                  <span>{locale === 'sl' ? 'Krito z ugodnostjo' : 'Covered by entitlement'}</span>
+                  <strong>- {currency(detailGross)}</strong>
+                </div>
+              )}
               <div className="billing-bill-modal-summary-divider" />
-              <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(detailGross)}</strong></div>
+              <div className="billing-bill-modal-total-line">
+                <span>{activeEntitlementSettlement ? (locale === 'sl' ? 'Za plačilo' : 'Amount due') : (locale === 'sl' ? 'Skupaj' : 'Grand total')}</span>
+                <strong>{currency(activeEntitlementSettlement ? 0 : detailGross)}</strong>
+              </div>
             </section>
           </div>
         </section>
@@ -7614,7 +7718,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}</span><strong>{totalOpenBills} {locale === 'sl' ? (totalOpenBills === 1 ? 'račun' : totalOpenBills === 2 ? 'računa' : totalOpenBills === 3 || totalOpenBills === 4 ? 'računi' : 'računov') : (totalOpenBills === 1 ? 'bill' : 'bills')}</strong></div>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Skupaj postavk' : 'Total line items'}</span><strong>{totalLineItems}</strong></div>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--orange">◈</span><span>{locale === 'sl' ? 'Skupaj vsi računi' : 'Total across all bills'}</span><strong>{currency(totalAcrossBills)}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Skupaj neplačano' : 'Total unpaid'}</span><strong>{currency(totalAcrossBills)}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Skupaj neplačano' : 'Total unpaid'}</span><strong>{currency(totalUnpaidAcrossBills)}</strong></div>
         </section>
         {renderOpenBillPayeeEditorDialog()}
         {renderAddOpenBillDialog()}
@@ -9317,6 +9421,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? Number(detailBaseRelatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0).toFixed(2))
           : openBillPayableGross(detailActionOpenBill)
         const detailPaymentSplits = getOpenBillPaymentSplits(detailActionOpenBill, detailActionGross || detailGross)
+        const detailEntitlementSettlement = detailOnePayeeForAll
+          ? null
+          : openBillEntitlementSettlementSelection(detailActionOpenBill, detailActionGross || detailGross)
         const detailCloseCandidateBills = detailOnePayeeForAll ? detailBaseRelatedOpenBills : [detailActionOpenBill]
         const detailSessionsBillableForClose = openBillSessionsAreBillableForClose(detailCloseCandidateBills)
         const detailPaymentsMatchCloseTotal = paymentSplitsMatchInvoiceTotal(detailPaymentSplits, detailActionGross || detailGross)
@@ -9331,7 +9438,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           : !detailPaymentsMatchCloseTotal
             ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment method amounts must match the invoice total.')
             : !detailPaymentSelectionValid
-              ? (locale === 'sl' ? 'Izbrana predplačila niso veljavna.' : 'The selected advances are not valid.')
+              ? (locale === 'sl' ? 'Izbrano plačilo ali ugodnost ni veljavna.' : 'The selected payment or entitlement is not valid.')
             : undefined
         const hasUnsavedOpenBillChanges = Object.prototype.hasOwnProperty.call(openBillEdits, detailOpenBill.id)
           || Object.prototype.hasOwnProperty.call(openBillDetailsEdits, detailOpenBill.id)
@@ -9361,7 +9468,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         event.currentTarget.closest('details')?.removeAttribute('open')
                         openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)
                       }}
-                      disabled={previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                      disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
                     >
                       {locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
                     </button>
@@ -9407,8 +9514,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {detailDiscountGross > 0.005 && (
                     <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(detailDiscountGross)}</strong></div>
                   )}
+                  {detailEntitlementSettlement && (
+                    <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--entitlement">
+                      <span>{locale === 'sl' ? 'Krito z ugodnostjo' : 'Covered by entitlement'}</span>
+                      <strong>- {currency(detailActionGross || detailGross)}</strong>
+                    </div>
+                  )}
                   <div className="billing-bill-modal-summary-divider" />
-                  <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(detailGross)}</strong></div>
+                  <div className="billing-bill-modal-total-line">
+                    <span>{detailEntitlementSettlement ? (locale === 'sl' ? 'Za plačilo' : 'Amount due') : (locale === 'sl' ? 'Skupaj' : 'Grand total')}</span>
+                    <strong>{currency(detailEntitlementSettlement ? 0 : detailGross)}</strong>
+                  </div>
                 </section>
                 <button type="button" className="billing-bill-modal-delete" onClick={() => deleteOpenBill(detailOpenBill)} disabled={deletingOpenId === detailOpenBill.id}>
                   🗑 {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
@@ -9418,7 +9534,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     type="button"
                     className="billing-bill-modal-preview-btn"
                     onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                    disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
                   >
                     <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
                     <span>{previewingOpenBillId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : emailingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}</span>
@@ -9426,15 +9542,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
                 </div>
                 <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-open-edit">
-                  <button
-                    type="button"
-                    className="billing-bill-modal-save-btn"
-                    onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
-                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
-                    title={detailCloseDisabledReason}
-                  >
-                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}
-                  </button>
+                  {!detailEntitlementSettlement && (
+                    <button
+                      type="button"
+                      className="billing-bill-modal-save-btn"
+                      onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
+                      disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
+                      title={detailCloseDisabledReason}
+                    >
+                      {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="billing-bill-modal-primary-action"
@@ -9444,28 +9562,39 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   >
                     {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
                       <>
-                        <span className="billing-bill-modal-primary-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-                        {locale === 'sl' ? 'Zaključi račun' : 'Close invoice'}
+                        <span className="billing-bill-modal-primary-icon" aria-hidden>{detailEntitlementSettlement ? '✓' : renderPlainFolioPdfIcon()}</span>
+                        {detailEntitlementSettlement
+                          ? (locale === 'sl' ? 'Zaključi z ugodnostjo' : 'Settle with entitlement')
+                          : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
                       </>
                     )}
                   </button>
                 </div>
                 <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--mobile-open-edit">
-                  <button
-                    type="button"
-                    className="billing-bill-modal-save-btn"
-                    onClick={() => void printOpenBillInvoicePreview(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={printingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
-                  >
-                    {printingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni' : 'Print')}
-                  </button>
+                  {!detailEntitlementSettlement && (
+                    <button
+                      type="button"
+                      className="billing-bill-modal-save-btn"
+                      onClick={() => void printOpenBillInvoicePreview(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                      disabled={printingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                    >
+                      {printingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni' : 'Print')}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="billing-bill-modal-primary-action"
-                    onClick={() => void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)}
-                    disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}
+                    onClick={() => detailEntitlementSettlement
+                      ? void createBillFromOpen(detailActionOpenBill)
+                      : void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)}
+                    disabled={detailEntitlementSettlement
+                      ? creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill
+                      : (!hasUnsavedOpenBillChanges && !detailOnePayeeForAll)}
+                    title={detailEntitlementSettlement ? detailCloseDisabledReason : undefined}
                   >
-                    {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
+                    {detailEntitlementSettlement
+                      ? (creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi z ugodnostjo' : 'Settle with entitlement'))
+                      : (locale === 'sl' ? 'Shrani spremembe' : 'Save changes')}
                   </button>
                 </div>
               </div>

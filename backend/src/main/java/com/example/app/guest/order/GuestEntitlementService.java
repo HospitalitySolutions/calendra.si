@@ -137,7 +137,11 @@ public class GuestEntitlementService {
         usage.setReason(EntitlementUsageReason.BOOKING);
         usage.setUsedAt(Instant.now());
         usages.save(usage);
-        decrementIfLimited(entitlement);
+        if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
+            entitlement.setVisitCount(Math.max(0, entitlement.getVisitCount()) + 1);
+        } else {
+            decrementIfLimited(entitlement);
+        }
         entitlements.save(entitlement);
         return new GuestEntitlementSelection(entitlement, true);
     }
@@ -413,6 +417,8 @@ public class GuestEntitlementService {
                     : BigDecimal.valueOf(usage.getUnitsBefore(), 2).setScale(2, RoundingMode.HALF_UP);
             entitlement.setRemainingValueGross(restoredBalance);
             entitlement.setRemainingUses(1);
+        } else if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
+            entitlement.setVisitCount(Math.max(0, entitlement.getVisitCount() - 1));
         } else {
             incrementIfLimited(entitlement);
         }
@@ -444,6 +450,32 @@ public class GuestEntitlementService {
         metadata.put("autoRenews", autoRenews);
         entitlement.setMetadataJson(writeMetadata(metadata));
         return entitlements.save(entitlement);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Optional<GuestEntitlementUsage> findBookingUsage(Long bookingId) {
+        if (bookingId == null) return java.util.Optional.empty();
+        return usages.findAllBySessionBookingIdOrderByUsedAtAsc(bookingId).stream()
+                .filter(row -> row.getSessionService() == null)
+                .findFirst();
+    }
+
+    @Transactional
+    public GuestEntitlementUsage annotateBookingSettlement(Long bookingId, Long sourceOpenBillId, BigDecimal coveredGross) {
+        GuestEntitlementUsage usage = findBookingUsage(bookingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Entitlement usage was not created for this booking."));
+        usage.setSourceOpenBillId(sourceOpenBillId);
+        usage.setCoveredGross(coveredGross == null ? null : coveredGross.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
+        return usages.save(usage);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Optional<GuestEntitlement> findOwnedEntitlementByVisibleCode(String rawCode, Long companyId) {
+        if (rawCode == null || rawCode.isBlank() || companyId == null) return java.util.Optional.empty();
+        String code = rawCode.trim();
+        return entitlements.findByEntitlementCode(code)
+                .filter(entitlement -> entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId))
+                .or(() -> entitlements.findFirstByDisplayCodeAndCompanyIdOrderByCreatedAtDesc(code, companyId));
     }
 
     @Transactional(readOnly = true)

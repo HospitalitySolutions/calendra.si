@@ -10648,3 +10648,64 @@
     padding: 0 16px 18px;
   }
 }
+
+/* Prepaid membership/pass coverage in the open-bill editor. */
+.billing-invoice-entitlement-summary {
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid rgba(37, 99, 235, 0.12);
+}
+
+.billing-invoice-entitlement-summary > div {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.billing-invoice-entitlement-summary strong {
+    color: #1d4ed8;
+    font-size: 0.78rem;
+    white-space: normal;
+}
+
+.billing-invoice-entitlement-summary small {
+    color: #64748b;
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.billing-invoice-entitlement-summary b {
+    color: #1d4ed8;
+    white-space: nowrap;
+    font-size: 0.86rem;
+}
+
+.billing-bill-modal-summary-line--entitlement {
+    color: #1d4ed8;
+}
+
+.billing-bill-modal-summary-line--entitlement strong {
+    color: #1d4ed8;
+}
+
+[data-theme="dark"] .billing-invoice-entitlement-summary {
+    background: rgba(37, 99, 235, 0.12);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+[data-theme="dark"] .billing-invoice-entitlement-summary strong,
+[data-theme="dark"] .billing-invoice-entitlement-summary b,
+[data-theme="dark"] .billing-bill-modal-summary-line--entitlement,
+[data-theme="dark"] .billing-bill-modal-summary-line--entitlement strong {
+    color: #93c5fd;
+}
+
+[data-theme="dark"] .billing-invoice-entitlement-summary small {
+    color: #94a3b8;
+}

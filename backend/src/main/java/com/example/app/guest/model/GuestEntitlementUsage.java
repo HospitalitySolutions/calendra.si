@@ -5,6 +5,7 @@ import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionService;
 import com.example.app.user.User;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
@@ -50,4 +51,12 @@ public class GuestEntitlementUsage extends BaseEntity {
 
     @Column(name = "units_after")
     private Integer unitsAfter;
+
+    /** Open bill that was settled by this entitlement usage. Kept as an id because the open bill is deleted on settlement. */
+    @Column(name = "source_open_bill_id")
+    private Long sourceOpenBillId;
+
+    /** Gross service value covered by this prepaid entitlement; this is not a new payment or invoice amount. */
+    @Column(name = "covered_gross", precision = 12, scale = 2)
+    private BigDecimal coveredGross;
 }

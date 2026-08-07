@@ -27,6 +27,8 @@ import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.OrderStatus;
+import com.example.app.guest.model.GuestEntitlement;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.stripe.StripeBillingService;
@@ -117,6 +119,7 @@ public class BillingController {
     private final BillingModuleAccessService billingModuleAccess;
     private final TimeService timeService;
     private InvoiceIssuanceService invoiceIssuanceService;
+    private GuestEntitlementService guestEntitlementService;
     private LocationRepository locations;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
@@ -161,6 +164,11 @@ public class BillingController {
     @org.springframework.beans.factory.annotation.Autowired
     void configureInvoiceIssuanceService(InvoiceIssuanceService invoiceIssuanceService) {
         this.invoiceIssuanceService = invoiceIssuanceService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureGuestEntitlementService(GuestEntitlementService guestEntitlementService) {
+        this.guestEntitlementService = guestEntitlementService;
     }
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -342,6 +350,17 @@ public class BillingController {
     ) {}
     public record BillExportRequest(List<Long> billIds) {}
     public record BillIssuerSelectionRequest(Long legalEntityId, Long invoiceSeriesId, Long locationId) {}
+
+    public record EntitlementSettlementRequest(String entitlementCode, Long paymentBookingId, Long paymentClientId) {}
+    public record EntitlementSettlementResponse(
+            Long openBillId,
+            String status,
+            BigDecimal serviceValueGross,
+            BigDecimal coveredGross,
+            Long entitlementId,
+            String entitlementName,
+            Long sessionBookingId
+    ) {}
 
     public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record ItemDiscountRequest(Integer itemIndex, String discountType, BigDecimal discountValue) {}
@@ -2008,6 +2027,120 @@ public class BillingController {
      */
     public BillResponse createBillFromOpen(Long id, User me) {
         return createBillFromOpen(id, null, me);
+    }
+
+    @PostMapping("/open-bills/{id}/settle-entitlement")
+    @Transactional
+    public EntitlementSettlementResponse settleOpenBillWithEntitlement(
+            @PathVariable Long id,
+            @RequestBody EntitlementSettlementRequest request,
+            @AuthenticationPrincipal User me
+    ) {
+        Long companyId = me.getCompany().getId();
+        requireCanIssueOpenInvoice(me);
+        if (!SecurityUtils.canScanWalletEntitlements(me)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to use wallet entitlements.");
+        }
+        if (guestEntitlementService == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Wallet entitlement service is unavailable.");
+        }
+        if (request == null || request.entitlementCode() == null || request.entitlementCode().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement code is required.");
+        }
+        if (request.paymentBookingId() == null || request.paymentBookingId() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A linked booking is required for entitlement settlement.");
+        }
+
+        OpenBill open = openBillRepo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (open.getCompany() == null || !Objects.equals(open.getCompany().getId(), companyId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        BillType resolvedBillType = open.getBillType() == null ? BillType.INVOICE : open.getBillType();
+        if (resolvedBillType != BillType.INVOICE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Prepaid entitlements can settle service invoices only, not advance invoices.");
+        }
+
+        Set<Long> linkedSessionIds = open.getItems().stream()
+                .map(OpenBillItem::getSourceSessionBookingId)
+                .filter(Objects::nonNull)
+                .filter(sourceSessionId -> !isManualOpenBillLineSourceId(sourceSessionId))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (open.getSessionBooking() != null && open.getSessionBooking().getId() != null) {
+            linkedSessionIds.add(open.getSessionBooking().getId());
+        }
+        if (linkedSessionIds.size() != 1 || !linkedSessionIds.contains(request.paymentBookingId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An entitlement can settle only one linked session at a time.");
+        }
+        requireOpenBillSessionsBillableForClose(companyId, linkedSessionIds);
+
+        SessionBooking booking = sessionBookings.findByIdAndCompanyId(request.paymentBookingId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Linked booking was not found."));
+        if (booking.getClient() == null || booking.getClient().getId() == null || booking.getType() == null || booking.getType().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Linked booking has no client or service type.");
+        }
+        Client settlementClient = open.getClient() != null ? open.getClient() : booking.getClient();
+        if (settlementClient == null || settlementClient.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no client for entitlement settlement.");
+        }
+        if (!Objects.equals(settlementClient.getId(), booking.getClient().getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill client does not match the linked booking client.");
+        }
+        if (request.paymentClientId() != null && request.paymentClientId() > 0
+                && !Objects.equals(request.paymentClientId(), settlementClient.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected wallet client does not match the open bill client.");
+        }
+
+        GuestEntitlement entitlement = guestEntitlementService
+                .findOwnedEntitlementByVisibleCode(request.entitlementCode(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement code is not valid."));
+        if (entitlement.getClient() == null || !Objects.equals(entitlement.getClient().getId(), settlementClient.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The entitlement belongs to another client.");
+        }
+
+        var existingUsage = guestEntitlementService.findBookingUsage(booking.getId()).orElse(null);
+        if (existingUsage != null) {
+            if (existingUsage.getEntitlement() == null
+                    || !Objects.equals(existingUsage.getEntitlement().getId(), entitlement.getId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This booking is already covered by another entitlement.");
+            }
+        } else {
+            guestEntitlementService.consumeSelectedEntitlement(
+                    settlementClient,
+                    companyId,
+                    booking.getType().getId(),
+                    entitlement.getId(),
+                    booking
+            );
+        }
+
+        BigDecimal serviceValueGross = openBillPayableGrossForSettlement(open);
+        if (serviceValueGross.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The open bill has no payable service value to cover.");
+        }
+        guestEntitlementService.annotateBookingSettlement(booking.getId(), open.getId(), serviceValueGross);
+
+        for (SessionBooking linked : sessionBookings.findAllByCompanyIdAndIds(companyId, linkedSessionIds)) {
+            linked.setBilledAt(timeService.localDate());
+            sessionBookings.save(linked);
+        }
+        sessionBookings.flush();
+
+        deleteAdvanceAllocationsForOpenBill(companyId, open.getId());
+        advanceAllocationRepo.flush();
+        Long openBillId = open.getId();
+        openBillRepo.delete(open);
+        openBillRepo.flush();
+
+        String entitlementName = entitlement.getProduct() == null ? null : entitlement.getProduct().getName();
+        return new EntitlementSettlementResponse(
+                openBillId,
+                "SETTLED_BY_ENTITLEMENT",
+                serviceValueGross,
+                serviceValueGross,
+                entitlement.getId(),
+                entitlementName,
+                booking.getId()
+        );
     }
 
     @PostMapping("/open-bills/{id}/create-bill")
@@ -4530,6 +4663,26 @@ public class BillingController {
             out.add(resolveOpenBillLineGross(item).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
         }
         return out;
+    }
+
+    private static BigDecimal openBillPayableGrossForSettlement(OpenBill open) {
+        List<BigDecimal> lineGrosses = openBillDiscountLineGrosses(open);
+        List<ItemDiscountRequest> itemDiscounts = parseOpenBillItemDiscounts(open);
+        BigDecimal wholeBillPercent = open == null || open.getWholeBillDiscountPercent() == null
+                ? resolveWholeBillPercent(
+                        null,
+                        open == null ? null : open.getDiscountType(),
+                        open == null ? null : open.getDiscountValue(),
+                        open == null ? null : open.getDiscountItemIndex(),
+                        itemDiscounts.isEmpty() ? null : itemDiscounts)
+                : normalizeWholeBillDiscountPercent(open.getWholeBillDiscountPercent());
+        if (itemDiscounts.isEmpty() && open != null) {
+            itemDiscounts = legacyItemDiscounts(open.getDiscountType(), open.getDiscountValue(), open.getDiscountItemIndex(), lineGrosses);
+        }
+        return calculateSequentialDiscounts(lineGrosses, wholeBillPercent, itemDiscounts)
+                .finalTotalGross()
+                .max(BigDecimal.ZERO)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String normalizeOpenBillDiscountType(String raw) {

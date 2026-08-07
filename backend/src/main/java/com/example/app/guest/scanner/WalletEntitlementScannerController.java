@@ -87,13 +87,15 @@ public class WalletEntitlementScannerController {
                         List.of(EntitlementStatus.ACTIVE)
                 ).stream()
                 .filter(entitlement -> entitlement.getEntitlementType() == EntitlementType.TICKET
-                        || entitlement.getEntitlementType() == EntitlementType.PACK)
-                .filter(entitlement -> entitlement.getRemainingUses() != null && entitlement.getRemainingUses() > 0)
+                        || entitlement.getEntitlementType() == EntitlementType.PACK
+                        || entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP)
+                .filter(entitlement -> entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
+                        || (entitlement.getRemainingUses() != null && entitlement.getRemainingUses() > 0))
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
                 .filter(entitlement -> entitlement.getProduct() != null
-                        && entitlement.getProduct().getSessionType() != null
-                        && Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingTypeId))
+                        && (entitlement.getProduct().getSessionType() == null
+                            || Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingTypeId)))
                 .filter(entitlement -> firstUsableCode(entitlement) != null)
                 .map(this::paymentOptionResponse)
                 .toList();
@@ -191,13 +193,25 @@ public class WalletEntitlementScannerController {
                 || !Objects.equals(entitlement.getClient().getId(), expectedWalletClientId)) {
             return failure("PAYMENT_CLIENT_MISMATCH", "This entitlement belongs to another guest.", entitlement);
         }
-        if (usages.findBySessionBookingId(booking.getId()).isPresent()) {
-            return failure("ALREADY_PAID_WITH_ENTITLEMENT", "This participant was already paid with an entitlement.", entitlement);
+        GuestEntitlementUsage existingUsage = usages.findBySessionBookingId(booking.getId()).orElse(null);
+        if (existingUsage != null) {
+            if (existingUsage.getEntitlement() != null
+                    && Objects.equals(existingUsage.getEntitlement().getId(), entitlement.getId())) {
+                return new ScanResponse(
+                        true,
+                        "SESSION_ENTITLEMENT_ALREADY_APPLIED",
+                        "This entitlement is already linked to the session and can be used to settle the open bill.",
+                        clientResponse(entitlement.getClient()),
+                        entitlementResponse(entitlement),
+                        booking.getId()
+                );
+            }
+            return failure("ALREADY_PAID_WITH_ENTITLEMENT", "This participant was already paid with another entitlement.", entitlement);
         }
 
         EntitlementType type = entitlement.getEntitlementType();
-        if (type != EntitlementType.TICKET && type != EntitlementType.PACK) {
-            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "Only class tickets and packs can be used to pay a session.", entitlement);
+        if (type != EntitlementType.TICKET && type != EntitlementType.PACK && type != EntitlementType.MEMBERSHIP) {
+            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "Only class tickets, packs and memberships can cover a session.", entitlement);
         }
 
         ScanResponse serviceValidation = validateBookingPaymentServiceType(booking, entitlement);
@@ -205,27 +219,12 @@ public class WalletEntitlementScannerController {
             return serviceValidation;
         }
 
-        Integer remaining = entitlement.getRemainingUses();
-        if (remaining == null || remaining <= 0) {
-            entitlement.setStatus(EntitlementStatus.USED_UP);
-            entitlements.save(entitlement);
-            return failure("NO_VISITS_REMAINING", "This entitlement has no visits remaining.", entitlement);
-        }
-
-        Integer before = remaining;
-        Integer after = Math.max(0, remaining - 1);
-        entitlement.setRemainingUses(after);
-        if (after <= 0) {
-            entitlement.setStatus(EntitlementStatus.USED_UP);
-        }
-        GuestEntitlementUsage usage = buildScanUsage(entitlement, booking, me, normalizeSource(request.source()), before, after, now);
-        usages.save(usage);
-        entitlements.save(entitlement);
-
+        // Payment selection is validation-only. The entitlement is consumed atomically when the
+        // open bill is settled, so closing the picker or abandoning the invoice cannot burn a visit.
         return new ScanResponse(
                 true,
-                "SESSION_PAID_WITH_ENTITLEMENT",
-                "Entitlement applied to session payment.",
+                "SESSION_ENTITLEMENT_VALIDATED",
+                "Entitlement can cover this session.",
                 clientResponse(entitlement.getClient()),
                 entitlementResponse(entitlement),
                 booking.getId()
@@ -293,18 +292,20 @@ public class WalletEntitlementScannerController {
         if (bookingType == null || bookingType.getId() == null) {
             return failure("PAYMENT_BOOKING_NOT_FOUND", "Selected session has no service type.", entitlement);
         }
-        if (entitlement.getProduct() == null || entitlement.getProduct().getSessionType() == null
-                || entitlement.getProduct().getSessionType().getId() == null) {
+        if (entitlement.getProduct() == null) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
-                    "This ticket or pack is not linked to the service type on this session.",
+                    "This entitlement has no product configuration.",
                     entitlement
             );
         }
-        if (!Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingType.getId())) {
+        // A product without a specific session type is a wildcard entitlement and may cover
+        // any service. When a session type is configured, it must match this booking exactly.
+        if (entitlement.getProduct().getSessionType() != null
+                && !Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingType.getId())) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
-                    "This ticket or pack is for a different service type than this session.",
+                    "This entitlement is for a different service type than this session.",
                     entitlement
             );
         }
