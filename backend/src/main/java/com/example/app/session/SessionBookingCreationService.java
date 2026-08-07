@@ -821,7 +821,7 @@ public class SessionBookingCreationService {
                 BookingChangePublisher.BOOKING_UPDATED
         );
         recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
-                "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId));
+                "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId), representativeBookingId);
         return response;
     }
 
@@ -2476,6 +2476,13 @@ public class SessionBookingCreationService {
     private void recordBookingActivity(
             User actor, ActivityAction action, SessionBookingController.BookingResponse response,
             String secondaryType, Long secondaryId, String secondaryLabel, Map<String, ?> extraDetails) {
+        recordBookingActivity(actor, action, response, secondaryType, secondaryId, secondaryLabel, extraDetails, null);
+    }
+
+    private void recordBookingActivity(
+            User actor, ActivityAction action, SessionBookingController.BookingResponse response,
+            String secondaryType, Long secondaryId, String secondaryLabel, Map<String, ?> extraDetails,
+            Long primaryEntityIdOverride) {
         if (activityLogs == null || response == null) return;
         String typeLabel = response.type() == null ? "Session" : response.type().name();
         String summary = switch (action) {
@@ -2489,7 +2496,8 @@ public class SessionBookingCreationService {
         Map<String, Object> details = new java.util.LinkedHashMap<>();
         details.putAll(bookingActivitySnapshot(response));
         if (extraDetails != null) details.putAll(extraDetails);
-        activityLogs.recordUser(actor, ActivityModule.CALENDAR, action, "SESSION", response.id(), typeLabel,
+        Long primaryEntityId = primaryEntityIdOverride != null ? primaryEntityIdOverride : response.id();
+        activityLogs.recordUser(actor, ActivityModule.CALENDAR, action, "SESSION", primaryEntityId, typeLabel,
                 secondaryType, secondaryId, secondaryLabel, summary,
                 response.location() == null ? null : response.location().id(),
                 response.space() == null ? null : response.space().id(), details);
