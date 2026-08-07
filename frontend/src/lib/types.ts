@@ -427,9 +427,15 @@ export function normalizePaymentMethod(
 export type InvoiceIssuerSummary = {
   id: number
   name: string
+  address?: string | null
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
   vatId?: string | null
   taxNumber?: string | null
   iban?: string | null
+  email?: string | null
+  telephone?: string | null
 }
 
 export type InvoiceSeriesSummary = { id: number; name: string }

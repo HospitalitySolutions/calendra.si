@@ -125,6 +125,11 @@ public class BillFolioPdfService {
         );
     }
 
+    public String paymentQrPayload(Bill bill, Long companyId, String locale) {
+        if (bill == null || companyId == null) return null;
+        return buildFolioPdfRequest(bill, companyId, locale).getPaymentQrPayload();
+    }
+
     public static final String BANK_TRANSFER_QR_SETTINGS_MISSING_CODE = "BANK_TRANSFER_QR_SETTINGS_MISSING";
 
     public List<String> missingOwnBankTransferSettingKeys(Long companyId) {

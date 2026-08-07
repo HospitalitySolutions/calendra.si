@@ -5920,10 +5920,10 @@ export function ConfigurationPage() {
                     : "Default print format",
               subtitle:
                 locale === "sl"
-                  ? "Uporabi se pri dejanju Zaključi in natisni ter pri običajnem gumbu Natisni."
+                  ? "Uporabi se pri dejanju Zaključi in natisni ter pri običajnem gumbu Natisni, kadar je v Obračun → POS tiskanje izbrano Standardno tiskanje."
                   : locale === "sr"
-                    ? "Koristi se za Završi i odštampaj i za uobičajeno dugme Štampaj."
-                    : "Used by Close and print and the standard Print action.",
+                    ? "Koristi se za Završi i odštampaj i za uobičajeno dugme Štampaj kada je izabrana standardna štampa."
+                    : "Used by Close and print and the standard Print action when Standard printing is selected under Billing → POS printing.",
               valueControl: (
                 <select
                   className="modules-design-inline-control modules-design-calendar-scale-select"
@@ -5936,7 +5936,10 @@ export function ConfigurationPage() {
                       [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: event.target.value,
                     })
                   }
-                  disabled={!moduleOn("BILLING_ENABLED")}
+                  disabled={
+                    !moduleOn("BILLING_ENABLED") ||
+                    normalizePosPrintingMode(settings.POS_PRINTING_MODE) === POS_PRINTING_MODE_DIRECT
+                  }
                   aria-label={
                     locale === "sl"
                       ? "Privzeta oblika tiskanja"
@@ -12773,8 +12776,8 @@ export function ConfigurationPage() {
                               <h3>{locale === "sl" ? "POS tiskanje" : "POS printing"}</h3>
                               <p>
                                 {locale === "sl"
-                                  ? "Nastavite tiskanje računov na 58 mm ali 80 mm POS tiskalnike. Ob prvi povezavi bo brskalnik zahteval dovoljenje za dostop do tiskalnika."
-                                  : "Configure printing for 58 mm or 80 mm POS printers. On first connection the browser will ask for permission to access the printer."}
+                                  ? "Nastavite tiskanje računov na 58 mm ali 80 mm POS tiskalnike. Tiskalnik lahko povežete tukaj ali ob prvem tiskanju; brskalnik bo takrat zahteval dovoljenje za dostop do naprave."
+                                  : "Configure printing for 58 mm or 80 mm POS printers. You can connect the printer here or on the first print; the browser will then ask for device access."}
                               </p>
                             </div>
 
@@ -12881,8 +12884,8 @@ export function ConfigurationPage() {
                                       ? "Neposredno POS tiskanje trenutno podpirata predvsem Chrome in Microsoft Edge na namizju."
                                       : "Direct POS printing is currently supported mainly in Chrome and Microsoft Edge on desktop."
                                     : locale === "sl"
-                                      ? "Povezava je potrebna samo ob prvi uporabi v tem brskalniku. Brskalnik bo ob prvi povezavi odprl okno za izbiro tiskalnika."
-                                      : "Connection is required only the first time in this browser. The browser will open a device picker on the first connection."}
+                                      ? "Povezava je potrebna samo ob prvi uporabi v tem brskalniku. Če tiskalnika ne povežete tukaj, bo Calendra izbiro naprave samodejno odprla ob prvem pritisku na Natisni oziroma Zaključi in natisni."
+                                      : "Connection is required only the first time in this browser. If you do not connect here, Calendra will automatically open the device picker on the first Print or Close and print action."}
                                 </span>
                               </div>
                             </div>

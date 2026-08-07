@@ -309,7 +309,19 @@ public class BillingController {
     public record PaymentSplitRequest(Long paymentMethodId, BigDecimal amountGross, Long sourceAdvanceBillId) {}
     public record PaymentSplitResponse(Long id, PaymentMethodSummary paymentMethod, BigDecimal amountGross, Long sourceAdvanceBillId) {}
     public record ServiceSummary(Long id, String code, String description, TaxRate taxRate, BigDecimal netPrice) {}
-    public record InvoiceIssuerSummary(Long id, String name, String vatId, String taxNumber, String iban) {}
+    public record InvoiceIssuerSummary(
+            Long id,
+            String name,
+            String address,
+            String postalCode,
+            String city,
+            String country,
+            String vatId,
+            String taxNumber,
+            String iban,
+            String email,
+            String telephone
+    ) {}
     public record InvoiceSeriesSummary(Long id, String name) {}
     public record InvoiceLocationSummary(Long id, String name) {}
     public record BillItemResponse(
@@ -358,6 +370,7 @@ public class BillingController {
             List<PaymentSplitResponse> paymentSplits,
             List<BillItemResponse> items
     ) {}
+    public record PosPrintDataResponse(BillResponse bill, String paymentQrPayload) {}
     public record BillExportRequest(List<Long> billIds) {}
     public record BillIssuerSelectionRequest(Long legalEntityId, Long invoiceSeriesId, Long locationId) {}
 
@@ -843,6 +856,32 @@ public class BillingController {
                 .map(this::ensureSnapshotBackfilled)
                 .map(BillingController::toResponse)
                 .toList();
+    }
+
+    @GetMapping("/bills/{id}")
+    @Transactional(readOnly = true)
+    public BillResponse bill(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        var companyId = me.getCompany().getId();
+        Bill bill = billRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bill not found"));
+        return toResponse(ensureSnapshotBackfilled(bill));
+    }
+
+    @GetMapping("/bills/{id}/pos-print-data")
+    @Transactional(readOnly = true)
+    public PosPrintDataResponse billPosPrintData(
+            @PathVariable Long id,
+            @RequestParam(value = "locale", required = false) String locale,
+            @AuthenticationPrincipal User me
+    ) {
+        var companyId = me.getCompany().getId();
+        Bill bill = billRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bill not found"));
+        bill = ensureSnapshotBackfilled(bill);
+        return new PosPrintDataResponse(
+                toResponse(bill),
+                billFolioPdfService.paymentQrPayload(bill, companyId, locale)
+        );
     }
 
     @GetMapping("/open-bills")
@@ -4404,8 +4443,17 @@ public class BillingController {
                 bill.getRefundReference(),
                 BankStatementReconciliationService.bankReferenceForBill(bill),
                 bill.getLegalEntity() == null ? null : new InvoiceIssuerSummary(
-                        bill.getLegalEntity().getId(), bill.getIssuerNameSnapshot(), bill.getIssuerVatIdSnapshot(),
-                        bill.getIssuerTaxNumberSnapshot(), bill.getIssuerIbanSnapshot()),
+                        bill.getLegalEntity().getId(),
+                        bill.getIssuerNameSnapshot(),
+                        bill.getIssuerAddressSnapshot(),
+                        bill.getIssuerPostalCodeSnapshot(),
+                        bill.getIssuerCitySnapshot(),
+                        bill.getIssuerCountrySnapshot(),
+                        bill.getIssuerVatIdSnapshot(),
+                        bill.getIssuerTaxNumberSnapshot(),
+                        bill.getIssuerIbanSnapshot(),
+                        bill.getIssuerEmailSnapshot(),
+                        bill.getIssuerTelephoneSnapshot()),
                 bill.getInvoiceSeries() == null ? null : new InvoiceSeriesSummary(
                         bill.getInvoiceSeries().getId(), bill.getInvoiceSeriesNameSnapshot()),
                 bill.getLocation() == null ? null : new InvoiceLocationSummary(bill.getLocation().getId(), bill.getLocation().getName()),

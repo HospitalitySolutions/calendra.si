@@ -11,6 +11,7 @@ import { useLocale, type AppLocale } from '../locale'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
+import { acquirePosPrinterPort, buildInvoiceEscPosBytes, directPosPrintingEnabled, getWebSerialApi, readPosPrintingPreferences, sendEscPosBytes, type WebSerialPortLike } from '../lib/posPrinter'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
@@ -84,6 +85,7 @@ type BankTransferQrSettingKey = typeof BANK_TRANSFER_QR_SETTING_KEYS[number]
 type BankTransferQrMissingModal = { missingKeys: BankTransferQrSettingKey[]; rawMessage?: string }
 type StripeSetupMissingModal = { rawMessage?: string }
 type InvoicePdfAction = 'download' | 'print'
+type PrintableBillRef = Partial<Bill> & { id: number; billNumber?: string | null }
 
 function escapePdfWindowHtml(value: string | number | null | undefined): string {
   return String(value ?? '')
@@ -1018,7 +1020,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [stripeSetupMissingModal, setStripeSetupMissingModal] = useState<StripeSetupMissingModal | null>(null)
   const [creatingFromOpenId, setCreatingFromOpenId] = useState<number | null>(null)
   const [printingBillId, setPrintingBillId] = useState<number | null>(null)
-  const [printFormatChoice, setPrintFormatChoice] = useState<{ bill: { id: number; billNumber?: string | null }; preparedWindow?: Window | null } | null>(null)
+  const posPrinterPortRef = useRef<WebSerialPortLike | null>(null)
+  const [printFormatChoice, setPrintFormatChoice] = useState<{ bill: PrintableBillRef; preparedWindow?: Window | null } | null>(null)
   const [previewingOpenBillId, setPreviewingOpenBillId] = useState<number | null>(null)
   const [printingOpenBillPreviewId, setPrintingOpenBillPreviewId] = useState<number | null>(null)
   const [emailingOpenBillPreviewId, setEmailingOpenBillPreviewId] = useState<number | null>(null)
@@ -3535,7 +3538,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
       return
     }
-    const printWindow = afterCreatePdfAction === 'print'
+    if (afterCreatePdfAction === 'print' && useDirectPosPrinting) {
+      const ready = await prepareDirectPosPrinter()
+      if (!ready) return
+    }
+    const printWindow = afterCreatePdfAction === 'print' && !useDirectPosPrinting
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingBill(true)
@@ -4196,6 +4203,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
 
   const invoicePrintPreference = normalizeInvoicePrintPreference(settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY])
+  const posPrintingPreferences = readPosPrintingPreferences(settings)
+  const useDirectPosPrinting = directPosPrintingEnabled(settings)
 
   const billPdfFileName = (bill: { id: number; billNumber?: string | null }, format: InvoicePrintFormat = 'A4') =>
     `${format === 'POS_58' ? 'receipt-58mm' : 'folio'}-${bill.billNumber || `bill-${bill.id}`}.pdf`
@@ -4336,6 +4345,86 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return true
   }
 
+  const prepareDirectPosPrinter = async (): Promise<boolean> => {
+    if (!useDirectPosPrinting) return true
+    if (!getWebSerialApi()) {
+      showToast('error', locale === 'sl'
+        ? 'Neposredno POS tiskanje ni podprto v tem brskalniku. Uporabite Chrome ali Microsoft Edge.'
+        : locale === 'sr'
+          ? 'Direktna POS štampa nije podržana u ovom pregledaču. Koristite Chrome ili Microsoft Edge.'
+          : 'Direct POS printing is not supported in this browser. Use Chrome or Microsoft Edge.')
+      return false
+    }
+    try {
+      const port = await acquirePosPrinterPort({ requestIfNeeded: true, preferredPort: posPrinterPortRef.current })
+      if (!port) throw new Error(locale === 'sl' ? 'POS tiskalnik ni izbran.' : 'POS printer is not selected.')
+      posPrinterPortRef.current = port
+      return true
+    } catch (error: any) {
+      const name = String(error?.name || '')
+      if (name === 'NotFoundError' || name === 'AbortError') {
+        showToast('info', locale === 'sl' ? 'Izbira POS tiskalnika je bila preklicana.' : 'POS printer selection was cancelled.')
+      } else {
+        showToast('error', error?.message || (locale === 'sl' ? 'POS tiskalnika ni bilo mogoče povezati.' : 'Could not connect the POS printer.'))
+      }
+      return false
+    }
+  }
+
+  const resolvePrintableBill = async (bill: PrintableBillRef): Promise<{ bill: Bill; paymentQrPayload?: string | null }> => {
+    try {
+      const { data } = await api.get(`/billing/bills/${bill.id}/pos-print-data`, { params: { locale } })
+      if (data?.bill?.id) {
+        return {
+          bill: normalizeBill(data.bill as Bill),
+          paymentQrPayload: typeof data.paymentQrPayload === 'string' ? data.paymentQrPayload : null,
+        }
+      }
+    } catch {
+      // Fall back to already loaded invoice data. Direct printing still works without a payment QR.
+    }
+    if (Array.isArray(bill.items) && bill.consultant && bill.issueDate != null && bill.totalGross != null) {
+      return { bill: normalizeBill(bill as Bill), paymentQrPayload: null }
+    }
+    const localBill = bills.find((entry) => entry.id === bill.id)
+    if (localBill) return { bill: localBill, paymentQrPayload: null }
+    const { data } = await api.get(`/billing/bills/${bill.id}`)
+    return { bill: normalizeBill(data as Bill), paymentQrPayload: null }
+  }
+
+  const printBillDirectPos = async (bill: PrintableBillRef): Promise<boolean> => {
+    if (printingBillId) return false
+    setPrintingBillId(bill.id)
+    try {
+      let port = posPrinterPortRef.current
+      if (!port) {
+        port = await acquirePosPrinterPort({ requestIfNeeded: true })
+        if (!port) throw new Error(locale === 'sl' ? 'Najprej povežite POS tiskalnik.' : 'Connect the POS printer first.')
+        posPrinterPortRef.current = port
+      }
+      const printableData = await resolvePrintableBill(bill)
+      const printableBill = printableData.bill
+      const bytes = await buildInvoiceEscPosBytes(printableBill, settings, locale, {
+        paymentQrPayload: printableData.paymentQrPayload,
+      })
+      await sendEscPosBytes(port, bytes)
+      showToast('success', locale === 'sl'
+        ? `Račun ${printableBill.billNumber || printableBill.id} je bil poslan na POS tiskalnik (${posPrintingPreferences.paperWidthMm} mm).`
+        : `Invoice ${printableBill.billNumber || printableBill.id} was sent to the POS printer (${posPrintingPreferences.paperWidthMm} mm).`)
+      return true
+    } catch (error: any) {
+      const name = String(error?.name || '')
+      if (name === 'NotFoundError' || name === 'AbortError') {
+        showToast('info', locale === 'sl' ? 'Izbira POS tiskalnika je bila preklicana.' : 'POS printer selection was cancelled.')
+      } else {
+        showToast('error', error?.message || (locale === 'sl' ? 'Računa ni bilo mogoče natisniti na POS tiskalnik.' : 'Could not print the invoice on the POS printer.'))
+      }
+      return false
+    } finally {
+      setPrintingBillId(null)
+    }
+  }
+
   const downloadFolioPdf = async (bill: { id: number; billNumber?: string | null }, format: InvoicePrintFormat = 'A4') => {
     try {
       const blob = await fetchBillFolioPdfBlob(bill.id, format)
@@ -4346,7 +4435,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const executePrintFolioPdf = async (
-    bill: { id: number; billNumber?: string | null },
+    bill: PrintableBillRef,
     format: InvoicePrintFormat,
     preparedWindow?: Window | null,
   ) => {
@@ -4364,10 +4453,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const printFolioPdf = async (
-    bill: { id: number; billNumber?: string | null },
+    bill: PrintableBillRef,
     preparedWindow?: Window | null,
     requestedFormat?: InvoicePrintFormat,
   ) => {
+    const directPosRequested = useDirectPosPrinting && requestedFormat !== 'A4'
+    if (directPosRequested) {
+      closePdfActionWindow(preparedWindow)
+      await printBillDirectPos(bill)
+      return
+    }
+
     if (requestedFormat) {
       const actionWindow = preparedWindow ?? openPdfActionWindow(
         locale === 'sl' ? 'Pripravljam račun za tiskanje…' : locale === 'sr' ? 'Pripremam račun za štampu…' : 'Preparing invoice for printing…',
@@ -4466,7 +4562,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     if (action === 'print') {
-      await printFolioPdf({ id: bill.id, billNumber: bill.billNumber }, preparedWindow)
+      await printFolioPdf(bill as PrintableBillRef, preparedWindow)
       return
     }
     if (bill.paymentStatus === 'paid') {
@@ -4817,7 +4913,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : 'An entitlement can settle only one bill for one session. Turn off combined payees first.')
       return
     }
-    const printWindow = afterCreatePdfAction === 'print' && !targetEntitlementSettlement
+    if (afterCreatePdfAction === 'print' && !targetEntitlementSettlement && useDirectPosPrinting) {
+      const ready = await prepareDirectPosPrinter()
+      if (!ready) return
+    }
+    const printWindow = afterCreatePdfAction === 'print' && !targetEntitlementSettlement && !useDirectPosPrinting
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingFromOpenId(target.id)
@@ -4984,7 +5084,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const payload = buildManualOpenBillPayload()
     if (!payload) return
     const existingIds = new Set(openBills.map((entry) => entry.id))
-    const printWindow = afterCreatePdfAction === 'print'
+    if (afterCreatePdfAction === 'print' && useDirectPosPrinting) {
+      const ready = await prepareDirectPosPrinter()
+      if (!ready) return
+    }
+    const printWindow = afterCreatePdfAction === 'print' && !useDirectPosPrinting
       ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
       : null
     setCreatingBill(true)
@@ -10547,8 +10651,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         onClick={() => void printFolioPdf(detailFolioBill, undefined, 'POS_58')}
                         disabled={printingBillId === detailFolioBill.id}
                       >
-                        <span aria-hidden>58</span>
-                        {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni 58 mm' : locale === 'sr' ? 'Štampaj 58 mm' : 'Print 58 mm')}
+                        <span aria-hidden>{useDirectPosPrinting ? posPrintingPreferences.paperWidthMm : 58}</span>
+                        {printingBillId === detailFolioBill.id
+                          ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')
+                          : useDirectPosPrinting
+                            ? (locale === 'sl'
+                              ? `Natisni POS (${posPrintingPreferences.paperWidthMm} mm)`
+                              : `Print POS (${posPrintingPreferences.paperWidthMm} mm)`)
+                            : (locale === 'sl' ? 'Natisni 58 mm' : locale === 'sr' ? 'Štampaj 58 mm' : 'Print 58 mm')}
                       </button>
                       <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary" onClick={() => void downloadFolioPdf(detailFolioBill, 'A4')}>
                         <span aria-hidden>
