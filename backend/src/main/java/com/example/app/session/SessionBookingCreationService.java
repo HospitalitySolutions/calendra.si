@@ -56,6 +56,28 @@ public class SessionBookingCreationService {
     private static final int MAX_SERIES_OCCURRENCES = 200;
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    // #region agent log
+    static void agentDebugLog(String location, String message, String hypothesisId, Object... kv) {
+        try {
+            var data = new java.util.LinkedHashMap<String, Object>();
+            for (int i = 0; i + 1 < kv.length; i += 2) data.put(String.valueOf(kv[i]), kv[i + 1]);
+            var node = JSON.createObjectNode();
+            node.put("sessionId", "626d61");
+            node.put("hypothesisId", hypothesisId);
+            node.put("location", location);
+            node.put("message", message);
+            node.set("data", JSON.valueToTree(data));
+            node.put("timestamp", System.currentTimeMillis());
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("C:/DEVELOPMENT/Projects/calendra.si/debug-626d61.log"),
+                    node.toString() + System.lineSeparator(),
+                    java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.APPEND);
+        } catch (Exception ignored) {}
+    }
+    // #endregion
+
     private final SessionBookingRepository repo;
     private final PersonalCalendarBlockRepository personalBlocks;
     private final ClientRepository clients;
@@ -730,6 +752,11 @@ public class SessionBookingCreationService {
         if (targets.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Guest is not booked into this group session.");
         }
+        // #region agent log
+        agentDebugLog("SessionBookingCreationService.removeGroupSessionParticipant", "targets resolved", "B1-H4",
+                "bookingId", representativeBookingId, "clientId", clientId,
+                "rowCount", rows.size(), "targetCount", targets.size());
+        // #endregion
         String removedClientLabel = clientActivityLabel(targets.get(0).getClient());
 
         // Use the exact same cancellation core as the public e-mail manage link.
@@ -772,6 +799,11 @@ public class SessionBookingCreationService {
         }
 
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(activeRows);
+        // #region agent log
+        agentDebugLog("SessionBookingCreationService.removeGroupSessionParticipant", "grouped response built", "B1-H3",
+                "activeRowCount", activeRows.size(),
+                "responseId", response == null ? null : response.id());
+        // #endregion
         // The shared cancellation core already publishes BOOKING_CANCELLED for the
         // participant and BOOKING_CREATED when it had to create the last-guest
         // placeholder. Avoid an additional synthetic BOOKING_UPDATED event here.
@@ -810,8 +842,18 @@ public class SessionBookingCreationService {
         participant.setBookingStatus(SessionBookingStatus.CANCELLED);
         SessionBooking placeholder = ensureGroupSessionRemainsWhenParticipantLeaves(participant, effectiveOrigin);
         participant = repo.save(participant);
+        // #region agent log
+        agentDebugLog("SessionBookingCreationService.cancelGroupParticipantBooking", "participant cancelled + placeholder ensured", "B1-H1",
+                "participantId", participant.getId(),
+                "placeholderId", placeholder == null ? null : placeholder.getId(),
+                "origin", effectiveOrigin);
+        // #endregion
 
         reminderService.sendSessionCancelled(participant);
+        // #region agent log
+        agentDebugLog("SessionBookingCreationService.cancelGroupParticipantBooking", "cancellation email sent", "B1-H2",
+                "participantId", participant.getId());
+        // #endregion
         restoreGuestCreditForBooking(participant);
         openBillSyncService.removeSessionRowsFromOpenBills(companyId, List.of(participant.getId()));
         openBillSyncService.syncSessionGroup(companyId, groupKey);

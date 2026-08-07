@@ -118,6 +118,14 @@ export function forgetPosPrinterPermissionMarker(): void {
 const ESC = 0x1b
 const GS = 0x1d
 
+// #region agent log
+const agentDebugLog = (location: string, message: string, hypothesisId: string, data: Record<string, unknown>) => {
+  try {
+    fetch('http://127.0.0.1:7885/ingest/99e5fb7c-7e6b-406f-b728-d23c3572cb31', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '626d61' }, body: JSON.stringify({ sessionId: '626d61', location, message, hypothesisId, data, timestamp: Date.now() }) }).catch(() => {})
+  } catch { /* instrumentation only */ }
+}
+// #endregion
+
 const concatBytes = (...parts: Uint8Array[]): Uint8Array => {
   const size = parts.reduce((sum, part) => sum + part.length, 0)
   const result = new Uint8Array(size)
@@ -429,11 +437,20 @@ export async function buildReceiptRasterEscPosBytes(
   source: Blob,
   options?: { autoCut?: boolean; maxWidthDots?: number },
 ): Promise<Uint8Array> {
-  const raster = await imageToEscPosRaster(source, options?.maxWidthDots ?? 384, {
+  const bitmap = await imageToMonochromeBitmap(source, options?.maxWidthDots ?? 384, {
     // Slightly higher than the default threshold preserves Noto Sans strokes and
     // QR edges after PDF anti-aliasing while keeping the background white.
     threshold: 190,
   })
+  const raster = bitmap ? monochromeBitmapToEscPosRasterImage(bitmap) : null
+  // #region agent log
+  agentDebugLog('posPrinter.ts:buildReceiptRasterEscPosBytes', '58mm raster built', 'POS-H1,POS-H3', {
+    blobType: source.type, blobSize: source.size,
+    bitmapWidth: bitmap?.width ?? null, bitmapHeight: bitmap?.height ?? null,
+    bytesPerRow: bitmap ? Math.ceil(bitmap.width / 8) : null,
+    rasterBytes: raster?.length ?? null,
+  })
+  // #endregion
   if (!raster) throw new Error('Could not render the 58 mm receipt for POS printing.')
   return concatBytes(
     command(ESC, 0x40),
@@ -452,6 +469,13 @@ export async function buildInvoiceEscPosBytes(
   options?: { paymentQrPayload?: string | null },
 ): Promise<Uint8Array> {
   const prefs = readPosPrintingPreferences(settings)
+  // #region agent log
+  agentDebugLog('posPrinter.ts:buildInvoiceEscPosBytes', 'text-mode invoice path used', 'POS-H2', {
+    paperWidthMm: prefs.paperWidthMm, template: prefs.template, printQr: prefs.printQr,
+    paymentQrLength: options?.paymentQrPayload?.length ?? 0,
+    fiscalQrLength: bill.fiscalQr ? String(bill.fiscalQr).length : 0,
+  })
+  // #endregion
   const width = prefs.paperWidthMm === 80 ? 48 : 32
   const divider = '-'.repeat(width)
   const sections: Uint8Array[] = [
@@ -624,7 +648,16 @@ export async function sendEscPosBytes(
     const writer = port.writable?.getWriter()
     if (!writer) throw new Error('Printer port is not writable.')
     try {
+      // #region agent log
+      const agentWriteStart = Date.now()
+      // #endregion
       await writer.write(bytes)
+      // #region agent log
+      agentDebugLog('posPrinter.ts:sendEscPosBytes', 'bytes written to serial port', 'POS-H1', {
+        totalBytes: bytes.length, baudRate, writeMs: Date.now() - agentWriteStart,
+        openedHere, secondsAtBaud: Math.round((bytes.length * 10) / baudRate),
+      })
+      // #endregion
     } finally {
       writer.releaseLock()
     }

@@ -438,6 +438,11 @@ public class SessionBookingController {
         try {
             return bookingCreationService.removeGroupSessionParticipant(id, clientId, me);
         } catch (ResponseStatusException ex) {
+            // #region agent log
+            SessionBookingCreationService.agentDebugLog("SessionBookingController.removeParticipant", "ResponseStatusException", "B1-H4",
+                    "bookingId", id, "clientId", clientId,
+                    "status", ex.getStatusCode().value(), "reason", ex.getReason());
+            // #endregion
             throw ex;
         } catch (Exception ex) {
             Long companyId = me == null || me.getCompany() == null ? null : me.getCompany().getId();
@@ -448,6 +453,15 @@ public class SessionBookingController {
                     clientId,
                     ex
             );
+            // #region agent log
+            SessionBookingCreationService.agentDebugLog("SessionBookingController.removeParticipant", "unexpected exception", "B1-ALL",
+                    "bookingId", id, "clientId", clientId,
+                    "exClass", ex.getClass().getName(), "exMessage", ex.getMessage(),
+                    "stack", java.util.Arrays.stream(ex.getStackTrace()).limit(10)
+                            .map(StackTraceElement::toString).collect(java.util.stream.Collectors.joining(" | ")),
+                    "causeClass", ex.getCause() == null ? null : ex.getCause().getClass().getName(),
+                    "causeMessage", ex.getCause() == null ? null : ex.getCause().getMessage());
+            // #endregion
             throw ex;
         }
     }
