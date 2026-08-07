@@ -100,26 +100,41 @@ class SessionBookingGroupParticipantRemovalTest {
     }
 
     @Test
-    void removeLastParticipant_reusesExistingRowAsPlaceholderInsteadOfInsertingAnotherBooking() {
+    void removeLastParticipant_cancelsParticipantAndCreatesEmptyPlaceholderLikePublicCancellation() {
         Client client = client(68L, "Andrej", "Novak");
         SessionBooking row = booking(299L, client);
+        List<SessionBooking> persisted = new java.util.ArrayList<>();
+        persisted.add(row);
 
         when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
         when(repo.findByIdAndCompanyId(299L, 1L)).thenReturn(Optional.of(row));
-        when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("group-1", 1L)).thenReturn(List.of(row));
-        when(repo.save(any(SessionBooking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("group-1", 1L))
+                .thenAnswer(invocation -> List.copyOf(persisted));
+        when(repo.save(any(SessionBooking.class))).thenAnswer(invocation -> {
+            SessionBooking saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(300L);
+                persisted.add(saved);
+            }
+            return saved;
+        });
 
         SessionBookingController.BookingResponse response = service.removeGroupSessionParticipant(299L, 68L, admin);
 
-        assertEquals(299L, response.id());
+        assertEquals(300L, response.id());
         assertEquals(0, response.clients().size());
-        assertNull(row.getClient());
-        assertEquals(SessionBookingStatus.RESERVED, row.getBookingStatus());
-        assertEquals(BookingSource.MANUAL, row.getBookingSource());
-        assertNull(row.getSourceOrderId());
-        assertNull(row.getGuestUserId());
+        assertEquals(client, row.getClient());
+        assertEquals(SessionBookingStatus.CANCELLED, row.getBookingStatus());
+        SessionBooking placeholder = persisted.stream()
+                .filter(candidate -> candidate.getId().equals(300L))
+                .findFirst()
+                .orElseThrow();
+        assertNull(placeholder.getClient());
+        assertEquals(SessionBookingStatus.RESERVED, placeholder.getBookingStatus());
+        assertEquals(BookingSource.MANUAL, placeholder.getBookingSource());
+        assertEquals("group-1", placeholder.getBookingGroupKey());
         verify(repo, times(1)).save(row);
-        verify(repo, times(1)).save(any(SessionBooking.class));
+        verify(repo, times(2)).save(any(SessionBooking.class));
         verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(java.util.Set.of(299L)));
         verify(openBillSyncService).syncSessionGroup(1L, "group-1");
         verify(activityLogs, times(1)).recordUser(

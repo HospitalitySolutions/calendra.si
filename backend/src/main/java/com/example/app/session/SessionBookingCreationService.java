@@ -753,29 +753,25 @@ public class SessionBookingCreationService {
             reminderService.sendSessionCancelled(target);
         }
 
-        // IMPORTANT: when the last active guest leaves, do not INSERT a new placeholder row.
-        // INSERT runs all current location/workspace subscription triggers and can reject a
-        // grandfathered/migrated session even though merely removing a participant should be valid.
-        // Reuse one of the existing participant rows instead. This also avoids counting a synthetic
-        // placeholder as a new monthly booking.
-        SessionBooking retainedPlaceholder = null;
-        if (!hasActivePlaceholder && !hasOtherActiveParticipant) {
-            retainedPlaceholder = targets.get(0);
-            convertParticipantRowToGroupPlaceholder(retainedPlaceholder);
-            repo.save(retainedPlaceholder);
-        }
-
+        // Keep staff removal aligned with the public "Odpovej rezervacijo" flow:
+        // the participant row remains a cancelled participant row and an empty placeholder
+        // is created only when the last active guest leaves. Keeping the participant row
+        // intact is important because guest-credit, invoice and manage-link cleanup still
+        // needs the original booking/client association.
+        SessionBooking createdPlaceholder = null;
         for (SessionBooking target : targets) {
-            if (retainedPlaceholder != null && Objects.equals(target.getId(), retainedPlaceholder.getId())) {
-                continue;
-            }
             target.setBookingStatus(SessionBookingStatus.CANCELLED);
             repo.save(target);
+        }
+
+        if (!hasActivePlaceholder && !hasOtherActiveParticipant) {
+            createdPlaceholder = createEmptyGroupSessionPlaceholder(targets.get(0));
+            createdPlaceholder = repo.save(createdPlaceholder);
         }
         repo.flush();
 
         // Participant-specific wallet usage and draft billing must be detached from the occurrence.
-        // The row itself is retained for the last-guest case, so there is no FK-sensitive booking DELETE.
+        // Do this after cancellation while the participant row still retains its client association.
         for (SessionBooking target : targets) {
             restoreGuestCreditForBooking(target);
         }
@@ -789,18 +785,24 @@ public class SessionBookingCreationService {
             publicBookingManageTokens.revokeByCompanyIdAndBookingIds(companyId, targetIds, Instant.now());
         }
 
-        // No consumable re-anchoring is needed: session-level consumables use bookingGroupKey and,
-        // for the last guest, the retained row keeps the same booking id.
+        // Match public cancellation events as well: the removed participant is cancelled and,
+        // when necessary, the newly-created empty occurrence is announced as a new booking row.
         for (SessionBooking target : targets) {
-            if (retainedPlaceholder != null && Objects.equals(target.getId(), retainedPlaceholder.getId())) {
-                continue;
-            }
             bookingChangePublisher.publish(
                     companyId,
                     target.getId(),
                     target.getStartTime(),
                     target.getEndTime(),
                     BookingChangePublisher.BOOKING_CANCELLED
+            );
+        }
+        if (createdPlaceholder != null) {
+            bookingChangePublisher.publish(
+                    companyId,
+                    createdPlaceholder.getId(),
+                    createdPlaceholder.getStartTime(),
+                    createdPlaceholder.getEndTime(),
+                    BookingChangePublisher.BOOKING_CREATED
             );
         }
 
@@ -825,19 +827,39 @@ public class SessionBookingCreationService {
         return response;
     }
 
-    private void convertParticipantRowToGroupPlaceholder(SessionBooking booking) {
-        if (booking == null) {
-            return;
+    /**
+     * Creates the empty row that keeps a group-session occurrence visible after its last
+     * participant leaves. This intentionally mirrors PublicBookingManageService's
+     * last-participant cancellation behaviour instead of converting the participant row
+     * itself into a placeholder.
+     */
+    private SessionBooking createEmptyGroupSessionPlaceholder(SessionBooking participant) {
+        SessionBooking placeholder = new SessionBooking();
+        placeholder.setCompany(participant.getCompany());
+        placeholder.setLocation(participant.getLocation());
+        placeholder.setBookingGroupKey(SessionBookingController.groupKey(participant));
+        placeholder.setRecurrenceSeriesKey(participant.getRecurrenceSeriesKey());
+        placeholder.setConsultant(participant.getConsultant());
+        servicePlans.copy(participant, placeholder);
+        if (placeholder.getLocation() == null) {
+            placeholder.setLocation(participant.getLocation());
         }
-        booking.setClient(null);
-        booking.setBookingStatus(SessionBookingStatus.RESERVED);
-        booking.setSourceChannel("STAFF");
-        booking.setBookingSource(BookingSource.MANUAL);
-        booking.setSourceOrderId(null);
-        booking.setGuestUserId(null);
-        booking.setPayeeType(null);
-        booking.setPayeeCompany(null);
-        clearSessionPayeeCustomData(booking);
+        placeholder.setNotes(participant.getNotes());
+        placeholder.setMeetingLink(participant.getMeetingLink());
+        placeholder.setMeetingProvider(participant.getMeetingProvider());
+        placeholder.setMeetingProvisioningStatus(participant.getMeetingProvisioningStatus());
+        placeholder.setMeetingProvisioningError(participant.getMeetingProvisioningError());
+        placeholder.setMeetingProvisioningAttempts(participant.getMeetingProvisioningAttempts());
+        placeholder.setMeetingProvisioningStartedAt(participant.getMeetingProvisioningStartedAt());
+        placeholder.setMeetingProvisioningNextAttemptAt(participant.getMeetingProvisioningNextAttemptAt());
+        placeholder.setMeetingConfirmationPending(false);
+        placeholder.setBookingStatus(SessionBookingStatus.RESERVED);
+        placeholder.setSourceChannel("STAFF");
+        placeholder.setBookingSource(BookingSource.MANUAL);
+        placeholder.setClientGroup(participant.getClientGroup());
+        placeholder.setSessionGroupEmailOverride(participant.getSessionGroupEmailOverride());
+        placeholder.setSessionGroupBillingCompany(participant.getSessionGroupBillingCompany());
+        return placeholder;
     }
 
     private void authorizeStaffGroupSessionMutation(SessionBooking representative, User me) {
