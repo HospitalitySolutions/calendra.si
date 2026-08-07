@@ -1,5 +1,6 @@
 package com.example.app.client;
 
+import com.example.app.billing.BillRepository;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.customfield.CustomFieldAppliesTo;
 import com.example.app.customfield.CustomFieldService;
@@ -26,8 +27,10 @@ import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.example.app.workspaceclient.WorkspaceClientService;
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -73,6 +76,9 @@ public class ClientController {
 
     @Autowired(required = false)
     private WorkspaceClientService workspaceClientService;
+
+    @Autowired(required = false)
+    private BillRepository bills;
 
     @Autowired(required = false)
     private LocationRepository locations;
@@ -162,6 +168,17 @@ public class ClientController {
             String iban,
             String email,
             String telephone
+    ) {}
+    public record ClientBillSummary(
+            Long id,
+            String billNumber,
+            LocalDate issueDate,
+            BigDecimal totalNet,
+            BigDecimal totalGross,
+            Long clientId,
+            String clientName,
+            String paymentStatus,
+            String fiscalStatus
     ) {}
     public record ClientResponse(
             Long id,
@@ -489,6 +506,30 @@ public class ClientController {
         if (guestNotifications != null) {
             guestNotifications.webEntitlementRemoved(entitlement);
         }
+    }
+
+    @GetMapping("/{id}/bills")
+    @Transactional(readOnly = true)
+    public List<ClientBillSummary> bills(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        var client = loadClientForDetailAccess(id, me);
+        if (bills == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Billing repository is unavailable.");
+        }
+        return bills.findAllByCompanyIdAndClientIdOrderByIssueDateDescIdDesc(me.getCompany().getId(), client.getId()).stream()
+                .map(b -> new ClientBillSummary(
+                        b.getId(),
+                        b.getBillNumber(),
+                        b.getIssueDate(),
+                        b.getTotalNet(),
+                        b.getTotalGross(),
+                        b.getClient() == null ? null : b.getClient().getId(),
+                        b.getClient() == null ? ""
+                                : ((b.getClientFirstNameSnapshot() == null ? "" : b.getClientFirstNameSnapshot()) + " "
+                                + (b.getClientLastNameSnapshot() == null ? "" : b.getClientLastNameSnapshot())).trim(),
+                        b.getPaymentStatus(),
+                        b.getFiscalStatus() == null ? null : b.getFiscalStatus().name()
+                ))
+                .toList();
     }
 
     @GetMapping("/{id}/files")

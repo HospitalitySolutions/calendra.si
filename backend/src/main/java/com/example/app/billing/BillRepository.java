@@ -94,6 +94,8 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(Long companyId, BillType billType);
 
+    List<Bill> findAllByCompanyIdAndClientIdOrderByIssueDateDescIdDesc(Long companyId, Long clientId);
+
     @Query("""
             select b.id from Bill b
             where b.company.id = :companyId

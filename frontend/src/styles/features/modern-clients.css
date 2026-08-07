@@ -1321,7 +1321,7 @@
 
 .clients-file-manager-toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     align-items: center;
 }
@@ -5753,11 +5753,12 @@
     .clients-company-detail-modal .clients-file-manager-toolbar,
     .clients-group-detail-modal .group-members-tab-actions {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
         align-items: center;
         gap: 10px;
     }
 
+    .clients-client-detail-modal .clients-detail-datoteke-sub-tabs .clients-session-tabs,
     .clients-company-detail-modal .clients-detail-datoteke-sub-tabs .clients-session-tabs {
         width: 100%;
     }
@@ -5883,6 +5884,7 @@
 
     .clients-company-detail-modal .clients-file-manager-toolbar,
     .clients-group-detail-modal .group-members-tab-actions,
+    .clients-client-detail-modal .clients-detail-datoteke-sub-tabs .clients-session-tabs,
     .clients-company-detail-modal .clients-detail-datoteke-sub-tabs .clients-session-tabs {
         grid-template-columns: 1fr;
     }
@@ -6179,8 +6181,8 @@
 }
 
 
-/* Mobile group-member picker: add inline confirm check inside search field. */
-@media (max-width: 760px) {
+/* Tablet/mobile group-member picker: confirm adds the selected members directly. */
+@media (max-width: 1024px) {
     .clients-group-detail-modal .group-members-tab-picker .calendar-client-picker__search-wrap--confirmable {
         position: relative;
     }
@@ -6303,10 +6305,6 @@
         font-size: 0.8rem;
     }
 
-    /* Keep the file picker/dropzone, but remove the separate upload button. */
-    .clients-company-detail-modal .clients-file-manager-toolbar .clients-file-upload-button {
-        display: none !important;
-    }
 }
 
 

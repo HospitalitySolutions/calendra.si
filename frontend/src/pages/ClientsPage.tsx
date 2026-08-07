@@ -1384,6 +1384,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [businessLocations, setBusinessLocations] = useState<BusinessLocation[]>([])
+  const [clientBills, setClientBills] = useState<CompanyBillSummary[]>([])
   const [companyBills, setCompanyBills] = useState<CompanyBillSummary[]>([])
   const [detailClientFiles, setDetailClientFiles] = useState<StoredFile[]>([])
   const [detailCompanyFiles, setDetailCompanyFiles] = useState<StoredFile[]>([])
@@ -1404,6 +1405,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailCompany, setDetailCompany] = useState<Company | null>(null)
   const [detailSessions, setDetailSessions] = useState<ClientSession[]>([])
   const [detailSessionsLoading, setDetailSessionsLoading] = useState(false)
+  const [detailClientBillsLoading, setDetailClientBillsLoading] = useState(false)
   const [detailCompanyBillsLoading, setDetailCompanyBillsLoading] = useState(false)
   const [detailClientFilesLoading, setDetailClientFilesLoading] = useState(false)
   const [detailCompanyFilesLoading, setDetailCompanyFilesLoading] = useState(false)
@@ -1411,11 +1413,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailWallet, setDetailWallet] = useState<ClientWalletResponse | null>(null)
   const [detailWalletLoading, setDetailWalletLoading] = useState(false)
   const [detailWalletError, setDetailWalletError] = useState('')
+  const [detailClientBillsError, setDetailClientBillsError] = useState('')
   const [detailCompanyError, setDetailCompanyError] = useState('')
   const [detailClientFilesError, setDetailClientFilesError] = useState('')
   const [detailCompanyFilesError, setDetailCompanyFilesError] = useState('')
   const [sessionTab, setSessionTab] = useState<'future' | 'past' | 'cancelled'>('future')
   const [clientDetailMainTab, setClientDetailMainTab] = useState<'sessions' | 'wallet' | 'files' | 'settings'>('sessions')
+  const [clientDetailDatotekeSubTab, setClientDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [highlightedEntitlementId, setHighlightedEntitlementId] = useState<number | null>(null)
   const [companyDetailMainTab, setCompanyDetailMainTab] = useState<'datoteke' | 'nastavitve'>('datoteke')
   const [companyDetailDatotekeSubTab, setCompanyDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
@@ -1822,6 +1826,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setDetailWallet(null)
     void loadDetailWallet(detailClient.id)
   }, [detailClient, loadDetailWallet])
+
+  useEffect(() => {
+    if (!detailClient || clientDetailMainTab !== 'files' || clientDetailDatotekeSubTab !== 'racuni') return
+    let cancelled = false
+    setDetailClientBillsLoading(true)
+    setDetailClientBillsError('')
+    setClientBills([])
+    api
+      .get<CompanyBillSummary[]>(`/clients/${detailClient.id}/bills`)
+      .then((res) => {
+        if (!cancelled) setClientBills(res.data ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setDetailClientBillsError(locale === 'sl' ? 'Nalaganje izdanih računov ni uspelo.' : 'Failed to load issued invoices.')
+      })
+      .finally(() => {
+        if (!cancelled) setDetailClientBillsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clientDetailDatotekeSubTab, clientDetailMainTab, detailClient, locale])
 
   useEffect(() => {
     if (!detailCompany) return
@@ -2426,6 +2452,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     })
     setSessionTab('future')
     setClientDetailMainTab(initialTab)
+    setClientDetailDatotekeSubTab('splosno')
     setAssignedEmployeeSearch('')
     setWalletFilter('all')
     setClientFileSearch('')
@@ -4734,83 +4761,165 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 )}
 
                 {clientDetailMainTab === 'files' && (
-                  <div className="clients-detail-sessions-card clients-detail-file-manager-card" role="tabpanel">
-                    <div className="clients-file-manager-toolbar">
-                      <label className="clients-file-search-field">
-                        <ClientsModernIcon name="search" />
-                        <input
-                          value={clientFileSearch}
-                          onChange={(e) => setClientFileSearch(e.target.value)}
-                          placeholder={locale === 'sl' ? 'Išči datoteke…' : 'Search files...'}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="clients-file-upload-button"
-                        onClick={() => pickFile((file) => void uploadClientFile(file), { accept: CLIENT_FILE_ACCEPT_INPUT })}
-                        disabled={uploadingClientFile}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <path d="M12 16V4" />
-                          <path d="m7 9 5-5 5 5" />
-                          <path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3" />
-                        </svg>
-                        {uploadingClientFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
-                      </button>
+                  <div className="clients-detail-sessions-card clients-detail-file-manager-card clients-detail-datoteke-card" role="tabpanel">
+                    <div className="clients-detail-datoteke-sub-tabs">
+                      <div className="clients-session-tabs clients-detail-main-tabs-inner" role="tablist" aria-label={clientsCopy.companyDatotekeSubTabsAria}>
+                        <button
+                          type="button"
+                          role="tab"
+                          className={clientDetailDatotekeSubTab === 'racuni' ? 'clients-session-tab active' : 'clients-session-tab'}
+                          aria-selected={clientDetailDatotekeSubTab === 'racuni'}
+                          onClick={() => setClientDetailDatotekeSubTab('racuni')}
+                        >
+                          {clientsCopy.companySubTabInvoices}
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          className={clientDetailDatotekeSubTab === 'splosno' ? 'clients-session-tab active' : 'clients-session-tab'}
+                          aria-selected={clientDetailDatotekeSubTab === 'splosno'}
+                          onClick={() => setClientDetailDatotekeSubTab('splosno')}
+                        >
+                          {clientsCopy.companySubTabGeneral}
+                        </button>
+                      </div>
                     </div>
-                    {detailClientFilesError && <div className="error">{detailClientFilesError}</div>}
-                    <div
-                      className={`clients-file-upload-dropzone${clientFilesDropActive ? ' clients-file-upload-dropzone--active' : ''}`}
-                      onDragEnter={handleClientFilesDragEnter}
-                      onDragLeave={handleClientFilesDragLeave}
-                      onDragOver={handleClientFilesDragOver}
-                      onDrop={(e) => void handleClientFilesDrop(e)}
-                    >
-                      <div className="clients-file-upload-icon" aria-hidden>
-                        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 17V9" />
-                          <path d="m8 13 4-4 4 4" />
-                          <path d="M20 16.5a4.5 4.5 0 0 0-4.3-5.9A6 6 0 0 0 4.2 12.9 3.7 3.7 0 0 0 5.7 20H18a3 3 0 0 0 2-5.5" />
-                        </svg>
-                      </div>
-                      <strong>{locale === 'sl' ? 'Spustite datoteke sem ali kliknite za nalaganje' : 'Drop files here or click to upload'}</strong>
-                      <button
-                        type="button"
-                        className="clients-file-browse-button"
-                        onClick={() => pickFile((file) => void uploadClientFile(file), { accept: CLIENT_FILE_ACCEPT_INPUT })}
-                        disabled={uploadingClientFile}
-                      >
-                        {locale === 'sl' ? 'Izberi datoteke' : 'Browse files'}
-                      </button>
-                    </div>
-                    <div className="clients-file-list-header">{locale === 'sl' ? 'Nedavne datoteke' : 'Recent files'}</div>
-                    {detailClientFilesLoading ? (
-                      <div className="muted">{clientsCopy.loadingFiles}</div>
-                    ) : filteredClientFiles.length === 0 ? (
-                      <div className="clients-detail-empty-card">
-                        <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noClientFilesText} />
-                      </div>
-                    ) : (
-                      <div className="clients-modern-file-list">
-                        {filteredClientFiles.map((file) => {
-                          const kind = storedFileKind(file.fileName)
-                          const ext = storedFileExtension(file.fileName).toUpperCase() || 'FILE'
-                          return (
-                            <article key={file.id} className="clients-modern-file-row">
-                              <span className={`clients-modern-file-icon clients-modern-file-icon--${kind}`} aria-hidden>{ext.slice(0, 4)}</span>
-                              <div className="clients-modern-file-main">
-                                <strong title={file.fileName}>{file.fileName}</strong>
-                                <span>{ext} · {formatFileSize(file.sizeBytes)}</span>
+
+                    {clientDetailDatotekeSubTab === 'splosno' && (
+                      <>
+                        <div className="clients-file-manager-toolbar">
+                          <label className="clients-file-search-field">
+                            <ClientsModernIcon name="search" />
+                            <input
+                              value={clientFileSearch}
+                              onChange={(e) => setClientFileSearch(e.target.value)}
+                              placeholder={locale === 'sl' ? 'Išči datoteke…' : 'Search files...'}
+                            />
+                          </label>
+                        </div>
+                        {detailClientFilesError && <div className="error">{detailClientFilesError}</div>}
+                        <div
+                          className={`clients-file-upload-dropzone${clientFilesDropActive ? ' clients-file-upload-dropzone--active' : ''}`}
+                          onDragEnter={handleClientFilesDragEnter}
+                          onDragLeave={handleClientFilesDragLeave}
+                          onDragOver={handleClientFilesDragOver}
+                          onDrop={(e) => void handleClientFilesDrop(e)}
+                        >
+                          <div className="clients-file-upload-icon" aria-hidden>
+                            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 17V9" />
+                              <path d="m8 13 4-4 4 4" />
+                              <path d="M20 16.5a4.5 4.5 0 0 0-4.3-5.9A6 6 0 0 0 4.2 12.9 3.7 3.7 0 0 0 5.7 20H18a3 3 0 0 0 2-5.5" />
+                            </svg>
+                          </div>
+                          <strong>{locale === 'sl' ? 'Spustite datoteke sem ali kliknite za nalaganje' : 'Drop files here or click to upload'}</strong>
+                          <button
+                            type="button"
+                            className="clients-file-browse-button"
+                            onClick={() => pickFile((file) => void uploadClientFile(file), { accept: CLIENT_FILE_ACCEPT_INPUT })}
+                            disabled={uploadingClientFile}
+                          >
+                            {locale === 'sl' ? 'Izberi datoteke' : 'Browse files'}
+                          </button>
+                        </div>
+                        <div className="clients-file-list-header">{locale === 'sl' ? 'Nedavne datoteke' : 'Recent files'}</div>
+                        {detailClientFilesLoading ? (
+                          <div className="muted">{clientsCopy.loadingFiles}</div>
+                        ) : filteredClientFiles.length === 0 ? (
+                          <div className="clients-detail-empty-card">
+                            <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noClientFilesText} />
+                          </div>
+                        ) : (
+                          <div className="clients-modern-file-list">
+                            {filteredClientFiles.map((file) => {
+                              const kind = storedFileKind(file.fileName)
+                              const ext = storedFileExtension(file.fileName).toUpperCase() || 'FILE'
+                              return (
+                                <article key={file.id} className="clients-modern-file-row">
+                                  <span className={`clients-modern-file-icon clients-modern-file-icon--${kind}`} aria-hidden>{ext.slice(0, 4)}</span>
+                                  <div className="clients-modern-file-main">
+                                    <strong title={file.fileName}>{file.fileName}</strong>
+                                    <span>{ext} · {formatFileSize(file.sizeBytes)}</span>
+                                  </div>
+                                  <div className="clients-modern-file-date">{file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</div>
+                                  <div className="clients-modern-file-actions">
+                                    <button type="button" onClick={() => void downloadClientFile(file)}>{clientsCopy.openFile}</button>
+                                    <button type="button" onClick={() => void removeClientFile(file)} disabled={deletingClientFileId === file.id}>⋯</button>
+                                  </div>
+                                </article>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {clientDetailDatotekeSubTab === 'racuni' && (
+                      <>
+                        {detailClientBillsError && <div className="error">{detailClientBillsError}</div>}
+                        {detailClientBillsLoading ? (
+                          <div className="muted">{locale === 'sl' ? 'Nalagam izdane račune...' : 'Loading issued invoices...'}</div>
+                        ) : (
+                          <div className="clients-company-invoices-panel">
+                            <div className="clients-company-invoices-toolbar">
+                              <span className="clients-company-invoices-count">
+                                <ClientWorkspaceIcon name="files" /> {clientBills.length} {locale === 'sl' ? 'računi' : 'invoices'}
+                              </span>
+                              <button type="button" className="clients-file-upload-button" onClick={() => navigate('/billing')}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                  <path d="M12 5v14" />
+                                  <path d="M5 12h14" />
+                                </svg>
+                                {locale === 'sl' ? 'Ustvari račun' : 'Create invoice'}
+                              </button>
+                            </div>
+                            {clientBills.length === 0 ? (
+                              <div className="clients-detail-empty-card">
+                                <EmptyState title={locale === 'sl' ? 'Ni izdanih računov' : 'No issued invoices'} text={locale === 'sl' ? 'Računi, izdani tej stranki, bodo prikazani tukaj.' : 'Invoices issued to this client will appear here.'} />
                               </div>
-                              <div className="clients-modern-file-date">{file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</div>
-                              <div className="clients-modern-file-actions">
-                                <button type="button" onClick={() => void downloadClientFile(file)}>{clientsCopy.openFile}</button>
-                                <button type="button" onClick={() => void removeClientFile(file)} disabled={deletingClientFileId === file.id}>⋯</button>
+                            ) : (
+                              <div className="clients-company-invoice-table" role="table" aria-label={clientsCopy.companySubTabInvoices}>
+                                <div className="clients-company-invoice-row clients-company-invoice-row--head" role="row">
+                                  <span>{locale === 'sl' ? 'Številka računa' : 'Invoice number'}</span>
+                                  <span>{locale === 'sl' ? 'Datum izdaje' : 'Issue date'}</span>
+                                  <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
+                                  <span>{locale === 'sl' ? 'Status' : 'Status'}</span>
+                                  <span />
+                                </div>
+                                {clientBills.map((bill) => {
+                                  const statusTone = bill.fiscalStatus === 'FAILED'
+                                    ? 'danger'
+                                    : bill.paymentStatus === 'paid'
+                                      ? 'success'
+                                      : bill.paymentStatus === 'payment_pending'
+                                        ? 'warning'
+                                        : bill.paymentStatus === 'cancelled'
+                                          ? 'muted'
+                                          : 'info'
+                                  const statusLabel = bill.fiscalStatus === 'FAILED'
+                                    ? 'FAILED'
+                                    : bill.paymentStatus === 'paid'
+                                      ? (locale === 'sl' ? 'Plačano' : 'Paid')
+                                      : bill.paymentStatus === 'payment_pending'
+                                        ? (locale === 'sl' ? 'V teku' : 'Pending')
+                                        : bill.paymentStatus === 'cancelled'
+                                          ? (locale === 'sl' ? 'Preklicano' : 'Cancelled')
+                                          : (locale === 'sl' ? 'Odprto' : 'Open')
+                                  return (
+                                    <div key={bill.id} className="clients-company-invoice-row" role="row">
+                                      <strong>{bill.billNumber}</strong>
+                                      <span>{formatDate(bill.issueDate)}</span>
+                                      <span>{currency(bill.totalGross)}</span>
+                                      <span className={`clients-company-invoice-status clients-company-invoice-status--${statusTone}`}>{statusLabel}</span>
+                                      <button type="button" onClick={() => downloadBillPdf(bill.id, bill.billNumber)} aria-label={`${locale === 'sl' ? 'Odpri račun' : 'Open invoice'} ${bill.billNumber}`}>⋯</button>
+                                    </div>
+                                  )
+                                })}
                               </div>
-                            </article>
-                          )
-                        })}
-                      </div>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -5172,19 +5281,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               placeholder={locale === 'sl' ? 'Išči datoteke…' : 'Search files...'}
                             />
                           </label>
-                          <button
-                            type="button"
-                            className="clients-file-upload-button"
-                            onClick={() => pickFile((file) => void uploadCompanyFile(file), { accept: CLIENT_FILE_ACCEPT_INPUT })}
-                            disabled={uploadingCompanyFile}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                              <path d="M12 16V4" />
-                              <path d="m7 9 5-5 5 5" />
-                              <path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3" />
-                            </svg>
-                            {uploadingCompanyFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
-                          </button>
                         </div>
                         {detailCompanyFilesError && <div className="error">{detailCompanyFilesError}</div>}
                         <div
@@ -5649,7 +5745,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="calendar-client-picker__search-row">
-                          <div className={`client-search-wrap calendar-client-picker__search-wrap${groupMemberDropdownOpen && pendingGroupMemberIds.length > 0 ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}> 
+                          <div className={`client-search-wrap calendar-client-picker__search-wrap${isClientCreatePage && groupMemberDropdownOpen && pendingGroupMemberIds.length > 0 ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}> 
                             <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="11" cy="11" r="8" />
@@ -5673,16 +5769,17 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               aria-autocomplete="list"
                               aria-expanded={groupMemberDropdownOpen}
                             />
-                            {groupMemberDropdownOpen && pendingGroupMemberIds.length > 0 && (
+                            {isClientCreatePage && groupMemberDropdownOpen && pendingGroupMemberIds.length > 0 && (
                               <button
                                 type="button"
                                 className="calendar-client-picker__confirm"
-                                aria-label={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
-                                title={locale === 'sl' ? 'Potrdi izbiro strank' : 'Confirm client selection'}
+                                aria-label={locale === 'sl' ? 'Dodaj označene stranke' : 'Add selected clients'}
+                                title={locale === 'sl' ? 'Dodaj označene stranke' : 'Add selected clients'}
                                 onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
+                                disabled={addingMember}
+                                onClick={async () => {
+                                  await handleAddGroupMembersBulk(pendingGroupMemberIds)
                                   setGroupMemberDropdownOpen(false)
-                                  setGroupMemberSearch('')
                                 }}
                               >
                                 <span aria-hidden>✓</span>
@@ -5728,18 +5825,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             </div>
                           )}
                       </div>
-                      <button
-                        type="button"
-                        className="clients-file-upload-button group-members-add-button"
-                        disabled={pendingGroupMemberIds.length === 0 || addingMember}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void handleAddGroupMembersBulk(pendingGroupMemberIds)}
-                      >
-                        <span aria-hidden>+</span>
-                        {pendingGroupMemberIds.length === 0
-                          ? clientsCopy.addMember
-                          : clientsCopy.addSelectedMembers(pendingGroupMemberIds.length)}
-                      </button>
+                      {!isClientCreatePage && (
+                        <button
+                          type="button"
+                          className="clients-file-upload-button group-members-add-button"
+                          disabled={pendingGroupMemberIds.length === 0 || addingMember}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => void handleAddGroupMembersBulk(pendingGroupMemberIds)}
+                        >
+                          <span aria-hidden>+</span>
+                          {pendingGroupMemberIds.length === 0
+                            ? clientsCopy.addMember
+                            : clientsCopy.addSelectedMembers(pendingGroupMemberIds.length)}
+                        </button>
+                      )}
                     </div>
                     {(detailGroup.members ?? []).length === 0 ? (
                       <div className="group-members-empty-state">
