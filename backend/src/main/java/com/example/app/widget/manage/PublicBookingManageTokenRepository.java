@@ -1,5 +1,6 @@
 package com.example.app.widget.manage;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,5 +32,19 @@ public interface PublicBookingManageTokenRepository extends JpaRepository<Public
     int deleteByCompanyIdAndBookingIds(
             @Param("companyId") Long companyId,
             @Param("bookingIds") Collection<Long> bookingIds
+    );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            UPDATE PublicBookingManageToken t
+               SET t.revokedAt = :revokedAt
+             WHERE t.company.id = :companyId
+               AND t.booking.id IN :bookingIds
+               AND t.revokedAt IS NULL
+            """)
+    int revokeByCompanyIdAndBookingIds(
+            @Param("companyId") Long companyId,
+            @Param("bookingIds") Collection<Long> bookingIds,
+            @Param("revokedAt") Instant revokedAt
     );
 }

@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +57,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/bookings")
 public class SessionBookingController {
+    private static final Logger log = LoggerFactory.getLogger(SessionBookingController.class);
     private static final String DELETE_SCOPE_SINGLE = "SINGLE";
     private static final String DELETE_SCOPE_THIS_AND_FOLLOWING = "THIS_AND_FOLLOWING";
     private static final long DEFAULT_BOOKING_LIST_PAST_DAYS = 30;
@@ -426,7 +429,21 @@ public class SessionBookingController {
             @PathVariable Long clientId,
             @AuthenticationPrincipal User me
     ) {
-        return bookingCreationService.removeGroupSessionParticipant(id, clientId, me);
+        try {
+            return bookingCreationService.removeGroupSessionParticipant(id, clientId, me);
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            Long companyId = me == null || me.getCompany() == null ? null : me.getCompany().getId();
+            log.error(
+                    "Unexpected failure removing group participant: companyId={} bookingId={} clientId={}",
+                    companyId,
+                    id,
+                    clientId,
+                    ex
+            );
+            throw ex;
+        }
     }
 
     @PutMapping("/{id}/series")
