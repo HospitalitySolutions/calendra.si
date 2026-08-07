@@ -4135,7 +4135,10 @@ export function ConfigurationPage() {
     navigate("/configuration?tab=integrations&subtab=googleCalendar");
   };
 
-  const getSerialApi = useCallback(() => {
+  const getSerialApi = useCallback((): {
+    getPorts: () => Promise<any[]>;
+    requestPort: (options?: any) => Promise<any>;
+  } | null => {
     if (typeof navigator === "undefined") return null;
     const serial = (navigator as Navigator & {
       serial?: {
@@ -4143,8 +4146,13 @@ export function ConfigurationPage() {
         requestPort?: (options?: any) => Promise<any>;
       };
     }).serial;
-    if (!serial?.getPorts || !serial?.requestPort) return null;
-    return serial;
+    if (typeof serial?.getPorts !== "function" || typeof serial?.requestPort !== "function") {
+      return null;
+    }
+    return {
+      getPorts: serial.getPorts.bind(serial),
+      requestPort: serial.requestPort.bind(serial),
+    };
   }, []);
 
   const posPrintingMode = normalizePosPrintingMode(settings.POS_PRINTING_MODE);

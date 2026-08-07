@@ -12,6 +12,7 @@ import com.example.app.company.Company;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.workspace.Workspace;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,7 +67,10 @@ class ActivityLogServiceTest {
         assertThat(saved.getSource()).isEqualTo("WEB_APP");
         assertThat(saved.getOccurredAt()).isNotNull();
 
-        Map<?, ?> details = new ObjectMapper().readValue(saved.getDetailsJson(), Map.class);
+        Map<String, Object> details = new ObjectMapper().readValue(
+                saved.getDetailsJson(),
+                new TypeReference<Map<String, Object>>() {}
+        );
         assertThat(details).containsEntry("participantCount", 8);
         assertThat(details).containsEntry("targetPath", "/calendar");
         verify(repository).save(saved);
