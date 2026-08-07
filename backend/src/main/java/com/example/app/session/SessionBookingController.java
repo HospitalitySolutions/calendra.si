@@ -1,5 +1,8 @@
 package com.example.app.session;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.common.TimeService;
 import com.example.app.company.CompanyRepository;
 import com.example.app.consumables.ConsumableService;
@@ -91,6 +94,9 @@ public class SessionBookingController {
 
     @Autowired(required = false)
     private LocationRepository locationRepository;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     @Autowired
     public SessionBookingController(SessionBookingRepository repo,
@@ -725,7 +731,25 @@ public class SessionBookingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported booking delete scope.");
         }
 
+        SessionBooking auditRepresentative = rowsToDelete == null || rowsToDelete.isEmpty() ? booking : rowsToDelete.get(0);
+        Long auditId = auditRepresentative == null ? id : auditRepresentative.getId();
+        String auditLabel = auditRepresentative != null && auditRepresentative.getType() != null
+                ? auditRepresentative.getType().getName() : "Session";
+        Long auditLocationId = auditRepresentative != null && auditRepresentative.getLocation() != null
+                ? auditRepresentative.getLocation().getId() : null;
+        Long auditSpaceId = auditRepresentative != null && auditRepresentative.getSpace() != null
+                ? auditRepresentative.getSpace().getId() : null;
+        LocalDateTime auditStart = auditRepresentative == null ? null : auditRepresentative.getStartTime();
         deleteBookingRows(rowsToDelete, companyId, me);
+        if (activityLogs != null) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("scope", normalizedScope);
+            details.put("startTime", auditStart);
+            details.put("deletedRows", rowsToDelete == null ? 0 : rowsToDelete.size());
+            activityLogs.recordUser(me, ActivityModule.CALENDAR, ActivityAction.SESSION_DELETED,
+                    "SESSION", auditId, auditLabel, "Deleted session " + auditLabel,
+                    auditLocationId, auditSpaceId, details);
+        }
     }
 
     private void deleteBookingRows(List<SessionBooking> rowsToDelete, Long companyId, User me) {

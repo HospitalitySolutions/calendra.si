@@ -1,5 +1,9 @@
 package com.example.app.session;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityActorType;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
 import com.example.app.common.TimeService;
 import com.example.app.consumables.ConsumableService;
@@ -36,6 +40,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -88,6 +93,9 @@ public class SessionBookingCreationService {
 
     @Autowired(required = false)
     private PublicBookingManageTokenRepository publicBookingManageTokens;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     @Autowired
     public SessionBookingCreationService(
@@ -419,6 +427,7 @@ public class SessionBookingCreationService {
                 BookingChangePublisher.BOOKING_CREATED
         );
         openBillSyncService.enqueueBookingsSync(companyId, saved);
+        recordBookingActivity(me, ActivityAction.SESSION_CREATED, response, null, null, null, null);
         return response;
     }
 
@@ -438,6 +447,8 @@ public class SessionBookingCreationService {
             previouslyUnbilledById.put(row.getId(), row.getBilledAt() == null);
         }
         var representative = existingRows.get(0);
+        Map<String, Object> activityBefore = bookingActivitySnapshot(representative);
+        Map<Long, String> activityParticipantsBefore = bookingParticipantLabels(existingRows);
         validateMultipleServicesForUpdate(companyId, req, representative);
         LocalDateTime start = parseToLocalDateTime(req.startTime());
         LocalDateTime requestedEnd = parseOptionalEndTime(req.endTime(), start, req.services());
@@ -509,8 +520,13 @@ public class SessionBookingCreationService {
         }
         String groupKey = SessionBookingController.groupKey(representative);
         if (requestedClientIds.isEmpty() && representative.getClientGroup() != null) {
-            return consolidateGroupSessionToPlaceholderRow(
+            SessionBookingController.BookingResponse response = consolidateGroupSessionToPlaceholderRow(
                     existingRows, groupKey, req, me, start, end, companyId, meetingLink, targetStoredStatus, servicePlan);
+            ActivityAction activityAction = resolveBookingUpdateAction(activityBefore, response);
+            recordBookingActivity(me, activityAction, response, null, null, null,
+                    Map.of("before", activityBefore, "after", bookingActivitySnapshot(response)));
+            recordParticipantActivityDiff(me, response, activityParticipantsBefore);
+            return response;
         }
         var existingByClientId = new java.util.LinkedHashMap<Long, SessionBooking>();
         boolean singleClientReplacement = representative.getClientGroup() == null
@@ -627,6 +643,10 @@ public class SessionBookingCreationService {
                 response.endTime(),
                 BookingChangePublisher.BOOKING_UPDATED
         );
+        ActivityAction activityAction = resolveBookingUpdateAction(activityBefore, response);
+        recordBookingActivity(me, activityAction, response, null, null, null,
+                Map.of("before", activityBefore, "after", bookingActivitySnapshot(response)));
+        recordParticipantActivityDiff(me, response, activityParticipantsBefore);
         return response;
     }
 
@@ -661,7 +681,11 @@ public class SessionBookingCreationService {
                 BookingSource.MANUAL
         ), false, false);
         List<SessionBooking> refreshed = loadGroupedRows(joined, companyId);
-        return SessionBookingController.toGroupedResponse(refreshed);
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(refreshed);
+        String clientLabel = clientActivityLabel(joined.getClient());
+        recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_ADDED, response,
+                "CLIENT", clientId, clientLabel, Map.of("clientId", clientId));
+        return response;
     }
 
     /**
@@ -707,6 +731,7 @@ public class SessionBookingCreationService {
         if (targets.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Guest is not booked into this group session.");
         }
+        String removedClientLabel = clientActivityLabel(targets.get(0).getClient());
 
         Set<Long> targetIds = targets.stream()
                 .map(SessionBooking::getId)
@@ -795,6 +820,8 @@ public class SessionBookingCreationService {
                 response.endTime(),
                 BookingChangePublisher.BOOKING_UPDATED
         );
+        recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
+                "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId));
         return response;
     }
 
@@ -1068,12 +1095,17 @@ public class SessionBookingCreationService {
                 BookingChangePublisher.BOOKING_CREATED
         );
         openBillSyncService.enqueueBookingsSync(companyId, java.util.List.of(booking));
+        recordExternalBookingActivity(booking, request.bookingSource(), request.sourceChannel(), ActivityAction.SESSION_CREATED, clientActivityLabel(client));
         return booking;
     }
 
     @Transactional
     public SessionBooking joinClientToGroupSession(GroupJoinRequest request) {
-        return joinClientToGroupSession(request, true, true);
+        SessionBooking joined = joinClientToGroupSession(request, true, true);
+        recordExternalBookingActivity(joined, request == null ? null : request.bookingSource(),
+                request == null ? null : request.sourceChannel(), ActivityAction.SESSION_PARTICIPANT_ADDED,
+                clientActivityLabel(joined == null ? null : joined.getClient()));
+        return joined;
     }
 
     private SessionBooking joinClientToGroupSession(
@@ -2440,4 +2472,145 @@ public class SessionBookingCreationService {
                 .map(value -> !"false".equalsIgnoreCase(value == null ? "" : value.trim()))
                 .orElse(true);
     }
+
+    private void recordBookingActivity(
+            User actor, ActivityAction action, SessionBookingController.BookingResponse response,
+            String secondaryType, Long secondaryId, String secondaryLabel, Map<String, ?> extraDetails) {
+        if (activityLogs == null || response == null) return;
+        String typeLabel = response.type() == null ? "Session" : response.type().name();
+        String summary = switch (action) {
+            case SESSION_CREATED -> "Created session " + typeLabel;
+            case SESSION_PARTICIPANT_ADDED -> "Added " + Objects.toString(secondaryLabel, "client") + " to session " + typeLabel;
+            case SESSION_PARTICIPANT_REMOVED -> "Removed " + Objects.toString(secondaryLabel, "client") + " from session " + typeLabel;
+            case SESSION_CANCELLED -> "Cancelled session " + typeLabel;
+            case SESSION_RESCHEDULED -> "Rescheduled session " + typeLabel;
+            default -> "Updated session " + typeLabel;
+        };
+        Map<String, Object> details = new java.util.LinkedHashMap<>();
+        details.putAll(bookingActivitySnapshot(response));
+        if (extraDetails != null) details.putAll(extraDetails);
+        activityLogs.recordUser(actor, ActivityModule.CALENDAR, action, "SESSION", response.id(), typeLabel,
+                secondaryType, secondaryId, secondaryLabel, summary,
+                response.location() == null ? null : response.location().id(),
+                response.space() == null ? null : response.space().id(), details);
+    }
+
+    private void recordParticipantActivityDiff(
+            User actor,
+            SessionBookingController.BookingResponse response,
+            Map<Long, String> beforeParticipants
+    ) {
+        if (activityLogs == null || response == null) return;
+        Map<Long, String> before = beforeParticipants == null ? Map.of() : beforeParticipants;
+        Map<Long, String> after = bookingParticipantLabels(response);
+        for (Map.Entry<Long, String> entry : after.entrySet()) {
+            if (!before.containsKey(entry.getKey())) {
+                recordBookingActivity(actor, ActivityAction.SESSION_PARTICIPANT_ADDED, response,
+                        "CLIENT", entry.getKey(), entry.getValue(), Map.of("clientId", entry.getKey()));
+            }
+        }
+        for (Map.Entry<Long, String> entry : before.entrySet()) {
+            if (!after.containsKey(entry.getKey())) {
+                recordBookingActivity(actor, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
+                        "CLIENT", entry.getKey(), entry.getValue(), Map.of("clientId", entry.getKey()));
+            }
+        }
+    }
+
+    private static Map<Long, String> bookingParticipantLabels(List<SessionBooking> rows) {
+        Map<Long, String> out = new java.util.LinkedHashMap<>();
+        if (rows == null) return out;
+        for (SessionBooking row : rows) {
+            if (row == null || row.getClient() == null || row.getClient().getId() == null) continue;
+            out.put(row.getClient().getId(), clientActivityLabel(row.getClient()));
+        }
+        return out;
+    }
+
+    private static Map<Long, String> bookingParticipantLabels(SessionBookingController.BookingResponse response) {
+        Map<Long, String> out = new java.util.LinkedHashMap<>();
+        if (response == null) return out;
+        List<SessionBookingController.ClientSummary> clients = response.clients();
+        if ((clients == null || clients.isEmpty()) && response.client() != null) {
+            clients = List.of(response.client());
+        }
+        if (clients == null) return out;
+        for (SessionBookingController.ClientSummary client : clients) {
+            if (client == null || client.id() == null) continue;
+            String label = (Objects.toString(client.firstName(), "").trim() + " "
+                    + Objects.toString(client.lastName(), "").trim()).trim();
+            out.put(client.id(), label.isBlank() ? "Client #" + client.id() : label);
+        }
+        return out;
+    }
+
+    private static Map<String, Object> bookingActivitySnapshot(SessionBooking booking) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        if (booking == null) return out;
+        out.put("startTime", booking.getStartTime());
+        out.put("endTime", booking.getEndTime());
+        out.put("type", booking.getType() == null ? null : booking.getType().getName());
+        out.put("space", booking.getSpace() == null ? null : booking.getSpace().getName());
+        out.put("location", booking.getLocation() == null ? null : booking.getLocation().getName());
+        out.put("bookingStatus", SessionBookingStatus.normalizeStored(booking.getBookingStatus()));
+        return out;
+    }
+
+    private static Map<String, Object> bookingActivitySnapshot(SessionBookingController.BookingResponse response) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        if (response == null) return out;
+        out.put("startTime", response.startTime());
+        out.put("endTime", response.endTime());
+        out.put("type", response.type() == null ? null : response.type().name());
+        out.put("space", response.space() == null ? null : response.space().name());
+        out.put("location", response.location() == null ? null : response.location().name());
+        out.put("bookingStatus", SessionBookingStatus.normalizeStored(response.bookingStatus()));
+        return out;
+    }
+
+
+    private void recordExternalBookingActivity(
+            SessionBooking booking, BookingSource bookingSource, String sourceChannel, ActivityAction action, String clientLabel) {
+        if (activityLogs == null || booking == null || booking.getCompany() == null) return;
+        BookingSource resolved = BookingSource.resolve(bookingSource, sourceChannel);
+        if (resolved == BookingSource.MANUAL) return;
+        ActivityActorType actorType = resolved == BookingSource.MOBILE_APP
+                ? ActivityActorType.GUEST_APP
+                : ActivityActorType.WEBSITE_WIDGET;
+        String actorName = resolved == BookingSource.MOBILE_APP ? "Guest app" : "Website widget";
+        String typeLabel = booking.getType() == null ? "Session" : booking.getType().getName();
+        String summary = action == ActivityAction.SESSION_PARTICIPANT_ADDED
+                ? "Added " + Objects.toString(clientLabel, "client") + " to session " + typeLabel
+                : "Created booking for " + Objects.toString(clientLabel, "client");
+        Map<String, Object> details = bookingActivitySnapshot(booking);
+        if (booking.getClient() != null) details.put("clientId", booking.getClient().getId());
+        activityLogs.recordExternal(booking.getCompany(), actorType, actorName, resolved.name(),
+                ActivityModule.CALENDAR, action, "SESSION", booking.getId(), typeLabel,
+                booking.getClient() == null ? null : "CLIENT",
+                booking.getClient() == null ? null : booking.getClient().getId(),
+                booking.getClient() == null ? null : clientLabel, summary,
+                booking.getLocation() == null ? null : booking.getLocation().getId(),
+                booking.getSpace() == null ? null : booking.getSpace().getId(), details);
+    }
+
+    private static ActivityAction resolveBookingUpdateAction(Map<String, Object> before, SessionBookingController.BookingResponse afterResponse) {
+        Map<String, Object> after = bookingActivitySnapshot(afterResponse);
+        String beforeStatus = Objects.toString(before == null ? null : before.get("bookingStatus"), "");
+        String afterStatus = Objects.toString(after.get("bookingStatus"), "");
+        if (!SessionBookingStatus.CANCELLED.equals(beforeStatus) && SessionBookingStatus.CANCELLED.equals(afterStatus)) {
+            return ActivityAction.SESSION_CANCELLED;
+        }
+        if (!Objects.equals(before == null ? null : before.get("startTime"), after.get("startTime"))
+                || !Objects.equals(before == null ? null : before.get("endTime"), after.get("endTime"))) {
+            return ActivityAction.SESSION_RESCHEDULED;
+        }
+        return ActivityAction.SESSION_UPDATED;
+    }
+
+    private static String clientActivityLabel(Client client) {
+        if (client == null) return "Client";
+        String label = (Objects.toString(client.getFirstName(), "").trim() + " " + Objects.toString(client.getLastName(), "").trim()).trim();
+        return label.isBlank() ? "Client #" + Objects.toString(client.getId(), "") : label;
+    }
+
 }

@@ -394,7 +394,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isBillingConfigurationRoute = isConfigurationRoute && configurationTab === 'billing'
   const isWhiteConfigurationDetailRoute =
     isConfigurationRoute &&
-    ['booking', 'website', 'customFields', 'modules'].includes(configurationTab ?? '')
+    ['booking', 'website', 'customFields', 'modules', 'activityLog'].includes(configurationTab ?? '')
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   /** Matches app-shell ≤780px: hamburger + compact header row. */
@@ -1637,6 +1637,8 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                                 ? (locale === 'sl' ? 'Polja po meri' : locale === 'sr' ? 'Prilagođena polja' : 'Custom fields')
                                 : configurationTab === 'modules'
                                   ? (locale === 'sl' ? 'App nastavitve' : locale === 'sr' ? 'Podešavanja aplikacije' : 'App settings')
+                                  : configurationTab === 'activityLog'
+                                    ? (locale === 'sl' ? 'Dnevnik aktivnosti' : locale === 'sr' ? 'Dnevnik aktivnosti' : 'Activity log')
                                   : configurationTab === 'billing'
                                       ? (locale === 'sl' ? 'Obračun' : locale === 'sr' ? 'Obračun' : 'Billing')
                                       : (locale === 'sl' ? 'Nastavitve' : locale === 'sr' ? 'Podešavanja' : 'Settings')}

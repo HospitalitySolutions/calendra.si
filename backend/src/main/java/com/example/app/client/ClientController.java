@@ -1,5 +1,8 @@
 package com.example.app.client;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.BillRepository;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.customfield.CustomFieldAppliesTo;
@@ -82,6 +85,9 @@ public class ClientController {
 
     @Autowired(required = false)
     private LocationRepository locations;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public ClientController(
             ClientRepository repository,
@@ -359,6 +365,12 @@ public class ClientController {
         if (customFieldService != null) {
             customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.CLIENT, saved.getId(), req.customFieldValues());
         }
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.CLIENT_CREATED,
+                    "CLIENT", saved.getId(), clientActivityLabel(saved),
+                    "Created client " + clientActivityLabel(saved), null, null,
+                    Map.of("clientId", saved.getId()));
+        }
         return toResponse(saved);
     }
 
@@ -370,6 +382,12 @@ public class ClientController {
         if (!SecurityUtils.isAdmin(me) && (c.getAssignedTo() == null || !c.getAssignedTo().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        Map<String, Object> before = Map.of(
+                "firstName", Objects.toString(c.getFirstName(), ""),
+                "lastName", Objects.toString(c.getLastName(), ""),
+                "email", Objects.toString(c.getEmail(), ""),
+                "phone", Objects.toString(c.getPhone(), "")
+        );
         apply(c, req, me);
         Client saved = repository.save(c);
         if (workspaceClientService != null) {
@@ -377,6 +395,17 @@ public class ClientController {
         }
         if (customFieldService != null) {
             customFieldService.saveValues(me.getCompany(), CustomFieldAppliesTo.CLIENT, saved.getId(), req.customFieldValues());
+        }
+        if (activityLogs != null) {
+            List<String> changedFields = new ArrayList<>();
+            if (!Objects.equals(before.get("firstName"), Objects.toString(saved.getFirstName(), ""))) changedFields.add("firstName");
+            if (!Objects.equals(before.get("lastName"), Objects.toString(saved.getLastName(), ""))) changedFields.add("lastName");
+            if (!Objects.equals(before.get("email"), Objects.toString(saved.getEmail(), ""))) changedFields.add("email");
+            if (!Objects.equals(before.get("phone"), Objects.toString(saved.getPhone(), ""))) changedFields.add("phone");
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.CLIENT_UPDATED,
+                    "CLIENT", saved.getId(), clientActivityLabel(saved),
+                    "Updated client " + clientActivityLabel(saved), null, null,
+                    Map.of("clientId", saved.getId(), "changedFields", changedFields));
         }
         return toResponse(saved);
     }
@@ -397,13 +426,25 @@ public class ClientController {
         if (workspaceClientService != null) {
             workspaceClientService.prepareForUnitClientDeletion(c, me);
         }
+        Long deletedId = c.getId();
+        String deletedLabel = clientActivityLabel(c);
         repository.delete(c);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.CLIENT_DELETED,
+                    "CLIENT", deletedId, deletedLabel,
+                    "Deleted client " + deletedLabel, null, null, Map.of("clientId", deletedId));
+        }
     }
 
     @PostMapping("/{id}/anonymize")
     @Transactional
     public ClientResponse anonymize(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var updated = anonymizationService.anonymize(id, me);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.CLIENT_ANONYMIZED,
+                    "CLIENT", updated.getId(), clientActivityLabel(updated),
+                    "Anonymized client record", null, null, Map.of("clientId", updated.getId()));
+        }
         return toResponse(updated);
     }
 
@@ -421,7 +462,13 @@ public class ClientController {
                     "This client has upcoming sessions or active wallet entitlements. Resolve those before deactivating.");
         }
         c.setActive(false);
-        return toResponse(repository.save(c));
+        Client saved = repository.save(c);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.CLIENT_DEACTIVATED,
+                    "CLIENT", saved.getId(), clientActivityLabel(saved),
+                    "Deactivated client " + clientActivityLabel(saved), null, null, Map.of("clientId", saved.getId()));
+        }
+        return toResponse(saved);
     }
 
     @PatchMapping("/{id}/activate")
@@ -433,7 +480,13 @@ public class ClientController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         c.setActive(true);
-        return toResponse(repository.save(c));
+        Client saved = repository.save(c);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.CLIENT_ACTIVATED,
+                    "CLIENT", saved.getId(), clientActivityLabel(saved),
+                    "Activated client " + clientActivityLabel(saved), null, null, Map.of("clientId", saved.getId()));
+        }
+        return toResponse(saved);
     }
 
     @GetMapping("/{id}/bookings")
@@ -923,4 +976,12 @@ public class ClientController {
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
+
+    private static String clientActivityLabel(Client client) {
+        if (client == null) return "Client";
+        String label = (Objects.toString(client.getFirstName(), "").trim() + " "
+                + Objects.toString(client.getLastName(), "").trim()).trim();
+        return label.isBlank() ? "Client #" + Objects.toString(client.getId(), "") : label;
+    }
+
 }

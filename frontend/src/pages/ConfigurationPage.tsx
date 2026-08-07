@@ -158,6 +158,7 @@ import {
   serializeTenantReservationRules,
 } from "./configuration/ReservationRulesSettingsSection";
 import { ConfigurationCustomFieldsSection } from "./configuration/ConfigurationCustomFieldsSection";
+import { ActivityLogSection } from "./configuration/ActivityLogSection";
 
 import {
   MODULE_VISIBILITY_PACKAGES,
@@ -193,7 +194,8 @@ type Tab =
   | "integrations"
   | "whatsapp"
   | "viber"
-  | "modules";
+  | "modules"
+  | "activityLog";
 type BookingSubtab = "spaces" | "waitlist";
 type BillingSubtab =
   | "issuers"
@@ -395,7 +397,8 @@ type ConfigNavIcon =
   | "whatsapp"
   | "viber"
   | "modules"
-  | "security";
+  | "security"
+  | "activityLog";
 
 type ConfigNavItem = { id: Tab; icon: ConfigNavIcon };
 type InboxGlobalCapabilities = {
@@ -448,6 +451,7 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
   "whatsapp",
   "viber",
   "modules",
+  "activityLog",
 ];
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
@@ -463,6 +467,7 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   whatsapp: "tabWhatsapp",
   viber: "tabViber",
   modules: "tabModules",
+  activityLog: "tabActivityLog",
 };
 
 const isConfigTab = (value: string | null): value is Tab =>
@@ -537,6 +542,26 @@ function ConfigOverviewIcon({ kind }: { kind: ConfigNavIcon }) {
     return (
       <svg {...common}>
         <path d="M7 2a3 3 0 1 1-1 5.83V16a3 3 0 1 1-2 0V7.83A3 3 0 0 1 7 2Zm10 0a3 3 0 1 1-1 5.83V9a4 4 0 0 1-4 4H8v3a3 3 0 1 1-2 0v-5h6a2 2 0 0 0 2-2V7.83A3 3 0 0 1 17 2Z" />
+      </svg>
+    );
+  }
+  if (kind === "activityLog") {
+    return (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M4 4h16v16H4z" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
       </svg>
     );
   }
@@ -756,6 +781,26 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
         <path d="M10 6.5h4" />
         <path d="M6.5 10v4" />
         <path d="M10 17.5h4.5a3.5 3.5 0 0 0 0-7H14" />
+      </svg>
+    );
+  }
+  if (kind === "activityLog") {
+    return (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
       </svg>
     );
   }
@@ -2702,13 +2747,14 @@ export function ConfigurationPage() {
     if (tabId === "integrations") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
     if (tabId === "whatsapp" || tabId === "viber") return hasEmployeePermission(me, 'INTEGRATIONS_VIEW');
     if (tabId === "modules") return hasEmployeePermission(me, 'SETTINGS_VIEW');
+    if (tabId === "activityLog") return me.role === "ADMIN" || me.role === "SUPER_ADMIN";
     return false;
   };
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
     if (tabId === "website") return false;
-    if (tabId === "company" || tabId === "modules" || tabId === "reservationRules")
+    if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "activityLog")
       return true;
     if (tabId === "customFields") return customFieldsEnabledCommitted;
     if (tabId === "integrations")
@@ -3453,6 +3499,7 @@ export function ConfigurationPage() {
       { id: "whatsapp", icon: "whatsapp" },
       { id: "viber", icon: "viber" },
       { id: "modules", icon: "modules" },
+      { id: "activityLog", icon: "activityLog" },
     ];
     return items.filter((entry) => isConfigTabAvailable(entry.id));
   }, [
@@ -6154,7 +6201,7 @@ export function ConfigurationPage() {
   const usesMobileTabletDetailLayout =
     isCompactConfigViewport ||
     (isTabletConfigViewport &&
-      ["booking", "billing", "website", "notifications", "reservationRules", "customFields", "modules"].includes(
+      ["booking", "billing", "website", "notifications", "reservationRules", "customFields", "modules", "activityLog"].includes(
         tab,
       ));
   const showCompactConfigOverview =
@@ -6175,7 +6222,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : usesMobileTabletDetailLayout
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "reservationRules" ? " config-shell--reservation-rules-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "reservationRules" ? " config-shell--reservation-rules-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}${tab === "activityLog" ? " config-shell--activity-log-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -13923,6 +13970,8 @@ export function ConfigurationPage() {
                 />
               ) : tab === "customFields" ? (
                 <ConfigurationCustomFieldsSection />
+              ) : tab === "activityLog" ? (
+                <ActivityLogSection locale={locale} />
               ) : tab === "modules" && modulesDraftDisplay ? (
                 <Card className="settings-card modules-design-card">
                   <div className="modules-design-shell">

@@ -1,5 +1,9 @@
 package com.example.app.guest.common;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityActorType;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.billing.Bill;
@@ -27,6 +31,10 @@ import com.example.app.widget.WidgetBookingIdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -55,6 +63,9 @@ public class GuestBookingActionsController {
     private final CompanyRepository companies;
     private final SessionBookingCreationService bookingCreationService;
     private final WidgetBookingIdempotencyService idempotencyService;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public GuestBookingActionsController(GuestAuthContextService authContextService, SessionBookingRepository bookings, GuestTenantService tenantService, GuestCatalogService catalogService, UserRepository users, GuestOrderRepository orders, BillRepository bills, BillFolioPdfService billFolioPdfService, InvoicePdfS3Service invoicePdfS3Service, GuestEntitlementService entitlementService, SessionBookingRealtimeService bookingRealtimeService, BookingChangePublisher bookingChangePublisher, OpenBillSyncService openBillSyncService, CompanyRepository companies, SessionBookingCreationService bookingCreationService, WidgetBookingIdempotencyService idempotencyService) {
         this.authContextService = authContextService;
@@ -195,6 +206,8 @@ public class GuestBookingActionsController {
                 "GUEST_APP",
                 null
         );
+        recordGuestBookingActivity(guestUser, booking, ActivityAction.SESSION_CANCELLED,
+                booking.getStartTime(), booking.getEndTime(), Map.of("creditConsumed", creditConsumed));
         return actionResponse(booking, creditConsumed);
     }
 
@@ -248,6 +261,7 @@ public class GuestBookingActionsController {
         );
 
         LocalDateTime previousStartTime = booking.getStartTime();
+        LocalDateTime previousEndTime = booking.getEndTime();
         booking.setConsultant(consultant);
         bookingCreationService.applyExistingBookingTime(booking, slot.startsAt(), slot.endsAt());
         booking.setBookingStatus(SessionBookingStatus.RESERVED);
@@ -261,7 +275,46 @@ public class GuestBookingActionsController {
                 "GUEST_APP",
                 previousStartTime
         );
+        recordGuestBookingActivity(guestUser, booking, ActivityAction.SESSION_RESCHEDULED,
+                previousStartTime, previousEndTime, Map.of());
         return actionResponse(booking, false);
+    }
+
+    private void recordGuestBookingActivity(
+            GuestUser guestUser,
+            SessionBooking booking,
+            ActivityAction action,
+            LocalDateTime beforeStart,
+            LocalDateTime beforeEnd,
+            Map<String, ?> extraDetails
+    ) {
+        if (activityLogs == null || booking == null || booking.getCompany() == null) return;
+        String guestName = guestDisplayName(guestUser);
+        String typeLabel = booking.getType() == null ? "Session" : booking.getType().getName();
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("beforeStartTime", beforeStart);
+        details.put("beforeEndTime", beforeEnd);
+        details.put("startTime", booking.getStartTime());
+        details.put("endTime", booking.getEndTime());
+        details.put("bookingStatus", SessionBookingStatus.normalizeStored(booking.getBookingStatus()));
+        if (extraDetails != null) details.putAll(extraDetails);
+        activityLogs.recordExternal(
+                booking.getCompany(), ActivityActorType.GUEST_APP, guestName, "GUEST_APP",
+                ActivityModule.CALENDAR, action, "SESSION", booking.getId(), typeLabel,
+                booking.getClient() == null ? null : "CLIENT",
+                booking.getClient() == null ? null : booking.getClient().getId(),
+                booking.getClient() == null ? null : guestName,
+                (action == ActivityAction.SESSION_CANCELLED ? "Cancelled" : "Rescheduled") + " booking " + typeLabel,
+                booking.getLocation() == null ? null : booking.getLocation().getId(),
+                booking.getSpace() == null ? null : booking.getSpace().getId(), details
+        );
+    }
+
+    private static String guestDisplayName(GuestUser guestUser) {
+        if (guestUser == null) return "Guest app";
+        String label = (Objects.toString(guestUser.getFirstName(), "").trim() + " "
+                + Objects.toString(guestUser.getLastName(), "").trim()).trim();
+        return label.isBlank() ? "Guest app" : label;
     }
 
     private static GuestDtos.BookingActionResponse actionResponse(SessionBooking booking, Boolean creditConsumed) {

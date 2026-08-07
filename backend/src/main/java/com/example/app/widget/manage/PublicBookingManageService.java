@@ -1,5 +1,9 @@
 package com.example.app.widget.manage;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityActorType;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
 import com.example.app.common.TimeService;
 import com.example.app.company.Company;
@@ -39,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -66,6 +71,9 @@ public class PublicBookingManageService {
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final TimeService timeService;
     private final ZoneId zoneId;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public PublicBookingManageService(
             PublicBookingManageTokenService tokenService,
@@ -182,6 +190,7 @@ public class PublicBookingManageService {
         );
         openBillSyncService.syncSessionGroup(company.getId(), groupKey(booking));
         openBillSyncService.enqueueBookingsSync(company.getId(), List.of(booking));
+        recordPublicBookingActivity(booking, ActivityAction.SESSION_RESCHEDULED, oldStart, oldEnd);
         return new PublicBookingManageController.RescheduleResponse(
                 type.getName(),
                 booking.getStartTime().format(DATE_TIME_FORMAT),
@@ -232,6 +241,7 @@ public class PublicBookingManageService {
                 "PUBLIC_LINK",
                 null
         );
+        recordPublicBookingActivity(booking, ActivityAction.SESSION_CANCELLED, booking.getStartTime(), booking.getEndTime());
         return new PublicBookingManageController.CancelResponse("CANCELLED", "Booking cancelled.");
     }
 
@@ -504,6 +514,7 @@ public class PublicBookingManageService {
         rowsToSync.add(booking);
         placeholder.ifPresent(rowsToSync::add);
         openBillSyncService.enqueueBookingsSync(company.getId(), rowsToSync);
+        recordPublicBookingActivity(booking, ActivityAction.SESSION_RESCHEDULED, oldStart, oldEnd);
 
         return new PublicBookingManageController.RescheduleResponse(
                 booking.getType().getName(),
@@ -511,6 +522,39 @@ public class PublicBookingManageService {
                 booking.getEndTime().format(DATE_TIME_FORMAT),
                 booking.getStartTime().format(HUMAN_FORMAT)
         );
+    }
+
+    private void recordPublicBookingActivity(
+            SessionBooking booking,
+            ActivityAction action,
+            LocalDateTime beforeStart,
+            LocalDateTime beforeEnd
+    ) {
+        if (activityLogs == null || booking == null || booking.getCompany() == null) return;
+        Client client = booking.getClient();
+        String clientLabel = clientLabel(client);
+        String typeLabel = booking.getType() == null ? "Session" : booking.getType().getName();
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("beforeStartTime", beforeStart);
+        details.put("beforeEndTime", beforeEnd);
+        details.put("startTime", booking.getStartTime());
+        details.put("endTime", booking.getEndTime());
+        details.put("bookingStatus", SessionBookingStatus.normalizeStored(booking.getBookingStatus()));
+        activityLogs.recordExternal(
+                booking.getCompany(), ActivityActorType.GUEST, clientLabel, "PUBLIC_LINK",
+                ActivityModule.CALENDAR, action, "SESSION", booking.getId(), typeLabel,
+                client == null ? null : "CLIENT", client == null ? null : client.getId(), client == null ? null : clientLabel,
+                (action == ActivityAction.SESSION_CANCELLED ? "Cancelled" : "Rescheduled") + " booking " + typeLabel,
+                booking.getLocation() == null ? null : booking.getLocation().getId(),
+                booking.getSpace() == null ? null : booking.getSpace().getId(), details
+        );
+    }
+
+    private static String clientLabel(Client client) {
+        if (client == null) return "Guest";
+        String label = (Objects.toString(client.getFirstName(), "").trim() + " "
+                + Objects.toString(client.getLastName(), "").trim()).trim();
+        return label.isBlank() ? "Guest" : label;
     }
 
     private Optional<SessionBooking> ensureGroupSessionRemainsWhenParticipantLeaves(SessionBooking participant) {

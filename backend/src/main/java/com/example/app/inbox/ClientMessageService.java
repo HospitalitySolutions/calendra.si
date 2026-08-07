@@ -1,5 +1,8 @@
 package com.example.app.inbox;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
@@ -107,6 +110,9 @@ public class ClientMessageService {
 
     @Autowired(required = false)
     private WorkspaceEmailQuotaService workspaceEmailQuota;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public ClientMessageService(
             ClientMessageRepository messages,
@@ -555,7 +561,9 @@ public class ClientMessageService {
         if (request == null || request.clientId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
         Client client = requireVisibleClient(me, request.clientId());
         List<ClientFile> attachmentFiles = resolveAttachmentFiles(me, client, request.attachmentFileIds());
-        return sendInternal(me, client, request, attachmentFiles);
+        MessageView view = sendInternal(me, client, request, attachmentFiles);
+        recordSentMessageActivity(me, client, view);
+        return view;
     }
 
     /** Schedules a message to be delivered at a future time, optionally repeating. */
@@ -582,7 +590,16 @@ public class ClientMessageService {
         row.setNextRunAt(request.scheduledFor());
         row.setRecurrence(recurrence);
         row.setStatus(ScheduledMessageStatus.ACTIVE);
-        return toScheduledView(scheduledMessages.save(row));
+        ScheduledMessage saved = scheduledMessages.save(row);
+        ScheduledMessageView view = toScheduledView(saved);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.INBOX, ActivityAction.MESSAGE_SCHEDULED,
+                    "SCHEDULED_MESSAGE", saved.getId(), channel.name(),
+                    "CLIENT", client.getId(), clientActivityLabel(client),
+                    "Scheduled " + channel.name() + " to " + clientActivityLabel(client), null, null,
+                    Map.of("clientId", client.getId(), "channel", channel.name(), "scheduledFor", request.scheduledFor(), "recurrence", recurrence.name()));
+        }
+        return view;
     }
 
     @Transactional(readOnly = true)
@@ -596,7 +613,18 @@ public class ClientMessageService {
     public void cancelScheduledMessage(User me, Long id) {
         ScheduledMessage row = scheduledMessages.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scheduled message not found."));
+        Long clientId = row.getClient() == null ? null : row.getClient().getId();
+        String clientLabel = clientActivityLabel(row.getClient());
+        String channel = row.getChannel() == null ? "MESSAGE" : row.getChannel().name();
         scheduledMessages.delete(row);
+        if (activityLogs != null) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("clientId", clientId);
+            details.put("channel", channel);
+            activityLogs.recordUser(me, ActivityModule.INBOX, ActivityAction.MESSAGE_SCHEDULE_CANCELLED,
+                    "SCHEDULED_MESSAGE", id, channel, "CLIENT", clientId, clientLabel,
+                    "Cancelled scheduled " + channel + " to " + clientLabel, null, null, details);
+        }
     }
 
     /**
@@ -727,7 +755,14 @@ public class ClientMessageService {
         row.setBody(normalized);
         row.setInternalNote(true);
         row.setSentAt(Instant.now());
-        return toView(messages.save(row));
+        ClientMessage saved = messages.save(row);
+        MessageView view = toView(saved);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.INBOX, ActivityAction.INTERNAL_NOTE_ADDED,
+                    "MESSAGE", saved.getId(), "Internal note", "CLIENT", client.getId(), clientActivityLabel(client),
+                    "Added internal note for " + clientActivityLabel(client), null, null, Map.of("clientId", client.getId()));
+        }
+        return view;
     }
 
     /** Admin-only: attach a conversation to an employee by setting the client's assigned consultant. */
@@ -801,7 +836,9 @@ public class ClientMessageService {
         if (clientId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
         Client client = requireVisibleClient(me, clientId);
         List<ClientFile> attachmentFiles = persistUploadedClientFiles(me, client, files);
-        return sendInternal(me, client, new SendMessageRequest(clientId, channel, subject, body, null), attachmentFiles);
+        MessageView view = sendInternal(me, client, new SendMessageRequest(clientId, channel, subject, body, null), attachmentFiles);
+        recordSentMessageActivity(me, client, view);
+        return view;
     }
 
     @Transactional
@@ -1909,4 +1946,21 @@ public class ClientMessageService {
     }
 
     private record ChannelDeliveryResult(String recipient, String externalMessageId, MessageStatus status) {}
+
+    private void recordSentMessageActivity(User actor, Client client, MessageView view) {
+        if (activityLogs == null || actor == null || client == null || view == null || view.status() == MessageStatus.FAILED) return;
+        String clientLabel = clientActivityLabel(client);
+        activityLogs.recordUser(actor, ActivityModule.INBOX, ActivityAction.MESSAGE_SENT,
+                "MESSAGE", view.id(), view.channel() == null ? "Message" : view.channel().name(),
+                "CLIENT", client.getId(), clientLabel,
+                "Sent " + (view.channel() == null ? "message" : view.channel().name()) + " to " + clientLabel,
+                null, null, Map.of("clientId", client.getId(), "channel", Objects.toString(view.channel(), "")));
+    }
+
+    private static String clientActivityLabel(Client client) {
+        if (client == null) return "Client";
+        String label = (Objects.toString(client.getFirstName(), "").trim() + " " + Objects.toString(client.getLastName(), "").trim()).trim();
+        return label.isBlank() ? "Client #" + Objects.toString(client.getId(), "") : label;
+    }
+
 }

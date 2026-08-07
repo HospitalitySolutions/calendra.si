@@ -1,5 +1,8 @@
 package com.example.app.billing;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.billingissuer.InvoiceIssuanceService;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
@@ -121,6 +124,7 @@ public class BillingController {
     private InvoiceIssuanceService invoiceIssuanceService;
     private GuestEntitlementService guestEntitlementService;
     private LocationRepository locations;
+    private ActivityLogService activityLogs;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -174,6 +178,11 @@ public class BillingController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void configureLocationRepository(LocationRepository locations) {
         this.locations = locations;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureActivityLogService(ActivityLogService activityLogs) {
+        this.activityLogs = activityLogs;
     }
 
     @ModelAttribute
@@ -2132,6 +2141,19 @@ public class BillingController {
         openBillRepo.flush();
 
         String entitlementName = entitlement.getProduct() == null ? null : entitlement.getProduct().getName();
+        if (activityLogs != null) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("entitlementId", entitlement.getId());
+            details.put("entitlementName", entitlementName);
+            details.put("sessionId", booking.getId());
+            details.put("amountGross", serviceValueGross);
+            activityLogs.recordUser(me, ActivityModule.BILLING, ActivityAction.ENTITLEMENT_USED,
+                    "ENTITLEMENT", entitlement.getId(), entitlementName == null ? "Entitlement" : entitlementName,
+                    "SESSION", booking.getId(), booking.getType() == null ? "Session" : booking.getType().getName(),
+                    "Used entitlement " + (entitlementName == null ? "" : entitlementName) + " for session",
+                    booking.getLocation() == null ? null : booking.getLocation().getId(),
+                    booking.getSpace() == null ? null : booking.getSpace().getId(), details);
+        }
         return new EntitlementSettlementResponse(
                 openBillId,
                 "SETTLED_BY_ENTITLEMENT",
@@ -2277,6 +2299,7 @@ public class BillingController {
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         tryEmailPaidBillFolioAfterCreate(saved, companyId);
         events.publishEvent(new WebInvoiceCreatedEvent(saved.getId(), companyId));
+        recordBillActivity(me, ActivityAction.INVOICE_CREATED, saved, "Issued invoice");
         return toResponse(saved);
     }
 
@@ -3627,6 +3650,7 @@ public class BillingController {
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         tryEmailPaidBillFolioAfterCreate(saved, companyId);
         events.publishEvent(new WebInvoiceCreatedEvent(saved.getId(), companyId));
+        recordBillActivity(me, ActivityAction.INVOICE_CREATED, saved, "Issued invoice");
         return toResponse(saved);
     }
 
@@ -3698,6 +3722,7 @@ public class BillingController {
         }
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         createGuestRefundOrderIfApplicable(original, saved);
+        recordBillActivity(me, ActivityAction.INVOICE_REFUNDED, saved, "Issued refund");
         return toResponse(saved);
     }
 
@@ -3881,13 +3906,14 @@ public class BillingController {
         bill = billRepo.save(bill);
         if (!alreadyPaid) {
             events.publishEvent(new BillPaidEvent(bill.getId(), companyId));
+            recordBillActivity(me, ActivityAction.INVOICE_PAID, bill, "Marked invoice paid");
         }
         return toResponse(bill);
     }
 
 
     @PostMapping("/bills/{id}/resend")
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, String> resendBillPdf(@PathVariable Long id,
                                              @RequestParam(value = "locale", required = false) String locale,
                                              @AuthenticationPrincipal User me) {
@@ -3899,6 +3925,7 @@ public class BillingController {
         }
         byte[] pdf = billFolioPdfService.generate(bill, companyId, locale);
         billingEmailService.sendInvoiceFolio(bill, pdf);
+        recordBillActivity(me, ActivityAction.INVOICE_SENT, bill, "Sent invoice");
         return Map.of("status", "sent");
     }
 
@@ -5689,6 +5716,24 @@ public class BillingController {
 
     private static String resolveInitialPaymentStatus(Bill bill) {
         return BillPaymentSplitSupport.resolveInitialPaymentStatus(bill);
+    }
+
+
+    private void recordBillActivity(User actor, ActivityAction action, Bill bill, String verb) {
+        if (activityLogs == null || bill == null) return;
+        String number = bill.getBillNumber() == null ? "#" + Objects.toString(bill.getId(), "") : bill.getBillNumber();
+        String clientLabel = (Objects.toString(bill.getClientFirstNameSnapshot(), "").trim() + " "
+                + Objects.toString(bill.getClientLastNameSnapshot(), "").trim()).trim();
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("billNumber", bill.getBillNumber());
+        details.put("billType", bill.getBillType() == null ? null : bill.getBillType().name());
+        details.put("totalGross", bill.getTotalGross());
+        details.put("paymentStatus", bill.getPaymentStatus());
+        details.put("clientId", bill.getClient() == null ? null : bill.getClient().getId());
+        activityLogs.recordUser(actor, ActivityModule.BILLING, action, "BILL", bill.getId(), number,
+                bill.getClient() == null ? null : "CLIENT", bill.getClient() == null ? null : bill.getClient().getId(),
+                clientLabel.isBlank() ? null : clientLabel, verb + " " + number,
+                bill.getLocation() == null ? null : bill.getLocation().getId(), null, details);
     }
 
 }
