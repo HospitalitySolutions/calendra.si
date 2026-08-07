@@ -2578,7 +2578,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function paymentSplitsMatchInvoiceTotal(splits: OpenBillPaymentSplitDraft[], totalGross: number) {
-    if (!splits.some((split) => split.paymentMethodId)) return false
+    // Entitlements are prepaid coverage rather than a payment method, so a validated
+    // entitlement split intentionally has no paymentMethodId. Treat it as a valid
+    // settlement instrument when checking whether the bill is fully covered.
+    if (!splits.some((split) => split.paymentMethodId || isEntitlementPaymentSplit(split))) return false
     return Math.abs(paymentSplitTotalGross(splits) - totalGross) <= 0.01
   }
 
@@ -4796,15 +4799,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const createBillFromOpen = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[], afterCreatePdfAction: InvoicePdfAction = 'download') => {
     if (creatingFromOpenId) return
+    const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
+    const targetEntitlementSettlement = openBillEntitlementSettlementSelection(target, openBillPayableGross(target))
     const effectiveType = resolveOpenBillEffectiveType(ob)
-    if (effectiveType === 'ADVANCE' ? !canIssueAdvanceInvoice : !canIssueOpenInvoice) {
+    // Settling with a prepaid entitlement does not issue an invoice, so invoice/advance
+    // issuance permissions must not block this path. The settlement endpoint performs
+    // its own entitlement and booking validation.
+    if (!targetEntitlementSettlement && (effectiveType === 'ADVANCE' ? !canIssueAdvanceInvoice : !canIssueOpenInvoice)) {
       showToast('error', effectiveType === 'ADVANCE'
         ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
         : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
       return
     }
-    const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
-    const targetEntitlementSettlement = openBillEntitlementSettlementSelection(target, openBillPayableGross(target))
     if (targetEntitlementSettlement && onePayeeRelatedBills && onePayeeRelatedBills.length > 1) {
       showToast('error', locale === 'sl'
         ? 'Ugodnost lahko zaključi samo posamezen račun za en termin. Najprej izklopite združevanje plačnikov.'
@@ -9429,7 +9435,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailPaymentsMatchCloseTotal = paymentSplitsMatchInvoiceTotal(detailPaymentSplits, detailActionGross || detailGross)
         const detailCanIssueOpenBill = canIssueOpenBillType(detailActionOpenBill)
         const detailIssuePermissionTooltip = issueOpenBillPermissionTooltip(detailActionOpenBill)
-        const detailCloseDisabledReason = !detailCanIssueOpenBill
+        const detailCloseDisabledReason = !detailEntitlementSettlement && !detailCanIssueOpenBill
           ? detailIssuePermissionTooltip
           : !detailSessionsBillableForClose
           ? (locale === 'sl'
@@ -9547,7 +9553,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       type="button"
                       className="billing-bill-modal-save-btn"
                       onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
-                      disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
+                      disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
                       title={detailCloseDisabledReason}
                     >
                       {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}
@@ -9557,7 +9563,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     type="button"
                     className="billing-bill-modal-primary-action"
                     onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
+                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
                     title={detailCloseDisabledReason}
                   >
                     {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
@@ -9588,7 +9594,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       ? void createBillFromOpen(detailActionOpenBill)
                       : void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)}
                     disabled={detailEntitlementSettlement
-                      ? creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill
+                      ? creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)
                       : (!hasUnsavedOpenBillChanges && !detailOnePayeeForAll)}
                     title={detailEntitlementSettlement ? detailCloseDisabledReason : undefined}
                   >
