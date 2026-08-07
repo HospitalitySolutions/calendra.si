@@ -100,7 +100,7 @@ class SessionBookingGroupParticipantRemovalTest {
     }
 
     @Test
-    void removeLastParticipant_cancelsParticipantAndCreatesEmptyPlaceholderLikePublicCancellation() {
+    void removeLastParticipant_usesPublicCancellationCoreAndKeepsEmptyOccurrence() {
         Client client = client(68L, "Andrej", "Novak");
         SessionBooking row = booking(299L, client);
         List<SessionBooking> persisted = new java.util.ArrayList<>();
@@ -125,18 +125,26 @@ class SessionBookingGroupParticipantRemovalTest {
         assertEquals(0, response.clients().size());
         assertEquals(client, row.getClient());
         assertEquals(SessionBookingStatus.CANCELLED, row.getBookingStatus());
+
         SessionBooking placeholder = persisted.stream()
-                .filter(candidate -> candidate.getId().equals(300L))
+                .filter(candidate -> Long.valueOf(300L).equals(candidate.getId()))
                 .findFirst()
                 .orElseThrow();
         assertNull(placeholder.getClient());
         assertEquals(SessionBookingStatus.RESERVED, placeholder.getBookingStatus());
         assertEquals(BookingSource.MANUAL, placeholder.getBookingSource());
         assertEquals("group-1", placeholder.getBookingGroupKey());
+
         verify(repo, times(1)).save(row);
         verify(repo, times(2)).save(any(SessionBooking.class));
-        verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(java.util.Set.of(299L)));
+        verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(List.of(299L)));
         verify(openBillSyncService).syncSessionGroup(1L, "group-1");
+        verify(bookingChangePublisher).publish(
+                eq(1L), eq(300L), any(LocalDateTime.class), any(LocalDateTime.class),
+                eq(BookingChangePublisher.BOOKING_CREATED), eq("STAFF"), isNull());
+        verify(bookingChangePublisher).publish(
+                eq(1L), eq(299L), any(LocalDateTime.class), any(LocalDateTime.class),
+                eq(BookingChangePublisher.BOOKING_CANCELLED), eq("STAFF"), isNull());
         verify(activityLogs, times(1)).recordUser(
                 eq(admin), eq(ActivityModule.CALENDAR), eq(ActivityAction.SESSION_PARTICIPANT_REMOVED),
                 eq("SESSION"), eq(299L), anyString(), eq("CLIENT"), eq(68L), eq("Andrej Novak"),
@@ -144,16 +152,17 @@ class SessionBookingGroupParticipantRemovalTest {
     }
 
     @Test
-    void removeOneOfSeveralParticipants_cancelsOnlyThatParticipantAndKeepsOtherGuestVisible() {
+    void removeOneOfSeveralParticipants_usesSameCoreWithoutCreatingPlaceholder() {
         Client removedClient = client(68L, "Andrej", "Novak");
         Client remainingClient = client(69L, "Ana", "Kovac");
         SessionBooking removed = booking(299L, removedClient);
         SessionBooking remaining = booking(300L, remainingClient);
-        List<SessionBooking> rows = List.of(removed, remaining);
+        List<SessionBooking> persisted = new java.util.ArrayList<>(List.of(removed, remaining));
 
         when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
         when(repo.findByIdAndCompanyId(299L, 1L)).thenReturn(Optional.of(removed));
-        when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("group-1", 1L)).thenReturn(rows);
+        when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("group-1", 1L))
+                .thenAnswer(invocation -> List.copyOf(persisted));
         when(repo.save(any(SessionBooking.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SessionBookingController.BookingResponse response = service.removeGroupSessionParticipant(299L, 68L, admin);
@@ -164,7 +173,7 @@ class SessionBookingGroupParticipantRemovalTest {
         assertEquals(69L, response.clients().getFirst().id());
         verify(repo, times(1)).save(removed);
         verify(repo, times(1)).save(any(SessionBooking.class));
-        verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(java.util.Set.of(299L)));
+        verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(List.of(299L)));
         verify(activityLogs, times(1)).recordUser(
                 eq(admin), eq(ActivityModule.CALENDAR), eq(ActivityAction.SESSION_PARTICIPANT_REMOVED),
                 eq("SESSION"), eq(299L), anyString(), eq("CLIENT"), eq(68L), eq("Andrej Novak"),

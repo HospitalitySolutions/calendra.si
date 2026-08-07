@@ -212,35 +212,39 @@ public class PublicBookingManageService {
         if (!canCancel(booking, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, cancelBlockedReason(booking, rules));
         }
-        if (isGroupSession(booking)) {
+        boolean groupSession = isGroupSession(booking);
+        if (groupSession) {
             companies.findByIdForUpdate(company.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
         }
-        booking.setBookingStatus(SessionBookingStatus.CANCELLED);
-        Optional<SessionBooking> placeholder = ensureGroupSessionRemainsWhenParticipantLeaves(booking);
         if (request != null && request.reason() != null && !request.reason().isBlank()) {
             String existing = booking.getNotes() == null ? "" : booking.getNotes().trim();
             String note = "Public cancellation reason: " + request.reason().trim();
             booking.setNotes(existing.isBlank() ? note : existing + "\n" + note);
         }
-        booking = bookings.save(booking);
-        reminderService.sendSessionCancelled(booking);
-        bookingCreationService.restoreGuestCreditsForBookings(List.of(booking));
-        openBillSyncService.removeSessionRowsFromOpenBills(company.getId(), List.of(booking.getId()));
-        openBillSyncService.syncSessionGroup(company.getId(), groupKey(booking));
-        List<SessionBooking> rowsToSync = new ArrayList<>();
-        rowsToSync.add(booking);
-        placeholder.ifPresent(rowsToSync::add);
-        openBillSyncService.enqueueBookingsSync(company.getId(), rowsToSync);
-        bookingChangePublisher.publish(
-                company.getId(),
-                booking.getId(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                BookingChangePublisher.BOOKING_CANCELLED,
-                "PUBLIC_LINK",
-                null
-        );
+
+        if (groupSession) {
+            // Staff removal from Group details uses this exact same cancellation core.
+            // This prevents the last-participant case from having a separate persistence path.
+            booking = bookingCreationService.cancelGroupParticipantBooking(booking, "PUBLIC_LINK").booking();
+        } else {
+            booking.setBookingStatus(SessionBookingStatus.CANCELLED);
+            booking = bookings.save(booking);
+            reminderService.sendSessionCancelled(booking);
+            bookingCreationService.restoreGuestCreditsForBookings(List.of(booking));
+            openBillSyncService.removeSessionRowsFromOpenBills(company.getId(), List.of(booking.getId()));
+            openBillSyncService.syncSessionGroup(company.getId(), groupKey(booking));
+            openBillSyncService.enqueueBookingsSync(company.getId(), List.of(booking));
+            bookingChangePublisher.publish(
+                    company.getId(),
+                    booking.getId(),
+                    booking.getStartTime(),
+                    booking.getEndTime(),
+                    BookingChangePublisher.BOOKING_CANCELLED,
+                    "PUBLIC_LINK",
+                    null
+            );
+        }
         recordPublicBookingActivity(booking, ActivityAction.SESSION_CANCELLED, booking.getStartTime(), booking.getEndTime());
         return new PublicBookingManageController.CancelResponse("CANCELLED", "Booking cancelled.");
     }

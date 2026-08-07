@@ -29,7 +29,6 @@ import com.example.app.user.UserRepository;
 import com.example.app.zoom.ZoomService;
 import com.example.app.waitlist.WaitlistBookingHold;
 import com.example.app.waitlist.WaitlistBookingHoldRepository;
-import com.example.app.widget.manage.PublicBookingManageTokenRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -90,9 +89,6 @@ public class SessionBookingCreationService {
 
     @Autowired(required = false)
     private WorkspaceSchedulingLockService workspaceSchedulingLocks;
-
-    @Autowired(required = false)
-    private PublicBookingManageTokenRepository publicBookingManageTokens;
 
     @Autowired(required = false)
     private ActivityLogService activityLogs;
@@ -690,9 +686,12 @@ public class SessionBookingCreationService {
 
     /**
      * Removes a guest from one group-session occurrence while preserving the
-     * empty group session itself. Existing invoices and guest credits attached
-     * to the removed participant row are cleaned up in the same way as a normal
-     * participant removal through the full booking editor.
+     * empty group session itself.
+     *
+     * The actual cancellation is intentionally delegated to
+     * {@link #cancelGroupParticipantBooking(SessionBooking, String)}. The public
+     * "Odpovej rezervacijo" flow uses that exact same method, so staff removal and
+     * guest self-cancellation cannot drift into two different persistence paths.
      */
     @Transactional
     public SessionBookingController.BookingResponse removeGroupSessionParticipant(
@@ -708,8 +707,8 @@ public class SessionBookingCreationService {
         }
 
         Long companyId = me.getCompany().getId();
-        // Serialize group joins/removals with public group booking. This prevents a last-guest
-        // removal racing with somebody joining the same occurrence.
+        // Serialize joins/removals/cancellations for the occurrence. Public group
+        // cancellation takes the same company lock before entering the shared core.
         companies.findByIdForUpdate(companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
 
@@ -733,94 +732,44 @@ public class SessionBookingCreationService {
         }
         String removedClientLabel = clientActivityLabel(targets.get(0).getClient());
 
-        Set<Long> targetIds = targets.stream()
-                .map(SessionBooking::getId)
-                .filter(Objects::nonNull)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-
-        boolean hasActivePlaceholder = rows.stream()
-                .filter(row -> row.getId() == null || !targetIds.contains(row.getId()))
-                .anyMatch(row -> row.getClient() == null
-                        && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
-        boolean hasOtherActiveParticipant = rows.stream()
-                .filter(row -> row.getId() == null || !targetIds.contains(row.getId()))
-                .anyMatch(row -> row.getClient() != null
-                        && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
-
-        // Build cancellation notifications while the participant/client associations still exist.
-        // ReminderService prepares the payload inside this transaction and sends it after commit.
+        // Use the exact same cancellation core as the public e-mail manage link.
+        // Usually there is one row per client; looping also safely cleans up any
+        // legacy duplicate participant rows without leaving the occurrence empty.
         for (SessionBooking target : targets) {
-            reminderService.sendSessionCancelled(target);
-        }
-
-        // Keep staff removal aligned with the public "Odpovej rezervacijo" flow:
-        // the participant row remains a cancelled participant row and an empty placeholder
-        // is created only when the last active guest leaves. Keeping the participant row
-        // intact is important because guest-credit, invoice and manage-link cleanup still
-        // needs the original booking/client association.
-        SessionBooking createdPlaceholder = null;
-        for (SessionBooking target : targets) {
-            target.setBookingStatus(SessionBookingStatus.CANCELLED);
-            repo.save(target);
-        }
-
-        if (!hasActivePlaceholder && !hasOtherActiveParticipant) {
-            createdPlaceholder = createEmptyGroupSessionPlaceholder(targets.get(0));
-            createdPlaceholder = repo.save(createdPlaceholder);
-        }
-        repo.flush();
-
-        // Participant-specific wallet usage and draft billing must be detached from the occurrence.
-        // Do this after cancellation while the participant row still retains its client association.
-        for (SessionBooking target : targets) {
-            restoreGuestCreditForBooking(target);
-        }
-        if (!targetIds.isEmpty()) {
-            openBillSyncService.removeSessionRowsFromOpenBills(companyId, targetIds);
-        }
-
-        // Staff removal invalidates old public manage links. Revoke instead of physically deleting
-        // token rows so this cleanup cannot create another FK-sensitive delete path.
-        if (publicBookingManageTokens != null && !targetIds.isEmpty()) {
-            publicBookingManageTokens.revokeByCompanyIdAndBookingIds(companyId, targetIds, Instant.now());
-        }
-
-        // Match public cancellation events as well: the removed participant is cancelled and,
-        // when necessary, the newly-created empty occurrence is announced as a new booking row.
-        for (SessionBooking target : targets) {
-            bookingChangePublisher.publish(
-                    companyId,
-                    target.getId(),
-                    target.getStartTime(),
-                    target.getEndTime(),
-                    BookingChangePublisher.BOOKING_CANCELLED
-            );
-        }
-        if (createdPlaceholder != null) {
-            bookingChangePublisher.publish(
-                    companyId,
-                    createdPlaceholder.getId(),
-                    createdPlaceholder.getStartTime(),
-                    createdPlaceholder.getEndTime(),
-                    BookingChangePublisher.BOOKING_CREATED
-            );
+            cancelGroupParticipantBooking(target, "STAFF");
         }
 
         List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
         if (refreshed == null || refreshed.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Group session could not be reloaded after guest removal.");
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Group session could not be reloaded after guest removal."
+            );
         }
 
-        openBillSyncService.syncSessionGroup(companyId, groupKey);
-        openBillSyncService.enqueueBookingsSync(companyId, refreshed);
+        // Only active rows are needed for the UI response. In the last-guest case
+        // this is the newly-created empty placeholder; cancelled participant rows
+        // stay persisted for billing/audit/history exactly like public cancellation.
+        List<SessionBooking> activeRows = refreshed.stream()
+                .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                        SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                .toList();
+        if (activeRows.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Group session placeholder is missing after guest removal."
+            );
+        }
 
-        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(refreshed);
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(activeRows);
         bookingChangePublisher.publish(
                 companyId,
                 response.id(),
                 response.startTime(),
                 response.endTime(),
-                BookingChangePublisher.BOOKING_UPDATED
+                BookingChangePublisher.BOOKING_UPDATED,
+                "STAFF",
+                null
         );
         recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
                 "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId), representativeBookingId);
@@ -828,12 +777,84 @@ public class SessionBookingCreationService {
     }
 
     /**
-     * Creates the empty row that keeps a group-session occurrence visible after its last
-     * participant leaves. This intentionally mirrors PublicBookingManageService's
-     * last-participant cancellation behaviour instead of converting the participant row
-     * itself into a placeholder.
+     * Shared group-participant cancellation core.
+     *
+     * Both the staff group-details panel and the public "Odpovej rezervacijo"
+     * endpoint call this method. Keeping one implementation is important for the
+     * last-participant case because the participant row must remain CANCELLED and
+     * an empty RESERVED placeholder must be created for the same occurrence.
      */
-    private SessionBooking createEmptyGroupSessionPlaceholder(SessionBooking participant) {
+    @Transactional
+    public GroupParticipantCancellationResult cancelGroupParticipantBooking(
+            SessionBooking participant,
+            String origin
+    ) {
+        if (participant == null || participant.getCompany() == null || participant.getCompany().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking is required.");
+        }
+        if (participant.getClientGroup() == null || participant.getClient() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected booking is not a group participant.");
+        }
+
+        Long companyId = participant.getCompany().getId();
+        String effectiveOrigin = origin == null || origin.isBlank() ? "STAFF" : origin.trim();
+        String groupKey = SessionBookingController.groupKey(participant);
+
+        // This ordering deliberately mirrors the previously-working public manage
+        // cancellation path: mark cancelled, ensure an empty occurrence exists,
+        // save the participant, then run participant-specific cleanup.
+        participant.setBookingStatus(SessionBookingStatus.CANCELLED);
+        SessionBooking placeholder = ensureGroupSessionRemainsWhenParticipantLeaves(participant, effectiveOrigin);
+        participant = repo.save(participant);
+
+        reminderService.sendSessionCancelled(participant);
+        restoreGuestCreditForBooking(participant);
+        openBillSyncService.removeSessionRowsFromOpenBills(companyId, List.of(participant.getId()));
+        openBillSyncService.syncSessionGroup(companyId, groupKey);
+
+        List<SessionBooking> rowsToSync = new ArrayList<>();
+        rowsToSync.add(participant);
+        if (placeholder != null) {
+            rowsToSync.add(placeholder);
+        }
+        openBillSyncService.enqueueBookingsSync(companyId, rowsToSync);
+
+        bookingChangePublisher.publish(
+                companyId,
+                participant.getId(),
+                participant.getStartTime(),
+                participant.getEndTime(),
+                BookingChangePublisher.BOOKING_CANCELLED,
+                effectiveOrigin,
+                null
+        );
+        return new GroupParticipantCancellationResult(participant, placeholder, groupKey);
+    }
+
+    private SessionBooking ensureGroupSessionRemainsWhenParticipantLeaves(
+            SessionBooking participant,
+            String origin
+    ) {
+        if (participant == null || participant.getClientGroup() == null || participant.getClient() == null) {
+            return null;
+        }
+
+        List<SessionBooking> rows = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(
+                SessionBookingController.groupKey(participant),
+                participant.getCompany().getId()
+        );
+        boolean hasActivePlaceholder = rows.stream()
+                .filter(row -> !Objects.equals(row.getId(), participant.getId()))
+                .anyMatch(row -> row.getClient() == null
+                        && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+        boolean hasOtherActiveParticipant = rows.stream()
+                .filter(row -> !Objects.equals(row.getId(), participant.getId()))
+                .anyMatch(row -> row.getClient() != null
+                        && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+        if (hasActivePlaceholder || hasOtherActiveParticipant) {
+            return null;
+        }
+
         SessionBooking placeholder = new SessionBooking();
         placeholder.setCompany(participant.getCompany());
         placeholder.setLocation(participant.getLocation());
@@ -859,8 +880,28 @@ public class SessionBookingCreationService {
         placeholder.setClientGroup(participant.getClientGroup());
         placeholder.setSessionGroupEmailOverride(participant.getSessionGroupEmailOverride());
         placeholder.setSessionGroupBillingCompany(participant.getSessionGroupBillingCompany());
+        placeholder = repo.save(placeholder);
+
+        // Public cancellation flushes here before continuing with participant
+        // cleanup. Preserve that exact transaction boundary for staff removal too.
+        repo.flush();
+        bookingChangePublisher.publish(
+                participant.getCompany().getId(),
+                placeholder.getId(),
+                placeholder.getStartTime(),
+                placeholder.getEndTime(),
+                BookingChangePublisher.BOOKING_CREATED,
+                origin,
+                null
+        );
         return placeholder;
     }
+
+    public record GroupParticipantCancellationResult(
+            SessionBooking booking,
+            SessionBooking placeholder,
+            String groupKey
+    ) {}
 
     private void authorizeStaffGroupSessionMutation(SessionBooking representative, User me) {
         if (representative == null || representative.getClientGroup() == null) {
