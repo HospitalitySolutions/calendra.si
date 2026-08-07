@@ -309,11 +309,17 @@ function buildQrCommand(payload: string, moduleSize: number): Uint8Array {
 
 type RasterImageSource = string | Blob
 
-async function imageToEscPosRaster(
+type MonochromeBitmap = {
+  width: number
+  height: number
+  pixels: Uint8Array
+}
+
+async function imageToMonochromeBitmap(
   source: RasterImageSource,
   maxWidth: number,
-  options?: { chunkHeight?: number; threshold?: number },
-): Promise<Uint8Array | null> {
+  options?: { threshold?: number },
+): Promise<MonochromeBitmap | null> {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return null
   const image = new Image()
   image.decoding = 'async'
@@ -327,9 +333,11 @@ async function imageToEscPosRaster(
   try {
     image.src = imageSource || ''
     await loaded
-    const scale = Math.min(1, maxWidth / Math.max(1, image.naturalWidth || image.width))
-    const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale))
-    const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale))
+    const sourceWidth = image.naturalWidth || image.width
+    const sourceHeight = image.naturalHeight || image.height
+    const scale = Math.min(1, maxWidth / Math.max(1, sourceWidth))
+    const width = Math.max(1, Math.round(sourceWidth * scale))
+    const height = Math.max(1, Math.round(sourceHeight * scale))
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
@@ -338,46 +346,61 @@ async function imageToEscPosRaster(
     ctx.fillStyle = '#fff'
     ctx.fillRect(0, 0, width, height)
     ctx.drawImage(image, 0, 0, width, height)
-    const pixels = ctx.getImageData(0, 0, width, height).data
-    const widthBytes = Math.ceil(width / 8)
-    const raster = new Uint8Array(widthBytes * height)
+    const rgba = ctx.getImageData(0, 0, width, height).data
     const threshold = Math.max(0, Math.min(255, options?.threshold ?? 168))
+    const pixels = new Uint8Array(width * height)
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const idx = (y * width + x) * 4
-        const alpha = pixels[idx + 3] / 255
-        const r = 255 - (255 - pixels[idx]) * alpha
-        const g = 255 - (255 - pixels[idx + 1]) * alpha
-        const b = 255 - (255 - pixels[idx + 2]) * alpha
+        const alpha = rgba[idx + 3] / 255
+        const r = 255 - (255 - rgba[idx]) * alpha
+        const g = 255 - (255 - rgba[idx + 1]) * alpha
+        const b = 255 - (255 - rgba[idx + 2]) * alpha
         const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-        if (luminance < threshold) {
-          raster[y * widthBytes + Math.floor(x / 8)] |= (0x80 >> (x % 8))
-        }
+        pixels[y * width + x] = luminance < threshold ? 1 : 0
       }
     }
-
-    const chunkHeight = Math.max(0, options?.chunkHeight ?? 0)
-    if (chunkHeight <= 0 || height <= chunkHeight) {
-      return concatBytes(
-        command(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, height & 0xff, (height >> 8) & 0xff),
-        raster,
-      )
-    }
-
-    const chunks: Uint8Array[] = []
-    for (let startY = 0; startY < height; startY += chunkHeight) {
-      const rows = Math.min(chunkHeight, height - startY)
-      const start = startY * widthBytes
-      const end = start + rows * widthBytes
-      chunks.push(
-        command(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff),
-        raster.slice(start, end),
-      )
-    }
-    return concatBytes(...chunks)
+    return { width, height, pixels }
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl)
   }
+}
+
+function monochromeBitmapToEscPosBitImage(bitmap: MonochromeBitmap): Uint8Array {
+  const { width, height, pixels } = bitmap
+  const bands: Uint8Array[] = [align(0), command(ESC, 0x33, 24)]
+  for (let startY = 0; startY < height; startY += 24) {
+    const bandHeight = Math.min(24, height - startY)
+    const band = new Uint8Array(width * 3)
+    for (let x = 0; x < width; x += 1) {
+      for (let byteIndex = 0; byteIndex < 3; byteIndex += 1) {
+        let value = 0
+        for (let bit = 0; bit < 8; bit += 1) {
+          const y = startY + byteIndex * 8 + bit
+          if (y >= height || (y - startY) >= bandHeight) continue
+          if (pixels[y * width + x]) value |= (0x80 >> bit)
+        }
+        band[x * 3 + byteIndex] = value
+      }
+    }
+    bands.push(
+      command(ESC, 0x2a, 33, width & 0xff, (width >> 8) & 0xff),
+      band,
+      lineFeed(),
+    )
+  }
+  bands.push(command(ESC, 0x32))
+  return concatBytes(...bands)
+}
+
+async function imageToEscPosRaster(
+  source: RasterImageSource,
+  maxWidth: number,
+  options?: { threshold?: number },
+): Promise<Uint8Array | null> {
+  const bitmap = await imageToMonochromeBitmap(source, maxWidth, options)
+  if (!bitmap) return null
+  return monochromeBitmapToEscPosBitImage(bitmap)
 }
 
 /**
@@ -390,10 +413,7 @@ export async function buildReceiptRasterEscPosBytes(
   options?: { autoCut?: boolean; maxWidthDots?: number },
 ): Promise<Uint8Array> {
   const raster = await imageToEscPosRaster(source, options?.maxWidthDots ?? 384, {
-    // Full receipts can be several thousand rows high. Smaller strips are more
-    // reliable on inexpensive ESC/POS printers with limited receive buffers.
-    chunkHeight: 256,
-    // Slightly higher than the logo threshold preserves Noto Sans strokes and
+    // Slightly higher than the default threshold preserves Noto Sans strokes and
     // QR edges after PDF anti-aliasing while keeping the background white.
     threshold: 190,
   })
