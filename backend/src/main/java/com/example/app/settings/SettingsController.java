@@ -251,6 +251,12 @@ public class SettingsController {
         values.putIfAbsent(SettingKey.DEFAULT_SERVICE_BREAK_MINUTES.name(), "0");
         values.putIfAbsent(SettingKey.CALENDAR_TIME_SCALE_MINUTES.name(), "30");
         values.putIfAbsent(SettingKey.DEFAULT_INVOICE_PRINT_FORMAT.name(), "A4");
+        values.putIfAbsent(SettingKey.POS_PRINTING_MODE.name(), "STANDARD");
+        values.putIfAbsent(SettingKey.POS_PRINTER_PAPER_WIDTH_MM.name(), "58");
+        values.putIfAbsent(SettingKey.POS_PRINTER_TEMPLATE.name(), "COMPACT");
+        values.putIfAbsent(SettingKey.POS_PRINTER_PRINT_LOGO.name(), "true");
+        values.putIfAbsent(SettingKey.POS_PRINTER_PRINT_QR.name(), "true");
+        values.putIfAbsent(SettingKey.POS_PRINTER_AUTO_CUT.name(), "false");
         return values;
     }
 

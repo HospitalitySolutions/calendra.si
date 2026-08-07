@@ -196,6 +196,18 @@ public enum SettingKey {
     FOLIO_POS58_LAYOUT_JSON,
     /** Default invoice print choice: A4, POS_58, or ASK. */
     DEFAULT_INVOICE_PRINT_FORMAT,
+    /** Preferred billing print mode inside Configuration -> Billing -> POS printing. STANDARD uses browser/system print, POS uses direct ESC/POS printing. */
+    POS_PRINTING_MODE,
+    /** Preferred POS paper width in mm (typically 58 or 80). */
+    POS_PRINTER_PAPER_WIDTH_MM,
+    /** POS receipt template variant identifier. */
+    POS_PRINTER_TEMPLATE,
+    /** Whether the tenant wants the logo included on POS receipts. */
+    POS_PRINTER_PRINT_LOGO,
+    /** Whether the tenant wants QR/payment code blocks included on POS receipts. */
+    POS_PRINTER_PRINT_QR,
+    /** Whether Calendra should send an auto-cut command after printing when supported by the device. */
+    POS_PRINTER_AUTO_CUT,
     /** JSON: tenant gift card display labels, preview text and background image configuration. */
     BILLING_GIFT_CARD_SETTINGS_JSON,
     /** JSON array of folio layout styles saved on the platform-admin tenancy and offered to all tenants. */

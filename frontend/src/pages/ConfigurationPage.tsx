@@ -205,7 +205,8 @@ type BillingSubtab =
   | "paypal"
   | "fiscal"
   | "giftCard"
-  | "folioLayout";
+  | "folioLayout"
+  | "posPrinting";
 type IntegrationSubtab = "status" | "googleCalendar";
 type AccountSubtab =
   | "company"
@@ -314,8 +315,48 @@ const BILLING_MOBILE_HIDDEN_SUBTABS: BillingSubtab[] = [
   "giftCard",
   "folioLayout",
 ];
+
+const POS_PRINTING_MODE_STANDARD = "STANDARD";
+const POS_PRINTING_MODE_DIRECT = "POS";
+const POS_PRINTER_LABEL_STORAGE_KEY = "calendra.posPrinter.browserLabel";
+const POS_PRINTER_PERMISSION_STORAGE_KEY = "calendra.posPrinter.permissionGranted";
+const POS_DEFAULT_BAUD_RATE = 19200;
 const isBillingSubtabHiddenOnMobile = (subtab: BillingSubtab) =>
   BILLING_MOBILE_HIDDEN_SUBTABS.includes(subtab);
+
+function BillingPrinterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M7 8V4.8A1.8 1.8 0 0 1 8.8 3h6.4A1.8 1.8 0 0 1 17 4.8V8" />
+      <rect x="4" y="8" width="16" height="8" rx="2.5" />
+      <path d="M7 12h.01" />
+      <path d="M7 16v3.2A1.8 1.8 0 0 0 8.8 21h6.4a1.8 1.8 0 0 0 1.8-1.8V16" />
+      <path d="M9 18h6" />
+    </svg>
+  );
+}
+
+function posSettingEnabled(value: string | undefined, fallback: boolean) {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return fallback;
+}
+
+function normalizePosPrintingMode(value: string | undefined) {
+  return value === POS_PRINTING_MODE_DIRECT
+    ? POS_PRINTING_MODE_DIRECT
+    : POS_PRINTING_MODE_STANDARD;
+}
+
+function normalizePosPaperWidth(value: string | undefined) {
+  return value === "80" ? "80" : "58";
+}
+
+function normalizePosTemplate(value: string | undefined) {
+  return value === "DETAILED" ? "DETAILED" : "COMPACT";
+}
 
 function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
   if (subtab === "issuers") {
@@ -370,6 +411,10 @@ function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
         <path d="M16.5 8A2.5 2.5 0 1 0 14 5.5V8" />
       </svg>
     );
+  }
+
+  if (subtab === "posPrinting") {
+    return <BillingPrinterIcon />;
   }
 
   return (
@@ -1363,6 +1408,12 @@ export function ConfigurationPage() {
     useState<number | null>(null);
   const [savingUnifiedPaymentSettings, setSavingUnifiedPaymentSettings] =
     useState(false);
+  const posPrinterPortRef = useRef<any | null>(null);
+  const [posPrinterConnectionState, setPosPrinterConnectionState] = useState<
+    "checking" | "unsupported" | "notConnected" | "connected" | "connecting"
+  >("checking");
+  const [posPrinterBrowserLabel, setPosPrinterBrowserLabel] = useState("");
+  const [printingPosTestReceipt, setPrintingPosTestReceipt] = useState(false);
   const [inlineEditingPaymentMethodId, setInlineEditingPaymentMethodId] =
     useState<number | null>(null);
   const [inlinePaymentMethodForm, setInlinePaymentMethodForm] = useState<{
@@ -2907,7 +2958,8 @@ export function ConfigurationPage() {
       subtabQuery === "paypal" ||
       subtabQuery === "fiscal" ||
       subtabQuery === "giftCard" ||
-      subtabQuery === "folioLayout"
+      subtabQuery === "folioLayout" ||
+      subtabQuery === "posPrinting"
     ) {
       if (subtabQuery === "settings") {
         setBillingSubtab("paymentMethods");
@@ -4083,6 +4135,196 @@ export function ConfigurationPage() {
     navigate("/configuration?tab=integrations&subtab=googleCalendar");
   };
 
+  const getSerialApi = useCallback(() => {
+    if (typeof navigator === "undefined") return null;
+    const serial = (navigator as Navigator & {
+      serial?: {
+        getPorts?: () => Promise<any[]>;
+        requestPort?: (options?: any) => Promise<any>;
+      };
+    }).serial;
+    if (!serial?.getPorts || !serial?.requestPort) return null;
+    return serial;
+  }, []);
+
+  const posPrintingMode = normalizePosPrintingMode(settings.POS_PRINTING_MODE);
+  const posPaperWidth = normalizePosPaperWidth(settings.POS_PRINTER_PAPER_WIDTH_MM);
+  const posTemplate = normalizePosTemplate(settings.POS_PRINTER_TEMPLATE);
+  const posPrintLogo = posSettingEnabled(settings.POS_PRINTER_PRINT_LOGO, true);
+  const posPrintQr = posSettingEnabled(settings.POS_PRINTER_PRINT_QR, true);
+  const posAutoCut = posSettingEnabled(settings.POS_PRINTER_AUTO_CUT, false);
+
+  const updatePosPrintingSetting = useCallback((key: string, value: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      POS_PRINTING_MODE: prev.POS_PRINTING_MODE ?? POS_PRINTING_MODE_STANDARD,
+      POS_PRINTER_PAPER_WIDTH_MM: prev.POS_PRINTER_PAPER_WIDTH_MM ?? "58",
+      POS_PRINTER_TEMPLATE: prev.POS_PRINTER_TEMPLATE ?? "COMPACT",
+      POS_PRINTER_PRINT_LOGO: prev.POS_PRINTER_PRINT_LOGO ?? "true",
+      POS_PRINTER_PRINT_QR: prev.POS_PRINTER_PRINT_QR ?? "true",
+      POS_PRINTER_AUTO_CUT: prev.POS_PRINTER_AUTO_CUT ?? "false",
+      [key]: value,
+    }));
+  }, []);
+
+  const refreshPosPrinterConnection = useCallback(async () => {
+    const serial = getSerialApi();
+    if (!serial) {
+      posPrinterPortRef.current = null;
+      setPosPrinterConnectionState("unsupported");
+      return;
+    }
+    setPosPrinterConnectionState("checking");
+    try {
+      const ports = await serial.getPorts();
+      if (ports.length > 0) {
+        posPrinterPortRef.current = ports[0];
+        setPosPrinterBrowserLabel(
+          localStorage.getItem(POS_PRINTER_LABEL_STORAGE_KEY) ||
+            (locale === "sl" ? "Izbran POS tiskalnik" : "Selected POS printer"),
+        );
+        setPosPrinterConnectionState("connected");
+        localStorage.setItem(POS_PRINTER_PERMISSION_STORAGE_KEY, "true");
+      } else {
+        posPrinterPortRef.current = null;
+        setPosPrinterBrowserLabel("");
+        setPosPrinterConnectionState("notConnected");
+        localStorage.removeItem(POS_PRINTER_PERMISSION_STORAGE_KEY);
+      }
+    } catch {
+      posPrinterPortRef.current = null;
+      setPosPrinterConnectionState("notConnected");
+    }
+  }, [getSerialApi, locale]);
+
+  const connectPosPrinter = useCallback(async () => {
+    const serial = getSerialApi();
+    if (!serial) {
+      showToast(
+        "error",
+        locale === "sl"
+          ? "Ta brskalnik ne podpira neposrednega POS tiskanja. Uporabite Chrome ali Edge."
+          : "This browser does not support direct POS printing. Use Chrome or Edge.",
+      );
+      return;
+    }
+    setPosPrinterConnectionState("connecting");
+    try {
+      const port = await serial.requestPort({});
+      posPrinterPortRef.current = port;
+      const label = locale === "sl" ? "POS tiskalnik povezan" : "POS printer connected";
+      localStorage.setItem(POS_PRINTER_LABEL_STORAGE_KEY, label);
+      localStorage.setItem(POS_PRINTER_PERMISSION_STORAGE_KEY, "true");
+      setPosPrinterBrowserLabel(label);
+      setPosPrinterConnectionState("connected");
+      showToast(
+        "success",
+        locale === "sl"
+          ? "Tiskalnik je povezan za ta brskalnik."
+          : "Printer connected for this browser.",
+      );
+    } catch (error: any) {
+      posPrinterPortRef.current = null;
+      setPosPrinterConnectionState("notConnected");
+      const message = String(error?.message || "").toLowerCase();
+      if (message.includes("cancel") || message.includes("abort")) {
+        showToast(
+          "info",
+          locale === "sl" ? "Izbira tiskalnika je bila preklicana." : "Printer selection was cancelled.",
+        );
+        return;
+      }
+      showToast(
+        "error",
+        error?.message || (locale === "sl" ? "Povezava tiskalnika ni uspela." : "Could not connect printer."),
+      );
+    }
+  }, [getSerialApi, locale, showToast]);
+
+  const buildPosTestReceiptBytes = useCallback(() => {
+    const encoder = new TextEncoder();
+    const companyName = settings.COMPANY_NAME?.trim() || "Calendra";
+    const paperLabel = posPaperWidth === "80" ? "80 mm" : "58 mm";
+    const lines = [
+      companyName,
+      locale === "sl" ? "TEST POS IZPIS" : "POS TEST PRINT",
+      `${paperLabel} · ${posTemplate === "COMPACT" ? "Compact" : "Detailed"}`,
+      "-------------------------------",
+      locale === "sl" ? "Neposredno ESC/POS tiskanje deluje." : "Direct ESC/POS printing works.",
+      locale === "sl" ? "Ta povezava velja za ta brskalnik." : "This connection is saved for this browser.",
+      posPrintLogo ? (locale === "sl" ? "Logotip: vklopljen" : "Logo: enabled") : (locale === "sl" ? "Logotip: izklopljen" : "Logo: disabled"),
+      posPrintQr ? (locale === "sl" ? "QR koda: vklopljena" : "QR code: enabled") : (locale === "sl" ? "QR koda: izklopljena" : "QR code: disabled"),
+      "",
+      new Date().toLocaleString(locale === "sl" ? "sl-SI" : "en-US"),
+      "",
+      "",
+    ].join("\n");
+    const body = encoder.encode(lines);
+    const prefix = new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x01]);
+    const suffix = posAutoCut ? new Uint8Array([0x1d, 0x56, 0x00]) : new Uint8Array([0x1b, 0x64, 0x04]);
+    const bytes = new Uint8Array(prefix.length + body.length + suffix.length);
+    bytes.set(prefix, 0);
+    bytes.set(body, prefix.length);
+    bytes.set(suffix, prefix.length + body.length);
+    return bytes;
+  }, [locale, posAutoCut, posPaperWidth, posPrintLogo, posPrintQr, posTemplate, settings.COMPANY_NAME]);
+
+  const printPosTestReceipt = useCallback(async () => {
+    const serial = getSerialApi();
+    if (!serial) {
+      showToast(
+        "error",
+        locale === "sl"
+          ? "Ta brskalnik ne podpira neposrednega POS tiskanja."
+          : "This browser does not support direct POS printing.",
+      );
+      return;
+    }
+    setPrintingPosTestReceipt(true);
+    try {
+      let port = posPrinterPortRef.current;
+      if (!port) {
+        const ports = await serial.getPorts();
+        if (ports.length === 0) {
+          throw new Error(locale === "sl" ? "Najprej povežite tiskalnik." : "Connect the printer first.");
+        }
+        port = ports[0];
+        posPrinterPortRef.current = port;
+      }
+      await port.open({
+        baudRate: POS_DEFAULT_BAUD_RATE,
+        dataBits: 8,
+        stopBits: 1,
+        parity: "none",
+        flowControl: "none",
+      });
+      const writer = port.writable?.getWriter?.();
+      if (!writer) {
+        throw new Error(locale === "sl" ? "Tiskalnik ne podpira zapisovanja v tem brskalniku." : "Printer writing is not available in this browser.");
+      }
+      await writer.write(buildPosTestReceiptBytes());
+      writer.releaseLock();
+      await port.close();
+      setPosPrinterConnectionState("connected");
+      showToast(
+        "success",
+        locale === "sl" ? "Testni račun je bil poslan na POS tiskalnik." : "Test receipt sent to the POS printer.",
+      );
+    } catch (error: any) {
+      try {
+        await posPrinterPortRef.current?.close?.();
+      } catch {
+        // ignore close failures
+      }
+      showToast(
+        "error",
+        error?.message || (locale === "sl" ? "Testnega izpisa ni bilo mogoče poslati." : "Could not send the test print."),
+      );
+    } finally {
+      setPrintingPosTestReceipt(false);
+    }
+  }, [buildPosTestReceiptBytes, getSerialApi, locale, showToast]);
+
   useEffect(() => {
     if (!canViewConfiguration) return;
     if (tab !== "integrations") return;
@@ -4111,6 +4353,12 @@ export function ConfigurationPage() {
       if (billingSubtab === "stripe") setBillingSubtab("paymentMethods");
     }
   }, [stripePaymentsAvailableCommitted, billingSubtab]);
+
+
+  useEffect(() => {
+    if (tab !== "billing" || billingSubtab !== "posPrinting") return;
+    void refreshPosPrinterConnection();
+  }, [billingSubtab, refreshPosPrinterConnection, tab]);
 
   const saveStripePreference = async (
     patch: Partial<{ mode: string; country: string; businessType: string }>,
@@ -4986,6 +5234,10 @@ export function ConfigurationPage() {
     {
       id: "folioLayout",
       label: locale === "sl" ? "Postavitev računa" : "Invoice layout",
+    },
+    {
+      id: "posPrinting",
+      label: locale === "sl" ? "POS tiskanje" : "POS printing",
     },
   ];
   const visibleBillingSubtabs = isMobileBillingViewport
@@ -12427,6 +12679,367 @@ export function ConfigurationPage() {
                           </div>
                         </div>
                       </div>
+                    ) : billingSubtab === "posPrinting" ? (
+                      <>
+                        <style>{`
+                          .pos-printing-shell { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.7fr); gap:24px; align-items:start; }
+                          .pos-printing-column { display:flex; flex-direction:column; gap:18px; }
+                          .pos-printing-card { background:#fff; border:1px solid #dbe7fb; border-radius:24px; box-shadow:0 18px 45px rgba(15,23,42,.06); padding:24px; }
+                          .pos-printing-hero h3, .pos-printing-section-title { margin:0; font-size:16px; font-weight:800; color:#142655; }
+                          .pos-printing-hero p { margin:6px 0 0; font-size:14px; line-height:1.55; color:#6b7a90; }
+                          .pos-mode-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px; }
+                          .pos-mode-card { appearance:none; border:1px solid #dbe7fb; border-radius:18px; background:#fff; padding:16px 18px; text-align:left; display:flex; gap:14px; align-items:flex-start; cursor:pointer; transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+                          .pos-mode-card:hover { border-color:#b9d0ff; box-shadow:0 12px 24px rgba(33,103,255,.12); }
+                          .pos-mode-card.active { border-color:#2167ff; box-shadow:0 0 0 3px rgba(33,103,255,.12), 0 18px 34px rgba(33,103,255,.12); }
+                          .pos-mode-icon { width:42px; height:42px; border-radius:14px; background:#eef4ff; color:#2167ff; display:grid; place-items:center; flex:0 0 42px; }
+                          .pos-mode-icon svg { width:22px; height:22px; }
+                          .pos-mode-copy { display:flex; flex-direction:column; gap:4px; min-width:0; }
+                          .pos-mode-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+                          .pos-mode-title { font-size:15px; font-weight:800; color:#142655; }
+                          .pos-mode-subtitle { font-size:13px; color:#6b7a90; line-height:1.45; }
+                          .pos-radio-indicator { width:20px; height:20px; border-radius:999px; border:2px solid #c8d6ea; display:grid; place-items:center; flex:0 0 20px; }
+                          .pos-mode-card.active .pos-radio-indicator { border-color:#2167ff; }
+                          .pos-radio-indicator::after { content:""; width:8px; height:8px; border-radius:999px; background:transparent; }
+                          .pos-mode-card.active .pos-radio-indicator::after { background:#2167ff; }
+                          .pos-connection-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+                          .pos-status-pill { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px; font-size:13px; font-weight:700; }
+                          .pos-status-pill--ok { background:#ecfdf3; color:#15803d; }
+                          .pos-status-pill--warn { background:#fff1f2; color:#be123c; }
+                          .pos-status-pill--neutral { background:#eff6ff; color:#1d4ed8; }
+                          .pos-status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; opacity:.78; }
+                          .pos-action-row { display:flex; gap:12px; flex-wrap:wrap; }
+                          .pos-primary-btn, .pos-secondary-btn { appearance:none; border-radius:14px; min-height:48px; padding:0 18px; font-size:14px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease; }
+                          .pos-primary-btn { border:0; background:#2167ff; color:#fff; box-shadow:0 18px 30px rgba(33,103,255,.22); }
+                          .pos-primary-btn:hover { transform:translateY(-1px); }
+                          .pos-primary-btn:disabled { cursor:not-allowed; opacity:.7; transform:none; }
+                          .pos-secondary-btn { border:1px solid #dbe7fb; background:#fff; color:#183b79; }
+                          .pos-secondary-btn:disabled { opacity:.62; cursor:not-allowed; }
+                          .pos-inline-note { margin-top:14px; display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:16px; background:#eff6ff; color:#37517f; font-size:13px; line-height:1.55; }
+                          .pos-inline-note svg { width:18px; height:18px; color:#2167ff; flex:0 0 18px; margin-top:1px; }
+                          .pos-settings-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,.95fr); gap:18px; }
+                          .pos-settings-controls { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 18px; align-items:start; }
+                          .pos-field { display:flex; flex-direction:column; gap:8px; }
+                          .pos-field > span { font-size:13px; font-weight:700; color:#395071; }
+                          .pos-select { width:100%; min-height:46px; border-radius:14px; border:1px solid #dbe7fb; background:#fff; padding:0 14px; font-size:14px; color:#142655; outline:none; }
+                          .pos-toggle-list { grid-column:1 / -1; display:grid; gap:12px; }
+                          .pos-toggle-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 14px; border:1px solid #edf2fb; border-radius:16px; background:#fbfdff; }
+                          .pos-toggle-copy { display:flex; flex-direction:column; gap:4px; }
+                          .pos-toggle-copy strong { font-size:14px; color:#142655; }
+                          .pos-toggle-copy span { font-size:12.5px; color:#6b7a90; line-height:1.45; }
+                          .pos-settings-info { min-height:100%; border:1px solid #dbe7fb; background:#f7faff; border-radius:18px; padding:18px; color:#50627f; display:flex; gap:10px; }
+                          .pos-settings-info svg { width:18px; height:18px; color:#2167ff; flex:0 0 18px; margin-top:2px; }
+                          .pos-first-use { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
+                          .pos-step { display:flex; gap:12px; padding:14px 16px; border-radius:18px; border:1px solid #edf2fb; background:#fff; }
+                          .pos-step-badge { width:34px; height:34px; border-radius:999px; background:#2167ff; color:#fff; display:grid; place-items:center; font-weight:800; flex:0 0 34px; }
+                          .pos-step-copy { display:flex; flex-direction:column; gap:3px; }
+                          .pos-step-copy span { font-size:12.5px; color:#6b7a90; }
+                          .pos-step-copy strong { font-size:14px; color:#142655; }
+                          .pos-preview-card { position:sticky; top:24px; }
+                          .pos-preview-header { display:flex; flex-direction:column; gap:5px; margin-bottom:18px; }
+                          .pos-preview-header h3 { margin:0; font-size:16px; font-weight:800; color:#142655; }
+                          .pos-preview-header span { color:#6b7a90; font-size:13px; }
+                          .pos-receipt-stage { display:flex; justify-content:center; padding:10px 0 2px; }
+                          .pos-receipt-paper { position:relative; width:100%; max-width:252px; background:#fff; color:#111827; padding:24px 22px 26px; box-shadow:0 18px 44px rgba(15,23,42,.14); font-family:Inter, Arial, sans-serif; }
+                          .pos-receipt-paper.is-wide { max-width:310px; }
+                          .pos-receipt-paper::before, .pos-receipt-paper::after { content:""; position:absolute; left:0; right:0; height:12px; background:linear-gradient(-45deg, transparent 9px, #fff 0) bottom left/12px 12px repeat-x; }
+                          .pos-receipt-paper::before { top:-12px; transform:rotate(180deg); }
+                          .pos-receipt-paper::after { bottom:-12px; }
+                          .pos-receipt-center { text-align:center; }
+                          .pos-receipt-logo { display:inline-flex; align-items:center; justify-content:center; min-width:72px; min-height:28px; padding:0 10px; border-radius:999px; background:#eff6ff; color:#2167ff; font-size:12px; font-weight:800; margin-bottom:10px; }
+                          .pos-receipt-company { font-size:13px; font-weight:800; color:#111827; }
+                          .pos-receipt-muted { color:#4b5563; font-size:12px; line-height:1.45; }
+                          .pos-receipt-divider { margin:12px 0; border-top:2px dashed #111827; opacity:.45; }
+                          .pos-receipt-meta { display:grid; gap:5px; font-size:12px; color:#111827; }
+                          .pos-receipt-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; font-size:12px; color:#111827; }
+                          .pos-receipt-row strong { font-size:13px; }
+                          .pos-receipt-items { display:grid; gap:7px; margin:10px 0; }
+                          .pos-receipt-summary { display:grid; gap:6px; }
+                          .pos-receipt-summary .total { font-size:14px; font-weight:800; }
+                          .pos-receipt-qr { margin:14px auto 8px; width:86px; height:86px; border:5px solid #111827; background:linear-gradient(90deg, #111827 12%, transparent 12% 24%, #111827 24% 36%, transparent 36% 48%, #111827 48% 60%, transparent 60% 72%, #111827 72% 84%, transparent 84%), linear-gradient(#111827 12%, transparent 12% 24%, #111827 24% 36%, transparent 36% 48%, #111827 48% 60%, transparent 60% 72%, #111827 72% 84%, transparent 84%); background-size:18px 18px; background-position:0 0, 0 0; }
+                          .pos-footer-actions { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid #e6edf8; color:#6b7a90; font-size:13px; }
+                          @media (max-width: 1180px) {
+                            .pos-printing-shell { grid-template-columns:1fr; }
+                            .pos-preview-card { position:relative; top:auto; }
+                          }
+                          @media (max-width: 860px) {
+                            .pos-mode-grid, .pos-settings-grid, .pos-settings-controls, .pos-first-use { grid-template-columns:1fr; }
+                            .pos-footer-actions { flex-direction:column; align-items:stretch; }
+                            .pos-footer-actions .billing-primary-button { width:100%; }
+                          }
+                        `}</style>
+                        <div className="pos-printing-shell">
+                          <div className="pos-printing-column">
+                            <div className="pos-printing-card pos-printing-hero">
+                              <h3>{locale === "sl" ? "POS tiskanje" : "POS printing"}</h3>
+                              <p>
+                                {locale === "sl"
+                                  ? "Nastavite tiskanje računov na 58 mm ali 80 mm POS tiskalnike. Ob prvi povezavi bo brskalnik zahteval dovoljenje za dostop do tiskalnika."
+                                  : "Configure printing for 58 mm or 80 mm POS printers. On first connection the browser will ask for permission to access the printer."}
+                              </p>
+                            </div>
+
+                            <div className="pos-printing-card">
+                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Način tiskanja" : "Printing mode"}</h3>
+                              <div className="pos-mode-grid" style={{ marginTop: 16 }}>
+                                <button
+                                  type="button"
+                                  className={posPrintingMode === POS_PRINTING_MODE_STANDARD ? "pos-mode-card active" : "pos-mode-card"}
+                                  onClick={() => updatePosPrintingSetting("POS_PRINTING_MODE", POS_PRINTING_MODE_STANDARD)}
+                                >
+                                  <span className="pos-mode-icon">
+                                    <BillingReceiptIcon />
+                                  </span>
+                                  <span className="pos-mode-copy">
+                                    <span className="pos-mode-title-row">
+                                      <span className="pos-mode-title">{locale === "sl" ? "Standardno tiskanje" : "Standard printing"}</span>
+                                      <span className="pos-radio-indicator" aria-hidden />
+                                    </span>
+                                    <span className="pos-mode-subtitle">{locale === "sl" ? "A4 / PDF / sistemski tiskalnik" : "A4 / PDF / system printer"}</span>
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className={posPrintingMode === POS_PRINTING_MODE_DIRECT ? "pos-mode-card active" : "pos-mode-card"}
+                                  onClick={() => updatePosPrintingSetting("POS_PRINTING_MODE", POS_PRINTING_MODE_DIRECT)}
+                                >
+                                  <span className="pos-mode-icon">
+                                    <BillingPrinterIcon />
+                                  </span>
+                                  <span className="pos-mode-copy">
+                                    <span className="pos-mode-title-row">
+                                      <span className="pos-mode-title">{locale === "sl" ? "POS tiskalnik" : "POS printer"}</span>
+                                      <span className="pos-radio-indicator" aria-hidden />
+                                    </span>
+                                    <span className="pos-mode-subtitle">{locale === "sl" ? "58 mm / 80 mm / neposredno ESC/POS tiskanje" : "58 mm / 80 mm / direct ESC/POS printing"}</span>
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="pos-printing-card">
+                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Povezava tiskalnika" : "Printer connection"}</h3>
+                              <div className="pos-connection-row" style={{ marginTop: 16 }}>
+                                <span
+                                  className={
+                                    posPrinterConnectionState === "connected"
+                                      ? "pos-status-pill pos-status-pill--ok"
+                                      : posPrinterConnectionState === "unsupported"
+                                        ? "pos-status-pill pos-status-pill--neutral"
+                                        : "pos-status-pill pos-status-pill--warn"
+                                  }
+                                >
+                                  <span className="pos-status-dot" />
+                                  {posPrinterConnectionState === "connected"
+                                    ? locale === "sl"
+                                      ? "Povezano"
+                                      : "Connected"
+                                    : posPrinterConnectionState === "unsupported"
+                                      ? locale === "sl"
+                                        ? "Ni podprto"
+                                        : "Unsupported"
+                                      : posPrinterConnectionState === "connecting"
+                                        ? locale === "sl"
+                                          ? "Povezujem …"
+                                          : "Connecting…"
+                                        : locale === "sl"
+                                          ? "Ni povezano"
+                                          : "Not connected"}
+                                </span>
+                                {posPrinterBrowserLabel ? <span style={{ color: "#4b5b75", fontSize: 13.5 }}>{posPrinterBrowserLabel}</span> : null}
+                              </div>
+                              <div className="pos-action-row" style={{ marginTop: 16 }}>
+                                <button
+                                  type="button"
+                                  className="pos-primary-btn"
+                                  onClick={() => void connectPosPrinter()}
+                                  disabled={posPrinterConnectionState === "connecting" || posPrintingMode !== POS_PRINTING_MODE_DIRECT}
+                                >
+                                  <BillingPrinterIcon />
+                                  {locale === "sl" ? "Poveži tiskalnik" : "Connect printer"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="pos-secondary-btn"
+                                  onClick={() => void printPosTestReceipt()}
+                                  disabled={printingPosTestReceipt || posPrintingMode !== POS_PRINTING_MODE_DIRECT || posPrinterConnectionState === "unsupported"}
+                                >
+                                  <BillingReceiptIcon />
+                                  {printingPosTestReceipt
+                                    ? locale === "sl"
+                                      ? "Pošiljam …"
+                                      : "Sending…"
+                                    : locale === "sl"
+                                      ? "Natisni testni račun"
+                                      : "Print test receipt"}
+                                </button>
+                              </div>
+                              <div className="pos-inline-note">
+                                <BillingInfoIcon />
+                                <span>
+                                  {posPrinterConnectionState === "unsupported"
+                                    ? locale === "sl"
+                                      ? "Neposredno POS tiskanje trenutno podpirata predvsem Chrome in Microsoft Edge na namizju."
+                                      : "Direct POS printing is currently supported mainly in Chrome and Microsoft Edge on desktop."
+                                    : locale === "sl"
+                                      ? "Povezava je potrebna samo ob prvi uporabi v tem brskalniku. Brskalnik bo ob prvi povezavi odprl okno za izbiro tiskalnika."
+                                      : "Connection is required only the first time in this browser. The browser will open a device picker on the first connection."}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="pos-printing-card">
+                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Nastavitve tiska" : "Print settings"}</h3>
+                              <div className="pos-settings-grid" style={{ marginTop: 16 }}>
+                                <div className="pos-settings-controls">
+                                  <label className="pos-field">
+                                    <span>{locale === "sl" ? "Širina papirja" : "Paper width"}</span>
+                                    <select className="pos-select" value={posPaperWidth} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_PAPER_WIDTH_MM", e.target.value)}>
+                                      <option value="58">58 mm</option>
+                                      <option value="80">80 mm</option>
+                                    </select>
+                                  </label>
+                                  <label className="pos-field">
+                                    <span>{locale === "sl" ? "Predloga" : "Template"}</span>
+                                    <select className="pos-select" value={posTemplate} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_TEMPLATE", e.target.value)}>
+                                      <option value="COMPACT">{locale === "sl" ? "Kompaktna POS" : "Compact POS"}</option>
+                                      <option value="DETAILED">{locale === "sl" ? "Razširjena POS" : "Detailed POS"}</option>
+                                    </select>
+                                  </label>
+                                  <div className="pos-toggle-list">
+                                    <div className="pos-toggle-row">
+                                      <div className="pos-toggle-copy">
+                                        <strong>{locale === "sl" ? "Natisni logotip" : "Print logo"}</strong>
+                                        <span>{locale === "sl" ? "Prikaži logotip podjetja na vrhu POS računa." : "Show the company logo at the top of the POS receipt."}</span>
+                                      </div>
+                                      <GuestSwitch checked={posPrintLogo} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_LOGO", checked ? "true" : "false")} />
+                                    </div>
+                                    <div className="pos-toggle-row">
+                                      <div className="pos-toggle-copy">
+                                        <strong>{locale === "sl" ? "Natisni QR kodo" : "Print QR code"}</strong>
+                                        <span>{locale === "sl" ? "Prikaži QR kodo na dnu računa, kadar je na voljo." : "Show the QR code at the bottom of the receipt when available."}</span>
+                                      </div>
+                                      <GuestSwitch checked={posPrintQr} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_QR", checked ? "true" : "false")} />
+                                    </div>
+                                    <div className="pos-toggle-row">
+                                      <div className="pos-toggle-copy">
+                                        <strong>{locale === "sl" ? "Samodejni rez (če tiskalnik podpira)" : "Auto-cut (if supported)"}</strong>
+                                        <span>{locale === "sl" ? "Po tiskanju pošlji ukaz za rez papirja." : "Send a paper cut command after printing."}</span>
+                                      </div>
+                                      <GuestSwitch checked={posAutoCut} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_AUTO_CUT", checked ? "true" : "false")} />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="pos-settings-info">
+                                  <BillingInfoIcon />
+                                  <div>
+                                    {locale === "sl"
+                                      ? "Tiskanje prek POS tiskalnika ne uporablja sistemskih velikosti papirja (A4 ipd.), zato nastavitev ni potrebno prilagajati na vsakem računalniku. Uporabnik enkrat potrdi dostop do naprave v brskalniku, Calendra pa si povezavo zapomni lokalno."
+                                      : "Printing through a POS printer does not rely on system paper sizes such as A4, so no paper-form setup is needed on every computer. The user only grants browser access once and Calendra remembers the connection locally."}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pos-printing-card">
+                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Obnašanje pri prvi uporabi" : "First-use behavior"}</h3>
+                              <div className="pos-first-use" style={{ marginTop: 16 }}>
+                                <div className="pos-step">
+                                  <span className="pos-step-badge">1</span>
+                                  <div className="pos-step-copy">
+                                    <span>{locale === "sl" ? "Uporabnik klikne" : "The user clicks"}</span>
+                                    <strong>{locale === "sl" ? "Poveži tiskalnik" : "Connect printer"}</strong>
+                                  </div>
+                                </div>
+                                <div className="pos-step">
+                                  <span className="pos-step-badge">2</span>
+                                  <div className="pos-step-copy">
+                                    <span>{locale === "sl" ? "Brskalnik prikaže" : "The browser shows"}</span>
+                                    <strong>{locale === "sl" ? "izbiro naprave" : "a device picker"}</strong>
+                                  </div>
+                                </div>
+                                <div className="pos-step">
+                                  <span className="pos-step-badge">3</span>
+                                  <div className="pos-step-copy">
+                                    <span>{locale === "sl" ? "Calendra si zapomni" : "Calendra remembers"}</span>
+                                    <strong>{locale === "sl" ? "povezavo za ta brskalnik" : "the connection for this browser"}</strong>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="pos-footer-actions">
+                                <span>
+                                  {locale === "sl"
+                                    ? "Nastavitve shranite na nivoju najemnika, dovoljenje za dostop do naprave pa ostane lokalno v brskalniku uporabnika."
+                                    : "Settings are saved tenant-wide, while device access permission stays local to the user’s browser."}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="billing-primary-button"
+                                  onClick={() => void saveSettings()}
+                                  disabled={savingSettings}
+                                >
+                                  <BillingSaveIcon />
+                                  {savingSettings ? t("formSaving") : t("configSaveConfiguration")}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pos-printing-card pos-preview-card">
+                            <div className="pos-preview-header">
+                              <h3>{locale === "sl" ? `Predogled POS računa (${posPaperWidth} mm)` : `POS receipt preview (${posPaperWidth} mm)`}</h3>
+                              <span>{locale === "sl" ? "Predogled izgleda računa za neposredno POS tiskanje." : "Preview of the receipt layout for direct POS printing."}</span>
+                            </div>
+                            <div className="pos-receipt-stage">
+                              <div className={posPaperWidth === "80" ? "pos-receipt-paper is-wide" : "pos-receipt-paper"}>
+                                <div className="pos-receipt-center">
+                                  {posPrintLogo ? <div className="pos-receipt-logo">{locale === "sl" ? "LOGOTIP" : "LOGO"}</div> : null}
+                                  <div className="pos-receipt-company">{settings.COMPANY_NAME?.trim() || "Hospit, David Mirc s. p."}</div>
+                                  <div className="pos-receipt-muted">{[settings.COMPANY_ADDRESS, [settings.COMPANY_POSTAL_CODE, settings.COMPANY_CITY].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Grajska cesta 10, 1000 Ljubljana"}</div>
+                                  <div className="pos-receipt-muted">{settings.COMPANY_VAT_ID ? `${locale === "sl" ? "Davčna št." : "VAT ID"}: ${settings.COMPANY_VAT_ID}` : `${locale === "sl" ? "Davčna št." : "VAT ID"}: SI12345678`}</div>
+                                  <div className="pos-receipt-muted">{settings.COMPANY_TELEPHONE || "Tel: 01 123 45 67"}</div>
+                                </div>
+                                <div className="pos-receipt-divider" />
+                                <div className="pos-receipt-meta">
+                                  <div className="pos-receipt-row"><strong>{locale === "sl" ? "RAČUN: 2024-000123" : "RECEIPT: 2024-000123"}</strong><span /></div>
+                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Datum:" : "Date:"}</span><span>22. 05. 2024 10:24</span></div>
+                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Miza:" : "Table:"}</span><span>5</span></div>
+                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Natakar:" : "Cashier:"}</span><span>David</span></div>
+                                </div>
+                                <div className="pos-receipt-divider" />
+                                <div className="pos-receipt-row"><strong>{locale === "sl" ? "Artikel" : "Item"}</strong><strong>{locale === "sl" ? "Znesek" : "Amount"}</strong></div>
+                                <div className="pos-receipt-items">
+                                  <div className="pos-receipt-row"><span>Espresso</span><span>1,40</span></div>
+                                  <div className="pos-receipt-row"><span>Cappuccino</span><span>2,20</span></div>
+                                  <div className="pos-receipt-row"><span>Mineralna voda 0,5 l</span><span>1,50</span></div>
+                                  <div className="pos-receipt-row"><span>Croissant</span><span>1,80</span></div>
+                                </div>
+                                <div className="pos-receipt-divider" />
+                                <div className="pos-receipt-summary">
+                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Vmesni seštevek" : "Subtotal"}</span><span>6,90</span></div>
+                                  <div className="pos-receipt-row"><span>DDV 9,5 %</span><span>0,66</span></div>
+                                  <div className="pos-receipt-divider" style={{ margin: "4px 0" }} />
+                                  <div className="pos-receipt-row total"><strong>{locale === "sl" ? "SKUPAJ" : "TOTAL"}</strong><strong>7,56 €</strong></div>
+                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Gotovina" : "Cash"}</span><span>7,56</span></div>
+                                </div>
+                                {posPrintQr ? (
+                                  <>
+                                    <div className="pos-receipt-divider" />
+                                    <div className="pos-receipt-qr" aria-hidden />
+                                    <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 6 }}>
+                                      {locale === "sl" ? "Skeniraj in plačaj" : "Scan and pay"}
+                                    </div>
+                                  </>
+                                ) : null}
+                                <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 14 }}>
+                                  {locale === "sl" ? "Hvala za vaš obisk!" : "Thank you for your visit!"}
+                                  <br />
+                                  www.calendra.si
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     ) : billingSubtab === "giftCard" ? (
                       <ConfigurationGiftCardSection
                         settings={settings}
