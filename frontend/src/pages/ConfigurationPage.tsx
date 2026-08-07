@@ -14,6 +14,10 @@ import {
   normalizeInvoicePrintPreference,
 } from "../lib/invoicePrintFormat";
 import {
+  buildReceiptRasterEscPosBytes,
+  sendEscPosBytes,
+} from "../lib/posPrinter";
+import {
   Card,
   EmptyState,
 } from "../components/ui";
@@ -1414,6 +1418,9 @@ export function ConfigurationPage() {
   >("checking");
   const [posPrinterBrowserLabel, setPosPrinterBrowserLabel] = useState("");
   const [printingPosTestReceipt, setPrintingPosTestReceipt] = useState(false);
+  const [pos58PreviewUrl, setPos58PreviewUrl] = useState<string | null>(null);
+  const [pos58PreviewLoading, setPos58PreviewLoading] = useState(false);
+  const [pos58PreviewError, setPos58PreviewError] = useState(false);
   const [inlineEditingPaymentMethodId, setInlineEditingPaymentMethodId] =
     useState<number | null>(null);
   const [inlinePaymentMethodForm, setInlinePaymentMethodForm] = useState<{
@@ -4249,6 +4256,53 @@ export function ConfigurationPage() {
     }
   }, [getSerialApi, locale, showToast]);
 
+  const pos58PreviewRequest = useMemo(() => ({
+    companyName: settings.COMPANY_NAME?.trim() || "Urška Grmek s.p.",
+    companyAddress: settings.COMPANY_ADDRESS?.trim() || "Jadranska cesta 25",
+    companyPostalCode: settings.COMPANY_POSTAL_CODE?.trim() || "2000",
+    companyCity: settings.COMPANY_CITY?.trim() || "Maribor",
+    companyTaxId: settings.COMPANY_VAT_ID?.trim() || "68964021",
+    folioNumber: "REC123-1-67",
+    folioNumberLabel: locale === "en" ? "Advance invoice:" : locale === "sr" ? "Predračun:" : "Predplačilo:",
+    folioDate: "05.08.2026 21:10",
+    issueCity: settings.COMPANY_CITY?.trim() || "Maribor",
+    dateOfService: "05.08.2026",
+    dueDate: "20.08.2026",
+    recipientName: "Jaka Košir",
+    recipientAddress: "",
+    recipientPostalCode: "",
+    recipientCity: "",
+    services: [
+      { date: "05.08.2026", description: "Avans", qty: 1, nettPrice: 36.07, grossPrice: 44, taxPercent: "22%", taxAmount: 7.93, totalPrice: 44 },
+      { date: "05.08.2026", description: "Avans 22%", qty: 1, nettPrice: 9.04, grossPrice: 11, taxPercent: "9.5%", taxAmount: 0.86, totalPrice: 9.9 },
+    ],
+    paymentMethods: [
+      { name: locale === "en" ? "Bank transfer" : locale === "sr" ? "Bankovni prenos" : "Bančno nakazilo", amountGross: 44.9 },
+      { name: locale === "en" ? "Cash" : "Gotovina", amountGross: 9 },
+    ],
+    paymentMethod: locale === "en" ? "Bank transfer" : locale === "sr" ? "Bankovni prenos" : "Bančno nakazilo",
+    issuedBy: "David Mirc",
+    iban: settings.COMPANY_IBAN?.trim() || "SI45 5465 4542 2542 4",
+    discountAmountGross: 1.1,
+    toBePaidGross: 44.9,
+    paymentQrPayload: "UPNQR\nSI56\nEUR000000004490\n\n\nUrška Grmek s.p.\nJadranska cesta 25\n2000 Maribor\n\nSI00REC123167\nPredplačilo REC123-1-67",
+    fiscalQr: "https://calendra.si/fiscal/test",
+    fiscalZoi: "bb045b3ab678dff3c6ed0b1597956847",
+    fiscalEor: "9999fde2-f611-4ab8-8b8d-d9708cfbb1e2",
+    notes: "3DAV-6-85",
+    locale,
+  }), [locale, settings]);
+
+  const fetchPos58PreviewBlob = useCallback(async (): Promise<Blob> => {
+    const response = await api.post("/billing/folio/pos58-raster", pos58PreviewRequest, {
+      params: { locale },
+      responseType: "blob",
+    });
+    return response.data instanceof Blob
+      ? response.data
+      : new Blob([response.data], { type: "image/png" });
+  }, [locale, pos58PreviewRequest]);
+
   const buildPosTestReceiptBytes = useCallback(() => {
     const encoder = new TextEncoder();
     const companyName = settings.COMPANY_NAME?.trim() || "Calendra";
@@ -4299,31 +4353,19 @@ export function ConfigurationPage() {
         port = ports[0];
         posPrinterPortRef.current = port;
       }
-      await port.open({
-        baudRate: POS_DEFAULT_BAUD_RATE,
-        dataBits: 8,
-        stopBits: 1,
-        parity: "none",
-        flowControl: "none",
-      });
-      const writer = port.writable?.getWriter?.();
-      if (!writer) {
-        throw new Error(locale === "sl" ? "Tiskalnik ne podpira zapisovanja v tem brskalniku." : "Printer writing is not available in this browser.");
-      }
-      await writer.write(buildPosTestReceiptBytes());
-      writer.releaseLock();
-      await port.close();
+      const bytes = posPaperWidth === "58"
+        ? await buildReceiptRasterEscPosBytes(await fetchPos58PreviewBlob(), {
+            autoCut: posAutoCut,
+            maxWidthDots: 384,
+          })
+        : buildPosTestReceiptBytes();
+      await sendEscPosBytes(port, bytes, POS_DEFAULT_BAUD_RATE);
       setPosPrinterConnectionState("connected");
       showToast(
         "success",
         locale === "sl" ? "Testni račun je bil poslan na POS tiskalnik." : "Test receipt sent to the POS printer.",
       );
     } catch (error: any) {
-      try {
-        await posPrinterPortRef.current?.close?.();
-      } catch {
-        // ignore close failures
-      }
       showToast(
         "error",
         error?.message || (locale === "sl" ? "Testnega izpisa ni bilo mogoče poslati." : "Could not send the test print."),
@@ -4331,7 +4373,7 @@ export function ConfigurationPage() {
     } finally {
       setPrintingPosTestReceipt(false);
     }
-  }, [buildPosTestReceiptBytes, getSerialApi, locale, showToast]);
+  }, [buildPosTestReceiptBytes, fetchPos58PreviewBlob, getSerialApi, locale, posAutoCut, posPaperWidth, showToast]);
 
   useEffect(() => {
     if (!canViewConfiguration) return;
@@ -4367,6 +4409,40 @@ export function ConfigurationPage() {
     if (tab !== "billing" || billingSubtab !== "posPrinting") return;
     void refreshPosPrinterConnection();
   }, [billingSubtab, refreshPosPrinterConnection, tab]);
+
+  useEffect(() => {
+    if (tab !== "billing" || billingSubtab !== "posPrinting" || posPaperWidth !== "58") {
+      setPos58PreviewUrl(null);
+      setPos58PreviewLoading(false);
+      setPos58PreviewError(false);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setPos58PreviewLoading(true);
+    setPos58PreviewError(false);
+    void fetchPos58PreviewBlob()
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPos58PreviewUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPos58PreviewUrl(null);
+          setPos58PreviewError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPos58PreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [billingSubtab, fetchPos58PreviewBlob, posPaperWidth, tab]);
 
   const saveStripePreference = async (
     patch: Partial<{ mode: string; country: string; businessType: string }>,
@@ -12739,6 +12815,11 @@ export function ConfigurationPage() {
                           .pos-toggle-copy span { font-size:12.5px; color:#6b7a90; line-height:1.45; }
                           .pos-settings-info { min-height:100%; border:1px solid #dbe7fb; background:#f7faff; border-radius:18px; padding:18px; color:#50627f; display:flex; gap:10px; }
                           .pos-settings-info svg { width:18px; height:18px; color:#2167ff; flex:0 0 18px; margin-top:2px; }
+                          .pos-sync-panel { grid-column:1 / -1; border:1px solid #cfe0ff; background:#f6f9ff; border-radius:18px; padding:16px; display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+                          .pos-sync-copy { display:flex; gap:10px; color:#50627f; font-size:13px; line-height:1.55; }
+                          .pos-sync-copy svg { width:18px; height:18px; color:#16a34a; flex:0 0 18px; margin-top:2px; }
+                          .pos-sync-copy strong { display:block; color:#173f8f; font-size:13.5px; margin-bottom:3px; }
+                          .pos-sync-link { appearance:none; border:1px solid #bdd3ff; background:#fff; color:#1d5fe8; border-radius:12px; padding:10px 13px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
                           .pos-first-use { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
                           .pos-step { display:flex; gap:12px; padding:14px 16px; border-radius:18px; border:1px solid #edf2fb; background:#fff; }
                           .pos-step-badge { width:34px; height:34px; border-radius:999px; background:#2167ff; color:#fff; display:grid; place-items:center; font-weight:800; flex:0 0 34px; }
@@ -12749,7 +12830,13 @@ export function ConfigurationPage() {
                           .pos-preview-header { display:flex; flex-direction:column; gap:5px; margin-bottom:18px; }
                           .pos-preview-header h3 { margin:0; font-size:16px; font-weight:800; color:#142655; }
                           .pos-preview-header span { color:#6b7a90; font-size:13px; }
+                          .pos-preview-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+                          .pos-sync-badge { display:inline-flex; align-items:center; gap:6px; color:#15803d; background:#ecfdf3; border:1px solid #bbf7d0; border-radius:999px; padding:5px 9px; font-size:11px; font-weight:800; white-space:nowrap; }
                           .pos-receipt-stage { display:flex; justify-content:center; padding:10px 0 2px; }
+                          .pos-raster-stage { display:flex; justify-content:center; align-items:flex-start; min-height:460px; padding:12px; border-radius:18px; background:#172033; overflow:auto; }
+                          .pos-raster-paper { width:min(100%, 300px); background:#fff; box-shadow:0 18px 44px rgba(0,0,0,.22); }
+                          .pos-raster-paper img { display:block; width:100%; height:auto; }
+                          .pos-raster-placeholder { min-height:420px; width:min(100%, 300px); background:#fff; display:grid; place-items:center; text-align:center; padding:24px; box-sizing:border-box; color:#6b7a90; font-size:13px; }
                           .pos-receipt-paper { position:relative; width:100%; max-width:252px; background:#fff; color:#111827; padding:24px 22px 26px; box-shadow:0 18px 44px rgba(15,23,42,.14); font-family:Inter, Arial, sans-serif; }
                           .pos-receipt-paper.is-wide { max-width:310px; }
                           .pos-receipt-paper::before, .pos-receipt-paper::after { content:""; position:absolute; left:0; right:0; height:12px; background:linear-gradient(-45deg, transparent 9px, #fff 0) bottom left/12px 12px repeat-x; }
@@ -12774,6 +12861,7 @@ export function ConfigurationPage() {
                           }
                           @media (max-width: 860px) {
                             .pos-mode-grid, .pos-settings-grid, .pos-settings-controls, .pos-first-use { grid-template-columns:1fr; }
+                            .pos-sync-panel { flex-direction:column; }
                             .pos-footer-actions { flex-direction:column; align-items:stretch; }
                             .pos-footer-actions .billing-primary-button { width:100%; }
                           }
@@ -12909,28 +12997,34 @@ export function ConfigurationPage() {
                                       <option value="80">80 mm</option>
                                     </select>
                                   </label>
-                                  <label className="pos-field">
-                                    <span>{locale === "sl" ? "Predloga" : "Template"}</span>
-                                    <select className="pos-select" value={posTemplate} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_TEMPLATE", e.target.value)}>
-                                      <option value="COMPACT">{locale === "sl" ? "Kompaktna POS" : "Compact POS"}</option>
-                                      <option value="DETAILED">{locale === "sl" ? "Razširjena POS" : "Detailed POS"}</option>
-                                    </select>
-                                  </label>
+                                  {posPaperWidth === "80" ? (
+                                    <label className="pos-field">
+                                      <span>{locale === "sl" ? "Predloga" : "Template"}</span>
+                                      <select className="pos-select" value={posTemplate} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_TEMPLATE", e.target.value)}>
+                                        <option value="COMPACT">{locale === "sl" ? "Kompaktna POS" : "Compact POS"}</option>
+                                        <option value="DETAILED">{locale === "sl" ? "Razširjena POS" : "Detailed POS"}</option>
+                                      </select>
+                                    </label>
+                                  ) : null}
                                   <div className="pos-toggle-list">
-                                    <div className="pos-toggle-row">
-                                      <div className="pos-toggle-copy">
-                                        <strong>{locale === "sl" ? "Natisni logotip" : "Print logo"}</strong>
-                                        <span>{locale === "sl" ? "Prikaži logotip podjetja na vrhu POS računa." : "Show the company logo at the top of the POS receipt."}</span>
-                                      </div>
-                                      <GuestSwitch checked={posPrintLogo} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_LOGO", checked ? "true" : "false")} />
-                                    </div>
-                                    <div className="pos-toggle-row">
-                                      <div className="pos-toggle-copy">
-                                        <strong>{locale === "sl" ? "Natisni QR kodo" : "Print QR code"}</strong>
-                                        <span>{locale === "sl" ? "Prikaži QR kodo na dnu računa, kadar je na voljo." : "Show the QR code at the bottom of the receipt when available."}</span>
-                                      </div>
-                                      <GuestSwitch checked={posPrintQr} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_QR", checked ? "true" : "false")} />
-                                    </div>
+                                    {posPaperWidth === "80" ? (
+                                      <>
+                                        <div className="pos-toggle-row">
+                                          <div className="pos-toggle-copy">
+                                            <strong>{locale === "sl" ? "Natisni logotip" : "Print logo"}</strong>
+                                            <span>{locale === "sl" ? "Prikaži logotip podjetja na vrhu POS računa." : "Show the company logo at the top of the POS receipt."}</span>
+                                          </div>
+                                          <GuestSwitch checked={posPrintLogo} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_LOGO", checked ? "true" : "false")} />
+                                        </div>
+                                        <div className="pos-toggle-row">
+                                          <div className="pos-toggle-copy">
+                                            <strong>{locale === "sl" ? "Natisni QR kodo" : "Print QR code"}</strong>
+                                            <span>{locale === "sl" ? "Prikaži QR kodo na dnu računa, kadar je na voljo." : "Show the QR code at the bottom of the receipt when available."}</span>
+                                          </div>
+                                          <GuestSwitch checked={posPrintQr} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_QR", checked ? "true" : "false")} />
+                                        </div>
+                                      </>
+                                    ) : null}
                                     <div className="pos-toggle-row">
                                       <div className="pos-toggle-copy">
                                         <strong>{locale === "sl" ? "Samodejni rez (če tiskalnik podpira)" : "Auto-cut (if supported)"}</strong>
@@ -12939,13 +13033,40 @@ export function ConfigurationPage() {
                                       <GuestSwitch checked={posAutoCut} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_AUTO_CUT", checked ? "true" : "false")} />
                                     </div>
                                   </div>
+                                  {posPaperWidth === "58" ? (
+                                    <div className="pos-sync-panel">
+                                      <div className="pos-sync-copy">
+                                        <BillingInfoIcon />
+                                        <div>
+                                          <strong>{locale === "sl" ? "Sinhronizirano s Postavitvijo računa" : "Synchronized with Invoice layout"}</strong>
+                                          {locale === "sl"
+                                            ? "Pri 58 mm se na POS natisne točno ista predloga kot pod Postavitev računa → 58 mm: vsebina, razporeditev, velikost pisave, logotip, UPN QR, fiskalni QR, reference, podpis in noga. Spremembe tam se samodejno uporabijo tudi tukaj."
+                                            : "For 58 mm printing, POS uses the exact same template as Invoice layout → 58 mm: content, order, font size, logo, payment QR, fiscal QR, references, signature and footer. Changes there are applied here automatically."}
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="pos-sync-link"
+                                        onClick={() => {
+                                          setBillingSubtab("folioLayout");
+                                          navigate("/configuration?tab=billing&subtab=folioLayout");
+                                        }}
+                                      >
+                                        {locale === "sl" ? "Odpri Postavitev računa" : "Open Invoice layout"}
+                                      </button>
+                                    </div>
+                                  ) : null}
                                 </div>
                                 <div className="pos-settings-info">
                                   <BillingInfoIcon />
                                   <div>
-                                    {locale === "sl"
-                                      ? "Tiskanje prek POS tiskalnika ne uporablja sistemskih velikosti papirja (A4 ipd.), zato nastavitev ni potrebno prilagajati na vsakem računalniku. Uporabnik enkrat potrdi dostop do naprave v brskalniku, Calendra pa si povezavo zapomni lokalno."
-                                      : "Printing through a POS printer does not rely on system paper sizes such as A4, so no paper-form setup is needed on every computer. The user only grants browser access once and Calendra remembers the connection locally."}
+                                    {posPaperWidth === "58"
+                                      ? locale === "sl"
+                                        ? "58 mm račun se najprej pripravi z istim PDF izrisovalnikom kot predogled pod Postavitev računa, nato pa se pri 203 DPI pretvori v 384-točkovni ESC/POS izpis. Zato POS ne uporablja ločene besedilne predloge."
+                                        : "The 58 mm receipt is first rendered with the same PDF renderer used by Invoice layout, then converted at 203 DPI into a 384-dot ESC/POS print. POS therefore does not use a separate text template."
+                                      : locale === "sl"
+                                        ? "80 mm trenutno uporablja obstoječo neposredno ESC/POS predlogo. 58 mm pa je v celoti sinhroniziran s Postavitvijo računa."
+                                        : "80 mm currently uses the existing direct ESC/POS template. 58 mm is fully synchronized with Invoice layout."}
                                   </div>
                                 </div>
                               </div>
@@ -12997,57 +13118,88 @@ export function ConfigurationPage() {
 
                           <div className="pos-printing-card pos-preview-card">
                             <div className="pos-preview-header">
-                              <h3>{locale === "sl" ? `Predogled POS računa (${posPaperWidth} mm)` : `POS receipt preview (${posPaperWidth} mm)`}</h3>
-                              <span>{locale === "sl" ? "Predogled izgleda računa za neposredno POS tiskanje." : "Preview of the receipt layout for direct POS printing."}</span>
-                            </div>
-                            <div className="pos-receipt-stage">
-                              <div className={posPaperWidth === "80" ? "pos-receipt-paper is-wide" : "pos-receipt-paper"}>
-                                <div className="pos-receipt-center">
-                                  {posPrintLogo ? <div className="pos-receipt-logo">{locale === "sl" ? "LOGOTIP" : "LOGO"}</div> : null}
-                                  <div className="pos-receipt-company">{settings.COMPANY_NAME?.trim() || "Hospit, David Mirc s. p."}</div>
-                                  <div className="pos-receipt-muted">{[settings.COMPANY_ADDRESS, [settings.COMPANY_POSTAL_CODE, settings.COMPANY_CITY].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Grajska cesta 10, 1000 Ljubljana"}</div>
-                                  <div className="pos-receipt-muted">{settings.COMPANY_VAT_ID ? `${locale === "sl" ? "Davčna št." : "VAT ID"}: ${settings.COMPANY_VAT_ID}` : `${locale === "sl" ? "Davčna št." : "VAT ID"}: SI12345678`}</div>
-                                  <div className="pos-receipt-muted">{settings.COMPANY_TELEPHONE || "Tel: 01 123 45 67"}</div>
-                                </div>
-                                <div className="pos-receipt-divider" />
-                                <div className="pos-receipt-meta">
-                                  <div className="pos-receipt-row"><strong>{locale === "sl" ? "RAČUN: 2024-000123" : "RECEIPT: 2024-000123"}</strong><span /></div>
-                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Datum:" : "Date:"}</span><span>22. 05. 2024 10:24</span></div>
-                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Miza:" : "Table:"}</span><span>5</span></div>
-                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Natakar:" : "Cashier:"}</span><span>David</span></div>
-                                </div>
-                                <div className="pos-receipt-divider" />
-                                <div className="pos-receipt-row"><strong>{locale === "sl" ? "Artikel" : "Item"}</strong><strong>{locale === "sl" ? "Znesek" : "Amount"}</strong></div>
-                                <div className="pos-receipt-items">
-                                  <div className="pos-receipt-row"><span>Espresso</span><span>1,40</span></div>
-                                  <div className="pos-receipt-row"><span>Cappuccino</span><span>2,20</span></div>
-                                  <div className="pos-receipt-row"><span>Mineralna voda 0,5 l</span><span>1,50</span></div>
-                                  <div className="pos-receipt-row"><span>Croissant</span><span>1,80</span></div>
-                                </div>
-                                <div className="pos-receipt-divider" />
-                                <div className="pos-receipt-summary">
-                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Vmesni seštevek" : "Subtotal"}</span><span>6,90</span></div>
-                                  <div className="pos-receipt-row"><span>DDV 9,5 %</span><span>0,66</span></div>
-                                  <div className="pos-receipt-divider" style={{ margin: "4px 0" }} />
-                                  <div className="pos-receipt-row total"><strong>{locale === "sl" ? "SKUPAJ" : "TOTAL"}</strong><strong>7,56 €</strong></div>
-                                  <div className="pos-receipt-row"><span>{locale === "sl" ? "Gotovina" : "Cash"}</span><span>7,56</span></div>
-                                </div>
-                                {posPrintQr ? (
-                                  <>
-                                    <div className="pos-receipt-divider" />
-                                    <div className="pos-receipt-qr" aria-hidden />
-                                    <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 6 }}>
-                                      {locale === "sl" ? "Skeniraj in plačaj" : "Scan and pay"}
-                                    </div>
-                                  </>
+                              <div className="pos-preview-title-row">
+                                <h3>{locale === "sl" ? `Predogled POS računa (${posPaperWidth} mm)` : `POS receipt preview (${posPaperWidth} mm)`}</h3>
+                                {posPaperWidth === "58" ? (
+                                  <span className="pos-sync-badge">✓ {locale === "sl" ? "Enaka predloga" : "Same template"}</span>
                                 ) : null}
-                                <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 14 }}>
-                                  {locale === "sl" ? "Hvala za vaš obisk!" : "Thank you for your visit!"}
-                                  <br />
-                                  www.calendra.si
+                              </div>
+                              <span>
+                                {posPaperWidth === "58"
+                                  ? locale === "sl"
+                                    ? "Predogled je generiran z isto shranjeno 58 mm predlogo kot dejanski POS izpis."
+                                    : "This preview is generated from the same saved 58 mm template as the actual POS print."
+                                  : locale === "sl"
+                                    ? "Predogled obstoječe 80 mm ESC/POS predloge."
+                                    : "Preview of the existing 80 mm ESC/POS template."}
+                              </span>
+                            </div>
+                            {posPaperWidth === "58" ? (
+                              <div className="pos-raster-stage">
+                                {pos58PreviewUrl ? (
+                                  <div className="pos-raster-paper">
+                                    <img src={pos58PreviewUrl} alt={locale === "sl" ? "Predogled 58 mm računa" : "58 mm receipt preview"} />
+                                  </div>
+                                ) : (
+                                  <div className="pos-raster-placeholder">
+                                    {pos58PreviewLoading
+                                      ? locale === "sl" ? "Pripravljam predogled iz Postavitve računa …" : "Rendering preview from Invoice layout…"
+                                      : pos58PreviewError
+                                        ? locale === "sl" ? "Predogleda ni bilo mogoče pripraviti. Shranjena 58 mm predloga se bo kljub temu uporabila pri tiskanju." : "The preview could not be rendered. The saved 58 mm template will still be used when printing."
+                                        : locale === "sl" ? "Predogled ni na voljo." : "Preview unavailable."}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="pos-receipt-stage">
+                                <div className="pos-receipt-paper is-wide">
+                                  <div className="pos-receipt-center">
+                                    {posPrintLogo ? <div className="pos-receipt-logo">{locale === "sl" ? "LOGOTIP" : "LOGO"}</div> : null}
+                                    <div className="pos-receipt-company">{settings.COMPANY_NAME?.trim() || "Hospit, David Mirc s. p."}</div>
+                                    <div className="pos-receipt-muted">{[settings.COMPANY_ADDRESS, [settings.COMPANY_POSTAL_CODE, settings.COMPANY_CITY].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Grajska cesta 10, 1000 Ljubljana"}</div>
+                                    <div className="pos-receipt-muted">{settings.COMPANY_VAT_ID ? `${locale === "sl" ? "Davčna št." : "VAT ID"}: ${settings.COMPANY_VAT_ID}` : `${locale === "sl" ? "Davčna št." : "VAT ID"}: SI12345678`}</div>
+                                    <div className="pos-receipt-muted">{settings.COMPANY_TELEPHONE || "Tel: 01 123 45 67"}</div>
+                                  </div>
+                                  <div className="pos-receipt-divider" />
+                                  <div className="pos-receipt-meta">
+                                    <div className="pos-receipt-row"><strong>{locale === "sl" ? "RAČUN: 2024-000123" : "RECEIPT: 2024-000123"}</strong><span /></div>
+                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Datum:" : "Date:"}</span><span>22. 05. 2024 10:24</span></div>
+                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Miza:" : "Table:"}</span><span>5</span></div>
+                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Natakar:" : "Cashier:"}</span><span>David</span></div>
+                                  </div>
+                                  <div className="pos-receipt-divider" />
+                                  <div className="pos-receipt-row"><strong>{locale === "sl" ? "Artikel" : "Item"}</strong><strong>{locale === "sl" ? "Znesek" : "Amount"}</strong></div>
+                                  <div className="pos-receipt-items">
+                                    <div className="pos-receipt-row"><span>Espresso</span><span>1,40</span></div>
+                                    <div className="pos-receipt-row"><span>Cappuccino</span><span>2,20</span></div>
+                                    <div className="pos-receipt-row"><span>Mineralna voda 0,5 l</span><span>1,50</span></div>
+                                    <div className="pos-receipt-row"><span>Croissant</span><span>1,80</span></div>
+                                  </div>
+                                  <div className="pos-receipt-divider" />
+                                  <div className="pos-receipt-summary">
+                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Vmesni seštevek" : "Subtotal"}</span><span>6,90</span></div>
+                                    <div className="pos-receipt-row"><span>DDV 9,5 %</span><span>0,66</span></div>
+                                    <div className="pos-receipt-divider" style={{ margin: "4px 0" }} />
+                                    <div className="pos-receipt-row total"><strong>{locale === "sl" ? "SKUPAJ" : "TOTAL"}</strong><strong>7,56 €</strong></div>
+                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Gotovina" : "Cash"}</span><span>7,56</span></div>
+                                  </div>
+                                  {posPrintQr ? (
+                                    <>
+                                      <div className="pos-receipt-divider" />
+                                      <div className="pos-receipt-qr" aria-hidden />
+                                      <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 6 }}>
+                                        {locale === "sl" ? "Skeniraj in plačaj" : "Scan and pay"}
+                                      </div>
+                                    </>
+                                  ) : null}
+                                  <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 14 }}>
+                                    {locale === "sl" ? "Hvala za vaš obisk!" : "Thank you for your visit!"}
+                                    <br />
+                                    www.calendra.si
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         </div>
                       </>

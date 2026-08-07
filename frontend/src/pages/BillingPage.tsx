@@ -11,7 +11,7 @@ import { useLocale, type AppLocale } from '../locale'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
-import { acquirePosPrinterPort, buildInvoiceEscPosBytes, directPosPrintingEnabled, getWebSerialApi, readPosPrintingPreferences, sendEscPosBytes, type WebSerialPortLike } from '../lib/posPrinter'
+import { acquirePosPrinterPort, buildInvoiceEscPosBytes, buildReceiptRasterEscPosBytes, directPosPrintingEnabled, getWebSerialApi, readPosPrintingPreferences, sendEscPosBytes, type WebSerialPortLike } from '../lib/posPrinter'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
@@ -4402,15 +4402,38 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         if (!port) throw new Error(locale === 'sl' ? 'Najprej povežite POS tiskalnik.' : 'Connect the POS printer first.')
         posPrinterPortRef.current = port
       }
-      const printableData = await resolvePrintableBill(bill)
-      const printableBill = printableData.bill
-      const bytes = await buildInvoiceEscPosBytes(printableBill, settings, locale, {
-        paymentQrPayload: printableData.paymentQrPayload,
-      })
+
+      let printedBillNumber: string | number = bill.billNumber || bill.id
+      let bytes: Uint8Array
+      if (posPrintingPreferences.paperWidthMm === 58) {
+        // 58 mm direct printing uses the exact same server-rendered template as
+        // Configuration -> Billing -> Invoice layout -> 58 mm. This intentionally
+        // avoids rebuilding the invoice with a second, divergent ESC/POS text layout.
+        const rasterResponse = await api.get(`/billing/bills/${bill.id}/pos-receipt-raster`, {
+          params: { locale },
+          responseType: 'blob',
+        })
+        const rasterBlob = rasterResponse.data instanceof Blob
+          ? rasterResponse.data
+          : new Blob([rasterResponse.data], { type: 'image/png' })
+        bytes = await buildReceiptRasterEscPosBytes(rasterBlob, {
+          autoCut: posPrintingPreferences.autoCut,
+          maxWidthDots: 384,
+        })
+      } else {
+        // Keep the existing text-based path for 80 mm printers until a dedicated
+        // 80 mm invoice-layout editor exists.
+        const printableData = await resolvePrintableBill(bill)
+        const printableBill = printableData.bill
+        printedBillNumber = printableBill.billNumber || printableBill.id
+        bytes = await buildInvoiceEscPosBytes(printableBill, settings, locale, {
+          paymentQrPayload: printableData.paymentQrPayload,
+        })
+      }
       await sendEscPosBytes(port, bytes)
       showToast('success', locale === 'sl'
-        ? `Račun ${printableBill.billNumber || printableBill.id} je bil poslan na POS tiskalnik (${posPrintingPreferences.paperWidthMm} mm).`
-        : `Invoice ${printableBill.billNumber || printableBill.id} was sent to the POS printer (${posPrintingPreferences.paperWidthMm} mm).`)
+        ? `Račun ${printedBillNumber} je bil poslan na POS tiskalnik (${posPrintingPreferences.paperWidthMm} mm).`
+        : `Invoice ${printedBillNumber} was sent to the POS printer (${posPrintingPreferences.paperWidthMm} mm).`)
       return true
     } catch (error: any) {
       const name = String(error?.name || '')

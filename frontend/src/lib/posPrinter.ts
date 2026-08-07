@@ -307,47 +307,104 @@ function buildQrCommand(payload: string, moduleSize: number): Uint8Array {
   )
 }
 
-async function imageToEscPosRaster(source: string, maxWidth: number): Promise<Uint8Array | null> {
+type RasterImageSource = string | Blob
+
+async function imageToEscPosRaster(
+  source: RasterImageSource,
+  maxWidth: number,
+  options?: { chunkHeight?: number; threshold?: number },
+): Promise<Uint8Array | null> {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return null
   const image = new Image()
   image.decoding = 'async'
-  if (!source.startsWith('data:')) image.crossOrigin = 'anonymous'
+  const objectUrl = typeof source === 'string' ? null : URL.createObjectURL(source)
+  const imageSource = typeof source === 'string' ? source : objectUrl
+  if (typeof source === 'string' && !source.startsWith('data:')) image.crossOrigin = 'anonymous'
   const loaded = new Promise<void>((resolve, reject) => {
     image.onload = () => resolve()
-    image.onerror = () => reject(new Error('Could not load receipt logo'))
+    image.onerror = () => reject(new Error('Could not load receipt image'))
   })
-  image.src = source
-  await loaded
-  const scale = Math.min(1, maxWidth / Math.max(1, image.naturalWidth || image.width))
-  const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale))
-  const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  if (!ctx) return null
-  ctx.fillStyle = '#fff'
-  ctx.fillRect(0, 0, width, height)
-  ctx.drawImage(image, 0, 0, width, height)
-  const pixels = ctx.getImageData(0, 0, width, height).data
-  const widthBytes = Math.ceil(width / 8)
-  const raster = new Uint8Array(widthBytes * height)
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const idx = (y * width + x) * 4
-      const alpha = pixels[idx + 3] / 255
-      const r = 255 - (255 - pixels[idx]) * alpha
-      const g = 255 - (255 - pixels[idx + 1]) * alpha
-      const b = 255 - (255 - pixels[idx + 2]) * alpha
-      const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-      if (luminance < 168) {
-        raster[y * widthBytes + Math.floor(x / 8)] |= (0x80 >> (x % 8))
+  try {
+    image.src = imageSource || ''
+    await loaded
+    const scale = Math.min(1, maxWidth / Math.max(1, image.naturalWidth || image.width))
+    const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale))
+    const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, width, height)
+    ctx.drawImage(image, 0, 0, width, height)
+    const pixels = ctx.getImageData(0, 0, width, height).data
+    const widthBytes = Math.ceil(width / 8)
+    const raster = new Uint8Array(widthBytes * height)
+    const threshold = Math.max(0, Math.min(255, options?.threshold ?? 168))
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const idx = (y * width + x) * 4
+        const alpha = pixels[idx + 3] / 255
+        const r = 255 - (255 - pixels[idx]) * alpha
+        const g = 255 - (255 - pixels[idx + 1]) * alpha
+        const b = 255 - (255 - pixels[idx + 2]) * alpha
+        const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        if (luminance < threshold) {
+          raster[y * widthBytes + Math.floor(x / 8)] |= (0x80 >> (x % 8))
+        }
       }
     }
+
+    const chunkHeight = Math.max(0, options?.chunkHeight ?? 0)
+    if (chunkHeight <= 0 || height <= chunkHeight) {
+      return concatBytes(
+        command(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, height & 0xff, (height >> 8) & 0xff),
+        raster,
+      )
+    }
+
+    const chunks: Uint8Array[] = []
+    for (let startY = 0; startY < height; startY += chunkHeight) {
+      const rows = Math.min(chunkHeight, height - startY)
+      const start = startY * widthBytes
+      const end = start + rows * widthBytes
+      chunks.push(
+        command(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff),
+        raster.slice(start, end),
+      )
+    }
+    return concatBytes(...chunks)
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
   }
+}
+
+/**
+ * Convert the server-rendered 58 mm invoice template into ESC/POS raster data.
+ * The backend image is already cropped to the physical 48 mm / 384-dot
+ * printable area, so no invoice layout is recreated in the browser.
+ */
+export async function buildReceiptRasterEscPosBytes(
+  source: Blob,
+  options?: { autoCut?: boolean; maxWidthDots?: number },
+): Promise<Uint8Array> {
+  const raster = await imageToEscPosRaster(source, options?.maxWidthDots ?? 384, {
+    // Full receipts can be several thousand rows high. Smaller strips are more
+    // reliable on inexpensive ESC/POS printers with limited receive buffers.
+    chunkHeight: 256,
+    // Slightly higher than the logo threshold preserves Noto Sans strokes and
+    // QR edges after PDF anti-aliasing while keeping the background white.
+    threshold: 190,
+  })
+  if (!raster) throw new Error('Could not render the 58 mm receipt for POS printing.')
   return concatBytes(
-    command(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, height & 0xff, (height >> 8) & 0xff),
+    command(ESC, 0x40),
+    align(0),
     raster,
+    lineFeed(),
+    lineFeed(),
+    options?.autoCut ? command(GS, 0x56, 0x00) : command(ESC, 0x64, 0x03),
   )
 }
 
