@@ -161,8 +161,8 @@ class SessionBookingGroupParticipantRemovalTest {
         booking.setEndTime(start.plusHours(1));
         booking.setAvailabilityEndTime(start.plusHours(1));
         booking.setBookingStatus(SessionBookingStatus.RESERVED);
-        booking.setBookingSource(BookingSource.WEBSITE);
-        booking.setSourceChannel("WEBSITE");
+        booking.setBookingSource(BookingSource.WEBSITE_WIDGET);
+        booking.setSourceChannel("WEBSITE_WIDGET");
         booking.setSourceOrderId("order-" + id);
         booking.setGuestUserId("guest-" + id);
         return booking;
