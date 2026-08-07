@@ -1,5 +1,9 @@
 package com.example.app.user;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.security.SecurityUtils;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -33,6 +37,9 @@ public class EmployeeAccessRoleController {
     private final AppSettingRepository settingRepository;
     private final TenantOwnerAccessService tenantOwnerAccessService;
     private final ObjectMapper objectMapper;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public EmployeeAccessRoleController(
             EmployeeAccessRoleRepository roleRepository,
@@ -79,6 +86,7 @@ public class EmployeeAccessRoleController {
         role.setArchived(false);
         role.setPermissionsJson(writePermissionsJson(request.permissions()));
         EmployeeAccessRole saved = roleRepository.save(role);
+        recordRole(me, ActivityAction.ROLE_CREATED, saved, "Created employee role", 0L);
         return ResponseEntity.status(HttpStatus.CREATED).body(customRole(saved, 0));
     }
 
@@ -108,6 +116,7 @@ public class EmployeeAccessRoleController {
                         userRepository.saveAll(assignedUsers);
                     }
 
+                    recordRole(me, ActivityAction.ROLE_UPDATED, saved, "Updated employee role", (long) assignedUsers.size());
                     return ResponseEntity.ok(customRole(saved, assignedUsers.size()));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found.")));
@@ -134,6 +143,7 @@ public class EmployeeAccessRoleController {
         role.setArchived(false);
         role.setPermissionsJson(writePermissionsJson(source.permissions()));
         EmployeeAccessRole saved = roleRepository.save(role);
+        recordRole(me, ActivityAction.ROLE_DUPLICATED, saved, "Duplicated employee role", 0L);
         return ResponseEntity.status(HttpStatus.CREATED).body(customRole(saved, 0));
     }
 
@@ -149,6 +159,7 @@ public class EmployeeAccessRoleController {
                     }
                     existing.setArchived(true);
                     roleRepository.save(existing);
+                    recordRole(me, ActivityAction.ROLE_ARCHIVED, existing, "Archived employee role", assignedUsers);
                     return ResponseEntity.noContent().build();
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found.")));
@@ -182,6 +193,18 @@ public class EmployeeAccessRoleController {
                 snapshot.name(),
                 members.stream().map(member -> roleMember(member, tenantOwnerId)).toList()
         ));
+    }
+
+    private void recordRole(User actor, ActivityAction action, EmployeeAccessRole role, String summary, long memberCount) {
+        if (activityLogs == null || role == null) return;
+        activityLogs.recordUser(actor, ActivityModule.EMPLOYEES, action,
+                "EMPLOYEE_ROLE", role.getId(), role.getName(), summary, null, null,
+                ActivityDetails.of(
+                        "permissions", parsePermissionsJson(role.getPermissionsJson()),
+                        "memberCount", memberCount,
+                        "archived", role.isArchived(),
+                        "targetPath", "/consultants"
+                ));
     }
 
     private EmployeeRoleSnapshot findRoleSnapshot(String roleId, Long companyId) {

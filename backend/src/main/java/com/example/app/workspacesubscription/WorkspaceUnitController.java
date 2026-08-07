@@ -1,5 +1,9 @@
 package com.example.app.workspacesubscription;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
@@ -32,6 +36,7 @@ public class WorkspaceUnitController {
     private final WorkspaceSubscriptionService subscriptions;
     private final WorkspaceEntitlementService entitlements;
     private ConfigurationCopyService configurationCopy;
+    private ActivityLogService activityLogs;
 
     public WorkspaceUnitController(
             CompanyRepository companies,
@@ -54,6 +59,11 @@ public class WorkspaceUnitController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void configureConfigurationCopy(ConfigurationCopyService configurationCopy) {
         this.configurationCopy = configurationCopy;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureActivityLogs(ActivityLogService activityLogs) {
+        this.activityLogs = activityLogs;
     }
 
     @GetMapping
@@ -122,10 +132,17 @@ public class WorkspaceUnitController {
                 );
                 copiedItems = configurationCopy.execute(copyRequest, membership).appliedCount();
             }
-            return new CreateUnitResponse(
+            CreateUnitResponse result = new CreateUnitResponse(
                     new UnitView(company.getId(), company.getName(), company.getTenantCode(), false),
                     copySourceId,
                     copiedItems);
+            if (activityLogs != null) {
+                activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.WORKSPACE_UNIT_CREATED,
+                        "WORKSPACE_UNIT", company.getId(), company.getName(), "Created operating unit", null, null,
+                        ActivityDetails.of("copiedFromCompanyId", copySourceId, "copiedItems", copiedItems,
+                                "targetPath", "/configuration?tab=company&subtab=operatingUnits"));
+            }
+            return result;
         } catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED,
                     "Workspace operating-unit or user limit reached. Upgrade the workspace subscription.");

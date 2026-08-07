@@ -1,5 +1,9 @@
 package com.example.app.user;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.auth.LoginAccountService;
 import com.example.app.auth.PasswordResetService;
 import com.example.app.entitlement.PackageAccessService;
@@ -50,6 +54,9 @@ public class UserController {
     private final PasswordResetService passwordResetService;
     private final SessionBookingRepository sessionBookingRepository;
     private final LoginAccountService loginAccountService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository, LoginAccountService loginAccountService) {
         this.userRepository = userRepository;
@@ -116,6 +123,7 @@ public class UserController {
         }
         return userRepository.findByIdAndCompanyId(me.getId(), companyId)
                 .<ResponseEntity<?>>map(existing -> {
+                    var beforeAudit = employeeSnapshot(existing);
                     var account = loginAccountService.ensureForUser(existing);
                     boolean emailChanged = !normalizedEmail.equalsIgnoreCase(account.getEmail());
                     boolean passwordChanged = request.password() != null && !request.password().isBlank();
@@ -152,6 +160,7 @@ public class UserController {
                         User saved = userRepository.save(existing);
                         loginAccountService.synchronizeCredentials(saved, emailChanged, passwordChanged);
                         Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+                        recordEmployee(me, ActivityAction.EMPLOYEE_UPDATED, saved, "Updated own employee profile", beforeAudit);
                         return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                     } catch (DataIntegrityViolationException | IllegalArgumentException ex) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -236,6 +245,7 @@ public class UserController {
             User saved = userRepository.save(user);
             passwordResetService.sendEmployeeAccountCreatedEmail(saved, request.locale());
             Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
+            recordEmployee(me, ActivityAction.EMPLOYEE_CREATED, saved, "Created employee", null);
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, tenantOwnerId));
         } catch (DataIntegrityViolationException ex) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -250,6 +260,7 @@ public class UserController {
         var companyId = me.getCompany().getId();
         return userRepository.findByIdAndCompanyId(id, companyId)
                 .<ResponseEntity<?>>map(existing -> {
+                    var beforeAudit = employeeSnapshot(existing);
                     String normalizedEmail = request.email().trim().toLowerCase();
                     var account = loginAccountService.ensureForUser(existing);
                     boolean emailChanged = !normalizedEmail.equalsIgnoreCase(account.getEmail());
@@ -340,6 +351,7 @@ public class UserController {
                     try {
                         User saved = userRepository.save(existing);
                         loginAccountService.synchronizeCredentials(saved, emailChanged, passwordChanged);
+                        recordEmployee(me, ActivityAction.EMPLOYEE_UPDATED, saved, "Updated employee", beforeAudit);
                         return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                     } catch (DataIntegrityViolationException | IllegalArgumentException ex) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -361,12 +373,19 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "The tenant owner must remain an active administrator."));
         }
-        if (userRepository.findByIdAndCompanyId(id, companyId).isEmpty()) {
+        User target = userRepository.findByIdAndCompanyId(id, companyId).orElse(null);
+        if (target == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", "Consultant not found."));
         }
 
+        String deletedName = employeeName(target);
         userRepository.deleteById(id);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.EMPLOYEES, ActivityAction.EMPLOYEE_DELETED,
+                    "EMPLOYEE", id, deletedName, "Deleted employee", null, null,
+                    ActivityDetails.of("targetPath", "/consultants"));
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -395,7 +414,9 @@ public class UserController {
                     }
                     target.setActive(false);
                     target.setUpdatedAt(Instant.now());
-                    return ResponseEntity.ok(toResponse(userRepository.save(target), tenantOwnerId));
+                    User saved = userRepository.save(target);
+                    recordEmployee(me, ActivityAction.EMPLOYEE_DEACTIVATED, saved, "Deactivated employee", null);
+                    return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("message", "Consultant not found.")));
@@ -418,7 +439,9 @@ public class UserController {
                         target.setEmployeeAccessRole(null);
                     }
                     target.setUpdatedAt(Instant.now());
-                    return ResponseEntity.ok(toResponse(userRepository.save(target), tenantOwnerId));
+                    User saved = userRepository.save(target);
+                    recordEmployee(me, ActivityAction.EMPLOYEE_ACTIVATED, saved, "Activated employee", null);
+                    return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("message", "Consultant not found.")));
@@ -468,6 +491,37 @@ public class UserController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename("user-avatar-" + user.getId() + ".img").build().toString())
                 .contentType(MediaType.parseMediaType(contentType == null || contentType.isBlank() ? MediaType.APPLICATION_OCTET_STREAM_VALUE : contentType))
                 .body(stored.bytes());
+    }
+
+    private void recordEmployee(User actor, ActivityAction action, User target, String summary, Map<String, Object> before) {
+        if (activityLogs == null || target == null) return;
+        var details = ActivityDetails.of("targetPath", "/consultants");
+        if (before != null) {
+            details.put("before", before);
+            details.put("after", employeeSnapshot(target));
+        } else {
+            details.putAll(employeeSnapshot(target));
+        }
+        activityLogs.recordUser(actor, ActivityModule.EMPLOYEES, action,
+                "EMPLOYEE", target.getId(), employeeName(target), summary, null, null, details);
+    }
+
+    private Map<String, Object> employeeSnapshot(User target) {
+        Long tenantOwnerId = target.getCompany() == null ? null : tenantOwnerAccessService.tenantOwnerId(target.getCompany().getId());
+        UserResponse response = toResponse(target, tenantOwnerId);
+        return ActivityDetails.of(
+                "role", response.role() == null ? null : response.role().name(),
+                "consultant", response.consultant(),
+                "active", response.active(),
+                "accessRole", response.accessRoleName(),
+                "permissions", response.permissions()
+        );
+    }
+
+    private static String employeeName(User target) {
+        String name = ((target.getFirstName() == null ? "" : target.getFirstName().trim()) + " "
+                + (target.getLastName() == null ? "" : target.getLastName().trim())).trim();
+        return name.isBlank() ? target.getEmail() : name;
     }
 
     public record CreateUserRequest(

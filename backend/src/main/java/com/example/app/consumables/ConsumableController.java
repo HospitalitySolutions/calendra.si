@@ -1,5 +1,9 @@
 package com.example.app.consumables;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.consumables.ConsumableEnums.PurchaseOrderStatus;
 import com.example.app.consumables.ConsumableEnums.QuantityMode;
 import com.example.app.consumables.ConsumableEnums.StockMovementType;
@@ -25,6 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConsumableController {
     private final ConsumableService service;
     private final GlobalConsumablesFeatureService consumablesFeatureService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public ConsumableController(ConsumableService service, GlobalConsumablesFeatureService consumablesFeatureService) {
         this.service = service;
@@ -220,21 +227,33 @@ public class ConsumableController {
     @PostMapping("/items")
     public ItemResponse createItem(@RequestBody ItemRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toItemResponse(service.createItem(me, req));
+        ItemResponse result = toItemResponse(service.createItem(me, req));
+        recordItem(me, ActivityAction.CONSUMABLE_CREATED, result, "Created consumable");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/items/{id}")
     public ItemResponse updateItem(@PathVariable Long id, @RequestBody ItemRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toItemResponse(service.updateItem(me, id, req));
+        ItemResponse result = toItemResponse(service.updateItem(me, id, req));
+        recordItem(me, ActivityAction.CONSUMABLE_UPDATED, result, "Updated consumable");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/items/{id}/adjust")
     public MovementResponse adjustStock(@PathVariable Long id, @RequestBody StockAdjustmentRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toMovementResponse(service.adjustStock(me, id, req));
+        MovementResponse result = toMovementResponse(service.adjustStock(me, id, req));
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONSUMABLES, ActivityAction.CONSUMABLE_STOCK_ADJUSTED,
+                    "CONSUMABLE", result.consumableId(), result.itemName(), "Adjusted consumable stock", null, null,
+                    ActivityDetails.of("quantityDelta", result.quantityDelta(), "stockBefore", result.stockBefore(),
+                            "stockAfter", result.stockAfter(), "movementType", result.movementType() == null ? null : result.movementType().name(),
+                            "targetPath", "/consumables"));
+        }
+        return result;
     }
 
     @GetMapping("/categories")
@@ -246,14 +265,18 @@ public class ConsumableController {
     @PostMapping("/categories")
     public CategoryResponse createCategory(@RequestBody CategoryRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toCategoryResponse(service.saveCategory(me, null, req));
+        CategoryResponse result = toCategoryResponse(service.saveCategory(me, null, req));
+        recordCategory(me, ActivityAction.CONSUMABLE_CATEGORY_CREATED, result, "Created consumable category");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/categories/{id}")
     public CategoryResponse updateCategory(@PathVariable Long id, @RequestBody CategoryRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toCategoryResponse(service.saveCategory(me, id, req));
+        CategoryResponse result = toCategoryResponse(service.saveCategory(me, id, req));
+        recordCategory(me, ActivityAction.CONSUMABLE_CATEGORY_UPDATED, result, "Updated consumable category");
+        return result;
     }
 
     @GetMapping("/movements")
@@ -274,7 +297,13 @@ public class ConsumableController {
             @AuthenticationPrincipal User me
     ) {
         assertConsumablesEnabled(me);
-        return service.replaceServiceTypeDefaults(me, typeId, req).stream().map(ConsumableController::toServiceTypeResponse).toList();
+        List<ServiceTypeConsumableResponse> result = service.replaceServiceTypeDefaults(me, typeId, req).stream().map(ConsumableController::toServiceTypeResponse).toList();
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONSUMABLES, ActivityAction.SERVICE_CONSUMABLE_DEFAULTS_UPDATED,
+                    "SERVICE", typeId, "Service #" + typeId, "Updated service consumable defaults", null, null,
+                    ActivityDetails.of("consumableCount", result.size(), "targetPath", "/consumables"));
+        }
+        return result;
     }
 
     @GetMapping("/bookings/{bookingId}/session-consumables")
@@ -291,14 +320,18 @@ public class ConsumableController {
             @AuthenticationPrincipal User me
     ) {
         assertConsumablesEnabled(me);
-        return service.replaceSessionConsumables(me, bookingId, req).stream().map(ConsumableController::toSessionConsumableResponse).toList();
+        List<SessionConsumableResponse> result = service.replaceSessionConsumables(me, bookingId, req).stream().map(ConsumableController::toSessionConsumableResponse).toList();
+        recordSessionConsumables(me, bookingId, result, "Updated session consumables");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/bookings/{bookingId}/session-consumables/reset-defaults")
     public List<SessionConsumableResponse> resetSessionConsumables(@PathVariable Long bookingId, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return service.resetSessionDefaults(me, bookingId).stream().map(ConsumableController::toSessionConsumableResponse).toList();
+        List<SessionConsumableResponse> result = service.resetSessionDefaults(me, bookingId).stream().map(ConsumableController::toSessionConsumableResponse).toList();
+        recordSessionConsumables(me, bookingId, result, "Reset session consumables to defaults");
+        return result;
     }
 
     @GetMapping("/suppliers")
@@ -310,14 +343,18 @@ public class ConsumableController {
     @PostMapping("/suppliers")
     public SupplierResponse createSupplier(@RequestBody SupplierRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toSupplierResponse(service.saveSupplier(me, null, req));
+        SupplierResponse result = toSupplierResponse(service.saveSupplier(me, null, req));
+        recordSupplier(me, ActivityAction.CONSUMABLE_SUPPLIER_CREATED, result, "Created consumable supplier");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/suppliers/{id}")
     public SupplierResponse updateSupplier(@PathVariable Long id, @RequestBody SupplierRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toSupplierResponse(service.saveSupplier(me, id, req));
+        SupplierResponse result = toSupplierResponse(service.saveSupplier(me, id, req));
+        recordSupplier(me, ActivityAction.CONSUMABLE_SUPPLIER_UPDATED, result, "Updated consumable supplier");
+        return result;
     }
 
     @GetMapping("/purchase-orders")
@@ -329,14 +366,55 @@ public class ConsumableController {
     @PostMapping("/purchase-orders")
     public PurchaseOrderResponse createPurchaseOrder(@RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toPurchaseOrderResponse(service.savePurchaseOrder(me, null, req));
+        PurchaseOrderResponse result = toPurchaseOrderResponse(service.savePurchaseOrder(me, null, req));
+        recordPurchaseOrder(me, ActivityAction.PURCHASE_ORDER_CREATED, result, "Created purchase order");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/purchase-orders/{id}")
     public PurchaseOrderResponse updatePurchaseOrder(@PathVariable Long id, @RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
-        return toPurchaseOrderResponse(service.savePurchaseOrder(me, id, req));
+        PurchaseOrderResponse result = toPurchaseOrderResponse(service.savePurchaseOrder(me, id, req));
+        recordPurchaseOrder(me, ActivityAction.PURCHASE_ORDER_UPDATED, result, "Updated purchase order");
+        return result;
+    }
+
+    private void recordItem(User me, ActivityAction action, ItemResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
+                "CONSUMABLE", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("sku", row.sku(), "currentStock", row.currentStock(), "minimumStock", row.minimumStock(),
+                        "trackStock", row.trackStock(), "billable", row.billable(), "active", row.active(), "targetPath", "/consumables"));
+    }
+
+    private void recordCategory(User me, ActivityAction action, CategoryResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
+                "CONSUMABLE_CATEGORY", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("active", row.active(), "targetPath", "/consumables"));
+    }
+
+    private void recordSupplier(User me, ActivityAction action, SupplierResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
+                "CONSUMABLE_SUPPLIER", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("status", row.status() == null ? null : row.status().name(), "targetPath", "/consumables"));
+    }
+
+    private void recordPurchaseOrder(User me, ActivityAction action, PurchaseOrderResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
+                "PURCHASE_ORDER", row.id(), row.orderNumber(), summary, null, null,
+                ActivityDetails.of("supplier", row.supplierName(), "status", row.status() == null ? null : row.status().name(),
+                        "totalAmount", row.totalAmount(), "receivedAmount", row.receivedAmount(), "targetPath", "/consumables"));
+    }
+
+    private void recordSessionConsumables(User me, Long bookingId, List<SessionConsumableResponse> rows, String summary) {
+        if (activityLogs == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONSUMABLES, ActivityAction.SESSION_CONSUMABLES_UPDATED,
+                "SESSION_BOOKING", bookingId, "Booking #" + bookingId, summary, null, null,
+                ActivityDetails.of("consumableCount", rows == null ? 0 : rows.size(), "targetPath", "/calendar"));
     }
 
     public static CategoryResponse toCategoryResponse(ConsumableCategory c) {

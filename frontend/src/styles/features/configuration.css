@@ -2902,3 +2902,8 @@ a.config-nav-item {
 .activity-log-change { display: flex; align-items: center; gap: 8px; }
 .activity-log-change > span { min-width: 0; }
 .activity-log-change > b { color: #8a96aa; font-weight: 700; }
+.activity-log-details-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.activity-log-open-target { border: 1px solid #cad8ef; background: #fff; color: #245fcb; border-radius: 9px; padding: 7px 11px; font-size: 12px; font-weight: 750; cursor: pointer; white-space: nowrap; }
+.activity-log-open-target:hover { background: #f3f7ff; border-color: #9eb8e6; }
+.activity-log-module-dot.module-consumables { background: #8a63d2; }
+@media (max-width: 700px) { .activity-log-details-head { align-items: flex-start; } .activity-log-open-target { margin-top: 9px; } }

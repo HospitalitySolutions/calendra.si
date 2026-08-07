@@ -1,5 +1,9 @@
 package com.example.app.session;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.User;
 import java.util.ArrayList;
@@ -26,6 +30,8 @@ public class ServiceGroupController {
     private final ServiceGroupRepository groups;
     private final SessionTypeRepository sessionTypes;
     private final TenantFeatureAccessService featureAccess;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public ServiceGroupController(
             ServiceGroupRepository groups,
@@ -83,7 +89,9 @@ public class ServiceGroupController {
                 ? groups.findMaxSortOrderByCompanyId(companyId) + 1
                 : Math.max(0, request.sortOrder()));
         group = groups.save(group);
-        return toResponse(group, companyId);
+        ServiceGroupResponse result = toResponse(group, companyId);
+        record(me, ActivityAction.SERVICE_GROUP_CREATED, result, "Created service group");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -104,7 +112,9 @@ public class ServiceGroupController {
         if (request.active() != null) group.setActive(Boolean.TRUE.equals(request.active()));
         if (request.sortOrder() != null) group.setSortOrder(Math.max(0, request.sortOrder()));
         group = groups.save(group);
-        return toResponse(group, companyId);
+        ServiceGroupResponse result = toResponse(group, companyId);
+        record(me, ActivityAction.SERVICE_GROUP_UPDATED, result, "Updated service group");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -133,9 +143,15 @@ public class ServiceGroupController {
             group.setSortOrder(i);
         }
         groups.saveAll(existing);
-        return groups.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId).stream()
+        List<ServiceGroupResponse> result = groups.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId).stream()
                 .map(group -> toResponse(group, companyId))
                 .toList();
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.SERVICE_GROUPS_REORDERED,
+                    "SERVICE_GROUPS", companyId, "Service groups", "Reordered service groups", null, null,
+                    ActivityDetails.of("count", result.size(), "targetPath", "/session-types"));
+        }
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -150,7 +166,21 @@ public class ServiceGroupController {
             type.setServiceGroup(null);
         }
         sessionTypes.saveAll(assigned);
+        Long groupId = group.getId();
+        String groupName = group.getName();
         groups.delete(group);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.SERVICE_GROUP_DELETED,
+                    "SERVICE_GROUP", groupId, groupName, "Deleted service group", null, null,
+                    ActivityDetails.of("affectedServices", assigned.size(), "targetPath", "/session-types"));
+        }
+    }
+
+    private void record(User me, ActivityAction action, ServiceGroupResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.SERVICES, action,
+                "SERVICE_GROUP", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("active", row.active(), "serviceCount", row.serviceCount(), "targetPath", "/session-types"));
     }
 
     private ServiceGroupResponse toResponse(ServiceGroup group, Long companyId) {

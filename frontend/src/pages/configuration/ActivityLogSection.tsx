@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../api";
 
 type ActivityModule =
-  | "CALENDAR" | "CLIENTS" | "BILLING" | "INBOX" | "WAITLIST" | "SERVICES"
+  | "CALENDAR" | "CLIENTS" | "BILLING" | "INBOX" | "WAITLIST" | "SERVICES" | "CONSUMABLES"
   | "EMPLOYEES" | "CONFIGURATION" | "GUEST_APP" | "WEBSITE" | "INTEGRATIONS" | "SYSTEM";
 
 type ActivityActorType = "USER" | "SYSTEM" | "WEBSITE_WIDGET" | "GUEST_APP" | "GUEST" | "INTEGRATION" | "PLATFORM_ADMIN";
@@ -39,15 +40,34 @@ type ActivityLogPage = {
 type UserOption = { id: number; firstName?: string; lastName?: string; email?: string };
 type LocationOption = { id: number; name: string };
 
-const PHASE_TWO_ACTIONS = [
+const ACTIVITY_ACTIONS = [
   "SESSION_CREATED", "SESSION_UPDATED", "SESSION_RESCHEDULED", "SESSION_CANCELLED", "SESSION_DELETED",
   "SESSION_PARTICIPANT_ADDED", "SESSION_PARTICIPANT_REMOVED",
   "CLIENT_CREATED", "CLIENT_UPDATED", "CLIENT_DELETED", "CLIENT_ANONYMIZED", "CLIENT_DEACTIVATED", "CLIENT_ACTIVATED",
-  "INVOICE_CREATED", "INVOICE_PAID", "INVOICE_REFUNDED", "INVOICE_SENT", "ENTITLEMENT_USED",
+  "INVOICE_CREATED", "INVOICE_PAID", "INVOICE_REFUNDED", "INVOICE_SENT", "ENTITLEMENT_USED", "GIFT_CARD_SENT",
   "MESSAGE_SENT", "MESSAGE_SCHEDULED", "MESSAGE_SCHEDULE_CANCELLED", "INTERNAL_NOTE_ADDED",
+  "WAITLIST_CREATED", "WAITLIST_UPDATED", "WAITLIST_REMOVED", "WAITLIST_OFFERED", "WAITLIST_SKIPPED",
+  "WAITLIST_CONVERTED_TO_BOOKING", "WAITLIST_OFFER_ACCEPTED", "WAITLIST_OFFER_DECLINED", "WAITLIST_OFFER_REVOKED",
+  "SERVICE_CREATED", "SERVICE_UPDATED", "SERVICE_DELETED", "SERVICES_REORDERED",
+  "TRANSACTION_SERVICE_CREATED", "TRANSACTION_SERVICE_UPDATED", "TRANSACTION_SERVICE_DELETED",
+  "SERVICE_GROUP_CREATED", "SERVICE_GROUP_UPDATED", "SERVICE_GROUP_DELETED", "SERVICE_GROUPS_REORDERED",
+  "COURSE_CREATED", "COURSE_UPDATED", "COURSE_DELETED", "PRODUCT_CREATED", "PRODUCT_UPDATED", "PRODUCT_DELETED",
+  "WORKSPACE_SERVICE_TEMPLATE_CREATED", "WORKSPACE_SERVICE_TEMPLATE_UPDATED", "WORKSPACE_SERVICE_TEMPLATE_LINKED",
+  "WORKSPACE_SERVICE_TEMPLATE_UNLINKED", "WORKSPACE_SERVICE_TEMPLATE_SYNCED",
+  "EMPLOYEE_CREATED", "EMPLOYEE_UPDATED", "EMPLOYEE_DELETED", "EMPLOYEE_DEACTIVATED", "EMPLOYEE_ACTIVATED",
+  "ROLE_CREATED", "ROLE_UPDATED", "ROLE_DUPLICATED", "ROLE_ARCHIVED",
+  "WORKSPACE_UNIT_CREATED", "LOCATION_CREATED", "LOCATION_UPDATED", "LOCATION_DELETED", "SPACE_CREATED", "SPACE_UPDATED", "SPACE_DELETED",
+  "RESERVATION_RULES_UPDATED", "WAITLIST_SETTINGS_UPDATED", "SETTINGS_UPDATED", "NOTIFICATION_TEMPLATE_UPDATED",
+  "PAYMENT_METHOD_CREATED", "PAYMENT_METHOD_UPDATED", "PAYMENT_METHOD_DELETED", "PUBLIC_BOOKING_SETTINGS_UPDATED",
+  "CUSTOM_FIELD_CREATED", "CUSTOM_FIELD_UPDATED", "CUSTOM_FIELD_DELETED",
+  "FISCAL_PREMISE_REGISTERED", "FISCAL_CERTIFICATE_UPDATED", "FISCAL_CERTIFICATE_DELETED",
+  "INTEGRATION_CONNECTED", "INTEGRATION_UPDATED", "INTEGRATION_DISCONNECTED", "INTEGRATION_SYNC_REQUESTED",
+  "CONSUMABLE_CREATED", "CONSUMABLE_UPDATED", "CONSUMABLE_STOCK_ADJUSTED",
+  "CONSUMABLE_CATEGORY_CREATED", "CONSUMABLE_CATEGORY_UPDATED", "CONSUMABLE_SUPPLIER_CREATED", "CONSUMABLE_SUPPLIER_UPDATED",
+  "PURCHASE_ORDER_CREATED", "PURCHASE_ORDER_UPDATED", "SERVICE_CONSUMABLE_DEFAULTS_UPDATED", "SESSION_CONSUMABLES_UPDATED",
 ] as const;
 
-const MODULES: ActivityModule[] = ["CALENDAR", "CLIENTS", "BILLING", "INBOX", "WAITLIST", "SERVICES", "EMPLOYEES", "CONFIGURATION", "GUEST_APP", "WEBSITE", "INTEGRATIONS", "SYSTEM"];
+const MODULES: ActivityModule[] = ["CALENDAR", "CLIENTS", "BILLING", "INBOX", "WAITLIST", "SERVICES", "CONSUMABLES", "EMPLOYEES", "CONFIGURATION", "GUEST_APP", "WEBSITE", "INTEGRATIONS", "SYSTEM"];
 
 const moduleLabel = (module: ActivityModule, sl: boolean) => ({
   CALENDAR: sl ? "Koledar" : "Calendar",
@@ -56,6 +76,7 @@ const moduleLabel = (module: ActivityModule, sl: boolean) => ({
   INBOX: sl ? "Prejeto" : "Inbox",
   WAITLIST: sl ? "Čakalna vrsta" : "Waitlist",
   SERVICES: sl ? "Storitve" : "Services",
+  CONSUMABLES: sl ? "Potrošni material" : "Consumables",
   EMPLOYEES: sl ? "Zaposleni" : "Employees",
   CONFIGURATION: sl ? "Konfiguracija" : "Configuration",
   GUEST_APP: "Guest app",
@@ -88,6 +109,69 @@ const actionLabel = (action: string, sl: boolean) => {
     MESSAGE_SCHEDULED: ["Načrtoval sporočilo", "Scheduled message"],
     MESSAGE_SCHEDULE_CANCELLED: ["Preklical načrtovano sporočilo", "Cancelled scheduled message"],
     INTERNAL_NOTE_ADDED: ["Dodal interno opombo", "Added internal note"],
+    GIFT_CARD_SENT: ["Poslal darilno kartico", "Sent gift card"],
+    WAITLIST_CREATED: ["Dodal na čakalno vrsto", "Created waitlist request"],
+    WAITLIST_UPDATED: ["Posodobil čakalno vrsto", "Updated waitlist request"],
+    WAITLIST_REMOVED: ["Odstranil s čakalne vrste", "Removed waitlist request"],
+    WAITLIST_OFFERED: ["Poslal ponudbo termina", "Sent waitlist offer"],
+    WAITLIST_SKIPPED: ["Preskočil zahtevo", "Skipped waitlist request"],
+    WAITLIST_CONVERTED_TO_BOOKING: ["Pretvoril v rezervacijo", "Converted waitlist to booking"],
+    WAITLIST_OFFER_ACCEPTED: ["Sprejel ponudbo termina", "Accepted waitlist offer"],
+    WAITLIST_OFFER_DECLINED: ["Zavrnil ponudbo termina", "Declined waitlist offer"],
+    WAITLIST_OFFER_REVOKED: ["Preklical ponudbo termina", "Revoked waitlist offer"],
+    SERVICE_CREATED: ["Ustvaril storitev", "Created service"],
+    SERVICE_UPDATED: ["Posodobil storitev", "Updated service"],
+    SERVICE_DELETED: ["Izbrisal storitev", "Deleted service"],
+    SERVICES_REORDERED: ["Spremenil vrstni red storitev", "Reordered services"],
+    TRANSACTION_SERVICE_CREATED: ["Ustvaril obračunsko storitev", "Created transaction service"],
+    TRANSACTION_SERVICE_UPDATED: ["Posodobil obračunsko storitev", "Updated transaction service"],
+    TRANSACTION_SERVICE_DELETED: ["Izbrisal obračunsko storitev", "Deleted transaction service"],
+    SERVICE_GROUP_CREATED: ["Ustvaril skupino storitev", "Created service group"],
+    SERVICE_GROUP_UPDATED: ["Posodobil skupino storitev", "Updated service group"],
+    SERVICE_GROUP_DELETED: ["Izbrisal skupino storitev", "Deleted service group"],
+    SERVICE_GROUPS_REORDERED: ["Spremenil vrstni red skupin", "Reordered service groups"],
+    COURSE_CREATED: ["Ustvaril tečaj", "Created course"],
+    COURSE_UPDATED: ["Posodobil tečaj", "Updated course"],
+    COURSE_DELETED: ["Izbrisal tečaj", "Deleted course"],
+    PRODUCT_CREATED: ["Ustvaril ugodnost/kartico", "Created card/membership"],
+    PRODUCT_UPDATED: ["Posodobil ugodnost/kartico", "Updated card/membership"],
+    PRODUCT_DELETED: ["Izbrisal ugodnost/kartico", "Deleted card/membership"],
+    WORKSPACE_SERVICE_TEMPLATE_CREATED: ["Ustvaril skupno storitev", "Created workspace service template"],
+    WORKSPACE_SERVICE_TEMPLATE_UPDATED: ["Posodobil skupno storitev", "Updated workspace service template"],
+    WORKSPACE_SERVICE_TEMPLATE_LINKED: ["Povezal storitev", "Linked workspace service"],
+    WORKSPACE_SERVICE_TEMPLATE_UNLINKED: ["Odvezal storitev", "Unlinked workspace service"],
+    WORKSPACE_SERVICE_TEMPLATE_SYNCED: ["Sinhroniziral storitev", "Synced workspace service"],
+    EMPLOYEE_CREATED: ["Dodal zaposlenega", "Created employee"],
+    EMPLOYEE_UPDATED: ["Posodobil zaposlenega", "Updated employee"],
+    EMPLOYEE_DELETED: ["Izbrisal zaposlenega", "Deleted employee"],
+    EMPLOYEE_DEACTIVATED: ["Deaktiviral zaposlenega", "Deactivated employee"],
+    EMPLOYEE_ACTIVATED: ["Aktiviral zaposlenega", "Activated employee"],
+    ROLE_CREATED: ["Ustvaril vlogo", "Created role"], ROLE_UPDATED: ["Posodobil vlogo", "Updated role"],
+    ROLE_DUPLICATED: ["Podvojil vlogo", "Duplicated role"], ROLE_ARCHIVED: ["Arhiviral vlogo", "Archived role"],
+    WORKSPACE_UNIT_CREATED: ["Ustvaril poslovno enoto", "Created operating unit"],
+    LOCATION_CREATED: ["Ustvaril lokacijo", "Created location"], LOCATION_UPDATED: ["Posodobil lokacijo", "Updated location"],
+    LOCATION_DELETED: ["Izbrisal lokacijo", "Deleted location"], SPACE_CREATED: ["Ustvaril prostor", "Created space"],
+    SPACE_UPDATED: ["Posodobil prostor", "Updated space"], SPACE_DELETED: ["Izbrisal prostor", "Deleted space"],
+    RESERVATION_RULES_UPDATED: ["Posodobil rezervacijska pravila", "Updated reservation rules"],
+    WAITLIST_SETTINGS_UPDATED: ["Posodobil pravila čakalne vrste", "Updated waitlist settings"],
+    SETTINGS_UPDATED: ["Posodobil nastavitve", "Updated settings"],
+    NOTIFICATION_TEMPLATE_UPDATED: ["Posodobil predlogo obvestila", "Updated notification template"],
+    PAYMENT_METHOD_CREATED: ["Dodal način plačila", "Created payment method"], PAYMENT_METHOD_UPDATED: ["Posodobil način plačila", "Updated payment method"],
+    PAYMENT_METHOD_DELETED: ["Izbrisal način plačila", "Deleted payment method"],
+    PUBLIC_BOOKING_SETTINGS_UPDATED: ["Posodobil javno naročanje", "Updated public booking settings"],
+    CUSTOM_FIELD_CREATED: ["Ustvaril polje po meri", "Created custom field"], CUSTOM_FIELD_UPDATED: ["Posodobil polje po meri", "Updated custom field"],
+    CUSTOM_FIELD_DELETED: ["Izbrisal polje po meri", "Deleted custom field"],
+    FISCAL_PREMISE_REGISTERED: ["Registriral poslovni prostor", "Registered fiscal premise"],
+    FISCAL_CERTIFICATE_UPDATED: ["Posodobil davčno potrdilo", "Updated fiscal certificate"], FISCAL_CERTIFICATE_DELETED: ["Izbrisal davčno potrdilo", "Deleted fiscal certificate"],
+    INTEGRATION_CONNECTED: ["Povezal integracijo", "Connected integration"], INTEGRATION_UPDATED: ["Posodobil integracijo", "Updated integration"],
+    INTEGRATION_DISCONNECTED: ["Odklopil integracijo", "Disconnected integration"], INTEGRATION_SYNC_REQUESTED: ["Zahteval sinhronizacijo", "Requested integration sync"],
+    CONSUMABLE_CREATED: ["Ustvaril potrošni material", "Created consumable"], CONSUMABLE_UPDATED: ["Posodobil potrošni material", "Updated consumable"],
+    CONSUMABLE_STOCK_ADJUSTED: ["Prilagodil zalogo", "Adjusted stock"], CONSUMABLE_CATEGORY_CREATED: ["Ustvaril kategorijo materiala", "Created consumable category"],
+    CONSUMABLE_CATEGORY_UPDATED: ["Posodobil kategorijo materiala", "Updated consumable category"],
+    CONSUMABLE_SUPPLIER_CREATED: ["Ustvaril dobavitelja", "Created supplier"], CONSUMABLE_SUPPLIER_UPDATED: ["Posodobil dobavitelja", "Updated supplier"],
+    PURCHASE_ORDER_CREATED: ["Ustvaril naročilo dobavitelju", "Created purchase order"], PURCHASE_ORDER_UPDATED: ["Posodobil naročilo dobavitelju", "Updated purchase order"],
+    SERVICE_CONSUMABLE_DEFAULTS_UPDATED: ["Posodobil privzeti material storitve", "Updated service consumable defaults"],
+    SESSION_CONSUMABLES_UPDATED: ["Posodobil material termina", "Updated session consumables"],
   };
   const pair = labels[action];
   if (pair) return sl ? pair[0] : pair[1];
@@ -106,6 +190,7 @@ const formatValue = (value: unknown, locale: string): string => {
 };
 
 export function ActivityLogSection({ locale }: { locale: string }) {
+  const navigate = useNavigate();
   const sl = locale === "sl";
   const [items, setItems] = useState<ActivityLogItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -186,7 +271,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
         </select>
         <select value={action} onChange={e => setAction(e.target.value)} aria-label={sl ? "Dejanje" : "Action"}>
           <option value="">{sl ? "Vsa dejanja" : "All actions"}</option>
-          {PHASE_TWO_ACTIONS.map(a => <option key={a} value={a}>{actionLabel(a, sl)}</option>)}
+          {ACTIVITY_ACTIONS.map(a => <option key={a} value={a}>{actionLabel(a, sl)}</option>)}
         </select>
         <select value={actorType} onChange={e => { setActorType(e.target.value); if (e.target.value !== "USER") setActorUserId(""); }} aria-label={sl ? "Vrsta izvajalca" : "Actor type"}>
           <option value="">{sl ? "Vsi izvajalci" : "All actors"}</option>
@@ -222,7 +307,8 @@ export function ActivityLogSection({ locale }: { locale: string }) {
           const changeKeys = before && after
             ? Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
             : [];
-          const detailEntries = Object.entries(item.details || {}).filter(([key, v]) => key !== "before" && key !== "after" && v != null && v !== "");
+          const targetPath = typeof item.details?.targetPath === "string" ? item.details.targetPath : "";
+          const detailEntries = Object.entries(item.details || {}).filter(([key, v]) => key !== "before" && key !== "after" && key !== "targetPath" && v != null && v !== "");
           return (
             <article key={item.id} className={`activity-log-row${expanded ? " is-expanded" : ""}`}>
               <button type="button" className="activity-log-row-main" onClick={() => setExpandedId(expanded ? null : item.id)}>
@@ -242,7 +328,14 @@ export function ActivityLogSection({ locale }: { locale: string }) {
               </button>
               {expanded ? (
                 <div className="activity-log-details">
-                  <div className="activity-log-summary">{item.summary}</div>
+                  <div className="activity-log-details-head">
+                    <div className="activity-log-summary">{item.summary}</div>
+                    {targetPath ? (
+                      <button type="button" className="activity-log-open-target" onClick={() => navigate(targetPath)}>
+                        {sl ? "Odpri zapis" : "Open record"}
+                      </button>
+                    ) : null}
+                  </div>
                   <dl>
                     <div><dt>{sl ? "Področje" : "Area"}</dt><dd>{moduleLabel(item.module, sl)}</dd></div>
                     <div><dt>{sl ? "Dejanje" : "Action"}</dt><dd>{actionLabel(item.action, sl)}</dd></div>

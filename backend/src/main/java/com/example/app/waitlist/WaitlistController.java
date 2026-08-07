@@ -1,5 +1,9 @@
 package com.example.app.waitlist;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.user.User;
 import com.example.app.settings.TenantFeatureAccessService;
 import jakarta.validation.Valid;
@@ -14,6 +18,8 @@ import org.springframework.web.bind.annotation.*;
 public class WaitlistController {
     private final WaitlistService service;
     private final TenantFeatureAccessService featureAccess;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public WaitlistController(WaitlistService service, TenantFeatureAccessService featureAccess) {
         this.service = service;
@@ -70,19 +76,26 @@ public class WaitlistController {
     @ResponseStatus(HttpStatus.CREATED)
     public WaitlistService.RequestView create(@AuthenticationPrincipal User me, @Valid @RequestBody WaitlistService.RequestInput input) {
         assertEnabled(me);
-        return service.create(me, input);
+        WaitlistService.RequestView result = service.create(me, input);
+        record(me, ActivityAction.WAITLIST_CREATED, result, "Created waitlist request", null);
+        return result;
     }
 
     @PatchMapping("/{id}")
     public WaitlistService.RequestView update(@AuthenticationPrincipal User me, @PathVariable Long id, @Valid @RequestBody WaitlistService.RequestInput input) {
         assertEnabled(me);
-        return service.update(me, id, input);
+        WaitlistService.RequestView before = service.detail(me, id);
+        WaitlistService.RequestView result = service.update(me, id, input);
+        record(me, ActivityAction.WAITLIST_UPDATED, result, "Updated waitlist request", before);
+        return result;
     }
 
     @PostMapping("/{id}/offer")
     public WaitlistService.RequestView offer(@AuthenticationPrincipal User me, @PathVariable Long id, @RequestBody WaitlistService.OfferInput input) {
         assertEnabled(me);
-        return service.offer(me, id, input);
+        WaitlistService.RequestView result = service.offer(me, id, input);
+        record(me, ActivityAction.WAITLIST_OFFERED, result, "Sent waitlist offer", null);
+        return result;
     }
 
     @PostMapping("/matches")
@@ -94,13 +107,17 @@ public class WaitlistController {
     @PostMapping("/offer-first")
     public WaitlistService.RequestView offerFirst(@AuthenticationPrincipal User me, @RequestBody WaitlistService.MatchInput input) {
         assertEnabled(me);
-        return service.offerFirst(me, input);
+        WaitlistService.RequestView result = service.offerFirst(me, input);
+        record(me, ActivityAction.WAITLIST_OFFERED, result, "Sent waitlist offer", null);
+        return result;
     }
 
     @PostMapping("/{id}/skip")
     public WaitlistService.RequestView skip(@AuthenticationPrincipal User me, @PathVariable Long id, @RequestBody WaitlistService.OfferInput input) {
         assertEnabled(me);
-        return service.skip(me, id, input);
+        WaitlistService.RequestView result = service.skip(me, id, input);
+        record(me, ActivityAction.WAITLIST_SKIPPED, result, "Skipped waitlist request for slot", null);
+        return result;
     }
 
     public record ConvertRequest(Long bookingId) {}
@@ -108,38 +125,77 @@ public class WaitlistController {
     @PostMapping("/{id}/convert-to-booking")
     public WaitlistService.RequestView convert(@AuthenticationPrincipal User me, @PathVariable Long id, @RequestBody ConvertRequest input) {
         assertEnabled(me);
-        return service.convertToBooking(me, id, input.bookingId());
+        WaitlistService.RequestView result = service.convertToBooking(me, id, input.bookingId());
+        record(me, ActivityAction.WAITLIST_CONVERTED_TO_BOOKING, result, "Converted waitlist request to booking", null);
+        return result;
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remove(@AuthenticationPrincipal User me, @PathVariable Long id) {
         assertEnabled(me);
+        WaitlistService.RequestView before = service.detail(me, id);
         service.remove(me, id);
+        record(me, ActivityAction.WAITLIST_REMOVED, before, "Removed waitlist request", null);
     }
 
     @PostMapping("/offers/{offerId}/accept")
     public WaitlistService.RequestView accept(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
         assertEnabled(me);
-        return service.accept(me, offerId);
+        WaitlistService.RequestView result = service.accept(me, offerId);
+        record(me, ActivityAction.WAITLIST_OFFER_ACCEPTED, result, "Accepted waitlist offer", null);
+        return result;
     }
 
     @PostMapping("/offers/{offerId}/decline")
     public WaitlistService.RequestView decline(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
         assertEnabled(me);
-        return service.decline(me, offerId);
+        WaitlistService.RequestView result = service.decline(me, offerId);
+        record(me, ActivityAction.WAITLIST_OFFER_DECLINED, result, "Declined waitlist offer", null);
+        return result;
     }
 
     @PostMapping("/offers/{offerId}/decline-and-leave")
     public WaitlistService.RequestView declineAndLeave(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
         assertEnabled(me);
-        return service.declineAndLeave(me, offerId);
+        WaitlistService.RequestView result = service.declineAndLeave(me, offerId);
+        record(me, ActivityAction.WAITLIST_OFFER_DECLINED, result, "Declined waitlist offer and left waitlist", null);
+        return result;
     }
 
     @DeleteMapping("/offers/{offerId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revokeOffer(@AuthenticationPrincipal User me, @PathVariable Long offerId) {
         assertEnabled(me);
-        service.revokeOffer(me, offerId);
+        WaitlistService.RequestView result = service.revokeOffer(me, offerId);
+        record(me, ActivityAction.WAITLIST_OFFER_REVOKED, result, "Revoked waitlist offer", null);
+    }
+
+    private void record(User me, ActivityAction action, WaitlistService.RequestView row, String summary, WaitlistService.RequestView before) {
+        if (activityLogs == null || row == null) return;
+        var details = ActivityDetails.of(
+                "service", row.serviceName(),
+                "status", row.status(),
+                "requestedParticipants", row.requestedParticipants(),
+                "dateFrom", row.dateFrom(),
+                "dateTo", row.dateTo(),
+                "targetPath", "/appointments"
+        );
+        if (before != null) {
+            details.put("before", ActivityDetails.of(
+                    "service", before.serviceName(), "status", before.status(),
+                    "requestedParticipants", before.requestedParticipants(),
+                    "dateFrom", before.dateFrom(), "dateTo", before.dateTo(),
+                    "location", before.locationName()));
+            details.put("after", ActivityDetails.of(
+                    "service", row.serviceName(), "status", row.status(),
+                    "requestedParticipants", row.requestedParticipants(),
+                    "dateFrom", row.dateFrom(), "dateTo", row.dateTo(),
+                    "location", row.locationName()));
+        }
+        activityLogs.recordUser(me, ActivityModule.WAITLIST, action,
+                "WAITLIST_REQUEST", row.id(), row.clientName(),
+                "CLIENT", row.clientId(), row.clientName(),
+                summary, row.locationId(), null, details);
     }
 }

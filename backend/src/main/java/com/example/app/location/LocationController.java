@@ -1,5 +1,9 @@
 package com.example.app.location;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.BillRepository;
 import com.example.app.billingissuer.CompanyLegalEntity;
 import com.example.app.billingissuer.CompanyLegalEntityRepository;
@@ -47,6 +51,9 @@ public class LocationController {
     private final CompanyLegalEntityRepository issuerAssignments;
     private final InvoiceSeriesRepository invoiceSeries;
     private final AppSettingRepository settings;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public LocationController(
             LocationRepository locations,
@@ -146,7 +153,9 @@ public class LocationController {
         ensureLocationInvoiceSeries(location, input);
         location = locations.save(location);
         synchronizeDefaultPhysicalAddress(location);
-        return response(location);
+        LocationResponse result = response(location);
+        recordLocation(me, ActivityAction.LOCATION_CREATED, result, "Created location", null);
+        return result;
     }
 
     @PutMapping("/{id}")
@@ -155,6 +164,7 @@ public class LocationController {
     public LocationResponse update(@PathVariable Long id, @RequestBody LocationInput input, @AuthenticationPrincipal User me) {
         Location location = locations.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        LocationResponse beforeAudit = response(location);
         String name = requiredName(input == null ? null : input.name());
         boolean duplicate = locations.findAllByCompanyIdOrderByDefaultLocationDescNameAscIdAsc(me.getCompany().getId()).stream()
                 .anyMatch(other -> !other.getId().equals(id) && other.getName().equalsIgnoreCase(name));
@@ -171,7 +181,9 @@ public class LocationController {
         ensureLocationInvoiceSeries(location, input);
         location = locations.save(location);
         synchronizeDefaultPhysicalAddress(location);
-        return response(location);
+        LocationResponse result = response(location);
+        recordLocation(me, ActivityAction.LOCATION_UPDATED, result, "Updated location", beforeAudit);
+        return result;
     }
 
     @DeleteMapping("/{id}")
@@ -188,7 +200,35 @@ public class LocationController {
         location.setDefaultInvoiceSeries(null);
         locations.save(location);
         invoiceSeries.deleteAll(invoiceSeries.findAllByLocationId(id));
+        Long deletedId = location.getId();
+        String deletedName = location.getName();
         locations.delete(location);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.LOCATION_DELETED,
+                    "LOCATION", deletedId, deletedName, "Deleted location", deletedId, null,
+                    ActivityDetails.of("targetPath", "/configuration?tab=company&subtab=operatingUnits"));
+        }
+    }
+
+    private void recordLocation(User me, ActivityAction action, LocationResponse row, String summary, LocationResponse before) {
+        if (activityLogs == null || row == null) return;
+        var details = ActivityDetails.of(
+                "city", row.city(), "country", row.country(), "timezone", row.timezone(),
+                "active", row.active(), "defaultLocation", row.defaultLocation(),
+                "invoiceResetPolicy", row.invoiceResetPolicy(), "targetPath", "/configuration?tab=company&subtab=operatingUnits"
+        );
+        if (before != null) {
+            details.put("before", ActivityDetails.of(
+                    "name", before.name(), "city", before.city(), "country", before.country(), "timezone", before.timezone(),
+                    "active", before.active(), "defaultLocation", before.defaultLocation(),
+                    "invoiceResetPolicy", before.invoiceResetPolicy(), "invoiceElectronicDeviceId", before.invoiceElectronicDeviceId()));
+            details.put("after", ActivityDetails.of(
+                    "name", row.name(), "city", row.city(), "country", row.country(), "timezone", row.timezone(),
+                    "active", row.active(), "defaultLocation", row.defaultLocation(),
+                    "invoiceResetPolicy", row.invoiceResetPolicy(), "invoiceElectronicDeviceId", row.invoiceElectronicDeviceId()));
+        }
+        activityLogs.recordUser(me, ActivityModule.CONFIGURATION, action,
+                "LOCATION", row.id(), row.name(), summary, row.id(), null, details);
     }
 
     private void clearDefault(Long companyId, Long exceptId) {

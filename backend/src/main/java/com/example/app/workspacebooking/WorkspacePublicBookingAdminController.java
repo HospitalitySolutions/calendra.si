@@ -1,5 +1,9 @@
 package com.example.app.workspacebooking;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.location.Location;
@@ -35,6 +39,7 @@ public class WorkspacePublicBookingAdminController {
     private final LocationRepository locations;
     private final WorkspaceClientAccessService access;
     private WorkspaceEntitlementService entitlements;
+    private ActivityLogService activityLogs;
 
     public WorkspacePublicBookingAdminController(
             WorkspacePublicBookingSettingsRepository settings,
@@ -51,6 +56,11 @@ public class WorkspacePublicBookingAdminController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void configureEntitlements(WorkspaceEntitlementService entitlements) {
         this.entitlements = entitlements;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureActivityLogs(ActivityLogService activityLogs) {
+        this.activityLogs = activityLogs;
     }
 
     private void requireEntitlement(User me) {
@@ -160,7 +170,17 @@ public class WorkspacePublicBookingAdminController {
                 locations.save(location);
             }
         }
-        return response(row, me);
+        SettingsResponse result = response(row, me);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.PUBLIC_BOOKING_SETTINGS_UPDATED,
+                    "WORKSPACE_PUBLIC_BOOKING", row.getId(), result.slug(), "Updated workspace public booking settings", null, null,
+                    ActivityDetails.of("enabled", result.enabled(), "slug", result.slug(),
+                            "locationSelectionMode", result.locationSelectionMode(),
+                            "enabledUnits", result.units().stream().filter(UnitResponse::enabled).map(UnitResponse::companyName).toList(),
+                            "enabledLocations", result.locations().stream().filter(LocationResponse::enabled).map(LocationResponse::name).toList(),
+                            "targetPath", "/configuration?tab=booking"));
+        }
+        return result;
     }
 
     private WorkspacePublicBookingSettings requireSettings(User me) {

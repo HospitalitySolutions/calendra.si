@@ -1,11 +1,16 @@
 package com.example.app.google.calendar;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.user.User;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +22,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class GoogleCalendarController {
     private final GoogleCalendarConfig config;
     private final GoogleCalendarConnectionService connectionService;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public GoogleCalendarController(GoogleCalendarConfig config, GoogleCalendarConnectionService connectionService) {
         this.config = config;
@@ -72,19 +80,37 @@ public class GoogleCalendarController {
     @PutMapping("/connections/{connectionId}")
     public GoogleCalendarConnectionService.GoogleCalendarConnectionResponse updateConnection(@AuthenticationPrincipal User me, @PathVariable Long connectionId, @RequestBody GoogleCalendarConnectionService.GoogleCalendarSettingsRequest request) throws Exception {
         if (me == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        return connectionService.updateSettings(me, connectionId, request);
+        var updated = connectionService.updateSettings(me, connectionId, request);
+        record(me, ActivityAction.INTEGRATION_UPDATED, connectionId,
+                updated.googleAccountEmail() != null ? updated.googleAccountEmail() : "Google Calendar",
+                "Updated Google Calendar integration",
+                ActivityDetails.of("calendar", updated.calendarSummary(), "calendarId", updated.calendarId(),
+                        "syncDirection", updated.syncDirection(), "enabled", updated.status(),
+                        "targetPath", "/configuration?tab=integrations&subtab=googleCalendar"));
+        return updated;
     }
 
     @PostMapping("/connections/{connectionId}/full-sync")
     public void fullSync(@AuthenticationPrincipal User me, @PathVariable Long connectionId) {
         if (me == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         connectionService.enqueueFullSync(me, connectionId);
+        record(me, ActivityAction.INTEGRATION_SYNC_REQUESTED, connectionId, "Google Calendar",
+                "Requested Google Calendar full sync",
+                ActivityDetails.of("targetPath", "/configuration?tab=integrations&subtab=googleCalendar"));
     }
 
     @PostMapping("/connections/{connectionId}/disconnect")
     public void disconnect(@AuthenticationPrincipal User me, @PathVariable Long connectionId) {
         if (me == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         connectionService.disconnect(me, connectionId);
+        record(me, ActivityAction.INTEGRATION_DISCONNECTED, connectionId, "Google Calendar",
+                "Disconnected Google Calendar integration",
+                ActivityDetails.of("targetPath", "/configuration?tab=integrations&subtab=googleCalendar"));
+    }
+
+    private void record(User me, ActivityAction action, Long id, String label, String summary, java.util.Map<String, ?> details) {
+        if (activityLogs == null || me == null) return;
+        activityLogs.recordUser(me, ActivityModule.INTEGRATIONS, action, "INTEGRATION", id, label, summary, null, null, details);
     }
 
     private static String url(String value) { return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8); }

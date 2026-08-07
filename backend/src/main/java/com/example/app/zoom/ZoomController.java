@@ -1,8 +1,14 @@
 package com.example.app.zoom;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
+import com.example.app.user.UserRepository;
 import com.example.app.user.User;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +26,11 @@ public class ZoomController {
 
     private final ZoomConfig config;
     private final ZoomService zoomService;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
+    @Autowired(required = false)
+    private UserRepository userRepository;
 
     public ZoomController(ZoomConfig config, ZoomService zoomService) {
         this.config = config;
@@ -78,6 +89,12 @@ public class ZoomController {
         try {
             Long userId = Long.parseLong(state);
             zoomService.exchangeCodeForToken(userId, code);
+            if (activityLogs != null && userRepository != null) {
+                userRepository.findById(userId).ifPresent(actor -> activityLogs.recordUser(
+                        actor, ActivityModule.INTEGRATIONS, ActivityAction.INTEGRATION_CONNECTED,
+                        "INTEGRATION", userId, "Zoom", "Connected Zoom integration", null, null,
+                        ActivityDetails.of("targetPath", "/configuration?tab=integrations")));
+            }
             response.sendRedirect(frontendInstallUrl + "?zoom_connected=1");
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();

@@ -1,5 +1,9 @@
 package com.example.app.workspaceservice;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.user.User;
@@ -34,6 +38,9 @@ public class WorkspaceServiceTemplateController {
     private final UserRepository users;
     private final WorkspaceServiceAuditService audit;
     private final WorkspaceServiceAuditLogRepository auditLogs;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public WorkspaceServiceTemplateController(
             WorkspaceServiceTemplateRepository templates,
@@ -136,7 +143,9 @@ public class WorkspaceServiceTemplateController {
         apply(template, request, name);
         template = templates.save(template);
         audit.record(me, "TEMPLATE_CREATED", template, null, Map.of("name", template.getName()));
-        return toResponse(template, accessibleCompanyIds(me));
+        TemplateResponse result = toResponse(template, accessibleCompanyIds(me));
+        recordTemplate(me, ActivityAction.WORKSPACE_SERVICE_TEMPLATE_CREATED, template, null, "Created workspace service template");
+        return result;
     }
 
     @PutMapping("/{id}")
@@ -156,7 +165,9 @@ public class WorkspaceServiceTemplateController {
         apply(template, request, name);
         template = templates.save(template);
         audit.record(me, "TEMPLATE_UPDATED", template, null, Map.of("name", template.getName()));
-        return toResponse(template, accessibleCompanyIds(me));
+        TemplateResponse result = toResponse(template, accessibleCompanyIds(me));
+        recordTemplate(me, ActivityAction.WORKSPACE_SERVICE_TEMPLATE_UPDATED, template, null, "Updated workspace service template");
+        return result;
     }
 
     @PostMapping("/{id}/link")
@@ -182,6 +193,7 @@ public class WorkspaceServiceTemplateController {
         sessionTypes.save(offering);
         audit.record(me, "OFFERING_LINKED", template, offering,
                 Map.of("companyId", offering.getCompany().getId(), "applySharedDefaults", Boolean.TRUE.equals(request.applySharedDefaults())));
+        recordTemplate(me, ActivityAction.WORKSPACE_SERVICE_TEMPLATE_LINKED, template, offering, "Linked service to workspace template");
         return toResponse(template, accessibleCompanyIds(me));
     }
 
@@ -202,6 +214,7 @@ public class WorkspaceServiceTemplateController {
         applySharedDefaults(offering, template);
         sessionTypes.save(offering);
         audit.record(me, "OFFERING_SYNCED", template, offering, Map.of("companyId", offering.getCompany().getId()));
+        recordTemplate(me, ActivityAction.WORKSPACE_SERVICE_TEMPLATE_SYNCED, template, offering, "Synced service from workspace template");
         return toResponse(template, accessibleCompanyIds(me));
     }
 
@@ -232,7 +245,20 @@ public class WorkspaceServiceTemplateController {
         sessionTypes.save(offering);
         audit.record(me, "OFFERING_UNLINKED", oldTemplate, offering,
                 Map.of("companyId", offering.getCompany().getId(), "replacementTemplateId", replacement.getId()));
+        recordTemplate(me, ActivityAction.WORKSPACE_SERVICE_TEMPLATE_UNLINKED, oldTemplate, offering, "Unlinked service from workspace template");
         return toResponse(oldTemplate, accessibleCompanyIds(me));
+    }
+
+    private void recordTemplate(User me, ActivityAction action, WorkspaceServiceTemplate template, SessionType offering, String summary) {
+        if (activityLogs == null || template == null) return;
+        String offeringLabel = offering == null ? null : (offering.getDescription() == null ? offering.getName() : offering.getDescription());
+        activityLogs.recordUser(me, ActivityModule.SERVICES, action,
+                "WORKSPACE_SERVICE_TEMPLATE", template.getId(), template.getName(),
+                offering == null ? null : "SERVICE", offering == null ? null : offering.getId(), offeringLabel,
+                summary, null, null,
+                ActivityDetails.of("ownerCompany", template.getOwnerCompany() == null ? null : template.getOwnerCompany().getName(),
+                        "offeringCompany", offering == null || offering.getCompany() == null ? null : offering.getCompany().getName(),
+                        "targetPath", "/session-types"));
     }
 
     private void apply(WorkspaceServiceTemplate template, TemplateRequest request, String name) {

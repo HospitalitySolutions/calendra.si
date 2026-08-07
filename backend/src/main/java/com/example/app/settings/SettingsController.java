@@ -1,5 +1,9 @@
 package com.example.app.settings;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.company.Company;
 import com.example.app.company.PlatformTenantAccountLinkService;
 import com.example.app.session.SessionTypeBreakSettingsService;
@@ -17,6 +21,7 @@ import java.util.Locale;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -116,6 +121,9 @@ public class SettingsController {
     private InvoiceSeriesRepository invoiceSeriesRepository;
     private WorkspaceSubscriptionService workspaceSubscriptions;
 
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
+
     @Autowired
     public SettingsController(
             AppSettingRepository repository,
@@ -198,7 +206,13 @@ public class SettingsController {
         persistSetting(me, companyId, SettingKey.TENANT_RESERVATION_RULES_JSON,
                 normalized.get(SettingKey.TENANT_RESERVATION_RULES_JSON.name()));
         synchronizeReservationRuleSettings(me, companyId, normalized);
-        return resolveReservationRules(companyId);
+        TenantReservationRulesService.TenantReservationRules result = resolveReservationRules(companyId);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.RESERVATION_RULES_UPDATED,
+                    "RESERVATION_RULES", companyId, "Reservation rules", "Updated reservation rules", null, null,
+                    ActivityDetails.of("targetPath", "/configuration?tab=booking"));
+        }
+        return result;
     }
 
     @GetMapping("/sms-quota")
@@ -319,6 +333,26 @@ public class SettingsController {
                 workspaceSubscriptions.syncFromLegacyCompany(companyId);
             }
         }
+        if (activityLogs != null) {
+            List<String> changedKeys = normalizedPayload.keySet().stream()
+                    .filter(this::isKnownSettingKey)
+                    .sorted()
+                    .toList();
+            List<String> notificationTemplateKeys = changedKeys.stream()
+                    .filter(key -> key.startsWith("NOTIFICATIONS_") && (key.contains("_TEMPLATE_TITLE") || key.contains("_TEMPLATE_BODY")))
+                    .toList();
+            if (!notificationTemplateKeys.isEmpty()) {
+                activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.NOTIFICATION_TEMPLATE_UPDATED,
+                        "NOTIFICATION_TEMPLATES", companyId, "Notification templates", "Updated notification template", null, null,
+                        ActivityDetails.of("changedKeys", notificationTemplateKeys, "targetPath", "/configuration?tab=notifications"));
+            }
+            List<String> otherKeys = changedKeys.stream().filter(key -> !notificationTemplateKeys.contains(key)).toList();
+            if (!otherKeys.isEmpty()) {
+                activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.SETTINGS_UPDATED,
+                        "SETTINGS", companyId, "Application settings", "Updated application settings", null, null,
+                        ActivityDetails.of("changedKeys", otherKeys, "targetPath", "/configuration"));
+            }
+        }
         return all(me);
     }
 
@@ -342,6 +376,11 @@ public class SettingsController {
                 .path("/api/public/widget/guest-assets")
                 .queryParam("key", stored.objectKey())
                 .toUriString();
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.SETTINGS_UPDATED,
+                    "GUEST_APP_ASSET", null, settingField, "Updated Guest App asset", null, null,
+                    ActivityDetails.of("assetType", settingField, "targetPath", "/configuration"));
+        }
         return new GuestAppAssetUploadResponse(settingField, stored.objectKey(), publicUrl, stored.contentType(), stored.sizeBytes());
     }
 

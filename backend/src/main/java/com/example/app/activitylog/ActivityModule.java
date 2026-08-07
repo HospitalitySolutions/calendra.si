@@ -7,6 +7,7 @@ public enum ActivityModule {
     INBOX,
     WAITLIST,
     SERVICES,
+    CONSUMABLES,
     EMPLOYEES,
     CONFIGURATION,
     GUEST_APP,

@@ -786,20 +786,24 @@ public class WaitlistService {
     }
 
     @Transactional
-    public void revokeOffer(User me, Long offerId) {
+    public RequestView revokeOffer(User me, Long offerId) {
         Long companyId = companyId(me);
         WaitlistOffer offer = offers.findForUpdateByIdAndCompanyId(offerId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found."));
-        if (offer.getStatus() != WaitlistOfferStatus.PENDING) return;
-        offer.setStatus(WaitlistOfferStatus.REVOKED);
-        offers.save(offer);
-        releaseHold(offer, WaitlistHoldStatus.RELEASED);
         WaitlistRequest request = offer.getRequest();
-        if (request.getStatus() == WaitlistRequestStatus.OFFERED) {
-            request.setStatus(WaitlistRequestStatus.ACTIVE);
-            requests.save(request);
+        if (offer.getStatus() == WaitlistOfferStatus.PENDING) {
+            offer.setStatus(WaitlistOfferStatus.REVOKED);
+            offers.save(offer);
+            releaseHold(offer, WaitlistHoldStatus.RELEASED);
+            if (request.getStatus() == WaitlistRequestStatus.OFFERED) {
+                request.setStatus(WaitlistRequestStatus.ACTIVE);
+                requests.save(request);
+            }
+            addEvent(request, offer, me, WaitlistEventType.OFFER_REVOKED, "Ponudba termina je bila preklicana.");
         }
-        addEvent(request, offer, me, WaitlistEventType.OFFER_REVOKED, "Ponudba termina je bila preklicana.");
+        return toView(request, windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(request.getId()),
+                requestEmployees.findAllByRequestId(request.getId()),
+                requestServices.findAllByRequestIdOrderBySortOrderSnapshotAscIdAsc(request.getId()), true);
     }
 
     @Transactional

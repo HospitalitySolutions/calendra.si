@@ -1,5 +1,9 @@
 package com.example.app.fiscal;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillRepository;
 import com.example.app.billingissuer.CompanyLegalEntity;
@@ -49,6 +53,9 @@ public class FiscalController {
     private final InvoiceSeriesRepository invoiceSeries;
     private final LocationRepository locations;
     private final WorkspaceClientAccessService workspaceAccess;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public FiscalController(
             FiscalizationService fiscalizationService,
@@ -128,7 +135,16 @@ public class FiscalController {
         LegalEntity issuer = resolveAssignedIssuer(me, legalEntityId);
         Location location = resolveLocation(me, locationId);
         InvoiceSeries series = resolveSeries(me, issuer, location, invoiceSeriesId);
-        return fiscalizationService.registerBusinessPremise(me.getCompany().getId(), issuer, location, series, me);
+        FiscalResponse result = fiscalizationService.registerBusinessPremise(me.getCompany().getId(), issuer, location, series, me);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.FISCAL_PREMISE_REGISTERED,
+                    "FISCAL_PREMISE", location == null ? null : location.getId(), location == null ? "Fiscal premise" : location.getName(),
+                    "Registered fiscal business premise", location == null ? null : location.getId(), null,
+                    ActivityDetails.of("legalEntity", issuer == null ? null : issuer.getName(),
+                            "invoiceSeries", series == null ? null : series.getName(),
+                            "targetPath", "/configuration?tab=billing"));
+        }
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -152,7 +168,14 @@ public class FiscalController {
             existing.setContentType(file.getContentType() == null ? "application/x-pkcs12" : file.getContentType());
             existing.setCertificateData(file.getBytes());
             var saved = certificates.save(existing);
-            return toMeta(saved);
+            FiscalCertificateMetaResponse result = toMeta(saved);
+            if (activityLogs != null) {
+                activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.FISCAL_CERTIFICATE_UPDATED,
+                        "FISCAL_CERTIFICATE", issuer.getId(), issuer.getName(), "Updated fiscal certificate", null, null,
+                        ActivityDetails.of("fileName", result.fileName(), "expiresAt", result.expiresAt(),
+                                "targetPath", "/configuration?tab=billing"));
+            }
+            return result;
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
@@ -190,6 +213,11 @@ public class FiscalController {
         LegalEntity issuer = resolveAssignedIssuer(me, legalEntityId);
         requireIssuerAdminAcrossAssignments(me, issuer);
         certificates.deleteByLegalEntityId(issuer.getId());
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.FISCAL_CERTIFICATE_DELETED,
+                    "FISCAL_CERTIFICATE", issuer.getId(), issuer.getName(), "Deleted fiscal certificate", null, null,
+                    ActivityDetails.of("targetPath", "/configuration?tab=billing"));
+        }
     }
     @GetMapping("/invoices/{billId}/status")
     @Transactional(readOnly = true)

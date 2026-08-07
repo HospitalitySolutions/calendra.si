@@ -1,5 +1,9 @@
 package com.example.app.guest.catalog;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.course.Course;
 import com.example.app.course.CourseRepository;
 import com.example.app.course.MembershipCourse;
@@ -53,6 +57,9 @@ public class GuestProductAdminController {
     private final MembershipCourseRepository membershipCourses;
     private final CourseModuleAccessService courseModuleAccessService;
     private final BillingModuleAccessService billingModuleAccessService;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     @Autowired
     public GuestProductAdminController(
@@ -110,7 +117,9 @@ public class GuestProductAdminController {
         apply(product, request, me);
         product = products.save(product);
         syncMembershipCourses(product, request.includedCourseIds(), me.getCompany().getId());
-        return toResponse(product);
+        ProductAdminResponse result = toResponse(product);
+        recordProduct(me, ActivityAction.PRODUCT_CREATED, result, "Created card/membership product");
+        return result;
     }
 
     @PutMapping("/{id}")
@@ -121,7 +130,9 @@ public class GuestProductAdminController {
         apply(product, request, me);
         product = products.save(product);
         syncMembershipCourses(product, request.includedCourseIds(), me.getCompany().getId());
-        return toResponse(product);
+        ProductAdminResponse result = toResponse(product);
+        recordProduct(me, ActivityAction.PRODUCT_UPDATED, result, "Updated card/membership product");
+        return result;
     }
 
     @DeleteMapping("/{id}")
@@ -132,8 +143,24 @@ public class GuestProductAdminController {
         if (orderItems.countByProductId(product.getId()) > 0 || entitlements.countByProductId(product.getId()) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This card already has orders or entitlements. Archive it instead of deleting it.");
         }
+        Long deletedId = product.getId();
+        String deletedName = product.getName();
+        String deletedType = product.getProductType() == null ? null : product.getProductType().name();
         membershipCourses.deleteAllByMembershipProductIdAndCompanyId(product.getId(), me.getCompany().getId());
         products.delete(product);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.PRODUCT_DELETED,
+                    "GUEST_PRODUCT", deletedId, deletedName, "Deleted card/membership product", null, null,
+                    ActivityDetails.of("productType", deletedType, "targetPath", "/session-types?subtab=cards-memberships"));
+        }
+    }
+
+    private void recordProduct(User me, ActivityAction action, ProductAdminResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.SERVICES, action,
+                "GUEST_PRODUCT", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("productType", row.productType(), "priceGross", row.priceGross(), "currency", row.currency(),
+                        "active", row.active(), "guestVisible", row.guestVisible(), "targetPath", "/session-types?subtab=cards-memberships"));
     }
 
     private void apply(GuestProduct product, ProductAdminRequest request, User me) {

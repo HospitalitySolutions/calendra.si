@@ -1,5 +1,9 @@
 package com.example.app.billing;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
 import com.example.app.guest.model.EntitlementStatus;
 import com.example.app.guest.model.EntitlementType;
@@ -40,6 +44,9 @@ public class BillingGiftCardController {
     private final BillRepository bills;
     private final GiftCardEmailService giftCardEmailService;
     private final BillingModuleAccessService billingModuleAccessService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public BillingGiftCardController(
             GuestEntitlementRepository entitlements,
@@ -119,7 +126,16 @@ public class BillingGiftCardController {
         if (order != null && order.getBillId() != null) {
             bill = bills.findByIdAndCompanyId(order.getBillId(), me.getCompany().getId()).orElse(null);
         }
-        return toResponse(entitlement, bill);
+        GiftCardBillingResponse result = toResponse(entitlement, bill);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.BILLING, ActivityAction.GIFT_CARD_SENT,
+                    "GIFT_CARD", result.id(), result.giftCardNumber(),
+                    "CLIENT", result.clientId(), result.clientName(),
+                    "Sent gift card", result.locationId(), null,
+                    ActivityDetails.of("product", result.productName(), "valueGross", result.valueGross(),
+                            "billNumber", result.billNumber(), "targetPath", "/billing"));
+        }
+        return result;
     }
 
     private GuestEntitlement loadGiftCard(Long id, User me) {

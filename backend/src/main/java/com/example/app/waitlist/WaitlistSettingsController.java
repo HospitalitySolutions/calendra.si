@@ -1,5 +1,9 @@
 package com.example.app.waitlist;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -14,6 +18,8 @@ public class WaitlistSettingsController {
     private final WaitlistSettingsService service;
     private final AppSettingRepository settings;
     private final TenantFeatureAccessService featureAccess;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public WaitlistSettingsController(WaitlistSettingsService service, AppSettingRepository settings, TenantFeatureAccessService featureAccess) {
         this.service = service;
@@ -42,6 +48,12 @@ public class WaitlistSettingsController {
         });
         row.setValue(normalized);
         settings.save(row);
-        return service.get(companyId);
+        WaitlistSettingsService.WaitlistSettings result = service.get(companyId);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.WAITLIST_SETTINGS_UPDATED,
+                    "WAITLIST_SETTINGS", companyId, "Waitlist settings", "Updated waitlist settings", null, null,
+                    ActivityDetails.of("targetPath", "/configuration?tab=booking"));
+        }
+        return result;
     }
 }

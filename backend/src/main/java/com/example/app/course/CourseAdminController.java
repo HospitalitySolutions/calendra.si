@@ -1,5 +1,9 @@
 package com.example.app.course;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrderItemRepository;
 import com.example.app.guest.model.GuestProduct;
@@ -33,6 +37,9 @@ public class CourseAdminController {
     private final BunnyMediaService bunnyMediaService;
     private final CourseModuleAccessService courseModuleAccessService;
     private final CourseAccessProgressRepository courseAccessProgressRepository;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     @Autowired
     public CourseAdminController(
@@ -83,7 +90,9 @@ public class CourseAdminController {
         course.setCompany(me.getCompany());
         apply(course, request);
         course = courses.save(course);
-        return toResponse(course);
+        CourseResponse result = toResponse(course);
+        recordCourse(me, ActivityAction.COURSE_CREATED, result, "Created course");
+        return result;
     }
 
     @PutMapping("/{id}")
@@ -95,7 +104,9 @@ public class CourseAdminController {
             assertCoursesEnabled(me.getCompany().getId());
         }
         apply(course, request);
-        return toResponse(courses.save(course));
+        CourseResponse result = toResponse(courses.save(course));
+        recordCourse(me, ActivityAction.COURSE_UPDATED, result, "Updated course");
+        return result;
     }
 
     @PostMapping("/{id}/media/direct-upload")
@@ -275,8 +286,23 @@ public class CourseAdminController {
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Course media could not be deleted from Bunny: " + ex.getMessage());
         }
+        Long deletedId = course.getId();
+        String deletedTitle = course.getTitle();
         if (product != null) products.delete(product);
         courses.delete(course);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.COURSE_DELETED,
+                    "COURSE", deletedId, deletedTitle, "Deleted course", null, null,
+                    ActivityDetails.of("targetPath", "/session-types?subtab=courses"));
+        }
+    }
+
+    private void recordCourse(User me, ActivityAction action, CourseResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.SERVICES, action,
+                "COURSE", row.id(), row.title(), summary, null, null,
+                ActivityDetails.of("status", row.status(), "active", row.active(), "guestVisible", row.guestVisible(),
+                        "priceGross", row.priceGross(), "currency", row.currency(), "targetPath", "/session-types?subtab=courses"));
     }
 
     private void resetCourseProgress(Course course) {

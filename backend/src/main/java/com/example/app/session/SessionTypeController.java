@@ -1,5 +1,9 @@
 package com.example.app.session;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.PriceMath;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
@@ -43,6 +47,9 @@ public class SessionTypeController {
     private final SessionTypeBreakSettingsService breakSettings;
     private final WorkspaceServiceTemplateRepository workspaceServiceTemplates;
     private final LocationRepository locations;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     @Autowired
     public SessionTypeController(
@@ -239,10 +246,12 @@ public class SessionTypeController {
         type = repo.save(type);
         saveLinkedServices(type, req.services(), companyId);
         final Long createdId = type.getId();
-        return toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
+        TypeResponse result = toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(x -> x.getId().equals(createdId))
                 .findFirst()
                 .orElseThrow(), groupsEnabled);
+        recordService(me, ActivityAction.SERVICE_CREATED, result, "Created service", null);
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -254,6 +263,10 @@ public class SessionTypeController {
         if (!type.getCompany().getId().equals(companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
+        var beforeAudit = ActivityDetails.of(
+                "description", type.getDescription(), "active", type.isActive(),
+                "durationMinutes", type.getDurationMinutes(), "groupBookingEnabled", type.isGroupBookingEnabled(),
+                "widgetGroupBookingEnabled", type.isWidgetGroupBookingEnabled());
         String normalizedCode = normalizeSessionTypeCode(req.code());
         String description = normalizeServiceDescription(req.description());
         if (description == null) {
@@ -306,10 +319,12 @@ public class SessionTypeController {
         type.getLinkedServices().clear();
         repo.saveAndFlush(type);
         saveLinkedServices(type, req.services() != null ? req.services() : List.of(), companyId);
-        return toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
+        TypeResponse result = toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(t -> t.getId().equals(id))
                 .findFirst()
                 .orElseThrow(), groupsEnabled);
+        recordService(me, ActivityAction.SERVICE_UPDATED, result, "Updated service", beforeAudit);
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -328,10 +343,16 @@ public class SessionTypeController {
             type.setGuestSortOrder(Math.max(0, item.sortOrder() == null ? 0 : item.sortOrder()));
             repo.save(type);
         }
-        return repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
+        List<TypeResponse> result = repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .sorted(sessionTypeOrder(groupsEnabled))
                 .map(type -> toResponse(type, groupsEnabled))
                 .toList();
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.SERVICES_REORDERED,
+                    "SERVICES", companyId, "Services", "Reordered services", null, null,
+                    ActivityDetails.of("count", result.size(), "targetPath", "/session-types"));
+        }
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -347,7 +368,31 @@ public class SessionTypeController {
                     "This service code has upcoming or ongoing bookings and cannot be deleted. Set it inactive instead."
             );
         }
+        Long deletedId = type.getId();
+        String deletedLabel = type.getDescription() == null ? type.getName() : type.getDescription();
         repo.delete(type);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.SERVICE_DELETED,
+                    "SERVICE", deletedId, deletedLabel, "Deleted service", null, null,
+                    ActivityDetails.of("targetPath", "/session-types"));
+        }
+    }
+
+    private void recordService(User me, ActivityAction action, TypeResponse row, String summary, java.util.Map<String, Object> before) {
+        if (activityLogs == null || row == null) return;
+        var details = ActivityDetails.of(
+                "active", row.active(), "durationMinutes", row.durationMinutes(),
+                "serviceGroup", row.serviceGroupName(), "targetPath", "/session-types"
+        );
+        if (before != null) {
+            details.put("before", before);
+            details.put("after", ActivityDetails.of(
+                    "description", row.description(), "active", row.active(),
+                    "durationMinutes", row.durationMinutes(), "groupBookingEnabled", row.groupBookingEnabled(),
+                    "widgetGroupBookingEnabled", row.widgetGroupBookingEnabled()));
+        }
+        activityLogs.recordUser(me, ActivityModule.SERVICES, action,
+                "SERVICE", row.id(), row.description() == null ? row.name() : row.description(), summary, null, null, details);
     }
 
     private void saveLinkedServices(SessionType type, List<TypeServiceItem> items, Long companyId) {

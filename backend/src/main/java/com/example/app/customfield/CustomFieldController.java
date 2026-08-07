@@ -1,5 +1,9 @@
 package com.example.app.customfield;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -26,6 +30,9 @@ public class CustomFieldController {
     private final CustomFieldValueRepository values;
     private final CustomFieldService customFieldService;
     private final TenantFeatureAccessService featureAccess;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public CustomFieldController(
             CustomFieldDefinitionRepository definitions,
@@ -89,7 +96,9 @@ public class CustomFieldController {
         var row = new CustomFieldDefinition();
         row.setCompany(me.getCompany());
         apply(row, req, true);
-        return toResponse(definitions.save(row));
+        CustomFieldDefinitionResponse result = toResponse(definitions.save(row));
+        recordField(me, ActivityAction.CUSTOM_FIELD_CREATED, result, "Created custom field");
+        return result;
     }
 
     @PutMapping("/{id}")
@@ -103,7 +112,9 @@ public class CustomFieldController {
         var row = definitions.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         apply(row, req, false);
-        return toResponse(definitions.save(row));
+        CustomFieldDefinitionResponse result = toResponse(definitions.save(row));
+        recordField(me, ActivityAction.CUSTOM_FIELD_UPDATED, result, "Updated custom field");
+        return result;
     }
 
     @DeleteMapping("/{id}")
@@ -112,8 +123,25 @@ public class CustomFieldController {
         requireEnabled(me);
         var row = definitions.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Long deletedId = row.getId();
+        String deletedName = row.getName();
+        CustomFieldAppliesTo appliesTo = row.getAppliesTo();
         values.deleteAllByCompanyIdAndFieldDefinitionId(me.getCompany().getId(), row.getId());
         definitions.delete(row);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.CUSTOM_FIELD_DELETED,
+                    "CUSTOM_FIELD", deletedId, deletedName, "Deleted custom field", null, null,
+                    ActivityDetails.of("appliesTo", appliesTo == null ? null : appliesTo.name(), "targetPath", "/configuration"));
+        }
+    }
+
+    private void recordField(User me, ActivityAction action, CustomFieldDefinitionResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONFIGURATION, action,
+                "CUSTOM_FIELD", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("appliesTo", row.appliesTo() == null ? null : row.appliesTo().name(),
+                        "fieldType", row.fieldType() == null ? null : row.fieldType().name(),
+                        "required", row.required(), "active", row.active(), "targetPath", "/configuration"));
     }
 
     private void apply(CustomFieldDefinition row, CustomFieldDefinitionRequest req, boolean creating) {

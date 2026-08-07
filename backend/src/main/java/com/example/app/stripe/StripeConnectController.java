@@ -1,7 +1,12 @@
 package com.example.app.stripe;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.user.User;
 import com.example.app.settings.BillingModuleAccessService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class StripeConnectController {
     private final StripeConnectService connectService;
     private final BillingModuleAccessService billingModuleAccess;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public StripeConnectController(StripeConnectService connectService, BillingModuleAccessService billingModuleAccess) {
         this.connectService = connectService;
@@ -40,7 +48,10 @@ public class StripeConnectController {
             @RequestBody StripeConnectService.TenantStripePreferenceRequest request,
             @AuthenticationPrincipal User me
     ) {
-        return connectService.saveTenantPreference(me.getCompany(), request);
+        var saved = connectService.saveTenantPreference(me.getCompany(), request);
+        record(me, ActivityAction.INTEGRATION_UPDATED, "Updated Stripe Connect configuration",
+                ActivityDetails.of("activeMode", saved.activeMode(), "targetPath", "/configuration?tab=billing&subtab=stripe"));
+        return saved;
     }
 
     @PostMapping("/onboarding-link")
@@ -56,6 +67,13 @@ public class StripeConnectController {
             @RequestParam(value = "mode", required = false) String mode,
             @AuthenticationPrincipal User me
     ) {
-        return connectService.refreshAccount(me.getCompany(), mode);
+        var refreshed = connectService.refreshAccount(me.getCompany(), mode);
+        record(me, ActivityAction.INTEGRATION_UPDATED, "Refreshed Stripe Connect status",
+                ActivityDetails.of("mode", mode, "activeMode", refreshed.activeMode(), "targetPath", "/configuration?tab=billing&subtab=stripe"));
+        return refreshed;
+    }
+    private void record(User me, ActivityAction action, String summary, java.util.Map<String, ?> details) {
+        if (activityLogs == null || me == null) return;
+        activityLogs.recordUser(me, ActivityModule.INTEGRATIONS, action, "INTEGRATION", null, "Stripe Connect", summary, null, null, details);
     }
 }

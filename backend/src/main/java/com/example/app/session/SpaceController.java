@@ -1,5 +1,9 @@
 package com.example.app.session;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.location.Location;
 import com.example.app.location.LocationService;
 import com.example.app.user.User;
@@ -16,6 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class SpaceController {
     private final SpaceRepository repo;
     private final LocationService locations;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public SpaceController(SpaceRepository repo, LocationService locations) {
         this.repo = repo;
@@ -66,7 +73,9 @@ public class SpaceController {
         space.setName(requiredName(input == null ? null : input.name()));
         space.setDescription(trim(input == null ? null : input.description()));
         space.setLocation(locations.requireForCompany(input == null ? null : input.locationId(), me.getCompany()));
-        return response(repo.save(space));
+        SpaceResponse result = response(repo.save(space));
+        recordSpace(me, ActivityAction.SPACE_CREATED, result, "Created space");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -79,7 +88,9 @@ public class SpaceController {
         if (input != null && input.locationId() != null) {
             existing.setLocation(locations.requireForCompany(input.locationId(), me.getCompany()));
         }
-        return response(repo.save(existing));
+        SpaceResponse result = response(repo.save(existing));
+        recordSpace(me, ActivityAction.SPACE_UPDATED, result, "Updated space");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -87,7 +98,24 @@ public class SpaceController {
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
         Space existing = repo.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        SpaceResponse snapshot = response(existing);
         repo.delete(existing);
+        if (activityLogs != null) {
+            Long locationId = snapshot.location() == null ? null : snapshot.location().id();
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.SPACE_DELETED,
+                    "SPACE", snapshot.id(), snapshot.name(), "Deleted space", locationId, snapshot.id(),
+                    ActivityDetails.of("location", snapshot.location() == null ? null : snapshot.location().name(),
+                            "targetPath", "/configuration?tab=booking"));
+        }
+    }
+
+    private void recordSpace(User me, ActivityAction action, SpaceResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        Long locationId = row.location() == null ? null : row.location().id();
+        activityLogs.recordUser(me, ActivityModule.CONFIGURATION, action,
+                "SPACE", row.id(), row.name(), summary, locationId, row.id(),
+                ActivityDetails.of("location", row.location() == null ? null : row.location().name(),
+                        "targetPath", "/configuration?tab=booking"));
     }
 
     private static SpaceResponse response(Space space) {

@@ -1,6 +1,7 @@
 package com.example.app.billing;
 
 import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
 import com.example.app.activitylog.ActivityLogService;
 import com.example.app.activitylog.ActivityModule;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
@@ -561,7 +562,14 @@ public class BillingController {
         s.setCode(normalizedCode);
         s.setDescription(description);
         s.setActive(s.isActive());
-        return txRepo.save(s);
+        TransactionService saved = txRepo.save(s);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.TRANSACTION_SERVICE_CREATED,
+                    "TRANSACTION_SERVICE", saved.getId(), saved.getDescription(), "Created transaction service", null, null,
+                    ActivityDetails.of("code", saved.getCode(), "taxRate", saved.getTaxRate(), "netPrice", saved.getNetPrice(),
+                            "active", saved.isActive(), "targetPath", "/session-types?subtab=transaction-services"));
+        }
+        return saved;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -589,7 +597,14 @@ public class BillingController {
             );
         }
         existing.setActive(nextActive);
-        return txRepo.save(existing);
+        TransactionService saved = txRepo.save(existing);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.TRANSACTION_SERVICE_UPDATED,
+                    "TRANSACTION_SERVICE", saved.getId(), saved.getDescription(), "Updated transaction service", null, null,
+                    ActivityDetails.of("code", saved.getCode(), "taxRate", saved.getTaxRate(), "netPrice", saved.getNetPrice(),
+                            "active", saved.isActive(), "targetPath", "/session-types?subtab=transaction-services"));
+        }
+        return saved;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -604,7 +619,14 @@ public class BillingController {
                     "This transaction service is used by upcoming or ongoing bookings and cannot be deleted. Set it inactive instead."
             );
         }
+        Long deletedId = existing.getId();
+        String deletedLabel = existing.getDescription();
         txRepo.delete(existing);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.TRANSACTION_SERVICE_DELETED,
+                    "TRANSACTION_SERVICE", deletedId, deletedLabel, "Deleted transaction service", null, null,
+                    ActivityDetails.of("targetPath", "/session-types?subtab=transaction-services"));
+        }
     }
 
     private String normalizeTransactionServiceCode(String raw) {
@@ -733,7 +755,7 @@ public class BillingController {
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
         var saved = paymentMethodRepo.save(pm);
-        return new PaymentMethodResponse(
+        PaymentMethodResponse result = new PaymentMethodResponse(
                 saved.getId(),
                 saved.getName(),
                 saved.getPaymentType(),
@@ -743,6 +765,8 @@ public class BillingController {
                 saved.isWidgetEnabled(),
                 saved.getGuestDisplayOrder(),
                 readAllowedGuestProductTypes(saved));
+        recordPaymentMethod(me, ActivityAction.PAYMENT_METHOD_CREATED, result, "Created payment method");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -762,7 +786,7 @@ public class BillingController {
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
         var saved = paymentMethodRepo.save(pm);
-        return new PaymentMethodResponse(
+        PaymentMethodResponse result = new PaymentMethodResponse(
                 saved.getId(),
                 saved.getName(),
                 saved.getPaymentType(),
@@ -772,6 +796,8 @@ public class BillingController {
                 saved.isWidgetEnabled(),
                 saved.getGuestDisplayOrder(),
                 readAllowedGuestProductTypes(saved));
+        recordPaymentMethod(me, ActivityAction.PAYMENT_METHOD_UPDATED, result, "Updated payment method");
+        return result;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -781,7 +807,23 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var pm = paymentMethodRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Long deletedId = pm.getId();
+        String deletedName = pm.getName();
         paymentMethodRepo.delete(pm);
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.PAYMENT_METHOD_DELETED,
+                    "PAYMENT_METHOD", deletedId, deletedName, "Deleted payment method", null, null,
+                    ActivityDetails.of("targetPath", "/configuration?tab=billing&subtab=paymentMethods"));
+        }
+    }
+
+    private void recordPaymentMethod(User me, ActivityAction action, PaymentMethodResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONFIGURATION, action,
+                "PAYMENT_METHOD", row.id(), row.name(), summary, null, null,
+                ActivityDetails.of("paymentType", row.paymentType() == null ? null : row.paymentType().name(),
+                        "fiscalized", row.fiscalized(), "guestEnabled", row.guestEnabled(), "widgetEnabled", row.widgetEnabled(),
+                        "targetPath", "/configuration?tab=billing&subtab=paymentMethods"));
     }
 
     @GetMapping("/bills")
