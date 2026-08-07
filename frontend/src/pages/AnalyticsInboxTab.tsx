@@ -938,7 +938,7 @@ export function AnalyticsInboxTab() {
   }
 
   useEffect(() => {
-    if (recipientMode === 'bulk' && (composeChannel === 'VIBER' || composeChannel === 'GUEST_APP')) setComposeChannel('EMAIL')
+    if (recipientMode !== 'single' && (composeChannel === 'VIBER' || composeChannel === 'GUEST_APP')) setComposeChannel('EMAIL')
     if (recipientMode !== 'single' && composeAttachmentsRef.current.length > 0) {
       const attachments = [...composeAttachmentsRef.current]
       setComposeAttachments([])
@@ -1026,8 +1026,10 @@ export function AnalyticsInboxTab() {
   )
   const groupMemberClients = useMemo(() => {
     if (!selectedGroup) return []
-    const memberIds = new Set((selectedGroup.members ?? []).map((member) => member.id))
-    return (clientsQuery.data ?? []).filter((client) => memberIds.has(client.id) && client.active !== false)
+    const clientById = new Map((clientsQuery.data ?? []).map((client) => [client.id, client]))
+    return (selectedGroup.members ?? [])
+      .map((member) => clientById.get(member.id) ?? member)
+      .filter((client) => client.active !== false)
   }, [selectedGroup, clientsQuery.data])
   const eligibleGroupClients = useMemo(
     () => groupMemberClients.filter((client) => isClientEligibleForChannel(client, composeChannel)),
@@ -1413,13 +1415,74 @@ export function AnalyticsInboxTab() {
 
 
   const submitSchedule = async () => {
-    const targetChannel = availableChannels.includes(scheduleDraftChannel) ? scheduleDraftChannel : composeChannel
+    const targetChannel = composeChannel
     const targetBody = scheduleDraftBody.trim() || composeBody
     const targetSubject = scheduleDraftSubject.trim() || composeSubject.trim()
-    const targetClientId = scheduleDraftClientId ?? selectedClientId
-    if (!targetClientId || !richTextHasContent(targetBody) || !scheduleDraftWhen) return
+    if (!richTextHasContent(targetBody) || !scheduleDraftWhen) return
     const scheduledDate = new Date(scheduleDraftWhen)
     if (Number.isNaN(scheduledDate.getTime())) return
+
+    const recurrence = scheduleFrequency === 'once' ? 'NONE' : scheduleInterval
+
+    if (recipientMode === 'group') {
+      if (!selectedGroup) return
+      const eligibleRecipients = groupMemberClients.filter((client) => isClientEligibleForChannel(client, targetChannel))
+      if (!eligibleRecipients.length) return
+
+      setSubmittingSchedule(true)
+      try {
+        const results = await Promise.allSettled(
+          eligibleRecipients.map((client) => api.post('/inbox/scheduled', {
+            clientId: client.id,
+            channel: targetChannel,
+            subject: targetChannel === 'EMAIL' ? (targetSubject || null) : null,
+            body: targetBody,
+            scheduledFor: scheduledDate.toISOString(),
+            recurrence,
+          })),
+        )
+
+        let successCount = 0
+        let failureCount = 0
+        let firstError = ''
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            successCount += 1
+          } else {
+            failureCount += 1
+            if (!firstError) firstError = result.reason?.response?.data?.message || result.reason?.message || copy.sendFailed
+          }
+        })
+
+        const skippedCount = groupMemberClients.length - eligibleRecipients.length
+        if (successCount > 0) {
+          await queryClient.invalidateQueries({ queryKey: ['inbox-scheduled'] })
+          const detail = locale === 'sl'
+            ? [
+                `Načrtovano za ${successCount} ${successCount === 1 ? 'člana' : 'članov'} skupine`,
+                failureCount ? `${failureCount} neuspešno` : '',
+                skippedCount ? `${skippedCount} brez ustreznega kontakta` : '',
+              ].filter(Boolean).join(' · ')
+            : [
+                `Scheduled for ${successCount} group member${successCount === 1 ? '' : 's'}`,
+                failureCount ? `${failureCount} failed` : '',
+                skippedCount ? `${skippedCount} skipped` : '',
+              ].filter(Boolean).join(' · ')
+          showToast('success', detail)
+          setScheduleView('list')
+          setScheduleDraftBody('')
+          setScheduleDraftSubject('')
+        } else {
+          showToast('error', firstError || copy.sendFailed)
+        }
+      } finally {
+        setSubmittingSchedule(false)
+      }
+      return
+    }
+
+    const targetClientId = selectedClientId
+    if (!targetClientId) return
     setSubmittingSchedule(true)
     try {
       await api.post('/inbox/scheduled', {
@@ -1428,7 +1491,7 @@ export function AnalyticsInboxTab() {
         subject: targetChannel === 'EMAIL' ? (targetSubject || null) : null,
         body: targetBody,
         scheduledFor: scheduledDate.toISOString(),
-        recurrence: scheduleFrequency === 'once' ? 'NONE' : scheduleInterval,
+        recurrence,
       })
       await queryClient.invalidateQueries({ queryKey: ['inbox-scheduled'] })
       showToast('success', locale === 'sl' ? 'Sporočilo je načrtovano.' : 'Message scheduled.')
@@ -1630,7 +1693,15 @@ export function AnalyticsInboxTab() {
   const conversationId = selectedClientId != null ? `#CON-${String(selectedClientId).padStart(5, '0')}` : '#CON-—'
   const scheduleDateValue = scheduleDraftWhen ? scheduleDraftWhen.slice(0, 10) : ''
   const scheduleTimeValue = scheduleDraftWhen ? scheduleDraftWhen.slice(11, 16) : ''
-  const inlineScheduleReady = !!scheduleDraftWhen && selectedClientId != null && (richTextHasContent(composeBody) || richTextHasContent(scheduleDraftBody))
+  const scheduleBodyReady = richTextHasContent(composeBody) || richTextHasContent(scheduleDraftBody)
+  const scheduledGroupRecipients = recipientMode === 'group'
+    ? groupMemberClients.filter((client) => isClientEligibleForChannel(client, composeChannel))
+    : []
+  const inlineScheduleReady = !!scheduleDraftWhen && scheduleBodyReady && (
+    recipientMode === 'group'
+      ? !!selectedGroup && scheduledGroupRecipients.length > 0
+      : selectedClientId != null
+  )
   const selectedClientEmail = selectedClient?.email || selectedThread?.clientEmail || ''
   const selectedClientPhone = selectedClient?.phone || selectedThread?.clientPhone || ''
   const selectedClientLocation = selectedClient?.billingCompany ? [selectedClient.billingCompany.postalCode, selectedClient.billingCompany.city].filter(Boolean).join(' ') : ''
@@ -1749,6 +1820,7 @@ export function AnalyticsInboxTab() {
   }
 
   const selectThread = (thread: InboxThread) => {
+    setRecipientMode('single')
     setSelectedClientId(thread.clientId)
     setSelectedThreadKey(inboxThreadKey(thread))
     if (isCompactInbox) {
@@ -1819,6 +1891,10 @@ export function AnalyticsInboxTab() {
   }
 
   const isComposerChannelDisabled = (channel: InboxChannel) => {
+    if (recipientMode === 'group') {
+      if (channel === 'VIBER' || channel === 'GUEST_APP') return true
+      return !groupMemberClients.some((client) => isClientEligibleForChannel(client, channel))
+    }
     if (channel === 'SMS') return !hasSmsTarget(selectedClient)
     if (channel === 'WHATSAPP') return !selectedClient?.whatsappOptIn || !hasWhatsAppTarget(selectedClient)
     if (channel === 'VIBER') return !selectedClient?.viberConnected
@@ -2059,20 +2135,35 @@ export function AnalyticsInboxTab() {
 
             {mobileComposeNew ? (
               <div className="analytics-inbox-mobile-new-compose-body">
-                <label className="analytics-inbox-mobile-recipient-field">
-                  <span>{mobileCopy.recipient}</span>
-                  <select
-                    value={selectedClientId ?? ''}
-                    onChange={(event) => {
-                      const nextId = event.target.value ? Number(event.target.value) : null
-                      selectClient(nextId)
-                      setScheduleDraftClientId(nextId)
-                    }}
-                  >
-                    <option value="">{mobileCopy.selectRecipient}</option>
-                    {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                  </select>
-                </label>
+                <div className="analytics-inbox-mobile-recipient-mode" role="group" aria-label={locale === 'sl' ? 'Vrsta prejemnika' : 'Recipient type'}>
+                  <button type="button" className={recipientMode === 'single' ? 'active' : ''} onClick={() => setRecipientMode('single')}>{copy.singleClient}</button>
+                  <button type="button" className={recipientMode === 'group' ? 'active' : ''} onClick={() => setRecipientMode('group')}>{copy.groupSend}</button>
+                </div>
+                {recipientMode === 'group' ? (
+                  <label className="analytics-inbox-mobile-recipient-field">
+                    <span>{copy.groupSend}</span>
+                    <select value={selectedGroupId ?? ''} onChange={(event) => setSelectedGroupId(event.target.value ? Number(event.target.value) : null)}>
+                      <option value="">{copy.selectGroup}</option>
+                      {activeGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                    </select>
+                    <small>{selectedGroup ? copy.groupSummary(selectedGroup.members?.length ?? 0, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel)) : copy.selectGroupHint}</small>
+                  </label>
+                ) : (
+                  <label className="analytics-inbox-mobile-recipient-field">
+                    <span>{mobileCopy.recipient}</span>
+                    <select
+                      value={selectedClientId ?? ''}
+                      onChange={(event) => {
+                        const nextId = event.target.value ? Number(event.target.value) : null
+                        selectClient(nextId)
+                        setScheduleDraftClientId(nextId)
+                      }}
+                    >
+                      <option value="">{mobileCopy.selectRecipient}</option>
+                      {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+                    </select>
+                  </label>
+                )}
                 <div className={`analytics-inbox-mobile-selected-channel analytics-inbox-mobile-selected-channel--${inboxMobileChannelClass(composeChannel)}`}>
                   <InboxMobileIcon name={inboxMobileChannelIcon(composeChannel)} size={18} />
                   <span>{channelLabel(composeChannel)}</span>
@@ -2162,8 +2253,12 @@ export function AnalyticsInboxTab() {
                         <InboxMobileIcon name="calendar" size={21} />
                       </button>
                     </div>
-                    <button type="button" className="analytics-inbox-mobile-send" onClick={() => void sendMessage()} disabled={sending || !singleSendReady}>
-                      {sending ? copy.sending : ui.send}
+                    <button type="button" className="analytics-inbox-mobile-send" onClick={() => void sendMessage()} disabled={sending || (recipientMode === 'group' ? !groupSendReady : !singleSendReady)}>
+                      {sending
+                        ? copy.sending
+                        : recipientMode === 'group'
+                          ? (locale === 'sl' ? `Pošlji ${eligibleGroupClients.length}` : `Send ${eligibleGroupClients.length}`)
+                          : ui.send}
                     </button>
                   </div>
                 </>
@@ -2208,7 +2303,11 @@ export function AnalyticsInboxTab() {
                     ) : null}
                   </div>
                   <button type="button" className="analytics-inbox-mobile-schedule-submit" onClick={() => void submitSchedule()} disabled={!inlineScheduleReady || submittingSchedule}>
-                    {submittingSchedule ? copy.sending : ui.scheduleMessage}
+                    {submittingSchedule
+                      ? copy.sending
+                      : recipientMode === 'group'
+                        ? (locale === 'sl' ? `Načrtuj za ${scheduledGroupRecipients.length}` : `Schedule for ${scheduledGroupRecipients.length}`)
+                        : ui.scheduleMessage}
                   </button>
                 </div>
               ) : null}
@@ -2467,7 +2566,11 @@ export function AnalyticsInboxTab() {
                 <div className="analytics-inbox-b-composer-bottom">
                   <span className="analytics-inbox-b-editor-hint">{channelLabel(composeChannel)}</span>
                   <button type="button" onClick={sendMessage} disabled={sending || (recipientMode === 'bulk' ? !bulkSendReady : recipientMode === 'group' ? !groupSendReady : !singleSendReady)}>
-                    {sending ? copy.sending : ui.send}
+                    {sending
+                      ? copy.sending
+                      : recipientMode === 'group'
+                        ? copy.sendGroup(channelLabel(composeChannel), eligibleGroupClients.length)
+                        : ui.send}
                   </button>
                 </div>
               </>
@@ -2490,12 +2593,30 @@ export function AnalyticsInboxTab() {
         <aside className="analytics-inbox-b-right-card">
           <section className="analytics-inbox-b-details-card">
             <div className="analytics-inbox-b-side-title"><strong>{ui.details}</strong><button type="button">⌃</button></div>
-            <label>{copy.clientLabel}
-              <select value={selectedClientId ?? ''} onChange={(e) => selectClient(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">{copy.selectClient}</option>
-                {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-              </select>
-            </label>
+            <div className="analytics-inbox-b-recipient-mode" role="group" aria-label={locale === 'sl' ? 'Vrsta prejemnika' : 'Recipient type'}>
+              <button type="button" className={recipientMode === 'single' ? 'active' : ''} onClick={() => setRecipientMode('single')}>{copy.singleClient}</button>
+              <button type="button" className={recipientMode === 'group' ? 'active' : ''} onClick={() => setRecipientMode('group')}>{copy.groupSend}</button>
+            </div>
+            {recipientMode === 'group' ? (
+              <label>{copy.groupSend}
+                <select value={selectedGroupId ?? ''} onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">{copy.selectGroup}</option>
+                  {activeGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                </select>
+                <small className="analytics-inbox-b-recipient-summary">
+                  {selectedGroup
+                    ? copy.groupSummary(selectedGroup.members?.length ?? 0, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel))
+                    : copy.selectGroupHint}
+                </small>
+              </label>
+            ) : (
+              <label>{copy.clientLabel}
+                <select value={selectedClientId ?? ''} onChange={(e) => selectClient(e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">{copy.selectClient}</option>
+                  {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+                </select>
+              </label>
+            )}
             <div>
               <span className="analytics-inbox-b-label">{ui.channel}</span>
               <div className="analytics-inbox-b-channels">{availableChannels.map(renderChannelButton)}</div>
@@ -2552,7 +2673,11 @@ export function AnalyticsInboxTab() {
                 </select>
               ) : null}
             </div>
-            <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady || submittingSchedule}>▣ {ui.scheduleMessage}</button>
+            <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady || submittingSchedule}>
+              ▣ {recipientMode === 'group'
+                ? (locale === 'sl' ? `Načrtuj za ${scheduledGroupRecipients.length} članov` : `Schedule for ${scheduledGroupRecipients.length} members`)
+                : ui.scheduleMessage}
+            </button>
           </section>
 
           <section className="analytics-inbox-b-upcoming-card">
