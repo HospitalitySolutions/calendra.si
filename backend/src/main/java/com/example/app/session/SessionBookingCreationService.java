@@ -733,44 +733,48 @@ public class SessionBookingCreationService {
         String removedClientLabel = clientActivityLabel(targets.get(0).getClient());
 
         // Use the exact same cancellation core as the public e-mail manage link.
-        // Usually there is one row per client; looping also safely cleans up any
-        // legacy duplicate participant rows without leaving the occurrence empty.
+        // Keep the placeholder returned by that core. In the last-participant case
+        // this is the authoritative surviving occurrence and using it directly avoids
+        // a second persistence/query path that the public cancellation flow never uses.
+        SessionBooking placeholderForResponse = null;
         for (SessionBooking target : targets) {
-            cancelGroupParticipantBooking(target, "STAFF");
+            GroupParticipantCancellationResult cancellation = cancelGroupParticipantBooking(target, "STAFF");
+            if (cancellation.placeholder() != null) {
+                placeholderForResponse = cancellation.placeholder();
+            }
         }
 
-        List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
-        if (refreshed == null || refreshed.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Group session could not be reloaded after guest removal."
-            );
-        }
-
-        // Only active rows are needed for the UI response. In the last-guest case
-        // this is the newly-created empty placeholder; cancelled participant rows
-        // stay persisted for billing/audit/history exactly like public cancellation.
-        List<SessionBooking> activeRows = refreshed.stream()
-                .filter(row -> !SessionBookingStatus.CANCELLED.equals(
-                        SessionBookingStatus.normalizeStored(row.getBookingStatus())))
-                .toList();
-        if (activeRows.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Group session placeholder is missing after guest removal."
-            );
+        final List<SessionBooking> activeRows;
+        if (placeholderForResponse != null) {
+            // Last guest removed: cancelGroupParticipantBooking already created and
+            // flushed the empty RESERVED group occurrence. Do not reload it through a
+            // separate query; that was the only behaviour difference from the working
+            // public "Odpovej rezervacijo" path.
+            activeRows = List.of(placeholderForResponse);
+        } else {
+            List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
+            if (refreshed == null || refreshed.isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Group session could not be reloaded after guest removal."
+                );
+            }
+            activeRows = refreshed.stream()
+                    .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                            SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                    .toList();
+            if (activeRows.isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Group session placeholder is missing after guest removal."
+                );
+            }
         }
 
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(activeRows);
-        bookingChangePublisher.publish(
-                companyId,
-                response.id(),
-                response.startTime(),
-                response.endTime(),
-                BookingChangePublisher.BOOKING_UPDATED,
-                "STAFF",
-                null
-        );
+        // The shared cancellation core already publishes BOOKING_CANCELLED for the
+        // participant and BOOKING_CREATED when it had to create the last-guest
+        // placeholder. Avoid an additional synthetic BOOKING_UPDATED event here.
         recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
                 "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId), representativeBookingId);
         return response;

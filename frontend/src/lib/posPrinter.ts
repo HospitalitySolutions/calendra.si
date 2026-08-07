@@ -366,31 +366,48 @@ async function imageToMonochromeBitmap(
   }
 }
 
-function monochromeBitmapToEscPosBitImage(bitmap: MonochromeBitmap): Uint8Array {
+function monochromeBitmapToEscPosRasterImage(bitmap: MonochromeBitmap): Uint8Array {
   const { width, height, pixels } = bitmap
-  const bands: Uint8Array[] = [align(0), command(ESC, 0x33, 24)]
-  for (let startY = 0; startY < height; startY += 24) {
-    const bandHeight = Math.min(24, height - startY)
-    const band = new Uint8Array(width * 3)
-    for (let x = 0; x < width; x += 1) {
-      for (let byteIndex = 0; byteIndex < 3; byteIndex += 1) {
-        let value = 0
-        for (let bit = 0; bit < 8; bit += 1) {
-          const y = startY + byteIndex * 8 + bit
-          if (y >= height || (y - startY) >= bandHeight) continue
-          if (pixels[y * width + x]) value |= (0x80 >> bit)
-        }
-        band[x * 3 + byteIndex] = value
+  const bytesPerRow = Math.ceil(width / 8)
+
+  // GS v 0 is the ESC/POS raster-bit-image command. It is much more consistently
+  // implemented by current 58 mm thermal printers than the legacy ESC * 24-dot
+  // command. Printers that do not fully support ESC * interpret the following
+  // bitmap bytes as ordinary text, which is exactly the long stream of strange
+  // characters seen when a dense QR area is present on the receipt.
+  //
+  // Send the image in modest vertical stripes rather than one very large command.
+  // This keeps generic printer input buffers stable on long receipts with one or
+  // more QR codes while producing a continuous image (GS v 0 advances by the
+  // stripe height itself, so no line feed is inserted between stripes).
+  const maxRowsPerStripe = 96
+  const parts: Uint8Array[] = [align(0)]
+
+  for (let startY = 0; startY < height; startY += maxRowsPerStripe) {
+    const stripeHeight = Math.min(maxRowsPerStripe, height - startY)
+    const stripe = new Uint8Array(bytesPerRow * stripeHeight)
+
+    for (let localY = 0; localY < stripeHeight; localY += 1) {
+      const sourceY = startY + localY
+      const targetRowOffset = localY * bytesPerRow
+      const sourceRowOffset = sourceY * width
+      for (let x = 0; x < width; x += 1) {
+        if (!pixels[sourceRowOffset + x]) continue
+        stripe[targetRowOffset + (x >> 3)] |= 0x80 >> (x & 7)
       }
     }
-    bands.push(
-      command(ESC, 0x2a, 33, width & 0xff, (width >> 8) & 0xff),
-      band,
-      lineFeed(),
+
+    parts.push(
+      command(
+        GS, 0x76, 0x30, 0x00,
+        bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
+        stripeHeight & 0xff, (stripeHeight >> 8) & 0xff,
+      ),
+      stripe,
     )
   }
-  bands.push(command(ESC, 0x32))
-  return concatBytes(...bands)
+
+  return concatBytes(...parts)
 }
 
 async function imageToEscPosRaster(
@@ -400,7 +417,7 @@ async function imageToEscPosRaster(
 ): Promise<Uint8Array | null> {
   const bitmap = await imageToMonochromeBitmap(source, maxWidth, options)
   if (!bitmap) return null
-  return monochromeBitmapToEscPosBitImage(bitmap)
+  return monochromeBitmapToEscPosRasterImage(bitmap)
 }
 
 /**

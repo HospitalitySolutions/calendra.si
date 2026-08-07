@@ -137,6 +137,9 @@ class SessionBookingGroupParticipantRemovalTest {
 
         verify(repo, times(1)).save(row);
         verify(repo, times(2)).save(any(SessionBooking.class));
+        // Staff removal now consumes the placeholder returned by the same core used
+        // by public cancellation instead of doing a third post-cancellation reload.
+        verify(repo, times(2)).findByBookingGroupKeyAndCompanyIdOrderByIdAsc("group-1", 1L);
         verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(List.of(299L)));
         verify(openBillSyncService).syncSessionGroup(1L, "group-1");
         verify(bookingChangePublisher).publish(
@@ -173,6 +176,9 @@ class SessionBookingGroupParticipantRemovalTest {
         assertEquals(69L, response.clients().getFirst().id());
         verify(repo, times(1)).save(removed);
         verify(repo, times(1)).save(any(SessionBooking.class));
+        // No new placeholder is created while another participant remains, so the
+        // normal grouped-row reload is still used for the returned UI state.
+        verify(repo, times(3)).findByBookingGroupKeyAndCompanyIdOrderByIdAsc("group-1", 1L);
         verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(List.of(299L)));
         verify(activityLogs, times(1)).recordUser(
                 eq(admin), eq(ActivityModule.CALENDAR), eq(ActivityAction.SESSION_PARTICIPANT_REMOVED),
