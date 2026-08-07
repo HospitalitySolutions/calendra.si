@@ -3,11 +3,17 @@ package com.example.app.session;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
@@ -31,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class SessionBookingGroupParticipantRemovalTest {
@@ -49,6 +56,7 @@ class SessionBookingGroupParticipantRemovalTest {
     @Mock private GoogleMeetService googleMeetService;
     @Mock private BookingChangePublisher bookingChangePublisher;
     @Mock private OpenBillSyncService openBillSyncService;
+    @Mock private ActivityLogService activityLogs;
 
     private SessionBookingCreationService service;
     private Company company;
@@ -74,6 +82,7 @@ class SessionBookingGroupParticipantRemovalTest {
                 bookingChangePublisher,
                 openBillSyncService
         );
+        ReflectionTestUtils.setField(service, "activityLogs", activityLogs);
 
         company = new Company();
         company.setId(1L);
@@ -113,6 +122,10 @@ class SessionBookingGroupParticipantRemovalTest {
         verify(repo, times(1)).save(any(SessionBooking.class));
         verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(java.util.Set.of(299L)));
         verify(openBillSyncService).syncSessionGroup(1L, "group-1");
+        verify(activityLogs, times(1)).recordUser(
+                eq(admin), eq(ActivityModule.CALENDAR), eq(ActivityAction.SESSION_PARTICIPANT_REMOVED),
+                eq("SESSION"), eq(299L), anyString(), eq("CLIENT"), eq(68L), eq("Andrej Novak"),
+                anyString(), isNull(), isNull(), anyMap());
     }
 
     @Test
@@ -137,6 +150,10 @@ class SessionBookingGroupParticipantRemovalTest {
         verify(repo, times(1)).save(removed);
         verify(repo, times(1)).save(any(SessionBooking.class));
         verify(openBillSyncService).removeSessionRowsFromOpenBills(eq(1L), eq(java.util.Set.of(299L)));
+        verify(activityLogs, times(1)).recordUser(
+                eq(admin), eq(ActivityModule.CALENDAR), eq(ActivityAction.SESSION_PARTICIPANT_REMOVED),
+                eq("SESSION"), eq(299L), anyString(), eq("CLIENT"), eq(68L), eq("Andrej Novak"),
+                anyString(), isNull(), isNull(), anyMap());
     }
 
     private Client client(Long id, String firstName, String lastName) {
