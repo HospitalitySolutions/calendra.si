@@ -63,6 +63,7 @@ billing/BillingController.java|@PostMapping(value="/bills/export/excel",produces
 billing/BillingController.java|@PostMapping(value="/bills/export/pdf-zip",produces="application/zip")|exportBillsPdfZip
 billing/BillingController.java|@PostMapping(value="/folio-layout/preview",produces=MediaType.IMAGE_PNG_VALUE)|previewFolioLayout
 billing/BillingController.java|@PostMapping(value="/folio/pdf",produces=MediaType.APPLICATION_PDF_VALUE)|folioPdf
+billing/BillingController.java|@PostMapping(value="/folio/pos58-raster",produces=MediaType.IMAGE_PNG_VALUE)|folioPos58Raster
 billing/BillingController.java|@PostMapping(value="/open-bills/{id}/preview-pdf",produces=MediaType.APPLICATION_PDF_VALUE)|previewOpenBillPdf
 billing/BillingController.java|@PutMapping("/folio-layout")|saveFolioLayout
 billing/BillingController.java|@PutMapping("/folio-layout-pos58")|savePos58FolioLayout
