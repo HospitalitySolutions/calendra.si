@@ -673,7 +673,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     if (result === 'EXPIRED') return locale === 'sl' ? 'Ugodnost je potekla.' : 'The entitlement has expired.'
     if (result === 'NO_VISITS_REMAINING') return locale === 'sl' ? 'Ugodnost nima več preostalih obiskov.' : 'No visits remain on this entitlement.'
     if (result === 'DUPLICATE_SCAN') return locale === 'sl' ? 'Ta ugodnost je bila pravkar uporabljena.' : 'This entitlement was just used.'
-    if (result === 'UNSUPPORTED_PAYMENT_ENTITLEMENT') return locale === 'sl' ? 'Za plačilo lahko uporabite samo vstopnice in pakete.' : 'Only tickets and packs can be used for payment.'
+    if (result === 'UNSUPPORTED_PAYMENT_ENTITLEMENT') return locale === 'sl' ? 'Za kritje termina lahko uporabite karte, pakete in članstva.' : 'Tickets, packs and memberships can cover a session.'
     if (result === 'SERVICE_TYPE_MISMATCH') return locale === 'sl' ? 'Ugodnost ni vezana na storitev tega termina.' : 'The entitlement is not linked to this session service.'
     if (result === 'PAYMENT_BOOKING_NOT_FOUND') return locale === 'sl' ? 'Termina za plačilo ni bilo mogoče najti.' : 'The payment booking could not be found.'
     if (result === 'PAYMENT_CLIENT_MISMATCH') return locale === 'sl' ? 'Ugodnost pripada drugemu klientu.' : 'The entitlement belongs to a different client.'
@@ -690,14 +690,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     if (locale === 'sl') {
       if (option?.entitlementType === 'PACK') return 'Paket'
       if (option?.entitlementType === 'TICKET') return 'Karta'
+      if (option?.entitlementType === 'MEMBERSHIP') return 'Članstvo'
       return 'Ugodnost'
     }
     if (option?.entitlementType === 'PACK') return 'Pack'
     if (option?.entitlementType === 'TICKET') return 'Ticket'
+    if (option?.entitlementType === 'MEMBERSHIP') return 'Membership'
     return 'Entitlement'
   }
 
   const bookedEntitlementWalletRemainingLabel = (option: any) => {
+    if (option?.entitlementType === 'MEMBERSHIP') {
+      const visitCount = Number(option?.visitCount)
+      if (Number.isFinite(visitCount)) {
+        return locale === 'sl' ? `${visitCount} obiskov` : `${visitCount} visits`
+      }
+      return locale === 'sl' ? 'Aktivno članstvo' : 'Active membership'
+    }
     const remaining = Number(option?.remainingUses)
     const total = Number(option?.totalUses)
     if (Number.isFinite(remaining) && Number.isFinite(total) && total > 0) {
@@ -757,6 +766,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       clientLabel: client ? fullName(client) : clientNameForStatus(status),
       amountGross: Number(status?.sessionTotalGross ?? 0) || 0,
       returnBookingId: Number(selectedBookedSession?.id ?? paymentBookingId),
+      openBillId: Number.isInteger(Number(status?.openBillId)) && Number(status?.openBillId) > 0 ? Number(status.openBillId) : null,
+      paymentStatus: status ?? null,
     })
     setBookedEntitlementStep('choice')
     setBookedEntitlementManualCode('')
@@ -836,12 +847,38 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           || data.entitlement?.productName
           || data.entitlement?.code
           || code
+
+        // /wallet-scanner/scan validates the prepaid entitlement. For a booked-session
+        // payment we then settle the participant open bill atomically. The service keeps
+        // its real value for reporting, but no second invoice is created.
+        let openBillId = Number(bookedEntitlementTarget.openBillId)
+        if (!Number.isInteger(openBillId) || openBillId <= 0) {
+          const currentStatus = bookedEntitlementTarget.paymentStatus
+            ?? (Number.isInteger(paymentClientId) && paymentClientId > 0 ? paymentStatusForClient(paymentClientId) : null)
+          openBillId = Number(await createOpenBillForPaymentStatus(currentStatus, { selectedOnly: true, suppressToast: true }))
+        }
+        if (!Number.isInteger(openBillId) || openBillId <= 0) {
+          throw new Error(locale === 'sl'
+            ? 'Odprtega računa za kritje z ugodnostjo ni bilo mogoče pripraviti.'
+            : 'Could not prepare the open bill for entitlement settlement.')
+        }
+
+        const settlement = await api.post(`/billing/open-bills/${openBillId}/settle-entitlement`, {
+          entitlementCode: data.entitlement?.code || code,
+          paymentBookingId,
+          ...(Number.isInteger(paymentClientId) && paymentClientId > 0 ? { paymentClientId } : {}),
+        })
+        const settledName = settlement?.data?.entitlementName || detail || (locale === 'sl' ? 'Ugodnost' : 'Entitlement')
         setBookedEntitlementScanResult({
           tone: 'success',
-          text: locale === 'sl' ? 'Ugodnost je uporabljena kot plačilo.' : 'Entitlement applied as payment.',
-          detail,
+          text: locale === 'sl' ? 'Termin je pokrit z ugodnostjo.' : 'Session covered by entitlement.',
+          detail: settledName,
         })
-        if (typeof showToast === 'function') showToast('success', locale === 'sl' ? 'Ugodnost je uporabljena kot plačilo.' : 'Entitlement applied as payment.')
+        if (typeof showToast === 'function') {
+          showToast('success', locale === 'sl'
+            ? `${settledName} je pokrila termin. Nov račun ni bil izdan.`
+            : `${settledName} covered the session. No new invoice was issued.`)
+        }
         stopBookedEntitlementCamera()
         await refreshBookedSessionAfterEntitlementScan()
         window.setTimeout(() => closeBookedEntitlementPaymentModal(), 650)
