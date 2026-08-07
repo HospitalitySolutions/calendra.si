@@ -1110,8 +1110,11 @@ public class SessionBookingController {
     }
 
     private List<BookingPaymentStatusResponse> computePaymentStatuses(List<SessionBooking> rows, PaymentStatusLookup lookup) {
+        boolean groupSession = rows != null && rows.stream().anyMatch(row -> row.getClientGroup() != null);
         var participantRows = rows == null ? List.<SessionBooking>of() : rows.stream()
                 .filter(row -> row.getId() != null && row.getClient() != null)
+                .filter(row -> !groupSession || !SessionBookingStatus.CANCELLED.equals(
+                        SessionBookingStatus.normalizeStored(row.getBookingStatus())))
                 .toList();
         if (participantRows.isEmpty()) {
             return List.of();
@@ -1371,8 +1374,20 @@ public class SessionBookingController {
             throw new IllegalArgumentException("rows are required");
         }
         var ordered = rows.stream().sorted((a, b) -> a.getId().compareTo(b.getId())).toList();
-        var representative = ordered.get(0);
-        var clientSummaries = ordered.stream()
+        boolean groupSession = ordered.stream().anyMatch(row -> row.getClientGroup() != null);
+        var visibleRows = groupSession
+                ? ordered.stream()
+                    .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                            SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                    .toList()
+                : ordered;
+        var representative = groupSession
+                ? visibleRows.stream()
+                    .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))
+                    .findFirst()
+                    .orElse(visibleRows.isEmpty() ? ordered.get(0) : visibleRows.get(0))
+                : ordered.get(0);
+        var clientSummaries = visibleRows.stream()
                 .map(SessionBooking::getClient)
                 .filter(Objects::nonNull)
                 .collect(
@@ -1436,7 +1451,7 @@ public class SessionBookingController {
         var bcOv = representative.getSessionGroupBillingCompany();
         GroupBillingCompanySummary bcSumm =
                 bcOv == null ? null : new GroupBillingCompanySummary(bcOv.getId(), bcOv.getName());
-        var payeeSummaries = ordered.stream()
+        var payeeSummaries = visibleRows.stream()
                 .filter(row -> row.getClient() != null)
                 .map(row -> {
                     String payeeType = normalizePayeeTypeForResponse(row.getPayeeType());

@@ -1061,27 +1061,6 @@ public class ReminderService {
     }
 
 
-    // #region agent log
-    private static void agentDebugLog(String location, String message, String hypothesisId, Map<String, Object> data) {
-        try {
-            ObjectNode node = JSON.createObjectNode();
-            node.put("sessionId", "626d61");
-            node.put("timestamp", System.currentTimeMillis());
-            node.put("location", location);
-            node.put("message", message);
-            node.put("hypothesisId", hypothesisId);
-            node.set("data", JSON.valueToTree(data));
-            java.nio.file.Files.writeString(
-                    java.nio.file.Path.of("C:/DEVELOPMENT/Projects/calendra.si/debug-626d61.log"),
-                    node.toString() + System.lineSeparator(),
-                    StandardCharsets.UTF_8,
-                    java.nio.file.StandardOpenOption.CREATE,
-                    java.nio.file.StandardOpenOption.APPEND);
-        } catch (Exception ignored) {
-        }
-    }
-    // #endregion
-
     private void addPublicBookingManageTokensIfRequested(
             SessionBooking booking,
             NotificationKind kind,
@@ -1102,12 +1081,6 @@ public class ReminderService {
                 || booking.getClient().getEmail() == null
                 || booking.getClient().getEmail().isBlank()
                 || (kind != NotificationKind.NEW_SESSION && kind != NotificationKind.CHANGE_SESSION)) {
-            // #region agent log
-            agentDebugLog("ReminderService.addPublicBookingManageTokensIfRequested:guard1", "early exit: booking/client/kind guard", "A,B,C", Map.of(
-                    "kind", String.valueOf(kind),
-                    "bookingNull", booking == null,
-                    "clientNull", booking == null || booking.getClient() == null));
-            // #endregion
             return;
         }
 
@@ -1135,22 +1108,6 @@ public class ReminderService {
                     && canUsePublicManageAction(booking, rules.rescheduleUntilHours());
             boolean canCancel = rules.cancellationAllowed()
                     && canUsePublicManageAction(booking, rules.cancelUntilHours());
-            // #region agent log
-            Map<String, Object> gateData = new LinkedHashMap<>();
-            gateData.put("bookingId", String.valueOf(booking.getId()));
-            gateData.put("startTime", String.valueOf(booking.getStartTime()));
-            gateData.put("bookingStatus", String.valueOf(booking.getBookingStatus()));
-            gateData.put("modificationAllowed", rules.modificationAllowed());
-            gateData.put("cancellationAllowed", rules.cancellationAllowed());
-            gateData.put("rescheduleUntilHours", rules.rescheduleUntilHours());
-            gateData.put("cancelUntilHours", rules.cancelUntilHours());
-            gateData.put("canUseForReschedule", canUsePublicManageAction(booking, rules.rescheduleUntilHours()));
-            gateData.put("canUseForCancel", canUsePublicManageAction(booking, rules.cancelUntilHours()));
-            gateData.put("clientGroupNull", booking.getClientGroup() == null);
-            gateData.put("canModify", canModify);
-            gateData.put("canCancel", canCancel);
-            agentDebugLog("ReminderService.addPublicBookingManageTokensIfRequested:gates", "manage button gates", "A,B,C", gateData);
-            // #endregion
             if (!canModify && !canCancel) {
                 clearPublicBookingManageTokens(tokens);
                 return;
@@ -1289,10 +1246,6 @@ public class ReminderService {
 
         String prepared = normalizeRichTextTemplateTokens(input, tokens == null ? Map.of() : tokens);
         boolean htmlTemplate = containsHtmlMarkup(prepared);
-        // #region agent log
-        boolean preModify = prepared.contains(MODIFY_BUTTON_TOKEN);
-        boolean preCancel = prepared.contains(CANCEL_BUTTON_TOKEN);
-        // #endregion
         for (String token : CONDITIONAL_MANAGE_EMAIL_TOKENS) {
             String value = tokens == null ? "" : tokens.getOrDefault(token, "");
             if (value != null && !value.isBlank()) {
@@ -1303,18 +1256,6 @@ public class ReminderService {
                     : removePlainTextLinesContainingToken(prepared, token);
         }
 
-        // #region agent log
-        Map<String, Object> renderData = new LinkedHashMap<>();
-        renderData.put("htmlTemplate", htmlTemplate);
-        renderData.put("templateContainsModifyTokenAfterNormalize", preModify);
-        renderData.put("templateContainsCancelTokenAfterNormalize", preCancel);
-        renderData.put("modifyTokenValueBlank", tokens == null || tokens.getOrDefault(MODIFY_BUTTON_TOKEN, "").isBlank());
-        renderData.put("cancelTokenValueBlank", tokens == null || tokens.getOrDefault(CANCEL_BUTTON_TOKEN, "").isBlank());
-        renderData.put("preparedStillContainsModifyToken", prepared.contains(MODIFY_BUTTON_TOKEN));
-        renderData.put("preparedStillContainsCancelToken", prepared.contains(CANCEL_BUTTON_TOKEN));
-        renderData.put("rawInputSnippet", input.length() > 600 ? input.substring(0, 600) : input);
-        agentDebugLog("ReminderService.renderEmailTemplateBody", "token presence around conditional removal", "D", renderData);
-        // #endregion
         String rendered = replaceTokens(prepared, tokens == null ? Map.of() : tokens);
         if (containsHtmlMarkup(rendered)) {
             return cleanupEmptyEmailHtml(rendered);
@@ -1441,15 +1382,6 @@ public class ReminderService {
         String safeBody = emailLayoutRenderer != null
                 ? emailLayoutRenderer.render(company, html)
                 : normalizeEmailTemplateHtml(html);
-        // #region agent log
-        Map<String, Object> mailData = new LinkedHashMap<>();
-        mailData.put("bodyBeforeLayoutContainsModifyLabel", html != null && html.contains("Spremeni termin"));
-        mailData.put("bodyBeforeLayoutContainsCancelLabel", html != null && html.contains("Odpovej termin"));
-        mailData.put("finalBodyContainsModifyLabel", safeBody.contains("Spremeni termin"));
-        mailData.put("finalBodyContainsCancelLabel", safeBody.contains("Odpovej termin"));
-        mailData.put("subject", subject);
-        agentDebugLog("ReminderService.sendHtmlMail", "button labels before/after layout render", "E", mailData);
-        // #endregion
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
         applyClientSender(helper, company);
