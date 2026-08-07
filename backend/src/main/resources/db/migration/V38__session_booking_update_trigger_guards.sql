@@ -19,12 +19,14 @@ BEGIN
         SELECT location_id INTO space_location_id FROM space
          WHERE id = NEW.space_id AND company_id = NEW.company_id;
         IF space_location_id IS NULL THEN
-            RAISE EXCEPTION 'Booking space % does not belong to company %', NEW.space_id, NEW.company_id;
+            RAISE EXCEPTION 'Booking space % does not belong to company %', NEW.space_id, NEW.company_id
+                USING ERRCODE = '23514';
         END IF;
         IF NEW.location_id IS NULL THEN
             NEW.location_id := space_location_id;
         ELSIF NEW.location_id <> space_location_id THEN
-            RAISE EXCEPTION 'Booking space % belongs to location %, not %', NEW.space_id, space_location_id, NEW.location_id;
+            RAISE EXCEPTION 'Booking space % belongs to location %, not %', NEW.space_id, space_location_id, NEW.location_id
+                USING ERRCODE = '23514';
         END IF;
     END IF;
 
@@ -36,7 +38,8 @@ BEGIN
 
     SELECT company_id INTO expected_company_id FROM locations WHERE id = NEW.location_id;
     IF expected_company_id IS NULL OR expected_company_id <> NEW.company_id THEN
-        RAISE EXCEPTION 'Booking location % does not belong to company %', NEW.location_id, NEW.company_id;
+        RAISE EXCEPTION 'Booking location % does not belong to company %', NEW.location_id, NEW.company_id
+            USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
 END;
