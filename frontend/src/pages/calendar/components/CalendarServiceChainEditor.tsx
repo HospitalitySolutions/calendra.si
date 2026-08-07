@@ -286,7 +286,9 @@ export function CalendarServiceChainEditor({
   const displayedTotalGross = totalGross == null ? null : totalGross * totalMultiplier
 
   const sortedSessionTypes = useMemo(
-    () => [...sessionTypes].sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || ''), locale)),
+    () => [...sessionTypes].sort((left, right) =>
+      serviceDescription(left, locale).localeCompare(serviceDescription(right, locale), locale, { sensitivity: 'base', numeric: true }),
+    ),
     [locale, sessionTypes],
   )
 

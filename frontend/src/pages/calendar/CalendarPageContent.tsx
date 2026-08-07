@@ -219,6 +219,8 @@ const buildRecurringBookingIntervals = (
   return intervals
 }
 
+const CALENDAR_SWIPE_MIN_DISTANCE_PX = 50
+
 const MOBILE_SWIPE_CALENDAR_VIEWS = new Set([
   'timeGridDay',
   'resourceTimeGridDay',
@@ -815,7 +817,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [calendarToolbarTitle, setCalendarToolbarTitle] = useState('')
   const swipeHandlersRef = useRef<{ move: Function | null; end: Function | null }>({ move: null, end: null })
   const swipeWrapRef = useRef<HTMLDivElement>(null)
-  const swipeVelocityRef = useRef({ lastX: 0, lastT: 0, vx: 0 })
   const calendarHeaderCompact = useCalendarCompactHeader()
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   const compactCalendarFormLayout = useCalendarFormPageLayout()
@@ -823,8 +824,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarFormPageLayout = true
   const calendarDateNavArrowsInRail = useCalendarDateNavArrowsInRail()
   const calendarMobileHeaderNav = useCalendarMobileHeaderNav()
-  const calendarSwipeNavigationEnabled =
-    calendarFiltersBottomBar && MOBILE_SWIPE_CALENDAR_VIEWS.has(view)
+  const calendarSwipeNavigationEnabled = MOBILE_SWIPE_CALENDAR_VIEWS.has(view)
   const calendarToolbarMonthLabel = useMemo(() => {
     const api = calendarRef.current?.getApi()
     const d = api?.getDate()
@@ -1345,34 +1345,38 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (isCalendarSwipeBlockedTarget(target)) return
     if (isDraggingEventRef.current || pinchZoomRef.current > 1.001) return
     if ('touches' in e && e.touches.length !== 1) return
+    if (!('touches' in e) && e.button !== 0) return
     const t = 'touches' in e ? e.touches[0] : e
     calendarSwipeStartRef.current = { x: t.clientX, y: t.clientY }
     calendarSwipeAxisDecidedRef.current = false
     calendarSwipeIsHorizontalRef.current = false
+    calendarSlideDirRef.current = 0
 
-    // To prevent swipes freezing if FullCalendar detaches the target element mid-swipe (e.g. crossing weeks over an event block),
-    // we attach an immutable fallback native event listener specifically to this target node ensuring smooth continuation!
+    // Keep tracking even when FullCalendar replaces the element below the pointer.
+    // Touch can stay scoped to the gesture target; mouse tracking is attached to document
+    // so dragging beyond the calendar bounds still completes cleanly.
     if (target) {
+      const listenerHost: EventTarget = 'touches' in e ? target : document
       const onNativeMove = (ev: Event) => swipeHandlersRef.current.move?.(ev)
       const onNativeEnd = (ev: Event) => {
         swipeHandlersRef.current.end?.(ev)
-        target.removeEventListener('touchmove', onNativeMove)
-        target.removeEventListener('mousemove', onNativeMove)
-        target.removeEventListener('touchend', onNativeEnd)
-        target.removeEventListener('touchcancel', onNativeEnd)
-        target.removeEventListener('mouseup', onNativeEnd)
+        listenerHost.removeEventListener('touchmove', onNativeMove)
+        listenerHost.removeEventListener('mousemove', onNativeMove)
+        listenerHost.removeEventListener('touchend', onNativeEnd)
+        listenerHost.removeEventListener('touchcancel', onNativeEnd)
+        listenerHost.removeEventListener('mouseup', onNativeEnd)
       }
-      target.addEventListener('touchmove', onNativeMove, { passive: true })
-      target.addEventListener('mousemove', onNativeMove, { passive: true })
-      target.addEventListener('touchend', onNativeEnd, { passive: true })
-      target.addEventListener('touchcancel', onNativeEnd, { passive: true })
-      target.addEventListener('mouseup', onNativeEnd, { passive: true })
+      listenerHost.addEventListener('touchmove', onNativeMove, { passive: true })
+      listenerHost.addEventListener('mousemove', onNativeMove, { passive: true })
+      listenerHost.addEventListener('touchend', onNativeEnd, { passive: true })
+      listenerHost.addEventListener('touchcancel', onNativeEnd, { passive: true })
+      listenerHost.addEventListener('mouseup', onNativeEnd, { passive: true })
     }
   }, [calendarSwipeNavigationEnabled, isCalendarSwipeBlockedTarget])
 
   const handleCalendarSwipeTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | null
-    if (isCalendarSwipeBlockedTarget(target)) return
+    if (isCalendarSwipeBlockedTarget(target) && !calendarSwipeStartRef.current) return
     if (isDraggingEventRef.current) {
       isDraggingEventRef.current = false
       dragEdgeSideRef.current = 0
@@ -1431,12 +1435,15 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       const screenW = getCalendarSwipeWidth()
       const wrap = swipeWrapRef.current
 
-      const velocity = swipeVelocityRef.current.vx
-      const VELOCITY_THRESHOLD = 0.3
-      const DISTANCE_THRESHOLD = Math.min(96, Math.max(48, screenW * 0.16))
-      const fastFlick = Math.abs(velocity) > VELOCITY_THRESHOLD
-      const flickAgainstDir = (dir < 0 && velocity > 0) || (dir > 0 && velocity < 0)
-      const shouldSnapBack = dir === 0 || (Math.abs(dx) < DISTANCE_THRESHOLD && !(fastFlick && !flickAgainstDir))
+      const shouldSnapBack = dir === 0 || Math.abs(dx) < CALENDAR_SWIPE_MIN_DISTANCE_PX
+
+      // FullCalendar also listens for mouse drags to create selections. Keep the
+      // completed horizontal gesture from opening a new appointment.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          suppressNextCalendarSelectionRef.current = false
+        })
+      })
 
       if (wrap) {
         wrap.classList.remove('calendar-is-swiping')
@@ -1483,8 +1490,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       return
     }
 
-    const minDx = 56
-    if (Math.abs(dx) < minDx || Math.abs(dx) < Math.abs(dy) * 1.15) return
+    if (Math.abs(dx) < CALENDAR_SWIPE_MIN_DISTANCE_PX || Math.abs(dx) < Math.abs(dy) * 1.15) return
     navigateCalendar(dx > 0 ? -1 : 1)
   }, [cleanupDragArtifacts, getCalendarSwipeWidth, isCalendarSwipeBlockedTarget, navigateCalendar])
 
@@ -1537,6 +1543,9 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           return
         }
         if (calendarSwipeIsHorizontalRef.current) {
+          suppressNextCalendarSelectionRef.current = true
+          calendarRef.current?.getApi()?.unselect()
+          setDragSelection(null)
           const dir = dx > 0 ? -1 : 1
           calendarSlideDirRef.current = dir
           const screenW = getCalendarSwipeWidth()
@@ -1560,7 +1569,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           setCalendarIsSwiping(true)
           setSwipeTransitionActive(true)
 
-          swipeVelocityRef.current = { lastX: t.clientX, lastT: performance.now(), vx: 0 }
         }
       }
     }
@@ -1571,15 +1579,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
 
       swipeWrapRef.current?.style.setProperty('--calendar-slide-x', `${liveOffset}px`)
       calendarSnapshotRef.current?.style.setProperty('--calendar-slide-clone', `${dx}px`)
-
-      const now = performance.now()
-      const dt = now - swipeVelocityRef.current.lastT
-      if (dt > 0) {
-        const instantVx = (t.clientX - swipeVelocityRef.current.lastX) / dt
-        swipeVelocityRef.current.vx = 0.7 * instantVx + 0.3 * swipeVelocityRef.current.vx
-      }
-      swipeVelocityRef.current.lastX = t.clientX
-      swipeVelocityRef.current.lastT = now
     }
   }, [createCalendarSnapshot, getCalendarSwipeWidth, handleDragEdgeAutoNavigate])
 
@@ -1679,6 +1678,11 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (!isDraggingEventRef.current) return
     handleDragEdgeAutoNavigate(e.clientX)
   }, [updateCalendarHoverRow, clearForcedHoverRow, handleDragEdgeAutoNavigate])
+
+  const handleCalendarWebMouseMove = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    handleCalendarTouchMove(e)
+    handleCalendarMouseMove(e)
+  }, [handleCalendarMouseMove, handleCalendarTouchMove])
 
   const handleCalendarMouseLeave = useCallback(() => {
     clearForcedHoverRow()
@@ -6670,15 +6674,17 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }, [loadCalendarRangeOnly, location.pathname, location.search, navigate, notifyBookingAndClientRecordsChanged, selectedBookedSession, useBookingSidePanel])
 
   const visibleClients = useMemo(() => {
-    const q = clientSearch.trim().toLowerCase()
-    const active = metaClients.filter((c: any) => c.active !== false)
+    const q = clientSearch.trim().toLocaleLowerCase(locale)
+    const active = metaClients
+      .filter((c: any) => c.active !== false)
+      .sort((left: any, right: any) => fullName(left).localeCompare(fullName(right), locale, { sensitivity: 'base', numeric: true }))
     if (!q) return active
     return active.filter((c: any) =>
-      `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q) ||
-      (c.phone || '').toLowerCase().includes(q)
+      fullName(c).toLocaleLowerCase(locale).includes(q) ||
+      (c.email || '').toLocaleLowerCase(locale).includes(q) ||
+      (c.phone || '').toLocaleLowerCase(locale).includes(q)
     )
-  }, [metaClients, clientSearch])
+  }, [metaClients, clientSearch, locale])
 
   const visibleGroups = useMemo(() => {
     const q = groupSearch.trim().toLowerCase()
@@ -6696,15 +6702,17 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const bookSessionGroupFieldCompact = !!selectedGroup && !editingGroupSearch
 
   const visibleBookedClients = useMemo(() => {
-    const q = bookedClientSearch.trim().toLowerCase()
-    const active = metaClients.filter((c: any) => c.active !== false)
+    const q = bookedClientSearch.trim().toLocaleLowerCase(locale)
+    const active = metaClients
+      .filter((c: any) => c.active !== false)
+      .sort((left: any, right: any) => fullName(left).localeCompare(fullName(right), locale, { sensitivity: 'base', numeric: true }))
     if (!q) return active
     return active.filter((c: any) =>
-      `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q) ||
-      (c.phone || '').toLowerCase().includes(q)
+      fullName(c).toLocaleLowerCase(locale).includes(q) ||
+      (c.email || '').toLocaleLowerCase(locale).includes(q) ||
+      (c.phone || '').toLocaleLowerCase(locale).includes(q)
     )
-  }, [metaClients, bookedClientSearch])
+  }, [metaClients, bookedClientSearch, locale])
 
   const voiceReviewSelectedClient = useMemo(() => {
     if (voiceReviewClientId == null) return null
@@ -12472,7 +12480,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           onTouchEndCapture={handleCalendarSwipeTouchEnd}
           onTouchCancelCapture={clearDraggingState}
           onTouchMoveCapture={handleCalendarTouchMove}
-          onMouseMoveCapture={!isNativeAndroid ? handleCalendarMouseMove : undefined}
+          onMouseDownCapture={!isNativeAndroid ? handleCalendarSwipeTouchStart : undefined}
+          onMouseUpCapture={!isNativeAndroid ? handleCalendarSwipeTouchEnd : undefined}
+          onMouseMoveCapture={!isNativeAndroid ? handleCalendarWebMouseMove : undefined}
           onMouseLeave={!isNativeAndroid ? () => {
             handleCalendarMouseLeave()
             clearDraggingState()
@@ -13083,6 +13093,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           selectMinDistance={0}
           selectAllow={(info) => {
             if (workspaceCalendarReadOnly) return false
+            if (suppressNextCalendarSelectionRef.current) {
+              setDragSelection(null)
+              return false
+            }
             if (!isNativeAndroid && sessionQuickActions) {
               setSessionQuickActions(null)
               setDragSelection(null)

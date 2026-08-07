@@ -1646,7 +1646,11 @@ a.config-nav-item {
 }
 
 @media (max-width: 1024px) {
-    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-settings-panel {
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-settings-panel[hidden] {
+        display: none;
+    }
+
+    .config-shell--modules-mobile .modules-design-group-card--id-other .modules-design-settings-panel:not([hidden]) {
         display: block;
         margin: 0;
         border: 0;

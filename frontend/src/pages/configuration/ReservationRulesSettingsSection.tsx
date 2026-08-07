@@ -1,7 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale } from "../../locale";
 import { GuestSwitch } from "./ConfigurationVisualComponents";
+import { useMobileKeyboardOpen } from "../../hooks/useMobileKeyboardOpen";
 
 export const TENANT_RESERVATION_RULES_KEY = "TENANT_RESERVATION_RULES_JSON";
 
@@ -10,6 +11,7 @@ type ReservationRulesSettingsSectionProps = {
   setSettings: Dispatch<SetStateAction<Record<string, string>>>;
   saving: boolean;
   onSave: () => void | Promise<void>;
+  hasChanges: boolean;
 };
 
 type ReservationRules = {
@@ -195,9 +197,27 @@ export function ReservationRulesSettingsSection({
   setSettings,
   saving,
   onSave,
+  hasChanges,
 }: ReservationRulesSettingsSectionProps) {
   const { locale } = useLocale();
   const text = TEXT[locale === 'sr' ? 'sl' : locale];
+  const keyboardOpen = useMobileKeyboardOpen(1024);
+  const [isMobileTablet, setIsMobileTablet] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 1024px)').matches
+      : false,
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(max-width: 1024px)');
+    const sync = () => setIsMobileTablet(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  const showSavebar = !isMobileTablet || (hasChanges && !keyboardOpen);
   const rules = useMemo(
     () => parseTenantReservationRules(settings[TENANT_RESERVATION_RULES_KEY]),
     [settings],
@@ -338,16 +358,18 @@ export function ReservationRulesSettingsSection({
         </article>
       </div>
 
-      <div className="general-settings-savebar reservation-rules-savebar">
-        <button
-          type="button"
-          className="general-settings-save-button"
-          onClick={() => void onSave()}
-          disabled={saving}
-        >
-          {saving ? text.saving : text.save}
-        </button>
-      </div>
+      {showSavebar ? (
+        <div className="general-settings-savebar reservation-rules-savebar">
+          <button
+            type="button"
+            className="general-settings-save-button"
+            onClick={() => void onSave()}
+            disabled={saving}
+          >
+            {saving ? text.saving : text.save}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

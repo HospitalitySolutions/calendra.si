@@ -152,6 +152,11 @@ import type {
 } from "./configuration/guestWebsiteSettings";
 
 import { ReservationRulesTabbedSettings } from "./configuration/ReservationRulesTabbedSettings";
+import {
+  TENANT_RESERVATION_RULES_KEY,
+  parseTenantReservationRules,
+  serializeTenantReservationRules,
+} from "./configuration/ReservationRulesSettingsSection";
 import { ConfigurationCustomFieldsSection } from "./configuration/ConfigurationCustomFieldsSection";
 
 import {
@@ -172,6 +177,9 @@ import {
   type ModulesDraft,
   type ModulesStringKey,
 } from "./configuration/moduleSettings";
+
+const reservationRulesSnapshot = (raw: string | undefined) =>
+  serializeTenantReservationRules(parseTenantReservationRules(raw));
 
 type Tab =
   | "company"
@@ -1351,6 +1359,7 @@ export function ConfigurationPage() {
     useState(false);
   const [modulesDraft, setModulesDraft] = useState<ModulesDraft | null>(null);
   const committedConfigurationSnapshotRef = useRef("");
+  const committedReservationRulesRef = useRef("");
   const [expandedModuleRows, setExpandedModuleRows] = useState<string[]>(
     DEFAULT_EXPANDED_MODULE_ROWS,
   );
@@ -3184,6 +3193,7 @@ export function ConfigurationPage() {
       nextGuestApp,
       nextPersonalTaskPresets,
     );
+    committedReservationRulesRef.current = reservationRulesSnapshot(nextSettings[TENANT_RESERVATION_RULES_KEY]);
     setSettings(nextSettings);
     setSubscriptionBillingInterval(
       String(
@@ -3750,6 +3760,7 @@ export function ConfigurationPage() {
         persistedGuestApp,
         persistedPersonalTaskPresets,
       );
+      committedReservationRulesRef.current = reservationRulesSnapshot(merged[TENANT_RESERVATION_RULES_KEY]);
       setSettings(merged);
       setGuestAppSettings(persistedGuestApp);
       setPersonalTaskPresets(persistedPersonalTaskPresets);
@@ -13908,6 +13919,7 @@ export function ConfigurationPage() {
                   saving={savingSettings}
                   onSave={() => saveSettings()}
                   waitlistEnabled={waitlistEnabledCommitted}
+                  hasChanges={reservationRulesSnapshot(settings[TENANT_RESERVATION_RULES_KEY]) !== committedReservationRulesRef.current}
                 />
               ) : tab === "customFields" ? (
                 <ConfigurationCustomFieldsSection />

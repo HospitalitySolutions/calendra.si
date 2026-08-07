@@ -11,6 +11,7 @@ type ReservationRulesTabbedSettingsProps = {
   saving: boolean;
   onSave: () => void | Promise<void>;
   waitlistEnabled: boolean;
+  hasChanges: boolean;
 };
 
 type ReservationRulesSubtab = "reservations" | "waitlist";
@@ -21,6 +22,7 @@ export function ReservationRulesTabbedSettings({
   saving,
   onSave,
   waitlistEnabled,
+  hasChanges,
 }: ReservationRulesTabbedSettingsProps) {
   const { locale } = useLocale();
   const [activeSubtab, setActiveSubtab] =
@@ -109,6 +111,7 @@ export function ReservationRulesTabbedSettings({
             setSettings={setSettings}
             saving={saving}
             onSave={onSave}
+            hasChanges={hasChanges}
           />
         </Card>
       </div>
