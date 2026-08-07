@@ -68,8 +68,12 @@ public class SessionBookingCreationService {
             node.put("message", message);
             node.set("data", JSON.valueToTree(data));
             node.put("timestamp", System.currentTimeMillis());
+            boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+            java.nio.file.Path logPath = windows
+                    ? java.nio.file.Path.of("C:/DEVELOPMENT/Projects/calendra.si/debug-626d61.log")
+                    : java.nio.file.Path.of("/tmp/debug-626d61.log");
             java.nio.file.Files.writeString(
-                    java.nio.file.Path.of("C:/DEVELOPMENT/Projects/calendra.si/debug-626d61.log"),
+                    logPath,
                     node.toString() + System.lineSeparator(),
                     java.nio.charset.StandardCharsets.UTF_8,
                     java.nio.file.StandardOpenOption.CREATE,
