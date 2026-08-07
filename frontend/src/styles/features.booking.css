@@ -8363,3 +8363,31 @@ button.session-type-color-swatch span {
 .linked-entity-modal-footer {
     justify-content: flex-end !important;
 }
+
+/* Local price editing for billing services linked to a calendar service. */
+.linked-entity-option--service-picker {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+    cursor: pointer;
+}
+
+.linked-entity-option--service-picker.is-disabled {
+    cursor: default;
+}
+
+.linked-entity-option-edit {
+    justify-self: end;
+    white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+    .linked-entity-option--service-picker {
+        grid-template-columns: auto auto minmax(0, 1fr);
+    }
+
+    .linked-entity-option--service-picker .linked-entity-option-meta,
+    .linked-entity-option--service-picker .linked-entity-option-badge,
+    .linked-entity-option--service-picker .linked-entity-option-edit {
+        grid-column: 3;
+        justify-self: start;
+    }
+}

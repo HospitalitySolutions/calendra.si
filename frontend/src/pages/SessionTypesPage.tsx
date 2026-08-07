@@ -86,7 +86,7 @@ type TypeServiceLine = { transactionServiceId: number; price: string };
 
 type ServiceTypeModalTab = "basic" | "services" | "booking" | "group";
 type LinkedEntityModalTab = "existing" | "create";
-type LinkedEntityModalAction = "link" | "edit";
+type LinkedEntityModalAction = "link" | "edit" | "linked-price";
 
 type PriceCalculationMode = "PER_CLIENT" | "TOTAL";
 
@@ -814,6 +814,8 @@ export function SessionTypesPage() {
   const [serviceModalAction, setServiceModalAction] =
     useState<LinkedEntityModalAction>("link");
   const [selectedBillingServiceId, setSelectedBillingServiceId] =
+    useState<number | null>(null);
+  const [editingLinkedServiceIndex, setEditingLinkedServiceIndex] =
     useState<number | null>(null);
   const [servicePickerQuery, setServicePickerQuery] = useState("");
   const [serviceForm, setServiceForm] = useState<ServiceFormState>({
@@ -1851,6 +1853,51 @@ export function SessionTypesPage() {
   const serviceSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
+
+    if (serviceModalAction === "linked-price") {
+      if (selectedBillingServiceId == null) return;
+      // When editing a price from the existing-service picker, allow the default
+      // price to be accepted unchanged so the service can still be linked.
+      if (editingLinkedServiceIndex != null && !isServiceFormDirty) return;
+      const localGrossPrice = serviceForm.grossPrice.trim();
+      setTypeForm((current) => {
+        if (editingLinkedServiceIndex != null) {
+          if (!current.serviceLines[editingLinkedServiceIndex]) return current;
+          return {
+            ...current,
+            serviceLines: current.serviceLines.map((line, index) =>
+              index === editingLinkedServiceIndex
+                ? { ...line, price: localGrossPrice }
+                : line,
+            ),
+          };
+        }
+        if (
+          current.serviceLines.some(
+            (line) => line.transactionServiceId === selectedBillingServiceId,
+          )
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          serviceLines: [
+            ...current.serviceLines,
+            {
+              transactionServiceId: selectedBillingServiceId,
+              price: localGrossPrice,
+            },
+          ],
+        };
+      });
+      setShowServiceModal(false);
+      setEditingLinkedServiceIndex(null);
+      setSelectedBillingServiceId(null);
+      setServicePickerQuery("");
+      setServiceFormSnapshot(null);
+      return;
+    }
+
     if (!isServiceFormDirty) return;
     const netPrice = netFromGross(
       parseDecimalInput(serviceForm.grossPrice),
@@ -2112,6 +2159,7 @@ export function SessionTypesPage() {
   };
 
   const openServiceEdit = (s: BillingService) => {
+    setEditingLinkedServiceIndex(null);
     setEditingServiceId(s.id);
     const next: ServiceFormState = {
       description: s.description,
@@ -2789,6 +2837,7 @@ export function SessionTypesPage() {
   };
 
   const prepareNewServiceModal = (action: LinkedEntityModalAction) => {
+    setEditingLinkedServiceIndex(null);
     setEditingServiceId(null);
     const empty: ServiceFormState = {
       description: "",
@@ -2813,6 +2862,7 @@ export function SessionTypesPage() {
   const openNewLinkedServiceModal = () => prepareNewServiceModal("link");
 
   const openServiceLinkModal = () => {
+    setEditingLinkedServiceIndex(null);
     setEditingServiceId(null);
     const empty: ServiceFormState = {
       description: "",
@@ -2827,6 +2877,31 @@ export function SessionTypesPage() {
     setServiceModalTab("existing");
     setSelectedBillingServiceId(null);
     setServicePickerQuery("");
+    setShowServiceModal(true);
+  };
+
+  const openLinkedServicePriceEdit = (
+    service: BillingService,
+    lineIndex: number | null,
+    currentGrossPrice?: string,
+  ) => {
+    const grossPrice =
+      currentGrossPrice?.trim() ||
+      grossPriceStringFromNet(Number(service.netPrice), service.taxRate);
+    const next: ServiceFormState = {
+      description: service.description,
+      taxRate: service.taxRate,
+      grossPrice,
+      advanceDeduction: advanceDeductionIds.has(service.id),
+      noShow: noShowModuleEnabled && configuredNoShowServiceId === service.id,
+    };
+    setEditingLinkedServiceIndex(lineIndex);
+    setEditingServiceId(null);
+    setSelectedBillingServiceId(service.id);
+    setServiceForm(next);
+    setServiceFormSnapshot({ ...next });
+    setServiceModalAction("linked-price");
+    setServiceModalTab("create");
     setShowServiceModal(true);
   };
 
@@ -2884,6 +2959,7 @@ export function SessionTypesPage() {
   const dismissServiceModal = () => {
     setShowServiceModal(false);
     setEditingServiceId(null);
+    setEditingLinkedServiceIndex(null);
     setServiceFormSnapshot(null);
     setSelectedBillingServiceId(null);
     setServicePickerQuery("");
@@ -3987,7 +4063,13 @@ export function SessionTypesPage() {
                               <button
                                 type="button"
                                 className="secondary slim-btn"
-                                onClick={() => openServiceEdit(linkedService)}
+                                onClick={() =>
+                                  openLinkedServicePriceEdit(
+                                    linkedService,
+                                    idx,
+                                    line.price,
+                                  )
+                                }
                               >
                                 {locale === "sl" ? "Uredi" : "Edit"}
                               </button>
@@ -4597,26 +4679,34 @@ export function SessionTypesPage() {
                 </span>
                 <div>
                   <h2>
-                    {editingServiceId
-                      ? t("sessionTypesTxModalEditTitle")
-                      : serviceModalAction === "link"
-                        ? locale === "sl"
-                          ? "Obračunska storitev"
-                          : "Billing service"
-                        : t("sessionTypesTxModalNewTitle")}
+                    {serviceModalAction === "linked-price"
+                      ? locale === "sl"
+                        ? "Cena obračunske storitve"
+                        : "Billing service price"
+                      : editingServiceId
+                        ? t("sessionTypesTxModalEditTitle")
+                        : serviceModalAction === "link"
+                          ? locale === "sl"
+                            ? "Obračunska storitev"
+                            : "Billing service"
+                          : t("sessionTypesTxModalNewTitle")}
                   </h2>
                   <p>
-                    {editingServiceId
+                    {serviceModalAction === "linked-price"
                       ? locale === "sl"
-                        ? "Posodobite podatke obračunske storitve."
-                        : "Update the billing service details."
-                      : serviceModalAction === "link"
+                        ? "Ta cena velja samo za izbrano storitev. Osnovna obračunska storitev se ne spremeni."
+                        : "This price applies only to the selected service. The base billing service is not changed."
+                      : editingServiceId
                         ? locale === "sl"
-                          ? "Dodajte obstoječo obračunsko storitev ali ustvarite novo."
-                          : "Add an existing billing service or create a new one."
-                        : locale === "sl"
-                          ? "Ustvarite novo obračunsko storitev."
-                          : "Create a new billing service."}
+                          ? "Posodobite podatke obračunske storitve."
+                          : "Update the billing service details."
+                        : serviceModalAction === "link"
+                          ? locale === "sl"
+                            ? "Dodajte obstoječo obračunsko storitev ali ustvarite novo."
+                            : "Add an existing billing service or create a new one."
+                          : locale === "sl"
+                            ? "Ustvarite novo obračunsko storitev."
+                            : "Create a new billing service."}
                   </p>
                 </div>
               </div>
@@ -4669,7 +4759,44 @@ export function SessionTypesPage() {
               </div>
             ) : null}
 
-            {serviceModalTab === "existing" &&
+            {serviceModalAction === "linked-price" ? (
+              <form
+                id="transaction-service-edit-form"
+                className="transaction-service-modal-body"
+                onSubmit={serviceSubmit}
+              >
+                <div className="transaction-service-modal-grid transaction-service-modal-grid--two">
+                  <Field label={locale === "sl" ? "Obračunska storitev" : "Billing service"}>
+                    <input
+                      readOnly
+                      value={
+                        services.find((service) => service.id === selectedBillingServiceId)?.description ||
+                        serviceForm.description
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={locale === "sl" ? "Bruto cena za to storitev" : "Gross price for this service"}
+                    hint={
+                      locale === "sl"
+                        ? "Sprememba se shrani samo na povezavi s trenutno storitvijo."
+                        : "The change is saved only on the link to the current service."
+                    }
+                  >
+                    <input
+                      autoFocus
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={serviceForm.grossPrice}
+                      onChange={(event) =>
+                        setServiceForm({ ...serviceForm, grossPrice: event.target.value })
+                      }
+                    />
+                  </Field>
+                </div>
+              </form>
+            ) : serviceModalTab === "existing" &&
             serviceModalAction === "link" ? (
               <div className="transaction-service-modal-body linked-entity-picker-body">
                 <div className="linked-entity-search">
@@ -4702,18 +4829,34 @@ export function SessionTypesPage() {
                   ) : (
                     billingServicePickerOptions.map((service) => {
                       const selected = selectedBillingServiceId === service.id;
-                      const alreadyLinked = typeForm.serviceLines.some(
+                      const linkedIndex = typeForm.serviceLines.findIndex(
                         (line) => line.transactionServiceId === service.id,
                       );
+                      const linkedLine =
+                        linkedIndex >= 0 ? typeForm.serviceLines[linkedIndex] : null;
+                      const alreadyLinked = linkedIndex >= 0;
+                      const displayedGross =
+                        linkedLine?.price?.trim() && Number.isFinite(Number(linkedLine.price))
+                          ? Number(linkedLine.price)
+                          : transactionServiceGross(service);
                       return (
-                        <button
+                        <div
                           key={service.id}
-                          type="button"
                           role="radio"
                           aria-checked={selected}
-                          disabled={alreadyLinked}
-                          className={`linked-entity-option${selected ? " is-selected" : ""}${alreadyLinked ? " is-disabled" : ""}`}
-                          onClick={() => setSelectedBillingServiceId(service.id)}
+                          aria-disabled={alreadyLinked}
+                          tabIndex={alreadyLinked ? -1 : 0}
+                          className={`linked-entity-option linked-entity-option--service-picker${selected ? " is-selected" : ""}${alreadyLinked ? " is-disabled" : ""}`}
+                          onClick={() => {
+                            if (!alreadyLinked) setSelectedBillingServiceId(service.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (alreadyLinked) return;
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setSelectedBillingServiceId(service.id);
+                            }
+                          }}
                         >
                           <span className="linked-entity-radio" aria-hidden>
                             {selected ? <span /> : null}
@@ -4727,7 +4870,7 @@ export function SessionTypesPage() {
                           </span>
                           <span className="linked-entity-option-meta">
                             <strong>
-                              {currency(transactionServiceGross(service))}
+                              {currency(displayedGross)}
                             </strong>
                             <span>{taxLabels[service.taxRate]}</span>
                           </span>
@@ -4736,7 +4879,21 @@ export function SessionTypesPage() {
                               {locale === "sl" ? "Že dodana" : "Already added"}
                             </span>
                           ) : null}
-                        </button>
+                          <button
+                            type="button"
+                            className="secondary slim-btn linked-entity-option-edit"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openLinkedServicePriceEdit(
+                                service,
+                                linkedIndex >= 0 ? linkedIndex : null,
+                                linkedLine?.price,
+                              );
+                            }}
+                          >
+                            {locale === "sl" ? "Uredi" : "Edit"}
+                          </button>
+                        </div>
                       );
                     })
                   )}
@@ -4961,7 +5118,22 @@ export function SessionTypesPage() {
             )}
 
             <div className="form-actions booking-side-panel-footer transaction-service-modal-footer linked-entity-modal-footer">
-              {serviceModalTab === "existing" &&
+              {serviceModalAction === "linked-price" ? (
+                <button
+                  form="transaction-service-edit-form"
+                  type="submit"
+                  className="gapp-primary-button"
+                  disabled={
+                    selectedBillingServiceId == null ||
+                    (editingLinkedServiceIndex != null && !isServiceFormDirty)
+                  }
+                >
+                  <GuestConfigSaveIcon />
+                  {editingLinkedServiceIndex != null
+                    ? locale === "sl" ? "Shrani ceno" : "Save price"
+                    : locale === "sl" ? "Dodaj storitev" : "Add service"}
+                </button>
+              ) : serviceModalTab === "existing" &&
               serviceModalAction === "link" ? (
                 <button
                   type="button"

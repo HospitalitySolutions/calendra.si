@@ -391,8 +391,19 @@ function syncGuestProductPriceFromSessionTypes(
   };
 }
 
-const productTypeLabel = (productType: GuestAdminProductType) =>
-  CARD_PRODUCT_TYPE_LABELS[productType] || productType;
+const productTypeLabel = (productType: GuestAdminProductType, locale = "en") => {
+  if (locale === "sl") {
+    const labels: Record<GuestAdminProductType, string> = {
+      CLASS_TICKET: "Vstopnica",
+      PACK: "Paket obiskov",
+      MEMBERSHIP: "Članarina",
+      GIFT_CARD: "Darilni bon",
+      COURSE: "Dostop do tečaja",
+    };
+    return labels[productType] || productType;
+  }
+  return CARD_PRODUCT_TYPE_LABELS[productType] || productType;
+};
 
 const CARD_MEMBERSHIP_ICON_TONES = [
   "blue",
@@ -1016,14 +1027,14 @@ export const CardsMembershipsSection = forwardRef<
     }
     if (guestProductForm.productType === "PACK") {
       if (!guestProductForm.sessionTypeId.trim()) {
-        window.alert("Tickets must be linked to a service type.");
+        window.alert(locale === "sl" ? "Paket obiskov mora biti povezan s storitvijo." : "Tickets must be linked to a service type.");
         return;
       }
       const ticketUsageLimit = parsePositiveIntegerInput(
         guestProductForm.usageLimit,
       );
       if (ticketUsageLimit == null || ticketUsageLimit < 1) {
-        window.alert("Tickets must have a quantity of at least 1.");
+        window.alert(locale === "sl" ? "Paket obiskov mora imeti količino najmanj 1." : "Tickets must have a quantity of at least 1.");
         return;
       }
     }
@@ -1036,11 +1047,11 @@ export const CardsMembershipsSection = forwardRef<
       ? Number.parseInt(guestProductForm.transactionServiceId, 10)
       : null;
     if (isGiftCard && !validityDays) {
-      window.alert("Gift cards must have an expiry date.");
+      window.alert(locale === "sl" ? "Darilni bon mora imeti določeno veljavnost." : "Gift cards must have an expiry date.");
       return;
     }
     if (isGiftCard && (!transactionServiceId || transactionServiceId <= 0)) {
-      window.alert("Gift cards must be linked to a transaction service.");
+      window.alert(locale === "sl" ? "Darilni bon mora biti povezan z obračunsko storitvijo." : "Gift cards must be linked to a transaction service.");
       return;
     }
     if (isCourseAccess && !guestProductForm.sessionTypeId.trim()) {
@@ -1109,11 +1120,14 @@ export const CardsMembershipsSection = forwardRef<
       await loadGuestProducts();
       showToast(
         "success",
-        wasEditing ? "Entitlement updated." : "Entitlement created.",
+        wasEditing
+          ? locale === "sl" ? "Ugodnost je posodobljena." : "Entitlement updated."
+          : locale === "sl" ? "Ugodnost je ustvarjena." : "Entitlement created.",
       );
     } catch (err: any) {
       window.alert(
-        err?.response?.data?.message || "Failed to save entitlement.",
+        err?.response?.data?.message ||
+          (locale === "sl" ? "Ugodnosti ni bilo mogoče shraniti." : "Failed to save entitlement."),
       );
     } finally {
       setSavingGuestProduct(false);
@@ -1124,7 +1138,9 @@ export const CardsMembershipsSection = forwardRef<
     if (!isAdmin) return;
     if (
       !window.confirm(
-        `Delete ${product.name}? This only works if it has never been sold.`,
+        locale === "sl"
+          ? `Izbrišem ${product.name}? Izbris je mogoč samo, če ugodnost še nikoli ni bila prodana.`
+          : `Delete ${product.name}? This only works if it has never been sold.`,
       )
     )
       return;
@@ -1136,10 +1152,10 @@ export const CardsMembershipsSection = forwardRef<
         setGuestProductForm(defaultGuestProductForm());
       }
       await loadGuestProducts();
-      showToast("success", "Entitlement deleted.");
+      showToast("success", locale === "sl" ? "Ugodnost je izbrisana." : "Entitlement deleted.");
     } catch (err: any) {
       window.alert(
-        err?.response?.data?.message || "Failed to delete entitlement.",
+        err?.response?.data?.message || (locale === "sl" ? "Ugodnosti ni bilo mogoče izbrisati." : "Failed to delete entitlement."),
       );
     }
   };
@@ -1206,7 +1222,7 @@ export const CardsMembershipsSection = forwardRef<
       );
     } catch (err: any) {
       window.alert(
-        err?.response?.data?.message || "Failed to update card status.",
+        err?.response?.data?.message || (locale === "sl" ? "Statusa ugodnosti ni bilo mogoče posodobiti." : "Failed to update card status."),
       );
     } finally {
       setActivatingGuestProductId(null);
@@ -1270,8 +1286,12 @@ export const CardsMembershipsSection = forwardRef<
     <>
       {guestProducts.length === 0 ? (
         <EmptyState
-          title="No entitlements yet"
-          text="Create your first entitlement, membership, gift card or course access product for the guest wallet."
+          title={locale === "sl" ? "Ni še ugodnosti" : "No entitlements yet"}
+          text={
+            locale === "sl"
+              ? "Ustvarite prvo ugodnost, članarino, darilni bon ali dostop do tečaja za denarnico gosta."
+              : "Create your first entitlement, membership, gift card or course access product for the guest wallet."
+          }
         />
       ) : filteredGuestProducts.length === 0 ? (
         <EmptyState
@@ -1317,7 +1337,7 @@ export const CardsMembershipsSection = forwardRef<
                 <div className="clients-mobile-meta">
                   <div>
                     <span>{t("sessionTypesCardsColType")}</span>
-                    <strong>{productTypeLabel(product.productType)}</strong>
+                    <strong>{productTypeLabel(product.productType, locale)}</strong>
                   </div>
                   <div>
                     <span>{t("sessionTypesCardsColServiceType")}</span>
@@ -1412,7 +1432,7 @@ export const CardsMembershipsSection = forwardRef<
                       />
                     </td>
                     <td className="clients-muted service-config-category-cell">
-                      {productTypeLabel(product.productType)}
+                      {productTypeLabel(product.productType, locale)}
                     </td>
                     <td className="clients-muted service-config-category-cell">
                       {includedCoursesLabel(product, locale)}
@@ -1422,8 +1442,12 @@ export const CardsMembershipsSection = forwardRef<
                     </td>
                     <td className="clients-muted">
                       {product.validityDays
-                        ? `${product.validityDays} days`
-                        : "No expiry"}
+                        ? locale === "sl"
+                          ? `${product.validityDays} dni`
+                          : `${product.validityDays} days`
+                        : locale === "sl"
+                          ? "Brez poteka"
+                          : "No expiry"}
                     </td>
                     <td>
                       <button
@@ -1526,7 +1550,7 @@ export const CardsMembershipsSection = forwardRef<
                     setEditingGuestProductId(null);
                   }
                 }}
-                aria-label="Close"
+                aria-label={locale === "sl" ? "Zapri" : "Close"}
               >
                 ×
               </button>
@@ -1536,10 +1560,10 @@ export const CardsMembershipsSection = forwardRef<
               className="form-grid booking-side-panel-body cards-product-modal-body"
               onSubmit={submitGuestProduct}
             >
-              <Field label="Name *">
+              <Field label={locale === "sl" ? "Naziv *" : "Name *"}>
                 <input
                   required
-                  placeholder="Enter card name"
+                  placeholder={locale === "sl" ? "Vnesite naziv ugodnosti" : "Enter card name"}
                   value={guestProductForm.name}
                   onChange={(e) =>
                     setGuestProductForm({
@@ -1589,7 +1613,7 @@ export const CardsMembershipsSection = forwardRef<
                 >
                   {availableAdminGuestProductTypes.map((productType) => (
                     <option key={productType} value={productType}>
-                      {productTypeLabel(productType)}
+                      {productTypeLabel(productType, locale)}
                     </option>
                   ))}
                 </select>
@@ -1602,12 +1626,16 @@ export const CardsMembershipsSection = forwardRef<
                 </p>
               )}
               <Field
-                label="Price (gross) *"
+                label={locale === "sl" ? "Cena (bruto) *" : "Price (gross) *"}
                 hint={
                   guestProductTypeUsesAutoPrice(guestProductForm.productType)
                     ? guestProductForm.productType === "PACK"
-                      ? "Calculated from the service type (sum of transaction line grosses) × quantity."
-                      : "Calculated from the service type (sum of transaction line grosses) for one entry."
+                      ? locale === "sl"
+                        ? "Izračunano iz storitve (vsota bruto cen povezanih obračunskih storitev) × količina."
+                        : "Calculated from the service type (sum of transaction line grosses) × quantity."
+                      : locale === "sl"
+                        ? "Izračunano iz storitve (vsota bruto cen povezanih obračunskih storitev) za en obisk."
+                        : "Calculated from the service type (sum of transaction line grosses) for one entry."
                     : undefined
                 }
               >
@@ -1636,7 +1664,7 @@ export const CardsMembershipsSection = forwardRef<
                   }}
                 />
               </Field>
-              <Field label="Currency *">
+              <Field label={locale === "sl" ? "Valuta *" : "Currency *"}>
                 <input
                   maxLength={3}
                   value={guestProductForm.currency}
@@ -1653,19 +1681,29 @@ export const CardsMembershipsSection = forwardRef<
                   guestProductForm.productType === "PACK" ||
                   guestProductForm.productType === "CLASS_TICKET" ||
                   guestProductForm.productType === "COURSE"
-                    ? "Service type *"
-                    : "Service type"
+                    ? locale === "sl" ? "Storitev *" : "Service type *"
+                    : locale === "sl" ? "Storitev" : "Service type"
                 }
                 hint={
                   guestProductForm.productType === "GIFT_CARD"
-                    ? "Gift cards are linked to a transaction service instead."
+                    ? locale === "sl"
+                      ? "Darilni boni so namesto tega povezani z obračunsko storitvijo."
+                      : "Gift cards are linked to a transaction service instead."
                     : guestProductForm.productType === "CLASS_TICKET"
-                      ? "Required. Price is derived from linked transaction services on this type."
+                      ? locale === "sl"
+                        ? "Obvezno. Cena je izračunana iz povezanih obračunskih storitev te storitve."
+                        : "Required. Price is derived from linked transaction services on this type."
                       : guestProductForm.productType === "PACK"
-                        ? "Required. Price is derived from linked transaction services × quantity. Quantity can be 1 for a single ticket."
+                        ? locale === "sl"
+                          ? "Obvezno. Cena je izračunana iz povezanih obračunskih storitev × količina. Za en obisk uporabite količino 1."
+                          : "Required. Price is derived from linked transaction services × quantity. Quantity can be 1 for a single ticket."
                         : guestProductForm.productType === "COURSE"
-                          ? "Required. Used for billing, reporting and entitlement grouping for this course access product."
-                          : "Optional. When selected, this card can only be used for that service type."
+                          ? locale === "sl"
+                            ? "Obvezno. Uporablja se za zaračunavanje, poročanje in povezovanje ugodnosti za dostop do tečaja."
+                            : "Required. Used for billing, reporting and entitlement grouping for this course access product."
+                          : locale === "sl"
+                            ? "Neobvezno. Če izberete storitev, je ugodnost mogoče uporabiti samo zanjo."
+                            : "Optional. When selected, this card can only be used for that service type."
                 }
               >
                 <select
@@ -1705,8 +1743,8 @@ export const CardsMembershipsSection = forwardRef<
               </Field>
               {guestProductForm.productType === "GIFT_CARD" && (
                 <Field
-                  label="Transaction service *"
-                  hint="Used as the invoice line when a guest buys this gift card."
+                  label={locale === "sl" ? "Obračunska storitev *" : "Transaction service *"}
+                  hint={locale === "sl" ? "Uporabi se kot postavka računa ob nakupu darilnega bona." : "Used as the invoice line when a guest buys this gift card."}
                 >
                   <select
                     required
@@ -1718,7 +1756,7 @@ export const CardsMembershipsSection = forwardRef<
                       })
                     }
                   >
-                    <option value="">Select transaction service</option>
+                    <option value="">{locale === "sl" ? "Izberi obračunsko storitev" : "Select transaction service"}</option>
                     {activeTransactionServices.map((service) => (
                       <option key={service.id} value={service.id}>
                         {transactionServiceLabel(service)}
@@ -1730,15 +1768,15 @@ export const CardsMembershipsSection = forwardRef<
               {guestProductForm.productType === "GIFT_CARD" &&
                 activeTransactionServices.length === 0 && (
                   <p className="muted cards-product-modal-note">
-                    Create an active transaction service in{" "}
+                    {locale === "sl" ? "Pred ustvarjanjem darilnega bona ustvarite aktivno obračunsko storitev v " : "Create an active transaction service in "}
                     <Link
                       to={`/session-types?subtab=${SESSION_TYPES_SUBTAB_TRANSACTION}`}
                       className="linkish-btn"
                       style={{ display: "inline" }}
                     >
-                      Transaction services
-                    </Link>{" "}
-                    before creating gift cards.
+                      {locale === "sl" ? "Obračunskih storitvah" : "Transaction services"}
+                    </Link>
+                    {locale === "sl" ? "." : " before creating gift cards."}
                   </p>
                 )}
               {guestProductTypeUsesAutoPrice(guestProductForm.productType) &&
@@ -1750,19 +1788,20 @@ export const CardsMembershipsSection = forwardRef<
                   ),
                 ) == null && (
                   <p className="muted cards-product-modal-note">
-                    This service type has no linked transaction services (or
-                    prices are missing). Configure them under{" "}
+                    {locale === "sl"
+                      ? "Ta storitev nima povezanih obračunskih storitev ali pa manjkajo cene. Nastavite jih v "
+                      : "This service type has no linked transaction services (or prices are missing). Configure them under "}
                     <Link
                       to={`/session-types?subtab=${SESSION_TYPES_SUBTAB_TRANSACTION}`}
                       className="linkish-btn"
                       style={{ display: "inline" }}
                     >
-                      Transaction services
+                      {locale === "sl" ? "Obračunskih storitvah" : "Transaction services"}
                     </Link>
                     .
                   </p>
                 )}
-              <Field label="Sort order">
+              <Field label={locale === "sl" ? "Vrstni red" : "Sort order"}>
                 <input
                   type="number"
                   step="1"
@@ -1779,20 +1818,20 @@ export const CardsMembershipsSection = forwardRef<
                 <Field
                   label={
                     guestProductForm.productType === "GIFT_CARD"
-                      ? "Validity (days) *"
-                      : "Validity (days)"
+                      ? locale === "sl" ? "Veljavnost (dni) *" : "Validity (days) *"
+                      : locale === "sl" ? "Veljavnost (dni)" : "Validity (days)"
                   }
                   hint={
                     guestProductForm.productType === "GIFT_CARD"
-                      ? "Required for gift cards."
-                      : "Leave empty for no expiry."
+                      ? locale === "sl" ? "Obvezno za darilne bone." : "Required for gift cards."
+                      : locale === "sl" ? "Pustite prazno za neomejeno veljavnost." : "Leave empty for no expiry."
                   }
                 >
                   <input
                     type="number"
                     min="1"
                     step="1"
-                    placeholder="E.g. 30"
+                    placeholder={locale === "sl" ? "Npr. 30" : "E.g. 30"}
                     required={guestProductForm.productType === "GIFT_CARD"}
                     value={guestProductForm.validityDays}
                     onChange={(e) =>
@@ -1806,14 +1845,14 @@ export const CardsMembershipsSection = forwardRef<
               )}
               {guestProductForm.productType === "PACK" && (
                 <Field
-                  label="Quantity *"
-                  hint="Required for tickets. Price = (service type gross sum) × this number. Use quantity 1 for a single ticket."
+                  label={locale === "sl" ? "Količina *" : "Quantity *"}
+                  hint={locale === "sl" ? "Obvezno za paket obiskov. Cena = (vsota bruto cen storitve) × ta količina. Za en obisk uporabite količino 1." : "Required for tickets. Price = (service type gross sum) × this number. Use quantity 1 for a single ticket."}
                 >
                   <input
                     type="number"
                     min="1"
                     step="1"
-                    placeholder="E.g. 1 or 10"
+                    placeholder={locale === "sl" ? "Npr. 1 ali 10" : "E.g. 1 or 10"}
                     required={guestProductForm.productType === "PACK"}
                     value={guestProductForm.usageLimit}
                     onChange={(e) =>
@@ -1826,12 +1865,12 @@ export const CardsMembershipsSection = forwardRef<
                 </Field>
               )}
               <Field
-                label="Description"
-                hint="Shown in the guest mobile wallet buy screen."
+                label={locale === "sl" ? "Opis" : "Description"}
+                hint={locale === "sl" ? "Prikazano na zaslonu za nakup v mobilni denarnici gosta." : "Shown in the guest mobile wallet buy screen."}
               >
                 <textarea
                   rows={3}
-                  placeholder="Add a description (optional)"
+                  placeholder={locale === "sl" ? "Dodajte opis (neobvezno)" : "Add a description (optional)"}
                   value={guestProductForm.description}
                   onChange={(e) =>
                     setGuestProductForm({
@@ -1842,13 +1881,13 @@ export const CardsMembershipsSection = forwardRef<
                 />
               </Field>
               <Field
-                label="Promo text"
-                hint="Shown as a badge above the Buy button (e.g. 'Best value', 'Available now'). Leave empty to hide."
+                label={locale === "sl" ? "Promocijsko besedilo" : "Promo text"}
+                hint={locale === "sl" ? "Prikazano kot oznaka nad gumbom za nakup (npr. 'Najboljša ponudba', 'Na voljo zdaj'). Pustite prazno, da se ne prikaže." : "Shown as a badge above the Buy button (e.g. 'Best value', 'Available now'). Leave empty to hide."}
               >
                 <textarea
                   rows={3}
                   maxLength={120}
-                  placeholder="Add promo text (optional)"
+                  placeholder={locale === "sl" ? "Dodajte promocijsko besedilo (neobvezno)" : "Add promo text (optional)"}
                   value={guestProductForm.promoText}
                   onChange={(e) =>
                     setGuestProductForm({
@@ -1881,8 +1920,8 @@ export const CardsMembershipsSection = forwardRef<
                     </span>
                   </span>
                   <span className="cards-product-toggle-copy">
-                    <strong>Visible in guest app</strong>
-                    <span>Show this card in the guest app.</span>
+                    <strong>{locale === "sl" ? "Vidno v aplikaciji za goste" : "Visible in guest app"}</strong>
+                    <span>{locale === "sl" ? "Prikaži to ugodnost v aplikaciji za goste." : "Show this card in the guest app."}</span>
                   </span>
                 </label>
               </div>
@@ -1911,10 +1950,11 @@ export const CardsMembershipsSection = forwardRef<
                       </span>
                     </span>
                     <span className="cards-product-toggle-copy">
-                      <strong>Auto-renew</strong>
+                      <strong>{locale === "sl" ? "Samodejno podaljšanje" : "Auto-renew"}</strong>
                       <span>
-                        Available for memberships. Guests can later change this
-                        in their wallet.
+                        {locale === "sl"
+                          ? "Na voljo za članarine. Gost lahko nastavitev pozneje spremeni v svoji denarnici."
+                          : "Available for memberships. Guests can later change this in their wallet."}
                       </span>
                     </span>
                   </label>
