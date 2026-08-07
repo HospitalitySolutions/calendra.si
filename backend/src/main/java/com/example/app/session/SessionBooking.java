@@ -8,6 +8,7 @@ import com.example.app.group.ClientGroup;
 import com.example.app.location.Location;
 import com.example.app.user.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicUpdate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Instant;
@@ -21,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Setter
 @JsonIgnoreProperties({"passwordHash", "preferredSlots", "assignedTo", "spaces", "types", "consultant", "client", "bill", "items", "company"})
 @Entity
+@DynamicUpdate
 public class SessionBooking extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
