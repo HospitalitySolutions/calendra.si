@@ -229,8 +229,11 @@ public class SessionTypeController {
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         applyBreakSettings(type, req, companyId);
-        type.setMaxParticipantsPerSession(normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession()));
-        type.setGroupBookingEnabled(Boolean.TRUE.equals(req.groupBookingEnabled()));
+        Integer maxParticipantsPerSession = normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession());
+        boolean groupBookingEnabled = Boolean.TRUE.equals(req.groupBookingEnabled());
+        validateReservedGuestSpots(maxParticipantsPerSession, groupBookingEnabled, req.guestLimitUserEmails());
+        type.setMaxParticipantsPerSession(maxParticipantsPerSession);
+        type.setGroupBookingEnabled(groupBookingEnabled);
         type.setWidgetGroupBookingEnabled(Boolean.TRUE.equals(req.widgetGroupBookingEnabled()));
         type.setGuestBookingEnabled(req.guestBookingEnabled() == null || Boolean.TRUE.equals(req.guestBookingEnabled()));
         type.setPriceCalculationMode(normalizePriceCalculationMode(req.priceCalculationMode()));
@@ -289,8 +292,11 @@ public class SessionTypeController {
         type.setColor(normalizeSessionTypeColor(req.color()));
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         applyBreakSettings(type, req, companyId);
-        type.setMaxParticipantsPerSession(normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession()));
-        type.setGroupBookingEnabled(Boolean.TRUE.equals(req.groupBookingEnabled()));
+        Integer maxParticipantsPerSession = normalizeMaxParticipantsPerSession(req.maxParticipantsPerSession());
+        boolean groupBookingEnabled = Boolean.TRUE.equals(req.groupBookingEnabled());
+        validateReservedGuestSpots(maxParticipantsPerSession, groupBookingEnabled, req.guestLimitUserEmails());
+        type.setMaxParticipantsPerSession(maxParticipantsPerSession);
+        type.setGroupBookingEnabled(groupBookingEnabled);
         type.setWidgetGroupBookingEnabled(Boolean.TRUE.equals(req.widgetGroupBookingEnabled()));
         type.setGuestBookingEnabled(req.guestBookingEnabled() == null || Boolean.TRUE.equals(req.guestBookingEnabled()));
         type.setPriceCalculationMode(normalizePriceCalculationMode(req.priceCalculationMode()));
@@ -619,6 +625,27 @@ public class SessionTypeController {
 
     private SessionPriceCalculationMode normalizePriceCalculationMode(SessionPriceCalculationMode mode) {
         return mode == null ? SessionPriceCalculationMode.PER_CLIENT : mode;
+    }
+
+    private void validateReservedGuestSpots(
+            Integer maxParticipantsPerSession,
+            boolean groupBookingEnabled,
+            List<String> emails
+    ) {
+        if (!groupBookingEnabled || maxParticipantsPerSession == null || emails == null || emails.isEmpty()) {
+            return;
+        }
+        long reservedSpots = emails.stream()
+                .filter(email -> email != null && !email.isBlank())
+                .map(email -> email.trim().toLowerCase(Locale.ROOT))
+                .distinct()
+                .count();
+        if (reservedSpots > maxParticipantsPerSession) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Reserved guest emails cannot exceed max participants per session."
+            );
+        }
     }
 
     private String serializeGuestLimitUserEmails(List<String> emails) {

@@ -1563,6 +1563,20 @@ export function SessionTypesPage() {
             if (!Number.isFinite(n)) return null;
             return Math.min(999, Math.max(1, Math.floor(n)));
           })();
+    const reservedGuestEmails = effectiveGroupBookingEnabled
+      ? parseGuestLimitUserEmails(typeForm.guestLimitUserEmailsText)
+      : [];
+    if (
+      maxParticipantsParsed != null &&
+      reservedGuestEmails.length > maxParticipantsParsed
+    ) {
+      window.alert(
+        locale === "sl"
+          ? `Število rezerviranih uporabnikov (${reservedGuestEmails.length}) ne sme presegati največjega števila udeležencev (${maxParticipantsParsed}).`
+          : `The number of reserved users (${reservedGuestEmails.length}) cannot exceed the maximum participants (${maxParticipantsParsed}).`,
+      );
+      return;
+    }
 
     const payload = {
       // The backend creates the immutable internal service code on create and
@@ -1582,9 +1596,7 @@ export function SessionTypesPage() {
       widgetGroupBookingEnabled,
       guestBookingEnabled,
       priceCalculationMode: typeForm.priceCalculationMode,
-      guestLimitUserEmails: effectiveGroupBookingEnabled
-        ? parseGuestLimitUserEmails(typeForm.guestLimitUserEmailsText)
-        : [],
+      guestLimitUserEmails: reservedGuestEmails,
       serviceGroupId: serviceGroupsModuleEnabled
         ? typeForm.serviceGroupId
           ? Number(typeForm.serviceGroupId)
@@ -4597,8 +4609,8 @@ export function SessionTypesPage() {
                                 role="listbox"
                                 aria-label={
                                   locale === "sl"
-                                    ? "Omeji na uporabnike po e-pošti"
-                                    : "Limit to users by email"
+                                    ? "Rezervirana mesta po e-pošti"
+                                    : "Reserved spots by email"
                                 }
                               >
                                 {guestLimitManualEmail ? (
@@ -4673,8 +4685,8 @@ export function SessionTypesPage() {
                                 )}
                                 <div className="guest-limit-client-helper">
                                   {locale === "sl"
-                                    ? "Izberite obstoječo stranko ali dodajte poljuben e-poštni naslov. Rezervacija prek widgeta bo dovoljena le ob ujemanju e-pošte."
-                                    : "Select an existing client or add any email address. Website-widget booking is allowed only when the email matches."}
+                                    ? "Za vsak izbrani e-poštni naslov se rezervira eno mesto. Preostala mesta lahko rezervirajo drugi uporabniki."
+                                    : "One spot is reserved for each selected email address. All remaining spots stay available to other users."}
                                 </div>
                               </div>
                             ) : null}

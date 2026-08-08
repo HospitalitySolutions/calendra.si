@@ -174,6 +174,8 @@
       groupSessionSpotsLeft: 'spots left',
       groupSessionBooked: 'booked',
       groupSessionNoOptions: 'No open group sessions for this date.',
+      groupSessionNoPublicSpots: 'All public spots are taken. The remaining spots are reserved for selected users.',
+      groupSessionReservedOnly: 'All places in this group session are reserved for selected users.',
       groupSessionSelectionHint: 'Group bookings use the consultant already assigned to the selected group session, or a consultant can be assigned later.',
       waitlistCtaTitle: 'Can’t find a suitable time?',
       waitlistCtaText: 'Join the waitlist and we will let you know when a matching slot becomes available.',
@@ -359,6 +361,8 @@
       groupSessionSpotsLeft: 'prostih mest',
       groupSessionBooked: 'prijavljenih',
       groupSessionNoOptions: 'Za ta datum ni odprtih skupinskih ur.',
+      groupSessionNoPublicSpots: 'Vsa mesta za druge uporabnike so zasedena. Preostala mesta so rezervirana za izbrane uporabnike.',
+      groupSessionReservedOnly: 'Vsa mesta v tem skupinskem terminu so rezervirana za izbrane uporabnike.',
       groupSessionSelectionHint: 'Za skupinske rezervacije se uporabi že dodeljeni svetovalec izbranega skupinskega termina, lahko pa se svetovalec določi tudi pozneje.',
       waitlistCtaTitle: 'Ne najdete ustreznega termina?',
       waitlistCtaText: 'Pridružite se čakalni vrsti in obvestili vas bomo, ko bo na voljo prost termin.',
@@ -1261,7 +1265,12 @@
     }
 
     normalizeError(error, fallback) {
-      return error instanceof Error ? error.message : fallback;
+      const message = error instanceof Error ? error.message : fallback;
+      const normalized = String(message || '').toLowerCase();
+      const t = this.text();
+      if (normalized.includes('no public spots left')) return t.groupSessionNoPublicSpots;
+      if (normalized.includes('limited to invited guests')) return t.groupSessionReservedOnly;
+      return message;
     }
 
     isTurnstileError(error) {
@@ -1284,7 +1293,10 @@
 
     isStaleSlotError(error, message = '') {
       const status = Number(error?.status || 0);
-      const text = String(message || error?.message || '').toLowerCase();
+      const text = `${String(message || '')} ${String(error?.message || '')}`.toLowerCase();
+      // Reserved-capacity rejections are identity-specific, not stale time-slot errors.
+      // Keep the guest on the details step so the widget can explain that only reserved spots remain.
+      if (/no public spots left|limited to invited guests/.test(text)) return false;
       // 409 from booking checkout means the selected slot/capacity was already taken.
       if (status === 409) return true;
       if (status !== 400) return false;
