@@ -48,8 +48,10 @@ public class FolioPdfRequest {
     private String issuedBy;
     private String iban;
     private String paymentQrPayload;
-    /** Gross amount still awaiting payment, normally the bank-transfer portion. */
+    /** Gross amount still awaiting payment. */
     private BigDecimal toBePaidGross;
+    /** Gross amount already paid with ordinary payment methods (cash/card/bank/etc.), excluding consumed advances. */
+    private BigDecimal paidGross;
     /** Total discount amount shown in the folio footer when greater than zero. */
     private BigDecimal discountAmountGross;
     /** Gross subtotal before discount, used to derive the displayed discount and final invoice total. */
@@ -200,6 +202,8 @@ public class FolioPdfRequest {
     public void setPaymentQrPayload(String paymentQrPayload) { this.paymentQrPayload = paymentQrPayload; }
     public BigDecimal getToBePaidGross() { return toBePaidGross; }
     public void setToBePaidGross(BigDecimal toBePaidGross) { this.toBePaidGross = toBePaidGross; }
+    public BigDecimal getPaidGross() { return paidGross; }
+    public void setPaidGross(BigDecimal paidGross) { this.paidGross = paidGross; }
     public BigDecimal getDiscountAmountGross() { return discountAmountGross; }
     public void setDiscountAmountGross(BigDecimal discountAmountGross) { this.discountAmountGross = discountAmountGross; }
     public BigDecimal getSubtotalBeforeDiscountGross() { return subtotalBeforeDiscountGross; }

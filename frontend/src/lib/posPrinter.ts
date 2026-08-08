@@ -100,6 +100,7 @@ export type PosReceiptPrintRequest = {
   iban?: string | null
   paymentQrPayload?: string | null
   toBePaidGross?: number | string | null
+  paidGross?: number | string | null
   discountAmountGross?: number | string | null
   subtotalBeforeDiscountGross?: number | string | null
   usedAdvancePaymentsGross?: number | string | null
@@ -486,29 +487,41 @@ function buildVatRows(services: PosReceiptServiceLine[]): Array<{ bucket: VatBuc
     .filter((row) => Math.abs(row.net) > 0.0001 || Math.abs(row.vat) > 0.0001)
 }
 
+function buildUsedAdvanceVatRows(advances: PosReceiptAdvancePaymentLine[]): Array<{ bucket: VatBucket; net: number; vat: number }> {
+  const map = new Map<VatBucket, { net: number; vat: number }>()
+  for (const advance of advances) {
+    const usedGross = Math.abs(numberValue(advance.usedGross))
+    if (usedGross < 0.0001) continue
+    const bucket = vatBucket(advance.taxPercent)
+    if (bucket === 'NO_VAT') continue
+
+    const totalGross = Math.abs(numberValue(advance.totalGross))
+    const fullNet = Math.abs(numberValue(advance.netBasis))
+    const fullVat = Math.abs(numberValue(advance.taxAmount))
+    const ratio = totalGross > 0.0001 ? Math.min(1, usedGross / totalGross) : 1
+    const usedNet = fullNet * ratio
+    let usedVat = fullVat * ratio
+
+    if (usedVat < 0.0001) {
+      const rate = bucket === 'VAT_22' ? 0.22 : bucket === 'VAT_9_5' ? 0.095 : 0
+      if (rate > 0) usedVat = usedGross - usedGross / (1 + rate)
+    }
+
+    const row = map.get(bucket) ?? { net: 0, vat: 0 }
+    row.net += usedNet
+    row.vat += usedVat
+    map.set(bucket, row)
+  }
+  return (['VAT_22', 'VAT_9_5', 'VAT_0'] as VatBucket[])
+    .map((bucket) => ({ bucket, ...(map.get(bucket) ?? { net: 0, vat: 0 }) }))
+    .filter((row) => Math.abs(row.net) > 0.0001 || Math.abs(row.vat) > 0.0001)
+}
+
 function vatLabel(bucket: VatBucket, locale: PosReceiptLocale): string {
   if (bucket === 'VAT_22') return word(locale, 'DDV 22%', 'PDV 22%', 'VAT 22%')
   if (bucket === 'VAT_9_5') return word(locale, 'DDV 9,5%', 'PDV 9,5%', 'VAT 9.5%')
   if (bucket === 'VAT_0') return word(locale, 'DDV 0%', 'PDV 0%', 'VAT 0%')
   return word(locale, 'Brez DDV', 'Bez PDV-a', 'No VAT')
-}
-
-function buildUsedAdvanceVatRows(advances: PosReceiptAdvancePaymentLine[]): Array<{ bucket: VatBucket; vat: number }> {
-  const map = new Map<VatBucket, number>()
-  for (const advance of advances) {
-    const bucket = vatBucket(advance.taxPercent)
-    if (bucket === 'NO_VAT') continue
-    const usedGross = Math.abs(numberValue(advance.usedGross))
-    const totalGross = Math.abs(numberValue(advance.totalGross))
-    let taxAmount = Math.abs(numberValue(advance.taxAmount))
-    if (taxAmount < 0.0001 && advance.netBasis != null) taxAmount = Math.abs(totalGross - Math.abs(numberValue(advance.netBasis)))
-    if (usedGross < 0.0001 || taxAmount < 0.0001) continue
-    const usedTax = totalGross > 0.0001 ? taxAmount * (usedGross / totalGross) : taxAmount
-    map.set(bucket, (map.get(bucket) ?? 0) + usedTax)
-  }
-  return (['VAT_22', 'VAT_9_5', 'VAT_0'] as VatBucket[])
-    .map((bucket) => ({ bucket, vat: map.get(bucket) ?? 0 }))
-    .filter((row) => Math.abs(row.vat) > 0.0001)
 }
 
 function formatIban(value: unknown): string {
@@ -735,31 +748,24 @@ export async function buildPosReceiptEscPosBytes(
   const writer = new ReceiptWriter(width)
   const services = Array.isArray(request.services) ? request.services : []
   const vatRows = buildVatRows(services)
-  const advances = Array.isArray(request.advancePayments) ? request.advancePayments : []
-  const usedAdvanceVatRows = buildUsedAdvanceVatRows(advances)
   const totalNet = services.reduce((sum, service) => sum + lineNet(service), 0)
   const totalGross = services.reduce((sum, service) => sum + lineGross(service), 0)
   const discount = positive(request.discountAmountGross)
-  const configuredSubtotalGross = numberValue(request.subtotalBeforeDiscountGross)
-  const hasConfiguredSubtotal = request.subtotalBeforeDiscountGross != null && Math.abs(configuredSubtotalGross) > 0.0001
-  const subtotalGross = hasConfiguredSubtotal ? configuredSubtotalGross : totalGross + discount
+  const configuredSubtotalGross = positive(request.subtotalBeforeDiscountGross)
+  const subtotalGross = configuredSubtotalGross > 0 ? configuredSubtotalGross : totalGross + discount
   const onlyZeroVat = vatRows.length > 0 && vatRows.every((row) => row.bucket === 'NO_VAT' || row.bucket === 'VAT_0' || Math.abs(row.vat) < 0.0001)
-  const subtotalNet = hasConfiguredSubtotal && onlyZeroVat ? configuredSubtotalGross : totalNet
+  const subtotalNet = configuredSubtotalGross > 0 && onlyZeroVat ? configuredSubtotalGross : totalNet
+  const advances = Array.isArray(request.advancePayments) ? request.advancePayments : []
   const usedAdvance = positive(request.usedAdvancePaymentsGross)
+  const usedAdvanceVatRows = buildUsedAdvanceVatRows(advances)
   const invoiceTotalGross = subtotalGross - discount
-  const paymentLines = Array.isArray(request.paymentMethods) && request.paymentMethods.length
-    ? request.paymentMethods
-    : sanitizeText(request.paymentMethod)
-      ? [{ name: request.paymentMethod, amountGross: invoiceTotalGross }]
-      : []
-  const paymentLineTotal = paymentLines.reduce((sum, payment) => sum + numberValue(payment.amountGross), 0)
-  const hasExplicitToBePaid = request.toBePaidGross != null
-  const amountDueDisplay = hasExplicitToBePaid
-    ? numberValue(request.toBePaidGross)
-    : invoiceTotalGross >= 0
-      ? Math.max(0, invoiceTotalGross - usedAdvance - paymentLineTotal)
-      : 0
-  const paidGross = paymentLineTotal - amountDueDisplay
+  const explicitAmountDue = request.toBePaidGross == null ? null : numberValue(request.toBePaidGross)
+  const amountDueDisplay = explicitAmountDue == null
+    ? Math.max(0, invoiceTotalGross - usedAdvance)
+    : explicitAmountDue
+  const paidDisplay = request.paidGross == null
+    ? invoiceTotalGross - usedAdvance - amountDueDisplay
+    : numberValue(request.paidGross)
 
   // Initialize printer, force PC852, standard line spacing and left alignment.
   writer.raw(
@@ -866,13 +872,13 @@ export async function buildPosReceiptEscPosBytes(
       writer.rule()
     },
 
-    advancePayments: () => {
-      // Used advances are rendered inside Načini plačila at the end of totals.
-    },
+    // Used advances are rendered inside Načini plačila at the end of the totals block.
+    // Keep this legacy section as a no-op so saved sectionOrder values cannot print them twice.
+    advancePayments: () => {},
 
     vat: () => {
-      // Exact requested flow: Popust -> Skupaj brez DDV -> VAT rows -> Skupaj EUR.
-      // There is no "Razčlenitev DDV" heading and no divider inside this block.
+      // Canonical 58 mm order: Popust -> Skupaj brez DDV -> DDV rows.
+      // There is intentionally no "Razčlenitev DDV" heading or divider here.
       writer.bold(false)
       if (discount > 0.004) writer.pair(word(locale, 'Popust', 'Popust', 'Discount'), `- ${money(discount)}`)
       writer.pair(word(locale, 'Skupaj brez DDV', 'Ukupno bez PDV-a', 'Total excl. VAT'), money(subtotalNet))
@@ -880,50 +886,60 @@ export async function buildPosReceiptEscPosBytes(
         for (const row of vatRows.filter((entry) => entry.bucket !== 'NO_VAT')) {
           writer.pair(`${vatLabel(row.bucket, locale)} - ${word(locale, 'osnova', 'osnovica', 'basis')} ${money(row.net)}`, money(row.vat))
         }
+        // VAT represented by a consumed advance is a deduction, so it is always
+        // printed after all ordinary VAT rows and with a negative amount.
         for (const row of usedAdvanceVatRows) {
-          writer.pair(
-            `${vatLabel(row.bucket, locale)} ${word(locale, '(porabljeno predplačilo)', '(iskorišćen avans)', '(used advance)')}`,
-            `- ${money(Math.abs(row.vat))}`,
-          )
+          writer.pair(`${vatLabel(row.bucket, locale)} (${word(locale, 'porabljeno predplačilo', 'iskorišćen avans', 'used advance')})`, `- ${money(Math.abs(row.vat))}`)
         }
       }
     },
 
     totals: () => {
+      // No divider between Skupaj EUR and Porabljeno predplačilo.
       writer.bold(true)
       writer.pair(word(locale, 'Skupaj EUR', 'Ukupno EUR', 'Total EUR'), money(invoiceTotalGross))
       writer.bold(false)
-      if (usedAdvance > 0.004) writer.pair(word(locale, 'Porabljeno predplačilo', 'Iskorišćen avans', 'Advance used'), `- ${money(usedAdvance)}`)
-      writer.pair(word(locale, 'Plačano EUR', 'Plaćeno EUR', 'Paid EUR'), money(paidGross))
+      if (usedAdvance > 0.004) {
+        writer.pair(word(locale, 'Porabljeno predplačilo', 'Iskorišćen avans', 'Advance used'), `- ${money(usedAdvance)}`)
+      }
+      writer.pair(word(locale, 'Plačano EUR', 'Plaćeno EUR', 'Paid EUR'), money(paidDisplay))
 
-      // Requested divider only between Plačano EUR and Za plačilo EUR.
+      // The requested divider belongs exactly between Plačano EUR and Za plačilo EUR.
       writer.rule()
       writer.bold(true)
       writer.pair(word(locale, 'Za plačilo EUR', 'Za plaćanje EUR', 'Amount due EUR'), money(amountDueDisplay))
       writer.bold(false)
 
-      const showRegularPayments = layout.showPaymentDetails && paymentLines.length > 0
-      const showUsedAdvances = advances.length > 0
-      if (showRegularPayments || showUsedAdvances) {
-        writer.gap()
-        writer.bold(true)
-        writer.line(word(locale, 'Načini plačila', 'Načini plaćanja', 'Payment methods'))
-        writer.bold(false)
-
-        if (showRegularPayments) {
+      if (layout.showPaymentDetails) {
+        const paymentLines = Array.isArray(request.paymentMethods) && request.paymentMethods.length
+          ? request.paymentMethods
+          : sanitizeText(request.paymentMethod)
+            ? [{ name: request.paymentMethod, amountGross: paidDisplay }]
+            : []
+        const visibleAdvances = advances.filter((advance) => Math.abs(numberValue(advance.usedGross)) > 0.004)
+        if (paymentLines.length || visibleAdvances.length) {
+          writer.rule()
+          writer.bold(true)
+          writer.line(word(locale, 'Načini plačila', 'Načini plaćanja', 'Payment methods'))
+          writer.bold(false)
           for (const payment of paymentLines) {
             writer.pair(nonBlank(payment.name, word(locale, 'Plačilo', 'Plaćanje', 'Payment')), money(payment.amountGross))
           }
-        }
-
-        if (showUsedAdvances) {
-          if (showRegularPayments) writer.rule()
-          writer.bold(true)
-          writer.line(word(locale, 'Porabljena predplačila', 'Iskorišćene avansne uplate', 'Used advances'))
-          writer.bold(false)
-          for (const advance of advances) {
-            const left = [sanitizeText(advance.advanceNumber), sanitizeText(advance.date)].filter(Boolean).join(' - ')
-            writer.pair(left, `- ${money(Math.abs(numberValue(advance.usedGross)))}`)
+          if (visibleAdvances.length) {
+            if (paymentLines.length) writer.rule()
+            writer.bold(true)
+            writer.line(word(locale, 'Porabljena predplačila', 'Iskorišćene avansne uplate', 'Used advances'))
+            writer.bold(false)
+            const numberWidth = writer.width >= 46 ? 20 : 12
+            const dateWidth = writer.width >= 46 ? 14 : 11
+            const amountWidth = Math.max(7, writer.width - numberWidth - dateWidth)
+            for (const advance of visibleAdvances) {
+              writer.columns(
+                [sanitizeText(advance.advanceNumber), sanitizeText(advance.date), `-${money(Math.abs(numberValue(advance.usedGross)))}`],
+                [numberWidth, dateWidth, amountWidth],
+                ['left', 'left', 'right'],
+              )
+            }
           }
         }
       }

@@ -239,10 +239,14 @@ public class BillFolioPdfService {
         }
         List<FolioPdfRequest.AdvancePaymentLine> advancePaymentLines = buildAdvancePaymentLines(bill);
         req.setAdvancePayments(advancePaymentLines);
-        req.setUsedAdvancePaymentsGross(totalUsedAdvancePayments(advancePaymentLines));
+        BigDecimal usedAdvanceGross = totalUsedAdvancePayments(advancePaymentLines);
+        req.setUsedAdvancePaymentsGross(usedAdvanceGross);
+        BigDecimal paidGross = resolvePaidGrossExcludingAdvances(bill);
+        req.setPaidGross(paidGross);
+        BigDecimal amountDue = resolveAmountDueGross(bill, usedAdvanceGross, paidGross);
+        req.setToBePaidGross(amountDue);
         BigDecimal bankTransferDue = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
-        req.setToBePaidGross(bankTransferDue.setScale(2, RoundingMode.HALF_UP));
-        if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
+        if (amountDue.compareTo(BigDecimal.ZERO) > 0 && bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
             req.setNotes(buildInvoiceNotes(bill));
             List<String> missingQrSettings = missingOwnBankTransferSettingKeys(bill, companyId);
             if (missingQrSettings.isEmpty()) {
@@ -604,9 +608,6 @@ public class BillFolioPdfService {
         List<BillPayment> splits = bill.getPaymentSplits() == null ? List.of() : bill.getPaymentSplits();
         for (BillPayment split : splits) {
             if (split == null || split.getPaymentMethod() == null) continue;
-            // Used advances are rendered as their own detailed rows at the end of
-            // the POS payment-method block. Do not duplicate them as a generic
-            // "Predplačilo" payment method.
             if (split.getSourceAdvanceBill() != null || split.getPaymentMethod().getPaymentType() == PaymentType.ADVANCE) continue;
             BigDecimal amount = split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross();
             if (amount.compareTo(BigDecimal.ZERO) == 0) continue;
@@ -618,6 +619,50 @@ public class BillFolioPdfService {
             rows.add(new FolioPdfRequest.PaymentLine(localizedPaymentMethodName(bill.getPaymentMethod(), locale), amount.setScale(2, RoundingMode.HALF_UP)));
         }
         return rows;
+    }
+
+
+    private BigDecimal resolvePaidGrossExcludingAdvances(Bill bill) {
+        if (bill == null || BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus())) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        boolean fullyPaid = BillPaymentStatus.PAID.equals(bill.getPaymentStatus());
+        List<BillPayment> splits = bill.getPaymentSplits() == null ? List.of() : bill.getPaymentSplits();
+        if (!splits.isEmpty()) {
+            BigDecimal total = BigDecimal.ZERO;
+            for (BillPayment split : splits) {
+                if (split == null || split.getPaymentMethod() == null) continue;
+                PaymentMethod method = split.getPaymentMethod();
+                if (split.getSourceAdvanceBill() != null || method.getPaymentType() == PaymentType.ADVANCE) continue;
+                if (!fullyPaid && (method.getPaymentType() == PaymentType.BANK_TRANSFER || method.isStripeEnabled())) continue;
+                total = total.add(split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross());
+            }
+            return total.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        PaymentMethod method = bill.getPaymentMethod();
+        if (method == null || method.getPaymentType() == PaymentType.ADVANCE) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (!fullyPaid && (method.getPaymentType() == PaymentType.BANK_TRANSFER || method.isStripeEnabled())) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal total = bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross();
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveAmountDueGross(Bill bill, BigDecimal usedAdvanceGross, BigDecimal paidGross) {
+        if (bill == null || BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) || BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus())) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal persistedGross = bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross();
+        if (persistedGross.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal invoiceGross = resolveFinalInvoiceGross(bill, totalItemGross(bill));
+        BigDecimal used = usedAdvanceGross == null ? BigDecimal.ZERO : usedAdvanceGross.abs();
+        BigDecimal paid = paidGross == null ? BigDecimal.ZERO : paidGross.max(BigDecimal.ZERO);
+        return invoiceGross.subtract(used).subtract(paid).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
     }
 
     private String buildPaymentSummary(List<FolioPdfRequest.PaymentLine> paymentLines) {
