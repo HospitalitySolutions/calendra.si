@@ -11,3 +11,4 @@
 .pos58-editor-grid--without-preview .pos58-controls{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
 .pos58-editor-grid--without-preview .pos58-controls>.pos58-card:last-child{grid-column:1/-1}
 @media(max-width:900px){.pos58-editor-grid--without-preview .pos58-controls{grid-template-columns:1fr}}
+.pos58-preview-vat-row{font-size:inherit;line-height:inherit;font-weight:inherit}

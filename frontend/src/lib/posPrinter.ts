@@ -717,6 +717,15 @@ export async function buildPosReceiptEscPosBytes(
   const writer = new ReceiptWriter(width)
   const services = Array.isArray(request.services) ? request.services : []
   const vatRows = buildVatRows(services)
+  const totalNet = services.reduce((sum, service) => sum + lineNet(service), 0)
+  const totalGross = services.reduce((sum, service) => sum + lineGross(service), 0)
+  const discount = positive(request.discountAmountGross)
+  const configuredSubtotalGross = positive(request.subtotalBeforeDiscountGross)
+  const subtotalGross = configuredSubtotalGross > 0 ? configuredSubtotalGross : totalGross + discount
+  const onlyZeroVat = vatRows.length > 0 && vatRows.every((row) => row.bucket === 'NO_VAT' || row.bucket === 'VAT_0' || Math.abs(row.vat) < 0.0001)
+  const subtotalNet = configuredSubtotalGross > 0 && onlyZeroVat ? configuredSubtotalGross : totalNet
+  const usedAdvance = positive(request.usedAdvancePaymentsGross)
+  const invoiceTotalGross = Math.max(0, subtotalGross - discount)
 
   // Initialize printer, force PC852, standard line spacing and left alignment.
   writer.raw(
@@ -836,25 +845,20 @@ export async function buildPosReceiptEscPosBytes(
     },
 
     vat: () => {
-      if (!layout.showVatBreakdown) return
-      for (const row of vatRows.filter((entry) => entry.bucket !== 'NO_VAT')) {
-        writer.pair(`${vatLabel(row.bucket, locale)} - ${word(locale, 'osnova', 'osnovica', 'basis')} ${money(row.net)}`, money(row.vat))
+      // Keep discount/subtotal together with the VAT breakdown so the receipt
+      // reads: Discount -> Total excl. VAT -> VAT breakdown -> Total EUR.
+      // All lines use the same native printer font/size.
+      writer.bold(false)
+      if (discount > 0.004) writer.pair(word(locale, 'Popust', 'Popust', 'Discount'), `- ${money(discount)}`)
+      writer.pair(word(locale, 'Skupaj brez DDV', 'Ukupno bez PDV-a', 'Total excl. VAT'), money(subtotalNet))
+      if (layout.showVatBreakdown) {
+        for (const row of vatRows.filter((entry) => entry.bucket !== 'NO_VAT')) {
+          writer.pair(`${vatLabel(row.bucket, locale)} - ${word(locale, 'osnova', 'osnovica', 'basis')} ${money(row.net)}`, money(row.vat))
+        }
       }
     },
 
     totals: () => {
-      const totalNet = services.reduce((sum, service) => sum + lineNet(service), 0)
-      const totalGross = services.reduce((sum, service) => sum + lineGross(service), 0)
-      const discount = positive(request.discountAmountGross)
-      const configuredSubtotalGross = positive(request.subtotalBeforeDiscountGross)
-      const subtotalGross = configuredSubtotalGross > 0 ? configuredSubtotalGross : totalGross + discount
-      const onlyZeroVat = vatRows.length > 0 && vatRows.every((row) => row.bucket === 'NO_VAT' || row.bucket === 'VAT_0' || Math.abs(row.vat) < 0.0001)
-      const subtotalNet = configuredSubtotalGross > 0 && onlyZeroVat ? configuredSubtotalGross : totalNet
-      const usedAdvance = positive(request.usedAdvancePaymentsGross)
-      const invoiceTotalGross = Math.max(0, subtotalGross - discount)
-
-      writer.pair(word(locale, 'Skupaj brez DDV', 'Ukupno bez PDV-a', 'Total excl. VAT'), money(subtotalNet))
-      if (discount > 0.004) writer.pair(word(locale, 'Popust', 'Popust', 'Discount'), `- ${money(discount)}`)
       if (usedAdvance > 0.004) writer.pair(word(locale, 'Porabljeno predplačilo', 'Iskorišćen avans', 'Advance used'), `- ${money(usedAdvance)}`)
       writer.bold(true)
       writer.pair(word(locale, 'Skupaj EUR', 'Ukupno EUR', 'Total EUR'), money(invoiceTotalGross))
