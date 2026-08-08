@@ -2321,7 +2321,7 @@ export function AnalyticsPage() {
           <h3>{reportGroupText.title}</h3>
           <p>{reportGroupText.subtitle}</p>
         </div>
-        {data.serviceGroups.length === 0 ? (
+        {(data?.serviceGroups ?? []).length === 0 ? (
           <div className="muted analytics-ranking-empty">{reportGroupText.noData}</div>
         ) : (
           <div className="analytics-business-report__table-wrap">
@@ -2778,9 +2778,9 @@ export function AnalyticsPage() {
         <>
           <div className="analytics-mobile-overview" data-onboarding-panel="analytics">
             <div className="analytics-mobile-kpi-grid">
-              <AnalyticsMobileKpiCard icon="revenue" label={text.kpiRevenue} value={revenueFormatter(summary.revenueGross)} trend={mobileRevenueTrend} />
-              <AnalyticsMobileKpiCard icon="bookings" label={text.kpiSessions} value={String(summary.sessionsTotal)} trend={mobileBookingsTrend} />
-              <AnalyticsMobileKpiCard icon="clients" label={text.kpiNewClients} value={String(summary.newClients)} trend={mobileNewClientsTrend} />
+              <AnalyticsMobileKpiCard icon="revenue" label={text.kpiRevenue} value={revenueFormatter(summary?.revenueGross ?? 0)} trend={mobileRevenueTrend} />
+              <AnalyticsMobileKpiCard icon="bookings" label={text.kpiSessions} value={String(summary?.sessionsTotal ?? 0)} trend={mobileBookingsTrend} />
+              <AnalyticsMobileKpiCard icon="clients" label={text.kpiNewClients} value={String(summary?.newClients ?? 0)} trend={mobileNewClientsTrend} />
               <AnalyticsMobileKpiCard icon="average" label={text.kpiAvgRevenue} value={revenueFormatter(avgRevenuePerSession)} trend={mobileAverageTrend} />
             </div>
 
@@ -2862,10 +2862,10 @@ export function AnalyticsPage() {
 
           <div className="analytics-desktop-overview">
             <div className="analytics-kpis analytics-kpis--modern">
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiSessions}</span><strong>{summary.sessionsTotal}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiRevenue}</span><strong>{revenueFormatter(summary.revenueGross)}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiNewClients}</span><strong>{summary.newClients}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiActiveClients}</span><strong>{summary.clientsTotal}</strong></Card>
+            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiSessions}</span><strong>{summary?.sessionsTotal ?? 0}</strong></Card>
+            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiRevenue}</span><strong>{revenueFormatter(summary?.revenueGross ?? 0)}</strong></Card>
+            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiNewClients}</span><strong>{summary?.newClients ?? 0}</strong></Card>
+            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiActiveClients}</span><strong>{summary?.clientsTotal ?? 0}</strong></Card>
             <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiOnlineShare}</span><strong>{percentFormatter(onlineShare)}</strong></Card>
             <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiAvgRevenue}</span><strong>{revenueFormatter(avgRevenuePerSession)}</strong></Card>
           </div>
@@ -2995,7 +2995,7 @@ export function AnalyticsPage() {
                 <p>{groupText.subtitle}</p>
               </div>
             </div>
-            {data.serviceGroups.length === 0 ? (
+            {(data?.serviceGroups ?? []).length === 0 ? (
               <div className="muted analytics-ranking-empty">{groupText.noData}</div>
             ) : (
               <div className="analytics-service-groups-table-wrap">
@@ -3015,7 +3015,7 @@ export function AnalyticsPage() {
                       <th aria-label={groupText.services} />
                     </tr>
                   </thead>
-                  {data.serviceGroups.map((group) => {
+                  {(data?.serviceGroups ?? []).map((group) => {
                     const key = serviceGroupMetricKey(group)
                     const expanded = expandedServiceGroups.has(key)
                     return (
@@ -3082,28 +3082,28 @@ export function AnalyticsPage() {
             <RankingCard
               title={text.topServicesTitle}
               subtitle={text.topServicesSubtitle}
-              items={data.topServices}
+              items={data?.topServices ?? []}
               valueFormatter={revenueFormatter}
               countLabel={text.countUnits}
             />
             <RankingCard
               title={text.topConsultantsTitle}
               subtitle={text.topConsultantsSubtitle}
-              items={data.topConsultants}
+              items={data?.topConsultants ?? []}
               valueFormatter={revenueFormatter}
               countLabel={text.countBills}
             />
             <RankingCard
               title={text.topClientsTitle}
               subtitle={text.topClientsSubtitle}
-              items={data.topClients}
+              items={data?.topClients ?? []}
               valueFormatter={revenueFormatter}
               countLabel={text.countBills}
             />
             <SpaceRankingCard
               title={text.topSpacesTitle}
               subtitle={text.topSpacesSubtitle}
-              items={data.topSpaces}
+              items={data?.topSpaces ?? []}
               minutesFormatter={minutesFormatter}
               sessionsLabel={text.countSessions}
             />
