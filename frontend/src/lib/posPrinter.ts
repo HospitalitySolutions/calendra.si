@@ -390,12 +390,6 @@ function wrapText(value: unknown, width: number): string[] {
   return lines
 }
 
-function centerText(value: string, width: number): string {
-  const clean = value.slice(0, width)
-  const left = Math.max(0, Math.floor((width - clean.length) / 2))
-  return `${' '.repeat(left)}${clean}`
-}
-
 function rightText(value: string, width: number): string {
   const clean = value.slice(-width)
   return `${' '.repeat(Math.max(0, width - clean.length))}${clean}`
@@ -634,7 +628,10 @@ class ReceiptWriter {
   }
 
   centered(value: unknown): void {
-    for (const line of wrapText(value, this.width)) this.line(centerText(line, this.width))
+    // Centering is handled by ESC/POS (ESC a 1) at the printer level.
+    // Do not also add left-padding here: combining both shifts text to the right
+    // on many 58 mm printers.
+    for (const line of wrapText(value, this.width)) this.line(line)
   }
 
   pair(label: unknown, value: unknown): void {
@@ -771,7 +768,7 @@ export async function buildPosReceiptEscPosBytes(
       writer.gap()
       const issued = [sanitizeText(request.issueCity), sanitizeText(request.folioDate)].filter(Boolean).join(', ')
       if (issued) writer.pair(word(locale, 'Izdano', 'Izdato', 'Issued'), issued)
-      if (sanitizeText(request.dateOfService)) writer.pair(word(locale, 'Datum opravljene storitve', 'Datum izvršene usluge', 'Service date'), request.dateOfService)
+      if (sanitizeText(request.dateOfService)) writer.pair(word(locale, 'Datum opr. storitve', 'Datum izvršene usluge', 'Service date'), request.dateOfService)
       if (sanitizeText(request.dueDate)) writer.pair(word(locale, 'Rok plačila', 'Rok plaćanja', 'Due date'), request.dueDate)
       writer.rule()
     },
