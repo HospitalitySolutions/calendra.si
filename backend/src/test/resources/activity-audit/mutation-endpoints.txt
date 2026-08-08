@@ -287,6 +287,7 @@ widget/PublicWidgetBookingSlotHoldController.java|@PostMapping|create
 widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/guest-session")|startSession
 widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/orders")|createOrder
 widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/orders/{orderId}/checkout")|checkout
+widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/voucher-resolution")|resolveVouchers
 widget/manage/PublicBookingManageController.java|@PostMapping("/{token}/cancel")|cancel
 widget/manage/PublicBookingManageController.java|@PostMapping("/{token}/reschedule")|reschedule
 workspacebooking/WorkspacePublicBookingAdminController.java|@PutMapping|update
