@@ -177,7 +177,7 @@ public class InvoiceReportService {
             int rowsPerPage = 20;
             int pages = Math.max(1, (report.rows().size() + rowsPerPage - 1) / rowsPerPage);
             for (int pageIndex = 0; pageIndex < pages; pageIndex++) {
-                PDPage page = new PDPage(PDRectangle.A4.rotate());
+                PDPage page = new PDPage(new PDRectangle(PDRectangle.A4.getHeight(), PDRectangle.A4.getWidth()));
                 document.addPage(page);
                 try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
                     float y = 555;
