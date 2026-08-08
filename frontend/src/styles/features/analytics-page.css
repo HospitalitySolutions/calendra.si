@@ -685,10 +685,76 @@
 
 .analytics-report-template-card,
 .analytics-report-parameters-card,
+.analytics-report-accordion,
 .analytics-business-report,
 .analytics-report-preview-placeholder {
     border-radius: 22px;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.analytics-report-accordion {
+    padding: 0;
+    overflow: hidden;
+}
+
+.analytics-report-accordion__header {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+}
+
+.analytics-report-accordion__header-copy {
+    display: grid;
+    gap: 6px;
+}
+
+.analytics-report-accordion__header-copy strong {
+    font-size: 1.02rem;
+    color: var(--color-text);
+}
+
+.analytics-report-accordion__header-copy p {
+    margin: 0;
+    color: var(--color-text-muted);
+    line-height: 1.45;
+}
+
+.analytics-report-accordion__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    flex: 0 0 auto;
+    transition: transform 0.18s ease;
+}
+
+.analytics-report-accordion__chevron.is-open {
+    transform: rotate(180deg);
+}
+
+.analytics-report-accordion__body {
+    display: grid;
+    gap: 14px;
+    padding: 0 20px 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.analytics-report-accordion__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .analytics-report-template-card {
@@ -970,6 +1036,7 @@
 
 [data-theme="dark"] .analytics-report-template-card,
 [data-theme="dark"] .analytics-report-parameters-card,
+[data-theme="dark"] .analytics-report-accordion,
 [data-theme="dark"] .analytics-business-report,
 [data-theme="dark"] .analytics-report-preview-placeholder {
     box-shadow: 0 20px 44px rgba(2, 6, 23, 0.36);
@@ -984,11 +1051,16 @@
 
 @media (max-width: 980px) {
     .analytics-report-template-card,
+    .analytics-report-accordion__header,
     .analytics-business-report__header {
         display: grid;
     }
 
     .analytics-report-template-card__actions {
+        justify-content: flex-start;
+    }
+
+    .analytics-report-accordion__actions {
         justify-content: flex-start;
     }
 
@@ -1015,6 +1087,12 @@
 
     .analytics-business-report {
         padding: 18px;
+    }
+
+    .analytics-report-accordion__header,
+    .analytics-report-accordion__body {
+        padding-left: 16px;
+        padding-right: 16px;
     }
 }
 

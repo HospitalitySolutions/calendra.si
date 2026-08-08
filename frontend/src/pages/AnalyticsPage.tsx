@@ -351,6 +351,12 @@ function AnalyticsMobileKpiCard({
 
 type ReportLanguage = 'en' | 'sl' | 'sr'
 type AnalyticsTab = 'overview' | 'reports'
+type ReportAccordionItem = {
+  template: ReportTemplate
+  title: string
+  subtitle: string
+  disabled?: boolean
+}
 
 type AnalyticsCopy = {
   title: string
@@ -1227,7 +1233,8 @@ export function AnalyticsPage() {
   const [reportLanguage, setReportLanguage] = useState<ReportLanguage>(() => toReportLanguage(locale))
   const [reportComparePrevious, setReportComparePrevious] = useState(false)
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false)
-  const [activeReportTemplate, setActiveReportTemplate] = useState<ReportTemplate>('business')
+  const [activeReportTemplate, setActiveReportTemplate] = useState<ReportTemplate>('revenueInvoices')
+  const [expandedReportTemplate, setExpandedReportTemplate] = useState<ReportTemplate | null>('revenueInvoices')
   const [revenuePaymentStatus, setRevenuePaymentStatus] = useState<RevenuePaymentStatusFilter>('all')
   const [revenuePaymentMethodId, setRevenuePaymentMethodId] = useState('')
   const [revenueClientQuery, setRevenueClientQuery] = useState('')
@@ -1323,6 +1330,12 @@ export function AnalyticsPage() {
       setActiveReportTemplate('business')
     }
   }, [billingReportsEnabled, activeReportTemplate])
+
+  useEffect(() => {
+    if (!billingReportsEnabled && expandedReportTemplate === 'revenueInvoices') {
+      setExpandedReportTemplate('business')
+    }
+  }, [billingReportsEnabled, expandedReportTemplate])
 
   const paymentMethodsQuery = useQuery<PaymentMethodOption[]>({
     queryKey: ['analytics-report-payment-methods', billingReportsEnabled],
@@ -1711,6 +1724,12 @@ export function AnalyticsPage() {
       ? reportText.reportLanguageSlovenian
       : reportText.reportLanguageSerbian
 
+  const resetReportFiltersLabel = locale === 'sl'
+    ? 'Ponastavi filtre'
+    : locale === 'sr'
+      ? 'Resetuj filtere'
+      : 'Reset filters'
+
   const activeReportTitle = activeReportTemplate === 'revenueInvoices'
     ? reportText.revenueReportTemplateTitle
     : activeReportTemplate === 'bookingsAttendance'
@@ -2014,16 +2033,91 @@ export function AnalyticsPage() {
     window.setTimeout(() => window.print(), 120)
   }
 
-  const downloadActiveReportCsv = () => {
-    if (activeReportTemplate === 'revenueInvoices') return downloadRevenueInvoicesCsv()
-    if (activeReportTemplate === 'bookingsAttendance') return downloadBookingsAttendanceCsv()
-    return downloadBusinessReportCsv()
+  const reportAccordionItems = useMemo<ReportAccordionItem[]>(() => {
+    const items: ReportAccordionItem[] = []
+    if (billingReportsEnabled) {
+      items.push({
+        template: 'revenueInvoices',
+        title: reportText.revenueReportTemplateTitle,
+        subtitle: reportText.revenueReportTemplateSubtitle,
+      })
+    }
+    items.push({
+      template: 'business',
+      title: reportText.reportTemplateTitle,
+      subtitle: reportText.reportTemplateSubtitle,
+    })
+    items.push({
+      template: 'bookingsAttendance',
+      title: reportText.bookingsReportTemplateTitle,
+      subtitle: reportText.bookingsReportTemplateSubtitle,
+    })
+    return items
+  }, [billingReportsEnabled, reportText])
+
+  const setReportContext = (template: ReportTemplate) => {
+    setActiveTab('reports')
+    setActiveReportTemplate(template)
+    setExpandedReportTemplate(template)
   }
 
-  const printActiveReport = () => {
-    if (activeReportTemplate === 'business') return printBusinessReport()
+  const openReportPreviewFor = (template: ReportTemplate) => {
+    setReportContext(template)
+    setReportPreviewOpen(true)
+  }
+
+  const downloadReportCsvFor = (template: ReportTemplate) => {
+    setReportContext(template)
+    if (template === 'revenueInvoices') {
+      downloadRevenueInvoicesCsv()
+      return
+    }
+    if (template === 'bookingsAttendance') {
+      downloadBookingsAttendanceCsv()
+      return
+    }
+    downloadBusinessReportCsv()
+  }
+
+  const printReportFor = (template: ReportTemplate) => {
+    setReportContext(template)
+    if (template === 'business') {
+      printBusinessReport()
+      return
+    }
     setReportPreviewOpen(true)
     window.setTimeout(() => window.print(), 120)
+  }
+
+  const resetRevenueReportFilters = () => {
+    setRevenuePaymentStatus('all')
+    setRevenuePaymentMethodId('')
+    setRevenueClientQuery('')
+    setRevenueBillType('ALL')
+    setRevenueOutputMode('detailed')
+  }
+
+  const resetBookingsReportFilters = () => {
+    setBookingStatusFilter('ALL')
+    setBookingSourceFilter('ALL')
+    setBookingDeliveryMode('ALL')
+  }
+
+  const resetBusinessReportFilters = () => {
+    setReportComparePrevious(false)
+    setReportLanguage(toReportLanguage(locale))
+  }
+
+  const resetReportSpecificFilters = (template: ReportTemplate) => {
+    if (template === 'revenueInvoices') {
+      resetRevenueReportFilters()
+      return
+    }
+    if (template === 'bookingsAttendance') {
+      resetBookingsReportFilters()
+      return
+    }
+    resetBusinessReportFilters()
   }
 
   const exportCsv = () => {
@@ -2564,18 +2658,10 @@ export function AnalyticsPage() {
         </button>
         <button
           type="button"
-          className={activeTab === 'reports' && activeReportTemplate === 'revenueInvoices' ? 'active' : ''}
-          disabled={!billingReportsEnabled}
-          onClick={() => { setActiveTab('reports'); setActiveReportTemplate('revenueInvoices'); setReportPreviewOpen(false) }}
+          className={activeTab === 'reports' ? 'active' : ''}
+          onClick={() => { setActiveTab('reports'); setReportPreviewOpen(false) }}
         >
-          {locale === 'sl' ? 'Prihodki' : locale === 'sr' ? 'Prihodi' : 'Revenue'}
-        </button>
-        <button
-          type="button"
-          className={activeTab === 'reports' && activeReportTemplate === 'bookingsAttendance' ? 'active' : ''}
-          onClick={() => { setActiveTab('reports'); setActiveReportTemplate('bookingsAttendance'); setReportPreviewOpen(false) }}
-        >
-          {locale === 'sl' ? 'Rezervacije' : locale === 'sr' ? 'Rezervacije' : 'Bookings'}
+          {text.tabReports}
         </button>
       </div>
 
@@ -2604,15 +2690,7 @@ export function AnalyticsPage() {
                 {sendingReport ? `${text.sendNow}…` : text.sendNow}
               </button>
             </>
-          ) : (
-            <>
-              <button type="button" className="secondary" onClick={() => setReportPreviewOpen((open) => !open)} disabled={!summary}>
-                {reportPreviewOpen ? reportText.hidePreview : reportText.openPreview}
-              </button>
-              <button type="button" className="secondary" onClick={downloadActiveReportCsv} disabled={!summary || reportIsLoading}>{reportText.downloadReportCsv}</button>
-              <button type="button" onClick={printActiveReport} disabled={!summary || reportIsLoading}>{reportText.printSavePdf}</button>
-            </>
-          )}
+          ) : null}
         </div>
       </Card>
 
@@ -2676,32 +2754,25 @@ export function AnalyticsPage() {
             </div>
           )}
           <div className="analytics-mobile-action-row">
-            {activeTab === 'overview' ? (
+            {activeTab === 'overview' && (
               <>
                 <button type="button" className="secondary" onClick={exportCsv} disabled={!summary}>{text.export}</button>
                 <button type="button" onClick={sendManualReport} disabled={!summary || !canFetch || sendingReport}>
                   {sendingReport ? `${text.sendNow}…` : text.sendNow}
                 </button>
               </>
-            ) : (
-              <>
-                <button type="button" className="secondary" onClick={() => setReportPreviewOpen((open) => !open)} disabled={!summary}>
-                  {reportPreviewOpen ? reportText.hidePreview : reportText.openPreview}
-                </button>
-                <button type="button" onClick={downloadActiveReportCsv} disabled={!summary || reportIsLoading}>{reportText.downloadReportCsv}</button>
-              </>
             )}
           </div>
         </div>
       </Card>
 
-      {!canFetch ? (
+      {activeTab === 'overview' && !canFetch ? (
         <Card><div className="muted">{text.customRangeHint}</div></Card>
-      ) : isLoading ? (
+      ) : activeTab === 'overview' && isLoading ? (
         <Card><div className="muted">{text.loading}</div></Card>
-      ) : isError ? (
+      ) : activeTab === 'overview' && isError ? (
         <Card><div className="error">{text.failed}</div></Card>
-      ) : !data || !summary ? (
+      ) : activeTab === 'overview' && (!data || !summary) ? (
         <Card><EmptyState title={text.emptyTitle} text={text.emptyText} /></Card>
       ) : activeTab === 'overview' ? (
         <>
@@ -3072,149 +3143,175 @@ export function AnalyticsPage() {
         </>
       ) : (
         <div className="analytics-reports-tab">
-          <Card className="analytics-report-template-card">
-            <div className="analytics-report-template-card__content">
-              <span className="analytics-business-report__eyebrow">{reportText.reportTemplateBadge}</span>
-              <h3>{activeReportTitle}</h3>
-              <p>{activeReportSubtitle}</p>
-              {!billingReportsEnabled && <p className="muted">{reportText.billingDisabledReport}</p>}
-            </div>
-            <div className="analytics-report-template-card__actions">
-              <button type="button" className="secondary" onClick={() => setReportPreviewOpen((open) => !open)} disabled={reportIsLoading}>
-                {reportPreviewOpen ? reportText.hidePreview : reportText.openPreview}
-              </button>
-              <button type="button" className="secondary" onClick={downloadActiveReportCsv} disabled={reportIsLoading}>{reportText.downloadReportCsv}</button>
-              <button type="button" onClick={printActiveReport} disabled={reportIsLoading}>{reportText.printSavePdf}</button>
-            </div>
-          </Card>
+          {reportAccordionItems.map((item) => {
+            const isExpanded = expandedReportTemplate === item.template
+            const isCurrent = activeReportTemplate === item.template
+            return (
+              <Card key={item.template} className={`analytics-report-accordion${isExpanded ? ' analytics-report-accordion--expanded' : ''}`}>
+                <button
+                  type="button"
+                  className="analytics-report-accordion__header"
+                  onClick={() => {
+                    if (!isExpanded) {
+                      setReportContext(item.template)
+                    }
+                    setExpandedReportTemplate(isExpanded ? null : item.template)
+                  }}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="analytics-report-accordion__header-copy">
+                    <span className="analytics-business-report__eyebrow">{reportText.reportTemplateBadge}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.subtitle}</p>
+                  </div>
+                  <span className={`analytics-report-accordion__chevron${isExpanded ? ' is-open' : ''}`} aria-hidden>⌄</span>
+                </button>
 
-          <Card className="analytics-report-parameters-card">
-            <div className="analytics-card-heading">
-              <h3>{reportText.reportParametersTitle}</h3>
-              <p>{reportText.reportParametersSubtitle}</p>
-            </div>
-            <div className="analytics-report-parameter-grid">
-              <label className="field">
-                <span className="field-label">{reportText.reportSelectedTemplate}</span>
-                <select value={activeReportTemplate} onChange={(event) => { setActiveReportTemplate(event.target.value as ReportTemplate); setReportPreviewOpen(false) }}>
-                  <option value="business">{reportText.reportTemplateTitle}</option>
-                  {billingReportsEnabled && <option value="revenueInvoices">{reportText.revenueReportTemplateTitle}</option>}
-                  <option value="bookingsAttendance">{reportText.bookingsReportTemplateTitle}</option>
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">{reportText.reportLanguage}</span>
-                <select value={reportLanguage} onChange={(event) => setReportLanguage(event.target.value as ReportLanguage)}>
-                  <option value="en">{reportText.reportLanguageEnglish}</option>
-                  <option value="sl">{reportText.reportLanguageSlovenian}</option>
-                  <option value="sr">{reportText.reportLanguageSerbian}</option>
-                </select>
-              </label>
-              {activeReportTemplate === 'business' && (
-                <label className="analytics-report-toggle analytics-report-toggle--card">
-                  <input type="checkbox" checked={reportComparePrevious} onChange={(event) => setReportComparePrevious(event.target.checked)} />
-                  <span>{reportText.reportComparePrevious}</span>
-                </label>
-              )}
-              {activeReportTemplate === 'revenueInvoices' && (
-                <>
-                  <label className="field">
-                    <span className="field-label">{reportText.paymentStatus}</span>
-                    <select value={revenuePaymentStatus} onChange={(event) => setRevenuePaymentStatus(event.target.value as RevenuePaymentStatusFilter)}>
-                      <option value="all">{reportText.paymentStatusAll}</option>
-                      <option value="paid">{reportText.paymentStatusPaid}</option>
-                      <option value="open">{reportText.paymentStatusOpen}</option>
-                      <option value="refunded">{reportText.paymentStatusRefunded}</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">{reportText.paymentMethod}</span>
-                    <select value={revenuePaymentMethodId} onChange={(event) => setRevenuePaymentMethodId(event.target.value)}>
-                      <option value="">{reportText.allPaymentMethods}</option>
-                      {(paymentMethodsQuery.data ?? []).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">{reportText.clientCompany}</span>
-                    <input value={revenueClientQuery} onChange={(event) => setRevenueClientQuery(event.target.value)} placeholder={reportText.clientCompanyPlaceholder} />
-                  </label>
-                  <label className="field">
-                    <span className="field-label">{reportText.invoiceType}</span>
-                    <select value={revenueBillType} onChange={(event) => setRevenueBillType(event.target.value as RevenueBillTypeFilter)}>
-                      <option value="ALL">{reportText.invoiceTypeAll}</option>
-                      <option value="INVOICE">{reportText.invoiceTypeInvoice}</option>
-                      <option value="ADVANCE">{reportText.invoiceTypeAdvance}</option>
-                      <option value="REFUND">{reportText.invoiceTypeRefund}</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">{reportText.outputMode}</span>
-                    <select value={revenueOutputMode} onChange={(event) => setRevenueOutputMode(event.target.value as RevenueOutputMode)}>
-                      <option value="summary">{reportText.outputSummary}</option>
-                      <option value="detailed">{reportText.outputDetailed}</option>
-                    </select>
-                  </label>
-                </>
-              )}
-              {activeReportTemplate === 'bookingsAttendance' && (
-                <>
-                  <label className="field">
-                    <span className="field-label">{reportText.bookingStatus}</span>
-                    <select value={bookingStatusFilter} onChange={(event) => setBookingStatusFilter(event.target.value as BookingStatusFilter)}>
-                      <option value="ALL">{reportText.bookingStatusAll}</option>
-                      <option value="RESERVED">{reportText.bookingStatusReserved}</option>
-                      <option value="CHECKED_OUT">{reportText.bookingStatusCompleted}</option>
-                      <option value="CANCELLED">{reportText.bookingStatusCancelled}</option>
-                      <option value="NO_SHOW">{reportText.bookingStatusNoShow}</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">{reportText.sourceChannel}</span>
-                    <select value={bookingSourceFilter} onChange={(event) => setBookingSourceFilter(event.target.value as BookingSourceFilter)}>
-                      <option value="ALL">{reportText.sourceAll}</option>
-                      <option value="STAFF">{reportText.sourceStaff}</option>
-                      <option value="WEBSITE_WIDGET">{reportText.sourceWebsiteWidget}</option>
-                      <option value="GUEST_APP">{reportText.sourceGuestApp}</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">{reportText.deliveryMode}</span>
-                    <select value={bookingDeliveryMode} onChange={(event) => setBookingDeliveryMode(event.target.value as DeliveryModeFilter)}>
-                      <option value="ALL">{reportText.deliveryAll}</option>
-                      <option value="ONLINE">{reportText.deliveryOnline}</option>
-                      <option value="ONSITE">{reportText.deliveryOnsite}</option>
-                    </select>
-                  </label>
-                </>
-              )}
-              <div className="analytics-report-parameter-summary">
-                <span>{reportText.reportPeriod}</span>
-                <strong>{reportRangeLabel}</strong>
-              </div>
-              <div className="analytics-report-parameter-summary">
-                <span>{reportText.selectedConsultant}</span>
-                <strong>{selectedConsultantName}</strong>
-              </div>
-              <div className="analytics-report-parameter-summary">
-                <span>{reportText.selectedSpace}</span>
-                <strong>{selectedSpaceName}</strong>
-              </div>
-              {serviceGroupsReportsEnabled && (
-                <div className="analytics-report-parameter-summary">
-                  <span>{reportGroupText.selectedGroup}</span>
-                  <strong>{selectedServiceGroupName}</strong>
-                </div>
-              )}
-              <div className="analytics-report-parameter-summary">
-                <span>{reportText.selectedType}</span>
-                <strong>{selectedTypeName}</strong>
-              </div>
-            </div>
-            <p className="muted analytics-report-print-hint">{reportText.reportPreviewHint}</p>
-          </Card>
+                {isExpanded && (
+                  <div className="analytics-report-accordion__body">
+                    <div className="analytics-card-heading">
+                      <h3>{reportText.reportParametersTitle}</h3>
+                      <p>{reportText.reportParametersSubtitle}</p>
+                    </div>
+                    <div className="analytics-report-parameter-grid">
+                      <div className="analytics-report-parameter-summary">
+                        <span>{reportText.reportPeriod}</span>
+                        <strong>{reportRangeLabel}</strong>
+                      </div>
+                      <div className="analytics-report-parameter-summary">
+                        <span>{reportText.selectedConsultant}</span>
+                        <strong>{selectedConsultantName}</strong>
+                      </div>
+                      <div className="analytics-report-parameter-summary">
+                        <span>{reportText.selectedSpace}</span>
+                        <strong>{selectedSpaceName}</strong>
+                      </div>
+                      {serviceGroupsReportsEnabled && (
+                        <div className="analytics-report-parameter-summary">
+                          <span>{reportGroupText.selectedGroup}</span>
+                          <strong>{selectedServiceGroupName}</strong>
+                        </div>
+                      )}
+                      <div className="analytics-report-parameter-summary">
+                        <span>{reportText.selectedType}</span>
+                        <strong>{selectedTypeName}</strong>
+                      </div>
+                      <label className="field">
+                        <span className="field-label">{reportText.reportLanguage}</span>
+                        <select value={reportLanguage} onChange={(event) => setReportLanguage(event.target.value as ReportLanguage)}>
+                          <option value="en">{reportText.reportLanguageEnglish}</option>
+                          <option value="sl">{reportText.reportLanguageSlovenian}</option>
+                          <option value="sr">{reportText.reportLanguageSerbian}</option>
+                        </select>
+                      </label>
+                      {item.template === 'business' && (
+                        <label className="analytics-report-toggle analytics-report-toggle--card">
+                          <input type="checkbox" checked={reportComparePrevious} onChange={(event) => setReportComparePrevious(event.target.checked)} />
+                          <span>{reportText.reportComparePrevious}</span>
+                        </label>
+                      )}
+                      {item.template === 'revenueInvoices' && (
+                        <>
+                          <label className="field">
+                            <span className="field-label">{reportText.paymentStatus}</span>
+                            <select value={revenuePaymentStatus} onChange={(event) => setRevenuePaymentStatus(event.target.value as RevenuePaymentStatusFilter)}>
+                              <option value="all">{reportText.paymentStatusAll}</option>
+                              <option value="paid">{reportText.paymentStatusPaid}</option>
+                              <option value="open">{reportText.paymentStatusOpen}</option>
+                              <option value="refunded">{reportText.paymentStatusRefunded}</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span className="field-label">{reportText.paymentMethod}</span>
+                            <select value={revenuePaymentMethodId} onChange={(event) => setRevenuePaymentMethodId(event.target.value)}>
+                              <option value="">{reportText.allPaymentMethods}</option>
+                              {(paymentMethodsQuery.data ?? []).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span className="field-label">{reportText.clientCompany}</span>
+                            <input value={revenueClientQuery} onChange={(event) => setRevenueClientQuery(event.target.value)} placeholder={reportText.clientCompanyPlaceholder} />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">{reportText.invoiceType}</span>
+                            <select value={revenueBillType} onChange={(event) => setRevenueBillType(event.target.value as RevenueBillTypeFilter)}>
+                              <option value="ALL">{reportText.invoiceTypeAll}</option>
+                              <option value="INVOICE">{reportText.invoiceTypeInvoice}</option>
+                              <option value="ADVANCE">{reportText.invoiceTypeAdvance}</option>
+                              <option value="REFUND">{reportText.invoiceTypeRefund}</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span className="field-label">{reportText.outputMode}</span>
+                            <select value={revenueOutputMode} onChange={(event) => setRevenueOutputMode(event.target.value as RevenueOutputMode)}>
+                              <option value="summary">{reportText.outputSummary}</option>
+                              <option value="detailed">{reportText.outputDetailed}</option>
+                            </select>
+                          </label>
+                        </>
+                      )}
+                      {item.template === 'bookingsAttendance' && (
+                        <>
+                          <label className="field">
+                            <span className="field-label">{reportText.bookingStatus}</span>
+                            <select value={bookingStatusFilter} onChange={(event) => setBookingStatusFilter(event.target.value as BookingStatusFilter)}>
+                              <option value="ALL">{reportText.bookingStatusAll}</option>
+                              <option value="RESERVED">{reportText.bookingStatusReserved}</option>
+                              <option value="CHECKED_OUT">{reportText.bookingStatusCompleted}</option>
+                              <option value="CANCELLED">{reportText.bookingStatusCancelled}</option>
+                              <option value="NO_SHOW">{reportText.bookingStatusNoShow}</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span className="field-label">{reportText.sourceChannel}</span>
+                            <select value={bookingSourceFilter} onChange={(event) => setBookingSourceFilter(event.target.value as BookingSourceFilter)}>
+                              <option value="ALL">{reportText.sourceAll}</option>
+                              <option value="STAFF">{reportText.sourceStaff}</option>
+                              <option value="WEBSITE_WIDGET">{reportText.sourceWebsiteWidget}</option>
+                              <option value="GUEST_APP">{reportText.sourceGuestApp}</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span className="field-label">{reportText.deliveryMode}</span>
+                            <select value={bookingDeliveryMode} onChange={(event) => setBookingDeliveryMode(event.target.value as DeliveryModeFilter)}>
+                              <option value="ALL">{reportText.deliveryAll}</option>
+                              <option value="ONLINE">{reportText.deliveryOnline}</option>
+                              <option value="ONSITE">{reportText.deliveryOnsite}</option>
+                            </select>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                    <div className="analytics-report-accordion__actions">
+                      <button type="button" className="secondary" onClick={() => resetReportSpecificFilters(item.template)}>{resetReportFiltersLabel}</button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          if (reportPreviewOpen && isCurrent) {
+                            setReportPreviewOpen(false)
+                            return
+                          }
+                          openReportPreviewFor(item.template)
+                        }}
+                        disabled={reportIsLoading && isCurrent}
+                      >
+                        {reportPreviewOpen && isCurrent ? reportText.hidePreview : reportText.openPreview}
+                      </button>
+                      <button type="button" className="secondary" onClick={() => downloadReportCsvFor(item.template)} disabled={reportIsLoading && isCurrent}>{reportText.downloadReportCsv}</button>
+                      <button type="button" onClick={() => printReportFor(item.template)} disabled={reportIsLoading && isCurrent}>{reportText.printSavePdf}</button>
+                    </div>
+                    <p className="muted analytics-report-print-hint">{reportText.reportPreviewHint}</p>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
 
           {reportPreviewOpen ? (
-            reportIsLoading ? (
+            !canFetch ? (
+              <Card><div className="muted">{text.customRangeHint}</div></Card>
+            ) : reportIsLoading ? (
               <Card><div className="muted">{text.loading}</div></Card>
             ) : activeReportPreview ? (
               activeReportPreview
