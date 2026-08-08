@@ -980,9 +980,15 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 /**
- * Write conservatively sized chunks. Cheap 58 mm controllers often expose a tiny
- * serial receive buffer; throttling prevents QR payloads and long receipts from
- * overrunning it while preserving ESC/POS byte order exactly.
+ * Send ESC/POS data at approximately the physical serial line rate.
+ *
+ * `writer.write()` only tells us that the browser/OS accepted the bytes; on many
+ * inexpensive USB/serial thermal printers it does not mean that the printer has
+ * consumed them. Sending 384 bytes every 8 ms at 19,200 baud can therefore fill
+ * the controller buffer and silently drop the tail of a long receipt.
+ *
+ * Keep chunks small, pace every chunk by its 8N1 wire time and leave a short drain
+ * window after the last byte before closing a port that we opened for this job.
  */
 export async function sendEscPosBytes(
   port: WebSerialPortLike,
@@ -1004,11 +1010,22 @@ export async function sendEscPosBytes(
     const writer = port.writable?.getWriter()
     if (!writer) throw new Error('Printer port is not writable.')
     try {
-      const chunkSize = 384
+      const chunkSize = 96
+      const effectiveBaudRate = Math.max(1200, Number(baudRate) || POS_DEFAULT_BAUD_RATE)
+
       for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-        await writer.write(bytes.slice(offset, Math.min(bytes.length, offset + chunkSize)))
-        if (offset + chunkSize < bytes.length) await sleep(8)
+        const chunk = bytes.slice(offset, Math.min(bytes.length, offset + chunkSize))
+        await writer.write(chunk)
+
+        // 8 data bits + start + stop bit = approximately 10 bits per transmitted byte.
+        // A small controller-processing guard also gives QR/raster commands time to drain.
+        const wireTimeMs = Math.ceil((chunk.length * 10 * 1000) / effectiveBaudRate)
+        await sleep(Math.max(12, wireTimeMs + 12))
       }
+
+      // Do not tear the serial connection down while the final bytes are still sitting
+      // in the OS/USB bridge. This was the main reason longer slips lost their bottom.
+      await sleep(650)
     } finally {
       writer.releaseLock()
     }
