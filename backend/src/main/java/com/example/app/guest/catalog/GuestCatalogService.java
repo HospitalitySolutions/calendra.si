@@ -9,6 +9,7 @@ import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.ProductType;
+import com.example.app.guest.model.VoucherRules;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
@@ -122,7 +123,12 @@ public class GuestCatalogService {
                     publicGroup(type) == null ? null : String.valueOf(publicGroup(type).getId()),
                     publicGroup(type) == null ? null : publicGroup(type).getName(),
                     publicGroup(type) == null ? null : publicGroup(type).getSortOrder(),
-                    type.getGuestSortOrder()
+                    type.getGuestSortOrder(),
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    List.of()
             ));
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
@@ -157,7 +163,14 @@ public class GuestCatalogService {
                             ? null : publicGroup(product.getSessionType()).getName(),
                     product.getSessionType() == null || publicGroup(product.getSessionType()) == null
                             ? null : publicGroup(product.getSessionType()).getSortOrder(),
-                    product.getSessionType() == null ? Integer.MAX_VALUE : product.getSessionType().getGuestSortOrder()
+                    product.getSessionType() == null ? Integer.MAX_VALUE : product.getSessionType().getGuestSortOrder(),
+                    product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productMode(product) != null ? VoucherRules.productMode(product).name() : null,
+                    product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productScope(product) != null ? VoucherRules.productScope(product).name() : null,
+                    product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productFaceValueGross(product) != null ? VoucherRules.productFaceValueGross(product).doubleValue() : null,
+                    product.getProductType() == ProductType.GIFT_CARD && product.getVoucherSessionTypes() != null
+                            ? product.getVoucherSessionTypes().stream().map(type -> String.valueOf(type.getId())).toList() : List.of(),
+                    product.getProductType() == ProductType.GIFT_CARD && product.getVoucherSessionTypes() != null
+                            ? product.getVoucherSessionTypes().stream().map(type -> type.getName() == null ? "" : type.getName().trim()).filter(name -> !name.isBlank()).toList() : List.of()
             ));
         }
         return out;

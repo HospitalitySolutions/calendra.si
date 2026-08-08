@@ -18,6 +18,7 @@ import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestTenantLinkStatus;
+import com.example.app.guest.model.VoucherRules;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.order.GuestOrderService;
 import com.example.app.guest.notifications.GuestNotificationService;
@@ -246,6 +247,12 @@ public class ClientController {
             String entitlementType,
             String entitlementCode,
             Integer remainingUses,
+            BigDecimal remainingValueGross,
+            BigDecimal faceValueGross,
+            String currency,
+            String voucherRedemptionMode,
+            String voucherServiceScope,
+            List<String> voucherSessionTypeNames,
             Integer visitCount,
             Instant validFrom,
             Instant validUntil,
@@ -685,6 +692,14 @@ public class ClientController {
     }
 
 
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return null;
+    }
+
     private ClientWalletEntitlementResponse toWalletEntitlementResponse(GuestEntitlement entitlement) {
         var product = entitlement.getProduct();
         var sessionType = product == null ? null : product.getSessionType();
@@ -692,8 +707,14 @@ public class ClientController {
                 entitlement.getId(),
                 product == null ? null : product.getName(),
                 entitlement.getEntitlementType() == null ? null : entitlement.getEntitlementType().name(),
-                entitlement.getEntitlementCode(),
+                firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode()),
                 entitlement.getRemainingUses(),
+                entitlement.getRemainingValueGross(),
+                VoucherRules.entitlementFaceValueGross(entitlement),
+                product == null || product.getCurrency() == null || product.getCurrency().isBlank() ? "EUR" : product.getCurrency().trim().toUpperCase(),
+                VoucherRules.entitlementMode(entitlement) == null ? null : VoucherRules.entitlementMode(entitlement).name(),
+                VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name(),
+                VoucherRules.entitlementEligibleServiceNames(entitlement).stream().toList(),
                 entitlement.getVisitCount(),
                 entitlement.getValidFrom(),
                 entitlement.getValidUntil(),

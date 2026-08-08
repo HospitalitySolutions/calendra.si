@@ -10,6 +10,9 @@ import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.ProductType;
+import com.example.app.guest.model.VoucherRedemptionMode;
+import com.example.app.guest.model.VoucherRules;
+import com.example.app.guest.model.VoucherServiceScope;
 import com.example.app.logging.LogSanitizer;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -142,7 +145,7 @@ public class GiftCardEmailService {
         String companyName = company == null || company.getName() == null || company.getName().isBlank()
                 ? "Calendra"
                 : company.getName().trim();
-        return "Darilni bon " + companyName;
+        return voucherTitle(entitlement) + " " + companyName;
     }
 
     private String emailBody(GuestEntitlement entitlement, GiftCardSettings settings) {
@@ -150,12 +153,18 @@ public class GiftCardEmailService {
         String productName = productName(entitlement);
         String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
         StringBuilder body = new StringBuilder();
+        String voucherTitle = voucherTitle(entitlement);
         body.append("Pozdravljeni,\n\n");
-        body.append("v priponki vam pošiljamo darilni bon");
+        body.append("v priponki vam pošiljamo ").append(voucherTitle.toLowerCase(Locale.ROOT));
         if (!productName.isBlank()) body.append(" ").append(productName);
         body.append(".\n");
+        if (VoucherRules.isServiceVoucher(entitlement)) {
+            body.append("Velja za: ").append(serviceDescription(entitlement)).append("\n");
+        } else {
+            body.append("Vrednost: ").append(value(entitlement)).append("\n");
+        }
         if (!code.isBlank()) {
-            body.append("Koda darilnega bona: ").append(code).append("\n");
+            body.append("Koda bona: ").append(code).append("\n");
         }
         body.append("\nLep pozdrav,\n").append(companyName);
         return body.toString();
@@ -242,10 +251,21 @@ public class GiftCardEmailService {
         if (settings.showTo() && to != null && !to.isBlank()) {
             cursorY = drawPdfField(stream, regular, bold, "ZA", to, leftX, cursorY, fieldWidth, 23, true);
         }
-        if (settings.showValue()) {
-            drawPdfLabel(stream, bold, "VREDNOST", leftX, cursorY);
-            drawPdfText(stream, bold, value(entitlement), leftX, cursorY - 54, 46, new Color(183, 138, 66));
-            cursorY -= 84;
+        if (settings.showContent()) {
+            if (VoucherRules.isServiceVoucher(entitlement)) {
+                String serviceText = serviceDescription(entitlement);
+                String label = VoucherRules.entitlementScope(entitlement) == VoucherServiceScope.SELECTED_SERVICES
+                        && VoucherRules.entitlementEligibleServiceNames(entitlement).size() == 1
+                        ? "STORITEV"
+                        : "VELJA ZA";
+                drawPdfLabel(stream, bold, label, leftX, cursorY);
+                drawWrappedPdfText(stream, bold, serviceText, leftX, cursorY - 34, fieldWidth, 25, 30, new Color(48, 38, 29), 3);
+                cursorY -= 104;
+            } else {
+                drawPdfLabel(stream, bold, "VREDNOST", leftX, cursorY);
+                drawPdfText(stream, bold, value(entitlement), leftX, cursorY - 54, 46, new Color(183, 138, 66));
+                cursorY -= 84;
+            }
         }
         if (settings.showExpires()) {
             cursorY = drawPdfField(stream, regular, bold, "POTEČE", expiry(entitlement), leftX, cursorY, fieldWidth, 20, true);
@@ -422,7 +442,8 @@ public class GiftCardEmailService {
     }
 
     private String plainPreview(GuestEntitlement entitlement, GiftCardSettings settings) {
-        return "Gift card " + productName(entitlement) + " · " + value(entitlement) + " · " + firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
+        String content = VoucherRules.isServiceVoucher(entitlement) ? serviceDescription(entitlement) : value(entitlement);
+        return voucherTitle(entitlement) + " " + productName(entitlement) + " · " + content + " · " + firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
     }
 
     private String companyName(GuestEntitlement entitlement) {
@@ -432,7 +453,24 @@ public class GiftCardEmailService {
 
     private String productName(GuestEntitlement entitlement) {
         GuestProduct product = entitlement.getProduct();
-        return product == null || product.getName() == null || product.getName().isBlank() ? "Darilni bon" : product.getName().trim();
+        return product == null || product.getName() == null || product.getName().isBlank() ? voucherTitle(entitlement) : product.getName().trim();
+    }
+
+    private String voucherTitle(GuestEntitlement entitlement) {
+        return VoucherRules.entitlementMode(entitlement) == VoucherRedemptionMode.SERVICE
+                ? "Darilni bon"
+                : "Vrednostni bon";
+    }
+
+    private String serviceDescription(GuestEntitlement entitlement) {
+        if (VoucherRules.entitlementScope(entitlement) == VoucherServiceScope.ALL_SERVICES) {
+            return "Vse storitve";
+        }
+        var names = VoucherRules.entitlementEligibleServiceNames(entitlement);
+        if (!names.isEmpty()) return String.join(", ", names);
+        GuestProduct product = entitlement == null ? null : entitlement.getProduct();
+        if (product != null && product.getName() != null && !product.getName().isBlank()) return product.getName().trim();
+        return "Izbrane storitve";
     }
 
     private String fromName(GuestEntitlement entitlement) {
@@ -442,7 +480,7 @@ public class GiftCardEmailService {
     }
 
     private String value(GuestEntitlement entitlement) {
-        BigDecimal amount = entitlement.getProduct() == null ? null : entitlement.getProduct().getPriceGross();
+        BigDecimal amount = VoucherRules.entitlementFaceValueGross(entitlement);
         if (amount == null && entitlement.getSourceOrder() != null) amount = entitlement.getSourceOrder().getTotalGross();
         if (amount == null) amount = entitlement.getRemainingValueGross();
         if (amount == null) amount = BigDecimal.ZERO;
@@ -485,7 +523,8 @@ public class GiftCardEmailService {
         String code = firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), String.valueOf(entitlement.getId()));
         String safeCode = code == null ? "" : code.replaceAll("[^A-Za-z0-9._-]", "-");
         if (safeCode.isBlank()) safeCode = "bon";
-        return "darilni-bon-" + safeCode + ".pdf";
+        String prefix = VoucherRules.isServiceVoucher(entitlement) ? "darilni-bon-" : "vrednostni-bon-";
+        return prefix + safeCode + ".pdf";
     }
 
     private void applyClientSender(MimeMessageHelper helper, Company company) throws jakarta.mail.MessagingException {
@@ -557,7 +596,7 @@ public class GiftCardEmailService {
             boolean active,
             boolean showFrom,
             boolean showTo,
-            boolean showValue,
+            boolean showContent,
             boolean showExpires,
             boolean showText,
             boolean showCode,
@@ -576,7 +615,7 @@ public class GiftCardEmailService {
                         bool(root, "active", defaults.active()),
                         bool(root, "showFrom", defaults.showFrom()),
                         bool(root, "showTo", defaults.showTo()),
-                        bool(root, "showValue", defaults.showValue()),
+                        bool(root, "showContent", bool(root, "showValue", defaults.showContent())),
                         bool(root, "showExpires", defaults.showExpires()),
                         bool(root, "showText", defaults.showText()),
                         bool(root, "showCode", defaults.showCode()),

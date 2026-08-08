@@ -25,6 +25,7 @@ import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
+import com.example.app.guest.model.VoucherRules;
 import com.example.app.security.SecurityUtils;
 import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.settings.BillingModuleAccessService;
@@ -132,7 +133,11 @@ public class ClientWalletPurchaseController {
             String sessionTypeName,
             Long transactionServiceId,
             String transactionServiceCode,
-            String transactionServiceDescription
+            String transactionServiceDescription,
+            String voucherRedemptionMode,
+            String voucherServiceScope,
+            BigDecimal voucherFaceValueGross,
+            List<String> voucherSessionTypeNames
     ) {}
 
     public record CreateWalletPurchaseOpenBillRequest(String giftCardTo, String giftCardText) {}
@@ -451,7 +456,21 @@ public class ClientWalletPurchaseController {
                 sessionType == null ? null : sessionType.getName(),
                 transactionService == null ? null : transactionService.getId(),
                 transactionService == null ? null : transactionService.getCode(),
-                transactionService == null ? null : transactionService.getDescription()
+                transactionService == null ? null : transactionService.getDescription(),
+                product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productMode(product) != null
+                        ? VoucherRules.productMode(product).name()
+                        : null,
+                product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productScope(product) != null
+                        ? VoucherRules.productScope(product).name()
+                        : null,
+                product.getProductType() == ProductType.GIFT_CARD ? VoucherRules.productFaceValueGross(product) : null,
+                product.getProductType() == ProductType.GIFT_CARD && product.getVoucherSessionTypes() != null
+                        ? product.getVoucherSessionTypes().stream()
+                            .filter(Objects::nonNull)
+                            .map(type -> type.getName() == null ? "" : type.getName().trim())
+                            .filter(name -> !name.isBlank())
+                            .toList()
+                        : List.of()
         );
     }
 

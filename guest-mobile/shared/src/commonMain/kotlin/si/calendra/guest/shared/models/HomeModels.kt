@@ -50,6 +50,11 @@ data class EntitlementSummary(
     val displayCode: String? = null,
     val priceGross: Double? = null,
     val remainingValueGross: Double? = null,
+    val voucherFaceValueGross: Double? = null,
+    val voucherRedemptionMode: String? = null,
+    val voucherServiceScope: String? = null,
+    val voucherSessionTypeIds: List<String> = emptyList(),
+    val voucherSessionTypeNames: List<String> = emptyList(),
     val currency: String? = null,
     val accessUrl: String? = null
 )

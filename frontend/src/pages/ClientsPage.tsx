@@ -198,6 +198,12 @@ type ClientWalletEntitlement = {
   entitlementType: string | null
   entitlementCode?: string | null
   remainingUses: number | null
+  remainingValueGross?: number | null
+  faceValueGross?: number | null
+  currency?: string | null
+  voucherRedemptionMode?: 'SERVICE' | 'VALUE' | string | null
+  voucherServiceScope?: 'ALL_SERVICES' | 'SELECTED_SERVICES' | string | null
+  voucherSessionTypeNames?: string[] | null
   visitCount?: number | null
   validFrom: string | null
   validUntil: string | null
@@ -246,6 +252,10 @@ type WalletProduct = {
   transactionServiceId?: number | null
   transactionServiceCode?: string | null
   transactionServiceDescription?: string | null
+  voucherRedemptionMode?: 'SERVICE' | 'VALUE' | string | null
+  voucherServiceScope?: 'ALL_SERVICES' | 'SELECTED_SERVICES' | string | null
+  voucherFaceValueGross?: number | string | null
+  voucherSessionTypeNames?: string[] | null
 }
 
 type WalletPurchaseOpenBillResponse = {
@@ -379,18 +389,18 @@ function entitlementKind(entitlement: ClientWalletEntitlement): 'membership' | '
   return 'pack'
 }
 
-function walletProductTypeLabel(productType: string | null | undefined, locale: string): string {
+function walletProductTypeLabel(productType: string | null | undefined, locale: string, voucherMode?: string | null): string {
   const type = (productType ?? '').toUpperCase()
   if (locale === 'sl') {
     if (type === 'MEMBERSHIP') return 'Članarina'
-    if (type === 'GIFT_CARD') return 'Darilna kartica'
+    if (type === 'GIFT_CARD') return voucherMode === 'SERVICE' ? 'Darilni bon' : 'Vrednostni bon'
     if (type === 'CLASS_TICKET') return 'Karta'
     if (type === 'COURSE') return 'Dostop do tečaja'
     if (type === 'PACK') return 'Paket'
     return 'Ugodnost'
   }
   if (type === 'MEMBERSHIP') return 'Membership'
-  if (type === 'GIFT_CARD') return 'Gift card'
+  if (type === 'GIFT_CARD') return voucherMode === 'SERVICE' ? 'Service voucher' : 'Value voucher'
   if (type === 'CLASS_TICKET') return 'Ticket'
   if (type === 'COURSE') return 'Course access'
   if (type === 'PACK') return 'Pack'
@@ -406,19 +416,27 @@ function walletProductTypeTone(productType: string | null | undefined): 'pack' |
   return 'pack'
 }
 
-function walletEntitlementKindLabel(kind: ReturnType<typeof entitlementKind>, locale: string): string {
+function walletEntitlementKindLabel(kind: ReturnType<typeof entitlementKind>, locale: string, voucherMode?: string | null): string {
   if (locale === 'sl') {
     if (kind === 'membership') return 'Članarina'
-    if (kind === 'gift_card') return 'Darilna kartica'
+    if (kind === 'gift_card') return voucherMode === 'SERVICE' ? 'Darilni bon' : 'Vrednostni bon'
     if (kind === 'ticket') return 'Karta'
     if (kind === 'course') return 'Tečaj'
     return 'Paket'
   }
   if (kind === 'membership') return 'Membership'
-  if (kind === 'gift_card') return 'Gift card'
+  if (kind === 'gift_card') return voucherMode === 'SERVICE' ? 'Service voucher' : 'Value voucher'
   if (kind === 'ticket') return 'Ticket'
   if (kind === 'course') return 'Course'
   return 'Pack'
+}
+
+function walletVoucherScopeLabel(scope: string | null | undefined, names: string[] | null | undefined, locale: string): string {
+  if (scope !== 'SELECTED_SERVICES') return locale === 'sl' ? 'Vse storitve' : 'All services'
+  const clean = (names ?? []).filter(Boolean)
+  if (clean.length === 0) return locale === 'sl' ? 'Izbrane storitve' : 'Selected services'
+  if (clean.length === 1) return clean[0]
+  return clean.join(', ')
 }
 
 
@@ -4591,7 +4609,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               </button>
                               {giftCardsFeatureEnabled && (
                                 <button type="button" className={walletFilter === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('giftCards')}>
-                                  {locale === 'sl' ? 'Darilne kartice' : 'Gift cards'}
+                                  {locale === 'sl' ? 'Boni' : 'Vouchers'}
                                 </button>
                               )}
                             </div>
@@ -4629,7 +4647,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                   >
                                     <div className="clients-wallet-entitlement-main">
                                       <div className="clients-wallet-entitlement-title-row">
-                                        <span className="clients-wallet-entitlement-tag">{walletEntitlementKindLabel(kind, locale)}</span>
+                                        <span className="clients-wallet-entitlement-tag">{walletEntitlementKindLabel(kind, locale, entitlement.voucherRedemptionMode)}</span>
                                         <strong>{entitlement.productName}</strong>
                                       </div>
                                       <div className="clients-wallet-entitlement-meta">
@@ -4639,15 +4657,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                         {entitlement.validUntil ? (
                                           <span>{isMembership ? (locale === 'sl' ? 'Obnovi se' : 'Renews') : (locale === 'sl' ? 'Poteče' : 'Expires')} {formatDate(entitlement.validUntil)}</span>
                                         ) : null}
-                                        {entitlement.sessionTypeName ? <span>{entitlement.sessionTypeName}</span> : null}
+                                        {kind === 'gift_card' && entitlement.voucherRedemptionMode === 'SERVICE' ? (
+                                          <span>{walletVoucherScopeLabel(entitlement.voucherServiceScope, entitlement.voucherSessionTypeNames, locale)}</span>
+                                        ) : entitlement.sessionTypeName ? <span>{entitlement.sessionTypeName}</span> : null}
+                                        {kind === 'gift_card' && entitlement.entitlementCode ? <span>{locale === 'sl' ? 'Koda' : 'Code'}: {entitlement.entitlementCode}</span> : null}
                                       </div>
                                     </div>
                                     <div className="clients-wallet-entitlement-side">
                                       <span className="clients-wallet-status-pill"><span /> {status}</span>
                                       <strong>
-                                        {isMembership
-                                          ? `${clientsCopy.walletVisitCount}: ${entitlement.visitCount ?? 0}`
-                                          : `${entitlement.remainingUses == null ? clientsCopy.walletUnlimited : entitlement.remainingUses} ${clientsCopy.walletRemainingUses.toLowerCase()}`}
+                                        {kind === 'gift_card' && entitlement.voucherRedemptionMode !== 'SERVICE'
+                                          ? `${Number(entitlement.remainingValueGross ?? 0).toFixed(2)} ${entitlement.currency || 'EUR'}`
+                                          : isMembership
+                                            ? `${clientsCopy.walletVisitCount}: ${entitlement.visitCount ?? 0}`
+                                            : `${entitlement.remainingUses == null ? clientsCopy.walletUnlimited : entitlement.remainingUses} ${clientsCopy.walletRemainingUses.toLowerCase()}`}
                                       </strong>
                                       <button
                                         type="button"
@@ -4694,7 +4717,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               {walletProductsLoading ? (
                                 <div className="muted clients-wallet-product-loading">{locale === 'sl' ? 'Nalaganje ugodnosti…' : 'Loading entitlements…'}</div>
                               ) : filteredWalletProducts.length === 0 ? (
-                                <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin, tečajev ali darilnih kartic.' : 'No active cards, packs, memberships, courses or gift cards are configured.'}</div>
+                                <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin, tečajev ali bonov.' : 'No active cards, packs, memberships, courses or vouchers are configured.'}</div>
                               ) : (
                                 filteredWalletProducts.map((product) => {
                                   const selected = selectedWalletProduct?.id === product.id
@@ -4708,7 +4731,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                     >
                                       <span className="clients-wallet-radio" aria-hidden>{selected ? '●' : ''}</span>
                                       <span className="clients-wallet-product-name">{product.name}</span>
-                                      <span className={`clients-wallet-product-badge clients-wallet-product-badge--${tone}`}>{walletProductTypeLabel(product.productType, locale)}</span>
+                                      <span className={`clients-wallet-product-badge clients-wallet-product-badge--${tone}`}>{walletProductTypeLabel(product.productType, locale, product.voucherRedemptionMode)}</span>
                                       <strong>{currency(walletProductPrice(product))}</strong>
                                     </button>
                                   )
@@ -4733,10 +4756,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           </aside>
                         )}
                         {giftCardPersonalizationOpen && selectedWalletProduct && (
-                          <div className="clients-wallet-gift-card-overlay" role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Podatki za darilni bon' : 'Gift card details'}>
+                          <div className="clients-wallet-gift-card-overlay" role="dialog" aria-modal="true" aria-label={walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode)}>
                             <div className="clients-wallet-gift-card-modal">
                               <div className="clients-wallet-gift-card-modal-header">
-                                <span className="clients-wallet-product-badge clients-wallet-product-badge--gift">{locale === 'sl' ? 'Darilni bon' : 'Gift card'}</span>
+                                <span className="clients-wallet-product-badge clients-wallet-product-badge--gift">{walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode)}</span>
                                 <button
                                   type="button"
                                   className="clients-wallet-drawer-close"
@@ -4747,15 +4770,19 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                   ×
                                 </button>
                               </div>
-                              <h3>{locale === 'sl' ? 'Podatki za darilni bon' : 'Gift card details'}</h3>
+                              <h3>{locale === 'sl' ? 'Podatki za bon' : 'Voucher details'}</h3>
                               <p>
                                 {locale === 'sl'
-                                  ? 'Vnesite podatke, ki se bodo prikazali na darilnem bonu. Če polje pustite prazno, se na bonu ne bo prikazalo.'
-                                  : 'Enter the optional details that should appear on the gift card. Blank fields will be hidden.'}
+                                  ? 'Vnesite neobvezne podatke, ki se bodo prikazali na bonu. Če polje pustite prazno, se ne bo prikazalo.'
+                                  : 'Enter the optional details that should appear on the voucher. Blank fields will be hidden.'}
                               </p>
                               <div className="clients-wallet-gift-card-summary">
                                 <span>{selectedWalletProduct.name}</span>
-                                <strong>{currency(walletProductPrice(selectedWalletProduct))}</strong>
+                                <strong>
+                                  {selectedWalletProduct.voucherRedemptionMode === 'SERVICE'
+                                    ? walletVoucherScopeLabel(selectedWalletProduct.voucherServiceScope, selectedWalletProduct.voucherSessionTypeNames, locale)
+                                    : currency(Number(selectedWalletProduct.voucherFaceValueGross ?? walletProductPrice(selectedWalletProduct)))}
+                                </strong>
                               </div>
                               <div className="clients-wallet-gift-card-fields">
                                 {giftCardDisplaySettings.showTo && (

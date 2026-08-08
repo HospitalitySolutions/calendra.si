@@ -180,11 +180,27 @@ struct BookView: View {
         return [.dateTime]
     }
 
+    private func voucherAllowsSelectedServices(_ card: AccessCardModel, requireAll: Bool) -> Bool {
+        guard card.type.uppercased() == "GIFT_CARD" else { return true }
+        if card.voucherServiceScope?.uppercased() != "SELECTED_SERVICES" { return true }
+        let eligible = Set(card.voucherSessionTypeIds)
+        guard !eligible.isEmpty else { return false }
+        if requireAll {
+            return !selectedServices.isEmpty && selectedServices.allSatisfy { eligible.contains($0.sessionTypeId) }
+        }
+        return selectedServices.contains { eligible.contains($0.sessionTypeId) }
+    }
+
     private var matchingEntitlements: [AccessCardModel] {
         guard let primary = selectedServices.first else { return [] }
         return store.accessCards.filter { card in
-            guard card.companyId == primary.companyId, card.type.uppercased() != "GIFT_CARD" else { return false }
+            guard card.companyId == primary.companyId else { return false }
+            let isGiftCard = card.type.uppercased() == "GIFT_CARD"
+            if isGiftCard && card.voucherRedemptionMode?.uppercased() != "SERVICE" { return false }
             guard card.status.uppercased() == "ACTIVE" || card.status.uppercased() == "PENDING" else { return false }
+            if isGiftCard {
+                return selectedServices.count == 1 && (card.remainingUses ?? 0) > 0 && voucherAllowsSelectedServices(card, requireAll: false)
+            }
             return selectedServices.contains { service in
                 card.sessionTypeId?.isEmpty != false || card.sessionTypeId == service.sessionTypeId
             }
@@ -202,8 +218,10 @@ struct BookView: View {
         return store.accessCards.filter { card in
             guard card.companyId == selectedService.companyId else { return false }
             guard card.type.uppercased() == "GIFT_CARD" else { return false }
+            guard card.voucherRedemptionMode?.uppercased() != "SERVICE" else { return false }
             let s = card.status.uppercased()
             guard s == "ACTIVE" || s == "PENDING" else { return false }
+            guard voucherAllowsSelectedServices(card, requireAll: true) else { return false }
             let balance = card.remainingValueGross ?? 0.0
             guard balance > 0.0 else { return false }
             if let currency = card.currency, !currency.isEmpty,
@@ -1152,7 +1170,7 @@ struct BookView: View {
         case .bankTransfer: return tr("Bank Transfer", "Bančno nakazilo")
         case .entitlement: return tr("Use pass or visit", "Uporabi karto ali obisk")
         case .payPal: return "PayPal"
-        case .giftCard: return tr("Gift card", "Darilna kartica")
+        case .giftCard: return tr("Value voucher", "Vrednostni bon")
         }
     }
 
@@ -1185,7 +1203,7 @@ struct BookView: View {
                 let currencyText = giftCard.currency ?? bookingCurrency
                 return "\(giftCard.name) • \(balanceText) \(currencyText)".trimmingCharacters(in: .whitespaces)
             }
-            return tr("Use your gift card balance", "Uporabite dobroimetje darilne kartice")
+            return tr("Use your voucher balance", "Uporabite dobroimetje vrednostnega bona")
         }
     }
 
@@ -2016,6 +2034,7 @@ private struct EntitlementBenefitRow: View {
         case "MEMBERSHIP": return tr("Active membership", "Aktivna članarina")
         case "PACK": return tr("Pack", "Karta")
         case "TICKET", "CLASS_TICKET": return tr("Ticket", "Obisk")
+        case "GIFT_CARD": return tr("Gift voucher", "Darilni bon")
         default: return tr("Valid for this service", "Velja za storitev")
         }
     }

@@ -155,6 +155,11 @@ final class AppStore: ObservableObject {
                     displayCode: $0.displayCode,
                     priceGross: $0.priceGross,
                     remainingValueGross: $0.remainingValueGross,
+                    voucherFaceValueGross: $0.voucherFaceValueGross,
+                    voucherRedemptionMode: $0.voucherRedemptionMode,
+                    voucherServiceScope: $0.voucherServiceScope,
+                    voucherSessionTypeIds: $0.voucherSessionTypeIds ?? [],
+                    voucherSessionTypeNames: $0.voucherSessionTypeNames ?? [],
                     currency: $0.currency,
                     accessUrl: $0.accessUrl,
                     status: $0.status ?? "ACTIVE"
@@ -200,6 +205,11 @@ final class AppStore: ObservableObject {
                 displayCode: $0.displayCode,
                 priceGross: $0.priceGross,
                 remainingValueGross: $0.remainingValueGross,
+                voucherFaceValueGross: $0.voucherFaceValueGross,
+                voucherRedemptionMode: $0.voucherRedemptionMode,
+                voucherServiceScope: $0.voucherServiceScope,
+                voucherSessionTypeIds: $0.voucherSessionTypeIds ?? [],
+                voucherSessionTypeNames: $0.voucherSessionTypeNames ?? [],
                 currency: $0.currency,
                 accessUrl: $0.accessUrl,
                 status: $0.status ?? "ACTIVE"
@@ -226,7 +236,12 @@ final class AppStore: ObservableObject {
                     sessionTypeName: $0.sessionTypeName,
                     promoText: $0.promoText,
                     validityDays: $0.validityDays,
-                    usageLimit: $0.usageLimit
+                    usageLimit: $0.usageLimit,
+                    voucherRedemptionMode: $0.voucherRedemptionMode,
+                    voucherServiceScope: $0.voucherServiceScope,
+                    voucherFaceValueGross: $0.voucherFaceValueGross,
+                    voucherSessionTypeIds: $0.voucherSessionTypeIds ?? [],
+                    voucherSessionTypeNames: $0.voucherSessionTypeNames
                 )
             }
             .sorted { $0.name < $1.name }
@@ -281,7 +296,12 @@ final class AppStore: ObservableObject {
                         sessionTypeName: $0.sessionTypeName,
                         promoText: $0.promoText,
                         validityDays: $0.validityDays,
-                        usageLimit: $0.usageLimit
+                        usageLimit: $0.usageLimit,
+                        voucherRedemptionMode: $0.voucherRedemptionMode,
+                        voucherServiceScope: $0.voucherServiceScope,
+                        voucherFaceValueGross: $0.voucherFaceValueGross,
+                        voucherSessionTypeIds: $0.voucherSessionTypeIds ?? [],
+                        voucherSessionTypeNames: $0.voucherSessionTypeNames
                     )
                 }
         }

@@ -180,11 +180,14 @@ private fun walletFilterDisplay(label: String, languageCode: String): String = w
     else -> label
 }
 
-private fun walletProductTypeLabel(type: String, languageCode: String): String = when (type.uppercase(Locale.getDefault())) {
+private fun walletProductTypeLabel(type: String, languageCode: String, voucherMode: String? = null): String = when (type.uppercase(Locale.getDefault())) {
     "PACK" -> walletTr(languageCode, "Pack", "Paket")
     "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
     "CLASS_TICKET" -> walletTr(languageCode, "Class ticket", "Vstopnica")
-    "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    "GIFT_CARD" -> if (voucherMode.equals("SERVICE", ignoreCase = true))
+        walletTr(languageCode, "Gift voucher", "Darilni bon")
+    else
+        walletTr(languageCode, "Value voucher", "Vrednostni bon")
     "COURSE" -> walletTr(languageCode, "Course access", "Dostop do tečaja")
     else -> type.lowercase(Locale.getDefault()).replaceFirstChar { it.uppercase() }
 }
@@ -200,7 +203,12 @@ data class WalletOfferCard(
     val sessionTypeName: String? = null,
     val promoText: String? = null,
     val validityDays: Int? = null,
-    val usageLimit: Int? = null
+    val usageLimit: Int? = null,
+    val voucherRedemptionMode: String? = null,
+    val voucherServiceScope: String? = null,
+    val voucherFaceValueGross: Double? = null,
+    val voucherSessionTypeIds: List<String> = emptyList(),
+    val voucherSessionTypeNames: List<String> = emptyList()
 )
 
 @Composable
@@ -775,6 +783,11 @@ data class WalletPassCardData(
     val displayCode: String?,
     val priceGross: Double?,
     val remainingValueGross: Double?,
+    val voucherFaceValueGross: Double? = null,
+    val voucherRedemptionMode: String? = null,
+    val voucherServiceScope: String? = null,
+    val voucherSessionTypeIds: List<String> = emptyList(),
+    val voucherSessionTypeNames: List<String> = emptyList(),
     val currency: String?,
     val autoRenews: Boolean,
     val status: String,
@@ -1441,7 +1454,12 @@ private fun AccessCard.toWalletPassCardData(): WalletPassCardData = WalletPassCa
     validityDays = validityDays,
     displayCode = displayCode,
     priceGross = priceGross,
-    remainingValueGross = null,
+    remainingValueGross = remainingValueGross,
+    voucherFaceValueGross = voucherFaceValueGross,
+    voucherRedemptionMode = voucherRedemptionMode,
+    voucherServiceScope = voucherServiceScope,
+    voucherSessionTypeIds = voucherSessionTypeIds,
+    voucherSessionTypeNames = voucherSessionTypeNames,
     currency = currency,
     autoRenews = autoRenews,
     status = "ACTIVE",
@@ -1462,6 +1480,11 @@ private fun EntitlementSummary.toWalletPassCardData(): WalletPassCardData = Wall
     displayCode = displayCode,
     priceGross = priceGross,
     remainingValueGross = remainingValueGross,
+    voucherFaceValueGross = voucherFaceValueGross,
+    voucherRedemptionMode = voucherRedemptionMode,
+    voucherServiceScope = voucherServiceScope,
+    voucherSessionTypeIds = voucherSessionTypeIds,
+    voucherSessionTypeNames = voucherSessionTypeNames,
     currency = currency,
     autoRenews = autoRenews,
     status = status,
@@ -1597,7 +1620,7 @@ private fun WalletStackedPassCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         WalletEntitlementKindChip(
-                            label = entitlementTopRightTypeLabel(card.type, languageCode),
+                            label = entitlementTopRightTypeLabel(card, languageCode),
                             textColor = if (isLightCard) style.accent else Color.White,
                             borderColor = if (isLightCard) style.accent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.35f),
                             backgroundColor = if (isLightCard) style.accent.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.18f)
@@ -1639,7 +1662,7 @@ private fun WalletStackedPassCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         WalletEntitlementKindChip(
-                            label = entitlementTopRightTypeLabel(card.type, languageCode),
+                            label = entitlementTopRightTypeLabel(card, languageCode),
                             textColor = if (isLightCard) style.accent else Color.White,
                             borderColor = if (isLightCard) style.accent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.35f),
                             backgroundColor = if (isLightCard) style.accent.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.18f)
@@ -2241,7 +2264,16 @@ private fun primaryMetric(card: WalletPassCardData, languageCode: String = "en")
     "MEMBERSHIP" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "Unlimited", "Neomejeno")
     "PACK" -> walletTr(languageCode, "Access", "Dostop") to usesSummary(card, languageCode)
     "CLASS_TICKET" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "1 class", "1 obisk")
-    "GIFT_CARD" -> walletTr(languageCode, "Balance", "Dobroimetje") to "${formatPrice(card.remainingValueGross ?: 0.0)} ${card.currency ?: ""}".trim()
+    "GIFT_CARD" -> if (card.voucherRedemptionMode.equals("SERVICE", ignoreCase = true)) {
+        val services = if (card.voucherServiceScope.equals("ALL_SERVICES", ignoreCase = true)) {
+            walletTr(languageCode, "All services", "Vse storitve")
+        } else {
+            card.voucherSessionTypeNames.joinToString(", ").ifBlank { walletTr(languageCode, "Selected service", "Izbrana storitev") }
+        }
+        walletTr(languageCode, "Service", "Storitev") to services
+    } else {
+        walletTr(languageCode, "Balance", "Dobroimetje") to "${formatPrice(card.remainingValueGross ?: 0.0)} ${card.currency ?: ""}".trim()
+    }
     "COURSE" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "Open course", "Odpri tečaj")
     else -> productTypeLabel(card.type) to usesSummary(card)
 }
@@ -2271,12 +2303,15 @@ private fun entitlementHeaderTypeTag(type: String, languageCode: String = "en"):
     else -> productTypeLabel(type).uppercase(Locale.getDefault())
 }
 
-private fun entitlementTopRightTypeLabel(type: String, languageCode: String = "en"): String = when (type.uppercase(Locale.getDefault())) {
+private fun entitlementTopRightTypeLabel(card: WalletPassCardData, languageCode: String = "en"): String = when (card.type.uppercase(Locale.getDefault())) {
     "PACK", "CLASS_TICKET" -> walletTr(languageCode, "Ticket", "Vstopnica")
     "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
-    "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    "GIFT_CARD" -> if (card.voucherRedemptionMode.equals("SERVICE", ignoreCase = true))
+        walletTr(languageCode, "Gift voucher", "Darilni bon")
+    else
+        walletTr(languageCode, "Value voucher", "Vrednostni bon")
     "COURSE" -> walletTr(languageCode, "Course access", "Dostop do tečaja")
-    else -> productTypeLabel(type)
+    else -> productTypeLabel(card.type)
 }
 
 private fun entitlementHeaderStatus(card: WalletPassCardData): String {
@@ -2351,7 +2386,11 @@ private fun displayStatusLabel(status: String): String = status
 private fun isInactiveWalletCard(card: WalletPassCardData): Boolean {
     val status = card.status.uppercase(Locale.getDefault()).ifBlank { "ACTIVE" }
     if (status in setOf("EXPIRED", "USED_UP", "CANCELLED", "INACTIVE")) return true
-    return card.type == "GIFT_CARD" && (card.remainingValueGross ?: 0.0) <= 0.0
+    return card.type == "GIFT_CARD" && if (card.voucherRedemptionMode.equals("SERVICE", ignoreCase = true)) {
+        (card.remainingUses ?: 0) <= 0
+    } else {
+        (card.remainingValueGross ?: 0.0) <= 0.0
+    }
 }
 
 private fun normalizeWalletBuyMethods(rawMethods: List<String>): List<String> {
@@ -2523,7 +2562,7 @@ private fun BuyPanel(
         WalletShowcaseEmptyState(
             art = WalletEmptyArt.Buy,
             title = walletTr(languageCode, "No offers available", "Ponudbe niso na voljo"),
-            subtitle = walletTr(languageCode, "This tenant does not have any memberships, cards or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, kart ali darilnih kartic za nakup."),
+            subtitle = walletTr(languageCode, "This tenant does not have any memberships, cards or vouchers available to buy right now.", "Ta ponudnik trenutno nima članarin, kart ali bonov za nakup."),
             primaryButtonText = walletTr(languageCode, "Change tenant", "Zamenjaj ponudnika"),
             footerText = "",
             footerIcon = Icons.Rounded.Business,
@@ -3116,7 +3155,7 @@ private fun buyMarketplaceCardTypeLabel(offer: WalletOfferCard, languageCode: St
     return when {
         type == "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
         type == "COURSE" -> walletTr(languageCode, "Course access", "Dostop do tečaja")
-        isGiftOffer(offer) -> walletTr(languageCode, "Gift card", "Darilna kartica")
+        isGiftOffer(offer) -> if (offer.voucherRedemptionMode.equals("SERVICE", ignoreCase = true)) walletTr(languageCode, "Gift voucher", "Darilni bon") else walletTr(languageCode, "Value voucher", "Vrednostni bon")
         else -> walletTr(languageCode, "Card", "Karta")
     }
 }
@@ -3250,7 +3289,7 @@ private fun BuyShopHeroCard(
                         letterSpacing = (-0.5f).sp
                     )
                     Text(
-                        text = "Purchase memberships, class packs, and gift cards instantly.",
+                        text = "Purchase memberships, class packs, and vouchers instantly.",
                         color = WalletInk.copy(alpha = 0.72f),
                         fontSize = 15.sp,
                         lineHeight = 21.sp,
@@ -3539,7 +3578,7 @@ private fun BuyShopOfferCard(
                             }
                         }
                         Text(
-                            text = offer.name.ifBlank { walletProductTypeLabel(offer.productType, languageCode) },
+                            text = offer.name.ifBlank { walletProductTypeLabel(offer.productType, languageCode, offer.voucherRedemptionMode) },
                             color = WalletInk,
                             fontSize = 21.sp,
                             lineHeight = 24.sp,
@@ -3736,7 +3775,7 @@ private fun BuyPrimaryActionButton(
 }
 
 private fun buyOfferTypeLabel(offer: WalletOfferCard): String = when {
-    isGiftOffer(offer) -> "Gift card"
+    isGiftOffer(offer) -> if (offer.voucherRedemptionMode.equals("SERVICE", ignoreCase = true)) "Gift voucher" else "Value voucher"
     else -> productTypeLabel(offer.productType)
 }
 
@@ -5323,7 +5362,7 @@ private fun walletOrderPaymentLabel(raw: String?, languageCode: String = "en"): 
     "PAYPAL" -> "PayPal"
     "OTHER" -> walletTr(languageCode, "Other", "Drugo")
     "ENTITLEMENT" -> walletTr(languageCode, "Entitlement", "Vstopnica")
-    "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    "GIFT_CARD" -> walletTr(languageCode, "Value voucher", "Vrednostni bon")
     else -> raw?.replace('_', ' ')?.lowercase(Locale.getDefault())?.replaceFirstChar { it.titlecase(Locale.getDefault()) } ?: "—"
 }
 

@@ -146,7 +146,7 @@ private func walletProductTypeLabel(_ type: String, languageCode: String) -> Str
     case "PACK": return walletTr(languageCode, "Pack", "Paket")
     case "MEMBERSHIP": return walletTr(languageCode, "Membership", "Članarina")
     case "CLASS_TICKET": return walletTr(languageCode, "Class ticket", "Vstopnica")
-    case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(languageCode, "Gift card", "Darilna kartica")
+    case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(languageCode, "Voucher", "Bon")
     case "COURSE": return walletTr(languageCode, "Course access", "Dostop do tečaja")
     case "ORDER": return walletTr(languageCode, "Order", "Naročilo")
     default: return type.capitalized
@@ -615,7 +615,7 @@ struct WalletView: View {
                 showcaseEmptyState(
                     kind: .buy,
                     title: walletTr(appUiLocaleStorage, "No offers available", "Trenutno ni ponudb"),
-                    subtitle: walletTr(appUiLocaleStorage, "This tenant does not have any memberships, cards or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, kart ali darilnih kartic za nakup."),
+                    subtitle: walletTr(appUiLocaleStorage, "This tenant does not have any memberships, cards or vouchers available to buy right now.", "Ta ponudnik trenutno nima članarin, kart ali bonov za nakup."),
                     primaryButtonTitle: walletTr(appUiLocaleStorage, "Change tenant", "Zamenjaj ponudnika"),
                     footerText: "",
                     footerIcon: "building.2.fill",
@@ -719,7 +719,10 @@ struct WalletView: View {
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
         case "PACK": return walletTr(appUiLocaleStorage, "CARD", "KARTA")
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT":
+            return offer.voucherRedemptionMode?.uppercased() == "SERVICE"
+                ? walletTr(appUiLocaleStorage, "GIFT VOUCHER", "DARILNI BON")
+                : walletTr(appUiLocaleStorage, "VALUE VOUCHER", "VREDNOSTNI BON")
         default: return walletTr(appUiLocaleStorage, "DAY PASS", "DNEVNA VSTOPNICA")
         }
     }
@@ -987,8 +990,11 @@ struct WalletView: View {
     }
 
     private func isInactiveEntitlement(_ card: AccessCardModel) -> Bool {
-        if card.type == "GIFT_CARD" && (card.remainingValueGross ?? 0.0) <= 0.0 {
-            return true
+        if card.type == "GIFT_CARD" {
+            if card.voucherRedemptionMode?.uppercased() == "SERVICE" {
+                return (card.remainingUses ?? 0) <= 0
+            }
+            return (card.remainingValueGross ?? 0.0) <= 0.0
         }
         return isInactiveEntitlementStatus(card.status)
     }
@@ -2027,7 +2033,10 @@ private struct WalletStackedPassCard: View {
         switch type {
         case "PACK", "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Ticket", "Vstopnica")
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Membership", "Članarina")
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT":
+            return entitlement.voucherRedemptionMode?.uppercased() == "SERVICE"
+                ? walletTr(appUiLocaleStorage, "Gift voucher", "Darilni bon")
+                : walletTr(appUiLocaleStorage, "Value voucher", "Vrednostni bon")
         case "COURSE": return walletTr(appUiLocaleStorage, "Course access", "Dostop do tečaja")
         default: return productTypeLabel(entitlement.type)
         }
@@ -2056,7 +2065,14 @@ private struct WalletStackedPassCard: View {
         case "MEMBERSHIP": return (walletTr(appUiLocaleStorage, "Visits", "Obiski"), "\(entitlement.visitCount ?? 0)")
         case "PACK": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), usesSummary)
         case "CLASS_TICKET": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), walletTr(appUiLocaleStorage, "1 class", "1 obisk"))
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return (walletTr(appUiLocaleStorage, "Balance", "Dobroimetje"), giftCardBalance)
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT":
+            if entitlement.voucherRedemptionMode?.uppercased() == "SERVICE" {
+                let services = entitlement.voucherServiceScope?.uppercased() == "ALL_SERVICES"
+                    ? walletTr(appUiLocaleStorage, "All services", "Vse storitve")
+                    : (entitlement.voucherSessionTypeNames.isEmpty ? walletTr(appUiLocaleStorage, "Selected service", "Izbrana storitev") : entitlement.voucherSessionTypeNames.joined(separator: ", "))
+                return (walletTr(appUiLocaleStorage, "Service", "Storitev"), services)
+            }
+            return (walletTr(appUiLocaleStorage, "Balance", "Dobroimetje"), giftCardBalance)
         case "COURSE": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), walletTr(appUiLocaleStorage, "Open course", "Odpri tečaj"))
         default: return (productTypeLabel(entitlement.type), usesSummary)
         }
@@ -3050,7 +3066,10 @@ private struct BuyShowcaseOfferCard: View {
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
         case "COURSE": return walletTr(appUiLocaleStorage, "COURSE ACCESS", "DOSTOP DO TEČAJA")
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT":
+            return offer.voucherRedemptionMode?.uppercased() == "SERVICE"
+                ? walletTr(appUiLocaleStorage, "GIFT VOUCHER", "DARILNI BON")
+                : walletTr(appUiLocaleStorage, "VALUE VOUCHER", "VREDNOSTNI BON")
         default: return walletTr(appUiLocaleStorage, "CARD", "KARTA")
         }
     }

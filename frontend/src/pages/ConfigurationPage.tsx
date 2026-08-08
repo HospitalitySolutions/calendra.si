@@ -5352,7 +5352,7 @@ export function ConfigurationPage() {
       : []),
     ...(giftCardsEnabledCommitted
       ? [
-          { id: "giftCard", label: locale === "sl" ? "Darilni bon" : "Gift card" } satisfies {
+          { id: "giftCard", label: locale === "sl" ? "Boni" : "Vouchers" } satisfies {
             id: BillingSubtab;
             label: string;
           },
@@ -5974,7 +5974,7 @@ export function ConfigurationPage() {
               id: "billing-gift-cards",
               ...moduleVisibilityProps("BILLING_GIFT_CARDS_ENABLED"),
               icon: "wallet",
-              title: locale === "sl" ? "Darilni boni" : "Gift Cards",
+              title: locale === "sl" ? "Boni" : "Vouchers",
               subtitle:
                 locale === "sl"
                   ? "Omogoči prodajo, pošiljanje, plačilo in pregled darilnih bonov."

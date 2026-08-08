@@ -628,12 +628,16 @@ type BillingGiftCard = {
   giftCardNumber?: string | null
   code?: string | null
   productName?: string | null
+  voucherMode?: 'SERVICE' | 'VALUE' | string | null
+  voucherScope?: 'ALL_SERVICES' | 'SELECTED_SERVICES' | string | null
+  eligibleServiceNames?: string[] | null
   clientId?: number | null
   clientName?: string | null
   clientEmail?: string | null
-  valueGross: number
-  usedGross: number
-  remainingGross: number
+  valueGross?: number | null
+  usedGross?: number | null
+  remainingGross?: number | null
+  remainingUses?: number | null
   issuedAt?: string | null
   expiresAt?: string | null
   status: Exclude<BillingGiftCardStatus, 'all'> | string
@@ -2299,6 +2303,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         card.giftCardNumber,
         card.code,
         card.productName,
+        card.voucherMode,
+        ...(card.eligibleServiceNames || []),
         card.clientName,
         card.clientEmail,
         card.billNumber,
@@ -2321,6 +2327,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const used = locationFilteredGiftCards.filter((card) => card.status === 'used').length
     const expired = locationFilteredGiftCards.filter((card) => card.status === 'expired').length
     const outstanding = locationFilteredGiftCards
+      .filter((card) => card.voucherMode !== 'SERVICE')
       .filter((card) => card.status === 'active' || card.status === 'partially_used')
       .reduce((sum, card) => sum + Number(card.remainingGross || 0), 0)
     return { active, partial, used, expired, outstanding }
@@ -3215,11 +3222,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (option.entitlementType === 'PACK') return 'Paket'
       if (option.entitlementType === 'TICKET') return 'Karta'
       if (option.entitlementType === 'MEMBERSHIP') return 'Članstvo'
+      if (option.entitlementType === 'GIFT_CARD') return 'Darilni bon'
       return 'Ugodnost'
     }
     if (option.entitlementType === 'PACK') return 'Pack'
     if (option.entitlementType === 'TICKET') return 'Ticket'
     if (option.entitlementType === 'MEMBERSHIP') return 'Membership'
+    if (option.entitlementType === 'GIFT_CARD') return 'Gift voucher'
     return 'Entitlement'
   }
 
@@ -4476,7 +4485,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     await executePrintFolioPdf(bill, invoicePrintPreference, actionWindow)
   }
 
-  const giftCardPdfFileName = (card: BillingGiftCard) => `darilni-bon-${String(card.code || card.giftCardNumber || card.id).replace(/[^A-Za-z0-9._-]/g, '-')}.pdf`
+  const isServiceVoucher = (card: BillingGiftCard | null | undefined) => card?.voucherMode === 'SERVICE'
+
+  const voucherTypeLabel = (card: BillingGiftCard | null | undefined): string => {
+    if (isServiceVoucher(card)) return locale === 'sl' ? 'Darilni bon' : 'Service voucher'
+    return locale === 'sl' ? 'Vrednostni bon' : 'Value voucher'
+  }
+
+  const voucherScopeLabel = (card: BillingGiftCard | null | undefined): string => {
+    if (card?.voucherScope !== 'SELECTED_SERVICES') return locale === 'sl' ? 'Vse storitve' : 'All services'
+    const names = (card.eligibleServiceNames || []).filter(Boolean)
+    if (names.length === 0) return locale === 'sl' ? 'Izbrane storitve' : 'Selected services'
+    return names.join(', ')
+  }
+
+  const voucherContentLabel = (card: BillingGiftCard): string => {
+    if (isServiceVoucher(card)) return voucherScopeLabel(card)
+    const original = currency(Number(card.valueGross || 0))
+    const remaining = currency(Number(card.remainingGross || 0))
+    if (card.status === 'partially_used') {
+      return locale === 'sl' ? `${original} · preostalo ${remaining}` : `${original} · ${remaining} remaining`
+    }
+    return original
+  }
+
+  const giftCardPdfFileName = (card: BillingGiftCard) => `${isServiceVoucher(card) ? 'darilni-bon' : 'vrednostni-bon'}-${String(card.code || card.giftCardNumber || card.id).replace(/[^A-Za-z0-9._-]/g, '-')}.pdf`
 
   const fetchGiftCardPdfBlob = async (cardId: number): Promise<Blob> => {
     const res = await api.get(`/billing/gift-cards/${cardId}/pdf`, { responseType: 'blob' })
@@ -4488,7 +4521,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       const blob = await fetchGiftCardPdfBlob(card.id)
       downloadPdfBlob(blob, giftCardPdfFileName(card))
     } catch (error) {
-      showToast('error', locale === 'sl' ? 'PDF darilnega bona ni bilo mogoče prenesti.' : 'Unable to download gift card PDF.')
+      showToast('error', locale === 'sl' ? 'PDF bona ni bilo mogoče prenesti.' : 'Unable to download voucher PDF.')
     }
   }
 
@@ -4503,7 +4536,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       await printPdfBlob(blob, giftCardPdfFileName(card), preparedWindow)
     } catch (error) {
       closePdfActionWindow(preparedWindow)
-      showToast('error', locale === 'sl' ? 'Darilnega bona ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare gift card for printing.')
+      showToast('error', locale === 'sl' ? 'Bona ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare voucher for printing.')
     } finally {
       setPrintingGiftCardId(null)
     }
@@ -4514,10 +4547,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setSendingGiftCardId(card.id)
     try {
       await api.post(`/billing/gift-cards/${card.id}/send`)
-      showToast('success', locale === 'sl' ? 'Darilni bon je bil poslan.' : 'Gift card was sent.')
+      showToast('success', locale === 'sl' ? `${voucherTypeLabel(card)} je bil poslan.` : 'Voucher was sent.')
       await load()
     } catch (error: any) {
-      showToast('error', readBillingApiMessage(error) || (locale === 'sl' ? 'Darilnega bona ni bilo mogoče poslati.' : 'Unable to send gift card.'))
+      showToast('error', readBillingApiMessage(error) || (locale === 'sl' ? 'Bona ni bilo mogoče poslati.' : 'Unable to send voucher.'))
     } finally {
       setSendingGiftCardId(null)
     }
@@ -8158,7 +8191,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('giftCards')}>
                     {billingTabIcon('giftCards')}
                     <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabGiftCards')}</span>
-                    <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Darilne kartice' : 'Gift cards'}</span>
+                    <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Boni' : 'Vouchers'}</span>
                     <strong className="billing-tab-count">{billingTabCounts.giftCards}</strong>
                   </button>
                 )}
@@ -8813,38 +8846,37 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <div className="billing-modern-stats billing-modern-stats--five">
                     <div className="billing-modern-stat-card">
                       <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>🎁</span>
-                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Aktivni' : 'Active'}</span><strong>{giftCardStats.active}</strong><small>{locale === 'sl' ? 'Veljavni in neporabljeni boni' : 'Valid unused gift cards'}</small></div>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Aktivni' : 'Active'}</span><strong>{giftCardStats.active}</strong><small>{locale === 'sl' ? 'Veljavni in neporabljeni boni' : 'Valid unused vouchers'}</small></div>
                     </div>
                     <div className="billing-modern-stat-card">
                       <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>◔</span>
-                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</span><strong>{giftCardStats.partial}</strong><small>{locale === 'sl' ? 'Boni z delno porabljeno vrednostjo' : 'Gift cards with remaining value'}</small></div>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</span><strong>{giftCardStats.partial}</strong><small>{locale === 'sl' ? 'Vrednostni boni z delno porabljenim dobroimetjem' : 'Value vouchers with remaining balance'}</small></div>
                     </div>
                     <div className="billing-modern-stat-card">
                       <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>✓</span>
-                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Porabljeni' : 'Used'}</span><strong>{giftCardStats.used}</strong><small>{locale === 'sl' ? 'Popolnoma izkoriščeni boni' : 'Fully redeemed gift cards'}</small></div>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Porabljeni' : 'Used'}</span><strong>{giftCardStats.used}</strong><small>{locale === 'sl' ? 'Popolnoma izkoriščeni boni' : 'Fully redeemed vouchers'}</small></div>
                     </div>
                     <div className="billing-modern-stat-card">
                       <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>⏱</span>
-                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Potekli' : 'Expired'}</span><strong>{giftCardStats.expired}</strong><small>{locale === 'sl' ? 'Boni, ki jim je potekel rok' : 'Expired gift cards'}</small></div>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Potekli' : 'Expired'}</span><strong>{giftCardStats.expired}</strong><small>{locale === 'sl' ? 'Boni, ki jim je potekel rok' : 'Expired vouchers'}</small></div>
                     </div>
                     <div className="billing-modern-stat-card">
                       <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
-                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupna neporabljena vrednost' : 'Unused value'}</span><strong>{currency(giftCardStats.outstanding)}</strong><small>{locale === 'sl' ? 'Vrednost vseh neporabljenih bonov' : 'Remaining gift-card value'}</small></div>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupna neporabljena vrednost' : 'Unused value'}</span><strong>{currency(giftCardStats.outstanding)}</strong><small>{locale === 'sl' ? 'Preostalo dobroimetje vrednostnih bonov' : 'Remaining value-voucher balance'}</small></div>
                     </div>
                   </div>
                 )}
 
-                {sortedGiftCards.length === 0 ? <EmptyState title={t('billingTabGiftCards')} text={locale === 'sl' ? 'Ni darilnih bonov.' : 'No gift cards yet.'} /> : (
+                {sortedGiftCards.length === 0 ? <EmptyState title={t('billingTabGiftCards')} text={locale === 'sl' ? 'Ni izdanih bonov.' : 'No vouchers yet.'} /> : (
                   <div className="billing-modern-table-wrap">
                     <table className="billing-modern-table billing-modern-gift-cards-table">
                       <thead>
                         <tr>
-                          <th>{locale === 'sl' ? 'ID bona' : 'Gift card ID'}</th>
-                          <th>{locale === 'sl' ? 'Koda kupona' : 'Coupon code'}</th>
+                          <th>{locale === 'sl' ? 'ID bona' : 'Voucher ID'}</th>
+                          <th>{locale === 'sl' ? 'Koda' : 'Code'}</th>
+                          <th>{locale === 'sl' ? 'Vrsta' : 'Type'}</th>
                           <th>{locale === 'sl' ? 'Stranka / Kupec' : 'Client / Buyer'}</th>
-                          <th>{locale === 'sl' ? 'Vrednost' : 'Value'}</th>
-                          <th>{locale === 'sl' ? 'Porabljeno' : 'Used'}</th>
-                          <th>{locale === 'sl' ? 'Preostanek' : 'Remaining'}</th>
+                          <th>{locale === 'sl' ? 'Vsebina' : 'Content'}</th>
                           <th>{locale === 'sl' ? 'Poteče' : 'Expires'}</th>
                           <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
                           <th>{locale === 'sl' ? 'Račun' : 'Invoice'}</th>
@@ -8856,13 +8888,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           <tr key={card.id} className="billing-history-row" onClick={() => setDetailGiftCard(card)}>
                             <td className="billing-modern-link-cell">{card.giftCardNumber || `DB-${card.id}`}</td>
                             <td>{card.code || '—'}</td>
+                            <td><span className="billing-status-pill billing-status-pill--not-sent">{voucherTypeLabel(card)}</span></td>
                             <td>
                               <div className="billing-modern-main-text">{card.clientName || '—'}</div>
                               {card.clientEmail ? <div className="billing-modern-muted">{card.clientEmail}</div> : null}
                             </td>
-                            <td className="billing-modern-amount">{currency(Number(card.valueGross || 0))}</td>
-                            <td className="billing-modern-amount">{currency(Number(card.usedGross || 0))}</td>
-                            <td className="billing-modern-amount">{currency(Number(card.remainingGross || 0))}</td>
+                            <td>
+                              <div className="billing-modern-main-text">{voucherContentLabel(card)}</div>
+                              {isServiceVoucher(card) && card.productName ? <div className="billing-modern-muted">{card.productName}</div> : null}
+                            </td>
                             <td>
                               <div className="billing-modern-main-text">{card.expiresAt ? formatDateShort(card.expiresAt) : '—'}</div>
                               {card.expiresAt ? <div className="billing-modern-muted">{formatDate(card.expiresAt)}</div> : null}
@@ -8882,14 +8916,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <div className="billing-modern-footer">
                       <span>
                         {locale === 'sl'
-                          ? `Prikazujem ${giftCardsPagination.showFrom} do ${giftCardsPagination.showTo} od ${giftCardsPagination.total} darilnih bonov`
-                          : `Showing ${giftCardsPagination.showFrom} to ${giftCardsPagination.showTo} of ${giftCardsPagination.total} gift cards`}
+                          ? `Prikazujem ${giftCardsPagination.showFrom} do ${giftCardsPagination.showTo} od ${giftCardsPagination.total} bonov`
+                          : `Showing ${giftCardsPagination.showFrom} to ${giftCardsPagination.showTo} of ${giftCardsPagination.total} vouchers`}
                       </span>
                       <div
                         className="clients-modern-pagination"
                         aria-hidden={giftCardsPagination.totalPages <= 1}
                         role={giftCardsPagination.totalPages > 1 ? 'navigation' : undefined}
-                        aria-label={giftCardsPagination.totalPages > 1 ? 'Gift card pages' : undefined}
+                        aria-label={giftCardsPagination.totalPages > 1 ? 'Voucher pages' : undefined}
                       >
                         <button
                           type="button"
@@ -9364,7 +9398,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <input ref={giftCardDateToInputRef} type="date" value={giftCardFilterDraft.dateTo} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, dateTo: e.target.value }))} />
                     </label>
                     <label>
-                      <span>{locale === 'sl' ? 'Status bona' : 'Gift card status'}</span>
+                      <span>{locale === 'sl' ? 'Status bona' : 'Voucher status'}</span>
                       <select value={giftCardFilterDraft.status} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, status: e.target.value as BillingGiftCardStatus }))}>
                         <option value="all">{locale === 'sl' ? 'Vsi statusi' : 'All statuses'}</option>
                         <option value="active">{locale === 'sl' ? 'Aktivni' : 'Active'}</option>
@@ -9448,7 +9482,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <div className="billing-bill-modal-header">
               <div>
                 <div className="billing-bill-modal-title-row">
-                  <h2>{locale === 'sl' ? 'Darilni bon' : 'Gift card'}</h2>
+                  <h2>{voucherTypeLabel(detailGiftCard)}</h2>
                   <span className={`billing-bill-modal-status billing-status-pill billing-status-pill--${giftCardStatusClass(detailGiftCard.status)}`}>{giftCardStatusLabel(detailGiftCard.status)}</span>
                 </div>
                 <p>{detailGiftCard.giftCardNumber || `DB-${detailGiftCard.id}`} · {detailGiftCard.code || '—'}</p>
@@ -9457,22 +9491,39 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </div>
             <div className="billing-bill-modal-body stack gap-md">
               <div className="billing-modern-stats billing-modern-stats--two">
-                <div className="billing-modern-stat-card">
-                  <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
-                  <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vrednost' : 'Value'}</span><strong>{currency(Number(detailGiftCard.valueGross || 0))}</strong><small>{locale === 'sl' ? 'Začetna vrednost bona' : 'Original value'}</small></div>
-                </div>
-                <div className="billing-modern-stat-card">
-                  <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>€</span>
-                  <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Preostanek' : 'Remaining'}</span><strong>{currency(Number(detailGiftCard.remainingGross || 0))}</strong><small>{locale === 'sl' ? 'Trenutno stanje' : 'Current balance'}</small></div>
-                </div>
+                {isServiceVoucher(detailGiftCard) ? (
+                  <>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>◇</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Storitev' : 'Service'}</span><strong>{voucherScopeLabel(detailGiftCard)}</strong><small>{locale === 'sl' ? 'Kaj je mogoče unovčiti' : 'What can be redeemed'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>1×</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Preostalo' : 'Remaining'}</span><strong>{detailGiftCard.remainingUses ?? 0}</strong><small>{locale === 'sl' ? 'Število unovčenj' : 'Redemptions left'}</small></div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vrednost' : 'Value'}</span><strong>{currency(Number(detailGiftCard.valueGross || 0))}</strong><small>{locale === 'sl' ? 'Začetna vrednost bona' : 'Original value'}</small></div>
+                    </div>
+                    <div className="billing-modern-stat-card">
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--green" aria-hidden>€</span>
+                      <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Preostanek' : 'Remaining'}</span><strong>{currency(Number(detailGiftCard.remainingGross || 0))}</strong><small>{locale === 'sl' ? 'Trenutno stanje' : 'Current balance'}</small></div>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="billing-open-detail-grid">
+                <div><span className="muted">{locale === 'sl' ? 'Vrsta bona' : 'Voucher type'}</span><strong>{voucherTypeLabel(detailGiftCard)}</strong></div>
                 <div><span className="muted">{locale === 'sl' ? 'Stranka / kupec' : 'Client / buyer'}</span><strong>{detailGiftCard.clientName || '—'}</strong></div>
                 <div><span className="muted">{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{detailGiftCard.clientEmail || '—'}</strong></div>
-                <div><span className="muted">{locale === 'sl' ? 'Porabljeno' : 'Used'}</span><strong>{currency(Number(detailGiftCard.usedGross || 0))}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Velja za' : 'Valid for'}</span><strong>{voucherScopeLabel(detailGiftCard)}</strong></div>
+                {!isServiceVoucher(detailGiftCard) ? <div><span className="muted">{locale === 'sl' ? 'Porabljeno' : 'Used'}</span><strong>{currency(Number(detailGiftCard.usedGross || 0))}</strong></div> : null}
                 <div><span className="muted">{locale === 'sl' ? 'Poteče' : 'Expires'}</span><strong>{detailGiftCard.expiresAt ? formatDate(detailGiftCard.expiresAt) : '—'}</strong></div>
                 <div><span className="muted">{locale === 'sl' ? 'Račun' : 'Invoice'}</span><strong>{detailGiftCard.billNumber || detailGiftCard.orderReference || '—'}</strong></div>
-                <div><span className="muted">{locale === 'sl' ? 'Izdelek' : 'Product'}</span><strong>{detailGiftCard.productName || '—'}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Ugodnost' : 'Product'}</span><strong>{detailGiftCard.productName || '—'}</strong></div>
               </div>
             </div>
             <div className="billing-bill-modal-footer">

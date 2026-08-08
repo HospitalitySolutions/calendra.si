@@ -1,4 +1,4 @@
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   BillingSaveIcon,
   BillingUploadIcon,
@@ -11,13 +11,14 @@ type GiftCardSettings = {
   active: boolean;
   showFrom: boolean;
   showTo: boolean;
-  showValue: boolean;
+  showContent: boolean;
   showExpires: boolean;
   showText: boolean;
   showCode: boolean;
   from: string;
   to: string;
   value: string;
+  service: string;
   expires: string;
   text: string;
   code: string;
@@ -29,13 +30,14 @@ const DEFAULT_GIFT_CARD_SETTINGS: GiftCardSettings = {
   active: true,
   showFrom: true,
   showTo: true,
-  showValue: true,
+  showContent: true,
   showExpires: true,
   showText: true,
   showCode: true,
   from: "Ana Novak",
   to: "Marko",
   value: "€50",
+  service: "Bikini - mali",
   expires: "31. 12. 2026",
   text: "Vse najboljše! Uživaj v darilu.",
   code: "GC-7K2Q-M9XA",
@@ -46,18 +48,19 @@ const DEFAULT_GIFT_CARD_SETTINGS: GiftCardSettings = {
 function parseGiftCardSettings(raw: string | undefined): GiftCardSettings {
   if (!raw) return DEFAULT_GIFT_CARD_SETTINGS;
   try {
-    const parsed = JSON.parse(raw) as Partial<GiftCardSettings>;
+    const parsed = JSON.parse(raw) as Partial<GiftCardSettings> & { showValue?: boolean };
     return {
       active: cleanBool(parsed.active, DEFAULT_GIFT_CARD_SETTINGS.active),
       showFrom: cleanBool(parsed.showFrom, DEFAULT_GIFT_CARD_SETTINGS.showFrom),
       showTo: cleanBool(parsed.showTo, DEFAULT_GIFT_CARD_SETTINGS.showTo),
-      showValue: cleanBool(parsed.showValue, DEFAULT_GIFT_CARD_SETTINGS.showValue),
+      showContent: cleanBool(parsed.showContent ?? parsed.showValue, DEFAULT_GIFT_CARD_SETTINGS.showContent),
       showExpires: cleanBool(parsed.showExpires, DEFAULT_GIFT_CARD_SETTINGS.showExpires),
       showText: cleanBool(parsed.showText, DEFAULT_GIFT_CARD_SETTINGS.showText),
       showCode: cleanBool(parsed.showCode, DEFAULT_GIFT_CARD_SETTINGS.showCode),
       from: cleanText(parsed.from, DEFAULT_GIFT_CARD_SETTINGS.from),
       to: cleanText(parsed.to, DEFAULT_GIFT_CARD_SETTINGS.to),
       value: cleanText(parsed.value, DEFAULT_GIFT_CARD_SETTINGS.value),
+      service: cleanText(parsed.service, DEFAULT_GIFT_CARD_SETTINGS.service),
       expires: cleanText(parsed.expires, DEFAULT_GIFT_CARD_SETTINGS.expires),
       text: cleanText(parsed.text, DEFAULT_GIFT_CARD_SETTINGS.text),
       code: cleanText(parsed.code, DEFAULT_GIFT_CARD_SETTINGS.code),
@@ -83,7 +86,7 @@ function cleanBool(value: unknown, fallback: boolean): boolean {
 }
 
 function serializeGiftCardSettings(settings: GiftCardSettings): string {
-  return JSON.stringify(settings);
+  return JSON.stringify({ ...settings, showValue: settings.showContent });
 }
 
 function formatFileSize(size: number): string {
@@ -117,6 +120,8 @@ export function ConfigurationGiftCardSection({
   const isSl = locale === "sl";
   const giftCard = parseGiftCardSettings(settings[GIFT_CARD_SETTINGS_KEY]);
   const textLength = giftCard.text.length;
+  const [previewMode, setPreviewMode] = useState<"SERVICE" | "VALUE">("SERVICE");
+  const previewIsService = previewMode === "SERVICE";
 
   const updateGiftCard = (patch: Partial<GiftCardSettings>) => {
     setSettings((prev) => {
@@ -345,6 +350,30 @@ export function ConfigurationGiftCardSection({
           gap: 12px;
           margin-top: 4px;
         }
+        .billing-gift-card-preview-mode {
+          display: inline-flex;
+          gap: 4px;
+          margin-top: 18px;
+          padding: 4px;
+          border: 1px solid #dbe4f0;
+          border-radius: 12px;
+          background: #f8fafc;
+        }
+        .billing-gift-card-preview-mode button {
+          border: 0;
+          border-radius: 9px;
+          background: transparent;
+          color: #64748b;
+          padding: 9px 13px;
+          font-size: 13px;
+          font-weight: 850;
+          cursor: pointer;
+        }
+        .billing-gift-card-preview-mode button.active {
+          background: #fff;
+          color: var(--billing-blue);
+          box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+        }
         .billing-gift-card-preview-shell {
           margin-top: 22px;
           border-radius: 22px;
@@ -495,12 +524,12 @@ export function ConfigurationGiftCardSection({
             </span>
             <span>
               <h3 className="billing-section-title">
-                {isSl ? "Nastavitve darilnega bona" : "Gift card settings"}
+                {isSl ? "Nastavitve bonov" : "Voucher settings"}
               </h3>
               <span className="billing-section-kicker">
                 {isSl
-                  ? "Izberite, katera polja se prikažejo na darilnem bonu. Dinamični podatki pridejo iz dejanske ugodnosti."
-                  : "Choose which fields appear on the gift card. Dynamic values come from the actual entitlement."}
+                  ? "Ista predloga se uporablja za darilne in vrednostne bone. Vsebina se prilagodi načinu unovčenja dejanskega bona."
+                  : "The same template is used for service and value vouchers. Content adapts to the issued voucher redemption mode."}
               </span>
             </span>
           </div>
@@ -522,7 +551,7 @@ export function ConfigurationGiftCardSection({
           >
             <input className="billing-input" value={giftCard.from} onChange={(event) => updateGiftCard({ from: event.target.value })} />
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Na dejanskem bonu se vzame iz imena in priimka stranke, kateri je ugodnost izdana." : "On the real gift card this is taken from the client name the entitlement is issued to."}
+              {isSl ? "Na dejanskem bonu se vzame iz imena in priimka stranke, kateri je ugodnost izdana." : "On the real voucher this is taken from the client name the entitlement is issued to."}
             </p>
           </GiftCardInputRow>
           <GiftCardInputRow
@@ -532,17 +561,23 @@ export function ConfigurationGiftCardSection({
           >
             <input className="billing-input" value={giftCard.to} onChange={(event) => updateGiftCard({ to: event.target.value })} placeholder={isSl ? "Predogled" : "Preview"} />
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Pri nakupu darilne kartice se po kliku Odpri račun odpre majhen vnos. Če ostane prazno, se polje ne prikaže." : "When buying a gift card, a small input opens after Open bill. If blank, this field is hidden."}
+              {isSl ? "Pri nakupu bona se po kliku Odpri račun odpre majhen vnos. Če ostane prazno, se polje ne prikaže." : "When buying a voucher, a small input opens after Open bill. If blank, this field is hidden."}
             </p>
           </GiftCardInputRow>
           <GiftCardInputRow
-            label={isSl ? "Vrednost" : "Value"}
-            checked={giftCard.showValue}
-            onCheckedChange={(checked) => updateGiftCard({ showValue: checked })}
+            label={isSl ? "Storitev / vrednost" : "Service / value"}
+            checked={giftCard.showContent}
+            onCheckedChange={(checked) => updateGiftCard({ showContent: checked })}
           >
-            <input className="billing-input" value={giftCard.value} onChange={(event) => updateGiftCard({ value: event.target.value })} />
+            <input
+              className="billing-input"
+              value={previewIsService ? giftCard.service : giftCard.value}
+              onChange={(event) => updateGiftCard(previewIsService ? { service: event.target.value } : { value: event.target.value })}
+            />
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Na dejanskem bonu se vzame iz vrednosti kupljene darilne kartice." : "On the real gift card this is taken from the purchased gift card value."}
+              {isSl
+                ? "Na darilnem bonu se prikaže storitev oziroma seznam dovoljenih storitev; na vrednostnem bonu se prikaže njegova denarna vrednost."
+                : "A service voucher shows its service or eligible services; a value voucher shows its monetary face value."}
             </p>
           </GiftCardInputRow>
           <GiftCardInputRow
@@ -552,7 +587,7 @@ export function ConfigurationGiftCardSection({
           >
             <input className="billing-input" value={giftCard.expires} onChange={(event) => updateGiftCard({ expires: event.target.value })} />
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Na dejanskem bonu se vzame iz roka veljavnosti darilne kartice." : "On the real gift card this is taken from the actual gift card expiry date."}
+              {isSl ? "Na dejanskem bonu se vzame iz njegovega roka veljavnosti." : "On the real voucher this is taken from its actual expiry date."}
             </p>
           </GiftCardInputRow>
           <GiftCardInputRow
@@ -571,7 +606,7 @@ export function ConfigurationGiftCardSection({
               <span className="billing-gift-card-counter">{textLength} / 200</span>
             </div>
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Pri nakupu darilne kartice se lahko vnese osebno sporočilo. Če ostane prazno, se polje ne prikaže." : "When buying a gift card, a personal message can be entered. If blank, this field is hidden."}
+              {isSl ? "Pri nakupu bona se lahko vnese osebno sporočilo. Če ostane prazno, se polje ne prikaže." : "When buying a voucher, a personal message can be entered. If blank, this field is hidden."}
             </p>
           </GiftCardInputRow>
           <GiftCardInputRow
@@ -581,7 +616,7 @@ export function ConfigurationGiftCardSection({
           >
             <input className="billing-input" value={giftCard.code} onChange={(event) => updateGiftCard({ code: event.target.value })} />
             <p className="billing-gift-card-dynamic-help">
-              {isSl ? "Na dejanskem bonu se zgoraj desno prikaže unikatna koda kupona, ki jo gost uporabi pri plačilu." : "On the real gift card the unique coupon code shown to the guest appears in the upper right."}
+              {isSl ? "Na dejanskem bonu se zgoraj desno prikaže unikatna koda kupona, ki jo gost uporabi pri plačilu." : "On the real voucher the unique coupon code shown to the guest appears in the upper right."}
             </p>
           </GiftCardInputRow>
 
@@ -589,7 +624,7 @@ export function ConfigurationGiftCardSection({
 
           <div>
             <span className="billing-label">
-              {isSl ? "Ozadje darilnega bona" : "Gift card background"}
+              {isSl ? "Ozadje bona" : "Voucher background"}
             </span>
             <div className="billing-gift-card-upload-grid" style={{ marginTop: 10 }}>
               <label className="billing-gift-card-upload">
@@ -675,14 +710,23 @@ export function ConfigurationGiftCardSection({
           </span>
           <span>
             <h3 className="billing-section-title">
-              {isSl ? "Predogled darilnega bona" : "Gift card preview"}
+              {isSl ? "Predogled bona" : "Voucher preview"}
             </h3>
             <span className="billing-section-kicker">
               {isSl
-                ? "Predogled prikazuje izbrana polja. Dejanske vrednosti se izpolnijo ob izdaji ugodnosti."
-                : "The preview shows selected fields. Real values are filled when the entitlement is issued."}
+                ? "Preklopite med darilnim in vrednostnim bonom. Dejanske vrednosti se izpolnijo ob izdaji ugodnosti."
+                : "Switch between service and value vouchers. Real values are filled when the entitlement is issued."}
             </span>
           </span>
+        </div>
+
+        <div className="billing-gift-card-preview-mode" role="group" aria-label={isSl ? "Vrsta predogleda" : "Preview type"}>
+          <button type="button" className={previewMode === "SERVICE" ? "active" : ""} onClick={() => setPreviewMode("SERVICE")}>
+            {isSl ? "Darilni bon" : "Service voucher"}
+          </button>
+          <button type="button" className={previewMode === "VALUE" ? "active" : ""} onClick={() => setPreviewMode("VALUE")}>
+            {isSl ? "Vrednostni bon" : "Value voucher"}
+          </button>
         </div>
 
         <div className="billing-gift-card-preview-shell">
@@ -705,16 +749,22 @@ export function ConfigurationGiftCardSection({
             <div className="billing-gift-card-preview-content">
               {giftCard.showFrom ? <GiftCardPreviewLine label={isSl ? "Od" : "From"} value={giftCard.from} /> : null}
               {giftCard.showTo ? <GiftCardPreviewLine label={isSl ? "Za" : "To"} value={giftCard.to} /> : null}
-              {giftCard.showValue ? (
+              {giftCard.showContent ? (
                 <>
                   <span className="billing-gift-card-preview-label">
-                    {isSl ? "Vrednost" : "Value"}
+                    {previewIsService ? (isSl ? "Storitev" : "Service") : (isSl ? "Vrednost" : "Value")}
                   </span>
-                  <p className="billing-gift-card-preview-value">{giftCard.value || "€0"}</p>
+                  {previewIsService ? (
+                    <div className="billing-gift-card-preview-line" style={{ paddingBottom: 16 }}>
+                      <span className="billing-gift-card-preview-name">{giftCard.service || "—"}</span>
+                    </div>
+                  ) : (
+                    <p className="billing-gift-card-preview-value">{giftCard.value || "€0"}</p>
+                  )}
                 </>
               ) : null}
               {giftCard.showExpires ? (
-                <div className="billing-gift-card-preview-line" style={{ marginTop: giftCard.showValue ? 18 : 0 }}>
+                <div className="billing-gift-card-preview-line" style={{ marginTop: giftCard.showContent ? 18 : 0 }}>
                   <span className="billing-gift-card-preview-label">
                     {isSl ? "Poteče" : "Expires"}
                   </span>
@@ -737,8 +787,8 @@ export function ConfigurationGiftCardSection({
           </div>
           <p className="billing-gift-card-note">
             {isSl
-              ? "Ko je nastavitev Aktivno vklopljena, se po plačilu darilne kartice gostu pošlje e-mail z darilnim bonom. Polji Za in Besedilo se prikažeta samo, če sta vključeni in ob nakupu izpolnjeni."
-              : "When Active is enabled, the guest receives the gift card by email after payment. To and Text are shown only when enabled and filled during purchase."}
+              ? "Ko je nastavitev Aktivno vklopljena, se po plačilu gostu pošlje ustrezen bon. Darilni bon prikaže storitev, vrednostni bon pa denarno vrednost. Polji Za in Besedilo se prikažeta samo, če sta vključeni in izpolnjeni."
+              : "When Active is enabled, the guest receives the appropriate voucher after payment. Service vouchers show the service; value vouchers show the monetary value. To and Text appear only when enabled and filled."}
           </p>
         </div>
       </div>

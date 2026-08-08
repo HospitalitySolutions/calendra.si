@@ -12,6 +12,9 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
+import com.example.app.guest.model.VoucherRedemptionMode;
+import com.example.app.guest.model.VoucherRules;
+import com.example.app.guest.model.VoucherServiceScope;
 import com.example.app.guest.order.GiftCardEmailService;
 import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.user.User;
@@ -65,12 +68,16 @@ public class BillingGiftCardController {
             String giftCardNumber,
             String code,
             String productName,
+            String voucherMode,
+            String voucherScope,
+            List<String> eligibleServiceNames,
             Long clientId,
             String clientName,
             String clientEmail,
             BigDecimal valueGross,
             BigDecimal usedGross,
             BigDecimal remainingGross,
+            Integer remainingUses,
             Instant issuedAt,
             Instant expiresAt,
             String status,
@@ -131,9 +138,9 @@ public class BillingGiftCardController {
             activityLogs.recordUser(me, ActivityModule.BILLING, ActivityAction.GIFT_CARD_SENT,
                     "GIFT_CARD", result.id(), result.giftCardNumber(),
                     "CLIENT", result.clientId(), result.clientName(),
-                    "Sent gift card", result.locationId(), null,
-                    ActivityDetails.of("product", result.productName(), "valueGross", result.valueGross(),
-                            "billNumber", result.billNumber(), "targetPath", "/billing"));
+                    "Sent voucher", result.locationId(), null,
+                    ActivityDetails.of("product", result.productName(), "voucherMode", result.voucherMode(),
+                            "valueGross", result.valueGross(), "billNumber", result.billNumber(), "targetPath", "/billing"));
         }
         return result;
     }
@@ -143,14 +150,19 @@ public class BillingGiftCardController {
         return entitlements.findById(id)
                 .filter(card -> card.getCompany() != null && Objects.equals(card.getCompany().getId(), companyId))
                 .filter(this::isGiftCard)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gift card not found."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Voucher not found."));
     }
 
     private GiftCardBillingResponse toResponse(GuestEntitlement entitlement, Bill bill) {
         GuestOrder order = entitlement.getSourceOrder();
-        BigDecimal valueGross = giftCardValueGross(entitlement);
-        BigDecimal remainingGross = safeMoney(entitlement.getRemainingValueGross());
-        BigDecimal usedGross = valueGross.subtract(remainingGross).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        VoucherRedemptionMode mode = VoucherRules.entitlementMode(entitlement);
+        VoucherServiceScope scope = VoucherRules.entitlementScope(entitlement);
+        boolean valueVoucher = mode != VoucherRedemptionMode.SERVICE;
+        BigDecimal valueGross = valueVoucher ? VoucherRules.entitlementFaceValueGross(entitlement) : null;
+        BigDecimal remainingGross = valueVoucher ? safeMoney(entitlement.getRemainingValueGross()) : null;
+        BigDecimal usedGross = valueVoucher
+                ? safeMoney(valueGross).subtract(safeMoney(remainingGross)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
+                : null;
         Client client = entitlement.getClient();
         String clientName = client == null ? "" : (safeText(client.getFirstName()) + " " + safeText(client.getLastName())).trim();
         if (clientName.isBlank() && client != null) clientName = safeText(client.getEmail());
@@ -159,15 +171,19 @@ public class BillingGiftCardController {
                 giftCardNumber(entitlement),
                 firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), ""),
                 entitlement.getProduct() == null ? "" : safeText(entitlement.getProduct().getName()),
+                (mode == null ? VoucherRedemptionMode.VALUE : mode).name(),
+                (scope == null ? VoucherServiceScope.ALL_SERVICES : scope).name(),
+                VoucherRules.entitlementEligibleServiceNames(entitlement).stream().toList(),
                 client == null ? null : client.getId(),
                 clientName,
                 client == null ? null : client.getEmail(),
                 valueGross,
                 usedGross,
                 remainingGross,
+                entitlement.getRemainingUses(),
                 entitlement.getCreatedAt(),
                 entitlement.getValidUntil(),
-                status(entitlement, valueGross, remainingGross),
+                status(entitlement, mode, valueGross, remainingGross),
                 bill == null ? (order == null ? null : order.getBillId()) : bill.getId(),
                 bill == null ? null : bill.getBillNumber(),
                 order == null ? null : order.getReferenceCode(),
@@ -190,23 +206,18 @@ public class BillingGiftCardController {
                 || (entitlement.getProduct() != null && entitlement.getProduct().getProductType() == ProductType.GIFT_CARD));
     }
 
-    private BigDecimal giftCardValueGross(GuestEntitlement entitlement) {
-        if (entitlement.getProduct() != null && entitlement.getProduct().getPriceGross() != null) {
-            return safeMoney(entitlement.getProduct().getPriceGross());
-        }
-        GuestOrder order = entitlement.getSourceOrder();
-        if (order != null && order.getTotalGross() != null) return safeMoney(order.getTotalGross());
-        return safeMoney(entitlement.getRemainingValueGross());
-    }
-
-    private String status(GuestEntitlement entitlement, BigDecimal valueGross, BigDecimal remainingGross) {
+    private String status(GuestEntitlement entitlement, VoucherRedemptionMode mode, BigDecimal valueGross, BigDecimal remainingGross) {
         if (entitlement.getStatus() == EntitlementStatus.CANCELLED) return "cancelled";
         if (entitlement.getStatus() == EntitlementStatus.PENDING) return "pending_payment";
         GuestOrder order = entitlement.getSourceOrder();
         if (order != null && order.getStatus() == OrderStatus.PENDING) return "pending_payment";
         if (order != null && order.getStatus() == OrderStatus.CANCELLED) return "cancelled";
         if (entitlement.getStatus() == EntitlementStatus.EXPIRED || (entitlement.getValidUntil() != null && !entitlement.getValidUntil().isAfter(Instant.now()))) return "expired";
-        if (entitlement.getStatus() == EntitlementStatus.USED_UP || remainingGross.compareTo(BigDecimal.ZERO) <= 0) return "used";
+        if (entitlement.getStatus() == EntitlementStatus.USED_UP) return "used";
+        if (mode == VoucherRedemptionMode.SERVICE) {
+            return entitlement.getRemainingUses() != null && entitlement.getRemainingUses() <= 0 ? "used" : "active";
+        }
+        if (safeMoney(remainingGross).compareTo(BigDecimal.ZERO) <= 0) return "used";
         BigDecimal usedGross = safeMoney(valueGross).subtract(safeMoney(remainingGross));
         if (usedGross.compareTo(BigDecimal.ZERO) > 0) return "partially_used";
         return "active";

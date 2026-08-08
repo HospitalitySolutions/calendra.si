@@ -23,7 +23,12 @@ data class ProductSummary(
     val serviceGroupId: String? = null,
     val serviceGroupName: String? = null,
     val serviceGroupSortOrder: Int? = null,
-    val serviceSortOrder: Int = 0
+    val serviceSortOrder: Int = 0,
+    val voucherRedemptionMode: String? = null,
+    val voucherServiceScope: String? = null,
+    val voucherFaceValueGross: Double? = null,
+    val voucherSessionTypeIds: List<String> = emptyList(),
+    val voucherSessionTypeNames: List<String> = emptyList()
 )
 
 @Serializable

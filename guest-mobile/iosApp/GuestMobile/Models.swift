@@ -486,12 +486,17 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
     /// Short human-friendly ticket code like "CM8-425-001".
     let displayCode: String?
     let priceGross: Double?
-    /// Remaining gift-card balance; nil for non-gift-card entitlements.
+    /// Remaining value-voucher balance; nil for service vouchers and non-voucher entitlements.
     let remainingValueGross: Double?
+    let voucherFaceValueGross: Double?
+    let voucherRedemptionMode: String?
+    let voucherServiceScope: String?
+    let voucherSessionTypeIds: [String]?
+    let voucherSessionTypeNames: [String]?
     let currency: String?
     let accessUrl: String?
 
-    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, currency: String?, accessUrl: String?) {
+    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, voucherFaceValueGross: Double? = nil, voucherRedemptionMode: String? = nil, voucherServiceScope: String? = nil, voucherSessionTypeIds: [String] = [], voucherSessionTypeNames: [String] = [], currency: String?, accessUrl: String?) {
         self.id = id
         self.name = name
         self.type = type
@@ -508,6 +513,11 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         self.displayCode = displayCode
         self.priceGross = priceGross
         self.remainingValueGross = remainingValueGross
+        self.voucherFaceValueGross = voucherFaceValueGross
+        self.voucherRedemptionMode = voucherRedemptionMode
+        self.voucherServiceScope = voucherServiceScope
+        self.voucherSessionTypeIds = voucherSessionTypeIds
+        self.voucherSessionTypeNames = voucherSessionTypeNames
         self.currency = currency
         self.accessUrl = accessUrl
     }
@@ -529,6 +539,11 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         case displayCode
         case priceGross
         case remainingValueGross
+        case voucherFaceValueGross
+        case voucherRedemptionMode
+        case voucherServiceScope
+        case voucherSessionTypeIds
+        case voucherSessionTypeNames
         case currency
         case accessUrl
     }
@@ -610,8 +625,13 @@ struct ProductModel: Identifiable, Codable, Hashable {
     let serviceGroupName: String?
     let serviceGroupSortOrder: Int?
     let serviceSortOrder: Int?
+    let voucherRedemptionMode: String?
+    let voucherServiceScope: String?
+    let voucherFaceValueGross: Double?
+    let voucherSessionTypeIds: [String]?
+    let voucherSessionTypeNames: [String]?
 
-    init(id: String, name: String, productType: String, priceGross: Double, currency: String, sessionTypeId: String?, sessionTypeName: String?, bookable: Bool, description: String?, durationMinutes: Int?, promoText: String?, validityDays: Int?, usageLimit: Int?, serviceGroupId: String? = nil, serviceGroupName: String? = nil, serviceGroupSortOrder: Int? = nil, serviceSortOrder: Int? = nil) {
+    init(id: String, name: String, productType: String, priceGross: Double, currency: String, sessionTypeId: String?, sessionTypeName: String?, bookable: Bool, description: String?, durationMinutes: Int?, promoText: String?, validityDays: Int?, usageLimit: Int?, serviceGroupId: String? = nil, serviceGroupName: String? = nil, serviceGroupSortOrder: Int? = nil, serviceSortOrder: Int? = nil, voucherRedemptionMode: String? = nil, voucherServiceScope: String? = nil, voucherFaceValueGross: Double? = nil, voucherSessionTypeIds: [String] = [], voucherSessionTypeNames: [String] = []) {
         self.id = id
         self.name = name
         self.productType = productType
@@ -629,11 +649,16 @@ struct ProductModel: Identifiable, Codable, Hashable {
         self.serviceGroupName = serviceGroupName
         self.serviceGroupSortOrder = serviceGroupSortOrder
         self.serviceSortOrder = serviceSortOrder
+        self.voucherRedemptionMode = voucherRedemptionMode
+        self.voucherServiceScope = voucherServiceScope
+        self.voucherFaceValueGross = voucherFaceValueGross
+        self.voucherSessionTypeIds = voucherSessionTypeIds
+        self.voucherSessionTypeNames = voucherSessionTypeNames
     }
 
     enum CodingKeys: String, CodingKey {
         case id = "productId"
-        case name, productType, priceGross, currency, sessionTypeId, sessionTypeName, bookable, description, durationMinutes, promoText, validityDays, usageLimit, serviceGroupId, serviceGroupName, serviceGroupSortOrder, serviceSortOrder
+        case name, productType, priceGross, currency, sessionTypeId, sessionTypeName, bookable, description, durationMinutes, promoText, validityDays, usageLimit, serviceGroupId, serviceGroupName, serviceGroupSortOrder, serviceSortOrder, voucherRedemptionMode, voucherServiceScope, voucherFaceValueGross, voucherSessionTypeIds, voucherSessionTypeNames
     }
 }
 
@@ -875,8 +900,13 @@ struct AccessCardModel: Identifiable, Hashable {
     let autoRenews: Bool
     let displayCode: String?
     let priceGross: Double?
-    /// Remaining gift-card balance; nil for non-gift-card entitlements.
+    /// Remaining value-voucher balance; nil for service vouchers and non-voucher entitlements.
     let remainingValueGross: Double?
+    let voucherFaceValueGross: Double?
+    let voucherRedemptionMode: String?
+    let voucherServiceScope: String?
+    let voucherSessionTypeIds: [String]
+    let voucherSessionTypeNames: [String]
     let currency: String?
     let accessUrl: String?
     /// Mirrors backend `EntitlementStatus` (e.g. ACTIVE, EXPIRED).
@@ -896,6 +926,11 @@ struct WalletOfferModel: Identifiable, Hashable {
     let promoText: String?
     let validityDays: Int?
     let usageLimit: Int?
+    let voucherRedemptionMode: String?
+    let voucherServiceScope: String?
+    let voucherFaceValueGross: Double?
+    let voucherSessionTypeIds: [String]
+    let voucherSessionTypeNames: [String]
 }
 
 struct WalletOrderCardModel: Identifiable, Hashable {

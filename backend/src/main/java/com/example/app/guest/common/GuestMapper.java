@@ -158,6 +158,11 @@ public final class GuestMapper {
                 entitlement.getDisplayCode(),
                 priceGross,
                 remainingValueGross,
+                VoucherRules.entitlementFaceValueGross(entitlement) == null ? null : VoucherRules.entitlementFaceValueGross(entitlement).doubleValue(),
+                VoucherRules.entitlementMode(entitlement) == null ? null : VoucherRules.entitlementMode(entitlement).name(),
+                VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name(),
+                VoucherRules.entitlementEligibleServiceIds(entitlement).stream().map(String::valueOf).toList(),
+                VoucherRules.entitlementEligibleServiceNames(entitlement).stream().toList(),
                 currency,
                 accessUrl
         );

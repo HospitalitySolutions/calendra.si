@@ -168,6 +168,11 @@ public final class GuestDtos {
             Double priceGross,
             /** Remaining gift-card balance; null for visit packs, tickets and memberships. */
             Double remainingValueGross,
+            Double voucherFaceValueGross,
+            String voucherRedemptionMode,
+            String voucherServiceScope,
+            List<String> voucherSessionTypeIds,
+            List<String> voucherSessionTypeNames,
             String currency,
             /** Protected Calendra course URL used by email links and course QR cards. */
             String accessUrl
@@ -196,7 +201,12 @@ public final class GuestDtos {
             String serviceGroupId,
             String serviceGroupName,
             Integer serviceGroupSortOrder,
-            int serviceSortOrder
+            int serviceSortOrder,
+            String voucherRedemptionMode,
+            String voucherServiceScope,
+            Double voucherFaceValueGross,
+            List<String> voucherSessionTypeIds,
+            List<String> voucherSessionTypeNames
     ) {}
     public record AvailabilitySlotResponse(String slotId, String startsAt, String endsAt, boolean available) {}
     public record AvailabilityResponse(

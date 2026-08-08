@@ -151,12 +151,12 @@ private fun PaymentMethodUi.localizedTitle(languageCode: String): String = when 
     PaymentMethodUi.CARD -> bookTr(languageCode, "Credit card", "Kreditna kartica")
     PaymentMethodUi.BANK_TRANSFER -> bookTr(languageCode, "Bank Transfer", "Bančno nakazilo")
     PaymentMethodUi.ENTITLEMENT -> bookTr(languageCode, "Use pass or visit", "Uporabi karto ali obisk")
-    PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Gift card", "Darilna kartica")
+    PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Value voucher", "Vrednostni bon")
     PaymentMethodUi.PAYPAL -> "PayPal"
 }
 
 private fun PaymentMethodUi.localizedHelper(languageCode: String): String? = when (this) {
-    PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Use your gift card balance", "Uporabite dobroimetje darilne kartice")
+    PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Use your voucher balance", "Uporabite dobroimetje vrednostnega bona")
     PaymentMethodUi.PAYPAL -> bookTr(languageCode, "Pay securely with PayPal", "Plačajte varno s PayPalom")
     else -> null
 }
@@ -209,6 +209,11 @@ data class RedeemableEntitlementOption(
     val autoRenews: Boolean = false,
     val entitlementType: String = "",
     val remainingValueGross: Double? = null,
+    val voucherFaceValueGross: Double? = null,
+    val voucherRedemptionMode: String? = null,
+    val voucherServiceScope: String? = null,
+    val voucherSessionTypeIds: List<String> = emptyList(),
+    val voucherSessionTypeNames: List<String> = emptyList(),
     val currency: String? = null
 )
 
@@ -278,7 +283,7 @@ private enum class PaymentMethodUi(
     CARD("Credit card", "CARD", true),
     BANK_TRANSFER("Bank Transfer", "BANK_TRANSFER", true),
     ENTITLEMENT("Use pass or visit", "ENTITLEMENT", true),
-    GIFT_CARD("Gift card", "GIFT_CARD", true, "Use your gift card balance"),
+    GIFT_CARD("Value voucher", "GIFT_CARD", true, "Use your voucher balance"),
     PAYPAL("PayPal", "PAYPAL", true, "Pay securely with PayPal")
 }
 
@@ -491,10 +496,26 @@ fun BookScreen(
             }
         }
     }
+    fun voucherAllowsSelectedServices(entitlement: RedeemableEntitlementOption, requireAll: Boolean): Boolean {
+        if (!entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)) return true
+        if (!entitlement.voucherServiceScope.equals("SELECTED_SERVICES", ignoreCase = true)) return true
+        val eligible = entitlement.voucherSessionTypeIds.toSet()
+        if (eligible.isEmpty()) return false
+        return if (requireAll) {
+            selectedServices.isNotEmpty() && selectedServices.all { eligible.contains(it.sessionTypeId) }
+        } else {
+            selectedServices.any { eligible.contains(it.sessionTypeId) }
+        }
+    }
+
     val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
+        val giftCard = entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
         selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
-                && !entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
-                && selectedServices.any { service -> entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == service.sessionTypeId }
+                && (!giftCard || entitlement.voucherRedemptionMode.equals("SERVICE", ignoreCase = true))
+                && (!giftCard || selectedServices.size == 1)
+                && (!giftCard || (entitlement.remainingUses ?: 0) > 0)
+                && (!giftCard || voucherAllowsSelectedServices(entitlement, requireAll = false))
+                && (giftCard || selectedServices.any { service -> entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == service.sessionTypeId })
     }
     val selectedEntitlement = if (selectedEntitlementId != null) {
         matchingEntitlements.firstOrNull { it.entitlementId == selectedEntitlementId }
@@ -506,6 +527,8 @@ fun BookScreen(
     val matchingGiftCards = redeemableEntitlements.filter { entitlement ->
         selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
                 && entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
+                && !entitlement.voucherRedemptionMode.equals("SERVICE", ignoreCase = true)
+                && voucherAllowsSelectedServices(entitlement, requireAll = true)
                 && ((entitlement.remainingValueGross ?: 0.0) > 0.0)
                 && (entitlement.currency.isNullOrBlank() || entitlement.currency.equals(bookingCurrency, ignoreCase = true))
     }.sortedBy { it.remainingValueGross ?: 0.0 }
@@ -1880,7 +1903,9 @@ private fun EntitlementChooserRow(
                     }
                 }
                 Text(
-                    entitlementTypeCaption(entitlement.entitlementType, languageCode),
+                    if (entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true))
+                        bookTr(languageCode, "Gift voucher", "Darilni bon")
+                    else entitlementTypeCaption(entitlement.entitlementType, languageCode),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF60728A)
                 )

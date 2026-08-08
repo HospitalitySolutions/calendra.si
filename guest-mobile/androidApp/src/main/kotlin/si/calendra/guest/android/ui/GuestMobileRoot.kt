@@ -3021,6 +3021,12 @@ private fun walletAccessesForTenant(state: GuestUiState, tenantId: String): List
                 totalUses = access.totalUses,
                 displayCode = access.displayCode,
                 priceGross = access.priceGross,
+                remainingValueGross = access.remainingValueGross,
+                voucherFaceValueGross = access.voucherFaceValueGross,
+                voucherRedemptionMode = access.voucherRedemptionMode,
+                voucherServiceScope = access.voucherServiceScope,
+                voucherSessionTypeIds = access.voucherSessionTypeIds,
+                voucherSessionTypeNames = access.voucherSessionTypeNames,
                 currency = access.currency,
                 validityDays = access.validityDays,
                 autoRenews = access.autoRenews,
@@ -3193,6 +3199,12 @@ private fun aggregatedAccesses(state: GuestUiState): List<AccessCard> =
                     totalUses = access.totalUses,
                     displayCode = access.displayCode,
                     priceGross = access.priceGross,
+                    remainingValueGross = access.remainingValueGross,
+                    voucherFaceValueGross = access.voucherFaceValueGross,
+                    voucherRedemptionMode = access.voucherRedemptionMode,
+                    voucherServiceScope = access.voucherServiceScope,
+                    voucherSessionTypeIds = access.voucherSessionTypeIds,
+                    voucherSessionTypeNames = access.voucherSessionTypeNames,
                     currency = access.currency,
                     validityDays = access.validityDays,
                     autoRenews = access.autoRenews,
@@ -3254,6 +3266,11 @@ private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<Redeemab
                 autoRenews = entitlement.autoRenews,
                 entitlementType = entitlement.entitlementType,
                 remainingValueGross = entitlement.remainingValueGross,
+                voucherFaceValueGross = entitlement.voucherFaceValueGross,
+                voucherRedemptionMode = entitlement.voucherRedemptionMode,
+                voucherServiceScope = entitlement.voucherServiceScope,
+                voucherSessionTypeIds = entitlement.voucherSessionTypeIds,
+                voucherSessionTypeNames = entitlement.voucherSessionTypeNames,
                 currency = entitlement.currency
             )
         }
@@ -3275,7 +3292,12 @@ private fun aggregatedWalletOffers(state: GuestUiState): List<WalletOfferCard> =
                     sessionTypeName = product.sessionTypeName,
                     promoText = product.promoText,
                     validityDays = product.validityDays,
-                    usageLimit = product.usageLimit
+                    usageLimit = product.usageLimit,
+                    voucherRedemptionMode = product.voucherRedemptionMode,
+                    voucherServiceScope = product.voucherServiceScope,
+                    voucherFaceValueGross = product.voucherFaceValueGross,
+                    voucherSessionTypeIds = product.voucherSessionTypeIds,
+                    voucherSessionTypeNames = product.voucherSessionTypeNames
                 )
             }
     }.sortedBy { it.name }

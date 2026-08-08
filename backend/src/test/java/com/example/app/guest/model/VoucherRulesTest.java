@@ -52,4 +52,29 @@ class VoucherRulesTest {
         assertThat(VoucherRules.productAllowsService(product, 44L)).isTrue();
         assertThat(VoucherRules.productAllowsService(product, 45L)).isFalse();
     }
+    @Test
+    void issuedVoucherUsesSnapshottedFaceValueAndServiceNames() {
+        GuestProduct product = new GuestProduct();
+        product.setProductType(ProductType.GIFT_CARD);
+        product.setPriceGross(new java.math.BigDecimal("75.00"));
+        product.setVoucherFaceValueGross(new java.math.BigDecimal("90.00"));
+        product.setVoucherRedemptionMode(VoucherRedemptionMode.SERVICE);
+        product.setVoucherServiceScope(VoucherServiceScope.SELECTED_SERVICES);
+
+        GuestEntitlement entitlement = new GuestEntitlement();
+        entitlement.setProduct(product);
+        entitlement.setEntitlementType(EntitlementType.GIFT_CARD);
+        entitlement.setMetadataJson(
+                "{\"voucherMode\":\"VALUE\",\"voucherScope\":\"SELECTED_SERVICES\","
+                        + "\"eligibleSessionTypeIds\":[11,12],"
+                        + "\"eligibleServiceNames\":[\"Bikini - mali\",\"Bikini - veliki\"],"
+                        + "\"faceValueGross\":100.00}"
+        );
+
+        assertThat(VoucherRules.entitlementMode(entitlement)).isEqualTo(VoucherRedemptionMode.VALUE);
+        assertThat(VoucherRules.entitlementFaceValueGross(entitlement)).isEqualByComparingTo("100.00");
+        assertThat(VoucherRules.entitlementEligibleServiceNames(entitlement))
+                .containsExactly("Bikini - mali", "Bikini - veliki");
+    }
+
 }
