@@ -1339,9 +1339,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const defaultInvoiceIssuerId = invoiceIssuers.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? invoiceIssuers[0]?.id
-  const defaultInvoiceLocationId = selectedLocationId && invoiceLocations.some((location) => location.id === selectedLocationId)
+  const selectedInvoiceLocationId = selectedLocationId && invoiceLocations.some((location) => location.id === selectedLocationId)
     ? selectedLocationId
-    : invoiceLocations.find((location) => location.defaultLocation)?.id ?? invoiceLocations[0]?.id
+    : undefined
+  const defaultInvoiceLocationId = selectedInvoiceLocationId
+    ?? (invoiceLocations.length === 1
+      ? invoiceLocations[0]?.id
+      : invoiceLocations.find((location) => location.defaultLocation)?.id ?? invoiceLocations[0]?.id)
   const compatibleInvoiceSeries = useMemo(() => {
     if (!billForm.legalEntityId || !billForm.locationId) return []
     const issuerSeries = invoiceSeriesOptions.filter((series) => series.legalEntityId === billForm.legalEntityId)
@@ -1354,28 +1358,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   useEffect(() => {
     if (invoiceIssuers.length === 0 || invoiceLocations.length === 0) return
     setBillForm((current) => {
-      const locationId = current.locationId && invoiceLocations.some((location) => location.id === current.locationId)
-        ? current.locationId : defaultInvoiceLocationId
+      const locationId = selectedInvoiceLocationId
+        ?? (current.locationId && invoiceLocations.some((location) => location.id === current.locationId)
+          ? current.locationId
+          : defaultInvoiceLocationId)
       const locationDefaultIssuerId = invoiceLocations.find((location) => location.id === locationId)?.defaultLegalEntityId
       const preferredIssuerId = locationDefaultIssuerId && invoiceIssuers.some((issuer) => issuer.id === locationDefaultIssuerId)
         ? locationDefaultIssuerId : defaultInvoiceIssuerId
-      const legalEntityId = current.legalEntityId && invoiceIssuers.some((issuer) => issuer.id === current.legalEntityId)
+      const legalEntityId = current.legalEntityId && invoiceIssuers.some((issuer) => issuer.id === current.legalEntityId) && current.locationId === locationId && !selectedInvoiceLocationId
         ? current.legalEntityId : preferredIssuerId
       const issuerSeries = invoiceSeriesOptions.filter((series) => series.legalEntityId === legalEntityId)
       const locationSeries = issuerSeries.filter((series) => series.locationId === locationId)
       const available = locationSeries.length > 0
         ? locationSeries
         : issuerSeries.filter((series) => series.locationId == null)
-      const invoiceSeriesId = current.invoiceSeriesId && available.some((series) => series.id === current.invoiceSeriesId)
+      const invoiceSeriesId = current.invoiceSeriesId && available.some((series) => series.id === current.invoiceSeriesId) && current.locationId === locationId
         ? current.invoiceSeriesId
         : (available.find((series) => series.defaultForCurrentUnit)?.id ?? available[0]?.id)
       if (current.locationId === locationId && current.legalEntityId === legalEntityId && current.invoiceSeriesId === invoiceSeriesId) return current
       return { ...current, locationId, legalEntityId, invoiceSeriesId }
     })
-  }, [invoiceIssuers, invoiceLocations, invoiceSeriesOptions, defaultInvoiceIssuerId, defaultInvoiceLocationId])
+  }, [invoiceIssuers, invoiceLocations, invoiceSeriesOptions, defaultInvoiceIssuerId, defaultInvoiceLocationId, selectedInvoiceLocationId])
 
   useEffect(() => {
-    if (!billForm.sessionId) return
+    if (!billForm.sessionId || selectedInvoiceLocationId != null) return
     const booking = bookings.find((entry) => entry.id === billForm.sessionId)
     const bookingLocationId = booking?.location?.id ?? booking?.space?.location?.id
     if (bookingLocationId && bookingLocationId !== billForm.locationId) {
@@ -1388,7 +1394,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         invoiceSeriesId: undefined,
       }))
     }
-  }, [billForm.sessionId, bookings, invoiceIssuers, invoiceLocations])
+  }, [billForm.sessionId, bookings, invoiceIssuers, invoiceLocations, selectedInvoiceLocationId])
 
   const openWorkspaceBillHistory = async () => {
     setShowWorkspaceBills(true)
@@ -9880,14 +9886,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
 
               <div className={`billing-invoice-modern-body billing-invoice-modern-body--create billing-invoice-modern-body--advance-create${isCreateAdvanceBill ? '' : ' billing-invoice-modern-body--open-create'}`}>
-                <section className="billing-invoice-management-card">
-                  <div className={`billing-invoice-management-head billing-invoice-management-head--create${!isCreateAdvanceBill ? ' billing-invoice-management-head--create-open' : ''}`}>
-                    <div>
-                      <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Upravljanje predplačila' : 'Advance management') : (locale === 'sl' ? 'Upravljanje računa' : 'Bill management')}</h3>
-                      <p>{isCreateAdvanceBill ? (locale === 'sl' ? 'Plačnika in osnovne podatke predplačila uredite na kartici.' : 'Edit advance payee and details from the bill tab.') : (locale === 'sl' ? 'Plačnika in osnovne podatke uredite na kartici računa.' : 'Edit payee and bill details from the bill tab.')}</p>
+                <section className={`billing-invoice-management-card${!isCreateAdvanceBill ? ' billing-invoice-management-card--open-create-compact' : ''}`}>
+                  {isCreateAdvanceBill ? (
+                    <div className="billing-invoice-management-head billing-invoice-management-head--create">
+                      <div>
+                        <h3>{locale === 'sl' ? 'Upravljanje predplačila' : 'Advance management'}</h3>
+                        <p>{locale === 'sl' ? 'Plačnika in osnovne podatke predplačila uredite na kartici.' : 'Edit advance payee and details from the bill tab.'}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="billing-invoice-tabs-row billing-invoice-tabs-row--create">
+                  ) : null}
+                  <div className={`billing-invoice-tabs-row billing-invoice-tabs-row--create${!isCreateAdvanceBill ? ' billing-invoice-tabs-row--create-open-compact' : ''}`}>
                     {isCreateAdvanceBill && createAdvanceTabs.length > 1 ? (
                       createAdvanceTabs.map((tab) => {
                         const active = Number(billForm.clientId ?? 0) === tab.clientId
@@ -9932,80 +9940,82 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </section>
 
-                <section className="billing-invoice-issuer-card">
-                  <div className="billing-invoice-section-title-row">
-                    <h3>{locale === 'sl' ? 'Izdajatelj in številčenje' : 'Issuer and numbering'}</h3>
-                    <span>{locale === 'sl' ? 'Obvezno' : 'Required'}</span>
-                  </div>
-                  <div className="billing-invoice-issuer-grid">
-                    <Field label={locale === 'sl' ? 'Izdajatelj računa' : 'Invoice issuer'}>
-                      <select
-                        value={billForm.legalEntityId ?? ''}
-                        onChange={(event) => setBillForm((current) => ({
-                          ...current,
-                          legalEntityId: event.target.value ? Number(event.target.value) : undefined,
-                          invoiceSeriesId: undefined,
-                        }))}
-                        disabled={invoiceIssuers.length === 0}
-                      >
-                        <option value="">{locale === 'sl' ? 'Izberite izdajatelja' : 'Select issuer'}</option>
-                        {invoiceIssuers.map((issuer) => (
-                          <option key={issuer.id} value={issuer.id}>
-                            {issuer.name}{issuer.vatId ? ` · ${issuer.vatId}` : issuer.taxNumber ? ` · ${issuer.taxNumber}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label={locale === 'sl' ? 'Fizična lokacija' : 'Physical location'}>
-                      <select
-                        value={billForm.locationId ?? ''}
-                        onChange={(event) => {
-                          const locationId = event.target.value ? Number(event.target.value) : undefined
-                          const locationDefaultIssuerId = invoiceLocations.find((location) => location.id === locationId)?.defaultLegalEntityId
-                          setBillForm((current) => ({
+                {isCreateAdvanceBill ? (
+                  <section className="billing-invoice-issuer-card">
+                    <div className="billing-invoice-section-title-row">
+                      <h3>{locale === 'sl' ? 'Izdajatelj in številčenje' : 'Issuer and numbering'}</h3>
+                      <span>{locale === 'sl' ? 'Obvezno' : 'Required'}</span>
+                    </div>
+                    <div className="billing-invoice-issuer-grid">
+                      <Field label={locale === 'sl' ? 'Izdajatelj računa' : 'Invoice issuer'}>
+                        <select
+                          value={billForm.legalEntityId ?? ''}
+                          onChange={(event) => setBillForm((current) => ({
                             ...current,
-                            locationId,
-                            legalEntityId: locationDefaultIssuerId && invoiceIssuers.some((issuer) => issuer.id === locationDefaultIssuerId)
-                              ? locationDefaultIssuerId : current.legalEntityId,
+                            legalEntityId: event.target.value ? Number(event.target.value) : undefined,
                             invoiceSeriesId: undefined,
-                          }))
-                        }}
-                        disabled={invoiceLocations.length === 0}
-                      >
-                        <option value="">{locale === 'sl' ? 'Izberite lokacijo' : 'Select location'}</option>
-                        {invoiceLocations.map((location) => (
-                          <option key={location.id} value={location.id}>{location.name}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label={locale === 'sl' ? 'Števec računov lokacije' : 'Location invoice counter'}>
-                      <select
-                        value={billForm.invoiceSeriesId ?? ''}
-                        onChange={(event) => setBillForm((current) => ({
-                          ...current,
-                          invoiceSeriesId: event.target.value ? Number(event.target.value) : undefined,
-                        }))}
-                        disabled={!billForm.legalEntityId || compatibleInvoiceSeries.length === 0}
-                      >
-                        <option value="">{locale === 'sl' ? 'Izberite serijo' : 'Select series'}</option>
-                        {compatibleInvoiceSeries.map((series) => (
-                          <option key={series.id} value={series.id}>
-                            {series.locationId != null
-                              ? `${locale === 'sl' ? 'Števec' : 'Counter'} · ${series.locationName || invoiceLocations.find((location) => location.id === series.locationId)?.name || series.name}`
-                              : `${series.name}${series.sharedAcrossUnits ? ` · ${locale === 'sl' ? 'skupna' : 'shared'}` : ''}`}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  {invoiceIssuers.length === 0 || invoiceLocations.length === 0 || compatibleInvoiceSeries.length === 0 ? (
-                    <p className="billing-invoice-issuer-warning">
-                      {locale === 'sl'
-                        ? 'Manjka veljaven izdajatelj, lokacija ali števec računov. Nastavite jih v Nastavitve → Upravljanje računa → Poslovne enote.'
-                        : 'A valid issuer, location or invoice counter is missing. Configure it under Settings → Account management → Business units.'}
-                    </p>
-                  ) : null}
-                </section>
+                          }))}
+                          disabled={invoiceIssuers.length === 0}
+                        >
+                          <option value="">{locale === 'sl' ? 'Izberite izdajatelja' : 'Select issuer'}</option>
+                          {invoiceIssuers.map((issuer) => (
+                            <option key={issuer.id} value={issuer.id}>
+                              {issuer.name}{issuer.vatId ? ` · ${issuer.vatId}` : issuer.taxNumber ? ` · ${issuer.taxNumber}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label={locale === 'sl' ? 'Fizična lokacija' : 'Physical location'}>
+                        <select
+                          value={billForm.locationId ?? ''}
+                          onChange={(event) => {
+                            const locationId = event.target.value ? Number(event.target.value) : undefined
+                            const locationDefaultIssuerId = invoiceLocations.find((location) => location.id === locationId)?.defaultLegalEntityId
+                            setBillForm((current) => ({
+                              ...current,
+                              locationId,
+                              legalEntityId: locationDefaultIssuerId && invoiceIssuers.some((issuer) => issuer.id === locationDefaultIssuerId)
+                                ? locationDefaultIssuerId : current.legalEntityId,
+                              invoiceSeriesId: undefined,
+                            }))
+                          }}
+                          disabled={invoiceLocations.length === 0}
+                        >
+                          <option value="">{locale === 'sl' ? 'Izberite lokacijo' : 'Select location'}</option>
+                          {invoiceLocations.map((location) => (
+                            <option key={location.id} value={location.id}>{location.name}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label={locale === 'sl' ? 'Števec računov lokacije' : 'Location invoice counter'}>
+                        <select
+                          value={billForm.invoiceSeriesId ?? ''}
+                          onChange={(event) => setBillForm((current) => ({
+                            ...current,
+                            invoiceSeriesId: event.target.value ? Number(event.target.value) : undefined,
+                          }))}
+                          disabled={!billForm.legalEntityId || compatibleInvoiceSeries.length === 0}
+                        >
+                          <option value="">{locale === 'sl' ? 'Izberite serijo' : 'Select series'}</option>
+                          {compatibleInvoiceSeries.map((series) => (
+                            <option key={series.id} value={series.id}>
+                              {series.locationId != null
+                                ? `${locale === 'sl' ? 'Števec' : 'Counter'} · ${series.locationName || invoiceLocations.find((location) => location.id === series.locationId)?.name || series.name}`
+                                : `${series.name}${series.sharedAcrossUnits ? ` · ${locale === 'sl' ? 'skupna' : 'shared'}` : ''}`}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                    {invoiceIssuers.length === 0 || invoiceLocations.length === 0 || compatibleInvoiceSeries.length === 0 ? (
+                      <p className="billing-invoice-issuer-warning">
+                        {locale === 'sl'
+                          ? 'Manjka veljaven izdajatelj, lokacija ali števec računov. Nastavite jih v Nastavitve → Upravljanje računa → Poslovne enote.'
+                          : 'A valid issuer, location or invoice counter is missing. Configure it under Settings → Account management → Business units.'}
+                      </p>
+                    ) : null}
+                  </section>
+                ) : null}
 
                 <section className="billing-invoice-workspace-card">
                   <div className="billing-invoice-items-panel">
@@ -10120,40 +10130,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </section>
                 )}
                 {!isCreateAdvanceBill && (
-                  <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer" aria-label={locale === 'sl' ? 'Povzetek odprtega računa' : 'Open bill summary'}>
-                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
-                    {createVatRows.map((row) => (
-                      <div key={row.key} className="billing-bill-modal-summary-line">
-                        <span>{row.label}</span>
-                        <strong>{currency(row.taxTotal)}</strong>
-                      </div>
-                    ))}
-                    {createBillDiscountGross > 0.005 && (
-                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
-                    )}
-                    <div className="billing-bill-modal-summary-divider" />
-                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
-                  </section>
+                  <button
+                    type="button"
+                    className="billing-bill-modal-save-btn billing-bill-modal-save-btn--create-open-anchor"
+                    onClick={() => void createManualOpenBillFromCreateBillForm()}
+                    disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
+                    title={createCloseTooltip}
+                  >
+                    <span className="billing-bill-modal-save-btn__icon" aria-hidden>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+                        <path d="M17 21v-8H7v8" />
+                        <path d="M7 3v5h8" />
+                      </svg>
+                    </span>
+                    <span>{creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}</span>
+                  </button>
                 )}
-                <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-create">
-                  {!isCreateAdvanceBill && (
-                    <button
-                      type="button"
-                      className="billing-bill-modal-save-btn"
-                      onClick={() => void createManualOpenBillFromCreateBillForm()}
-                      disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
-                      title={createCloseTooltip}
-                    >
-                      <span className="billing-bill-modal-save-btn__icon" aria-hidden>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-                          <path d="M17 21v-8H7v8" />
-                          <path d="M7 3v5h8" />
-                        </svg>
-                      </span>
-                      <span>{creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}</span>
-                    </button>
-                  )}
+                <div className={`billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-create${!isCreateAdvanceBill ? ' billing-bill-modal-footer-actions--desktop-create-open' : ''}`}>
                   <button
                     type="button"
                     className="billing-bill-modal-save-btn"

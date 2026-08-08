@@ -10709,3 +10709,32 @@
 [data-theme="dark"] .billing-invoice-entitlement-summary small {
     color: #94a3b8;
 }
+
+
+/* Open-bill create modal: compact payee block, location inherited from top selector, split desktop footer. */
+.billing-create-panel--open .billing-invoice-management-card--open-create-compact {
+  padding-top: 16px;
+}
+
+.billing-create-panel--open .billing-invoice-tabs-row--create-open-compact {
+  margin-top: 0;
+}
+
+.billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
+  flex: 0 0 auto;
+}
+
+.billing-create-panel--open .billing-bill-modal-footer-actions--desktop-create-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+@media (max-width: 820px) {
+  .billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
+    display: none;
+  }
+}
