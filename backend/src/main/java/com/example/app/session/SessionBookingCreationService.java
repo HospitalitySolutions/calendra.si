@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -52,6 +54,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class SessionBookingCreationService {
+    private static final Logger log = LoggerFactory.getLogger(SessionBookingCreationService.class);
     private static final long EXCLUDE_NONE_SENTINEL = -1L;
     private static final int MAX_SERIES_OCCURRENCES = 200;
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -763,6 +766,16 @@ public class SessionBookingCreationService {
         // #endregion
         String removedClientLabel = clientActivityLabel(targets.get(0).getClient());
 
+        // Capture the already-valid grouped DTO before cancelling anything. The public
+        // cancellation endpoint only needs to persist the cancellation and return a tiny
+        // status response. Staff removal additionally has to return a full calendar DTO.
+        // When the last participant leaves, constructing that DTO from the freshly-created
+        // placeholder is unnecessary and can make a successful cancellation fail during
+        // placeholder projection. Reuse the known-good session snapshot and only replace
+        // the participant-specific fields after the shared cancellation core succeeds.
+        SessionBookingController.BookingResponse beforeRemovalResponse =
+                SessionBookingController.toGroupedResponse(rows);
+
         // Use the exact same cancellation core as the public e-mail manage link.
         // Keep the placeholder returned by that core. In the last-participant case
         // this is the authoritative surviving occurrence and using it directly avoids
@@ -776,11 +789,17 @@ public class SessionBookingCreationService {
         }
 
         List<SessionBooking> activeRows;
+        SessionBookingController.BookingResponse response;
         if (placeholderForResponse != null) {
-            // Last guest removed: the shared cancellation core already resolved the
-            // surviving empty occurrence (either an existing placeholder or a newly
-            // created one), so use it directly.
+            // Last guest removed: persistence has already followed the exact public
+            // "Odpovej rezervacijo" path. Build the staff-only response from the
+            // pre-cancellation DTO instead of traversing the new placeholder graph.
             activeRows = List.of(placeholderForResponse);
+            response = toLastParticipantRemovedResponse(
+                    beforeRemovalResponse,
+                    placeholderForResponse,
+                    clientId
+            );
         } else {
             List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
             if (refreshed == null) {
@@ -824,9 +843,8 @@ public class SessionBookingCreationService {
                         "Group session placeholder is missing after guest removal."
                 );
             }
+            response = SessionBookingController.toGroupedResponse(activeRows);
         }
-
-        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(activeRows);
         // #region agent log
         agentDebugLog("SessionBookingCreationService.removeGroupSessionParticipant", "grouped response built", "B1-H3",
                 "activeRowCount", activeRows.size(),
@@ -835,9 +853,96 @@ public class SessionBookingCreationService {
         // The shared cancellation core already publishes BOOKING_CANCELLED for the
         // participant and BOOKING_CREATED when it had to create the last-guest
         // placeholder. Avoid an additional synthetic BOOKING_UPDATED event here.
-        recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
-                "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId), representativeBookingId);
+        try {
+            recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_REMOVED, response,
+                    "CLIENT", clientId, removedClientLabel, Map.of("clientId", clientId), representativeBookingId);
+        } catch (RuntimeException activityLogFailure) {
+            // Activity logging is secondary to the booking mutation. In particular, it
+            // must never roll back a cancellation that already completed through the
+            // same core used by the public cancellation endpoint.
+            log.warn(
+                    "Failed recording group participant removal activity: companyId={} bookingId={} clientId={}",
+                    companyId,
+                    representativeBookingId,
+                    clientId,
+                    activityLogFailure
+            );
+        }
         return response;
+    }
+
+    /**
+     * Builds the calendar response for the last-participant removal without
+     * projecting the freshly persisted placeholder entity. The session snapshot
+     * was already successfully projected before cancellation, so all shared
+     * occurrence fields can be reused safely while the participant-specific
+     * fields are cleared and the surviving placeholder id is exposed to the UI.
+     */
+    private static SessionBookingController.BookingResponse toLastParticipantRemovedResponse(
+            SessionBookingController.BookingResponse before,
+            SessionBooking placeholder,
+            Long removedClientId
+    ) {
+        if (before == null) {
+            throw new IllegalArgumentException("Pre-cancellation group response is required.");
+        }
+
+        List<SessionBookingController.ClientSummary> remainingClients = before.clients() == null
+                ? List.of()
+                : before.clients().stream()
+                    .filter(client -> client != null && !Objects.equals(client.id(), removedClientId))
+                    .toList();
+        SessionBookingController.ClientSummary primaryClient = remainingClients.isEmpty()
+                ? null
+                : remainingClients.get(0);
+
+        List<SessionBookingController.BookingPayeeResponse> remainingPayees = before.payees() == null
+                ? List.of()
+                : before.payees().stream()
+                    .filter(payee -> payee != null && !Objects.equals(payee.clientId(), removedClientId))
+                    .toList();
+
+        Long responseId = placeholder != null && placeholder.getId() != null
+                ? placeholder.getId()
+                : before.id();
+        String responseGroupKey = placeholder != null
+                ? SessionBookingController.groupKey(placeholder)
+                : before.bookingGroupKey();
+        String responseRecurrenceKey = placeholder != null && placeholder.getRecurrenceSeriesKey() != null
+                ? placeholder.getRecurrenceSeriesKey()
+                : before.recurrenceSeriesKey();
+        BookingSource responseSource = placeholder != null && placeholder.getBookingSource() != null
+                ? placeholder.getBookingSource()
+                : BookingSource.MANUAL;
+
+        return new SessionBookingController.BookingResponse(
+                responseId,
+                responseGroupKey,
+                responseRecurrenceKey,
+                primaryClient,
+                remainingClients,
+                before.consultant(),
+                before.startTime(),
+                before.endTime(),
+                before.space(),
+                before.type(),
+                before.notes(),
+                before.meetingLink(),
+                before.meetingProvider(),
+                before.groupId(),
+                before.sessionGroupEmailOverride(),
+                before.sessionGroupBillingCompany(),
+                SessionBookingStatus.RESERVED,
+                responseSource,
+                remainingPayees,
+                before.paymentStatuses() == null ? List.of() : before.paymentStatuses(),
+                before.services() == null ? List.of() : before.services(),
+                before.availabilityEndTime(),
+                before.totalServiceMinutes(),
+                before.totalBreakMinutes(),
+                before.totalGross(),
+                before.location()
+        );
     }
 
     /**

@@ -122,7 +122,11 @@ class SessionBookingGroupParticipantRemovalTest {
         SessionBookingController.BookingResponse response = service.removeGroupSessionParticipant(299L, 68L, admin);
 
         assertEquals(300L, response.id());
+        assertEquals("group-1", response.bookingGroupKey());
+        assertEquals(SessionBookingStatus.RESERVED, response.bookingStatus());
+        assertEquals(BookingSource.MANUAL, response.bookingSource());
         assertEquals(0, response.clients().size());
+        assertNull(response.client());
         assertEquals(client, row.getClient());
         assertEquals(SessionBookingStatus.CANCELLED, row.getBookingStatus());
 
