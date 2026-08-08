@@ -160,6 +160,7 @@ export function OperatingUnitsPanel({
   const [draft, setDraft] = useState<LocationDraft>(() => blankDraft(issuerOptions[0]?.id ?? null))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [premiseBusy, setPremiseBusy] = useState(false)
   const [bannerVisible, setBannerVisible] = useState(true)
   const [newSpaceName, setNewSpaceName] = useState('')
   const [addingSpace, setAddingSpace] = useState(false)
@@ -221,7 +222,7 @@ export function OperatingUnitsPanel({
         setDraft(selected ? draftFromLocation(selected) : blankDraft((nextIssuers.find((x: InvoiceIssuerOption) => x.defaultForCurrentUnit) ?? nextIssuers[0])?.id ?? null))
       }
     } catch (error: any) {
-      showToast('error', error?.response?.data?.message || (sl ? 'Poslovnih enot ni bilo mogoče naložiti.' : 'Business units could not be loaded.'))
+      showToast('error', error?.response?.data?.message || (sl ? 'Poslovnih prostorov ni bilo mogoče naložiti.' : 'Business units could not be loaded.'))
     } finally {
       setLoading(false)
     }
@@ -361,15 +362,44 @@ export function OperatingUnitsPanel({
     }
   }
 
+  const registerPremise = async () => {
+    if (!selectedLocation) {
+      showToast('error', sl ? 'Najprej shranite lokacijo.' : 'Save the location first.')
+      return
+    }
+    if (!draft.defaultLegalEntityId) {
+      showToast('error', sl ? 'Za lokacijo izberite povezano podjetje.' : 'Select a linked company for this location.')
+      return
+    }
+    if (!draft.fiscalBusinessPremiseCode.trim()) {
+      showToast('error', sl ? 'Vnesite oznako poslovnega prostora.' : 'Enter the business premise code.')
+      return
+    }
+    setPremiseBusy(true)
+    try {
+      await api.post('/fiscal/premises/register', null, {
+        params: {
+          legalEntityId: draft.defaultLegalEntityId,
+          locationId: selectedLocation.id,
+        },
+      })
+      showToast('success', sl ? 'Poslovni prostor je bil uspešno registriran.' : 'Business premise registered successfully.')
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || error?.response?.data?.error || (sl ? 'Poslovnega prostora ni bilo mogoče registrirati.' : 'Could not register the business premise.'))
+    } finally {
+      setPremiseBusy(false)
+    }
+  }
+
   if (loading && locations.length === 0) {
-    return <div className="operating-units-loading">{sl ? 'Nalaganje poslovnih enot…' : 'Loading business units…'}</div>
+    return <div className="operating-units-loading">{sl ? 'Nalaganje poslovnih prostorov…' : 'Loading business units…'}</div>
   }
 
   return (
     <section className="operating-units-panel">
       <header className="operating-units-head">
         <div>
-          <h2>{sl ? 'Poslovne enote' : 'Business units'}</h2>
+          <h2>{sl ? 'Poslovni prostori' : 'Business units'}</h2>
           <p>{sl ? 'Upravljajte lokacije in poslovne prostore. Naslov podjetja se odslej določa na lokaciji.' : 'Manage locations and rooms. The company physical address is now defined by its location.'}</p>
         </div>
         {locationsEnabled ? <button type="button" className="ou-primary-button" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button> : null}
@@ -451,7 +481,14 @@ export function OperatingUnitsPanel({
               <section className="ou-form-section ou-fiscal-section">
                 <h3>{sl ? 'Fiskalne / računovodske nastavitve lokacije' : 'Fiscal / accounting settings'}</h3>
                 <div className="ou-counter-note">{icon('info')}<span>{sl ? 'Vsaka lokacija ima svoje številčenje računov.' : 'Each location has its own invoice counter.'}</span></div>
-                <label className="ou-field"><span>{sl ? 'Oznaka poslovnega prostora' : 'Business premise code'}</span><input value={draft.fiscalBusinessPremiseCode} onChange={(event) => setDraft((current) => ({ ...current, fiscalBusinessPremiseCode: event.target.value }))} placeholder="REC123" /><small>{sl ? 'Vsi računi, izdani na tej lokaciji, uporabijo to oznako kot predpono.' : 'All invoices issued at this location use this code as their prefix.'}</small></label>
+                <div className="ou-field">
+                  <span>{sl ? 'Oznaka poslovnega prostora' : 'Business premise code'}</span>
+                  <input value={draft.fiscalBusinessPremiseCode} onChange={(event) => setDraft((current) => ({ ...current, fiscalBusinessPremiseCode: event.target.value }))} placeholder="REC123" />
+                  <small>{sl ? 'Vsi računi, izdani na tej lokaciji, uporabijo to oznako kot predpono.' : 'All invoices issued at this location use this code as their prefix.'}</small>
+                  <div className="ou-inline-actions">
+                    <button type="button" className="ou-inline-button" onClick={() => void registerPremise()} disabled={premiseBusy || !selectedLocation || !draft.defaultLegalEntityId}>{premiseBusy ? (sl ? 'Registracija…' : 'Registering…') : (sl ? 'Registriraj poslovni prostor' : 'Register business premise')}</button>
+                  </div>
+                </div>
                 <label className="ou-field"><span>{sl ? 'Naslednja številka' : 'Next number'}</span><input value={draft.invoiceNextNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceNextNumber: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Začetna številka ob ponastavitvi' : 'Initial number on reset'}</span><input value={draft.invoiceInitialNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceInitialNumber: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Ponastavitev' : 'Reset'}</span><select value={draft.invoiceResetPolicy} onChange={(event) => setDraft((current) => ({ ...current, invoiceResetPolicy: event.target.value === 'YEARLY' ? 'YEARLY' : 'NONE' }))}><option value="NONE">{sl ? 'Brez' : 'None'}</option><option value="YEARLY">{sl ? 'Letno' : 'Yearly'}</option></select></label>

@@ -38,7 +38,6 @@ import {
   mergeNotificationSettingsJsonIntoFlat,
 } from "./configuration/ConfigurationNotificationsSection";
 import { BillingIssuersSection } from "./configuration/BillingIssuersSection";
-import { CompanyBillingEntitiesSection } from "./configuration/CompanyBillingEntitiesSection";
 import { OperatingUnitsPanel } from "./configuration/OperatingUnitsPanel";
 import { WorkspaceSubscriptionPanel } from "./configuration/WorkspaceSubscriptionPanel";
 import {
@@ -1025,7 +1024,7 @@ function AccountManagementSubtabs({
     ...(showOperatingUnits
       ? [{
           id: "operatingUnits" as AccountSubtab,
-          label: locale === "sl" ? "Poslovne enote" : "Business units",
+          label: locale === "sl" ? "Poslovni prostori" : "Business units",
         }]
       : []),
     {
@@ -1363,6 +1362,7 @@ export function ConfigurationPage() {
     basic: true,
     public: true,
     payments: false,
+    fiscal: true,
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingGuestAsset, setUploadingGuestAsset] =
@@ -1497,6 +1497,7 @@ export function ConfigurationPage() {
       { key: "basic", label: "Osnovni podatki" },
       { key: "public", label: "Javna predstavitev" },
       { key: "payments", label: "Podatki za plačila" },
+      { key: "fiscal", label: "Davčno potrjevanje" },
     ] as const,
     [],
   );
@@ -5694,7 +5695,7 @@ export function ConfigurationPage() {
           title: locale === "sl" ? "Lokacije" : "Locations",
           subtitle:
             locale === "sl"
-              ? "Omogoči dodajanje več poslovnih lokacij v zavihku Poslovne enote."
+              ? "Omogoči dodajanje več poslovnih lokacij v zavihku Poslovni prostori."
               : "Allow additional business locations to be added in Business units.",
           checked: moduleOn("LOCATIONS_ENABLED"),
           onChange: (checked) =>
@@ -7095,6 +7096,9 @@ export function ConfigurationPage() {
               display: grid;
               gap: 10px;
             }
+            .account-field-wide {
+              grid-column: 1 / -1;
+            }
             .account-field.span-2 { grid-column: span 2; }
             .account-field-label {
               font-size: 14px;
@@ -7155,6 +7159,88 @@ export function ConfigurationPage() {
               display: grid;
               gap: 12px;
               padding-top: 2px;
+            }
+            .account-fiscal-note {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              margin-top: 18px;
+              padding: 12px 14px;
+              border: 1px solid #d5e4fb;
+              border-radius: 14px;
+              background: #f5f9ff;
+              color: #3f5f93;
+              font-size: 13px;
+              line-height: 1.5;
+            }
+            .account-fiscal-note svg {
+              flex: 0 0 auto;
+            }
+            .account-fiscal-certificate-shell {
+              display: grid;
+              gap: 14px;
+            }
+            .account-fiscal-upload-picker {
+              position: relative;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              min-height: 56px;
+              padding: 0 16px;
+              border: 1px dashed #c7d7ed;
+              border-radius: 14px;
+              background: #fbfdff;
+              color: #284774;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 700;
+            }
+            .account-fiscal-upload-picker input {
+              position: absolute;
+              inset: 0;
+              opacity: 0;
+              cursor: pointer;
+            }
+            .account-fiscal-upload-picker small {
+              display: block;
+              color: #7a879c;
+              font-size: 12px;
+              font-weight: 500;
+            }
+            .account-fiscal-certificate-summary {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              padding: 14px 16px;
+              border: 1px solid #dfe8f3;
+              border-radius: 14px;
+              background: #fff;
+            }
+            .account-fiscal-certificate-main {
+              display: grid;
+              gap: 4px;
+            }
+            .account-fiscal-certificate-main strong {
+              font-size: 14px;
+              color: #17315e;
+            }
+            .account-fiscal-certificate-main small {
+              color: #7a879c;
+              font-size: 12px;
+              line-height: 1.45;
+            }
+            .account-fiscal-certificate-actions {
+              display: flex;
+              align-items: center;
+              justify-content: flex-end;
+              gap: 10px;
+              flex-wrap: wrap;
+            }
+            .account-fiscal-remove-button {
+              color: #c23a3a;
+              border-color: #f7d2d2;
+              background: #fff7f7;
             }
             .account-branding-card .account-public-directory-row {
               border-color: #dbe5f2;
@@ -8115,6 +8201,92 @@ export function ConfigurationPage() {
               .account-public-visibility-list {
                 margin-top: 10px;
               }
+              .account-field-wide {
+                grid-column: 1 / -1;
+              }
+              .account-fiscal-note {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-top: 10px;
+                padding: 10px 12px;
+                border: 1px solid #d7e4fb;
+                border-radius: 12px;
+                background: #f5f9ff;
+                color: #3f5f93;
+                font-size: 12px;
+                line-height: 1.45;
+              }
+              .account-fiscal-note svg {
+                flex: 0 0 auto;
+              }
+              .account-fiscal-certificate-shell {
+                display: grid;
+                gap: 10px;
+                padding: 2px 0 0;
+              }
+              .account-fiscal-upload-picker {
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 42px;
+                padding: 0 14px;
+                border: 1px dashed #c8d6eb;
+                border-radius: 12px;
+                background: #fbfdff;
+                color: #284774;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+              }
+              .account-fiscal-upload-picker input {
+                position: absolute;
+                inset: 0;
+                opacity: 0;
+                cursor: pointer;
+              }
+              .account-fiscal-upload-picker small {
+                display: block;
+                color: #7a879c;
+                font-size: 11px;
+                font-weight: 500;
+              }
+              .account-fiscal-certificate-summary {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 12px 14px;
+                border: 1px solid #dfe8f3;
+                border-radius: 12px;
+                background: #fff;
+              }
+              .account-fiscal-certificate-main {
+                display: grid;
+                gap: 4px;
+              }
+              .account-fiscal-certificate-main strong {
+                font-size: 13px;
+                color: #17315e;
+              }
+              .account-fiscal-certificate-main small {
+                color: #7a879c;
+                font-size: 11px;
+                line-height: 1.45;
+              }
+              .account-fiscal-certificate-actions {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 8px;
+                flex-wrap: wrap;
+              }
+              .account-fiscal-remove-button {
+                color: #c23a3a;
+                border-color: #f7d2d2;
+                background: #fff7f7;
+              }
               .account-form-card-header.inline-switch {
                 gap: 8px;
               }
@@ -8130,6 +8302,16 @@ export function ConfigurationPage() {
               }
               .account-company-footer {
                 margin-top: 12px;
+              }
+              .account-field-wide {
+                grid-column: auto;
+              }
+              .account-fiscal-certificate-summary {
+                align-items: flex-start;
+                flex-direction: column;
+              }
+              .account-fiscal-certificate-actions {
+                justify-content: flex-start;
               }
             }
           `}</style>
@@ -8241,17 +8423,6 @@ export function ConfigurationPage() {
                           </div>
                         </section>
                       </div>
-
-                      {billingEnabledCommitted ? (
-                        <section className="account-card account-multiple-companies-section">
-                          <CompanyBillingEntitiesSection
-                            locale={locale}
-                            allowMultipleCompanies={multipleCompaniesEnabledCommitted}
-                            fiscalEnabled={fiscalCashRegisterEnabledCommitted}
-                            onChanged={load}
-                          />
-                        </section>
-                      ) : null}
 
                       {companySectionVisibility.overview ? (
                         <section className="account-card account-company-overview">
@@ -8661,6 +8832,281 @@ export function ConfigurationPage() {
                                   }
                                 />
                               </label>
+                            </div>
+                          </section>
+                        ) : null}
+
+                        {companySectionVisibility.fiscal ? (
+                          <section className="account-card account-form-card">
+                            <div className="account-form-card-header">
+                              <div>
+                                <h3>Davčno potrjevanje</h3>
+                                <p className="account-form-card-subtitle">
+                                  {locale === "sl"
+                                    ? "Nastavitve ostanejo shranjene v ozadju. Prikaz tega bloka lahko vklopite ali skrijete preko menija na kartici profila podjetja."
+                                    : "These settings remain saved in the background. You can show or hide this block from the company profile menu."}
+                                </p>
+                              </div>
+                            </div>
+
+                            {!fiscalCashRegisterEnabledCommitted ? (
+                              <div className="account-fiscal-note">
+                                <BillingInfoIcon />
+                                <span>
+                                  {locale === "sl"
+                                    ? "Davčno potrjevanje bo uporabljeno, ko v App nastavitve omogočite možnost Davčna blagajna."
+                                    : "Tax confirmation will be used once the Fiscal cash register option is enabled in App settings."}
+                                </span>
+                              </div>
+                            ) : null}
+
+                            <div className="account-form-grid">
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Davčna številka
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={settings.FISCAL_TAX_NUMBER || ""}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_TAX_NUMBER: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Davčna številka dobavitelja
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    settings.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER ||
+                                    ""
+                                  }
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER:
+                                        e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Katastrska občina
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    settings.FISCAL_CADASTRAL_NUMBER || ""
+                                  }
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_CADASTRAL_NUMBER: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Številka stavbe
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={settings.FISCAL_BUILDING_NUMBER || ""}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_BUILDING_NUMBER: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Številka dela stavbe
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    settings.FISCAL_BUILDING_SECTION_NUMBER ||
+                                    ""
+                                  }
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_BUILDING_SECTION_NUMBER:
+                                        e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Hišna številka
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={settings.FISCAL_HOUSE_NUMBER || ""}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_HOUSE_NUMBER: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Dodatek hišne številke
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={
+                                    settings.FISCAL_HOUSE_NUMBER_ADDITIONAL ||
+                                    ""
+                                  }
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_HOUSE_NUMBER_ADDITIONAL:
+                                        e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Fiskalni certifikat geslo
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  type="password"
+                                  value={
+                                    settings.FISCAL_CERTIFICATE_PASSWORD || ""
+                                  }
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_CERTIFICATE_PASSWORD:
+                                        e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
+                                  Fiskalno okolje
+                                </span>
+                                <select
+                                  className="account-field-control"
+                                  value={
+                                    settings.FISCAL_ENVIRONMENT || "TEST"
+                                  }
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_ENVIRONMENT: e.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="TEST">TEST</option>
+                                  <option value="PROD">PROD</option>
+                                </select>
+                              </label>
+                              <div className="account-field account-field-wide">
+                                <span className="account-field-label">
+                                  Fiskalni certifikat
+                                </span>
+                                <div className="account-fiscal-certificate-shell">
+                                  <label className="account-fiscal-upload-picker">
+                                    <input
+                                      type="file"
+                                      accept=".p12,.pfx,application/x-pkcs12"
+                                      onChange={(e) =>
+                                        setCertificateFile(
+                                          e.target.files?.[0] || null,
+                                        )
+                                      }
+                                    />
+                                    <BillingUploadIcon />
+                                    <span>
+                                      {certificateFile
+                                        ? certificateFile.name
+                                        : locale === "sl"
+                                          ? "Izberite .p12 ali .pfx datoteko"
+                                          : "Choose a .p12 or .pfx file"}
+                                      <small>
+                                        {locale === "sl"
+                                          ? "Dovoljene vrste: .p12, .pfx"
+                                          : "Allowed types: .p12, .pfx"}
+                                      </small>
+                                    </span>
+                                  </label>
+                                  <div className="account-fiscal-certificate-summary">
+                                    <div className="account-fiscal-certificate-main">
+                                      <strong>
+                                        {certificateMeta?.uploaded
+                                          ? certificateMeta.fileName ||
+                                            "fiskalni_certifikat.p12"
+                                          : locale === "sl"
+                                            ? "Fiskalni certifikat ni naložen"
+                                            : "No fiscal certificate uploaded"}
+                                      </strong>
+                                      <small>
+                                        {certificateMeta?.uploaded
+                                          ? certificateMeta.expiresAt
+                                            ? `${locale === "sl" ? "Velja do" : "Expires"}: ${certificateMeta.expiresAt}`
+                                            : locale === "sl"
+                                              ? "Potrdilo je naloženo."
+                                              : "Certificate uploaded."
+                                          : locale === "sl"
+                                            ? "Naložite digitalno potrdilo za davčno potrjevanje računov."
+                                            : "Upload the digital certificate used for tax confirmation."}
+                                      </small>
+                                    </div>
+                                    <div className="account-fiscal-certificate-actions">
+                                      <button
+                                        type="button"
+                                        className="account-button"
+                                        onClick={uploadCertificate}
+                                        disabled={
+                                          uploadingCertificate ||
+                                          !certificateFile
+                                        }
+                                      >
+                                        <BillingUploadIcon />
+                                        {uploadingCertificate
+                                          ? locale === "sl"
+                                            ? "Nalaganje…"
+                                            : "Uploading…"
+                                          : locale === "sl"
+                                            ? "Naloži"
+                                            : "Upload"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="account-button-ghost account-fiscal-remove-button"
+                                        onClick={removeCertificate}
+                                        disabled={
+                                          !certificateMeta?.uploaded ||
+                                          uploadingCertificate
+                                        }
+                                      >
+                                        <BillingTrashIcon />
+                                        {locale === "sl"
+                                          ? "Odstrani"
+                                          : "Remove"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </section>
                         ) : null}
