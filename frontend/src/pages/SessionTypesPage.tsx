@@ -48,6 +48,8 @@ import {
 } from "./CardsMembershipsSection";
 import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 import { WorkspaceServiceManager } from "../components/WorkspaceServiceManager";
+import { useMobileKeyboardOpen } from "../hooks/useMobileKeyboardOpen";
+import { useMediaMaxWidth } from "../hooks/useCalendarResponsiveLayout";
 
 const SESSION_TYPES_SUBTAB_GROUPS = "service-groups";
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
@@ -853,6 +855,8 @@ export function SessionTypesPage() {
   /** Snapshot when the type modal opens; used to detect edits (footer only when dirty). */
   const [typeFormSnapshot, setTypeFormSnapshot] =
     useState<TypeFormState | null>(null);
+  const isTypeEditorMobileTablet = useMediaMaxWidth(939);
+  const typeEditorKeyboardOpen = useMobileKeyboardOpen(939);
   const [guestBookingPickerOpen, setGuestBookingPickerOpen] = useState(false);
   const guestBookingSelectRef = useRef<HTMLDivElement>(null);
   const [priceCalculationPickerOpen, setPriceCalculationPickerOpen] = useState(false);
@@ -3706,22 +3710,46 @@ export function SessionTypesPage() {
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="session-type-config-modal-header">
-              <div className="session-type-config-modal-heading">
-                <span className="session-type-config-modal-icon" aria-hidden>
-                  <ServiceConfigTabIcon name="types" />
-                </span>
-                <div>
-                  <h2>{editingType ? t("Edit type") : t("New type")}</h2>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary session-type-config-modal-close"
-                onClick={dismissTypeModal}
-                aria-label={locale === "sl" ? "Zapri" : "Close"}
-              >
-                ×
-              </button>
+              {isTypeEditorMobileTablet ? (
+                <>
+                  <button
+                    type="button"
+                    className="session-type-config-modal-mobile-close"
+                    onClick={dismissTypeModal}
+                    aria-label={locale === "sl" ? "Zapri" : "Close"}
+                  >
+                    ×
+                  </button>
+                  <h2 className="session-type-config-modal-mobile-title">
+                    {editingType ? t("Edit type") : t("New type")}
+                  </h2>
+                  <span
+                    className="session-type-config-modal-mobile-more"
+                    aria-hidden="true"
+                  >
+                    ⋮
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="session-type-config-modal-heading">
+                    <span className="session-type-config-modal-icon" aria-hidden>
+                      <ServiceConfigTabIcon name="types" />
+                    </span>
+                    <div>
+                      <h2>{editingType ? t("Edit type") : t("New type")}</h2>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary session-type-config-modal-close"
+                    onClick={dismissTypeModal}
+                    aria-label={locale === "sl" ? "Zapri" : "Close"}
+                  >
+                    ×
+                  </button>
+                </>
+              )}
             </div>
 
             <form
@@ -3831,37 +3859,44 @@ export function SessionTypesPage() {
                               })
                             }
                           />
+                          <span
+                            className="session-type-break-toggle"
+                            aria-hidden="true"
+                          >
+                            <span />
+                          </span>
                           <span>
                             {locale === "sl"
                               ? "Določi posebno pavzo"
                               : "Set a specific break"}
                           </span>
                         </label>
-                        <select
-                          value={typeForm.breakMinutes}
-                          disabled={!typeForm.breakMinutesOverridden}
-                          onChange={(event) =>
-                            setTypeForm({
-                              ...typeForm,
-                              breakMinutes: clampSessionTypeInt0to999(
-                                Number(event.target.value),
-                              ),
-                            })
-                          }
-                        >
-                          {!SERVICE_BREAK_MINUTE_OPTIONS.includes(
-                            typeForm.breakMinutes,
-                          ) ? (
-                            <option value={typeForm.breakMinutes}>
-                              {typeForm.breakMinutes} min
-                            </option>
-                          ) : null}
-                          {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
-                            <option key={minutes} value={minutes}>
-                              {minutes} min
-                            </option>
-                          ))}
-                        </select>
+                        {typeForm.breakMinutesOverridden ? (
+                          <select
+                            value={typeForm.breakMinutes}
+                            onChange={(event) =>
+                              setTypeForm({
+                                ...typeForm,
+                                breakMinutes: clampSessionTypeInt0to999(
+                                  Number(event.target.value),
+                                ),
+                              })
+                            }
+                          >
+                            {!SERVICE_BREAK_MINUTE_OPTIONS.includes(
+                              typeForm.breakMinutes,
+                            ) ? (
+                              <option value={typeForm.breakMinutes}>
+                                {typeForm.breakMinutes} min
+                              </option>
+                            ) : null}
+                            {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
+                              <option key={minutes} value={minutes}>
+                                {minutes} min
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
                         {!typeForm.breakMinutesOverridden ? (
                           <small>
                             {locale === "sl"
@@ -4655,17 +4690,20 @@ export function SessionTypesPage() {
 
             </form>
 
-            <div className="form-actions booking-side-panel-footer session-type-config-modal-footer">
-              <button
-                form="session-type-edit-form"
-                type="submit"
-                className="gapp-primary-button"
-                disabled={!isTypeFormDirty}
-              >
-                <GuestConfigSaveIcon />
-                {editingType ? t("formSaveChanges") : t("Create type")}
-              </button>
-            </div>
+            {(!isTypeEditorMobileTablet ||
+              (isTypeFormDirty && !typeEditorKeyboardOpen)) ? (
+              <div className="form-actions booking-side-panel-footer session-type-config-modal-footer">
+                <button
+                  form="session-type-edit-form"
+                  type="submit"
+                  className="gapp-primary-button"
+                  disabled={!isTypeFormDirty}
+                >
+                  <GuestConfigSaveIcon />
+                  {editingType ? t("formSaveChanges") : t("Create type")}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
