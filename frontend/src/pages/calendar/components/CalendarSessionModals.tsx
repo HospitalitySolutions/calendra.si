@@ -3507,16 +3507,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               </div>
             </div>
 
-            <footer className="calendar-mobile-status-editor__footer">
-              <button
-                type="button"
-                className="calendar-mobile-status-editor__save"
-                onClick={saveMobileBookingStatus}
-                disabled={!mobileBookingStatusCanSave}
-              >
-                {locale === 'sl' ? 'Shrani status' : locale === 'sr' ? 'Sačuvaj status' : 'Save status'}
-              </button>
-            </footer>
+            {mobileBookingStatusCanSave && (
+              <footer className="calendar-mobile-status-editor__footer">
+                <button
+                  type="button"
+                  className="calendar-mobile-status-editor__save"
+                  onClick={saveMobileBookingStatus}
+                >
+                  {locale === 'sl' ? 'Shrani status' : locale === 'sr' ? 'Sačuvaj status' : 'Save status'}
+                </button>
+              </footer>
+            )}
           </section>
         </div>,
         document.body,

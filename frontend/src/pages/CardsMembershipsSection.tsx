@@ -1317,21 +1317,73 @@ export const CardsMembershipsSection = forwardRef<
               >
                 <div className="clients-mobile-card-head">
                   <CardsMembershipNameCell product={product} index={index} />
-                  <div
-                    className="clients-mobile-card-head-tools"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    role="presentation"
-                  >
+                  <div className="clients-card-menu-wrap">
                     <button
                       type="button"
-                      className="secondary slim-btn cards-product-delete-btn cards-product-row-delete"
-                      onClick={() => void deleteGuestProduct(product)}
+                      className="secondary clients-card-menu-trigger service-config-menu-trigger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenProductMenuId((previous) =>
+                          previous === product.id ? null : product.id,
+                        );
+                      }}
+                      aria-label={
+                        locale === "sl"
+                          ? "Dejanja ugodnosti"
+                          : "Entitlement actions"
+                      }
+                      aria-expanded={openProductMenuId === product.id}
                     >
-                      {locale === "sl"
-                        ? "Izbriši kartico"
-                        : "Delete entitlement"}
+                      ⋮
                     </button>
+                    {openProductMenuId === product.id && (
+                      <div
+                        className="clients-card-menu-popover"
+                        role="dialog"
+                        aria-label={
+                          locale === "sl"
+                            ? "Dejanja ugodnosti"
+                            : "Entitlement actions"
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenProductMenuId(null);
+                            void toggleGuestProductActive(
+                              product,
+                              product.active === false,
+                            );
+                          }}
+                          disabled={activatingGuestProductId === product.id}
+                        >
+                          {activatingGuestProductId === product.id
+                            ? locale === "sl"
+                              ? "Shranjujem..."
+                              : "Saving..."
+                            : product.active === false
+                              ? locale === "sl"
+                                ? "Aktiviraj"
+                                : "Activate"
+                              : locale === "sl"
+                                ? "Deaktiviraj"
+                                : "Deactivate"}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenProductMenuId(null);
+                            void deleteGuestProduct(product);
+                          }}
+                          disabled={activatingGuestProductId === product.id}
+                        >
+                          {locale === "sl" ? "Izbriši" : "Delete"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="clients-mobile-meta">

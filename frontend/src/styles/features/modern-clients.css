@@ -6604,3 +6604,16 @@
 [data-theme="dark"] .clients-owner-filter__option {
     color: #cbd5e1;
 }
+
+/* Client/group detail appointments: ten rows per page with compact pagination. */
+.clients-modern-session-pagination-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #e8edf5;
+}
+
+.clients-modern-pagination button.secondary:disabled {
+    cursor: default;
+    opacity: 0.42;
+    box-shadow: none;
+}

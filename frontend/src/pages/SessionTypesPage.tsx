@@ -2388,12 +2388,34 @@ export function SessionTypesPage() {
                       >
                         <button
                           type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenTypeMenuId(null);
+                            void toggleTypeActive(type, type.active === false);
+                          }}
+                          disabled={activatingSessionTypeId === type.id}
+                        >
+                          {activatingSessionTypeId === type.id
+                            ? locale === "sl"
+                              ? "Shranjujem..."
+                              : "Saving..."
+                            : type.active === false
+                              ? locale === "sl"
+                                ? "Aktiviraj"
+                                : "Activate"
+                              : locale === "sl"
+                                ? "Deaktiviraj"
+                                : "Deactivate"}
+                        </button>
+                        <button
+                          type="button"
                           className="danger"
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenTypeMenuId(null);
                             void removeType(type.id);
                           }}
+                          disabled={activatingSessionTypeId === type.id}
                         >
                           {t("formDelete")}
                         </button>

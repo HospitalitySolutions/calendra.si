@@ -5688,7 +5688,7 @@
     overscroll-behavior: contain;
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-mobile-status-editor-backdrop {
         display: flex;
     }
@@ -10041,5 +10041,73 @@
         min-height: 48px !important;
         margin: 0 !important;
         justify-self: stretch !important;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet Uredi storitev + Spremeni status headers: match Dodaj termin.
+   Titles sit immediately to the right of X and use the same compact top-row
+   proportions across the full appointment-page breakpoint (<= 1024px).
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .calendar-service-edit-modal__header {
+        grid-template-columns: 38px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 8px !important;
+        min-height: 54px !important;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
+    }
+
+    .calendar-service-edit-modal__close {
+        width: 38px !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        border-radius: 12px !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .calendar-service-edit-modal__close svg {
+        width: 20px !important;
+        height: 20px !important;
+    }
+
+    .calendar-service-edit-modal__heading {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        min-width: 0 !important;
+        text-align: left !important;
+    }
+
+    .calendar-service-edit-modal__heading h3 {
+        margin: 0 !important;
+        font-size: 1.22rem !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.035em !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+    }
+
+    .calendar-service-edit-modal__header-spacer {
+        display: none !important;
+    }
+
+    .calendar-mobile-status-editor__header {
+        grid-template-columns: 38px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 8px !important;
+        min-height: 54px !important;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
+    }
+
+    .calendar-mobile-status-editor__header h2 {
+        justify-self: start !important;
+        text-align: left !important;
+    }
+
+    .calendar-mobile-status-editor__header-spacer {
+        display: none !important;
     }
 }

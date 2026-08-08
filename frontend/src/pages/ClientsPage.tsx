@@ -17,6 +17,7 @@ import { useSelectedLocationId } from '../lib/locationContext'
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
 type EntityTab = 'clients' | 'companies' | 'groups'
+type SessionTab = 'future' | 'past' | 'cancelled'
 type SortDirection = 'asc' | 'desc'
 type SortState<K extends string> = { key: K | null; direction: SortDirection }
 type ClientSortKey = 'name' | 'email' | 'phone' | 'assignedOwner' | 'status' | 'createdAt' | `custom:${number}`
@@ -28,6 +29,8 @@ type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean
 
 
 const CLIENTS_MOBILE_KEYBOARD_CLASS = 'clients-mobile-keyboard-open'
+const SESSION_PAGE_SIZE = 10
+const INITIAL_SESSION_PAGES: Record<SessionTab, number> = { future: 1, past: 1, cancelled: 1 }
 
 function isClientsTextEntryElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false
@@ -1038,7 +1041,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     sessions: 'Termini',
     future: 'Prihodnji',
     past: 'Pretekli',
-    cancelled: 'Odpovedan',
+    cancelled: 'Odpovedani',
     sessionsCount: (count: number) => `${count} ${slovenianTerminCountForm(count)}`,
     loadingSessions: 'Nalagam termine…',
     noUpcomingSessionsTitle: 'Ni prihodnjih terminov',
@@ -1417,7 +1420,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailCompanyError, setDetailCompanyError] = useState('')
   const [detailClientFilesError, setDetailClientFilesError] = useState('')
   const [detailCompanyFilesError, setDetailCompanyFilesError] = useState('')
-  const [sessionTab, setSessionTab] = useState<'future' | 'past' | 'cancelled'>('future')
+  const [sessionTab, setSessionTab] = useState<SessionTab>('future')
+  const [sessionPageByTab, setSessionPageByTab] = useState<Record<SessionTab, number>>(() => ({ ...INITIAL_SESSION_PAGES }))
   const [clientDetailMainTab, setClientDetailMainTab] = useState<'sessions' | 'wallet' | 'files' | 'settings'>('sessions')
   const [clientDetailDatotekeSubTab, setClientDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [highlightedEntitlementId, setHighlightedEntitlementId] = useState<number | null>(null)
@@ -1535,7 +1539,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailGroup, setDetailGroup] = useState<ClientGroup | null>(null)
   const [detailGroupSessions, setDetailGroupSessions] = useState<ClientSession[]>([])
   const [detailGroupSessionsLoading, setDetailGroupSessionsLoading] = useState(false)
-  const [groupSessionTab, setGroupSessionTab] = useState<'future' | 'past' | 'cancelled'>('future')
+  const [groupSessionTab, setGroupSessionTab] = useState<SessionTab>('future')
+  const [groupSessionPageByTab, setGroupSessionPageByTab] = useState<Record<SessionTab, number>>(() => ({ ...INITIAL_SESSION_PAGES }))
   const [groupDetailMainTab, setGroupDetailMainTab] = useState<'sessions' | 'members' | 'settings'>('sessions')
   const [groupDetailEditField, setGroupDetailEditField] = useState<'name' | 'email' | 'billingCompanyId' | null>(null)
   const [groupDetailEditDraft, setGroupDetailEditDraft] = useState<{
@@ -1993,6 +1998,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     return cancelledGroupSessions
   }, [groupSessionTab, futureGroupSessions, pastGroupSessions, cancelledGroupSessions])
 
+  const groupSessionPageCount = Math.max(1, Math.ceil(currentGroupSessions.length / SESSION_PAGE_SIZE))
+  const groupSessionPage = Math.min(groupSessionPageByTab[groupSessionTab], groupSessionPageCount)
+  const paginatedGroupSessions = useMemo(() => {
+    const start = (groupSessionPage - 1) * SESSION_PAGE_SIZE
+    return currentGroupSessions.slice(start, start + SESSION_PAGE_SIZE)
+  }, [currentGroupSessions, groupSessionPage])
+
+  useEffect(() => {
+    setGroupSessionPageByTab((previous) => {
+      const current = previous[groupSessionTab]
+      const clamped = Math.min(Math.max(current, 1), groupSessionPageCount)
+      return current === clamped ? previous : { ...previous, [groupSessionTab]: clamped }
+    })
+  }, [groupSessionTab, groupSessionPageCount])
+
   const futureSessions = useMemo(() => {
     const now = new Date()
     return detailSessions
@@ -2023,6 +2043,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     if (sessionTab === 'past') return pastSessions
     return cancelledSessions
   }, [sessionTab, futureSessions, pastSessions, cancelledSessions])
+
+  const clientSessionPageCount = Math.max(1, Math.ceil(currentClientSessions.length / SESSION_PAGE_SIZE))
+  const clientSessionPage = Math.min(sessionPageByTab[sessionTab], clientSessionPageCount)
+  const paginatedClientSessions = useMemo(() => {
+    const start = (clientSessionPage - 1) * SESSION_PAGE_SIZE
+    return currentClientSessions.slice(start, start + SESSION_PAGE_SIZE)
+  }, [currentClientSessions, clientSessionPage])
+
+  useEffect(() => {
+    setSessionPageByTab((previous) => {
+      const current = previous[sessionTab]
+      const clamped = Math.min(Math.max(current, 1), clientSessionPageCount)
+      return current === clamped ? previous : { ...previous, [sessionTab]: clamped }
+    })
+  }, [sessionTab, clientSessionPageCount])
 
   const filteredClientFiles = useMemo(() => {
     const q = clientFileSearch.trim().toLowerCase()
@@ -2451,6 +2486,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       assignedLocationIds: (c.assignedLocations ?? []).map((item) => item.id),
     })
     setSessionTab('future')
+    setSessionPageByTab({ ...INITIAL_SESSION_PAGES })
     setClientDetailMainTab(initialTab)
     setClientDetailDatotekeSubTab('splosno')
     setAssignedEmployeeSearch('')
@@ -2524,6 +2560,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       assignedLocationIds: (group.assignedLocations ?? []).map((item) => item.id),
     })
     setGroupSessionTab('future')
+    setGroupSessionPageByTab({ ...INITIAL_SESSION_PAGES })
     setGroupDetailMainTab('members')
     setGroupMemberSearch('')
     setGroupMemberDropdownOpen(false)
@@ -5040,8 +5077,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         />
                       </div>
                     ) : (
-                      <div className="clients-modern-session-list">
-                        {currentClientSessions.map((s) => {
+                      <>
+                        <div className="clients-modern-session-list">
+                          {paginatedClientSessions.map((s) => {
                           const lifecycleStatus = deriveSessionLifecycleStatus(s)
                           const sessionStatusTone = lifecycleStatus === 'CANCELLED'
                             ? 'cancelled'
@@ -5101,6 +5139,37 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           )
                         })}
                       </div>
+                      {clientSessionPageCount > 1 && (
+                        <div className="clients-modern-table-footer clients-modern-session-pagination-footer">
+                          <span>
+                            {locale === 'sl'
+                              ? `Prikazujem ${(clientSessionPage - 1) * SESSION_PAGE_SIZE + 1}–${Math.min(clientSessionPage * SESSION_PAGE_SIZE, currentClientSessions.length)} od ${currentClientSessions.length} ${slovenianTerminCountForm(currentClientSessions.length)}`
+                              : `Showing ${(clientSessionPage - 1) * SESSION_PAGE_SIZE + 1}–${Math.min(clientSessionPage * SESSION_PAGE_SIZE, currentClientSessions.length)} of ${currentClientSessions.length} sessions`}
+                          </span>
+                          <div className="clients-modern-pagination">
+                            <button
+                              type="button"
+                              className="secondary"
+                              aria-label={locale === 'sl' ? 'Prejšnja stran terminov' : 'Previous sessions page'}
+                              disabled={clientSessionPage <= 1}
+                              onClick={() => setSessionPageByTab((previous) => ({ ...previous, [sessionTab]: Math.max(1, clientSessionPage - 1) }))}
+                            >
+                              ‹
+                            </button>
+                            <span aria-label={locale === 'sl' ? `Stran ${clientSessionPage} od ${clientSessionPageCount}` : `Page ${clientSessionPage} of ${clientSessionPageCount}`}>{clientSessionPage}</span>
+                            <button
+                              type="button"
+                              className="secondary"
+                              aria-label={locale === 'sl' ? 'Naslednja stran terminov' : 'Next sessions page'}
+                              disabled={clientSessionPage >= clientSessionPageCount}
+                              onClick={() => setSessionPageByTab((previous) => ({ ...previous, [sessionTab]: Math.min(clientSessionPageCount, clientSessionPage + 1) }))}
+                            >
+                              ›
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      </>
                     )}
                   </div>
                 )}
@@ -5923,8 +5992,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           />
                         </div>
                       ) : (
-                        <div className="clients-modern-session-list">
-                          {currentGroupSessions.map((s) => {
+                        <>
+                          <div className="clients-modern-session-list">
+                            {paginatedGroupSessions.map((s) => {
                             const lifecycleStatus = deriveSessionLifecycleStatus(s)
                             const sessionStatusTone = lifecycleStatus === 'CANCELLED'
                               ? 'cancelled'
@@ -5984,6 +6054,37 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             )
                           })}
                         </div>
+                        {groupSessionPageCount > 1 && (
+                          <div className="clients-modern-table-footer clients-modern-session-pagination-footer">
+                            <span>
+                              {locale === 'sl'
+                                ? `Prikazujem ${(groupSessionPage - 1) * SESSION_PAGE_SIZE + 1}–${Math.min(groupSessionPage * SESSION_PAGE_SIZE, currentGroupSessions.length)} od ${currentGroupSessions.length} ${slovenianTerminCountForm(currentGroupSessions.length)}`
+                                : `Showing ${(groupSessionPage - 1) * SESSION_PAGE_SIZE + 1}–${Math.min(groupSessionPage * SESSION_PAGE_SIZE, currentGroupSessions.length)} of ${currentGroupSessions.length} sessions`}
+                            </span>
+                            <div className="clients-modern-pagination">
+                              <button
+                                type="button"
+                                className="secondary"
+                                aria-label={locale === 'sl' ? 'Prejšnja stran terminov' : 'Previous sessions page'}
+                                disabled={groupSessionPage <= 1}
+                                onClick={() => setGroupSessionPageByTab((previous) => ({ ...previous, [groupSessionTab]: Math.max(1, groupSessionPage - 1) }))}
+                              >
+                                ‹
+                              </button>
+                              <span aria-label={locale === 'sl' ? `Stran ${groupSessionPage} od ${groupSessionPageCount}` : `Page ${groupSessionPage} of ${groupSessionPageCount}`}>{groupSessionPage}</span>
+                              <button
+                                type="button"
+                                className="secondary"
+                                aria-label={locale === 'sl' ? 'Naslednja stran terminov' : 'Next sessions page'}
+                                disabled={groupSessionPage >= groupSessionPageCount}
+                                onClick={() => setGroupSessionPageByTab((previous) => ({ ...previous, [groupSessionTab]: Math.min(groupSessionPageCount, groupSessionPage + 1) }))}
+                              >
+                                ›
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        </>
                       )}
                   </div>
                 )}

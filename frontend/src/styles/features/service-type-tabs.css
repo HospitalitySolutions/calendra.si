@@ -705,17 +705,13 @@
     .clients-modern-page--mobile .service-config-card .clients-entity-tabs-shell {
         width: 100%;
         padding: 0;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
+        overflow: visible;
     }
-    .clients-modern-page--mobile .service-config-card .clients-entity-tabs-shell::-webkit-scrollbar { display: none; }
 
     .clients-modern-page--mobile .service-config-card .clients-session-tabs.clients-entity-tabs {
         display: flex;
-        width: max-content;
-        min-width: 100%;
+        width: 100%;
+        min-width: 0;
         min-height: 58px;
         padding: 0 14px;
         gap: 0;
@@ -726,11 +722,11 @@
 
     .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab {
         position: relative;
-        flex: 0 0 auto;
-        min-width: max-content;
+        flex: 1 1 0;
+        min-width: 0;
         height: 58px;
         min-height: 58px;
-        padding: 0 12px;
+        padding: 0 4px;
         gap: 6px;
         border: 0;
         border-radius: 0;
@@ -750,8 +746,8 @@
     .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab::after {
         content: "";
         position: absolute;
-        left: 10px;
-        right: 10px;
+        left: 7px;
+        right: 7px;
         bottom: 0;
         height: 4px;
         border-radius: 4px 4px 0 0;
@@ -854,7 +850,7 @@
         border: 1px solid #dbe3ee;
         border-radius: 10px;
         background: #fff;
-        overflow: hidden;
+        overflow: visible;
         box-shadow: none;
     }
 
@@ -916,6 +912,25 @@
     }
 
     .clients-modern-page--mobile .service-config-mobile-card .clients-mobile-meta { display: none; }
+
+    .clients-modern-page--mobile .service-config-mobile-card .clients-card-menu-wrap {
+        flex: 0 0 auto;
+        position: relative;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-card .clients-card-menu-popover {
+        min-width: 154px;
+        padding: 6px;
+        border-radius: 10px;
+        z-index: 220;
+    }
+
+    .clients-modern-page--mobile .service-config-mobile-card .clients-card-menu-popover button {
+        min-height: 38px;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-weight: 700;
+    }
 
     .clients-modern-page--mobile .service-config-card > .empty-state,
     .clients-modern-page--mobile .service-config-card .empty-state {
