@@ -15,6 +15,7 @@ import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.order.GuestOrderService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
@@ -53,6 +54,7 @@ public class PublicWidgetOrderService {
     private final UserRepository users;
     private final GuestTokenService guestTokenService;
     private final GuestOrderService guestOrderService;
+    private final GuestEntitlementService guestEntitlementService;
     private final WidgetOriginValidator widgetOriginValidator;
     private final WidgetRateLimiter widgetRateLimiter;
     private final WidgetTurnstileService widgetTurnstileService;
@@ -78,6 +80,7 @@ public class PublicWidgetOrderService {
             UserRepository users,
             GuestTokenService guestTokenService,
             GuestOrderService guestOrderService,
+            GuestEntitlementService guestEntitlementService,
             WidgetOriginValidator widgetOriginValidator,
             WidgetRateLimiter widgetRateLimiter,
             WidgetTurnstileService widgetTurnstileService,
@@ -93,6 +96,7 @@ public class PublicWidgetOrderService {
         this.users = users;
         this.guestTokenService = guestTokenService;
         this.guestOrderService = guestOrderService;
+        this.guestEntitlementService = guestEntitlementService;
         this.widgetOriginValidator = widgetOriginValidator;
         this.widgetRateLimiter = widgetRateLimiter;
         this.widgetTurnstileService = widgetTurnstileService;
@@ -153,6 +157,63 @@ public class PublicWidgetOrderService {
                 guestUser.getEmail(),
                 guestUser.getFirstName(),
                 guestUser.getLastName()
+        );
+    }
+
+    public PublicWidgetOrderController.VoucherResolutionResponse resolveVouchers(
+            String tenantCode,
+            PublicWidgetOrderController.VoucherResolutionRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        Company company = resolveCompany(tenantCode);
+        guardWidgetRequest(company, httpRequest, false, "voucher-resolution");
+        GuestUser guestUser = requireGuest(httpRequest);
+        GuestTenantLink link = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId())
+                .filter(value -> value.getStatus() == GuestTenantLinkStatus.ACTIVE)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Guest is not linked to this tenant."));
+        Client client = link.getClient();
+        if (client == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Guest client is not available.");
+        }
+
+        List<String> serviceIds = request == null || request.serviceIds() == null ? List.of() : request.serviceIds();
+        List<GuestEntitlementService.VoucherSelectionLine> services = new java.util.ArrayList<>();
+        for (int position = 0; position < serviceIds.size(); position++) {
+            String raw = serviceIds.get(position);
+            if (raw == null || raw.isBlank()) continue;
+            try {
+                services.add(new GuestEntitlementService.VoucherSelectionLine(position, Long.valueOf(raw.trim())));
+            } catch (NumberFormatException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service identifier.");
+            }
+        }
+        GuestEntitlementService.VoucherResolution resolution = guestEntitlementService.resolveVoucherCodesForServices(
+                client,
+                company.getId(),
+                services,
+                request == null ? null : request.currency(),
+                request == null ? List.of() : request.voucherCodes()
+        );
+        return new PublicWidgetOrderController.VoucherResolutionResponse(
+                resolution.vouchers().stream()
+                        .map(item -> new PublicWidgetOrderController.VoucherCodeResponse(
+                                item.code(),
+                                String.valueOf(item.entitlementId()),
+                                item.mode() == null ? null : item.mode().name(),
+                                item.remainingValueGross() == null ? null : item.remainingValueGross().doubleValue(),
+                                item.faceValueGross() == null ? null : item.faceValueGross().doubleValue(),
+                                List.copyOf(item.eligibleServiceNames())
+                        ))
+                        .toList(),
+                resolution.serviceAssignments().stream()
+                        .map(item -> new PublicWidgetOrderController.VoucherServiceAssignmentResponse(
+                                item.position(),
+                                String.valueOf(item.sessionTypeId()),
+                                String.valueOf(item.entitlementId()),
+                                item.code()
+                        ))
+                        .toList(),
+                resolution.valueVoucherCodes()
         );
     }
 

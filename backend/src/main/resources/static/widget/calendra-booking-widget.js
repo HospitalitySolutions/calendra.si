@@ -76,16 +76,17 @@
       paymentMethodBankSubtitle: 'Reserve now, pay via bank transfer with QR code.',
       paymentMethodPaypal: 'PayPal',
       paymentMethodPaypalSubtitle: 'Redirect to PayPal to approve the payment.',
-      paymentMethodGiftCard: 'Gift card',
-      paymentMethodGiftCardSubtitle: 'Use available gift card balance.',
-      giftCardCodeLabel: 'Gift card codes',
-      giftCardCodePlaceholder: 'Enter the code from your wallet card',
-      giftCardCodeHelp: 'Use one or more visible codes shown below the QR code on your entitlements. Gift cards are deducted first; any remaining amount is paid with the selected method.',
-      giftCardCodeRequired: 'gift card code',
+      paymentMethodGiftCard: 'Voucher',
+      paymentMethodGiftCardSubtitle: 'Pay the full remaining amount with vouchers only.',
+      giftCardCodeLabel: 'Voucher codes',
+      giftCardCodePlaceholder: 'Enter a voucher code',
+      giftCardCodeHelp: 'Add Darilni bon or Vrednostni bon codes. Service vouchers cover eligible services; value vouchers reduce the eligible remaining amount. If anything remains, choose another payment method.',
+      giftCardCodeRequired: 'voucher code',
       giftCardAddCode: 'Add code',
-      giftCardAddedCodes: 'Added gift card codes',
+      giftCardAddedCodes: 'Added voucher codes',
       giftCardRemoveCode: 'Remove code',
-      summaryGiftCard: 'Gift card',
+      voucherFullCoverageRequired: 'The selected vouchers do not cover the full remaining amount. Choose another payment method for the remainder.',
+      summaryGiftCard: 'Voucher',
       summaryBankTransfer: 'Bank transfer',
       summaryPaypal: 'PayPal',
       summaryCard: 'Card payment',
@@ -260,16 +261,17 @@
       paymentMethodBankSubtitle: 'Rezervirajte zdaj, plačajte prek bančnega nakazila s QR kodo.',
       paymentMethodPaypal: 'PayPal',
       paymentMethodPaypalSubtitle: 'Preusmeritev na PayPal za potrditev plačila.',
-      paymentMethodGiftCard: 'Darilni bon',
-      paymentMethodGiftCardSubtitle: 'Uporabite razpoložljivo dobroimetje darilnega bona.',
-      giftCardCodeLabel: 'Kode darilnih bonov',
-      giftCardCodePlaceholder: 'Vnesite kodo iz kartice v denarnici',
-      giftCardCodeHelp: 'Dodate lahko eno ali več kod, ki so prikazane pod QR kodo na ugodnosti. Darilni boni se porabijo najprej, preostanek pa se plača z izbranim načinom plačila.',
-      giftCardCodeRequired: 'kodo darilnega bona',
+      paymentMethodGiftCard: 'Bon',
+      paymentMethodGiftCardSubtitle: 'Plačajte celoten preostanek samo z boni.',
+      giftCardCodeLabel: 'Kode bonov',
+      giftCardCodePlaceholder: 'Vnesite kodo bona',
+      giftCardCodeHelp: 'Dodate lahko kode darilnih ali vrednostnih bonov. Darilni bon pokrije ustrezno storitev, vrednostni bon pa zmanjša znesek upravičenih storitev. Če ostane znesek za plačilo, izberite še drug način plačila.',
+      giftCardCodeRequired: 'kodo bona',
       giftCardAddCode: 'Dodaj kodo',
-      giftCardAddedCodes: 'Dodane kode darilnih bonov',
+      giftCardAddedCodes: 'Dodane kode bonov',
       giftCardRemoveCode: 'Odstrani kodo',
-      summaryGiftCard: 'Darilni bon',
+      voucherFullCoverageRequired: 'Izbrani boni ne pokrijejo celotnega preostalega zneska. Za preostanek izberite drug način plačila.',
+      summaryGiftCard: 'Bon',
       summaryBankTransfer: 'Bančno nakazilo',
       summaryPaypal: 'PayPal',
       summaryCard: 'Plačilo s kartico',
@@ -1953,6 +1955,34 @@
 
         const productId = `session-${selectedServiceId}`;
 
+        // Resolve voucher codes before order creation. SERVICE vouchers become exact entitlement
+        // assignments on individual service lines; VALUE vouchers stay as monetary codes for
+        // checkout. Nothing is consumed by this preflight call.
+        const voucherCodes = this.giftCardCodesForCheckout();
+        let voucherResolution = { vouchers: [], serviceAssignments: [], valueVoucherCodes: [] };
+        if (voucherCodes.length) {
+          voucherResolution = await this.fetchJson(`/api/public/widget/${tenant}/voucher-resolution`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: {
+              voucherCodes,
+              serviceIds: selectedServiceIds.map((id) => String(id)),
+              currency: null,
+            },
+          });
+        }
+        const entitlementByPosition = new Map(
+          (voucherResolution?.serviceAssignments || []).map((assignment) => [Number(assignment.position), String(assignment.entitlementId)])
+        );
+        const valueVoucherCodes = Array.isArray(voucherResolution?.valueVoucherCodes)
+          ? voucherResolution.valueVoucherCodes
+          : [];
+        if (effectivePaymentMethod === 'GIFT_CARD'
+          && valueVoucherCodes.length === 0
+          && entitlementByPosition.size < selectedServiceIds.length) {
+          throw new Error(t.voucherFullCoverageRequired || t.bookingFailed || 'Booking failed.');
+        }
+
         const createResponse = await this.fetchJson(`/api/public/widget/${tenant}/orders`, {
           method: 'POST',
           headers: {
@@ -1967,7 +1997,7 @@
               productId: `session-${id}`,
               sessionTypeId: String(id),
               position,
-              entitlementId: null,
+              entitlementId: entitlementByPosition.get(position) || null,
               spaceId: null,
             })),
             slotId,
@@ -1982,8 +2012,13 @@
         if (!orderId) {
           throw new Error(t.bookingFailed || 'Booking failed.');
         }
+        const remainingOrderGross = Number(createResponse?.order?.totalGross || 0);
+        if (effectivePaymentMethod === 'GIFT_CARD' && remainingOrderGross > 0 && valueVoucherCodes.length === 0) {
+          throw new Error(t.voucherFullCoverageRequired || t.bookingFailed || 'Booking failed.');
+        }
 
-        // Step C: checkout according to the selected payment method.
+        // Step C: checkout according to the selected payment method. Only VALUE voucher codes are
+        // sent here; SERVICE vouchers are already bound to their exact service lines above.
         const checkout = await this.fetchJson(`/api/public/widget/${tenant}/orders/${encodeURIComponent(orderId)}/checkout`, {
           method: 'POST',
           headers: {
@@ -1993,8 +2028,8 @@
           body: {
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',
-            giftCardCode: this.giftCardCodesForCheckout()[0] || null,
-            giftCardCodes: this.giftCardCodesForCheckout(),
+            giftCardCode: valueVoucherCodes[0] || null,
+            giftCardCodes: valueVoucherCodes,
           },
         });
 
@@ -3068,7 +3103,7 @@
                     ${allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
-                ${allowed.giftCard && this.state.paymentMethod === 'GIFT_CARD' ? `
+                ${allowed.giftCard ? `
                   <div class="gift-card-code-field">
                     <span>${escapeHtml(t.giftCardCodeLabel || t.paymentMethodGiftCard)}</span>
                     <div class="gift-card-code-input-row">

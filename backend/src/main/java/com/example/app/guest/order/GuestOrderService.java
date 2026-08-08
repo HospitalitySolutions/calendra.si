@@ -494,10 +494,10 @@ public class GuestOrderService {
             try {
                 entitlementId = Long.parseLong(rawEntitlementId);
             } catch (NumberFormatException ex) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pass or membership identifier.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid voucher, pass or membership identifier.");
             }
             if (line.product().sessionType() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A pass or membership can only be assigned to a service line.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A voucher, pass or membership can only be assigned to a service line.");
             }
             GuestEntitlement entitlement = entitlementService.validateSelectedEntitlement(
                     client, companyId, line.product().sessionType().getId(), entitlementId);
@@ -509,7 +509,7 @@ public class GuestOrderService {
             if (entitlement != null && entitlement.getRemainingUses() != null
                     && entry.getValue() > entitlement.getRemainingUses()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "The selected pass does not have enough remaining uses for all assigned services.");
+                        "The selected voucher or pass does not have enough remaining uses for all assigned services.");
             }
         }
     }
@@ -558,6 +558,34 @@ public class GuestOrderService {
             return completedCheckoutResponse(order, paymentMethodType);
         }
 
+        // A SERVICE voucher/pass is attached to an exact service line before the order is created.
+        // If those assignments cover the whole booking, there is no external amount to collect.
+        // Complete the booking directly even when the widget's selected method is GIFT_CARD.
+        if (isFullyCoveredBySelectedServiceEntitlements(order)) {
+            order.setStatus(OrderStatus.PAID);
+            order.setPaidAt(Instant.now());
+            order = orders.save(order);
+            SessionBooking booking = maybeCreateConfirmedBooking(order);
+            if (booking == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher checkout requires a booking slot.");
+            }
+            if (!consumeSelectedServiceEntitlements(order, booking)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected voucher could not be applied to the booking.");
+            }
+            return new GuestDtos.CheckoutResponse(
+                    String.valueOf(order.getId()),
+                    paymentMethodType.name(),
+                    order.getStatus().name(),
+                    null,
+                    null,
+                    "COMPLETE",
+                    null,
+                    null,
+                    null,
+                    order.getCompany().getName()
+            );
+        }
+
         if (paymentMethodType == GuestPaymentMethodType.ENTITLEMENT) {
             order.setStatus(OrderStatus.PAID);
             order.setPaidAt(Instant.now());
@@ -602,12 +630,13 @@ public class GuestOrderService {
             }
             List<String> giftCardCodes = giftCardCodesFromRequest(request);
             if (channel == PaymentChannel.WEBSITE || !giftCardCodes.isEmpty()) {
-                entitlementService.consumeGiftCardCodes(
+                entitlementService.consumeGiftCardCodesForCharges(
                         order.getClient(),
                         order.getCompany().getId(),
                         order.getTotalGross(),
                         order.getCurrency(),
                         booking,
+                        voucherChargeLinesForOrder(order),
                         giftCardCodes,
                         true
                 );
@@ -620,6 +649,7 @@ public class GuestOrderService {
                         booking
                 );
             }
+            consumeSelectedServiceEntitlements(order, booking);
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
@@ -1107,6 +1137,134 @@ public class GuestOrderService {
         return "SESSION_SINGLE".equals(productType) || "CLASS_TICKET".equals(productType);
     }
 
+    private boolean isFullyCoveredBySelectedServiceEntitlements(GuestOrder order) {
+        if (order == null || order.getTotalGross() == null || order.getTotalGross().compareTo(BigDecimal.ZERO) > 0) return false;
+        try {
+            Map<?, ?> metadata = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object rawServices = metadata.get("services");
+            if (!(rawServices instanceof List<?> rows) || rows.isEmpty()) return false;
+            boolean hasSelectedEntitlement = false;
+            for (Object raw : rows) {
+                if (!(raw instanceof Map<?, ?> row)) continue;
+                if (parseMetadataLong(row.get("entitlementId")) != null) {
+                    hasSelectedEntitlement = true;
+                }
+            }
+            return hasSelectedEntitlement;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Attributes the order's currently payable gross amount to uncovered service lines. For a
+     * deposit the raw service prices are scaled to the deposit total; after SERVICE vouchers the
+     * covered lines are omitted entirely. VALUE vouchers can then respect their service scope.
+     */
+    private List<GuestEntitlementService.VoucherChargeLine> voucherChargeLinesForOrder(GuestOrder order) {
+        if (order == null || order.getTotalGross() == null || order.getTotalGross().compareTo(BigDecimal.ZERO) <= 0) return List.of();
+        try {
+            Map<?, ?> metadata = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object rawServices = metadata.get("services");
+            if (!(rawServices instanceof List<?> rows) || rows.isEmpty()) return List.of();
+            List<GuestEntitlementService.VoucherChargeLine> rawLines = new ArrayList<>();
+            for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+                Object raw = rows.get(rowIndex);
+                if (!(raw instanceof Map<?, ?> row)) continue;
+                if (parseMetadataLong(row.get("entitlementId")) != null) continue;
+                Long sessionTypeId = parseMetadataLong(row.get("sessionTypeId"));
+                BigDecimal price = parseMetadataBigDecimal(row.get("priceGross"));
+                if (sessionTypeId == null || price == null || price.compareTo(BigDecimal.ZERO) <= 0) continue;
+                int position = parseMetadataInteger(row.get("position"), rowIndex);
+                rawLines.add(new GuestEntitlementService.VoucherChargeLine(position, sessionTypeId, price.setScale(2, RoundingMode.HALF_UP)));
+            }
+            if (rawLines.isEmpty()) return List.of();
+
+            BigDecimal rawTotal = rawLines.stream()
+                    .map(GuestEntitlementService.VoucherChargeLine::amountGross)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal target = order.getTotalGross().setScale(2, RoundingMode.HALF_UP);
+            if (rawTotal.compareTo(BigDecimal.ZERO) <= 0 || rawTotal.compareTo(target) == 0) return List.copyOf(rawLines);
+
+            BigDecimal remainingTarget = target;
+            List<GuestEntitlementService.VoucherChargeLine> scaled = new ArrayList<>();
+            for (int i = 0; i < rawLines.size(); i++) {
+                GuestEntitlementService.VoucherChargeLine line = rawLines.get(i);
+                BigDecimal amount;
+                if (i == rawLines.size() - 1) {
+                    amount = remainingTarget.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                } else {
+                    amount = line.amountGross().multiply(target).divide(rawTotal, 2, RoundingMode.HALF_UP);
+                    if (amount.compareTo(remainingTarget) > 0) amount = remainingTarget;
+                    remainingTarget = remainingTarget.subtract(amount).setScale(2, RoundingMode.HALF_UP);
+                }
+                scaled.add(new GuestEntitlementService.VoucherChargeLine(line.position(), line.sessionTypeId(), amount));
+            }
+            return List.copyOf(scaled);
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private GuestOrder persistVoucherRemainingChargeLines(
+            GuestOrder order,
+            List<GuestEntitlementService.VoucherChargeLine> remainingChargeLines
+    ) {
+        if (order == null || remainingChargeLines == null || remainingChargeLines.isEmpty()
+                || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) {
+            return order;
+        }
+        try {
+            Map<Integer, BigDecimal> remainingByPosition = new LinkedHashMap<>();
+            for (GuestEntitlementService.VoucherChargeLine line : remainingChargeLines) {
+                if (line == null || line.position() < 0 || line.amountGross() == null) continue;
+                remainingByPosition.put(line.position(), line.amountGross().max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
+            }
+            if (remainingByPosition.isEmpty()) return order;
+
+            Map<?, ?> parsed = JSON.readValue(order.getMetadataJson(), Map.class);
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            parsed.forEach((key, value) -> metadata.put(String.valueOf(key), value));
+            Object rawServices = parsed.get("services");
+            if (!(rawServices instanceof List<?> rows)) return order;
+
+            List<Object> updatedRows = new ArrayList<>();
+            for (int index = 0; index < rows.size(); index++) {
+                Object rawRow = rows.get(index);
+                if (!(rawRow instanceof Map<?, ?> row)) {
+                    updatedRows.add(rawRow);
+                    continue;
+                }
+                Map<String, Object> updated = new LinkedHashMap<>();
+                row.forEach((key, value) -> updated.put(String.valueOf(key), value));
+                int position = parseMetadataInteger(row.get("position"), index);
+                BigDecimal remaining = remainingByPosition.get(position);
+                if (remaining != null) {
+                    updated.put("remainingPayableGross", remaining);
+                }
+                updatedRows.add(updated);
+            }
+            metadata.put("services", updatedRows);
+            metadata.put("valueVoucherServiceAllocation", true);
+            order.setMetadataJson(JSON.writeValueAsString(metadata));
+            return orders.save(order);
+        } catch (Exception ex) {
+            log.error("Could not persist per-service value-voucher allocation for guest order {}", order.getId(), ex);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not persist voucher allocation for this booking.");
+        }
+    }
+
+    private static BigDecimal parseMetadataBigDecimal(Object raw) {
+        if (raw == null) return null;
+        try {
+            return new BigDecimal(String.valueOf(raw));
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private GiftCardPaymentAdjustment applyGiftCardCodesBeforeFinalPayment(GuestOrder order, GuestDtos.CheckoutRequest request, PaymentChannel channel) {
         List<String> giftCardCodes = giftCardCodesFromRequest(request);
         if (giftCardCodes.isEmpty()) {
@@ -1119,12 +1277,13 @@ public class GuestOrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card checkout requires a booking slot.");
         }
 
-        GuestEntitlementService.GiftCardRedemptionResult redemption = entitlementService.consumeGiftCardCodes(
+        GuestEntitlementService.GiftCardRedemptionResult redemption = entitlementService.consumeGiftCardCodesForCharges(
                 order.getClient(),
                 order.getCompany().getId(),
                 order.getTotalGross(),
                 order.getCurrency(),
                 booking,
+                voucherChargeLinesForOrder(order),
                 giftCardCodes,
                 false
         );
@@ -1133,10 +1292,19 @@ public class GuestOrderService {
             return new GiftCardPaymentAdjustment(order, false);
         }
 
+        // Persist the exact per-service amount left after VALUE vouchers. Advance invoices can
+        // then keep a selected-scope voucher on the service it actually paid instead of
+        // proportionally discounting unrelated services.
+        order = persistVoucherRemainingChargeLines(order, redemption.remainingChargeLines());
+
         BigDecimal remaining = redemption.remainingAmount() == null
                 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
                 : redemption.remainingAmount().setScale(2, RoundingMode.HALF_UP);
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+            // VALUE vouchers covered every still-payable line. SERVICE vouchers (or other
+            // selected service entitlements) were attached to exact service rows earlier and
+            // must still be consumed even though there is no external payment step left.
+            consumeSelectedServiceEntitlements(order, booking);
             order.setPaymentMethodType(GuestPaymentMethodType.GIFT_CARD);
             order.setSubtotalGross(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
             order.setTaxAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));

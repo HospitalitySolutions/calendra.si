@@ -23,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -72,6 +73,191 @@ public class GuestEntitlementService {
     /** Backwards-compatible constructor used by older unit tests. */
     public GuestEntitlementService(GuestEntitlementRepository entitlements, GuestEntitlementUsageRepository usages, TimeService timeService) {
         this(entitlements, usages, timeService, null, null, null, "");
+    }
+
+    /** One selected booking service used when resolving voucher codes before checkout. */
+    public record VoucherSelectionLine(int position, Long sessionTypeId) {}
+
+    /** Exact SERVICE voucher assignment returned to public booking clients. */
+    public record VoucherServiceAssignment(int position, Long sessionTypeId, Long entitlementId, String code) {}
+
+    /** Non-consuming description of a voucher code. */
+    public record VoucherCodeResolution(
+            String code,
+            Long entitlementId,
+            VoucherRedemptionMode mode,
+            BigDecimal remainingValueGross,
+            BigDecimal faceValueGross,
+            Set<String> eligibleServiceNames
+    ) {}
+
+    /** Result of classifying voucher codes for the selected service chain. */
+    public record VoucherResolution(
+            List<VoucherCodeResolution> vouchers,
+            List<VoucherServiceAssignment> serviceAssignments,
+            List<String> valueVoucherCodes
+    ) {}
+
+    /** Payable amount attributed to one exact service position after service-entitlement/deposit rules. */
+    public record VoucherChargeLine(int position, Long sessionTypeId, BigDecimal amountGross) {
+        /** Backwards-compatible convenience constructor for callers that do not track positions. */
+        public VoucherChargeLine(Long sessionTypeId, BigDecimal amountGross) {
+            this(-1, sessionTypeId, amountGross);
+        }
+    }
+
+    /**
+     * Resolves public voucher codes without consuming anything. SERVICE vouchers are matched to
+     * exact service positions; VALUE vouchers remain code-based and are applied later at checkout.
+     * A small augmenting-path matcher avoids greedy failures when two vouchers have overlapping
+     * eligible-service sets.
+     */
+    @Transactional(readOnly = true)
+    public VoucherResolution resolveVoucherCodesForServices(
+            Client client,
+            Long companyId,
+            List<VoucherSelectionLine> selectedServices,
+            String currency,
+            List<String> rawCodes
+    ) {
+        List<String> codes = normalizeGiftCardCodes(rawCodes);
+        if (codes.isEmpty()) {
+            return new VoucherResolution(List.of(), List.of(), List.of());
+        }
+        if (client == null || companyId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher owner is not available.");
+        }
+        List<VoucherSelectionLine> services = selectedServices == null ? List.of() : selectedServices.stream()
+                .filter(Objects::nonNull)
+                .filter(line -> line.sessionTypeId() != null)
+                .sorted(Comparator.comparingInt(VoucherSelectionLine::position))
+                .toList();
+        if (services.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required to use a voucher.");
+        }
+
+        List<GuestEntitlement> resolved = new ArrayList<>();
+        List<VoucherCodeResolution> summaries = new ArrayList<>();
+        for (String code : codes) {
+            GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher code is not valid: " + code));
+            validateVoucherForResolution(entitlement, client, companyId, currency);
+            resolved.add(entitlement);
+            summaries.add(new VoucherCodeResolution(
+                    code,
+                    entitlement.getId(),
+                    VoucherRules.entitlementMode(entitlement),
+                    entitlement.getRemainingValueGross() == null ? null : entitlement.getRemainingValueGross().setScale(2, RoundingMode.HALF_UP),
+                    VoucherRules.entitlementFaceValueGross(entitlement),
+                    VoucherRules.entitlementEligibleServiceNames(entitlement)
+            ));
+        }
+
+        List<Integer> serviceVoucherIndexes = new ArrayList<>();
+        List<Integer> valueVoucherIndexes = new ArrayList<>();
+        for (int i = 0; i < resolved.size(); i++) {
+            GuestEntitlement entitlement = resolved.get(i);
+            if (VoucherRules.isServiceVoucher(entitlement)) {
+                serviceVoucherIndexes.add(i);
+            } else if (VoucherRules.isValueVoucher(entitlement)) {
+                valueVoucherIndexes.add(i);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher code is not valid: " + codes.get(i));
+            }
+        }
+
+        int[] servicePositionToVoucher = new int[services.size()];
+        java.util.Arrays.fill(servicePositionToVoucher, -1);
+        for (Integer voucherIndex : serviceVoucherIndexes) {
+            boolean[] visitedPositions = new boolean[services.size()];
+            if (!assignServiceVoucher(voucherIndex, resolved, services, servicePositionToVoucher, visitedPositions)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Service voucher is not valid for an available selected service: " + codes.get(voucherIndex));
+            }
+        }
+
+        List<VoucherServiceAssignment> assignments = new ArrayList<>();
+        for (int serviceIndex = 0; serviceIndex < services.size(); serviceIndex++) {
+            int voucherIndex = servicePositionToVoucher[serviceIndex];
+            if (voucherIndex < 0) continue;
+            VoucherSelectionLine line = services.get(serviceIndex);
+            assignments.add(new VoucherServiceAssignment(
+                    line.position(),
+                    line.sessionTypeId(),
+                    resolved.get(voucherIndex).getId(),
+                    codes.get(voucherIndex)
+            ));
+        }
+        assignments.sort(Comparator.comparingInt(VoucherServiceAssignment::position));
+
+        List<String> valueCodes = new ArrayList<>();
+        for (Integer voucherIndex : valueVoucherIndexes) {
+            GuestEntitlement entitlement = resolved.get(voucherIndex);
+            boolean appliesToUncoveredService = false;
+            for (int serviceIndex = 0; serviceIndex < services.size(); serviceIndex++) {
+                if (servicePositionToVoucher[serviceIndex] >= 0) continue;
+                if (VoucherRules.entitlementAllowsService(entitlement, services.get(serviceIndex).sessionTypeId())) {
+                    appliesToUncoveredService = true;
+                    break;
+                }
+            }
+            if (!appliesToUncoveredService) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Value voucher is not valid for any remaining selected service: " + codes.get(voucherIndex));
+            }
+            valueCodes.add(codes.get(voucherIndex));
+        }
+        return new VoucherResolution(List.copyOf(summaries), List.copyOf(assignments), List.copyOf(valueCodes));
+    }
+
+    private boolean assignServiceVoucher(
+            int voucherIndex,
+            List<GuestEntitlement> vouchers,
+            List<VoucherSelectionLine> services,
+            int[] servicePositionToVoucher,
+            boolean[] visitedPositions
+    ) {
+        GuestEntitlement voucher = vouchers.get(voucherIndex);
+        for (int serviceIndex = 0; serviceIndex < services.size(); serviceIndex++) {
+            if (visitedPositions[serviceIndex]) continue;
+            VoucherSelectionLine service = services.get(serviceIndex);
+            if (!VoucherRules.entitlementAllowsService(voucher, service.sessionTypeId())) continue;
+            visitedPositions[serviceIndex] = true;
+            int previousVoucher = servicePositionToVoucher[serviceIndex];
+            if (previousVoucher < 0
+                    || assignServiceVoucher(previousVoucher, vouchers, services, servicePositionToVoucher, visitedPositions)) {
+                servicePositionToVoucher[serviceIndex] = voucherIndex;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void validateVoucherForResolution(
+            GuestEntitlement entitlement,
+            Client client,
+            Long companyId,
+            String currency
+    ) {
+        Instant now = timeService.instant(companyId);
+        boolean matchesClient = entitlement.getClient() != null && Objects.equals(entitlement.getClient().getId(), client.getId());
+        boolean matchesCompany = entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId);
+        boolean active = entitlement.getStatus() == EntitlementStatus.ACTIVE;
+        boolean validFrom = entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now);
+        boolean validUntil = entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now);
+        boolean voucher = VoucherRules.isServiceVoucher(entitlement) || VoucherRules.isValueVoucher(entitlement);
+        boolean usable = VoucherRules.isServiceVoucher(entitlement)
+                ? entitlement.getRemainingUses() == null || entitlement.getRemainingUses() > 0
+                : entitlement.getRemainingValueGross() != null && entitlement.getRemainingValueGross().compareTo(BigDecimal.ZERO) > 0;
+        String expectedCurrency = currency == null ? null : currency.trim().toUpperCase(java.util.Locale.ROOT);
+        boolean currencyMatches = !VoucherRules.isValueVoucher(entitlement)
+                || expectedCurrency == null
+                || entitlement.getProduct() == null
+                || entitlement.getProduct().getCurrency() == null
+                || expectedCurrency.equals(entitlement.getProduct().getCurrency().trim().toUpperCase(java.util.Locale.ROOT));
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !voucher || !usable || !currencyMatches) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher code is not valid.");
+        }
     }
 
     @Transactional
@@ -277,6 +463,192 @@ public class GuestEntitlementService {
         }
 
         return new GiftCardRedemptionResult(firstConsumed, applied, remaining.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP), true);
+    }
+
+    /**
+     * Redeems VALUE vouchers against exact payable service amounts. Unlike the legacy whole-booking
+     * method, SELECTED_SERVICES vouchers can cover their eligible lines while unrelated services
+     * remain payable by card/bank/venue. The supplied charge lines must already reflect service
+     * voucher/pass coverage and any deposit percentage applied to the order.
+     */
+    @Transactional
+    public GiftCardRedemptionResult consumeGiftCardCodesForCharges(
+            Client client,
+            Long companyId,
+            BigDecimal amountGross,
+            String currency,
+            SessionBooking booking,
+            List<VoucherChargeLine> chargeLines,
+            List<String> rawCodes,
+            boolean requireFullCoverage
+    ) {
+        if (amountGross == null || amountGross.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher payment requires a positive booking amount.");
+        }
+        BigDecimal amount = amountGross.setScale(2, RoundingMode.HALF_UP);
+        List<String> codes = normalizeGiftCardCodes(rawCodes);
+        if (codes.isEmpty()) {
+            if (requireFullCoverage) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is required.");
+            }
+            return new GiftCardRedemptionResult(null, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), amount, false);
+        }
+
+        List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
+        List<GuestEntitlementUsage> existingValueUsages = existingUsages.stream()
+                .filter(usage -> VoucherRules.isValueVoucher(usage.getEntitlement()))
+                .toList();
+        if (!existingValueUsages.isEmpty()) {
+            // Idempotent retry after a checkout already deducted a value voucher. Service voucher
+            // usages on other session_service rows are deliberately ignored here.
+            GuestEntitlement first = existingValueUsages.get(0).getEntitlement();
+            return new GiftCardRedemptionResult(first, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), amount, false);
+        }
+
+        List<MutableVoucherChargeLine> outstanding = normalizeVoucherChargeLines(chargeLines, amount);
+        BigDecimal applied = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        GuestEntitlement firstConsumed = null;
+        boolean anyApplicableVoucher = false;
+
+        for (String code : codes) {
+            GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is not valid: " + code));
+            validateGiftCardForBooking(entitlement, client, companyId, currency);
+
+            BigDecimal eligibleOutstanding = outstanding.stream()
+                    .filter(line -> line.remaining().compareTo(BigDecimal.ZERO) > 0)
+                    .filter(line -> voucherAllowsChargeLine(entitlement, line.sessionTypeId()))
+                    .map(MutableVoucherChargeLine::remaining)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
+            if (eligibleOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            anyApplicableVoucher = true;
+
+            BigDecimal beforeBalance = entitlement.getRemainingValueGross() == null
+                    ? BigDecimal.ZERO
+                    : entitlement.getRemainingValueGross().setScale(2, RoundingMode.HALF_UP);
+            if (beforeBalance.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher has no remaining balance: " + code);
+            }
+
+            BigDecimal amountFromCard = beforeBalance.min(eligibleOutstanding).setScale(2, RoundingMode.HALF_UP);
+            if (amountFromCard.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            BigDecimal stillToAllocate = amountFromCard;
+            for (MutableVoucherChargeLine line : outstanding) {
+                if (stillToAllocate.compareTo(BigDecimal.ZERO) <= 0) break;
+                if (!voucherAllowsChargeLine(entitlement, line.sessionTypeId())) continue;
+                if (line.remaining().compareTo(BigDecimal.ZERO) <= 0) continue;
+                BigDecimal lineDeduction = line.remaining().min(stillToAllocate).setScale(2, RoundingMode.HALF_UP);
+                line.setRemaining(line.remaining().subtract(lineDeduction).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
+                stillToAllocate = stillToAllocate.subtract(lineDeduction).setScale(2, RoundingMode.HALF_UP);
+            }
+
+            BigDecimal nextBalance = beforeBalance.subtract(amountFromCard).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            GuestEntitlementUsage usage = new GuestEntitlementUsage();
+            usage.setEntitlement(entitlement);
+            usage.setSessionBooking(booking);
+            usage.setReason(EntitlementUsageReason.BOOKING);
+            usage.setUsedAt(Instant.now());
+            usage.setUnitsUsed(toCents(amountFromCard));
+            usage.setUnitsBefore(toCents(beforeBalance));
+            usage.setUnitsAfter(toCents(nextBalance));
+            usages.save(usage);
+
+            entitlement.setRemainingValueGross(nextBalance);
+            if (nextBalance.compareTo(BigDecimal.ZERO) <= 0) {
+                entitlement.setRemainingUses(0);
+                entitlement.setStatus(EntitlementStatus.USED_UP);
+            } else {
+                entitlement.setRemainingUses(1);
+                entitlement.setStatus(EntitlementStatus.ACTIVE);
+            }
+            entitlements.save(entitlement);
+
+            if (firstConsumed == null) firstConsumed = entitlement;
+            applied = applied.add(amountFromCard).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal remaining = outstanding.stream()
+                .map(MutableVoucherChargeLine::remaining)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .max(BigDecimal.ZERO)
+                .setScale(2, RoundingMode.HALF_UP);
+        if (firstConsumed == null) {
+            String reason = anyApplicableVoucher
+                    ? "Value voucher payment could not be allocated."
+                    : "Value voucher is not valid for the remaining selected services.";
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
+        }
+        if (requireFullCoverage && remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Value vouchers do not cover the full remaining amount for the selected services.");
+        }
+        List<VoucherChargeLine> remainingChargeLines = outstanding.stream()
+                .map(line -> new VoucherChargeLine(line.position(), line.sessionTypeId(), line.remaining()))
+                .toList();
+        return new GiftCardRedemptionResult(firstConsumed, applied, remaining, true, remainingChargeLines);
+    }
+
+    private boolean voucherAllowsChargeLine(GuestEntitlement entitlement, Long sessionTypeId) {
+        if (VoucherRules.entitlementScope(entitlement) == VoucherServiceScope.ALL_SERVICES) return true;
+        return sessionTypeId != null && VoucherRules.entitlementAllowsService(entitlement, sessionTypeId);
+    }
+
+    private List<MutableVoucherChargeLine> normalizeVoucherChargeLines(List<VoucherChargeLine> chargeLines, BigDecimal targetAmount) {
+        List<VoucherChargeLine> source = chargeLines == null ? List.of() : chargeLines.stream()
+                .filter(Objects::nonNull)
+                .filter(line -> line.sessionTypeId() != null)
+                .filter(line -> line.amountGross() != null && line.amountGross().compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+        if (source.isEmpty()) {
+            return List.of(new MutableVoucherChargeLine(-1, null, targetAmount.setScale(2, RoundingMode.HALF_UP)));
+        }
+        BigDecimal sourceTotal = source.stream()
+                .map(VoucherChargeLine::amountGross)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        if (sourceTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            return List.of(new MutableVoucherChargeLine(-1, null, targetAmount.setScale(2, RoundingMode.HALF_UP)));
+        }
+
+        BigDecimal remainingTarget = targetAmount.setScale(2, RoundingMode.HALF_UP);
+        List<MutableVoucherChargeLine> normalized = new ArrayList<>();
+        for (int i = 0; i < source.size(); i++) {
+            VoucherChargeLine line = source.get(i);
+            BigDecimal amountForLine;
+            if (i == source.size() - 1) {
+                amountForLine = remainingTarget.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            } else {
+                amountForLine = line.amountGross()
+                        .multiply(targetAmount)
+                        .divide(sourceTotal, 2, RoundingMode.HALF_UP)
+                        .max(BigDecimal.ZERO);
+                if (amountForLine.compareTo(remainingTarget) > 0) amountForLine = remainingTarget;
+                remainingTarget = remainingTarget.subtract(amountForLine).setScale(2, RoundingMode.HALF_UP);
+            }
+            normalized.add(new MutableVoucherChargeLine(line.position(), line.sessionTypeId(), amountForLine));
+        }
+        return normalized;
+    }
+
+    private static final class MutableVoucherChargeLine {
+        private final int position;
+        private final Long sessionTypeId;
+        private BigDecimal remaining;
+
+        private MutableVoucherChargeLine(int position, Long sessionTypeId, BigDecimal remaining) {
+            this.position = position;
+            this.sessionTypeId = sessionTypeId;
+            this.remaining = remaining == null ? BigDecimal.ZERO : remaining.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        int position() { return position; }
+        Long sessionTypeId() { return sessionTypeId; }
+        BigDecimal remaining() { return remaining; }
+        void setRemaining(BigDecimal remaining) { this.remaining = remaining; }
     }
 
     private void validateGiftCardForBooking(GuestEntitlement entitlement, Client client, Long companyId, String currency) {
@@ -896,7 +1268,22 @@ public class GuestEntitlementService {
         }
     }
 
-    public record GiftCardRedemptionResult(GuestEntitlement firstEntitlement, BigDecimal amountApplied, BigDecimal remainingAmount, boolean consumed) {}
+    public record GiftCardRedemptionResult(
+            GuestEntitlement firstEntitlement,
+            BigDecimal amountApplied,
+            BigDecimal remainingAmount,
+            boolean consumed,
+            List<VoucherChargeLine> remainingChargeLines
+    ) {
+        public GiftCardRedemptionResult(
+                GuestEntitlement firstEntitlement,
+                BigDecimal amountApplied,
+                BigDecimal remainingAmount,
+                boolean consumed
+        ) {
+            this(firstEntitlement, amountApplied, remainingAmount, consumed, List.of());
+        }
+    }
 
     public record GuestEntitlementSelection(GuestEntitlement entitlement, boolean consumed) {}
 }

@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +49,34 @@ public class PublicWidgetOrderController {
             String lastName
     ) {}
 
+    public record VoucherResolutionRequest(
+            List<String> voucherCodes,
+            List<String> serviceIds,
+            String currency
+    ) {}
+
+    public record VoucherCodeResponse(
+            String code,
+            String entitlementId,
+            String voucherMode,
+            Double remainingValueGross,
+            Double faceValueGross,
+            List<String> eligibleServiceNames
+    ) {}
+
+    public record VoucherServiceAssignmentResponse(
+            int position,
+            String sessionTypeId,
+            String entitlementId,
+            String code
+    ) {}
+
+    public record VoucherResolutionResponse(
+            List<VoucherCodeResponse> vouchers,
+            List<VoucherServiceAssignmentResponse> serviceAssignments,
+            List<String> valueVoucherCodes
+    ) {}
+
     @PostMapping("/{tenantCode}/guest-session")
     public GuestSessionResponse startSession(
             @PathVariable String tenantCode,
@@ -55,6 +84,15 @@ public class PublicWidgetOrderController {
             HttpServletRequest httpRequest
     ) {
         return service.startSession(tenantCode, request, httpRequest);
+    }
+
+    @PostMapping("/{tenantCode}/voucher-resolution")
+    public VoucherResolutionResponse resolveVouchers(
+            @PathVariable String tenantCode,
+            @RequestBody VoucherResolutionRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return service.resolveVouchers(tenantCode, request, httpRequest);
     }
 
     @PostMapping("/{tenantCode}/orders")

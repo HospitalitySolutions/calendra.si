@@ -31,6 +31,44 @@ class SessionBillingSupportTest {
     }
 
     @Test
+    void charges_excludesOnlyTheCoveredServicePositionEvenWhenBillingItemIsShared() {
+        TransactionService billingService = new TransactionService();
+        billingService.setId(50L);
+        billingService.setNetPrice(new BigDecimal("20.0000"));
+        billingService.setTaxRate(TaxRate.VAT_22);
+
+        SessionType first = type(11L, billingService, new BigDecimal("25.0000"));
+        SessionType second = type(12L, billingService, new BigDecimal("25.0000"));
+        SessionBooking booking = booking(first, second);
+
+        List<SessionBillingSupport.Charge> charges = SessionBillingSupport.charges(booking, Set.of(), Set.of(0));
+
+        assertEquals(1, charges.size());
+        assertEquals(1, charges.get(0).quantity());
+        assertEquals(new BigDecimal("25.0000"), charges.get(0).netPrice());
+    }
+
+    @Test
+    void positionedCharges_keepsExactServicePositionsForVoucherAllocation() {
+        TransactionService billingService = new TransactionService();
+        billingService.setId(50L);
+        billingService.setNetPrice(new BigDecimal("20.0000"));
+        billingService.setTaxRate(TaxRate.VAT_22);
+
+        SessionBooking booking = booking(
+                type(11L, billingService, new BigDecimal("25.0000")),
+                type(12L, billingService, new BigDecimal("25.0000"))
+        );
+
+        List<SessionBillingSupport.PositionedCharge> charges = SessionBillingSupport.positionedCharges(
+                booking, Set.of(), Set.of());
+
+        assertEquals(2, charges.size());
+        assertEquals(0, charges.get(0).servicePosition());
+        assertEquals(1, charges.get(1).servicePosition());
+    }
+
+    @Test
     void charges_keepsDifferentPricesAsSeparateInvoiceLines() {
         TransactionService billingService = new TransactionService();
         billingService.setId(50L);

@@ -15,26 +15,108 @@ public final class SessionBillingSupport {
 
     public record Charge(TransactionService transactionService, BigDecimal netPrice, int quantity) {}
 
+    /** One billing component tied to the exact selected service position. */
+    public record PositionedCharge(int servicePosition, TransactionService transactionService, BigDecimal netPrice) {}
+
     private record ChargeKey(Long transactionServiceId, BigDecimal netPrice) {}
 
     public static List<Charge> charges(SessionBooking booking, Set<Long> excludedTransactionServiceIds) {
-        Set<Long> excluded = excludedTransactionServiceIds == null ? Set.of() : excludedTransactionServiceIds;
+        return charges(booking, excludedTransactionServiceIds, Set.of());
+    }
+
+    /**
+     * Builds billing lines while optionally excluding exact service segments from a multi-service
+     * booking. This is used when a pass/service voucher covers one segment but the remaining
+     * services still need to be invoiced. Excluding by position is intentionally separate from
+     * excluding transaction-service ids: two selected services may share the same billing item.
+     */
+    public static List<Charge> charges(
+            SessionBooking booking,
+            Set<Long> excludedTransactionServiceIds,
+            Set<Integer> excludedServicePositions
+    ) {
+        Set<Long> excludedTransactions = excludedTransactionServiceIds == null ? Set.of() : excludedTransactionServiceIds;
+        Set<Integer> excludedPositions = excludedServicePositions == null ? Set.of() : excludedServicePositions;
         LinkedHashMap<ChargeKey, Charge> charges = new LinkedHashMap<>();
-        for (SessionType type : SessionServiceSupport.orderedTypes(booking)) {
-            if (type == null || type.getLinkedServices() == null) continue;
-            for (TypeTransactionService link : type.getLinkedServices()) {
-                if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) continue;
-                TransactionService tx = link.getTransactionService();
-                if (excluded.contains(tx.getId())) continue;
-                BigDecimal net = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
-                if (net == null) net = BigDecimal.ZERO;
-                net = net.setScale(4, RoundingMode.HALF_UP);
-                ChargeKey key = new ChargeKey(tx.getId(), net);
-                Charge existing = charges.get(key);
-                charges.put(key, new Charge(tx, net, existing == null ? 1 : existing.quantity() + 1));
+
+        List<SessionService> services = SessionServiceSupport.orderedServices(booking);
+        if (!services.isEmpty()) {
+            for (SessionService service : services) {
+                if (service == null || excludedPositions.contains(service.getPosition())) continue;
+                addTypeCharges(charges, service.getSessionType(), excludedTransactions);
+            }
+        } else {
+            // Legacy single-service bookings do not have session_service rows.
+            for (SessionType type : SessionServiceSupport.orderedTypes(booking)) {
+                addTypeCharges(charges, type, excludedTransactions);
             }
         }
         return new ArrayList<>(charges.values());
+    }
+
+    /**
+     * Same source data as {@link #charges(SessionBooking, Set, Set)} but without aggregating
+     * different service positions. This is needed when a VALUE voucher pays only part of one
+     * selected service and the advance invoice must preserve that exact allocation.
+     */
+    public static List<PositionedCharge> positionedCharges(
+            SessionBooking booking,
+            Set<Long> excludedTransactionServiceIds,
+            Set<Integer> excludedServicePositions
+    ) {
+        Set<Long> excludedTransactions = excludedTransactionServiceIds == null ? Set.of() : excludedTransactionServiceIds;
+        Set<Integer> excludedPositions = excludedServicePositions == null ? Set.of() : excludedServicePositions;
+        List<PositionedCharge> out = new ArrayList<>();
+        List<SessionService> services = SessionServiceSupport.orderedServices(booking);
+        if (!services.isEmpty()) {
+            for (SessionService service : services) {
+                if (service == null || excludedPositions.contains(service.getPosition())) continue;
+                addPositionedTypeCharges(out, service.getPosition(), service.getSessionType(), excludedTransactions);
+            }
+        } else {
+            List<SessionType> types = SessionServiceSupport.orderedTypes(booking);
+            for (int position = 0; position < types.size(); position++) {
+                if (excludedPositions.contains(position)) continue;
+                addPositionedTypeCharges(out, position, types.get(position), excludedTransactions);
+            }
+        }
+        return out;
+    }
+
+    private static void addPositionedTypeCharges(
+            List<PositionedCharge> out,
+            int position,
+            SessionType type,
+            Set<Long> excludedTransactionServiceIds
+    ) {
+        if (type == null || type.getLinkedServices() == null) return;
+        for (TypeTransactionService link : type.getLinkedServices()) {
+            if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) continue;
+            TransactionService tx = link.getTransactionService();
+            if (excludedTransactionServiceIds.contains(tx.getId())) continue;
+            BigDecimal net = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            if (net == null) net = BigDecimal.ZERO;
+            out.add(new PositionedCharge(position, tx, net.setScale(4, RoundingMode.HALF_UP)));
+        }
+    }
+
+    private static void addTypeCharges(
+            LinkedHashMap<ChargeKey, Charge> charges,
+            SessionType type,
+            Set<Long> excludedTransactionServiceIds
+    ) {
+        if (type == null || type.getLinkedServices() == null) return;
+        for (TypeTransactionService link : type.getLinkedServices()) {
+            if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) continue;
+            TransactionService tx = link.getTransactionService();
+            if (excludedTransactionServiceIds.contains(tx.getId())) continue;
+            BigDecimal net = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            if (net == null) net = BigDecimal.ZERO;
+            net = net.setScale(4, RoundingMode.HALF_UP);
+            ChargeKey key = new ChargeKey(tx.getId(), net);
+            Charge existing = charges.get(key);
+            charges.put(key, new Charge(tx, net, existing == null ? 1 : existing.quantity() + 1));
+        }
     }
 
     public static boolean hasTransactionServices(SessionBooking booking) {

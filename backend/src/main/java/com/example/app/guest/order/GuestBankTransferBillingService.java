@@ -10,6 +10,7 @@ import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
 import com.example.app.session.SessionTypeRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -19,8 +20,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +38,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class GuestBankTransferBillingService {
     private static final Logger log = LoggerFactory.getLogger(GuestBankTransferBillingService.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final BillRepository bills;
     private final PaymentMethodRepository paymentMethods;
@@ -118,39 +125,53 @@ public class GuestBankTransferBillingService {
             applyOrderReferenceAsBankTransferReference(bill, order);
         }
 
-        List<SessionBillingSupport.Charge> linkedServices = resolveLinkedBillingServices(companyId, booking);
-        if (linkedServices.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an advance invoice cannot be generated.");
-        }
+        Map<Integer, BigDecimal> exactVoucherPayableByPosition = remainingPayableGrossByServicePosition(order);
+        BigDecimal totalNet;
+        BigDecimal totalGross;
+        if (!exactVoucherPayableByPosition.isEmpty()) {
+            List<SessionBillingSupport.PositionedCharge> positionedServices = resolvePositionedLinkedBillingServices(order, booking);
+            if (positionedServices.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an advance invoice cannot be generated.");
+            }
+            Totals exactTotals = addExactVoucherAllocatedItems(
+                    bill, booking, positionedServices, exactVoucherPayableByPosition);
+            totalNet = exactTotals.net();
+            totalGross = exactTotals.gross();
+        } else {
+            List<SessionBillingSupport.Charge> linkedServices = resolveLinkedBillingServices(order, companyId, booking);
+            if (linkedServices.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an advance invoice cannot be generated.");
+            }
 
-        BigDecimal totalNet = BigDecimal.ZERO;
-        BigDecimal totalGross = BigDecimal.ZERO;
-        for (SessionBillingSupport.Charge charge : linkedServices) {
-            TransactionService tx = charge.transactionService();
-            if (tx == null) continue;
-            int quantity = Math.max(1, charge.quantity());
-            BigDecimal net = charge.netPrice() == null ? BigDecimal.ZERO : charge.netPrice();
-            BigDecimal unitGross = net.add(net.multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal lineGross = unitGross.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
+            totalNet = BigDecimal.ZERO;
+            totalGross = BigDecimal.ZERO;
+            for (SessionBillingSupport.Charge charge : linkedServices) {
+                TransactionService tx = charge.transactionService();
+                if (tx == null) continue;
+                int quantity = Math.max(1, charge.quantity());
+                BigDecimal net = charge.netPrice() == null ? BigDecimal.ZERO : charge.netPrice();
+                BigDecimal multiplier = tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
+                BigDecimal unitGross = net.add(net.multiply(multiplier)).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal lineGross = unitGross.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
 
-            BillItem item = new BillItem();
-            item.setBill(bill);
-            item.setTransactionService(tx);
-            item.setQuantity(quantity);
-            item.setNetPrice(net);
-            item.setGrossPrice(lineGross);
-            item.setSourceSessionBookingId(booking.getId());
-            totalNet = totalNet.add(net.multiply(BigDecimal.valueOf(quantity)));
-            totalGross = totalGross.add(lineGross);
-            bill.getItems().add(item);
+                BillItem item = new BillItem();
+                item.setBill(bill);
+                item.setTransactionService(tx);
+                item.setQuantity(quantity);
+                item.setNetPrice(net);
+                item.setGrossPrice(lineGross);
+                item.setSourceSessionBookingId(booking.getId());
+                totalNet = totalNet.add(net.multiply(BigDecimal.valueOf(quantity)));
+                totalGross = totalGross.add(lineGross);
+                bill.getItems().add(item);
+            }
+            Totals adjustedTotals = applyOrderAdvanceAmountIfPartial(order, bill, totalNet, totalGross);
+            totalNet = adjustedTotals.net();
+            totalGross = adjustedTotals.gross();
         }
         if (bill.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no valid billing lines, so an advance invoice cannot be generated.");
         }
-
-        Totals adjustedTotals = applyOrderAdvanceAmountIfPartial(order, bill, totalNet, totalGross);
-        totalNet = adjustedTotals.net();
-        totalGross = adjustedTotals.gross();
 
         bill.setTotalNet(totalNet.setScale(2, RoundingMode.HALF_UP));
         bill.setTotalGross(totalGross.setScale(2, RoundingMode.HALF_UP));
@@ -200,9 +221,157 @@ public class GuestBankTransferBillingService {
     }
 
 
-    private List<SessionBillingSupport.Charge> resolveLinkedBillingServices(Long companyId, SessionBooking booking) {
+    private List<SessionBillingSupport.Charge> resolveLinkedBillingServices(GuestOrder order, Long companyId, SessionBooking booking) {
         if (booking == null) return List.of();
-        return SessionBillingSupport.charges(booking, java.util.Set.of());
+        return SessionBillingSupport.charges(booking, Set.of(), entitlementCoveredServicePositions(order));
+    }
+
+    private List<SessionBillingSupport.PositionedCharge> resolvePositionedLinkedBillingServices(
+            GuestOrder order,
+            SessionBooking booking
+    ) {
+        if (booking == null) return List.of();
+        return SessionBillingSupport.positionedCharges(booking, Set.of(), entitlementCoveredServicePositions(order));
+    }
+
+    /**
+     * Reads the exact payable gross left on each service after VALUE-voucher allocation. Presence
+     * of this metadata means the order has already applied deposit/service-voucher rules and then
+     * deducted value vouchers against eligible service lines.
+     */
+    private Map<Integer, BigDecimal> remainingPayableGrossByServicePosition(GuestOrder order) {
+        LinkedHashMap<Integer, BigDecimal> amounts = new LinkedHashMap<>();
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return amounts;
+        try {
+            Map<?, ?> metadata = JSON.readValue(order.getMetadataJson(), Map.class);
+            if (!Boolean.TRUE.equals(metadata.get("valueVoucherServiceAllocation"))) return amounts;
+            Object rawServices = metadata.get("services");
+            if (!(rawServices instanceof List<?> rows)) return amounts;
+            for (int index = 0; index < rows.size(); index++) {
+                if (!(rows.get(index) instanceof Map<?, ?> row)) continue;
+                Object rawAmount = row.get("remainingPayableGross");
+                if (rawAmount == null) continue;
+                BigDecimal amount;
+                try {
+                    amount = new BigDecimal(String.valueOf(rawAmount)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                } catch (Exception ignored) {
+                    continue;
+                }
+                Object rawPosition = row.get("position");
+                int position;
+                try {
+                    position = rawPosition == null ? index : Integer.parseInt(String.valueOf(rawPosition).replace(".0", ""));
+                } catch (NumberFormatException ignored) {
+                    position = index;
+                }
+                amounts.put(position, amount);
+            }
+        } catch (Exception ignored) {
+            // Fall back to the legacy aggregate invoice projection when metadata is unavailable.
+        }
+        return amounts;
+    }
+
+    /**
+     * Creates invoice lines from exact service positions. Each service's linked billing lines are
+     * scaled only to that service's remaining payable amount, so a selected-scope Vrednostni bon
+     * never reduces an unrelated service on the advance invoice.
+     */
+    private Totals addExactVoucherAllocatedItems(
+            Bill bill,
+            SessionBooking booking,
+            List<SessionBillingSupport.PositionedCharge> positionedCharges,
+            Map<Integer, BigDecimal> payableByPosition
+    ) {
+        LinkedHashMap<Integer, List<SessionBillingSupport.PositionedCharge>> byPosition = new LinkedHashMap<>();
+        for (SessionBillingSupport.PositionedCharge charge : positionedCharges) {
+            if (charge == null || charge.transactionService() == null) continue;
+            byPosition.computeIfAbsent(charge.servicePosition(), ignored -> new ArrayList<>()).add(charge);
+        }
+
+        BigDecimal totalNet = BigDecimal.ZERO;
+        BigDecimal totalGross = BigDecimal.ZERO;
+        for (Map.Entry<Integer, List<SessionBillingSupport.PositionedCharge>> entry : byPosition.entrySet()) {
+            List<SessionBillingSupport.PositionedCharge> positionCharges = entry.getValue();
+            BigDecimal fullPositionGross = BigDecimal.ZERO;
+            List<BigDecimal> fullLineGross = new ArrayList<>();
+            for (SessionBillingSupport.PositionedCharge charge : positionCharges) {
+                TransactionService tx = charge.transactionService();
+                BigDecimal net = charge.netPrice() == null ? BigDecimal.ZERO : charge.netPrice();
+                BigDecimal multiplier = tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
+                BigDecimal gross = net.add(net.multiply(multiplier)).setScale(2, RoundingMode.HALF_UP);
+                fullLineGross.add(gross);
+                fullPositionGross = fullPositionGross.add(gross);
+            }
+            if (fullPositionGross.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            BigDecimal requested = payableByPosition.get(entry.getKey());
+            BigDecimal targetGross = requested == null
+                    ? fullPositionGross.setScale(2, RoundingMode.HALF_UP)
+                    : requested.max(BigDecimal.ZERO).min(fullPositionGross).setScale(2, RoundingMode.HALF_UP);
+            if (targetGross.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            BigDecimal ratio = targetGross.divide(fullPositionGross, 8, RoundingMode.HALF_UP);
+            BigDecimal remainingForPosition = targetGross;
+            for (int index = 0; index < positionCharges.size(); index++) {
+                SessionBillingSupport.PositionedCharge charge = positionCharges.get(index);
+                TransactionService tx = charge.transactionService();
+                BigDecimal lineGross;
+                if (index == positionCharges.size() - 1) {
+                    lineGross = remainingForPosition.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                } else {
+                    lineGross = fullLineGross.get(index).multiply(ratio).setScale(2, RoundingMode.HALF_UP);
+                    if (lineGross.compareTo(remainingForPosition) > 0) lineGross = remainingForPosition;
+                    remainingForPosition = remainingForPosition.subtract(lineGross).setScale(2, RoundingMode.HALF_UP);
+                }
+                if (lineGross.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+                BigDecimal multiplier = tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
+                BigDecimal lineNet = lineGross.divide(BigDecimal.ONE.add(multiplier), 4, RoundingMode.HALF_UP);
+                BillItem item = new BillItem();
+                item.setBill(bill);
+                item.setTransactionService(tx);
+                item.setQuantity(1);
+                item.setNetPrice(lineNet);
+                item.setGrossPrice(lineGross);
+                item.setSourceSessionBookingId(booking.getId());
+                bill.getItems().add(item);
+                totalNet = totalNet.add(lineNet);
+                totalGross = totalGross.add(lineGross);
+            }
+        }
+        return new Totals(totalNet, totalGross);
+    }
+
+    /**
+     * The order snapshots the entitlement assigned to every selected service line. Once the
+     * booking is confirmed those exact lines must stay off the advance invoice; otherwise a
+     * Darilni bon/pass would reduce the total but the PDF could still show a proportional charge
+     * for the covered service.
+     */
+    private Set<Integer> entitlementCoveredServicePositions(GuestOrder order) {
+        LinkedHashSet<Integer> positions = new LinkedHashSet<>();
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return positions;
+        try {
+            Map<?, ?> metadata = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object rawServices = metadata.get("services");
+            if (!(rawServices instanceof List<?> rows)) return positions;
+            for (int index = 0; index < rows.size(); index++) {
+                if (!(rows.get(index) instanceof Map<?, ?> row)) continue;
+                Object rawEntitlementId = row.get("entitlementId");
+                if (rawEntitlementId == null || String.valueOf(rawEntitlementId).isBlank()
+                        || "null".equalsIgnoreCase(String.valueOf(rawEntitlementId))) continue;
+                Object rawPosition = row.get("position");
+                try {
+                    positions.add(rawPosition == null ? index : Integer.parseInt(String.valueOf(rawPosition)));
+                } catch (NumberFormatException ignored) {
+                    positions.add(index);
+                }
+            }
+        } catch (Exception ignored) {
+            // Legacy orders without parseable service metadata keep the old billing behavior.
+        }
+        return positions;
     }
 
     private void applyGuestOrderReferenceIfMissing(Bill bill, GuestOrder order) {
