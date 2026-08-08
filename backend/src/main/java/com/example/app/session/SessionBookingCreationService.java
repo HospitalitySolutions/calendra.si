@@ -775,33 +775,49 @@ public class SessionBookingCreationService {
             }
         }
 
-        final List<SessionBooking> activeRows;
+        List<SessionBooking> activeRows;
         if (placeholderForResponse != null) {
-            // Last guest removed: the shared cancellation core already created and
-            // flushed the empty RESERVED occurrence, but the open-bill sync it runs
-            // afterwards clears the JPA persistence context. The in-memory placeholder
-            // is therefore detached and its lazy associations (SessionType.linkedServices)
-            // cannot be initialized while mapping the response. Reload it by id so the
-            // response is built from a managed entity.
-            SessionBooking reloadedPlaceholder = repo
-                    .findByIdAndCompanyId(placeholderForResponse.getId(), companyId)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Group session placeholder is missing after guest removal."
-                    ));
-            activeRows = List.of(reloadedPlaceholder);
+            // Last guest removed: the shared cancellation core already resolved the
+            // surviving empty occurrence (either an existing placeholder or a newly
+            // created one), so use it directly.
+            activeRows = List.of(placeholderForResponse);
         } else {
             List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
-            if (refreshed == null || refreshed.isEmpty()) {
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "Group session could not be reloaded after guest removal."
-                );
+            if (refreshed == null) {
+                refreshed = List.of();
             }
             activeRows = refreshed.stream()
                     .filter(row -> !SessionBookingStatus.CANCELLED.equals(
                             SessionBookingStatus.normalizeStored(row.getBookingStatus())))
                     .toList();
+
+            if (activeRows.isEmpty()) {
+                // Defensive invariant repair. The normal shared cancellation path creates
+                // the empty placeholder while removing the final participant. If the
+                // repository snapshot used during that cancellation still reported another
+                // active row, but that row is no longer active by the time we build the
+                // response, ensure the occurrence survives now instead of returning a 500.
+                SessionBooking repairedPlaceholder = ensureGroupSessionRemainsWhenParticipantLeaves(
+                        targets.get(0),
+                        "STAFF"
+                );
+                if (repairedPlaceholder != null) {
+                    activeRows = List.of(repairedPlaceholder);
+                } else {
+                    List<SessionBooking> repairedRows = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(
+                            groupKey,
+                            companyId
+                    );
+                    if (repairedRows == null) {
+                        repairedRows = List.of();
+                    }
+                    activeRows = repairedRows.stream()
+                            .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                                    SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                            .toList();
+                }
+            }
+
             if (activeRows.isEmpty()) {
                 throw new ResponseStatusException(
                         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -901,16 +917,26 @@ public class SessionBookingCreationService {
                 SessionBookingController.groupKey(participant),
                 participant.getCompany().getId()
         );
-        boolean hasActivePlaceholder = rows.stream()
+        if (rows == null) {
+            rows = List.of();
+        }
+        SessionBooking activePlaceholder = rows.stream()
                 .filter(row -> !Objects.equals(row.getId(), participant.getId()))
-                .anyMatch(row -> row.getClient() == null
-                        && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+                .filter(row -> row.getClient() == null)
+                .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))
+                .findFirst()
+                .orElse(null);
         boolean hasOtherActiveParticipant = rows.stream()
                 .filter(row -> !Objects.equals(row.getId(), participant.getId()))
                 .anyMatch(row -> row.getClient() != null
                         && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
-        if (hasActivePlaceholder || hasOtherActiveParticipant) {
+        if (hasOtherActiveParticipant) {
             return null;
+        }
+        if (activePlaceholder != null) {
+            // The occurrence is already preserved. Return the actual surviving row so
+            // callers do not have to infer its existence from a second repository load.
+            return activePlaceholder;
         }
 
         SessionBooking placeholder = new SessionBooking();
