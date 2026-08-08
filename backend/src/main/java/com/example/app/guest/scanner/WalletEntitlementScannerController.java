@@ -8,6 +8,7 @@ import com.example.app.guest.model.GuestEntitlement;
 import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
+import com.example.app.guest.model.VoucherRules;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
@@ -88,14 +89,17 @@ public class WalletEntitlementScannerController {
                 ).stream()
                 .filter(entitlement -> entitlement.getEntitlementType() == EntitlementType.TICKET
                         || entitlement.getEntitlementType() == EntitlementType.PACK
-                        || entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP)
+                        || entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
+                        || VoucherRules.isServiceVoucher(entitlement))
                 .filter(entitlement -> entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
                         || (entitlement.getRemainingUses() != null && entitlement.getRemainingUses() > 0))
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
                 .filter(entitlement -> entitlement.getProduct() != null
-                        && (entitlement.getProduct().getSessionType() == null
-                            || Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingTypeId)))
+                        && (VoucherRules.isServiceVoucher(entitlement)
+                            ? bookingHasSingleService(booking) && VoucherRules.entitlementAllowsService(entitlement, bookingTypeId)
+                            : entitlement.getProduct().getSessionType() == null
+                                || Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingTypeId)))
                 .filter(entitlement -> firstUsableCode(entitlement) != null)
                 .map(this::paymentOptionResponse)
                 .toList();
@@ -143,6 +147,10 @@ public class WalletEntitlementScannerController {
         Long groupBookingId = request == null ? null : request.groupBookingId();
         if (groupBookingId != null) {
             return scanIntoGroupSession(request, entitlement, me, now);
+        }
+
+        if (VoucherRules.isValueVoucher(entitlement)) {
+            return failure("UNSUPPORTED_ENTITLEMENT", "Value vouchers must be used as a payment method, not as a visit entitlement.", entitlement);
         }
 
         EntitlementType type = entitlement.getEntitlementType();
@@ -210,8 +218,12 @@ public class WalletEntitlementScannerController {
         }
 
         EntitlementType type = entitlement.getEntitlementType();
-        if (type != EntitlementType.TICKET && type != EntitlementType.PACK && type != EntitlementType.MEMBERSHIP) {
-            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "Only class tickets, packs and memberships can cover a session.", entitlement);
+        if (type != EntitlementType.TICKET && type != EntitlementType.PACK && type != EntitlementType.MEMBERSHIP
+                && !VoucherRules.isServiceVoucher(entitlement)) {
+            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "Only class tickets, packs, memberships and service gift vouchers can cover a session.", entitlement);
+        }
+        if (VoucherRules.isServiceVoucher(entitlement) && !bookingHasSingleService(booking)) {
+            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "A service gift voucher cannot settle a combined multi-service bill from this screen.", entitlement);
         }
 
         ScanResponse serviceValidation = validateBookingPaymentServiceType(booking, entitlement);
@@ -301,8 +313,11 @@ public class WalletEntitlementScannerController {
         }
         // A product without a specific session type is a wildcard entitlement and may cover
         // any service. When a session type is configured, it must match this booking exactly.
-        if (entitlement.getProduct().getSessionType() != null
-                && !Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingType.getId())) {
+        boolean matches = VoucherRules.isServiceVoucher(entitlement)
+                ? VoucherRules.entitlementAllowsService(entitlement, bookingType.getId())
+                : entitlement.getProduct().getSessionType() == null
+                    || Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingType.getId());
+        if (!matches) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
                     "This entitlement is for a different service type than this session.",
@@ -310,6 +325,12 @@ public class WalletEntitlementScannerController {
             );
         }
         return null;
+    }
+
+    private static boolean bookingHasSingleService(SessionBooking booking) {
+        if (booking == null) return false;
+        if (booking.getServices() == null || booking.getServices().isEmpty()) return booking.getType() != null;
+        return booking.getServices().size() == 1;
     }
 
     private ScanResponse validateGroupScanServiceType(SessionBooking groupSession, GuestEntitlement entitlement) {

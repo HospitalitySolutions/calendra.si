@@ -17,6 +17,7 @@ import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.ProductType;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionType;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -95,6 +96,39 @@ class GuestEntitlementServiceGiftCardSplitTest {
             return;
         }
         throw new AssertionError("Expected ResponseStatusException for insufficient total gift-card balance.");
+    }
+
+    @Test
+    void consumeBestMatchingGiftCard_respectsSelectedServiceScope() {
+        GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
+        GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
+
+        Client client = new Client();
+        client.setId(1L);
+        SessionType bookingType = new SessionType();
+        bookingType.setId(9L);
+        SessionBooking booking = new SessionBooking();
+        booking.setId(57L);
+        booking.setType(bookingType);
+
+        GuestEntitlement wrongService = giftCardEntitlement(211L, client, "EUR", new BigDecimal("100.00"), Instant.parse("2026-01-01T10:00:00Z"));
+        wrongService.setMetadataJson("{\"voucherMode\":\"VALUE\",\"voucherScope\":\"SELECTED_SERVICES\",\"eligibleSessionTypeIds\":[10]}");
+        GuestEntitlement matchingService = giftCardEntitlement(212L, client, "EUR", new BigDecimal("15.00"), Instant.parse("2026-01-01T11:00:00Z"));
+        matchingService.setMetadataJson("{\"voucherMode\":\"VALUE\",\"voucherScope\":\"SELECTED_SERVICES\",\"eligibleSessionTypeIds\":[9]}");
+
+        when(usages.findAllBySessionBookingIdOrderByUsedAtAsc(57L)).thenReturn(List.of());
+        when(entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(1L, 10L, List.of(EntitlementStatus.ACTIVE)))
+                .thenReturn(List.of(wrongService, matchingService));
+        when(usages.save(any(GuestEntitlementUsage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var selection = service.consumeBestMatchingGiftCard(client, 10L, new BigDecimal("10.00"), "EUR", booking);
+
+        assertThat(selection.entitlement().getId()).isEqualTo(212L);
+        assertThat(wrongService.getRemainingValueGross()).isEqualByComparingTo("100.00");
+        assertThat(matchingService.getRemainingValueGross()).isEqualByComparingTo("5.00");
     }
 
     @Test

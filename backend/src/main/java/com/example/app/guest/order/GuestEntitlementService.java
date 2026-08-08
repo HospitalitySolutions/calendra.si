@@ -9,6 +9,7 @@ import com.example.app.common.TimeService;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionService;
+import com.example.app.session.SessionType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -102,10 +103,14 @@ public class GuestEntitlementService {
         boolean validFrom = entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now);
         boolean validUntil = entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now);
         boolean hasUses = entitlement.getRemainingUses() == null || entitlement.getRemainingUses() > 0;
-        boolean notGiftCard = entitlement.getEntitlementType() != EntitlementType.GIFT_CARD;
+        boolean serviceVoucher = VoucherRules.isServiceVoucher(entitlement);
+        boolean serviceEntitlement = entitlement.getEntitlementType() != EntitlementType.GIFT_CARD || serviceVoucher;
         boolean matchesService = entitlement.getProduct() != null
-                && (entitlement.getProduct().getSessionType() == null || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId));
-        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !notGiftCard || !matchesService) {
+                && (serviceVoucher
+                    ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
+                    : entitlement.getProduct().getSessionType() == null
+                        || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId));
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !serviceEntitlement || !matchesService) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this service.");
         }
         return entitlement;
@@ -204,7 +209,7 @@ public class GuestEntitlementService {
         List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
         if (!existingUsages.isEmpty()) {
             boolean allGiftCardUsages = existingUsages.stream()
-                    .allMatch(usage -> usage.getEntitlement().getEntitlementType() == EntitlementType.GIFT_CARD);
+                    .allMatch(usage -> VoucherRules.isValueVoucher(usage.getEntitlement()));
             if (allGiftCardUsages) {
                 // Idempotent retry: do not deduct the same cards again. The order total has already
                 // been reduced by the first checkout attempt, so the current amount remains due.
@@ -224,6 +229,7 @@ public class GuestEntitlementService {
             GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is not valid: " + code));
             validateGiftCardForBooking(entitlement, client, companyId, currency);
+            validateVoucherServiceScope(entitlement, booking);
 
             BigDecimal beforeBalance = entitlement.getRemainingValueGross() == null
                     ? BigDecimal.ZERO
@@ -280,8 +286,7 @@ public class GuestEntitlementService {
         boolean active = entitlement.getStatus() == EntitlementStatus.ACTIVE;
         boolean validFrom = entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now);
         boolean validUntil = entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now);
-        boolean giftCard = entitlement.getEntitlementType() == EntitlementType.GIFT_CARD
-                || (entitlement.getProduct() != null && entitlement.getProduct().getProductType() == ProductType.GIFT_CARD);
+        boolean giftCard = VoucherRules.isValueVoucher(entitlement);
         String expectedCurrency = currency == null ? null : currency.trim().toUpperCase(java.util.Locale.ROOT);
         boolean currencyMatches = expectedCurrency == null
                 || entitlement.getProduct() == null
@@ -290,6 +295,32 @@ public class GuestEntitlementService {
         if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !giftCard || !currencyMatches) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is not valid.");
         }
+    }
+
+    private void validateVoucherServiceScope(GuestEntitlement entitlement, SessionBooking booking) {
+        if (!voucherAllowsBooking(entitlement, booking)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Gift card is not valid for one or more services in this booking.");
+        }
+    }
+
+    private boolean voucherAllowsBooking(GuestEntitlement entitlement, SessionBooking booking) {
+        if (entitlement == null || booking == null) return false;
+        if (VoucherRules.entitlementScope(entitlement) == VoucherServiceScope.ALL_SERVICES) return true;
+
+        LinkedHashSet<Long> serviceTypeIds = new LinkedHashSet<>();
+        if (booking.getServices() != null) {
+            booking.getServices().forEach(service -> {
+                if (service != null && service.getSessionType() != null && service.getSessionType().getId() != null) {
+                    serviceTypeIds.add(service.getSessionType().getId());
+                }
+            });
+        }
+        if (serviceTypeIds.isEmpty() && booking.getType() != null && booking.getType().getId() != null) {
+            serviceTypeIds.add(booking.getType().getId());
+        }
+        return !serviceTypeIds.isEmpty()
+                && serviceTypeIds.stream().allMatch(typeId -> VoucherRules.entitlementAllowsService(entitlement, typeId));
     }
 
     @Transactional
@@ -307,13 +338,15 @@ public class GuestEntitlementService {
         List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
         if (!existingUsages.isEmpty()) {
             boolean allGiftCardUsages = existingUsages.stream()
-                    .allMatch(usage -> usage.getEntitlement().getEntitlementType() == EntitlementType.GIFT_CARD);
+                    .allMatch(usage -> VoucherRules.isValueVoucher(usage.getEntitlement()));
             if (allGiftCardUsages) {
                 return new GuestEntitlementSelection(existingUsages.get(0).getEntitlement(), false);
             }
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking already used a wallet entitlement.");
         }
-        List<GuestEntitlement> matchingGiftCards = findMatchingGiftCards(client, companyId, currency);
+        List<GuestEntitlement> matchingGiftCards = findMatchingGiftCards(client, companyId, currency).stream()
+                .filter(entitlement -> voucherAllowsBooking(entitlement, booking))
+                .toList();
         BigDecimal totalAvailable = matchingGiftCards.stream()
                 .map(GuestEntitlement::getRemainingValueGross)
                 .filter(Objects::nonNull)
@@ -411,12 +444,14 @@ public class GuestEntitlementService {
 
     private void restoreUsageCredit(GuestEntitlementUsage usage) {
         GuestEntitlement entitlement = usage.getEntitlement();
-        if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD) {
+        if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD && VoucherRules.isValueVoucher(entitlement)) {
             BigDecimal restoredBalance = usage.getUnitsBefore() == null
                     ? entitlement.getRemainingValueGross()
                     : BigDecimal.valueOf(usage.getUnitsBefore(), 2).setScale(2, RoundingMode.HALF_UP);
             entitlement.setRemainingValueGross(restoredBalance);
             entitlement.setRemainingUses(1);
+        } else if (VoucherRules.isServiceVoucher(entitlement)) {
+            incrementIfLimited(entitlement);
         } else if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
             entitlement.setVisitCount(Math.max(0, entitlement.getVisitCount() - 1));
         } else {
@@ -512,8 +547,12 @@ public class GuestEntitlementService {
             entitlement.setValidUntil(entitlement.getValidFrom().plusSeconds(product.getValidityDays() * 86400L));
         }
         entitlement.setRemainingUses(product.getProductType() == ProductType.GIFT_CARD ? Integer.valueOf(1) : product.getUsageLimit());
-        if (product.getProductType() == ProductType.GIFT_CARD) {
-            entitlement.setRemainingValueGross((product.getPriceGross() == null ? BigDecimal.ZERO : product.getPriceGross()).setScale(2, RoundingMode.HALF_UP));
+        if (product.getProductType() == ProductType.GIFT_CARD
+                && VoucherRules.productMode(product) == VoucherRedemptionMode.VALUE) {
+            BigDecimal faceValue = product.getVoucherFaceValueGross() == null
+                    ? product.getPriceGross()
+                    : product.getVoucherFaceValueGross();
+            entitlement.setRemainingValueGross((faceValue == null ? BigDecimal.ZERO : faceValue).setScale(2, RoundingMode.HALF_UP));
         }
         if (product.getProductType() == ProductType.GIFT_CARD) {
             Long companyId = order.getCompany() == null ? null : order.getCompany().getId();
@@ -538,6 +577,18 @@ public class GuestEntitlementService {
             Map<String, Object> orderMetadata = metadata(order.getMetadataJson());
             copyTextMetadata(orderMetadata, metadata, "giftCardRecipientName");
             copyTextMetadata(orderMetadata, metadata, "giftCardMessage");
+            VoucherRedemptionMode voucherMode = VoucherRules.productMode(product);
+            VoucherServiceScope voucherScope = VoucherRules.productScope(product);
+            metadata.put("voucherMode", voucherMode == null ? VoucherRedemptionMode.VALUE.name() : voucherMode.name());
+            metadata.put("voucherScope", voucherScope == null ? VoucherServiceScope.ALL_SERVICES.name() : voucherScope.name());
+            metadata.put("eligibleSessionTypeIds", product.getVoucherSessionTypes() == null
+                    ? List.of()
+                    : product.getVoucherSessionTypes().stream().map(SessionType::getId).filter(Objects::nonNull).toList());
+            metadata.put("eligibleServiceNames", product.getVoucherSessionTypes() == null
+                    ? List.of()
+                    : product.getVoucherSessionTypes().stream().map(SessionType::getName).filter(Objects::nonNull).toList());
+            BigDecimal faceValue = product.getVoucherFaceValueGross() == null ? product.getPriceGross() : product.getVoucherFaceValueGross();
+            metadata.put("faceValueGross", faceValue == null ? null : faceValue.setScale(2, RoundingMode.HALF_UP).doubleValue());
         }
         if ((product.getProductType() == ProductType.COURSE || product.getProductType() == ProductType.MEMBERSHIP) && membershipCourses != null) {
             metadata.put("includedCourseIds", mappedCourseIds(product));
@@ -736,10 +787,13 @@ public class GuestEntitlementService {
         return entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(client.getId(), companyId, ACTIVE_STATUSES).stream()
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
-                .filter(entitlement -> entitlement.getEntitlementType() != EntitlementType.GIFT_CARD)
+                .filter(entitlement -> entitlement.getEntitlementType() != EntitlementType.GIFT_CARD || VoucherRules.isServiceVoucher(entitlement))
                 .filter(entitlement -> entitlement.getRemainingUses() == null || entitlement.getRemainingUses() > 0)
                 .filter(entitlement -> entitlement.getProduct() != null)
-                .filter(entitlement -> entitlement.getProduct().getSessionType() == null || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId))
+                .filter(entitlement -> VoucherRules.isServiceVoucher(entitlement)
+                        ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
+                        : entitlement.getProduct().getSessionType() == null
+                            || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId))
                 .sorted(entitlementPriority())
                 .findFirst();
     }
@@ -772,8 +826,7 @@ public class GuestEntitlementService {
         return entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(client.getId(), companyId, ACTIVE_STATUSES).stream()
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
-                .filter(entitlement -> entitlement.getEntitlementType() == EntitlementType.GIFT_CARD
-                        || (entitlement.getProduct() != null && entitlement.getProduct().getProductType() == ProductType.GIFT_CARD))
+                .filter(VoucherRules::isValueVoucher)
                 .filter(entitlement -> entitlement.getProduct() != null)
                 .filter(entitlement -> expectedCurrency == null
                         || entitlement.getProduct().getCurrency() == null

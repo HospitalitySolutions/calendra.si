@@ -7,6 +7,8 @@ import com.example.app.company.Company;
 import com.example.app.session.SessionType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -51,6 +53,30 @@ public class GuestProduct extends BaseEntity {
 
     @Column(nullable = false, length = 3)
     private String currency = "EUR";
+
+    /** Gift-card redemption semantics. Null for non-voucher products. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "voucher_redemption_mode", length = 16)
+    private VoucherRedemptionMode voucherRedemptionMode;
+
+    /** Which services a voucher may be used for. Null for non-voucher products. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "voucher_service_scope", length = 32)
+    private VoucherServiceScope voucherServiceScope;
+
+    /** Monetary face value for VALUE vouchers. Kept separate from the selling price. */
+    @Column(name = "voucher_face_value_gross", precision = 12, scale = 2)
+    private BigDecimal voucherFaceValueGross;
+
+    /** Eligible services when voucherServiceScope == SELECTED_SERVICES. */
+    @ManyToMany
+    @JoinTable(
+            name = "guest_product_voucher_session_types",
+            joinColumns = @JoinColumn(name = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "session_type_id")
+    )
+    @OrderBy("name ASC, id ASC")
+    private Set<SessionType> voucherSessionTypes = new LinkedHashSet<>();
 
     @Column(nullable = false)
     private boolean active = true;

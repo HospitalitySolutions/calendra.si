@@ -16,6 +16,8 @@ import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.billing.PriceMath;
 import com.example.app.guest.model.ProductType;
+import com.example.app.guest.model.VoucherRedemptionMode;
+import com.example.app.guest.model.VoucherServiceScope;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
@@ -160,6 +162,7 @@ public class GuestProductAdminController {
         activityLogs.recordUser(me, ActivityModule.SERVICES, action,
                 "GUEST_PRODUCT", row.id(), row.name(), summary, null, null,
                 ActivityDetails.of("productType", row.productType(), "priceGross", row.priceGross(), "currency", row.currency(),
+                        "voucherRedemptionMode", row.voucherRedemptionMode(), "voucherServiceScope", row.voucherServiceScope(),
                         "active", row.active(), "guestVisible", row.guestVisible(), "targetPath", "/session-types?subtab=cards-memberships"));
     }
 
@@ -184,6 +187,30 @@ public class GuestProductAdminController {
         TransactionService transactionService = productType == ProductType.GIFT_CARD
                 ? resolveTransactionService(request.transactionServiceId(), companyId)
                 : null;
+        VoucherRedemptionMode voucherRedemptionMode = productType == ProductType.GIFT_CARD
+                ? parseVoucherRedemptionMode(request.voucherRedemptionMode())
+                : null;
+        VoucherServiceScope voucherServiceScope = productType == ProductType.GIFT_CARD
+                ? parseVoucherServiceScope(request.voucherServiceScope())
+                : null;
+        Set<SessionType> voucherSessionTypes = productType == ProductType.GIFT_CARD
+                && voucherServiceScope == VoucherServiceScope.SELECTED_SERVICES
+                ? resolveVoucherSessionTypes(request.voucherSessionTypeIds(), companyId)
+                : Set.of();
+        if (productType == ProductType.GIFT_CARD
+                && voucherServiceScope == VoucherServiceScope.SELECTED_SERVICES
+                && voucherSessionTypes.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected-service vouchers must include at least one service.");
+        }
+        BigDecimal voucherFaceValueGross = null;
+        if (productType == ProductType.GIFT_CARD && voucherRedemptionMode == VoucherRedemptionMode.VALUE) {
+            voucherFaceValueGross = request.voucherFaceValueGross() == null
+                    ? priceGross
+                    : request.voucherFaceValueGross().setScale(2, RoundingMode.HALF_UP);
+            if (voucherFaceValueGross.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher value must be greater than zero.");
+            }
+        }
         // Entitlements are wallet products only. Booking-slot selection is handled by
         // session/widget products, not by purchased wallet products.
         boolean bookable = false;
@@ -238,6 +265,11 @@ public class GuestProductAdminController {
         product.setCurrency(normalizeCurrency(request.currency()));
         product.setSessionType(sessionType);
         product.setTransactionService(transactionService);
+        product.setVoucherRedemptionMode(voucherRedemptionMode);
+        product.setVoucherServiceScope(voucherServiceScope);
+        product.setVoucherFaceValueGross(voucherFaceValueGross);
+        product.getVoucherSessionTypes().clear();
+        product.getVoucherSessionTypes().addAll(voucherSessionTypes);
         product.setCourse(null);
         product.setActive(nextActive);
         product.setGuestVisible(request.guestVisible() == null || Boolean.TRUE.equals(request.guestVisible()));
@@ -273,6 +305,39 @@ public class GuestProductAdminController {
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported product type.");
         }
+    }
+
+    private VoucherRedemptionMode parseVoucherRedemptionMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            // Backwards compatibility: all historical GIFT_CARD products are monetary vouchers.
+            return VoucherRedemptionMode.VALUE;
+        }
+        try {
+            return VoucherRedemptionMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported voucher redemption mode.");
+        }
+    }
+
+    private VoucherServiceScope parseVoucherServiceScope(String raw) {
+        if (raw == null || raw.isBlank()) return VoucherServiceScope.ALL_SERVICES;
+        try {
+            return VoucherServiceScope.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported voucher service scope.");
+        }
+    }
+
+    private Set<SessionType> resolveVoucherSessionTypes(List<Long> sessionTypeIds, Long companyId) {
+        if (sessionTypeIds == null || sessionTypeIds.isEmpty()) return Set.of();
+        LinkedHashSet<SessionType> resolved = new LinkedHashSet<>();
+        LinkedHashSet<Long> uniqueIds = new LinkedHashSet<>(sessionTypeIds);
+        for (Long sessionTypeId : uniqueIds) {
+            if (sessionTypeId == null) continue;
+            resolved.add(sessionTypes.findByIdAndCompanyId(sessionTypeId, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected voucher service was not found.")));
+        }
+        return resolved;
     }
 
     private SessionType resolveSessionType(Long sessionTypeId, Long companyId) {
@@ -412,6 +477,11 @@ public class GuestProductAdminController {
                 product.getTransactionService() == null ? null : product.getTransactionService().getCode(),
                 product.getTransactionService() == null ? null : product.getTransactionService().getDescription(),
                 includedCourseIds(product),
+                product.getVoucherRedemptionMode() == null ? null : product.getVoucherRedemptionMode().name(),
+                product.getVoucherServiceScope() == null ? null : product.getVoucherServiceScope().name(),
+                product.getVoucherFaceValueGross(),
+                product.getVoucherSessionTypes().stream().map(SessionType::getId).toList(),
+                product.getVoucherSessionTypes().stream().map(SessionType::getName).toList(),
                 product.getCreatedAt(),
                 product.getUpdatedAt()
         );
@@ -434,8 +504,36 @@ public class GuestProductAdminController {
             Integer sortOrder,
             Long sessionTypeId,
             Long transactionServiceId,
-            List<Long> includedCourseIds
-    ) {}
+            List<Long> includedCourseIds,
+            String voucherRedemptionMode,
+            String voucherServiceScope,
+            BigDecimal voucherFaceValueGross,
+            List<Long> voucherSessionTypeIds
+    ) {
+        /** Backwards-compatible constructor retained for existing tests and callers. */
+        public ProductAdminRequest(
+                String name,
+                String description,
+                String promoText,
+                String productType,
+                BigDecimal priceGross,
+                String currency,
+                Boolean active,
+                Boolean guestVisible,
+                Boolean bookable,
+                Integer usageLimit,
+                Integer validityDays,
+                Boolean autoRenews,
+                Integer sortOrder,
+                Long sessionTypeId,
+                Long transactionServiceId,
+                List<Long> includedCourseIds
+        ) {
+            this(name, description, promoText, productType, priceGross, currency, active, guestVisible,
+                    bookable, usageLimit, validityDays, autoRenews, sortOrder, sessionTypeId,
+                    transactionServiceId, includedCourseIds, null, null, null, null);
+        }
+    }
 
     public record ProductAdminResponse(
             Long id,
@@ -458,6 +556,11 @@ public class GuestProductAdminController {
             String transactionServiceCode,
             String transactionServiceDescription,
             List<Long> includedCourseIds,
+            String voucherRedemptionMode,
+            String voucherServiceScope,
+            BigDecimal voucherFaceValueGross,
+            List<Long> voucherSessionTypeIds,
+            List<String> voucherSessionTypeNames,
             Instant createdAt,
             Instant updatedAt
     ) {}

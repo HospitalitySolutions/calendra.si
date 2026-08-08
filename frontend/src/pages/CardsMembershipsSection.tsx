@@ -28,6 +28,9 @@ type GuestAdminProductType =
   | "GIFT_CARD"
   | "COURSE";
 
+type VoucherRedemptionMode = "SERVICE" | "VALUE";
+type VoucherServiceScope = "ALL_SERVICES" | "SELECTED_SERVICES";
+
 type GuestAdminProduct = {
   id: number;
   name: string;
@@ -49,6 +52,11 @@ type GuestAdminProduct = {
   transactionServiceCode?: string | null;
   transactionServiceDescription?: string | null;
   includedCourseIds?: number[] | null;
+  voucherRedemptionMode?: VoucherRedemptionMode | null;
+  voucherServiceScope?: VoucherServiceScope | null;
+  voucherFaceValueGross?: number | null;
+  voucherSessionTypeIds?: number[] | null;
+  voucherSessionTypeNames?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -121,6 +129,10 @@ type GuestProductFormState = {
   sessionTypeId: string;
   transactionServiceId: string;
   includedCourseIds: string[];
+  voucherRedemptionMode: VoucherRedemptionMode;
+  voucherServiceScope: VoucherServiceScope;
+  voucherFaceValueGross: string;
+  voucherSessionTypeIds: string[];
 };
 
 const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = [
@@ -134,7 +146,7 @@ const CARD_PRODUCT_TYPE_LABELS: Record<GuestAdminProductType, string> = {
   CLASS_TICKET: "Ticket",
   PACK: "Tickets",
   MEMBERSHIP: "Membership",
-  GIFT_CARD: "Gift card",
+  GIFT_CARD: "Voucher",
   COURSE: "Course access",
 };
 
@@ -155,6 +167,10 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   sessionTypeId: "",
   transactionServiceId: "",
   includedCourseIds: [],
+  voucherRedemptionMode: "SERVICE",
+  voucherServiceScope: "SELECTED_SERVICES",
+  voucherFaceValueGross: "0.00",
+  voucherSessionTypeIds: [],
 });
 
 const defaultCourseForm = (): CourseFormState => ({
@@ -277,6 +293,10 @@ const normalizeGuestProductFormForType = (
         : nextProductType === "GIFT_CARD"
           ? ""
           : current.sessionTypeId,
+    voucherSessionTypeIds:
+      nextProductType === "GIFT_CARD" && current.voucherSessionTypeIds.length === 0 && defaultSessionTypeId
+        ? [defaultSessionTypeId]
+        : current.voucherSessionTypeIds,
     autoRenews: nextProductType === "MEMBERSHIP" ? current.autoRenews : false,
     bookable: false,
   };
@@ -368,9 +388,17 @@ function includedCoursesLabel(
       ? `${service} · ${count} tečaj${count === 1 ? "" : "i"}`
       : `${service} · ${count} course${count === 1 ? "" : "s"}`;
   }
-  return product.productType === "GIFT_CARD"
-    ? guestProductTransactionServiceLabel(product)
-    : product.sessionTypeName ||
+  if (product.productType === "GIFT_CARD") {
+    const scope = product.voucherServiceScope || "ALL_SERVICES";
+    const names = Array.isArray(product.voucherSessionTypeNames)
+      ? product.voucherSessionTypeNames.filter(Boolean)
+      : [];
+    if (scope === "ALL_SERVICES") return locale === "sl" ? "Vse storitve" : "All services";
+    if (names.length === 0) return locale === "sl" ? "Izbrane storitve" : "Selected services";
+    if (names.length === 1) return names[0];
+    return locale === "sl" ? `${names.length} izbrane storitve` : `${names.length} selected services`;
+  }
+  return product.sessionTypeName ||
         (locale === "sl" ? "Vse storitve" : "Any service type");
 }
 
@@ -397,12 +425,19 @@ const productTypeLabel = (productType: GuestAdminProductType, locale = "en") => 
       CLASS_TICKET: "Vstopnica",
       PACK: "Paket obiskov",
       MEMBERSHIP: "Članarina",
-      GIFT_CARD: "Darilni bon",
+      GIFT_CARD: "Bon",
       COURSE: "Dostop do tečaja",
     };
     return labels[productType] || productType;
   }
   return CARD_PRODUCT_TYPE_LABELS[productType] || productType;
+};
+
+const productDisplayTypeLabel = (product: GuestAdminProduct, locale = "en") => {
+  if (product.productType !== "GIFT_CARD") return productTypeLabel(product.productType, locale);
+  const mode = product.voucherRedemptionMode || "VALUE";
+  if (locale === "sl") return mode === "SERVICE" ? "Darilni bon" : "Vrednostni bon";
+  return mode === "SERVICE" ? "Service gift voucher" : "Value voucher";
 };
 
 const CARD_MEMBERSHIP_ICON_TONES = [
@@ -744,6 +779,7 @@ export const CardsMembershipsSection = forwardRef<
     setGuestProductForm({
       ...base,
       sessionTypeId: firstSessionTypeId,
+      voucherSessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
       transactionServiceId: activeTransactionServices[0]
         ? String(activeTransactionServices[0].id)
         : "",
@@ -795,6 +831,22 @@ export const CardsMembershipsSection = forwardRef<
           includedCourseIds: Array.isArray(product.includedCourseIds)
             ? product.includedCourseIds.map(String)
             : [],
+          voucherRedemptionMode:
+            product.productType === "GIFT_CARD"
+              ? product.voucherRedemptionMode || "VALUE"
+              : "SERVICE",
+          voucherServiceScope:
+            product.productType === "GIFT_CARD"
+              ? product.voucherServiceScope || "ALL_SERVICES"
+              : "SELECTED_SERVICES",
+          voucherFaceValueGross:
+            product.productType === "GIFT_CARD"
+              ? Number(product.voucherFaceValueGross ?? product.priceGross ?? 0).toFixed(2)
+              : "0.00",
+          voucherSessionTypeIds:
+            product.productType === "GIFT_CARD" && Array.isArray(product.voucherSessionTypeIds)
+              ? product.voucherSessionTypeIds.map(String)
+              : [],
         },
         product.productType === "CLASS_TICKET" ? "PACK" : product.productType,
       ),
@@ -1008,8 +1060,8 @@ export const CardsMembershipsSection = forwardRef<
     if (isGiftCard && !giftCardsEnabled) {
       window.alert(
         locale === "sl"
-          ? "Darilni boni so izklopljeni v App nastavitvah."
-          : "Gift cards are disabled in App settings.",
+          ? "Boni so izklopljeni v App nastavitvah."
+          : "Vouchers are disabled in App settings.",
       );
       return;
     }
@@ -1047,11 +1099,38 @@ export const CardsMembershipsSection = forwardRef<
       ? Number.parseInt(guestProductForm.transactionServiceId, 10)
       : null;
     if (isGiftCard && !validityDays) {
-      window.alert(locale === "sl" ? "Darilni bon mora imeti določeno veljavnost." : "Gift cards must have an expiry date.");
+      window.alert(locale === "sl" ? "Bon mora imeti določeno veljavnost." : "Vouchers must have an expiry date.");
       return;
     }
     if (isGiftCard && (!transactionServiceId || transactionServiceId <= 0)) {
-      window.alert(locale === "sl" ? "Darilni bon mora biti povezan z obračunsko storitvijo." : "Gift cards must be linked to a transaction service.");
+      window.alert(locale === "sl" ? "Bon mora biti povezan z obračunsko storitvijo." : "Vouchers must be linked to a transaction service.");
+      return;
+    }
+    if (
+      isGiftCard &&
+      guestProductForm.voucherServiceScope === "SELECTED_SERVICES" &&
+      guestProductForm.voucherSessionTypeIds.length === 0
+    ) {
+      window.alert(
+        locale === "sl"
+          ? "Pri možnosti »Izbrane storitve« izberite vsaj eno storitev."
+          : "Select at least one service when using the selected-services scope.",
+      );
+      return;
+    }
+    const voucherFaceValueGross = Number.parseFloat(
+      guestProductForm.voucherFaceValueGross.replace(",", "."),
+    );
+    if (
+      isGiftCard &&
+      guestProductForm.voucherRedemptionMode === "VALUE" &&
+      (!Number.isFinite(voucherFaceValueGross) || voucherFaceValueGross <= 0)
+    ) {
+      window.alert(
+        locale === "sl"
+          ? "Vrednostni bon mora imeti vrednost večjo od 0."
+          : "A value voucher must have a value greater than 0.",
+      );
       return;
     }
     if (isCourseAccess && !guestProductForm.sessionTypeId.trim()) {
@@ -1096,6 +1175,22 @@ export const CardsMembershipsSection = forwardRef<
           ? Number.parseInt(guestProductForm.sessionTypeId, 10)
           : null,
       transactionServiceId: isGiftCard ? transactionServiceId : null,
+      voucherRedemptionMode: isGiftCard
+        ? guestProductForm.voucherRedemptionMode
+        : null,
+      voucherServiceScope: isGiftCard
+        ? guestProductForm.voucherServiceScope
+        : null,
+      voucherFaceValueGross:
+        isGiftCard && guestProductForm.voucherRedemptionMode === "VALUE"
+          ? voucherFaceValueGross
+          : null,
+      voucherSessionTypeIds:
+        isGiftCard && guestProductForm.voucherServiceScope === "SELECTED_SERVICES"
+          ? guestProductForm.voucherSessionTypeIds
+              .map((id) => Number.parseInt(id, 10))
+              .filter((id) => Number.isFinite(id))
+          : [],
       includedCourseIds:
         coursesEnabled &&
         (guestProductForm.productType === "MEMBERSHIP" ||
@@ -1208,6 +1303,22 @@ export const CardsMembershipsSection = forwardRef<
           product.productType === "GIFT_CARD"
             ? (product.transactionServiceId ?? null)
             : null,
+        voucherRedemptionMode:
+          product.productType === "GIFT_CARD"
+            ? (product.voucherRedemptionMode || "VALUE")
+            : null,
+        voucherServiceScope:
+          product.productType === "GIFT_CARD"
+            ? (product.voucherServiceScope || "ALL_SERVICES")
+            : null,
+        voucherFaceValueGross:
+          product.productType === "GIFT_CARD" && (product.voucherRedemptionMode || "VALUE") === "VALUE"
+            ? (product.voucherFaceValueGross ?? product.priceGross)
+            : null,
+        voucherSessionTypeIds:
+          product.productType === "GIFT_CARD" && (product.voucherServiceScope || "ALL_SERVICES") === "SELECTED_SERVICES"
+            ? (product.voucherSessionTypeIds || [])
+            : [],
         includedCourseIds:
           product.productType === "MEMBERSHIP" ||
           product.productType === "COURSE"
@@ -1249,7 +1360,7 @@ export const CardsMembershipsSection = forwardRef<
         p.validityDays != null ? `${p.validityDays} days` : "no expiry";
       const hay = [
         p.name,
-        productTypeLabel(p.productType),
+        productDisplayTypeLabel(p, locale),
         p.sessionTypeName || "",
         guestProductTransactionServiceLabel(p),
         String(p.priceGross),
@@ -1271,6 +1382,7 @@ export const CardsMembershipsSection = forwardRef<
     activeFilter,
     coursesEnabled,
     giftCardsEnabled,
+    locale,
   ]);
 
   useEffect(() => {
@@ -1389,7 +1501,7 @@ export const CardsMembershipsSection = forwardRef<
                 <div className="clients-mobile-meta">
                   <div>
                     <span>{t("sessionTypesCardsColType")}</span>
-                    <strong>{productTypeLabel(product.productType, locale)}</strong>
+                    <strong>{productDisplayTypeLabel(product, locale)}</strong>
                   </div>
                   <div>
                     <span>{t("sessionTypesCardsColServiceType")}</span>
@@ -1484,7 +1596,7 @@ export const CardsMembershipsSection = forwardRef<
                       />
                     </td>
                     <td className="clients-muted service-config-category-cell">
-                      {productTypeLabel(product.productType, locale)}
+                      {productDisplayTypeLabel(product, locale)}
                     </td>
                     <td className="clients-muted service-config-category-cell">
                       {includedCoursesLabel(product, locale)}
@@ -1670,6 +1782,126 @@ export const CardsMembershipsSection = forwardRef<
                   ))}
                 </select>
               </Field>
+              {guestProductForm.productType === "GIFT_CARD" && (
+                <>
+                  <Field
+                    label={locale === "sl" ? "Način unovčenja *" : "Redemption mode *"}
+                    hint={
+                      locale === "sl"
+                        ? "Za storitev ustvari darilni bon; po vrednosti ustvari vrednostni bon."
+                        : "Service creates a service gift voucher; value creates a monetary voucher."
+                    }
+                  >
+                    <div className="cards-product-toggle cards-product-voucher-mode-toggle">
+                      <button
+                        type="button"
+                        className={`cards-product-toggle-btn${guestProductForm.voucherRedemptionMode === "SERVICE" ? " active" : ""}`}
+                        onClick={() =>
+                          setGuestProductForm((current) => ({
+                            ...current,
+                            voucherRedemptionMode: "SERVICE",
+                            voucherFaceValueGross: current.voucherFaceValueGross || current.priceGross,
+                          }))
+                        }
+                      >
+                        {locale === "sl" ? "Za storitev" : "Service"}
+                      </button>
+                      <button
+                        type="button"
+                        className={`cards-product-toggle-btn${guestProductForm.voucherRedemptionMode === "VALUE" ? " active" : ""}`}
+                        onClick={() =>
+                          setGuestProductForm((current) => ({
+                            ...current,
+                            voucherRedemptionMode: "VALUE",
+                            voucherFaceValueGross:
+                              !current.voucherFaceValueGross || Number(current.voucherFaceValueGross) <= 0
+                                ? current.priceGross
+                                : current.voucherFaceValueGross,
+                          }))
+                        }
+                      >
+                        {locale === "sl" ? "Po vrednosti" : "By value"}
+                      </button>
+                    </div>
+                  </Field>
+                  <Field
+                    label={locale === "sl" ? "Velja za *" : "Valid for *"}
+                    hint={
+                      locale === "sl"
+                        ? "Določite, ali se bon lahko uporabi za vse ali samo izbrane storitve."
+                        : "Choose whether the voucher can be used for all or only selected services."
+                    }
+                  >
+                    <select
+                      value={guestProductForm.voucherServiceScope}
+                      onChange={(e) => {
+                        const scope = e.target.value as VoucherServiceScope;
+                        setGuestProductForm((current) => ({
+                          ...current,
+                          voucherServiceScope: scope,
+                          voucherSessionTypeIds:
+                            scope === "SELECTED_SERVICES" && current.voucherSessionTypeIds.length === 0 && sessionTypes[0]
+                              ? [String(sessionTypes[0].id)]
+                              : current.voucherSessionTypeIds,
+                        }));
+                      }}
+                    >
+                      <option value="ALL_SERVICES">
+                        {locale === "sl" ? "Vse storitve" : "All services"}
+                      </option>
+                      <option value="SELECTED_SERVICES">
+                        {locale === "sl" ? "Izbrane storitve" : "Selected services"}
+                      </option>
+                    </select>
+                  </Field>
+                  {guestProductForm.voucherServiceScope === "SELECTED_SERVICES" && (
+                    <Field
+                      label={locale === "sl" ? "Storitve *" : "Services *"}
+                      hint={
+                        guestProductForm.voucherRedemptionMode === "SERVICE"
+                          ? locale === "sl"
+                            ? "Darilni bon se unovči enkrat za eno od izbranih storitev."
+                            : "The gift voucher is redeemed once for one of the selected services."
+                          : locale === "sl"
+                            ? "Vrednost bona se lahko porablja samo za izbrane storitve."
+                            : "The voucher balance can only be used for the selected services."
+                      }
+                    >
+                      <div className="cards-product-voucher-services">
+                        {sessionTypes.map((sessionType) => {
+                          const id = String(sessionType.id);
+                          const checked = guestProductForm.voucherSessionTypeIds.includes(id);
+                          return (
+                            <label
+                              key={sessionType.id}
+                              className={`cards-product-voucher-service-option${checked ? " is-selected" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) =>
+                                  setGuestProductForm((current) => ({
+                                    ...current,
+                                    voucherSessionTypeIds: e.target.checked
+                                      ? Array.from(new Set([...current.voucherSessionTypeIds, id]))
+                                      : current.voucherSessionTypeIds.filter((value) => value !== id),
+                                  }))
+                                }
+                              />
+                              <span>{sessionType.name}</span>
+                            </label>
+                          );
+                        })}
+                        {sessionTypes.length === 0 && (
+                          <span className="muted">
+                            {locale === "sl" ? "Ni razpoložljivih storitev." : "No services available."}
+                          </span>
+                        )}
+                      </div>
+                    </Field>
+                  )}
+                </>
+              )}
               {guestProductForm.productType === "COURSE" && !coursesEnabled && (
                 <p className="muted cards-product-modal-note full-span">
                   {locale === "sl"
@@ -1709,10 +1941,17 @@ export const CardsMembershipsSection = forwardRef<
                       )
                     )
                       return;
-                    setGuestProductForm({
-                      ...guestProductForm,
-                      priceGross: e.target.value,
-                    });
+                    const nextPrice = e.target.value;
+                    setGuestProductForm((current) => ({
+                      ...current,
+                      priceGross: nextPrice,
+                      voucherFaceValueGross:
+                        current.productType === "GIFT_CARD" &&
+                        current.voucherRedemptionMode === "VALUE" &&
+                        (current.voucherFaceValueGross === current.priceGross || Number(current.voucherFaceValueGross) <= 0)
+                          ? nextPrice
+                          : current.voucherFaceValueGross,
+                    }));
                   }}
                 />
               </Field>
@@ -1728,6 +1967,31 @@ export const CardsMembershipsSection = forwardRef<
                   }
                 />
               </Field>
+              {guestProductForm.productType === "GIFT_CARD" && guestProductForm.voucherRedemptionMode === "VALUE" && (
+                <Field
+                  label={locale === "sl" ? "Vrednost bona *" : "Voucher value *"}
+                  hint={
+                    locale === "sl"
+                      ? "Denarno dobroimetje ob izdaji bona. Privzeto je enako prodajni ceni."
+                      : "Monetary balance issued with the voucher. Defaults to the selling price."
+                  }
+                >
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value={guestProductForm.voucherFaceValueGross}
+                    onChange={(e) =>
+                      setGuestProductForm({
+                        ...guestProductForm,
+                        voucherFaceValueGross: e.target.value,
+                      })
+                    }
+                  />
+                </Field>
+              )}
+              {guestProductForm.productType !== "GIFT_CARD" && (
               <Field
                 label={
                   guestProductForm.productType === "PACK" ||
@@ -1737,11 +2001,7 @@ export const CardsMembershipsSection = forwardRef<
                     : locale === "sl" ? "Storitev" : "Service type"
                 }
                 hint={
-                  guestProductForm.productType === "GIFT_CARD"
-                    ? locale === "sl"
-                      ? "Darilni boni so namesto tega povezani z obračunsko storitvijo."
-                      : "Gift cards are linked to a transaction service instead."
-                    : guestProductForm.productType === "CLASS_TICKET"
+                  guestProductForm.productType === "CLASS_TICKET"
                       ? locale === "sl"
                         ? "Obvezno. Cena je izračunana iz povezanih obračunskih storitev te storitve."
                         : "Required. Price is derived from linked transaction services on this type."
@@ -1759,7 +2019,6 @@ export const CardsMembershipsSection = forwardRef<
                 }
               >
                 <select
-                  disabled={guestProductForm.productType === "GIFT_CARD"}
                   required={
                     guestProductForm.productType === "CLASS_TICKET" ||
                     guestProductForm.productType === "PACK" ||
@@ -1773,8 +2032,7 @@ export const CardsMembershipsSection = forwardRef<
                     })
                   }
                 >
-                  {(guestProductForm.productType === "MEMBERSHIP" ||
-                    guestProductForm.productType === "GIFT_CARD") && (
+                  {guestProductForm.productType === "MEMBERSHIP" && (
                     <option value="">
                       {locale === "sl" ? "Vse storitve" : "Any service type"}
                     </option>
@@ -1793,10 +2051,11 @@ export const CardsMembershipsSection = forwardRef<
                   ))}
                 </select>
               </Field>
+              )}
               {guestProductForm.productType === "GIFT_CARD" && (
                 <Field
                   label={locale === "sl" ? "Obračunska storitev *" : "Transaction service *"}
-                  hint={locale === "sl" ? "Uporabi se kot postavka računa ob nakupu darilnega bona." : "Used as the invoice line when a guest buys this gift card."}
+                  hint={locale === "sl" ? "Uporabi se kot postavka računa ob nakupu bona." : "Used as the invoice line when a guest buys this voucher."}
                 >
                   <select
                     required
@@ -1820,7 +2079,7 @@ export const CardsMembershipsSection = forwardRef<
               {guestProductForm.productType === "GIFT_CARD" &&
                 activeTransactionServices.length === 0 && (
                   <p className="muted cards-product-modal-note">
-                    {locale === "sl" ? "Pred ustvarjanjem darilnega bona ustvarite aktivno obračunsko storitev v " : "Create an active transaction service in "}
+                    {locale === "sl" ? "Pred ustvarjanjem bona ustvarite aktivno obračunsko storitev v " : "Create an active transaction service in "}
                     <Link
                       to={`/session-types?subtab=${SESSION_TYPES_SUBTAB_TRANSACTION}`}
                       className="linkish-btn"
@@ -1828,7 +2087,7 @@ export const CardsMembershipsSection = forwardRef<
                     >
                       {locale === "sl" ? "Obračunskih storitvah" : "Transaction services"}
                     </Link>
-                    {locale === "sl" ? "." : " before creating gift cards."}
+                    {locale === "sl" ? "." : " before creating vouchers."}
                   </p>
                 )}
               {guestProductTypeUsesAutoPrice(guestProductForm.productType) &&
@@ -1875,7 +2134,7 @@ export const CardsMembershipsSection = forwardRef<
                   }
                   hint={
                     guestProductForm.productType === "GIFT_CARD"
-                      ? locale === "sl" ? "Obvezno za darilne bone." : "Required for gift cards."
+                      ? locale === "sl" ? "Obvezno za bone." : "Required for vouchers."
                       : locale === "sl" ? "Pustite prazno za neomejeno veljavnost." : "Leave empty for no expiry."
                   }
                 >
