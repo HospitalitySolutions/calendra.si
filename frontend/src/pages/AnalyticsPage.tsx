@@ -4,8 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -138,7 +136,7 @@ type ConsultantOption = { id: number; firstName: string; lastName: string; consu
 type SpaceOption = { id: number; name: string }
 type TypeOption = { id: number; name: string; description?: string | null; internalDescription?: string | null; serviceGroupId?: number | null; serviceGroupName?: string | null }
 type ServiceGroupOption = { id: number; name: string; active: boolean; sortOrder: number; serviceCount: number }
-type Preset = 'day' | '7d' | 'month' | 'year' | 'custom'
+type Preset = 'day' | '7d' | 'month' | 'quarter' | 'year' | 'custom'
 type ActivityChartRow = {
   label: string
   sessionsTotal: number
@@ -154,6 +152,13 @@ type RevenueChartRow = {
   consultantHours?: number
 }
 
+function toIsoDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function csvEscape(value: string | number) {
   const raw = String(value ?? '')
   if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
@@ -162,85 +167,7 @@ function csvEscape(value: string | number) {
   return raw
 }
 
-function RankingCard({
-  title,
-  subtitle,
-  items,
-  valueFormatter,
-  countLabel,
-}: {
-  title: string
-  subtitle: string
-  items: RankedAmount[]
-  valueFormatter: (value: number) => string
-  countLabel: string
-}) {
-  return (
-    <Card className="analytics-ranking-card">
-      <div className="analytics-card-heading">
-        <h3>{title}</h3>
-        <p>{subtitle}</p>
-      </div>
-      {items.length === 0 ? (
-        <div className="muted analytics-ranking-empty">—</div>
-      ) : (
-        <div className="analytics-ranking-list">
-          {items.map((item, index) => (
-            <div key={`${title}-${item.label}-${index}`} className="analytics-ranking-row">
-              <div>
-                <span className="analytics-ranking-index">#{index + 1}</span>
-                <strong>{item.label}</strong>
-                <span>{item.count} {countLabel}</span>
-              </div>
-              <div className="analytics-ranking-value">{valueFormatter(Number(item.amount || 0))}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-function SpaceRankingCard({
-  title,
-  subtitle,
-  items,
-  minutesFormatter,
-  sessionsLabel,
-}: {
-  title: string
-  subtitle: string
-  items: UsageRanking[]
-  minutesFormatter: (value: number) => string
-  sessionsLabel: string
-}) {
-  return (
-    <Card className="analytics-ranking-card">
-      <div className="analytics-card-heading">
-        <h3>{title}</h3>
-        <p>{subtitle}</p>
-      </div>
-      {items.length === 0 ? (
-        <div className="muted analytics-ranking-empty">—</div>
-      ) : (
-        <div className="analytics-ranking-list">
-          {items.map((item, index) => (
-            <div key={`${title}-${item.label}-${index}`} className="analytics-ranking-row">
-              <div>
-                <span className="analytics-ranking-index">#{index + 1}</span>
-                <strong>{item.label}</strong>
-                <span>{item.sessionsTotal} {sessionsLabel}</span>
-              </div>
-              <div className="analytics-ranking-value">{minutesFormatter(item.minutes)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-type AnalyticsMobileIconName = 'revenue' | 'bookings' | 'clients' | 'average' | 'calendar' | 'filter'
+type AnalyticsMobileIconName = 'revenue' | 'bookings' | 'clients' | 'activeClients' | 'cancellation' | 'average' | 'calendar' | 'filter'
 
 function AnalyticsMobileIcon({ name }: { name: AnalyticsMobileIconName }) {
   if (name === 'revenue') {
@@ -251,6 +178,12 @@ function AnalyticsMobileIcon({ name }: { name: AnalyticsMobileIconName }) {
   }
   if (name === 'clients') {
     return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>
+  }
+  if (name === 'activeClients') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M17 11h6M20 8v6"/><path d="M17 4.5a3.5 3.5 0 0 1 0 6.8"/></svg>
+  }
+  if (name === 'cancellation') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
   }
   if (name === 'average') {
     return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
@@ -278,6 +211,37 @@ function AnalyticsMobileKpiCard({
         <small className={trend?.startsWith('↓') ? 'is-negative' : trend ? 'is-positive' : ''}>
           {trend || '—'}
         </small>
+      </div>
+    </Card>
+  )
+}
+
+function AnalyticsDesktopKpiCard({
+  icon,
+  tone,
+  label,
+  value,
+  trend,
+  comparisonLabel,
+}: {
+  icon: AnalyticsMobileIconName
+  tone: 'blue' | 'green' | 'red' | 'purple' | 'amber'
+  label: string
+  value: string
+  trend: string | null
+  comparisonLabel: string
+}) {
+  const trendClass = trend?.startsWith('↓') ? 'is-negative' : trend ? 'is-positive' : 'is-neutral'
+  return (
+    <Card className="analytics-desktop-kpi-card">
+      <span className={`analytics-desktop-kpi-icon analytics-desktop-kpi-icon--${tone}`}>
+        <AnalyticsMobileIcon name={icon} />
+      </span>
+      <div className="analytics-desktop-kpi-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small className={trendClass}>{trend || '—'}</small>
+        <em>{comparisonLabel}</em>
       </div>
     </Card>
   )
@@ -648,6 +612,7 @@ export function AnalyticsPage() {
   const [expandedServiceGroups, setExpandedServiceGroups] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false)
 
   const text = ANALYTICS_COPY[toReportLanguage(locale)]
   const groupText = SERVICE_GROUP_ANALYTICS_COPY[toReportLanguage(locale)]
@@ -728,6 +693,14 @@ export function AnalyticsPage() {
       if (periodPreset === 'custom') {
         params.from = customFrom
         params.to = customTo
+      }
+      if (periodPreset === 'quarter') {
+        const today = new Date()
+        const quarterStart = new Date(today)
+        quarterStart.setMonth(quarterStart.getMonth() - 3)
+        params.period = 'custom'
+        params.from = toIsoDate(quarterStart)
+        params.to = toIsoDate(today)
       }
       if (consultantId) params.consultantId = Number(consultantId)
       if (spaceId) params.spaceId = Number(spaceId)
@@ -855,6 +828,27 @@ export function AnalyticsPage() {
     const sessions = safeNumber(activitySeries[index]?.sessionsTotal)
     return sessions > 0 ? safeNumber(point.revenueGross) / sessions : 0
   }))
+  const desktopActiveClientsTrend = mobileTrend(activitySeries.map((point) => safeNumber(point.clientsTotal)))
+  const cancellationRate = useMemo(() => {
+    const groups = data?.serviceGroups ?? []
+    const bookings = groups.reduce((sum, group) => sum + safeNumber(group.bookings), 0)
+    const cancellations = groups.reduce((sum, group) => sum + safeNumber(group.cancelled), 0)
+    return bookings > 0 ? cancellations / bookings : 0
+  }, [data?.serviceGroups])
+  const desktopComparisonLabel = locale === 'sl'
+    ? 'vs. prejšnje obdobje'
+    : locale === 'sr'
+      ? 'u odnosu na prethodni period'
+      : 'vs. previous period'
+  const cancellationRateLabel = locale === 'sl'
+    ? 'Stopnja odpovedi'
+    : locale === 'sr'
+      ? 'Stopa otkazivanja'
+      : 'Cancellation rate'
+  const revenueGrowthTitle = locale === 'sl' ? 'Rast prihodkov' : locale === 'sr' ? 'Rast prihoda' : 'Revenue growth'
+  const bookingsByServiceTitle = locale === 'sl' ? 'Rezervacije po storitvah' : locale === 'sr' ? 'Rezervacije po uslugama' : 'Bookings by service'
+  const busiestDaysTitle = locale === 'sl' ? 'Najbolj zasedeni dnevi' : locale === 'sr' ? 'Najzauzetiji dani' : 'Busiest days'
+  const occupancyByDayTitle = locale === 'sl' ? 'Zasedenost po dnevih' : locale === 'sr' ? 'Zauzetost po danima' : 'Occupancy by day'
 
   const mobileTopServices = useMemo(() => (data?.topServices ?? []).slice(0, 5), [data?.topServices])
   const mobileTopServicesTotal = useMemo(
@@ -952,7 +946,7 @@ export function AnalyticsPage() {
 
   return (
     <div className="stack gap-lg analytics-page">
-      <PageHeader title={text.title} subtitle={activeTab === 'overview' ? text.subtitle : undefined} />
+      <PageHeader title={text.title} />
 
       {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && isWorkspaceRolloutEnabled(me, 'WORKSPACE_ANALYTICS') && (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId && hasEmployeePermission(unit, 'REPORTS_ANALYTICS_VIEW')).length > 1 && (
         <div className="analytics-scope-switch" role="tablist">
@@ -980,20 +974,76 @@ export function AnalyticsPage() {
       </div>
 
       {activeTab === 'overview' && (<>
-      <Card className="analytics-hero">
-        <div className="analytics-hero__copy">
-          <span className="analytics-hero__eyebrow">{text.filtersTitle}</span>
-          <div className="analytics-hero__meta">
-            <strong>{text.heroRangePrefix}</strong>
-            <span>{rangeLabel || '—'}</span>
+      <Card className="analytics-desktop-control-card">
+        <div className="analytics-desktop-control-main">
+          <div className="analytics-desktop-range-control">
+            <span className="analytics-desktop-range-label">{text.heroRangePrefix}</span>
+            <button type="button" className="analytics-desktop-range-value" onClick={() => setDesktopFiltersOpen((value) => !value)} aria-expanded={desktopFiltersOpen}>
+              <AnalyticsMobileIcon name="calendar" />
+              <span>{rangeLabel || '—'}</span>
+              <span aria-hidden>⌄</span>
+            </button>
+          </div>
+
+          <div className="analytics-filter-group analytics-filter-group--desktop">
+            <button type="button" className={periodPreset === '7d' ? 'active' : ''} onClick={() => setPeriodPreset('7d')}>7D</button>
+            <button type="button" className={periodPreset === 'month' ? 'active' : ''} onClick={() => setPeriodPreset('month')}>1M</button>
+            <button type="button" className={periodPreset === 'quarter' ? 'active' : ''} onClick={() => setPeriodPreset('quarter')}>3M</button>
+            <button type="button" className={periodPreset === 'year' ? 'active' : ''} onClick={() => setPeriodPreset('year')}>1L</button>
+            <button type="button" className={periodPreset === 'custom' ? 'active' : ''} onClick={() => { setPeriodPreset('custom'); setDesktopFiltersOpen(true) }}>{text.custom}</button>
+          </div>
+
+          <div className="analytics-desktop-control-actions">
+            <button type="button" className="analytics-desktop-filter-icon" onClick={() => setDesktopFiltersOpen((value) => !value)} aria-label={text.filtersTitle} aria-expanded={desktopFiltersOpen}>
+              <AnalyticsMobileIcon name="filter" />
+            </button>
+            <button type="button" className="secondary analytics-desktop-export" onClick={exportCsv} disabled={!summary}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v11"/><path d="m8 10 4 4 4-4"/><path d="M5 18v2h14v-2"/></svg>
+              <span>{text.export}</span>
+            </button>
           </div>
         </div>
-        <div className="analytics-hero__actions">
-          <button type="button" className="secondary" onClick={exportCsv} disabled={!summary}>{text.export}</button>
-        </div>
+
+        {desktopFiltersOpen && (
+          <div className="analytics-desktop-advanced-filters">
+            {periodPreset === 'custom' && (
+              <div className="analytics-custom-range analytics-custom-range--desktop">
+                <label><span>{locale === 'sl' ? 'Od' : locale === 'sr' ? 'Od' : 'From'}</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} /></label>
+                <label><span>{locale === 'sl' ? 'Do' : locale === 'sr' ? 'Do' : 'To'}</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} /></label>
+              </div>
+            )}
+            <div className="analytics-select-filters analytics-select-filters--desktop">
+              {isAdmin && (
+                <select value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
+                  <option value="">{text.allConsultants}</option>
+                  {(filterData?.consultants ?? []).map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
+                </select>
+              )}
+              <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
+                <option value="">{text.allSpaces}</option>
+                {(filterData?.spaces ?? []).map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+              </select>
+              {serviceGroupsReportsEnabled && (
+                <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
+                  <option value="">{groupText.allGroups}</option>
+                  <option value="-1">{groupText.ungrouped}</option>
+                  {(filterData?.serviceGroups ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}{group.active ? '' : ` · ${groupText.inactive}`}</option>)}
+                </select>
+              )}
+              <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+                <option value="">{text.allTypes}</option>
+                {filteredTypeOptions.map((item) => {
+                  const visibleName = item.description || item.name
+                  const internalDescription = String(item.internalDescription || '').trim()
+                  return <option key={item.id} value={item.id}>{internalDescription ? `${visibleName} — ${internalDescription}` : visibleName}</option>
+                })}
+              </select>
+            </div>
+          </div>
+        )}
       </Card>
 
-      <Card className={`analytics-filter-card${mobileFiltersOpen ? ' analytics-filter-card--mobile-open' : ''}`}>
+      <Card className={`analytics-filter-card analytics-filter-card--mobile-only${mobileFiltersOpen ? ' analytics-filter-card--mobile-open' : ''}`}>
         <div className="analytics-mobile-filter-summary">
           <button type="button" className="analytics-mobile-date-chip" onClick={() => setMobileFiltersOpen((open) => !open)}>
             <AnalyticsMobileIcon name="calendar" />
@@ -1023,17 +1073,13 @@ export function AnalyticsPage() {
             )}
             <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
               <option value="">{text.allSpaces}</option>
-              {(filterData?.spaces ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {(filterData?.spaces ?? []).map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
             </select>
             {serviceGroupsReportsEnabled && (
               <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
                 <option value="">{groupText.allGroups}</option>
                 <option value="-1">{groupText.ungrouped}</option>
-                {(filterData?.serviceGroups ?? []).map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}{group.active ? '' : ` · ${groupText.inactive}`}
-                  </option>
-                ))}
+                {(filterData?.serviceGroups ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}{group.active ? '' : ` · ${groupText.inactive}`}</option>)}
               </select>
             )}
             <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
@@ -1155,255 +1201,179 @@ export function AnalyticsPage() {
             </Card>
           </div>
 
-          <div className="analytics-desktop-overview">
-            <div className="analytics-kpis analytics-kpis--modern">
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiSessions}</span><strong>{summary.sessionsTotal}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiRevenue}</span><strong>{revenueFormatter(summary.revenueGross)}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiNewClients}</span><strong>{summary.newClients}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiActiveClients}</span><strong>{summary.clientsTotal}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiOnlineShare}</span><strong>{percentFormatter(onlineShare)}</strong></Card>
-            <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiAvgRevenue}</span><strong>{revenueFormatter(avgRevenuePerSession)}</strong></Card>
-          </div>
+          <div className="analytics-desktop-overview" data-onboarding-panel="analytics">
+            <div className="analytics-desktop-kpi-grid">
+              <AnalyticsDesktopKpiCard icon="bookings" tone="blue" label={text.kpiSessions} value={String(summary.sessionsTotal)} trend={mobileBookingsTrend} comparisonLabel={desktopComparisonLabel} />
+              <AnalyticsDesktopKpiCard icon="revenue" tone="green" label={text.kpiRevenue} value={revenueFormatter(summary.revenueGross)} trend={mobileRevenueTrend} comparisonLabel={desktopComparisonLabel} />
+              <AnalyticsDesktopKpiCard icon="clients" tone="red" label={text.kpiNewClients} value={String(summary.newClients)} trend={mobileNewClientsTrend} comparisonLabel={desktopComparisonLabel} />
+              <AnalyticsDesktopKpiCard icon="activeClients" tone="green" label={text.kpiActiveClients} value={String(summary.clientsTotal)} trend={desktopActiveClientsTrend} comparisonLabel={desktopComparisonLabel} />
+              <AnalyticsDesktopKpiCard icon="cancellation" tone="purple" label={cancellationRateLabel} value={`${new Intl.NumberFormat(appLocaleTag, { maximumFractionDigits: 1 }).format(cancellationRate * 100)} %`} trend={null} comparisonLabel={desktopComparisonLabel} />
+              <AnalyticsDesktopKpiCard icon="average" tone="amber" label={text.kpiAvgRevenue} value={revenueFormatter(avgRevenuePerSession)} trend={mobileAverageTrend} comparisonLabel={desktopComparisonLabel} />
+            </div>
 
-          <div className="analytics-grid analytics-grid--modern" data-onboarding-panel="analytics">
-            <Card className="analytics-chart-card analytics-chart-card--modern">
-              <div className="analytics-card-heading">
-                <h3>{text.sessionsTrendTitle}</h3>
-                <p>{text.sessionsTrendSubtitle}</p>
-              </div>
-              <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={220}
-                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
-                >
-                  <BarChart data={activitySeries}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-                    <YAxis allowDecimals={false} />
+            <div className="analytics-desktop-primary-grid">
+              <Card className="analytics-desktop-panel analytics-desktop-revenue-panel">
+                <div className="analytics-desktop-panel-heading">
+                  <h3>{revenueGrowthTitle}</h3>
+                </div>
+                <div className="analytics-desktop-revenue-chart">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={230} debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}>
+                    <AreaChart data={revenueSeries} margin={{ top: 12, right: 12, left: -10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="analyticsDesktopRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#1672f3" stopOpacity={0.18} />
+                          <stop offset="100%" stopColor="#1672f3" stopOpacity={0.015} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#e8eef6" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#728096' }} axisLine={false} tickLine={false} minTickGap={14} />
+                      <YAxis tick={{ fontSize: 11, fill: '#728096' }} axisLine={false} tickLine={false} width={54} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k €`} />
+                      <Tooltip formatter={(value) => revenueFormatter(value as number)} />
+                      <Area {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="revenueGross" stroke="#1672f3" strokeWidth={3} dot={{ r: 3.3, fill: '#fff', stroke: '#1672f3', strokeWidth: 2.2 }} activeDot={{ r: 5 }} fill="url(#analyticsDesktopRevenueFill)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="analytics-desktop-panel analytics-desktop-donut-panel">
+                <div className="analytics-desktop-panel-heading"><h3>{bookingsByServiceTitle}</h3></div>
+                <div className="analytics-desktop-donut-content">
+                  <div className="analytics-desktop-donut" style={{ background: mobileServiceDonut }}>
+                    <span>
+                      <strong>{mobileTopServicesTotal}</strong>
+                      <small>{locale === 'sl' ? 'rezervacij' : locale === 'sr' ? 'rezervacija' : 'bookings'}</small>
+                    </span>
+                  </div>
+                  <div className="analytics-desktop-donut-legend">
+                    {mobileTopServices.length === 0 ? <span className="muted">—</span> : mobileTopServices.map((item, index) => (
+                      <div key={`desktop-service-${item.label}-${index}`}>
+                        <i style={{ background: MOBILE_ANALYTICS_PALETTE[index % MOBILE_ANALYTICS_PALETTE.length] }} />
+                        <span>{item.label}</span>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="analytics-desktop-panel analytics-desktop-days-panel">
+                <div className="analytics-desktop-panel-heading"><h3>{busiestDaysTitle}</h3></div>
+                <div className="analytics-desktop-day-list">
+                  {mobileBusiestDays.length === 0 ? <span className="muted">—</span> : mobileBusiestDays.map((item) => (
+                    <div key={`desktop-day-${item.dayKey}`}>
+                      <span>{item.label}</span>
+                      <i><b style={{ width: `${Math.max(7, (item.sessionsTotal / mobileBusiestDayMax) * 100)}%` }} /></i>
+                      <strong>{item.sessionsTotal}</strong>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <Card className="analytics-desktop-panel analytics-desktop-occupancy-panel">
+              <div className="analytics-desktop-panel-heading"><h3>{occupancyByDayTitle}</h3></div>
+              <div className="analytics-desktop-occupancy-chart">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={190} debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}>
+                  <LineChart data={weeklyOpsSeries} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="#e8eef6" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10.5, fill: '#728096' }} axisLine={false} tickLine={false} minTickGap={14} />
+                    <YAxis tick={{ fontSize: 10.5, fill: '#728096' }} axisLine={false} tickLine={false} width={42} />
                     <Tooltip />
-                    <Legend />
-                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="sessionsTotal" name={text.sessionsLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
-                    {isComparison ? (
-                      <>
-                        <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="clientsTotal" name={text.activeClientsLabel} stroke="#22c55e" strokeWidth={2.5} dot={false} />
-                        <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="newClients" name={text.newClientsLabel} stroke="#f59e0b" strokeWidth={2.5} dot={false} />
-                      </>
-                    ) : (
-                      <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.5} dot={false} />
-                    )}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card className="analytics-chart-card analytics-chart-card--modern">
-              <div className="analytics-card-heading">
-                <h3>{text.revenueTrendTitle}</h3>
-                <p>{text.revenueTrendSubtitle}</p>
-              </div>
-              <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={220}
-                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
-                >
-                  <LineChart data={revenueSeries}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-                    <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-                    <Tooltip formatter={(v) => revenueFormatter(v as number)} />
-                    <Legend />
-                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="revenueGross" name={text.grossLabel} stroke="#3b82f6" strokeWidth={2.8} dot={false} />
-                    {isComparison ? (
-                      <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="revenueNet" name="Net" stroke="#f97316" strokeWidth={2.4} dot={false} />
-                    ) : (
-                      <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.2} dot={false} />
-                    )}
+                    <Legend iconType="line" wrapperStyle={{ fontSize: 12, paddingTop: 6 }} />
+                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="sessionsTotal" name={text.sessionsLabel} stroke="#1672f3" strokeWidth={2.4} dot={{ r: 2.6, fill: '#fff', strokeWidth: 1.8 }} />
+                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="spaceHours" name={text.spaceHoursLabel} stroke="#f5a000" strokeWidth={2.2} dot={{ r: 2.4, fill: '#fff', strokeWidth: 1.6 }} />
+                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#17a95b" strokeWidth={2.2} dot={{ r: 2.4, fill: '#fff', strokeWidth: 1.6 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </Card>
 
-            <Card className="analytics-chart-card analytics-chart-card--modern">
-              <div className="analytics-card-heading">
-                <h3>{text.weekdayLoadTitle}</h3>
-                <p>{text.weekdayLoadSubtitle}</p>
+            {serviceGroupsReportsEnabled && <Card className="analytics-service-groups-card analytics-service-groups-card--preview">
+              <div className="analytics-card-heading analytics-service-groups-card__heading">
+                <div>
+                  <h3>{groupText.title}</h3>
+                  <p>{groupText.subtitle}</p>
+                </div>
               </div>
-              <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={220}
-                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
-                >
-                  <BarChart data={weekdaySeries}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(v) => `${v} h`} />
-                    <Legend />
-                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="consultantHours" name={text.consultantHoursLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
-                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="spaceHours" name={text.spaceHoursLabel} fill="#22c55e" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card className="analytics-chart-card analytics-chart-card--modern">
-              <div className="analytics-card-heading">
-                <h3>{text.weeklyOpsTitle}</h3>
-                <p>{text.weeklyOpsSubtitle}</p>
-              </div>
-              <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={220}
-                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
-                >
-                  <BarChart data={weeklyOpsSeries}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(value, name) => name === text.revenueLabel ? revenueFormatter(value as number) : value} />
-                    <Legend />
-                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="sessionsTotal" name={text.sessionsLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
-                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.2} dot={false} />
-                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="spaceHours" name={text.spaceHoursLabel} stroke="#f59e0b" strokeWidth={2.2} dot={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </div>
-
-          {serviceGroupsReportsEnabled && <Card className="analytics-service-groups-card">
-            <div className="analytics-card-heading analytics-service-groups-card__heading">
-              <div>
-                <h3>{groupText.title}</h3>
-                <p>{groupText.subtitle}</p>
-              </div>
-            </div>
-            {data.serviceGroups.length === 0 ? (
-              <div className="muted analytics-ranking-empty">{groupText.noData}</div>
-            ) : (
-              <div className="analytics-service-groups-table-wrap">
-                <table className="analytics-service-groups-table">
-                  <thead>
-                    <tr>
-                      <th>{groupText.group}</th>
-                      <th>{groupText.bookings}</th>
-                      <th>{groupText.completed}</th>
-                      <th>{groupText.cancelledNoShow}</th>
-                      <th>{groupText.revenue}</th>
-                      <th>{groupText.bookedTime}</th>
-                      {waitlistReportsEnabled && <th>{groupText.waitlistRequests}</th>}
-                      {waitlistReportsEnabled && <th>{groupText.offers}</th>}
-                      {waitlistReportsEnabled && <th>{groupText.accepted}</th>}
-                      {waitlistReportsEnabled && <th>{groupText.conversion}</th>}
-                      <th aria-label={groupText.services} />
-                    </tr>
-                  </thead>
-                  {data.serviceGroups.map((group) => {
-                    const key = serviceGroupMetricKey(group)
-                    const expanded = expandedServiceGroups.has(key)
-                    return (
-                      <tbody key={key}>
-                        <tr className="analytics-service-group-row">
-                          <td>
-                            <div className="analytics-service-group-name">
-                              <strong>{group.serviceGroupName}</strong>
-                              {!group.active && group.serviceGroupId != null && (
-                                <span className="analytics-service-group-status">{groupText.inactive}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td>{group.bookings}</td>
-                          <td>{group.completed}</td>
-                          <td>{group.cancelled + group.noShows}</td>
-                          <td>{revenueFormatter(group.revenueGross)}</td>
-                          <td>{minutesFormatter(group.bookedMinutes)}</td>
-                          {waitlistReportsEnabled && <td>{group.waitlistRequests}</td>}
-                          {waitlistReportsEnabled && <td>{group.waitlistOffers}</td>}
-                          {waitlistReportsEnabled && <td>{group.acceptedOffers}</td>}
-                          {waitlistReportsEnabled && <td>{safeNumber(group.waitlistConversionRate).toFixed(1)}%</td>}
-                          <td>
-                            <button
-                              type="button"
-                              className="analytics-service-group-toggle secondary"
-                              onClick={() => setExpandedServiceGroups((current) => {
-                                const next = new Set(current)
-                                if (next.has(key)) next.delete(key)
-                                else next.add(key)
-                                return next
-                              })}
-                              disabled={group.services.length === 0}
-                              aria-expanded={expanded}
-                            >
-                              {expanded ? groupText.hideServices : `${groupText.showServices} (${group.services.length})`}
-                            </button>
-                          </td>
-                        </tr>
-                        {expanded && group.services.map((service) => (
-                          <tr key={`${key}:${service.serviceId ?? service.serviceName}`} className="analytics-service-row">
-                            <td><span>↳</span> {service.serviceName}</td>
-                            <td>{service.bookings}</td>
-                            <td>{service.completed}</td>
-                            <td>{service.cancelled + service.noShows}</td>
-                            <td>{revenueFormatter(service.revenueGross)}</td>
-                            <td>{minutesFormatter(service.bookedMinutes)}</td>
-                            {waitlistReportsEnabled && <td>{service.waitlistRequests}</td>}
-                            {waitlistReportsEnabled && <td>{service.waitlistOffers}</td>}
-                            {waitlistReportsEnabled && <td>{service.acceptedOffers}</td>}
-                            {waitlistReportsEnabled && <td>{safeNumber(service.waitlistConversionRate).toFixed(1)}%</td>}
-                            <td />
+              {data.serviceGroups.length === 0 ? (
+                <div className="muted analytics-ranking-empty">{groupText.noData}</div>
+              ) : (
+                <div className="analytics-service-groups-table-wrap">
+                  <table className="analytics-service-groups-table">
+                    <thead>
+                      <tr>
+                        <th>{groupText.group}</th>
+                        <th>{groupText.bookings}</th>
+                        <th>{groupText.completed}</th>
+                        <th>{groupText.cancelledNoShow}</th>
+                        <th>{groupText.revenue}</th>
+                        <th>{groupText.bookedTime}</th>
+                        {waitlistReportsEnabled && <th>{groupText.waitlistRequests}</th>}
+                        {waitlistReportsEnabled && <th>{groupText.offers}</th>}
+                        {waitlistReportsEnabled && <th>{groupText.accepted}</th>}
+                        {waitlistReportsEnabled && <th>{groupText.conversion}</th>}
+                        <th aria-label={groupText.services} />
+                      </tr>
+                    </thead>
+                    {data.serviceGroups.map((group) => {
+                      const key = serviceGroupMetricKey(group)
+                      const expanded = expandedServiceGroups.has(key)
+                      return (
+                        <tbody key={key}>
+                          <tr className="analytics-service-group-row">
+                            <td>
+                              <div className="analytics-service-group-name">
+                                <strong>{group.serviceGroupName}</strong>
+                                {!group.active && group.serviceGroupId != null && <span className="analytics-service-group-status">{groupText.inactive}</span>}
+                              </div>
+                            </td>
+                            <td>{group.bookings}</td>
+                            <td>{group.completed}</td>
+                            <td>{group.cancelled + group.noShows}</td>
+                            <td>{revenueFormatter(group.revenueGross)}</td>
+                            <td>{minutesFormatter(group.bookedMinutes)}</td>
+                            {waitlistReportsEnabled && <td>{group.waitlistRequests}</td>}
+                            {waitlistReportsEnabled && <td>{group.waitlistOffers}</td>}
+                            {waitlistReportsEnabled && <td>{group.acceptedOffers}</td>}
+                            {waitlistReportsEnabled && <td>{safeNumber(group.waitlistConversionRate).toFixed(1)}%</td>}
+                            <td>
+                              <button
+                                type="button"
+                                className="analytics-service-group-toggle analytics-service-group-toggle--dots secondary"
+                                onClick={() => setExpandedServiceGroups((current) => {
+                                  const next = new Set(current)
+                                  if (next.has(key)) next.delete(key)
+                                  else next.add(key)
+                                  return next
+                                })}
+                                disabled={group.services.length === 0}
+                                aria-expanded={expanded}
+                                title={expanded ? groupText.hideServices : `${groupText.showServices} (${group.services.length})`}
+                              >•••</button>
+                            </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    )
-                  })}
-                </table>
-              </div>
-            )}
-          </Card>}
-
-          <div className="analytics-grid analytics-grid--modern analytics-grid--insights">
-            <RankingCard
-              title={text.topServicesTitle}
-              subtitle={text.topServicesSubtitle}
-              items={data.topServices}
-              valueFormatter={revenueFormatter}
-              countLabel={text.countUnits}
-            />
-            <RankingCard
-              title={text.topConsultantsTitle}
-              subtitle={text.topConsultantsSubtitle}
-              items={data.topConsultants}
-              valueFormatter={revenueFormatter}
-              countLabel={text.countBills}
-            />
-            <RankingCard
-              title={text.topClientsTitle}
-              subtitle={text.topClientsSubtitle}
-              items={data.topClients}
-              valueFormatter={revenueFormatter}
-              countLabel={text.countBills}
-            />
-            <SpaceRankingCard
-              title={text.topSpacesTitle}
-              subtitle={text.topSpacesSubtitle}
-              items={data.topSpaces}
-              minutesFormatter={minutesFormatter}
-              sessionsLabel={text.countSessions}
-            />
-
-          </div>
+                          {expanded && group.services.map((service) => (
+                            <tr key={`${key}:${service.serviceId ?? service.serviceName}`} className="analytics-service-row">
+                              <td><span>↳</span> {service.serviceName}</td>
+                              <td>{service.bookings}</td>
+                              <td>{service.completed}</td>
+                              <td>{service.cancelled + service.noShows}</td>
+                              <td>{revenueFormatter(service.revenueGross)}</td>
+                              <td>{minutesFormatter(service.bookedMinutes)}</td>
+                              {waitlistReportsEnabled && <td>{service.waitlistRequests}</td>}
+                              {waitlistReportsEnabled && <td>{service.waitlistOffers}</td>}
+                              {waitlistReportsEnabled && <td>{service.acceptedOffers}</td>}
+                              {waitlistReportsEnabled && <td>{safeNumber(service.waitlistConversionRate).toFixed(1)}%</td>}
+                              <td />
+                            </tr>
+                          ))}
+                        </tbody>
+                      )
+                    })}
+                  </table>
+                </div>
+              )}
+            </Card>}
           </div>
         </>
       )}

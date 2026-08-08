@@ -33,6 +33,21 @@ function ReportIcon() {
   )
 }
 
+type SecondaryReportKind = 'revenue' | 'bookings' | 'clients' | 'staff'
+
+function SecondaryReportIcon({ kind }: { kind: SecondaryReportKind }) {
+  if (kind === 'revenue') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 20V10M10 20V4M16 20v-7M22 20V7" /></svg>
+  }
+  if (kind === 'bookings') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+  }
+  if (kind === 'clients') {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  }
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+}
+
 function PdfIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -90,12 +105,29 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
     period: 'Obdobje izdaje', payment: 'Način plačila', allPayment: 'Vsi načini plačila', customer: 'Kupec', customerPlaceholder: 'Iskanje stranke ali podjetja…',
     tax: 'Davčna stopnja (DDV)', allTax: 'Vse stopnje', status: 'Status plačila', allStatus: 'Vsi statusi', paid: 'Plačano', open: 'Odprto / delno plačano', cancelled: 'Arhivirano',
     type: 'Vrsta računa', allTypes: 'Vse vrste', invoice: 'Račun', advance: 'Predplačilo', refund: 'Dobropis', number: 'Št. računa', numberPlaceholder: 'Npr. R-2026-0001', location: 'Poslovna enota / oznaka', allLocations: 'Vse poslovne enote',
-    reset: 'Ponastavi filtre', pdf: 'Prenesi PDF', excel: 'Prenesi Excel', exportHint: 'Prenos upošteva trenutno izbrane filtre.', disabled: 'Poročilo je na voljo, ko je Obračun vključen.', invalidDates: 'Končni datum ne sme biti pred začetnim.', exportFailed: 'Poročila ni bilo mogoče ustvariti.',
+    reset: 'Ponastavi filtre', pdf: 'Prenesi PDF', excel: 'Prenesi Excel', exportHint: 'Ponovno uporabite trenutno izbrane filtre.', disabled: 'Poročilo je na voljo, ko je Obračun vključen.', invalidDates: 'Končni datum ne sme biti pred začetnim.', exportFailed: 'Poročila ni bilo mogoče ustvariti.',
   } : sr ? {
-    intro: 'Izaberite izveštaj, podesite filtere i preuzmite ga u željenom formatu.', report: 'Izveštaj računa', subtitle: 'Spisak izdatih računa sa osnovicom, PDV-om po stopama, plaćanjima i ukupnim iznosima.', filters: 'Filteri izveštaja', period: 'Period izdavanja', payment: 'Način plaćanja', allPayment: 'Svi načini plaćanja', customer: 'Kupac', customerPlaceholder: 'Pretraga klijenta ili firme…', tax: 'Poreska stopa (PDV)', allTax: 'Sve stope', status: 'Status plaćanja', allStatus: 'Svi statusi', paid: 'Plaćeno', open: 'Otvoreno / delimično plaćeno', cancelled: 'Arhivirano', type: 'Vrsta računa', allTypes: 'Sve vrste', invoice: 'Račun', advance: 'Avans', refund: 'Storno', number: 'Br. računa', numberPlaceholder: 'Npr. R-2026-0001', location: 'Poslovna jedinica / oznaka', allLocations: 'Sve poslovne jedinice', reset: 'Resetuj filtere', pdf: 'Preuzmi PDF', excel: 'Preuzmi Excel', exportHint: 'Preuzimanje koristi trenutno izabrane filtere.', disabled: 'Izveštaj je dostupan kada je obračun uključen.', invalidDates: 'Krajnji datum ne može biti pre početnog.', exportFailed: 'Izveštaj nije moguće napraviti.',
+    intro: 'Izaberite izveštaj, podesite filtere i preuzmite ga u željenom formatu.', report: 'Izveštaj računa', subtitle: 'Spisak izdatih računa sa osnovicom, PDV-om po stopama, plaćanjima i ukupnim iznosima.', filters: 'Filteri izveštaja', period: 'Period izdavanja', payment: 'Način plaćanja', allPayment: 'Svi načini plaćanja', customer: 'Kupac', customerPlaceholder: 'Pretraga klijenta ili firme…', tax: 'Poreska stopa (PDV)', allTax: 'Sve stope', status: 'Status plaćanja', allStatus: 'Svi statusi', paid: 'Plaćeno', open: 'Otvoreno / delimično plaćeno', cancelled: 'Arhivirano', type: 'Vrsta računa', allTypes: 'Sve vrste', invoice: 'Račun', advance: 'Avans', refund: 'Storno', number: 'Br. računa', numberPlaceholder: 'Npr. R-2026-0001', location: 'Poslovna jedinica / oznaka', allLocations: 'Sve poslovne jedinice', reset: 'Resetuj filtere', pdf: 'Preuzmi PDF', excel: 'Preuzmi Excel', exportHint: 'Ponovo upotrebite trenutno izabrane filtere.', disabled: 'Izveštaj je dostupan kada je obračun uključen.', invalidDates: 'Krajnji datum ne može biti pre početnog.', exportFailed: 'Izveštaj nije moguće napraviti.',
   } : {
-    intro: 'Choose a report, set filters and download it in the required format.', report: 'Invoice report', subtitle: 'List of issued invoices with net basis, VAT by rate, payments and totals.', filters: 'Report filters', period: 'Issue period', payment: 'Payment method', allPayment: 'All payment methods', customer: 'Customer', customerPlaceholder: 'Search customer or company…', tax: 'Tax rate (VAT)', allTax: 'All rates', status: 'Payment status', allStatus: 'All statuses', paid: 'Paid', open: 'Open / partially paid', cancelled: 'Archived', type: 'Invoice type', allTypes: 'All types', invoice: 'Invoice', advance: 'Advance', refund: 'Credit note', number: 'Invoice no.', numberPlaceholder: 'E.g. R-2026-0001', location: 'Business unit / label', allLocations: 'All business units', reset: 'Reset filters', pdf: 'Download PDF', excel: 'Download Excel', exportHint: 'The download uses the currently selected filters.', disabled: 'This report is available when Billing is enabled.', invalidDates: 'The end date cannot be before the start date.', exportFailed: 'The report could not be generated.',
+    intro: 'Choose a report, set filters and download it in the required format.', report: 'Invoice report', subtitle: 'List of issued invoices with net basis, VAT by rate, payments and totals.', filters: 'Report filters', period: 'Issue period', payment: 'Payment method', allPayment: 'All payment methods', customer: 'Customer', customerPlaceholder: 'Search customer or company…', tax: 'Tax rate (VAT)', allTax: 'All rates', status: 'Payment status', allStatus: 'All statuses', paid: 'Paid', open: 'Open / partially paid', cancelled: 'Archived', type: 'Invoice type', allTypes: 'All types', invoice: 'Invoice', advance: 'Advance', refund: 'Credit note', number: 'Invoice no.', numberPlaceholder: 'E.g. R-2026-0001', location: 'Business unit / label', allLocations: 'All business units', reset: 'Reset filters', pdf: 'Download PDF', excel: 'Download Excel', exportHint: 'Reuse the currently selected filters.', disabled: 'This report is available when Billing is enabled.', invalidDates: 'The end date cannot be before the start date.', exportFailed: 'The report could not be generated.',
   }
+
+  const secondaryReports: Array<{ kind: SecondaryReportKind; title: string; description: string }> = sl ? [
+    { kind: 'revenue', title: 'Prihodki po storitvah', description: 'Pregled prihodkov po storitvah, kategorijah in zaposlenih.' },
+    { kind: 'bookings', title: 'Pregled rezervacij', description: 'Seznam rezervacij z detajli strank, storitev, terminov in statusov.' },
+    { kind: 'clients', title: 'Stranke in obiski', description: 'Analiza obiskov, novih strank in povratnih strank po obdobjih.' },
+    { kind: 'staff', title: 'Zaposleni in zasedenost', description: 'Zasedenost zaposlenih, število terminov in produktivnost po obdobjih.' },
+  ] : sr ? [
+    { kind: 'revenue', title: 'Prihod po uslugama', description: 'Pregled prihoda po uslugama, kategorijama i zaposlenima.' },
+    { kind: 'bookings', title: 'Pregled rezervacija', description: 'Spisak rezervacija sa detaljima klijenata, usluga, termina i statusa.' },
+    { kind: 'clients', title: 'Klijenti i posete', description: 'Analiza poseta, novih i povratnih klijenata po periodima.' },
+    { kind: 'staff', title: 'Zaposleni i zauzetost', description: 'Zauzetost zaposlenih, broj termina i produktivnost po periodima.' },
+  ] : [
+    { kind: 'revenue', title: 'Revenue by service', description: 'Revenue overview by services, categories and staff.' },
+    { kind: 'bookings', title: 'Bookings overview', description: 'Bookings with client, service, time and status details.' },
+    { kind: 'clients', title: 'Clients and visits', description: 'Analysis of visits, new clients and returning clients by period.' },
+    { kind: 'staff', title: 'Staff and utilization', description: 'Staff utilization, appointment volume and productivity by period.' },
+  ]
 
   const paymentMethodsQuery = useQuery<PaymentMethodOption[]>({
     queryKey: ['analytics-invoice-report-payment-methods'],
@@ -177,7 +209,7 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
             ) : (
               <>
                 <div className="analytics-report-row__body-heading">
-                  <strong>{copy.filters}</strong>
+                  <strong className="analytics-report-row__body-heading-label">{copy.filters}</strong>
                   <span>{copy.exportHint}</span>
                 </div>
                 <div className="analytics-invoice-report-filters">
@@ -260,6 +292,21 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
           </div>
         )}
       </Card>
+
+      <div className="analytics-secondary-report-list">
+        {secondaryReports.map((report) => (
+          <Card className="analytics-report-row analytics-report-row--collapsed" key={report.kind}>
+            <button type="button" className="analytics-report-row__header analytics-report-row__header--collapsed" aria-expanded={false}>
+              <span className={`analytics-report-row__icon analytics-report-row__icon--${report.kind}`}><SecondaryReportIcon kind={report.kind} /></span>
+              <span className="analytics-report-row__copy">
+                <strong>{report.title}</strong>
+                <small>{report.description}</small>
+              </span>
+              <Chevron open={false} />
+            </button>
+          </Card>
+        ))}
+      </div>
     </section>
   )
 }
