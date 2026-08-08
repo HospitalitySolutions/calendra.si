@@ -7047,7 +7047,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const count =
         rawClients.length > 0 ? rawClients.length : bookingLike?.client?.id ? 1 : 0
       const name = (g?.name && String(g.name).trim()) || `Group #${gid}`
-      const maxRaw = getServiceChainMaxParticipants(getBookingServiceDrafts(bookingLike))
+      const maxRaw = bookingLike?.maxParticipantsOverride
+        ?? getServiceChainMaxParticipants(getBookingServiceDrafts(bookingLike))
         ?? bookingLike?.type?.maxParticipantsPerSession
         ?? getTypeMaxParticipants(bookingLike?.type?.id)
       const max =

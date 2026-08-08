@@ -127,18 +127,10 @@ function PlusPersonIcon() {
   )
 }
 
-function PlusIcon() {
+function XIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5" />
+      <path d="M6 6l12 12M18 6 6 18" />
     </svg>
   )
 }
@@ -262,7 +254,6 @@ export function CalendarGroupGuestsPanel({
       const { data } = await api.post(`/bookings/${bookingId}/participants`, { clientId })
       onSessionUpdated(data)
       setQuery('')
-      setMode('current')
     } catch (requestError: any) {
       setError(getApiErrorMessage(requestError, sl ? 'Gosta ni bilo mogoče dodati.' : 'Failed to add guest.'))
     } finally {
@@ -395,7 +386,7 @@ export function CalendarGroupGuestsPanel({
                           aria-label={`${copy.remove}: ${clientName(client)}`}
                           title={copy.remove}
                         >
-                          {loading ? <span className="calendar-group-guests-spinner" /> : <TrashIcon />}
+                          {loading ? <span className="calendar-group-guests-spinner" /> : <XIcon />}
                         </button>
                       ) : (
                         <button
@@ -406,7 +397,7 @@ export function CalendarGroupGuestsPanel({
                           aria-label={`${copy.add}: ${clientName(client)}`}
                           title={isFull ? copy.full : copy.add}
                         >
-                          {loading ? <span className="calendar-group-guests-spinner" /> : <PlusIcon />}
+                          {loading ? <span className="calendar-group-guests-spinner" /> : <CheckIcon />}
                         </button>
                       )}
                     </div>
