@@ -949,7 +949,8 @@ public class SessionBookingCreationService {
                 before.totalServiceMinutes(),
                 before.totalBreakMinutes(),
                 before.totalGross(),
-                before.location()
+                before.location(),
+                before.maxParticipantsOverride()
         );
     }
 

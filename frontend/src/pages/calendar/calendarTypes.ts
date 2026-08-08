@@ -51,6 +51,7 @@ export type ConfirmNonBookableEditPayload = {
   meetingProvider: string | null
   recurrenceSeriesKey?: string | null
   bookingStatus?: StoredBookingStatus
+  maxParticipantsOverride?: number | null
   payees?: Array<{ clientId: number; payeeType: 'PERSON' | 'COMPANY' | string; companyId?: number | null; customData?: boolean; firstName?: string | null; lastName?: string | null; email?: string | null; companyName?: string | null; address?: string | null; city?: string | null; postalCode?: string | null; vatId?: string | null; companyEmail?: string | null }>
 }
 
