@@ -44,7 +44,7 @@ public class BillingModuleAccessService {
 
     public void assertGiftCardsEnabled(Long companyId) {
         if (!isGiftCardsEnabled(companyId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Gift cards are disabled for this tenant.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Vouchers are disabled for this tenant.");
         }
     }
 

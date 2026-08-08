@@ -567,7 +567,7 @@ public class GuestCatalogService {
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
         boolean giftCardsEnabled = guestSettings.giftCardsEnabled(companyId);
         if (product.getProductType() == ProductType.GIFT_CARD && !giftCardsEnabled) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards are disabled for this tenant.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vouchers are disabled for this tenant.");
         }
         if (product.getCourse() != null || !product.isActive() || !product.isGuestVisible()
                 || (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null))) {

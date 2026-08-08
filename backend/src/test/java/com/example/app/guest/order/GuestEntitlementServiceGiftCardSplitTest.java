@@ -150,12 +150,14 @@ class GuestEntitlementServiceGiftCardSplitTest {
         GuestEntitlementUsage usageA = new GuestEntitlementUsage();
         usageA.setEntitlement(cardA);
         usageA.setSessionBooking(booking);
+        usageA.setUnitsUsed(300);
         usageA.setUnitsBefore(300);
         usageA.setUnitsAfter(0);
 
         GuestEntitlementUsage usageB = new GuestEntitlementUsage();
         usageB.setEntitlement(cardB);
         usageB.setSessionBooking(booking);
+        usageB.setUnitsUsed(500);
         usageB.setUnitsBefore(700);
         usageB.setUnitsAfter(200);
 
@@ -171,6 +173,148 @@ class GuestEntitlementServiceGiftCardSplitTest {
         assertThat(cardB.getStatus()).isEqualTo(EntitlementStatus.ACTIVE);
         verify(entitlements, times(2)).save(any(GuestEntitlement.class));
         verify(usages).deleteAll(List.of(usageA, usageB));
+    }
+
+    @Test
+    void restoreValueVoucher_addsRedeemedAmountInsteadOfRewindingToHistoricalBalance() {
+        GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
+        GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
+
+        SessionBooking booking = new SessionBooking();
+        booking.setId(78L);
+        Client client = new Client();
+        client.setId(1L);
+        GuestEntitlement card = giftCardEntitlement(303L, client, "EUR", new BigDecimal("50.00"), Instant.parse("2026-01-01T10:00:00Z"));
+        card.setMetadataJson("{\"voucherMode\":\"VALUE\",\"voucherScope\":\"ALL_SERVICES\",\"faceValueGross\":100.00}");
+
+        // Historical booking A used 30 EUR when the balance was 100 -> 70. Booking B was then
+        // redeemed for another 20 EUR, so the current balance is 50. Cancelling A must restore
+        // only its 30 EUR, resulting in 80 EUR rather than rewinding the card to 100 EUR.
+        GuestEntitlementUsage usage = new GuestEntitlementUsage();
+        usage.setEntitlement(card);
+        usage.setSessionBooking(booking);
+        usage.setUnitsUsed(3000);
+        usage.setUnitsBefore(10000);
+        usage.setUnitsAfter(7000);
+
+        when(usages.findAllBySessionBookingIdOrderByUsedAtAsc(78L))
+                .thenReturn(List.of(usage), List.of());
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.maybeRestoreCreditForBooking(booking)).isTrue();
+        assertThat(card.getRemainingValueGross()).isEqualByComparingTo("80.00");
+        assertThat(service.maybeRestoreCreditForBooking(booking)).isFalse();
+        assertThat(card.getRemainingValueGross()).isEqualByComparingTo("80.00");
+        verify(usages).deleteAll(List.of(usage));
+    }
+
+    @Test
+    void restoreExpiredVoucher_restoresCreditButKeepsVoucherExpired() {
+        GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
+        GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
+
+        SessionBooking booking = new SessionBooking();
+        booking.setId(79L);
+        Client client = new Client();
+        client.setId(1L);
+        GuestEntitlement card = giftCardEntitlement(304L, client, "EUR", BigDecimal.ZERO, Instant.parse("2025-01-01T10:00:00Z"));
+        card.setStatus(EntitlementStatus.USED_UP);
+        card.setValidUntil(Instant.parse("2025-12-31T23:59:59Z"));
+        card.setMetadataJson("{\"voucherMode\":\"VALUE\",\"voucherScope\":\"ALL_SERVICES\",\"faceValueGross\":100.00}");
+
+        GuestEntitlementUsage usage = new GuestEntitlementUsage();
+        usage.setEntitlement(card);
+        usage.setSessionBooking(booking);
+        usage.setUnitsUsed(2000);
+        usage.setUnitsBefore(2000);
+        usage.setUnitsAfter(0);
+        when(usages.findAllBySessionBookingIdOrderByUsedAtAsc(79L)).thenReturn(List.of(usage));
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.maybeRestoreCreditForBooking(booking)).isTrue();
+        assertThat(card.getRemainingValueGross()).isEqualByComparingTo("20.00");
+        assertThat(card.getStatus()).isEqualTo(EntitlementStatus.EXPIRED);
+    }
+
+    @Test
+    void restoreCancelledVoucher_restoresBalanceWithoutReactivatingManualDeactivation() {
+        GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
+        GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
+
+        SessionBooking booking = new SessionBooking();
+        booking.setId(81L);
+        Client client = new Client();
+        client.setId(1L);
+        GuestEntitlement voucher = giftCardEntitlement(307L, client, "EUR", new BigDecimal("10.00"), Instant.parse("2026-01-01T10:00:00Z"));
+        voucher.setStatus(EntitlementStatus.CANCELLED);
+        voucher.setMetadataJson("{\"voucherMode\":\"VALUE\",\"voucherScope\":\"ALL_SERVICES\",\"faceValueGross\":50.00}");
+
+        GuestEntitlementUsage usage = new GuestEntitlementUsage();
+        usage.setEntitlement(voucher);
+        usage.setSessionBooking(booking);
+        usage.setUnitsUsed(500);
+        usage.setUnitsBefore(1500);
+        usage.setUnitsAfter(1000);
+        when(usages.findAllBySessionBookingIdOrderByUsedAtAsc(81L)).thenReturn(List.of(usage));
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.maybeRestoreCreditForBooking(booking)).isTrue();
+        assertThat(voucher.getRemainingValueGross()).isEqualByComparingTo("15.00");
+        assertThat(voucher.getStatus()).isEqualTo(EntitlementStatus.CANCELLED);
+    }
+
+    @Test
+    void refundVoucherRestore_restoresOnlyVoucherUsagesAndLeavesOtherEntitlementsUntouched() {
+        GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
+        GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
+
+        SessionBooking booking = new SessionBooking();
+        booking.setId(80L);
+        Client client = new Client();
+        client.setId(1L);
+        GuestEntitlement voucher = giftCardEntitlement(305L, client, "EUR", BigDecimal.ZERO, Instant.parse("2026-01-01T10:00:00Z"));
+        voucher.setStatus(EntitlementStatus.USED_UP);
+        voucher.setMetadataJson("{\"voucherMode\":\"VALUE\",\"voucherScope\":\"ALL_SERVICES\",\"faceValueGross\":50.00}");
+
+        GuestEntitlement pack = new GuestEntitlement();
+        pack.setId(306L);
+        pack.setCompany(voucher.getCompany());
+        pack.setClient(client);
+        pack.setEntitlementType(EntitlementType.PACK);
+        pack.setStatus(EntitlementStatus.ACTIVE);
+        pack.setRemainingUses(2);
+        GuestProduct packProduct = new GuestProduct();
+        packProduct.setProductType(ProductType.PACK);
+        packProduct.setName("Pack");
+        pack.setProduct(packProduct);
+
+        GuestEntitlementUsage voucherUsage = new GuestEntitlementUsage();
+        voucherUsage.setEntitlement(voucher);
+        voucherUsage.setSessionBooking(booking);
+        voucherUsage.setUnitsUsed(500);
+        voucherUsage.setUnitsBefore(500);
+        voucherUsage.setUnitsAfter(0);
+        GuestEntitlementUsage packUsage = new GuestEntitlementUsage();
+        packUsage.setEntitlement(pack);
+        packUsage.setSessionBooking(booking);
+        packUsage.setUnitsUsed(1);
+
+        when(usages.findAllBySessionBookingIdOrderByUsedAtAsc(80L)).thenReturn(List.of(voucherUsage, packUsage));
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.maybeRestoreVoucherCreditsForBooking(booking)).isTrue();
+        assertThat(voucher.getRemainingValueGross()).isEqualByComparingTo("5.00");
+        assertThat(pack.getRemainingUses()).isEqualTo(2);
+        verify(usages).deleteAll(List.of(voucherUsage));
+        verify(entitlements, times(1)).save(any(GuestEntitlement.class));
     }
 
     private static GuestEntitlement giftCardEntitlement(
@@ -189,7 +333,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
         GuestProduct product = new GuestProduct();
         product.setProductType(ProductType.GIFT_CARD);
         product.setCurrency(currency);
-        product.setName("Gift card");
+        product.setName("Voucher");
         entitlement.setProduct(product);
         entitlement.setEntitlementType(EntitlementType.GIFT_CARD);
         entitlement.setStatus(EntitlementStatus.ACTIVE);

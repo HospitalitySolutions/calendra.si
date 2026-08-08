@@ -32,6 +32,7 @@ import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.GuestEntitlement;
+import com.example.app.guest.model.VoucherRules;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
@@ -2227,15 +2228,22 @@ public class BillingController {
 
         String entitlementName = entitlement.getProduct() == null ? null : entitlement.getProduct().getName();
         if (activityLogs != null) {
+            boolean voucher = VoucherRules.isServiceVoucher(entitlement) || VoucherRules.isValueVoucher(entitlement);
             Map<String, Object> details = new LinkedHashMap<>();
             details.put("entitlementId", entitlement.getId());
             details.put("entitlementName", entitlementName);
             details.put("sessionId", booking.getId());
             details.put("amountGross", serviceValueGross);
-            activityLogs.recordUser(me, ActivityModule.BILLING, ActivityAction.ENTITLEMENT_USED,
-                    "ENTITLEMENT", entitlement.getId(), entitlementName == null ? "Entitlement" : entitlementName,
+            if (voucher) {
+                details.put("voucherMode", VoucherRules.isServiceVoucher(entitlement) ? "SERVICE" : "VALUE");
+                details.put("code", entitlement.getDisplayCode() == null ? entitlement.getEntitlementCode() : entitlement.getDisplayCode());
+            }
+            activityLogs.recordUser(me, ActivityModule.BILLING, voucher ? ActivityAction.VOUCHER_REDEEMED : ActivityAction.ENTITLEMENT_USED,
+                    voucher ? "VOUCHER" : "ENTITLEMENT", entitlement.getId(), entitlementName == null ? (voucher ? "Voucher" : "Entitlement") : entitlementName,
                     "SESSION", booking.getId(), booking.getType() == null ? "Session" : booking.getType().getName(),
-                    "Used entitlement " + (entitlementName == null ? "" : entitlementName) + " for session",
+                    voucher
+                            ? "Redeemed " + (VoucherRules.isServiceVoucher(entitlement) ? "service voucher" : "value voucher") + " for session"
+                            : "Used entitlement " + (entitlementName == null ? "" : entitlementName) + " for session",
                     booking.getLocation() == null ? null : booking.getLocation().getId(),
                     booking.getSpace() == null ? null : booking.getSpace().getId(), details);
         }
@@ -3807,6 +3815,7 @@ public class BillingController {
         }
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         createGuestRefundOrderIfApplicable(original, saved);
+        restoreVoucherCreditsForRefundedCancelledSessions(original, companyId);
         recordBillActivity(me, ActivityAction.INVOICE_REFUNDED, saved, "Issued refund");
         return toResponse(saved);
     }
@@ -4483,6 +4492,25 @@ public class BillingController {
         target.setRecipientCompanyIbanSnapshot(source.getRecipientCompanyIbanSnapshot());
         target.setRecipientCompanyEmailSnapshot(source.getRecipientCompanyEmailSnapshot());
         target.setRecipientCompanyTelephoneSnapshot(source.getRecipientCompanyTelephoneSnapshot());
+    }
+
+    private void restoreVoucherCreditsForRefundedCancelledSessions(Bill original, Long companyId) {
+        if (guestEntitlementService == null || original == null || companyId == null) return;
+        Set<Long> bookingIds = new LinkedHashSet<>();
+        if (original.getSourceSessionIdSnapshot() != null) bookingIds.add(original.getSourceSessionIdSnapshot());
+        if (original.getItems() != null) {
+            original.getItems().stream()
+                    .map(BillItem::getSourceSessionBookingId)
+                    .filter(Objects::nonNull)
+                    .filter(id -> id > 0)
+                    .forEach(bookingIds::add);
+        }
+        if (bookingIds.isEmpty()) return;
+        for (SessionBooking booking : sessionBookings.findAllByCompanyIdAndIds(companyId, bookingIds)) {
+            if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(booking.getBookingStatus()))) {
+                guestEntitlementService.maybeRestoreVoucherCreditsForBooking(booking);
+            }
+        }
     }
 
     private void createGuestRefundOrderIfApplicable(Bill original, Bill refund) {

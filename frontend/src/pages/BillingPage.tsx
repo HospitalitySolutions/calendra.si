@@ -309,7 +309,7 @@ type EntitlementScanResponse = {
   result?: string | null
   message?: string | null
   client?: { firstName?: string | null; lastName?: string | null } | null
-  entitlement?: { id?: number | null; code?: string | null; productName?: string | null; entitlementType?: string | null } | null
+  entitlement?: { id?: number | null; code?: string | null; productName?: string | null; entitlementType?: string | null; voucherMode?: string | null } | null
 }
 
 type EntitlementWalletOption = {
@@ -321,6 +321,10 @@ type EntitlementWalletOption = {
   remainingUses?: number | null
   totalUses?: number | null
   validUntil?: string | null
+  voucherMode?: string | null
+  voucherScope?: string | null
+  remainingValueGross?: number | null
+  eligibleServiceNames?: string[] | null
 }
 
 const ENTITLEMENT_PAYMENT_OPTION_VALUE = '__ENTITLEMENT_PAYMENT__'
@@ -3222,17 +3226,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (option.entitlementType === 'PACK') return 'Paket'
       if (option.entitlementType === 'TICKET') return 'Karta'
       if (option.entitlementType === 'MEMBERSHIP') return 'Članstvo'
-      if (option.entitlementType === 'GIFT_CARD') return 'Darilni bon'
+      if (option.entitlementType === 'GIFT_CARD') return option.voucherMode === 'VALUE' ? 'Vrednostni bon' : 'Darilni bon'
       return 'Ugodnost'
     }
     if (option.entitlementType === 'PACK') return 'Pack'
     if (option.entitlementType === 'TICKET') return 'Ticket'
     if (option.entitlementType === 'MEMBERSHIP') return 'Membership'
-    if (option.entitlementType === 'GIFT_CARD') return 'Gift voucher'
+    if (option.entitlementType === 'GIFT_CARD') return option.voucherMode === 'VALUE' ? 'Value voucher' : 'Service voucher'
     return 'Entitlement'
   }
 
   function entitlementWalletRemainingLabel(option: EntitlementWalletOption) {
+    if (option.entitlementType === 'GIFT_CARD' && option.voucherMode === 'VALUE') {
+      const remaining = Number(option.remainingValueGross ?? 0)
+      return locale === 'sl' ? `Preostalo ${currency(remaining)}` : `${currency(remaining)} remaining`
+    }
     if (option.entitlementType === 'MEMBERSHIP') {
       if (option.validUntil) {
         const date = new Date(option.validUntil)

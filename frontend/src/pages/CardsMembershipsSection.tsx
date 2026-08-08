@@ -1401,8 +1401,8 @@ export const CardsMembershipsSection = forwardRef<
           title={locale === "sl" ? "Ni še ugodnosti" : "No entitlements yet"}
           text={
             locale === "sl"
-              ? "Ustvarite prvo ugodnost, članarino, darilni bon ali dostop do tečaja za denarnico gosta."
-              : "Create your first entitlement, membership, gift card or course access product for the guest wallet."
+              ? "Ustvarite prvo ugodnost, članarino, bon ali dostop do tečaja za denarnico gosta."
+              : "Create your first entitlement, membership, voucher or course access product for the guest wallet."
           }
         />
       ) : filteredGuestProducts.length === 0 ? (

@@ -626,7 +626,7 @@ public class GuestOrderService {
             order = orders.save(order);
             SessionBooking booking = maybeCreateConfirmedBooking(order);
             if (booking == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card checkout requires a booking slot.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher checkout requires a booking slot.");
             }
             List<String> giftCardCodes = giftCardCodesFromRequest(request);
             if (channel == PaymentChannel.WEBSITE || !giftCardCodes.isEmpty()) {
@@ -1274,7 +1274,7 @@ public class GuestOrderService {
 
         SessionBooking booking = maybeCreateConfirmedBooking(order);
         if (booking == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card checkout requires a booking slot.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher checkout requires a booking slot.");
         }
 
         GuestEntitlementService.GiftCardRedemptionResult redemption = entitlementService.consumeGiftCardCodesForCharges(
@@ -1422,7 +1422,7 @@ public class GuestOrderService {
         }
         if (paymentMethodType == GuestPaymentMethodType.GIFT_CARD) {
             if (!("SESSION_SINGLE".equals(productType) || "CLASS_TICKET".equals(productType))) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards can only be used to pay for bookable sessions.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vouchers can only be used to pay for bookable sessions.");
             }
             return;
         }

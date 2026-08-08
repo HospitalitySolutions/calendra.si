@@ -188,7 +188,7 @@ public class ClientWalletPurchaseController {
 
         GuestTenantLink link = resolveOrCreateGuestLink(client);
         var paymentMethod = resolveDefaultPaymentMethod(companyId);
-        var order = createPendingWalletOrder(client, link.getGuestUser(), product, request);
+        var order = createPendingWalletOrder(client, link.getGuestUser(), product, request, me);
 
         var open = new OpenBill();
         open.setCompany(me.getCompany());
@@ -305,7 +305,7 @@ public class ClientWalletPurchaseController {
         return guestTenantLinks.save(link);
     }
 
-    private GuestOrder createPendingWalletOrder(Client client, GuestUser guestUser, GuestProduct product, CreateWalletPurchaseOpenBillRequest request) {
+    private GuestOrder createPendingWalletOrder(Client client, GuestUser guestUser, GuestProduct product, CreateWalletPurchaseOpenBillRequest request, User actor) {
         BigDecimal total = safeGross(product.getPriceGross());
         var order = new GuestOrder();
         order.setCompany(client.getCompany());
@@ -318,7 +318,7 @@ public class ClientWalletPurchaseController {
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(total);
         order.setReferenceCode("ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
-        order.setMetadataJson(buildMetadataJson(product, request));
+        order.setMetadataJson(buildMetadataJson(product, request, actor));
         return orders.save(order);
     }
 
@@ -348,7 +348,7 @@ public class ClientWalletPurchaseController {
         if (!name.isBlank()) return name;
         return switch (product.getProductType() == null ? ProductType.PACK : product.getProductType()) {
             case MEMBERSHIP -> "Membership";
-            case GIFT_CARD -> "Gift card";
+            case GIFT_CARD -> "Voucher";
             case COURSE -> "Course";
             case CLASS_TICKET -> "Ticket";
             case PACK -> "Pack";
@@ -410,7 +410,7 @@ public class ClientWalletPurchaseController {
                 .orElse(all.getFirst());
     }
 
-    private String buildMetadataJson(GuestProduct product, CreateWalletPurchaseOpenBillRequest request) {
+    private String buildMetadataJson(GuestProduct product, CreateWalletPurchaseOpenBillRequest request, User actor) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", null);
@@ -431,6 +431,11 @@ public class ClientWalletPurchaseController {
                 }
             }
             map.put("source", "STAFF_CLIENT_WALLET");
+            if (actor != null) {
+                map.put("staffUserId", actor.getId());
+                String actorName = (Objects.toString(actor.getFirstName(), "").trim() + " " + Objects.toString(actor.getLastName(), "").trim()).trim();
+                map.put("staffUserName", actorName.isBlank() ? actor.getEmail() : actorName);
+            }
             return JSON.writeValueAsString(map);
         } catch (Exception ex) {
             return "{}";

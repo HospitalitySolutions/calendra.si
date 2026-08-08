@@ -1661,7 +1661,7 @@
         `;
       }
       if (type === 'GIFT_CARD') {
-        return '<span class="pm-logo pm-logo-gift" aria-label="Gift card">🎁</span>';
+        return '<span class="pm-logo pm-logo-gift" aria-label="Voucher">🎁</span>';
       }
       if (type === 'PAYPAL') {
         return `

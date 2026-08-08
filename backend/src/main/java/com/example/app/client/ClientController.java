@@ -563,6 +563,19 @@ public class ClientController {
         }
         entitlement.setStatus(EntitlementStatus.CANCELLED);
         guestEntitlements.save(entitlement);
+        if (activityLogs != null && (VoucherRules.isServiceVoucher(entitlement) || VoucherRules.isValueVoucher(entitlement))) {
+            boolean serviceVoucher = VoucherRules.isServiceVoucher(entitlement);
+            Map<String, Object> details = new java.util.LinkedHashMap<>();
+            details.put("voucherMode", serviceVoucher ? "SERVICE" : "VALUE");
+            details.put("code", entitlement.getDisplayCode() == null ? entitlement.getEntitlementCode() : entitlement.getDisplayCode());
+            details.put("remainingValueGross", entitlement.getRemainingValueGross());
+            details.put("remainingUses", entitlement.getRemainingUses());
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.VOUCHER_DEACTIVATED,
+                    "VOUCHER", entitlement.getId(), entitlement.getProduct() == null ? "Voucher" : entitlement.getProduct().getName(),
+                    "CLIENT", client.getId(), clientActivityLabel(client),
+                    "Deactivated " + (serviceVoucher ? "service voucher" : "value voucher"),
+                    null, null, details);
+        }
         if (guestNotifications != null) {
             guestNotifications.webEntitlementRemoved(entitlement);
         }

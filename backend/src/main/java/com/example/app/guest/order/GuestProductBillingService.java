@@ -246,7 +246,7 @@ public class GuestProductBillingService {
         if (!name.isBlank()) return name;
         return switch (product.getProductType() == null ? ProductType.PACK : product.getProductType()) {
             case MEMBERSHIP -> "Membership";
-            case GIFT_CARD -> "Gift card";
+            case GIFT_CARD -> "Voucher";
             case COURSE -> "Course";
             case CLASS_TICKET -> "Ticket";
             case PACK -> "Pack";

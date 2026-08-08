@@ -110,7 +110,7 @@ export const GUEST_PAYMENT_METHOD_OPTIONS: {
   { id: "online_card", label: "Spletno plačilo s kartico" },
   { id: "bank_transfer", label: "Bančno nakazilo" },
   { id: "paypal", label: "PayPal" },
-  { id: "gift_card", label: "Darilni bon" },
+  { id: "gift_card", label: "Bon" },
 ];
 
 export const DEFAULT_GUEST_PAYMENT_METHOD_IDS: GuestPaymentMethodId[] = [

@@ -242,7 +242,7 @@ public class GuestProductAdminController {
 
         Integer validityDays = productType == ProductType.COURSE ? null : normalizePositiveInteger(request.validityDays(), "Validity days");
         if (productType == ProductType.GIFT_CARD && validityDays == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards must have an expiry date.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vouchers must have an expiry date.");
         }
         boolean autoRenews = productType == ProductType.MEMBERSHIP && Boolean.TRUE.equals(request.autoRenews());
         boolean nextActive = request.active() == null || Boolean.TRUE.equals(request.active());

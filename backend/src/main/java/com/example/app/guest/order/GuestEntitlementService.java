@@ -1,5 +1,9 @@
 package com.example.app.guest.order;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityActorType;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
 import com.example.app.company.CompanyRepository;
 import com.example.app.course.CourseAccessEmailService;
@@ -7,6 +11,7 @@ import com.example.app.course.MembershipCourse;
 import com.example.app.course.MembershipCourseRepository;
 import com.example.app.common.TimeService;
 import com.example.app.guest.model.*;
+import com.example.app.session.BookingSource;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionService;
 import com.example.app.session.SessionType;
@@ -48,6 +53,9 @@ public class GuestEntitlementService {
 
     @Autowired(required = false)
     private GiftCardEmailService giftCardEmailService;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     private final String publicBaseUrl;
 
@@ -334,6 +342,9 @@ public class GuestEntitlementService {
             decrementIfLimited(entitlement);
         }
         entitlements.save(entitlement);
+        if (VoucherRules.isServiceVoucher(entitlement)) {
+            recordVoucherRedeemedFromBooking(entitlement, booking, null);
+        }
         return new GuestEntitlementSelection(entitlement, true);
     }
 
@@ -357,7 +368,7 @@ public class GuestEntitlementService {
         );
         GuestEntitlement entitlement = result.firstEntitlement();
         if (entitlement == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is required.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is required.");
         }
         return new GuestEntitlementSelection(entitlement, result.consumed());
     }
@@ -381,13 +392,13 @@ public class GuestEntitlementService {
             boolean requireFullCoverage
     ) {
         if (amountGross == null || amountGross.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card payment requires a positive booking amount.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher payment requires a positive booking amount.");
         }
         BigDecimal amount = amountGross.setScale(2, RoundingMode.HALF_UP);
         List<String> codes = normalizeGiftCardCodes(rawCodes);
         if (codes.isEmpty()) {
             if (requireFullCoverage) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is required.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is required.");
             }
             return new GiftCardRedemptionResult(null, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), amount, false);
         }
@@ -413,7 +424,7 @@ public class GuestEntitlementService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
 
             GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is not valid: " + code));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is not valid: " + code));
             validateGiftCardForBooking(entitlement, client, companyId, currency);
             validateVoucherServiceScope(entitlement, booking);
 
@@ -421,7 +432,7 @@ public class GuestEntitlementService {
                     ? BigDecimal.ZERO
                     : entitlement.getRemainingValueGross().setScale(2, RoundingMode.HALF_UP);
             if (beforeBalance.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card has no remaining balance: " + code);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher has no remaining balance: " + code);
             }
 
             BigDecimal amountFromCard = beforeBalance.min(remaining).setScale(2, RoundingMode.HALF_UP);
@@ -447,6 +458,7 @@ public class GuestEntitlementService {
                 entitlement.setStatus(EntitlementStatus.ACTIVE);
             }
             entitlements.save(entitlement);
+            recordVoucherRedeemedFromBooking(entitlement, booking, amountFromCard);
 
             if (firstConsumed == null) {
                 firstConsumed = entitlement;
@@ -456,10 +468,10 @@ public class GuestEntitlementService {
         }
 
         if (firstConsumed == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card payment could not be allocated.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher payment could not be allocated.");
         }
         if (requireFullCoverage && remaining.compareTo(BigDecimal.ZERO) > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards do not have enough total balance for this booking.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value vouchers do not have enough total balance for this booking.");
         }
 
         return new GiftCardRedemptionResult(firstConsumed, applied, remaining.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP), true);
@@ -566,6 +578,7 @@ public class GuestEntitlementService {
                 entitlement.setStatus(EntitlementStatus.ACTIVE);
             }
             entitlements.save(entitlement);
+            recordVoucherRedeemedFromBooking(entitlement, booking, amountFromCard);
 
             if (firstConsumed == null) firstConsumed = entitlement;
             applied = applied.add(amountFromCard).setScale(2, RoundingMode.HALF_UP);
@@ -665,14 +678,14 @@ public class GuestEntitlementService {
                 || entitlement.getProduct().getCurrency() == null
                 || expectedCurrency.equals(entitlement.getProduct().getCurrency().trim().toUpperCase(java.util.Locale.ROOT));
         if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !giftCard || !currencyMatches) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is not valid.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is not valid.");
         }
     }
 
     private void validateVoucherServiceScope(GuestEntitlement entitlement, SessionBooking booking) {
         if (!voucherAllowsBooking(entitlement, booking)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Gift card is not valid for one or more services in this booking.");
+                    "Value voucher is not valid for one or more services in this booking.");
         }
     }
 
@@ -704,7 +717,7 @@ public class GuestEntitlementService {
             SessionBooking booking
     ) {
         if (amountGross == null || amountGross.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card payment requires a positive booking amount.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher payment requires a positive booking amount.");
         }
         BigDecimal amount = amountGross.setScale(2, RoundingMode.HALF_UP);
         List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
@@ -725,7 +738,7 @@ public class GuestEntitlementService {
                 .map(value -> value.setScale(2, RoundingMode.HALF_UP))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (totalAvailable.compareTo(amount) < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active gift cards with enough total balance are available for this booking.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active value vouchers with enough total balance are available for this booking.");
         }
         BigDecimal remaining = amount;
         GuestEntitlement firstConsumed = null;
@@ -756,13 +769,14 @@ public class GuestEntitlementService {
                 entitlement.setStatus(EntitlementStatus.ACTIVE);
             }
             entitlements.save(entitlement);
+            recordVoucherRedeemedFromBooking(entitlement, booking, amountFromCard);
             if (firstConsumed == null) {
                 firstConsumed = entitlement;
             }
             remaining = remaining.subtract(amountFromCard).setScale(2, RoundingMode.HALF_UP);
         }
         if (remaining.compareTo(BigDecimal.ZERO) > 0 || firstConsumed == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card payment could not be fully allocated.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher payment could not be fully allocated.");
         }
         return new GuestEntitlementSelection(firstConsumed, true);
     }
@@ -814,14 +828,53 @@ public class GuestEntitlementService {
         return true;
     }
 
+    /**
+     * Refund hardening: restore only voucher usages for a cancelled booking. Other prepaid
+     * entitlements keep their normal cancellation policy and are not changed merely because an
+     * invoice refund was issued. Deleting the restored usage rows makes the operation idempotent.
+     */
+    @Transactional
+    public boolean maybeRestoreVoucherCreditsForBooking(SessionBooking booking) {
+        if (booking == null || booking.getId() == null) return false;
+        List<GuestEntitlementUsage> voucherUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId()).stream()
+                .filter(usage -> usage.getEntitlement() != null)
+                .filter(usage -> VoucherRules.isServiceVoucher(usage.getEntitlement()) || VoucherRules.isValueVoucher(usage.getEntitlement()))
+                .toList();
+        if (voucherUsages.isEmpty()) return false;
+        for (GuestEntitlementUsage usage : voucherUsages) {
+            restoreUsageCredit(usage);
+        }
+        usages.deleteAll(voucherUsages);
+        return true;
+    }
+
     private void restoreUsageCredit(GuestEntitlementUsage usage) {
         GuestEntitlement entitlement = usage.getEntitlement();
+        BigDecimal restoredVoucherAmount = null;
         if (entitlement.getEntitlementType() == EntitlementType.GIFT_CARD && VoucherRules.isValueVoucher(entitlement)) {
-            BigDecimal restoredBalance = usage.getUnitsBefore() == null
-                    ? entitlement.getRemainingValueGross()
-                    : BigDecimal.valueOf(usage.getUnitsBefore(), 2).setScale(2, RoundingMode.HALF_UP);
-            entitlement.setRemainingValueGross(restoredBalance);
-            entitlement.setRemainingUses(1);
+            BigDecimal currentBalance = entitlement.getRemainingValueGross() == null
+                    ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                    : entitlement.getRemainingValueGross().setScale(2, RoundingMode.HALF_UP);
+            if (usage.getUnitsUsed() > 0) {
+                restoredVoucherAmount = BigDecimal.valueOf(usage.getUnitsUsed(), 2).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal restoredBalance = currentBalance.add(restoredVoucherAmount).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal faceValue = VoucherRules.entitlementFaceValueGross(entitlement);
+                if (faceValue != null && faceValue.compareTo(BigDecimal.ZERO) > 0 && restoredBalance.compareTo(faceValue) > 0) {
+                    restoredBalance = faceValue.setScale(2, RoundingMode.HALF_UP);
+                }
+                entitlement.setRemainingValueGross(restoredBalance);
+            } else if (usage.getUnitsBefore() != null) {
+                // Legacy usage rows may not have unitsUsed populated. Fall back to the captured
+                // pre-redemption balance without allowing a modern out-of-order cancellation to
+                // overwrite later legitimate redemptions.
+                BigDecimal beforeBalance = BigDecimal.valueOf(usage.getUnitsBefore(), 2).setScale(2, RoundingMode.HALF_UP);
+                if (beforeBalance.compareTo(currentBalance) > 0) {
+                    restoredVoucherAmount = beforeBalance.subtract(currentBalance).setScale(2, RoundingMode.HALF_UP);
+                    entitlement.setRemainingValueGross(beforeBalance);
+                }
+            }
+            entitlement.setRemainingUses(entitlement.getRemainingValueGross() != null
+                    && entitlement.getRemainingValueGross().compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
         } else if (VoucherRules.isServiceVoucher(entitlement)) {
             incrementIfLimited(entitlement);
         } else if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
@@ -829,8 +882,25 @@ public class GuestEntitlementService {
         } else {
             incrementIfLimited(entitlement);
         }
-        entitlement.setStatus(EntitlementStatus.ACTIVE);
+        entitlement.setStatus(restoredStatus(entitlement));
         entitlements.save(entitlement);
+        if (VoucherRules.isServiceVoucher(entitlement) || VoucherRules.isValueVoucher(entitlement)) {
+            recordVoucherRestored(entitlement, usage, restoredVoucherAmount);
+        }
+    }
+
+    private EntitlementStatus restoredStatus(GuestEntitlement entitlement) {
+        if (entitlement == null) return EntitlementStatus.ACTIVE;
+        // A booking cancellation may restore the credit amount, but it must never undo an
+        // explicit staff deactivation of the issued voucher.
+        if (entitlement.getStatus() == EntitlementStatus.CANCELLED) return EntitlementStatus.CANCELLED;
+        Instant now = entitlement.getCompany() == null || entitlement.getCompany().getId() == null
+                ? Instant.now()
+                : timeService.instant(entitlement.getCompany().getId());
+        if (entitlement.getValidUntil() != null && !entitlement.getValidUntil().isAfter(now)) {
+            return EntitlementStatus.EXPIRED;
+        }
+        return EntitlementStatus.ACTIVE;
     }
 
     @Transactional(readOnly = true)
@@ -975,6 +1045,9 @@ public class GuestEntitlementService {
         }
         entitlement.setMetadataJson(writeMetadata(metadata));
         entitlement = entitlements.save(entitlement);
+        if (product.getProductType() == ProductType.GIFT_CARD) {
+            recordVoucherIssued(order, entitlement);
+        }
         if (product.getProductType() == ProductType.GIFT_CARD && giftCardEmailService != null) {
             giftCardEmailService.sendGiftCardEmail(entitlement);
         }
@@ -1026,6 +1099,163 @@ public class GuestEntitlementService {
                 courseAccessEmailService.sendCourseAccessEmail(courseEntitlement, courseAccessUrl(courseEntitlement));
             }
         }
+    }
+
+    private void recordVoucherIssued(GuestOrder order, GuestEntitlement entitlement) {
+        if (activityLogs == null || order == null || entitlement == null || entitlement.getCompany() == null) return;
+        try {
+            Map<String, Object> orderMetadata = metadata(order.getMetadataJson());
+            String source = Objects.toString(orderMetadata.get("source"), "").trim();
+            if (source.isBlank()) source = Objects.toString(orderMetadata.get("sourceChannel"), "").trim();
+            if (source.isBlank()) source = "SYSTEM";
+            ActivityActorType actorType;
+            String actorName;
+            if ("STAFF_CLIENT_WALLET".equalsIgnoreCase(source)) {
+                actorType = ActivityActorType.USER;
+                actorName = Objects.toString(orderMetadata.get("staffUserName"), "Staff").trim();
+                if (actorName.isBlank()) actorName = "Staff";
+            } else if ("WEBSITE_WIDGET".equalsIgnoreCase(source) || "WEBSITE".equalsIgnoreCase(source)) {
+                actorType = ActivityActorType.WEBSITE_WIDGET;
+                actorName = "Website widget";
+            } else if ("GUEST_APP".equalsIgnoreCase(source) || "GUEST".equalsIgnoreCase(source)) {
+                actorType = ActivityActorType.GUEST_APP;
+                actorName = "Guest app";
+            } else {
+                actorType = ActivityActorType.SYSTEM;
+                actorName = "System";
+            }
+            boolean serviceVoucher = VoucherRules.isServiceVoucher(entitlement);
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("voucherMode", serviceVoucher ? VoucherRedemptionMode.SERVICE.name() : VoucherRedemptionMode.VALUE.name());
+            details.put("voucherScope", VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name());
+            details.put("faceValueGross", VoucherRules.entitlementFaceValueGross(entitlement));
+            details.put("eligibleServiceNames", VoucherRules.entitlementEligibleServiceNames(entitlement));
+            details.put("code", firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode()));
+            details.put("orderId", order.getId());
+            details.put("clientId", entitlement.getClient() == null ? null : entitlement.getClient().getId());
+            activityLogs.recordExternal(
+                    entitlement.getCompany(), actorType, actorName, source, ActivityModule.BILLING, ActivityAction.VOUCHER_ISSUED,
+                    "VOUCHER", entitlement.getId(), voucherActivityLabel(entitlement),
+                    entitlement.getClient() == null ? null : "CLIENT",
+                    entitlement.getClient() == null ? null : entitlement.getClient().getId(),
+                    entitlement.getClient() == null ? null : clientLabel(entitlement.getClient()),
+                    "Issued " + (serviceVoucher ? "service voucher" : "value voucher"),
+                    null, null, details);
+        } catch (Exception ignored) {
+            // Activity logging must never block entitlement issuance.
+        }
+    }
+
+    /**
+     * Public/mobile redemption audit. Staff/manual redemption is logged by BillingController with
+     * the authenticated user, so MANUAL bookings are deliberately skipped here to avoid duplicate
+     * rows and to preserve the real staff actor.
+     */
+    private void recordVoucherRedeemedFromBooking(GuestEntitlement entitlement, SessionBooking booking, BigDecimal amountGross) {
+        if (activityLogs == null || entitlement == null || entitlement.getCompany() == null || booking == null) return;
+        try {
+            String channel = booking.getSourceChannel() == null ? "" : booking.getSourceChannel().trim();
+            BookingSource channelSource = BookingSource.fromSourceChannel(channel);
+            BookingSource bookingSource = channelSource != BookingSource.MANUAL
+                    ? channelSource
+                    : (booking.getBookingSource() == null ? BookingSource.MANUAL : booking.getBookingSource());
+
+            ActivityActorType actorType;
+            String actorName;
+            String source;
+            switch (bookingSource) {
+                case WEBSITE_WIDGET -> {
+                    actorType = ActivityActorType.WEBSITE_WIDGET;
+                    actorName = "Website widget";
+                    source = "WEBSITE_WIDGET";
+                }
+                case MOBILE_APP -> {
+                    actorType = ActivityActorType.GUEST_APP;
+                    actorName = "Guest app";
+                    source = "GUEST_APP";
+                }
+                case PUBLIC_BOOKING_PAGE -> {
+                    actorType = ActivityActorType.GUEST;
+                    actorName = "Public booking";
+                    source = "PUBLIC_BOOKING_PAGE";
+                }
+                case MANUAL -> {
+                    return;
+                }
+                default -> {
+                    return;
+                }
+            }
+
+            boolean serviceVoucher = VoucherRules.isServiceVoucher(entitlement);
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("voucherMode", serviceVoucher ? VoucherRedemptionMode.SERVICE.name() : VoucherRedemptionMode.VALUE.name());
+            details.put("code", firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode()));
+            details.put("amountGross", amountGross);
+            details.put("remainingValueGross", entitlement.getRemainingValueGross());
+            details.put("remainingUses", entitlement.getRemainingUses());
+            details.put("bookingId", booking.getId());
+            details.put("sourceOrderId", booking.getSourceOrderId());
+            details.put("eligibleServiceNames", VoucherRules.entitlementEligibleServiceNames(entitlement));
+            activityLogs.recordExternal(
+                    entitlement.getCompany(), actorType, actorName, source,
+                    ActivityModule.BILLING, ActivityAction.VOUCHER_REDEEMED,
+                    "VOUCHER", entitlement.getId(), voucherActivityLabel(entitlement),
+                    "SESSION", booking.getId(), booking.getType() == null ? null : booking.getType().getName(),
+                    serviceVoucher ? "Redeemed service voucher for session" : "Redeemed value voucher for session",
+                    booking.getLocation() == null ? null : booking.getLocation().getId(),
+                    booking.getSpace() == null ? null : booking.getSpace().getId(), details);
+        } catch (Exception ignored) {
+            // Redemption must not fail because activity logging is unavailable.
+        }
+    }
+
+    private void recordVoucherRestored(GuestEntitlement entitlement, GuestEntitlementUsage usage, BigDecimal restoredAmount) {
+        if (activityLogs == null || entitlement == null || entitlement.getCompany() == null) return;
+        try {
+            boolean serviceVoucher = VoucherRules.isServiceVoucher(entitlement);
+            SessionBooking booking = usage == null ? null : usage.getSessionBooking();
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("voucherMode", serviceVoucher ? VoucherRedemptionMode.SERVICE.name() : VoucherRedemptionMode.VALUE.name());
+            details.put("restoredAmountGross", restoredAmount);
+            details.put("remainingValueGross", entitlement.getRemainingValueGross());
+            details.put("remainingUses", entitlement.getRemainingUses());
+            details.put("bookingId", booking == null ? null : booking.getId());
+            details.put("statusAfter", entitlement.getStatus() == null ? null : entitlement.getStatus().name());
+            activityLogs.recordExternal(
+                    entitlement.getCompany(), ActivityActorType.SYSTEM, "System", "VOUCHER_RESTORE",
+                    ActivityModule.BILLING, ActivityAction.VOUCHER_RESTORED,
+                    "VOUCHER", entitlement.getId(), voucherActivityLabel(entitlement),
+                    booking == null ? null : "SESSION", booking == null ? null : booking.getId(),
+                    booking == null || booking.getType() == null ? null : booking.getType().getName(),
+                    serviceVoucher ? "Restored service voucher after booking change" : "Restored value voucher after booking change",
+                    booking == null || booking.getLocation() == null ? null : booking.getLocation().getId(),
+                    booking == null || booking.getSpace() == null ? null : booking.getSpace().getId(), details);
+        } catch (Exception ignored) {
+            // Restoration is more important than its audit side effect.
+        }
+    }
+
+    private static String voucherActivityLabel(GuestEntitlement entitlement) {
+        String productName = entitlement == null || entitlement.getProduct() == null ? null : entitlement.getProduct().getName();
+        String code = entitlement == null ? null : firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode());
+        String type = VoucherRules.isServiceVoucher(entitlement) ? "Service voucher" : "Value voucher";
+        if (productName != null && !productName.isBlank()) return type + " · " + productName.trim();
+        if (code != null && !code.isBlank()) return type + " · " + code;
+        return type;
+    }
+
+    private static String clientLabel(Client client) {
+        if (client == null) return null;
+        String name = (Objects.toString(client.getFirstName(), "").trim() + " " + Objects.toString(client.getLastName(), "").trim()).trim();
+        if (!name.isBlank()) return name;
+        return client.getEmail();
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) return first.trim();
+        if (second != null && !second.isBlank()) return second.trim();
+        return null;
     }
 
     private List<Long> mappedCourseIds(GuestProduct product) {
@@ -1089,7 +1319,7 @@ public class GuestEntitlementService {
                 return code;
             }
         }
-        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not generate gift card coupon code.");
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not generate voucher code.");
     }
 
 

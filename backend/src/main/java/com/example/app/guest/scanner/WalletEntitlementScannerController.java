@@ -1,5 +1,8 @@
 package com.example.app.guest.scanner;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
 import com.example.app.guest.model.EntitlementStatus;
 import com.example.app.guest.model.EntitlementType;
@@ -15,11 +18,14 @@ import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionType;
 import com.example.app.user.User;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,6 +47,9 @@ public class WalletEntitlementScannerController {
     private final GuestEntitlementUsageRepository usages;
     private final SessionBookingCreationService bookingCreationService;
     private final SessionBookingRepository sessionBookings;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     public WalletEntitlementScannerController(
             GuestEntitlementRepository entitlements,
@@ -185,6 +194,9 @@ public class WalletEntitlementScannerController {
         GuestEntitlementUsage usage = buildScanUsage(entitlement, null, me, normalizeSource(request == null ? null : request.source()), before, after, now);
         usages.save(usage);
         entitlements.save(entitlement);
+        if (VoucherRules.isServiceVoucher(entitlement)) {
+            recordScannedVoucherRedemption(me, entitlement, usage);
+        }
 
         return new ScanResponse(true, result, message, clientResponse(entitlement.getClient()), entitlementResponse(entitlement), null);
     }
@@ -220,10 +232,10 @@ public class WalletEntitlementScannerController {
         EntitlementType type = entitlement.getEntitlementType();
         if (type != EntitlementType.TICKET && type != EntitlementType.PACK && type != EntitlementType.MEMBERSHIP
                 && !VoucherRules.isServiceVoucher(entitlement)) {
-            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "Only class tickets, packs, memberships and service gift vouchers can cover a session.", entitlement);
+            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "Only class tickets, packs, memberships and service vouchers can cover a session.", entitlement);
         }
         if (VoucherRules.isServiceVoucher(entitlement) && !bookingHasSingleService(booking)) {
-            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "A service gift voucher cannot settle a combined multi-service bill from this screen.", entitlement);
+            return failure("UNSUPPORTED_PAYMENT_ENTITLEMENT", "A service voucher cannot settle a combined multi-service bill from this screen.", entitlement);
         }
 
         ScanResponse serviceValidation = validateBookingPaymentServiceType(booking, entitlement);
@@ -494,7 +506,36 @@ public class WalletEntitlementScannerController {
                 entitlement.getProduct() == null ? null : entitlement.getProduct().getUsageLimit(),
                 entitlement.getVisitCount(),
                 entitlement.getValidUntil(),
-                entitlement.getStatus() == null ? null : entitlement.getStatus().name());
+                entitlement.getStatus() == null ? null : entitlement.getStatus().name(),
+                VoucherRules.entitlementMode(entitlement) == null ? null : VoucherRules.entitlementMode(entitlement).name(),
+                VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name(),
+                VoucherRules.isValueVoucher(entitlement) ? entitlement.getRemainingValueGross() : null,
+                List.copyOf(VoucherRules.entitlementEligibleServiceNames(entitlement)));
+    }
+
+    private void recordScannedVoucherRedemption(User actor, GuestEntitlement entitlement, GuestEntitlementUsage usage) {
+        if (activityLogs == null || actor == null || entitlement == null) return;
+        try {
+            Client client = entitlement.getClient();
+            String clientName = client == null ? null : ((client.getFirstName() == null ? "" : client.getFirstName().trim())
+                    + " " + (client.getLastName() == null ? "" : client.getLastName().trim())).trim();
+            if (clientName != null && clientName.isBlank()) clientName = client.getEmail();
+            String code = entitlement.getDisplayCode() == null || entitlement.getDisplayCode().isBlank()
+                    ? entitlement.getEntitlementCode()
+                    : entitlement.getDisplayCode();
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("voucherMode", "SERVICE");
+            details.put("code", code);
+            details.put("scanSource", usage == null ? null : usage.getScanSource());
+            details.put("remainingUses", entitlement.getRemainingUses());
+            activityLogs.recordUser(
+                    actor, ActivityModule.BILLING, ActivityAction.VOUCHER_REDEEMED,
+                    "VOUCHER", entitlement.getId(), entitlement.getProduct() == null ? "Service voucher" : entitlement.getProduct().getName(),
+                    client == null ? null : "CLIENT", client == null ? null : client.getId(), clientName,
+                    "Redeemed service voucher by scanner", null, null, details);
+        } catch (Exception ignored) {
+            // Scanning/redemption must not fail because audit logging is unavailable.
+        }
     }
 
     private PaymentEntitlementOptionResponse paymentOptionResponse(GuestEntitlement entitlement) {
@@ -506,7 +547,11 @@ public class WalletEntitlementScannerController {
                 entitlement.getEntitlementType() == null ? null : entitlement.getEntitlementType().name(),
                 entitlement.getRemainingUses(),
                 entitlement.getProduct() == null ? null : entitlement.getProduct().getUsageLimit(),
-                entitlement.getValidUntil()
+                entitlement.getValidUntil(),
+                VoucherRules.entitlementMode(entitlement) == null ? null : VoucherRules.entitlementMode(entitlement).name(),
+                VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name(),
+                VoucherRules.isValueVoucher(entitlement) ? entitlement.getRemainingValueGross() : null,
+                List.copyOf(VoucherRules.entitlementEligibleServiceNames(entitlement))
         );
     }
 
@@ -534,7 +579,11 @@ public class WalletEntitlementScannerController {
             String entitlementType,
             Integer remainingUses,
             Integer totalUses,
-            Instant validUntil
+            Instant validUntil,
+            String voucherMode,
+            String voucherScope,
+            BigDecimal remainingValueGross,
+            List<String> eligibleServiceNames
     ) {
     }
 
@@ -563,7 +612,11 @@ public class WalletEntitlementScannerController {
             Integer totalUses,
             Integer visitCount,
             Instant validUntil,
-            String status
+            String status,
+            String voucherMode,
+            String voucherScope,
+            BigDecimal remainingValueGross,
+            List<String> eligibleServiceNames
     ) {
     }
 }
