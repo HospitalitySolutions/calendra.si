@@ -69,7 +69,7 @@ import {
   type ModulesDesignGroup,
   type ModulesDesignLine,
 } from "./configuration/ConfigurationVisualComponents";
-import { FolioLayoutEditor } from "./FolioLayoutEditor";
+import { FolioLayoutEditor, type FolioLayoutFormat } from "./FolioLayoutEditor";
 import { SecurityPage } from "./SecurityPage";
 import { GoogleCalendarIntegrationSection } from "./GoogleCalendarIntegrationSection";
 import googleCalendarLogo from "../assets/google-calendar-logo.png";
@@ -211,8 +211,7 @@ type BillingSubtab =
   | "paypal"
   | "fiscal"
   | "giftCard"
-  | "folioLayout"
-  | "posPrinting";
+  | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
 type AccountSubtab =
   | "company"
@@ -319,7 +318,6 @@ function billingPaymentTypeLabel(
 }
 const BILLING_MOBILE_HIDDEN_SUBTABS: BillingSubtab[] = [
   "giftCard",
-  "folioLayout",
 ];
 
 const POS_PRINTING_MODE_STANDARD = "STANDARD";
@@ -419,9 +417,6 @@ function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
     );
   }
 
-  if (subtab === "posPrinting") {
-    return <BillingPrinterIcon />;
-  }
 
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1295,6 +1290,8 @@ export function ConfigurationPage() {
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>("spaces");
   const [billingSubtab, setBillingSubtab] =
     useState<BillingSubtab>("paymentMethods");
+  const [invoiceLayoutFormat, setInvoiceLayoutFormat] =
+    useState<FolioLayoutFormat>("A4");
   const [integrationSubtab, setIntegrationSubtab] =
     useState<IntegrationSubtab>("status");
   const [expandedIntegrationCard, setExpandedIntegrationCard] = useState<
@@ -1420,9 +1417,11 @@ export function ConfigurationPage() {
   >("checking");
   const [posPrinterBrowserLabel, setPosPrinterBrowserLabel] = useState("");
   const [printingPosTestReceipt, setPrintingPosTestReceipt] = useState(false);
+  const [savingDefaultPrintMode, setSavingDefaultPrintMode] = useState(false);
   const [pos58PreviewUrl, setPos58PreviewUrl] = useState<string | null>(null);
   const [pos58PreviewLoading, setPos58PreviewLoading] = useState(false);
   const [pos58PreviewError, setPos58PreviewError] = useState(false);
+  const [pos58PreviewRevision, setPos58PreviewRevision] = useState(0);
   const [inlineEditingPaymentMethodId, setInlineEditingPaymentMethodId] =
     useState<number | null>(null);
   const [inlinePaymentMethodForm, setInlinePaymentMethodForm] = useState<{
@@ -2970,7 +2969,13 @@ export function ConfigurationPage() {
       subtabQuery === "folioLayout" ||
       subtabQuery === "posPrinting"
     ) {
-      if (subtabQuery === "settings") {
+      if (subtabQuery === "posPrinting") {
+        setBillingSubtab("folioLayout");
+        setInvoiceLayoutFormat("POS_58");
+        if (q === "billing") {
+          navigate("/configuration?tab=billing&subtab=folioLayout", { replace: true });
+        }
+      } else if (subtabQuery === "settings") {
         setBillingSubtab("paymentMethods");
         if (q === "billing") {
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
@@ -4165,6 +4170,9 @@ export function ConfigurationPage() {
   }, []);
 
   const posPrintingMode = normalizePosPrintingMode(settings.POS_PRINTING_MODE);
+  const invoicePrintPreference = normalizeInvoicePrintPreference(settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY]);
+  const a4PrintingIsDefault = posPrintingMode === POS_PRINTING_MODE_STANDARD && invoicePrintPreference === "A4";
+  const posPrintingIsDefault = posPrintingMode === POS_PRINTING_MODE_DIRECT && invoicePrintPreference === "POS_58";
   const posPaperWidth = normalizePosPaperWidth(settings.POS_PRINTER_PAPER_WIDTH_MM);
   const posTemplate = normalizePosTemplate(settings.POS_PRINTER_TEMPLATE);
   const posPrintLogo = posSettingEnabled(settings.POS_PRINTER_PRINT_LOGO, true);
@@ -4183,6 +4191,56 @@ export function ConfigurationPage() {
       [key]: value,
     }));
   }, []);
+
+  const setDefaultPrintMode = useCallback(async (mode: string) => {
+    const normalizedMode = mode === POS_PRINTING_MODE_DIRECT ? POS_PRINTING_MODE_DIRECT : POS_PRINTING_MODE_STANDARD;
+    const targetFormat = normalizedMode === POS_PRINTING_MODE_DIRECT ? "POS_58" : "A4";
+    const previousMode = normalizePosPrintingMode(settings.POS_PRINTING_MODE);
+    const previousFormat = normalizeInvoicePrintPreference(settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY]);
+    if (
+      previousMode === normalizedMode &&
+      previousFormat === targetFormat &&
+      !savingDefaultPrintMode
+    ) return;
+    if (savingDefaultPrintMode) return;
+
+    setSavingDefaultPrintMode(true);
+    setSettings((prev) => ({
+      ...prev,
+      POS_PRINTING_MODE: normalizedMode,
+      [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: targetFormat,
+    }));
+    try {
+      await api.put("/settings", {
+        POS_PRINTING_MODE: normalizedMode,
+        [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: targetFormat,
+      });
+      window.dispatchEvent(new Event("settings-updated"));
+      showToast(
+        "success",
+        locale === "sl"
+          ? normalizedMode === POS_PRINTING_MODE_DIRECT
+            ? "POS tiskanje je nastavljeno kot privzeti način."
+            : "A4 tiskanje je nastavljeno kot privzeti način."
+          : normalizedMode === POS_PRINTING_MODE_DIRECT
+            ? "POS printing is now the default."
+            : "A4 printing is now the default.",
+      );
+    } catch (error: any) {
+      setSettings((prev) => ({
+        ...prev,
+        POS_PRINTING_MODE: previousMode,
+        [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: previousFormat,
+      }));
+      showToast(
+        "error",
+        error?.response?.data?.message ||
+          (locale === "sl" ? "Privzetega načina tiskanja ni bilo mogoče shraniti." : "Could not save the default printing mode."),
+      );
+    } finally {
+      setSavingDefaultPrintMode(false);
+    }
+  }, [locale, savingDefaultPrintMode, settings, showToast]);
 
   const refreshPosPrinterConnection = useCallback(async () => {
     const serial = getSerialApi();
@@ -4390,12 +4448,12 @@ export function ConfigurationPage() {
 
 
   useEffect(() => {
-    if (tab !== "billing" || billingSubtab !== "posPrinting") return;
+    if (tab !== "billing" || billingSubtab !== "folioLayout" || invoiceLayoutFormat !== "POS_58") return;
     void refreshPosPrinterConnection();
-  }, [billingSubtab, refreshPosPrinterConnection, tab]);
+  }, [billingSubtab, invoiceLayoutFormat, refreshPosPrinterConnection, tab]);
 
   useEffect(() => {
-    if (tab !== "billing" || billingSubtab !== "posPrinting" || posPaperWidth !== "58") {
+    if (tab !== "billing" || billingSubtab !== "folioLayout" || invoiceLayoutFormat !== "POS_58" || posPaperWidth !== "58") {
       setPos58PreviewUrl(null);
       setPos58PreviewLoading(false);
       setPos58PreviewError(false);
@@ -4426,7 +4484,7 @@ export function ConfigurationPage() {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [billingSubtab, fetchPos58VisualPreviewBlob, posPaperWidth, tab]);
+  }, [billingSubtab, fetchPos58VisualPreviewBlob, invoiceLayoutFormat, pos58PreviewRevision, posPaperWidth, tab]);
 
   const saveStripePreference = async (
     patch: Partial<{ mode: string; country: string; businessType: string }>,
@@ -5301,11 +5359,7 @@ export function ConfigurationPage() {
       : []),
     {
       id: "folioLayout",
-      label: locale === "sl" ? "Postavitev računa" : "Invoice layout",
-    },
-    {
-      id: "posPrinting",
-      label: locale === "sl" ? "POS tiskanje" : "POS printing",
+      label: locale === "sl" ? "Račun in tiskanje" : "Invoice & printing",
     },
   ];
   const visibleBillingSubtabs = isMobileBillingViewport
@@ -5976,57 +6030,6 @@ export function ConfigurationPage() {
               disabled: !moduleOn("BILLING_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("BILLING_ADVANCE_ENABLED", checked),
-            },
-            {
-              id: "billing-default-print-format",
-              icon: "invoice",
-              title:
-                locale === "sl"
-                  ? "Privzeta oblika tiskanja"
-                  : locale === "sr"
-                    ? "Podrazumevani format štampe"
-                    : "Default print format",
-              subtitle:
-                locale === "sl"
-                  ? "Uporabi se pri dejanju Zaključi in natisni ter pri običajnem gumbu Natisni, kadar je v Obračun → POS tiskanje izbrano Standardno tiskanje."
-                  : locale === "sr"
-                    ? "Koristi se za Završi i odštampaj i za uobičajeno dugme Štampaj kada je izabrana standardna štampa."
-                    : "Used by Close and print and the standard Print action when Standard printing is selected under Billing → POS printing.",
-              valueControl: (
-                <select
-                  className="modules-design-inline-control modules-design-calendar-scale-select"
-                  value={normalizeInvoicePrintPreference(
-                    settings[DEFAULT_INVOICE_PRINT_FORMAT_KEY],
-                  )}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      [DEFAULT_INVOICE_PRINT_FORMAT_KEY]: event.target.value,
-                    })
-                  }
-                  disabled={
-                    !moduleOn("BILLING_ENABLED") ||
-                    normalizePosPrintingMode(settings.POS_PRINTING_MODE) === POS_PRINTING_MODE_DIRECT
-                  }
-                  aria-label={
-                    locale === "sl"
-                      ? "Privzeta oblika tiskanja"
-                      : locale === "sr"
-                        ? "Podrazumevani format štampe"
-                        : "Default print format"
-                  }
-                >
-                  <option value="A4">A4</option>
-                  <option value="POS_58">POS 58 mm</option>
-                  <option value="ASK">
-                    {locale === "sl"
-                      ? "Vedno vprašaj"
-                      : locale === "sr"
-                        ? "Uvek pitaj"
-                        : "Always ask"}
-                  </option>
-                </select>
-              ),
             },
             {
               id: "billing-invoice-counter",
@@ -10227,6 +10230,34 @@ export function ConfigurationPage() {
               font-weight: 900;
             }
             .billing-main-panel { padding: 22px; }
+            .invoice-printing-merged { display:grid; gap:18px; }
+            .invoice-printing-header { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:4px 2px 2px; }
+            .invoice-printing-header-copy { display:grid; gap:5px; }
+            .invoice-printing-header-copy h2 { margin:0; font-size:22px; line-height:1.2; color:#0f172a; letter-spacing:-.025em; }
+            .invoice-printing-header-copy p { margin:0; color:#64748b; font-size:13px; line-height:1.5; }
+            .invoice-format-switch { display:grid; grid-template-columns:repeat(2,minmax(130px,1fr)); gap:4px; min-width:300px; padding:4px; border:1px solid #dbe4f0; border-radius:14px; background:#f5f8fc; }
+            .invoice-format-switch button { min-height:42px; border:1px solid transparent; border-radius:10px; background:transparent; color:#475569; font-size:13px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:.18s ease; }
+            .invoice-format-switch button svg { width:18px; height:18px; }
+            .invoice-format-switch button.active { background:#fff; color:#2563eb; border-color:#bfdbfe; box-shadow:0 3px 12px rgba(37,99,235,.14); }
+            .invoice-default-mode-card { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:14px 16px; border:1px solid #dbe7fb; border-radius:16px; background:linear-gradient(180deg,#fbfdff 0%,#f7faff 100%); }
+            .invoice-default-mode-copy { display:flex; align-items:flex-start; gap:12px; min-width:0; }
+            .invoice-default-mode-icon { width:38px; height:38px; border-radius:12px; background:#eaf2ff; color:#2563eb; display:grid; place-items:center; flex:0 0 38px; }
+            .invoice-default-mode-icon svg { width:20px; height:20px; }
+            .invoice-default-mode-text { display:grid; gap:3px; }
+            .invoice-default-mode-text strong { color:#0f172a; font-size:13.5px; }
+            .invoice-default-mode-text span { color:#64748b; font-size:12px; line-height:1.45; }
+            .invoice-default-button { min-height:40px; padding:0 14px; border-radius:11px; border:1px solid #bfdbfe; background:#fff; color:#2563eb; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
+            .invoice-default-button.is-default { border-color:#bbf7d0; background:#ecfdf3; color:#15803d; cursor:default; }
+            .invoice-default-button:disabled { opacity:.65; cursor:not-allowed; }
+            .invoice-layout-editor-card { padding:0 !important; overflow:hidden; }
+            .invoice-layout-editor-card .fle-format-shell { padding:20px; }
+            .invoice-layout-editor-card .pos58-editor-header { padding-top:2px; }
+            @media (max-width: 860px) {
+              .invoice-printing-header { align-items:stretch; flex-direction:column; }
+              .invoice-format-switch { width:100%; min-width:0; }
+              .invoice-default-mode-card { align-items:stretch; flex-direction:column; }
+              .invoice-default-button { width:100%; }
+            }
             .billing-page-head {
               margin: 0 0 22px;
             }
@@ -12750,7 +12781,7 @@ export function ConfigurationPage() {
                           </div>
                         </div>
                       </div>
-                    ) : billingSubtab === "posPrinting" ? (
+                    ) : billingSubtab === "folioLayout" && invoiceLayoutFormat === "POS_58" ? (
                       <>
                         <style>{`
                           .pos-printing-shell { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.7fr); gap:24px; align-items:start; }
@@ -12850,54 +12881,51 @@ export function ConfigurationPage() {
                             .pos-footer-actions .billing-primary-button { width:100%; }
                           }
                         `}</style>
-                        <div className="pos-printing-shell">
-                          <div className="pos-printing-column">
-                            <div className="pos-printing-card pos-printing-hero">
-                              <h3>{locale === "sl" ? "POS tiskanje" : "POS printing"}</h3>
-                              <p>
-                                {locale === "sl"
-                                  ? "Nastavite tiskanje računov na 58 mm ali 80 mm POS tiskalnike. Tiskalnik lahko povežete tukaj ali ob prvem tiskanju; brskalnik bo takrat zahteval dovoljenje za dostop do naprave."
-                                  : "Configure printing for 58 mm or 80 mm POS printers. You can connect the printer here or on the first print; the browser will then ask for device access."}
-                              </p>
+                        <div className="invoice-printing-merged">
+                          <div className="invoice-printing-header">
+                            <div className="invoice-printing-header-copy">
+                              <h2>{locale === "sl" ? "Postavitev računa in tiskanje" : "Invoice layout & printing"}</h2>
+                              <p>{locale === "sl" ? "Uredite vsebino računa, postavitev in način tiskanja za A4 ali POS." : "Configure invoice content, layout and printing for A4 or POS."}</p>
                             </div>
+                            <div className="invoice-format-switch" role="tablist" aria-label={locale === "sl" ? "Format računa" : "Invoice format"}>
+                              <button type="button" role="tab" aria-selected={false} onClick={() => setInvoiceLayoutFormat("A4")}>
+                                <BillingReceiptIcon />
+                                <span>A4</span>
+                              </button>
+                              <button type="button" role="tab" aria-selected className="active" onClick={() => setInvoiceLayoutFormat("POS_58")}>
+                                <BillingPrinterIcon />
+                                <span>{locale === "sl" ? "POS / 58 mm" : "POS / 58 mm"}</span>
+                              </button>
+                            </div>
+                          </div>
 
-                            <div className="pos-printing-card">
-                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Način tiskanja" : "Printing mode"}</h3>
-                              <div className="pos-mode-grid" style={{ marginTop: 16 }}>
-                                <button
-                                  type="button"
-                                  className={posPrintingMode === POS_PRINTING_MODE_STANDARD ? "pos-mode-card active" : "pos-mode-card"}
-                                  onClick={() => updatePosPrintingSetting("POS_PRINTING_MODE", POS_PRINTING_MODE_STANDARD)}
-                                >
-                                  <span className="pos-mode-icon">
-                                    <BillingReceiptIcon />
-                                  </span>
-                                  <span className="pos-mode-copy">
-                                    <span className="pos-mode-title-row">
-                                      <span className="pos-mode-title">{locale === "sl" ? "Standardno tiskanje" : "Standard printing"}</span>
-                                      <span className="pos-radio-indicator" aria-hidden />
-                                    </span>
-                                    <span className="pos-mode-subtitle">{locale === "sl" ? "A4 / PDF / sistemski tiskalnik" : "A4 / PDF / system printer"}</span>
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className={posPrintingMode === POS_PRINTING_MODE_DIRECT ? "pos-mode-card active" : "pos-mode-card"}
-                                  onClick={() => updatePosPrintingSetting("POS_PRINTING_MODE", POS_PRINTING_MODE_DIRECT)}
-                                >
-                                  <span className="pos-mode-icon">
-                                    <BillingPrinterIcon />
-                                  </span>
-                                  <span className="pos-mode-copy">
-                                    <span className="pos-mode-title-row">
-                                      <span className="pos-mode-title">{locale === "sl" ? "POS tiskalnik" : "POS printer"}</span>
-                                      <span className="pos-radio-indicator" aria-hidden />
-                                    </span>
-                                    <span className="pos-mode-subtitle">{locale === "sl" ? "58 mm / 80 mm / neposredno ESC/POS tiskanje" : "58 mm / 80 mm / direct ESC/POS printing"}</span>
-                                  </span>
-                                </button>
-                              </div>
+                          <div className="invoice-default-mode-card">
+                            <div className="invoice-default-mode-copy">
+                              <span className="invoice-default-mode-icon"><BillingPrinterIcon /></span>
+                              <span className="invoice-default-mode-text">
+                                <strong>{locale === "sl" ? "Privzeti način tiskanja za POS" : "Default POS printing mode"}</strong>
+                                <span>{locale === "sl" ? "Ko je POS privzet, dejanja Natisni in Zaključi in natisni uporabijo neposredni POS tiskalnik." : "When POS is the default, Print and Close & print use the direct POS printer."}</span>
+                              </span>
                             </div>
+                            <button
+                              type="button"
+                              className={posPrintingIsDefault ? "invoice-default-button is-default" : "invoice-default-button"}
+                              onClick={() => void setDefaultPrintMode(POS_PRINTING_MODE_DIRECT)}
+                              disabled={savingDefaultPrintMode || posPrintingIsDefault}
+                            >
+                              {savingDefaultPrintMode
+                                ? locale === "sl" ? "Shranjujem …" : "Saving…"
+                                : posPrintingIsDefault
+                                  ? locale === "sl" ? "✓ Privzeto" : "✓ Default"
+                                  : locale === "sl" ? "Nastavi kot privzeto" : "Set as default"}
+                            </button>
+                          </div>
+
+                          <div className="pos-printing-shell">
+                            <div className="pos-printing-column">
+                              <div className="pos-printing-card invoice-layout-editor-card">
+                                <FolioLayoutEditor format="POS_58" hideFormatHeader hidePosPreview onPosLayoutSaved={() => setPos58PreviewRevision((value) => value + 1)} />
+                              </div>
 
                             <div className="pos-printing-card">
                               <h3 className="pos-printing-section-title">{locale === "sl" ? "Povezava tiskalnika" : "Printer connection"}</h3>
@@ -13017,29 +13045,6 @@ export function ConfigurationPage() {
                                       <GuestSwitch checked={posAutoCut} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_AUTO_CUT", checked ? "true" : "false")} />
                                     </div>
                                   </div>
-                                  {posPaperWidth === "58" ? (
-                                    <div className="pos-sync-panel">
-                                      <div className="pos-sync-copy">
-                                        <BillingInfoIcon />
-                                        <div>
-                                          <strong>{locale === "sl" ? "Sinhronizirano s Postavitvijo računa" : "Synchronized with Invoice layout"}</strong>
-                                          {locale === "sl"
-                                            ? "58 mm POS izpis uporablja isto shranjeno vsebino, vrstni red razdelkov in velikost pisave kot Postavitev računa → 58 mm, nato pa jih prilagodi nativnemu termičnemu ESC/POS izpisu. Logotip, UPN QR, fiskalni QR, reference, podpis in noga sledijo nastavitvam iz Postavitve računa."
-                                            : "58 mm POS printing uses the same saved content, section order and font-size setting as Invoice layout → 58 mm, then adapts them to native thermal ESC/POS output. Logo, payment QR, fiscal QR, references, signature and footer follow the Invoice layout settings."}
-                                        </div>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        className="pos-sync-link"
-                                        onClick={() => {
-                                          setBillingSubtab("folioLayout");
-                                          navigate("/configuration?tab=billing&subtab=folioLayout");
-                                        }}
-                                      >
-                                        {locale === "sl" ? "Odpri Postavitev računa" : "Open Invoice layout"}
-                                      </button>
-                                    </div>
-                                  ) : null}
                                 </div>
                                 <div className="pos-settings-info">
                                   <BillingInfoIcon />
@@ -13185,6 +13190,7 @@ export function ConfigurationPage() {
                               </div>
                             )}
                           </div>
+                          </div>
                         </div>
                       </>
                     ) : billingSubtab === "giftCard" ? (
@@ -13196,10 +13202,51 @@ export function ConfigurationPage() {
                         locale={locale}
                       />
                     ) : (
-                      <div className="billing-folio-panel">
-                        <Card className="billing-folio-card">
-                          <FolioLayoutEditor />
-                        </Card>
+                      <div className="invoice-printing-merged">
+                        <div className="invoice-printing-header">
+                          <div className="invoice-printing-header-copy">
+                            <h2>{locale === "sl" ? "Postavitev računa in tiskanje" : "Invoice layout & printing"}</h2>
+                            <p>{locale === "sl" ? "Uredite vsebino računa, postavitev in način tiskanja za A4 ali POS." : "Configure invoice content, layout and printing for A4 or POS."}</p>
+                          </div>
+                          <div className="invoice-format-switch" role="tablist" aria-label={locale === "sl" ? "Format računa" : "Invoice format"}>
+                            <button type="button" role="tab" aria-selected className="active" onClick={() => setInvoiceLayoutFormat("A4")}>
+                              <BillingReceiptIcon />
+                              <span>A4</span>
+                            </button>
+                            <button type="button" role="tab" aria-selected={false} onClick={() => setInvoiceLayoutFormat("POS_58")}>
+                              <BillingPrinterIcon />
+                              <span>POS / 58 mm</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="invoice-default-mode-card">
+                          <div className="invoice-default-mode-copy">
+                            <span className="invoice-default-mode-icon"><BillingReceiptIcon /></span>
+                            <span className="invoice-default-mode-text">
+                              <strong>{locale === "sl" ? "Privzeti način tiskanja za A4" : "Default A4 printing mode"}</strong>
+                              <span>{locale === "sl" ? "Ko je A4 privzet, dejanja Natisni in Zaključi in natisni uporabijo standardni sistemski tisk oziroma PDF." : "When A4 is the default, Print and Close & print use the standard system print/PDF flow."}</span>
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className={a4PrintingIsDefault ? "invoice-default-button is-default" : "invoice-default-button"}
+                            onClick={() => void setDefaultPrintMode(POS_PRINTING_MODE_STANDARD)}
+                            disabled={savingDefaultPrintMode || a4PrintingIsDefault}
+                          >
+                            {savingDefaultPrintMode
+                              ? locale === "sl" ? "Shranjujem …" : "Saving…"
+                              : a4PrintingIsDefault
+                                ? locale === "sl" ? "✓ Privzeto" : "✓ Default"
+                                : locale === "sl" ? "Nastavi kot privzeto" : "Set as default"}
+                          </button>
+                        </div>
+
+                        <div className="billing-folio-panel">
+                          <Card className="billing-folio-card">
+                            <FolioLayoutEditor format="A4" hideFormatHeader />
+                          </Card>
+                        </div>
                       </div>
                     )}
                   </div>

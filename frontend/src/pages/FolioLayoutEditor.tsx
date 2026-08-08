@@ -1504,22 +1504,45 @@ function A4PresetLayoutEditor() {
 }
 
 
-export function FolioLayoutEditor() {
+export type FolioLayoutFormat = 'A4' | 'POS_58'
+
+type FolioLayoutEditorProps = {
+  format?: FolioLayoutFormat
+  onFormatChange?: (format: FolioLayoutFormat) => void
+  hideFormatHeader?: boolean
+  hidePosPreview?: boolean
+  onPosLayoutSaved?: () => void
+}
+
+export function FolioLayoutEditor({
+  format: controlledFormat,
+  onFormatChange,
+  hideFormatHeader = false,
+  hidePosPreview = false,
+  onPosLayoutSaved,
+}: FolioLayoutEditorProps = {}) {
   const { locale } = useLocale()
-  const [format, setFormat] = useState<'A4' | 'POS_58'>('A4')
+  const [internalFormat, setInternalFormat] = useState<FolioLayoutFormat>('A4')
+  const format = controlledFormat ?? internalFormat
+  const setFormat = (next: FolioLayoutFormat) => {
+    if (controlledFormat == null) setInternalFormat(next)
+    onFormatChange?.(next)
+  }
   return (
     <div className="fle-format-shell">
-      <div className="fle-format-header">
-        <div>
-          <strong>{locale === 'sl' ? 'Predloge računov' : locale === 'sr' ? 'Predlošci računa' : 'Invoice templates'}</strong>
-          <span>{locale === 'sl' ? 'Izberite obliko računa in prilagodite postavitev za A4 ali termični tisk 58 mm.' : locale === 'sr' ? 'Izaberite format računa i prilagodite raspored za A4 ili termalnu štampu od 58 mm.' : 'Choose an invoice format and customize the layout for A4 or 58 mm thermal printing.'}</span>
+      {!hideFormatHeader ? (
+        <div className="fle-format-header">
+          <div>
+            <strong>{locale === 'sl' ? 'Predloge računov' : locale === 'sr' ? 'Predlošci računa' : 'Invoice templates'}</strong>
+            <span>{locale === 'sl' ? 'Izberite obliko računa in prilagodite postavitev za A4 ali termični tisk 58 mm.' : locale === 'sr' ? 'Izaberite format računa i prilagodite raspored za A4 ili termalnu štampu od 58 mm.' : 'Choose an invoice format and customize the layout for A4 or 58 mm thermal printing.'}</span>
+          </div>
+          <div className="fle-format-toggle" role="tablist">
+            <button type="button" className={format === 'POS_58' ? 'active' : ''} onClick={() => setFormat('POS_58')} role="tab" aria-selected={format === 'POS_58'}>58 mm</button>
+            <button type="button" className={format === 'A4' ? 'active' : ''} onClick={() => setFormat('A4')} role="tab" aria-selected={format === 'A4'}>A4</button>
+          </div>
         </div>
-        <div className="fle-format-toggle" role="tablist">
-          <button type="button" className={format === 'POS_58' ? 'active' : ''} onClick={() => setFormat('POS_58')} role="tab" aria-selected={format === 'POS_58'}>58 mm</button>
-          <button type="button" className={format === 'A4' ? 'active' : ''} onClick={() => setFormat('A4')} role="tab" aria-selected={format === 'A4'}>A4</button>
-        </div>
-      </div>
-      {format === 'A4' ? <A4PresetLayoutEditor /> : <PosReceiptLayoutEditor />}
+      ) : null}
+      {format === 'A4' ? <A4PresetLayoutEditor /> : <PosReceiptLayoutEditor hidePreview={hidePosPreview} onSaved={onPosLayoutSaved} />}
     </div>
   )
 }

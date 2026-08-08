@@ -137,7 +137,7 @@ function ReceiptToggle({ checked, onChange, label, hint }: { checked: boolean; o
   )
 }
 
-export function PosReceiptLayoutEditor() {
+export function PosReceiptLayoutEditor({ hidePreview = false, onSaved }: { hidePreview?: boolean; onSaved?: () => void } = {}) {
   const { locale } = useLocale()
   const [layout, setLayout] = useState<PosReceiptLayout>(DEFAULT_LAYOUT)
   const [loading, setLoading] = useState(true)
@@ -262,6 +262,7 @@ export function PosReceiptLayoutEditor() {
       const { data } = await api.put('/billing/folio-layout-pos58', layout)
       setLayout(normalizeLayout(data))
       setNotice(copy.saved)
+      onSaved?.()
     } catch {
       setNotice(copy.failed)
     } finally {
@@ -276,6 +277,7 @@ export function PosReceiptLayoutEditor() {
       const { data } = await api.delete('/billing/folio-layout-pos58')
       setLayout(normalizeLayout(data))
       setNotice(copy.resetDone)
+      onSaved?.()
     } catch {
       setNotice(copy.failed)
     } finally {
@@ -369,7 +371,7 @@ export function PosReceiptLayoutEditor() {
         <div className="pos58-dimensions"><strong>58 mm</strong><span>48 mm safe · 384 px @ 203 DPI</span></div>
       </header>
 
-      <div className="pos58-editor-grid">
+      <div className={`pos58-editor-grid${hidePreview ? ' pos58-editor-grid--without-preview' : ''}`}>
         <section className="pos58-controls">
           <div className="pos58-card">
             <h4>{copy.settings}</h4>
@@ -440,12 +442,14 @@ export function PosReceiptLayoutEditor() {
           </div>
         </section>
 
-        <aside className="pos58-preview-shell">
-          <div className={`pos58-preview pos58-preview--${layout.fontSize.toLowerCase()}`}>
-            {layout.sectionOrder.filter(visibleSection).map((section) => <section key={section}>{previewSections[section]}</section>)}
-          </div>
-          <div className="pos58-paper-caption"><span>58 mm</span><span>{locale === 'sl' ? 'dinamična višina' : 'dynamic height'}</span></div>
-        </aside>
+        {!hidePreview ? (
+          <aside className="pos58-preview-shell">
+            <div className={`pos58-preview pos58-preview--${layout.fontSize.toLowerCase()}`}>
+              {layout.sectionOrder.filter(visibleSection).map((section) => <section key={section}>{previewSections[section]}</section>)}
+            </div>
+            <div className="pos58-paper-caption"><span>58 mm</span><span>{locale === 'sl' ? 'dinamična višina' : 'dynamic height'}</span></div>
+          </aside>
+        ) : null}
       </div>
 
       <footer className="pos58-actions">
