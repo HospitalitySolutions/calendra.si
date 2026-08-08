@@ -19,7 +19,6 @@ admin/PlatformAdminController.java|@PutMapping("/tenancies/{id}/manual-subscript
 admin/PlatformTimeSimulatorController.java|@DeleteMapping("/{tenantId}")|clear
 admin/PlatformTimeSimulatorController.java|@PutMapping|change
 ai/VoiceBookingController.java|@PostMapping|book
-analytics/AnalyticsController.java|@PostMapping("/report/send")|sendReport
 auth/AuthController.java|@PostMapping("/active-unit")|selectActiveUnit
 auth/AuthController.java|@PostMapping("/forgot-password")|forgotPassword
 auth/AuthController.java|@PostMapping("/login")|login

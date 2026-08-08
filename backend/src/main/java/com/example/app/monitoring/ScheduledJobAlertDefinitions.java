@@ -20,7 +20,6 @@ public final class ScheduledJobAlertDefinitions {
             def("inbox-message-cleanup", "Inbox cleanup", Duration.ofHours(30), Duration.ofHours(1), ScheduledJobAlertSeverity.WARNING, "Retention cleanup for inbox messages."),
             def("inbox-attachment-cleanup", "Inbox attachment cleanup", Duration.ofHours(2), Duration.ofMinutes(30), ScheduledJobAlertSeverity.WARNING, "Cleanup of expired pending inbox attachments."),
             def("guest-entitlement-expiry", "Guest entitlement expiry", Duration.ofMinutes(15), Duration.ofMinutes(10), ScheduledJobAlertSeverity.WARNING, "Marks expired wallet entitlements."),
-            def("analytics-report-scheduler", "Analytics reports", Duration.ofHours(2), Duration.ofHours(1), ScheduledJobAlertSeverity.WARNING, "Scheduled owner analytics reports."),
             def("scheduled-job-run-cleanup", "Scheduled job run cleanup", Duration.ofHours(30), Duration.ofHours(1), ScheduledJobAlertSeverity.WARNING, "Retention cleanup for scheduled job run history.")
     );
 

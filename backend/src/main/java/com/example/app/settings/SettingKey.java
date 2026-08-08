@@ -255,14 +255,6 @@ public enum SettingKey {
     INBOX_VIBER_BOT_NAME,
     INBOX_VIBER_BOT_AVATAR_URL,
 
-    /** Owner analytics digest settings. */
-    ANALYTICS_REPORTS_ENABLED,
-    ANALYTICS_REPORTS_EMAIL,
-    ANALYTICS_REPORTS_FREQUENCY,
-    ANALYTICS_REPORTS_LAST_SENT_AT,
-
-
-
     /** Guest app booking/payment behavior. */
     GUEST_BOOKING_RULES_JSON,
 
