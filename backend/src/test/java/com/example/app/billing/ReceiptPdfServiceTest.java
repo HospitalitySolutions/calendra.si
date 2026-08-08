@@ -218,7 +218,7 @@ class ReceiptPdfServiceTest {
                     .contains("Kartica 40.00")
                     .contains("Gotovina 45.00")
                     .contains("Porabljena predplačila")
-                    .contains("REC123-1-67 · 05.08.2026 - 5.00")
+                    .contains("REC123-1-67 05.08.2026 - 5.00")
                     .doesNotContain("Razčlenitev DDV")
                     .containsOnlyOnce("DDV 22% (porabljeno predplačilo)");
 
@@ -237,7 +237,7 @@ class ReceiptPdfServiceTest {
             assertThat(normalizedText.indexOf("Kartica 40.00"))
                     .isLessThan(normalizedText.indexOf("Porabljena predplačila"));
             assertThat(normalizedText.indexOf("Porabljena predplačila"))
-                    .isLessThan(normalizedText.indexOf("REC123-1-67 · 05.08.2026 - 5.00"));
+                    .isLessThan(normalizedText.indexOf("REC123-1-67 05.08.2026 - 5.00"));
         }
     }
 
