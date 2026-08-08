@@ -176,6 +176,72 @@ class ReceiptPdfServiceTest {
     }
 
     @Test
+    void generate_placesUsedAdvancesAtEndOfPaymentMethodsAndShowsPaidAndNegativeAdvanceVat() throws Exception {
+        FolioPdfRequest request = sampleRequest(1);
+        request.setSubtotalBeforeDiscountGross(new BigDecimal("100.00"));
+        request.setDiscountAmountGross(new BigDecimal("10.00"));
+        request.setToBePaidGross(BigDecimal.ZERO);
+        request.setPaymentMethods(List.of(
+                new FolioPdfRequest.PaymentLine("Kartica", new BigDecimal("40.00")),
+                new FolioPdfRequest.PaymentLine("Gotovina", new BigDecimal("45.00"))
+        ));
+        request.setPaymentMethod("Kartica, Gotovina");
+        request.setUsedAdvancePaymentsGross(new BigDecimal("5.00"));
+
+        FolioPdfRequest.AdvancePaymentLine advance = new FolioPdfRequest.AdvancePaymentLine();
+        advance.setAdvanceNumber("REC123-1-67");
+        advance.setDate("2026-08-05");
+        advance.setTaxPercent("22%");
+        advance.setNetBasis(new BigDecimal("50.60"));
+        advance.setTaxAmount(new BigDecimal("4.40"));
+        advance.setTotalGross(new BigDecimal("55.00"));
+        advance.setUsedGross(new BigDecimal("5.00"));
+        request.setAdvancePayments(List.of(advance));
+
+        PosReceiptLayoutConfig layout = PosReceiptLayoutConfig.defaultLayout();
+        layout.setShowPaymentDetails(true);
+
+        byte[] pdf = service.generate(request, layout, null);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String normalizedText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(normalizedText)
+                    .contains("Popust - 10.00")
+                    .contains("Skupaj brez DDV 81.97")
+                    .contains("DDV 22% · osnova 81.97 18.03")
+                    .contains("DDV 22% (porabljeno predplačilo) - 0.40")
+                    .contains("Skupaj EUR 90.00")
+                    .contains("Porabljeno predplačilo - 5.00")
+                    .contains("Plačano EUR 85.00")
+                    .contains("Za plačilo EUR 0.00")
+                    .contains("Načini plačila")
+                    .contains("Kartica 40.00")
+                    .contains("Gotovina 45.00")
+                    .contains("Porabljena predplačila")
+                    .contains("REC123-1-67 · 05.08.2026 - 5.00")
+                    .doesNotContain("Razčlenitev DDV")
+                    .containsOnlyOnce("DDV 22% (porabljeno predplačilo)");
+
+            assertThat(normalizedText.indexOf("Popust - 10.00"))
+                    .isLessThan(normalizedText.indexOf("Skupaj brez DDV 81.97"));
+            assertThat(normalizedText.indexOf("Skupaj brez DDV 81.97"))
+                    .isLessThan(normalizedText.indexOf("DDV 22% · osnova 81.97 18.03"));
+            assertThat(normalizedText.indexOf("DDV 22% (porabljeno predplačilo) - 0.40"))
+                    .isLessThan(normalizedText.indexOf("Skupaj EUR 90.00"));
+            assertThat(normalizedText.indexOf("Skupaj EUR 90.00"))
+                    .isLessThan(normalizedText.indexOf("Porabljeno predplačilo - 5.00"));
+            assertThat(normalizedText.indexOf("Porabljeno predplačilo - 5.00"))
+                    .isLessThan(normalizedText.indexOf("Plačano EUR 85.00"));
+            assertThat(normalizedText.indexOf("Plačano EUR 85.00"))
+                    .isLessThan(normalizedText.indexOf("Za plačilo EUR 0.00"));
+            assertThat(normalizedText.indexOf("Kartica 40.00"))
+                    .isLessThan(normalizedText.indexOf("Porabljena predplačila"));
+            assertThat(normalizedText.indexOf("Porabljena predplačila"))
+                    .isLessThan(normalizedText.indexOf("REC123-1-67 · 05.08.2026 - 5.00"));
+        }
+    }
+
+    @Test
     void generate_canShowPaymentTypeWhenEnabledInLayout() throws Exception {
         FolioPdfRequest request = sampleRequest(1);
         PosReceiptLayoutConfig layout = PosReceiptLayoutConfig.defaultLayout();

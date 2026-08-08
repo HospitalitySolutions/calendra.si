@@ -480,69 +480,145 @@ public class ReceiptPdfService {
     }
 
     private List<Block> advancePaymentBlocks(FolioPdfRequest request, FontSet fonts, Typography type, String locale) {
-        List<FolioPdfRequest.AdvancePaymentLine> rows = request.getAdvancePayments() == null ? List.of() : request.getAdvancePayments();
-        if (rows.isEmpty()) return List.of();
-        List<Block> blocks = new ArrayList<>();
-        blocks.add(textBlock(word(locale, "Porabljena predplačila", "Iskorišćene avansne uplate", "Used advances"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
-        for (FolioPdfRequest.AdvancePaymentLine row : rows) {
-            String left = joinNonBlank(Arrays.asList(row.getAdvanceNumber(), formatReceiptDate(row.getDate())), " · ");
-            blocks.add(pairBlock(left, "- " + money(abs(row.getUsedGross())), fonts.regular(), type.small(), type.smallLineHeight(), false));
-        }
-        return blocks;
+        // Used advances are intentionally rendered inside the payment-method block
+        // in totalBlocks(), after every other payment type.
+        return List.of();
     }
 
     private List<Block> totalBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
         Totals totals = totals(request.getServices());
         BigDecimal discount = positive(request.getDiscountAmountGross());
-        BigDecimal configuredSubtotalGross = positive(request.getSubtotalBeforeDiscountGross());
-        BigDecimal subtotalGross = configuredSubtotalGross.compareTo(BigDecimal.ZERO) > 0
+        BigDecimal configuredSubtotalGross = scale(request.getSubtotalBeforeDiscountGross());
+        boolean hasConfiguredSubtotal = request.getSubtotalBeforeDiscountGross() != null
+                && configuredSubtotalGross.compareTo(BigDecimal.ZERO) != 0;
+        BigDecimal subtotalGross = hasConfiguredSubtotal
                 ? configuredSubtotalGross
                 : totals.gross().add(discount).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal subtotalNet = subtotalNetBeforeDiscount(request, totals, configuredSubtotalGross, discount);
+        BigDecimal usedAdvance = positive(request.getUsedAdvancePaymentsGross());
+        BigDecimal invoiceTotalGross = subtotalGross.subtract(discount).setScale(2, RoundingMode.HALF_UP);
+
+        // Payment rows intentionally exclude used advances (see BillFolioPdfService).
+        // A bank-transfer row is still a selected payment method, but its unpaid
+        // amount is represented by toBePaidGross and must not count as "Plačano".
+        List<FolioPdfRequest.PaymentLine> paymentLines = normalizedPaymentLines(request, invoiceTotalGross, BigDecimal.ZERO);
+        BigDecimal paymentLineTotal = paymentLines.stream()
+                .map(FolioPdfRequest.PaymentLine::getAmountGross)
+                .map(ReceiptPdfService::scale)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal toBePaid;
+        if (request.getToBePaidGross() != null) {
+            toBePaid = scale(request.getToBePaidGross());
+        } else {
+            BigDecimal inferred = invoiceTotalGross.subtract(usedAdvance).subtract(paymentLineTotal).setScale(2, RoundingMode.HALF_UP);
+            toBePaid = invoiceTotalGross.compareTo(BigDecimal.ZERO) >= 0
+                    ? inferred.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal paidGross = paymentLineTotal.subtract(toBePaid).setScale(2, RoundingMode.HALF_UP);
+
+        List<FolioPdfRequest.AdvancePaymentLine> advances = request.getAdvancePayments() == null
+                ? List.of()
+                : request.getAdvancePayments();
         List<Block> blocks = new ArrayList<>();
 
-        blocks.add(pairBlock(word(locale, "Skupaj brez DDV", "Ukupno bez PDV-a", "Total excl. VAT"), money(subtotalNet), fonts.regular(), type.body(), type.lineHeight(), false));
-        if (discount.compareTo(BigDecimal.ZERO) > 0) {
-            blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
-        }
-        BigDecimal usedAdvance = positive(request.getUsedAdvancePaymentsGross());
+        blocks.add(pairBlock(word(locale, "Skupaj EUR", "Ukupno EUR", "Total EUR"), money(invoiceTotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
         if (usedAdvance.compareTo(BigDecimal.ZERO) > 0) {
             blocks.add(pairBlock(word(locale, "Porabljeno predplačilo", "Iskorišćen avans", "Advance used"), "- " + money(usedAdvance), fonts.regular(), type.body(), type.lineHeight(), false));
         }
-        BigDecimal invoiceTotalGross = subtotalGross.subtract(discount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-        blocks.add(pairBlock(word(locale, "Skupaj EUR", "Ukupno EUR", "Total EUR"), money(invoiceTotalGross), fonts.bold(), type.body(), type.lineHeight(), true));
-        BigDecimal toBePaid = positive(request.getToBePaidGross());
-        if (toBePaid.compareTo(BigDecimal.ZERO) > 0) {
-            blocks.add(new RuleBlock(3f, 4f));
-            blocks.add(pairBlock(word(locale, "Za plačilo EUR", "Za plaćanje EUR", "Amount due EUR"), money(toBePaid), fonts.bold(), type.body(), type.lineHeight(), true));
-        }
-        if (layout != null && layout.isShowPaymentDetails()) {
-            List<FolioPdfRequest.PaymentLine> paymentLines = normalizedPaymentLines(request, totals.gross(), toBePaid);
-            if (!paymentLines.isEmpty()) {
-                blocks.add(new GapBlock(type.smallLineHeight() * 0.75f));
+        blocks.add(pairBlock(word(locale, "Plačano EUR", "Plaćeno EUR", "Paid EUR"), money(paidGross), fonts.regular(), type.body(), type.lineHeight(), false));
+
+        // Requested divider: only between Paid EUR and Amount due EUR.
+        blocks.add(new RuleBlock(2f, 3f));
+        blocks.add(pairBlock(word(locale, "Za plačilo EUR", "Za plaćanje EUR", "Amount due EUR"), money(toBePaid), fonts.bold(), type.body(), type.lineHeight(), true));
+
+        boolean showRegularPayments = layout != null && layout.isShowPaymentDetails() && !paymentLines.isEmpty();
+        boolean showUsedAdvances = !advances.isEmpty();
+        if (showRegularPayments || showUsedAdvances) {
+            blocks.add(new GapBlock(type.smallLineHeight() * 0.75f));
+            blocks.add(textBlock(word(locale, "Načini plačila", "Načini plaćanja", "Payment methods"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
+
+            if (showRegularPayments) {
                 for (FolioPdfRequest.PaymentLine paymentLine : paymentLines) {
                     blocks.add(pairBlock(firstNonBlank(paymentLine.getName(), word(locale, "Plačilo", "Plaćanje", "Payment")),
                             moneyCompact(scale(paymentLine.getAmountGross())), fonts.regular(), type.body(), type.lineHeight(), false));
                 }
             }
+
+            if (showUsedAdvances) {
+                if (showRegularPayments) blocks.add(new RuleBlock(2f, 2f));
+                blocks.add(textBlock(word(locale, "Porabljena predplačila", "Iskorišćene avansne uplate", "Used advances"), fonts.bold(), type.body(), type.lineHeight(), true, Align.LEFT, SAFE_CONTENT_WIDTH_PT));
+                for (FolioPdfRequest.AdvancePaymentLine row : advances) {
+                    if (row == null) continue;
+                    String left = joinNonBlank(Arrays.asList(row.getAdvanceNumber(), formatReceiptDate(row.getDate())), " · ");
+                    blocks.add(pairBlock(left, "- " + money(abs(row.getUsedGross())), fonts.regular(), type.small(), type.smallLineHeight(), false));
+                }
+            }
         }
+
         blocks.add(new RuleBlock(4f, 1f));
         return blocks;
     }
 
     private List<Block> vatBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, FontSet fonts, Typography type, String locale) {
-        if (!layout.isShowVatBreakdown()) return List.of();
-        List<VatRow> rows = new ArrayList<>();
-        for (VatRow row : vatRows(request.getServices())) {
-            if (row.bucket() != VatBucket.NO_VAT) rows.add(row);
-        }
-        if (rows.isEmpty()) return List.of();
+        Totals totals = totals(request.getServices());
+        BigDecimal discount = positive(request.getDiscountAmountGross());
+        BigDecimal configuredSubtotalGross = scale(request.getSubtotalBeforeDiscountGross());
+        BigDecimal subtotalNet = subtotalNetBeforeDiscount(request, totals, configuredSubtotalGross, discount);
+
         List<Block> blocks = new ArrayList<>();
-        for (VatRow row : rows) {
-            String left = vatLabel(row.bucket(), locale) + " · " + word(locale, "osnova", "osnovica", "basis") + " " + money(row.net());
-            blocks.add(pairBlock(left, money(row.vat()), fonts.regular(), type.small(), type.smallLineHeight(), false));
+        // Exact requested order: Discount -> Total excl. VAT -> VAT rows -> Total EUR.
+        if (discount.compareTo(BigDecimal.ZERO) > 0) {
+            blocks.add(pairBlock(word(locale, "Popust", "Popust", "Discount"), "- " + money(discount), fonts.regular(), type.body(), type.lineHeight(), false));
+        }
+        blocks.add(pairBlock(word(locale, "Skupaj brez DDV", "Ukupno bez PDV-a", "Total excl. VAT"), money(subtotalNet), fonts.regular(), type.body(), type.lineHeight(), false));
+
+        if (layout != null && layout.isShowVatBreakdown()) {
+            for (VatRow row : vatRows(request.getServices())) {
+                if (row.bucket() == VatBucket.NO_VAT) continue;
+                String left = vatLabel(row.bucket(), locale) + " · " + word(locale, "osnova", "osnovica", "basis") + " " + money(row.net());
+                blocks.add(pairBlock(left, money(row.vat()), fonts.regular(), type.small(), type.smallLineHeight(), false));
+            }
+
+            Map<VatBucket, BigDecimal> usedAdvanceVat = usedAdvanceVatByBucket(request.getAdvancePayments());
+            for (VatBucket bucket : List.of(VatBucket.VAT_22, VatBucket.VAT_9_5, VatBucket.VAT_0)) {
+                BigDecimal amount = usedAdvanceVat.getOrDefault(bucket, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                if (amount.compareTo(BigDecimal.ZERO) == 0) continue;
+                String left = vatLabel(bucket, locale) + " " + word(locale, "(porabljeno predplačilo)", "(iskorišćen avans)", "(used advance)");
+                blocks.add(pairBlock(left, "- " + money(amount.abs()), fonts.regular(), type.small(), type.smallLineHeight(), false));
+            }
         }
         return blocks;
+    }
+
+    private Map<VatBucket, BigDecimal> usedAdvanceVatByBucket(List<FolioPdfRequest.AdvancePaymentLine> advances) {
+        Map<VatBucket, BigDecimal> result = new EnumMap<>(VatBucket.class);
+        if (advances == null) return result;
+        for (FolioPdfRequest.AdvancePaymentLine row : advances) {
+            if (row == null) continue;
+            VatBucket bucket = vatBucket(row.getTaxPercent());
+            if (bucket == VatBucket.NO_VAT) continue;
+            BigDecimal usedTax = proportionalUsedAdvanceTax(row);
+            if (usedTax.compareTo(BigDecimal.ZERO) != 0) result.merge(bucket, usedTax, BigDecimal::add);
+        }
+        return result;
+    }
+
+    private BigDecimal proportionalUsedAdvanceTax(FolioPdfRequest.AdvancePaymentLine row) {
+        BigDecimal usedGross = abs(row == null ? null : row.getUsedGross());
+        BigDecimal totalGross = abs(row == null ? null : row.getTotalGross());
+        BigDecimal taxAmount = abs(row == null ? null : row.getTaxAmount());
+        if (taxAmount.compareTo(BigDecimal.ZERO) == 0 && row != null && row.getNetBasis() != null) {
+            taxAmount = totalGross.subtract(abs(row.getNetBasis())).abs().setScale(2, RoundingMode.HALF_UP);
+        }
+        if (usedGross.compareTo(BigDecimal.ZERO) == 0 || taxAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (totalGross.compareTo(BigDecimal.ZERO) == 0) return taxAmount.setScale(2, RoundingMode.HALF_UP);
+        return taxAmount.multiply(usedGross)
+                .divide(totalGross, 8, RoundingMode.HALF_UP)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private List<Block> paymentQrBlocks(FolioPdfRequest request, PosReceiptLayoutConfig layout, Typography type, String locale) {

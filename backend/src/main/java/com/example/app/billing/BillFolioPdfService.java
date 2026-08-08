@@ -234,7 +234,7 @@ public class BillFolioPdfService {
         req.setPaymentMethods(paymentLines);
         if (!paymentLines.isEmpty()) {
             req.setPaymentMethod(buildPaymentSummary(paymentLines));
-        } else if (bill.getPaymentMethod() != null) {
+        } else if (bill.getPaymentMethod() != null && bill.getPaymentMethod().getPaymentType() != PaymentType.ADVANCE) {
             req.setPaymentMethod(bill.getPaymentMethod().getName());
         }
         List<FolioPdfRequest.AdvancePaymentLine> advancePaymentLines = buildAdvancePaymentLines(bill);
@@ -604,12 +604,16 @@ public class BillFolioPdfService {
         List<BillPayment> splits = bill.getPaymentSplits() == null ? List.of() : bill.getPaymentSplits();
         for (BillPayment split : splits) {
             if (split == null || split.getPaymentMethod() == null) continue;
+            // Used advances are rendered as their own detailed rows at the end of
+            // the POS payment-method block. Do not duplicate them as a generic
+            // "Predplačilo" payment method.
+            if (split.getSourceAdvanceBill() != null || split.getPaymentMethod().getPaymentType() == PaymentType.ADVANCE) continue;
             BigDecimal amount = split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross();
             if (amount.compareTo(BigDecimal.ZERO) == 0) continue;
             rows.add(new FolioPdfRequest.PaymentLine(localizedPaymentMethodName(split.getPaymentMethod(), locale), amount.setScale(2, RoundingMode.HALF_UP)));
         }
 
-        if (rows.isEmpty() && bill.getPaymentMethod() != null) {
+        if (rows.isEmpty() && bill.getPaymentMethod() != null && bill.getPaymentMethod().getPaymentType() != PaymentType.ADVANCE) {
             BigDecimal amount = bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross();
             rows.add(new FolioPdfRequest.PaymentLine(localizedPaymentMethodName(bill.getPaymentMethod(), locale), amount.setScale(2, RoundingMode.HALF_UP)));
         }

@@ -42,7 +42,7 @@ public class PosReceiptLayoutConfig {
     private boolean showRecipient = true;
     private boolean showUnitPriceAndQuantity = true;
     private boolean showVatBreakdown = true;
-    /** Controls whether the used payment type (for example Cash) is printed in the totals block. */
+    /** Controls whether regular payment types (for example Cash and Card) are printed in the payment-method block. */
     private boolean showPaymentDetails = false;
     private boolean showPaymentQr = true;
     /** Controls the complete fiscal block: ZOI, EOR and the fiscal QR code. */
