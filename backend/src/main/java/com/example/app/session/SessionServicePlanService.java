@@ -192,6 +192,19 @@ public class SessionServicePlanService {
     }
 
     public void validateParticipantLimit(Plan plan, int participantCount) {
+        validateParticipantLimit(plan, participantCount, null);
+    }
+
+    public void validateParticipantLimit(Plan plan, int participantCount, Integer sessionMaxParticipantsOverride) {
+        if (sessionMaxParticipantsOverride != null && sessionMaxParticipantsOverride > 0) {
+            if (participantCount > sessionMaxParticipantsOverride) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This group session allows at most " + sessionMaxParticipantsOverride + " participants."
+                );
+            }
+            return;
+        }
         if (plan == null || plan.segments() == null) return;
         for (Segment segment : plan.segments()) {
             Integer maximum = segment.type().getMaxParticipantsPerSession();

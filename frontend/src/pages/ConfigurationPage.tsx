@@ -3565,8 +3565,8 @@ export function ConfigurationPage() {
       { id: "integrations", icon: "integrations" },
       { id: "whatsapp", icon: "whatsapp" },
       { id: "viber", icon: "viber" },
-      { id: "modules", icon: "modules" },
       { id: "activityLog", icon: "activityLog" },
+      { id: "modules", icon: "modules" },
     ];
     return items.filter((entry) => isConfigTabAvailable(entry.id));
   }, [
@@ -5128,7 +5128,11 @@ export function ConfigurationPage() {
       method.paymentType === "CASH" ||
       method.paymentType === "ADVANCE"
     ) return;
-    const flags = paymentAvailabilityFlags(availability);
+    const requestedFlags = paymentAvailabilityFlags(availability);
+    const currentFlags = paymentAvailabilityFlags(paymentMethodAvailability(method));
+    const flags = guestAppEnabledCommitted
+      ? requestedFlags
+      : { guestEnabled: currentFlags.guestEnabled, widgetEnabled: requestedFlags.widgetEnabled };
     const configId = guestConfigIdForPaymentMethod(method);
     const relatedMethods = configId === "online_card"
       ? paymentMethods.filter(
@@ -5666,6 +5670,7 @@ export function ConfigurationPage() {
     "COMMUNICATION_ENABLED",
     "NOTIFICATIONS_ENABLED",
     "NOTIFICATIONS_EMAIL_ALERTS_ENABLED",
+    "CUSTOM_EMAIL_SENDER_ENABLED",
     "NOTIFICATIONS_SMS_ALERTS_ENABLED",
     "NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED",
     "INBOX_ENABLED",
@@ -6358,6 +6363,18 @@ export function ConfigurationPage() {
                   "NOTIFICATIONS_EMAIL_ALERTS_ENABLED",
                   checked,
                 ),
+            },
+            {
+              id: "communication-custom-email-sender",
+              ...moduleVisibilityProps("CUSTOM_EMAIL_SENDER_ENABLED"),
+              icon: "message",
+              title: locale === "sl" ? "E-pošta po meri" : "Custom email",
+              checked:
+                moduleOn("NOTIFICATIONS_ENABLED") &&
+                moduleOn("CUSTOM_EMAIL_SENDER_ENABLED"),
+              disabled: !moduleOn("NOTIFICATIONS_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting("CUSTOM_EMAIL_SENDER_ENABLED", checked),
             },
             {
               id: "communication-sms-alerts",
@@ -12103,10 +12120,14 @@ export function ConfigurationPage() {
                                     ) : (
                                       <select
                                         className="billing-availability-select"
-                                        value={paymentAvailabilityValue(
-                                          inlinePaymentMethodForm.guestEnabled,
-                                          inlinePaymentMethodForm.widgetEnabled,
-                                        )}
+                                        value={guestAppEnabledCommitted
+                                          ? paymentAvailabilityValue(
+                                              inlinePaymentMethodForm.guestEnabled,
+                                              inlinePaymentMethodForm.widgetEnabled,
+                                            )
+                                          : inlinePaymentMethodForm.widgetEnabled
+                                            ? "website"
+                                            : "none"}
                                         onChange={(e) => {
                                           const flags = paymentAvailabilityFlags(
                                             e.target
@@ -12115,19 +12136,24 @@ export function ConfigurationPage() {
                                           setInlinePaymentMethodForm({
                                             ...inlinePaymentMethodForm,
                                             ...flags,
+                                            guestEnabled: guestAppEnabledCommitted
+                                              ? flags.guestEnabled
+                                              : inlinePaymentMethodForm.guestEnabled,
                                           });
                                         }}
                                       >
-                                        <option value="both">
-                                          {locale === "sl"
-                                            ? "Aplikacija za goste + Spletni vtičnik"
-                                            : "Guest app + Website widget"}
-                                        </option>
-                                        <option value="guestApp">
-                                          {locale === "sl"
-                                            ? "Aplikacija za goste"
-                                            : "Guest app"}
-                                        </option>
+                                        {guestAppEnabledCommitted ? (<>
+                                          <option value="both">
+                                            {locale === "sl"
+                                              ? "Aplikacija za goste + Spletni vtičnik"
+                                              : "Guest app + Website widget"}
+                                          </option>
+                                          <option value="guestApp">
+                                            {locale === "sl"
+                                              ? "Aplikacija za goste"
+                                              : "Guest app"}
+                                          </option>
+                                        </>) : null}
                                         <option value="website">
                                           {locale === "sl"
                                             ? "Spletni vtičnik"
@@ -12171,8 +12197,12 @@ export function ConfigurationPage() {
                                   const isInlineEditing =
                                     inlineEditingPaymentMethodId === method.id &&
                                     inlinePaymentMethodForm;
-                                  const availability =
-                                    paymentMethodAvailability(method);
+                                  const rawAvailability = paymentMethodAvailability(method);
+                                  const availability = guestAppEnabledCommitted
+                                    ? rawAvailability
+                                    : paymentAvailabilityFlags(rawAvailability).widgetEnabled
+                                      ? "website"
+                                      : "none";
                                   return (
                                     <div
                                       key={method.id}
@@ -12290,16 +12320,18 @@ export function ConfigurationPage() {
                                               : `Availability: ${paymentMethodDisplayName(method, locale)}`
                                           }
                                         >
-                                          <option value="both">
-                                            {locale === "sl"
-                                              ? "Aplikacija za goste + Spletni vtičnik"
-                                              : "Guest app + Website widget"}
-                                          </option>
-                                          <option value="guestApp">
-                                            {locale === "sl"
-                                              ? "Aplikacija za goste"
-                                              : "Guest app"}
-                                          </option>
+                                          {guestAppEnabledCommitted ? (<>
+                                            <option value="both">
+                                              {locale === "sl"
+                                                ? "Aplikacija za goste + Spletni vtičnik"
+                                                : "Guest app + Website widget"}
+                                            </option>
+                                            <option value="guestApp">
+                                              {locale === "sl"
+                                                ? "Aplikacija za goste"
+                                                : "Guest app"}
+                                            </option>
+                                          </>) : null}
                                           <option value="website">
                                             {locale === "sl"
                                               ? "Spletni vtičnik"

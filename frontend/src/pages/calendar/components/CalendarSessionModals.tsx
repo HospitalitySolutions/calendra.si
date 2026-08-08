@@ -17,6 +17,7 @@ function bookingFormSignature(session: any, clientIds: any[], services: any[]) {
   return JSON.stringify({
     clients: Array.from(new Set((clientIds || []).map(Number).filter((value) => Number.isFinite(value) && value > 0))).sort((left, right) => left - right),
     groupId: normalizedNumber(session?.group?.id ?? session?.groupId),
+    maxParticipantsOverride: normalizedNumber(session?.maxParticipantsOverride),
     consultantId: normalizedNumber(session?.consultant?.id ?? session?.consultantId),
     startTime: String(session?.startTime ?? ''),
     endTime: String(session?.endTime ?? ''),
@@ -129,6 +130,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     return () => media.removeEventListener?.('change', sync)
   }, [])
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
+  const scannerModuleEnabled = settings?.SCANNER_MODULE_ENABLED === 'true'
   const multipleServicesEnabled = (() => {
     try {
       return JSON.parse(String(settings?.GUEST_APP_SETTINGS_JSON || '{}'))?.multipleServicesEnabled === true
@@ -625,6 +627,18 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const closeCalendarAddClientModal = () => {
     setShowAddClientModal(false)
   }
+
+  const closeCalendarAddGroupModal = () => {
+    setShowAddGroupModal(false)
+    setGroupModalError('')
+    setNewGroupForm({ name: '', email: '' })
+    setNewGroupMemberIds([])
+    setNewGroupMemberSearch('')
+  }
+
+  const calendarNewGroupDisplayName = String(newGroupForm?.name ?? '').trim() || (locale === 'sl' ? 'Nova skupina' : 'New group')
+  const calendarCreateGroupLabel = locale === 'sl' ? 'Ustvari skupino' : 'Create group'
+  const calendarCreateGroupDisabled = savingNewGroupModal || !String(newGroupForm?.name ?? '').trim()
 
   const calendarNewClientDisplayName = [newClientForm.firstName, newClientForm.lastName]
     .filter((value: string) => String(value ?? '').trim())
@@ -2445,6 +2459,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                 {bookedBillingHasExistingAdvance && renderMobileBillingActionMenu('advance')}
                               </>
                             )}
+{scannerModuleEnabled ? (
                             <button
                               type="button"
                               role="menuitem"
@@ -2462,6 +2477,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                 <small>{bookingServiceScanTitle}</small>
                               </span>
                             </button>
+                            ) : null}
                             <button
                               type="button"
                               role="menuitem"
@@ -2582,6 +2598,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             <span>{locale === 'sl' ? 'Račun' : 'Invoice'}</span>
                           </button>
                         )}
+{scannerModuleEnabled ? (
                         <button
                           type="button"
                           role="menuitem"
@@ -2596,6 +2613,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           <span className="calendar-desktop-session-actions__icon" aria-hidden><BookedEntitlementScanIcon /></span>
                           <span>{locale === 'sl' ? 'Skener' : 'Scanner'}</span>
                         </button>
+                        ) : null}
                       </div>
                     )}
                   </div>
@@ -2949,6 +2967,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     defaultSpaceId={selectedBookedSession.space?.id ?? null}
                     multipleServicesEnabled={multipleServicesEnabled}
                     allowServiceEdit={!bookedBillingHasExistingOpenBill}
+                    showSessionMaxParticipants={bookedSessionIsGroup}
+                    sessionMaxParticipants={selectedBookedSession.maxParticipantsOverride ?? null}
+                    onSessionMaxParticipantsChange={(value) =>
+                      setSelectedBookedSession((current: any) => current ? { ...current, maxParticipantsOverride: value } : current)
+                    }
                   />
                   <div className="calendar-booking-service-chain__billing-actions calendar-booking-service-chain__billing-actions--relocated-desktop">
                     <div className="calendar-session-billing-actions">
@@ -5073,8 +5096,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             />
                           )}
                         </div>
-                        {!!selectedGroup && (
-                          <div className="calendar-client-picker__actions">
+                        <div className="calendar-client-picker__actions">
+                          {!!selectedGroup && (
                             <button
                               type="button"
                               className="secondary calendar-client-picker__clear-btn"
@@ -5090,8 +5113,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             >
                               <span aria-hidden>×</span>
                             </button>
-                          </div>
-                        )}
+                          )}
+                          <button
+                            type="button"
+                            className="secondary client-add-btn calendar-client-picker__add-btn"
+                            title={addGroupInlineTitle}
+                            aria-label={addGroupInlineTitle}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setGroupDropdownOpen(false)
+                              setShowAddGroupModal(true)
+                            }}
+                          >
+                            <span aria-hidden>+</span>
+                          </button>
+                        </div>
                       </div>
                       {groupDropdownOpen && (
                         <div className="client-dropdown-panel calendar-client-picker__dropdown" onMouseDown={(e) => e.preventDefault()}>
@@ -5810,6 +5846,131 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       )}
 
       {androidLanguageModal && <LanguageModal onClose={() => setAndroidLanguageModal(false)} />}
+
+      {showAddGroupModal && (
+        <div
+          className={`modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement clients-action-workspace-backdrop${isCalendarCreateMobile ? ' clients-simple-create-backdrop calendar-client-create-page-backdrop' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeCalendarAddGroupModal()
+          }}
+          role="presentation"
+        >
+          <div
+            className={`modal large-modal calendar-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-group-create-modal${isCalendarCreateMobile ? ' clients-simple-create-modal calendar-client-create-page' : ''}`}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {isCalendarCreateMobile ? (
+              <form
+                className="clients-create-modal-form clients-simple-create-form"
+                autoComplete="off"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!calendarCreateGroupDisabled) void createGroupFromBooking()
+                }}
+              >
+                <div className="clients-simple-create-header">
+                  <button
+                    type="button"
+                    className="clients-simple-create-close"
+                    onClick={closeCalendarAddGroupModal}
+                    aria-label={t('mobileNavClose')}
+                  >
+                    ×
+                  </button>
+                  <h2>{locale === 'sl' ? 'Nova skupina' : 'New group'}</h2>
+                </div>
+                <div className="clients-simple-create-body">
+                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'} *</span>
+                        <input
+                          required
+                          autoFocus
+                          placeholder={locale === 'sl' ? 'Ime skupine *' : 'Group name *'}
+                          value={newGroupForm.name}
+                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
+                        />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
+                        <input
+                          type="email"
+                          inputMode="email"
+                          placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
+                          value={newGroupForm.email}
+                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
+                        />
+                      </label>
+                    </div>
+                    {groupModalError && <div className="error">{groupModalError}</div>}
+                    <button
+                      type="submit"
+                      className="clients-gapp-save-button clients-simple-create-submit"
+                      disabled={calendarCreateGroupDisabled}
+                    >
+                      {savingNewGroupModal ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateGroupLabel}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <form
+                className="clients-create-modal-form"
+                autoComplete="off"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!calendarCreateGroupDisabled) void createGroupFromBooking()
+                }}
+              >
+                <div className="clients-action-workspace-header">
+                  <div className="clients-action-workspace-client">
+                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
+                    <div className="clients-name-stack clients-action-workspace-title-stack">
+                      <span className="clients-name">{calendarNewGroupDisplayName}</span>
+                      <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {locale === 'sl' ? 'Aktivna' : 'Active'}</span>
+                    </div>
+                  </div>
+                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeCalendarAddGroupModal} aria-label={t('mobileNavClose')}>
+                    ×
+                  </button>
+                </div>
+                <div className="clients-action-workspace-body">
+                  <div className="clients-detail-shell clients-action-workspace-shell">
+                    <div className="clients-detail-fields clients-create-fields">
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'}</span>
+                        <input
+                          required
+                          autoFocus
+                          placeholder={locale === 'sl' ? 'Ime skupine' : 'Group name'}
+                          value={newGroupForm.name}
+                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
+                        />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                        <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
+                        <input
+                          type="email"
+                          placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
+                          value={newGroupForm.email}
+                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
+                        />
+                      </label>
+                    </div>
+                    {groupModalError && <div className="error">{groupModalError}</div>}
+                  </div>
+                </div>
+                <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
+                  <button type="submit" className="clients-gapp-save-button" disabled={calendarCreateGroupDisabled}>
+                    {savingNewGroupModal ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateGroupLabel}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {showAddClientModal && (
         <div

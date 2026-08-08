@@ -1043,7 +1043,9 @@ public class GuestCatalogService {
         if (!hasBlockingSessionRow) {
             return false;
         }
-        Integer maxParticipants = type.getMaxParticipantsPerSession();
+        Integer maxParticipants = representative.getMaxParticipantsOverride() != null && representative.getMaxParticipantsOverride() > 0
+                ? representative.getMaxParticipantsOverride()
+                : type.getMaxParticipantsPerSession();
         Set<String> limitedEmails = parseGuestLimitUserEmails(type.getGuestLimitUserEmails());
         String guestEmail = normalizeEmail(guestUser == null ? null : guestUser.getEmail());
         if (!guestEmail.isBlank()) {

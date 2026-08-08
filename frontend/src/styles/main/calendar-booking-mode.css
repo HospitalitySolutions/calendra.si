@@ -8922,6 +8922,26 @@
 }
 
 
+
+@media (min-width: 940px) {
+    .calendar-edit-session-panel--new-create .calendar-client-picker__confirm,
+    .calendar-edit-session-panel--booked .calendar-client-picker__confirm {
+        background: transparent !important;
+        color: #111827 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel--new-create .calendar-client-picker__confirm:hover,
+    .calendar-edit-session-panel--new-create .calendar-client-picker__confirm:focus-visible,
+    .calendar-edit-session-panel--booked .calendar-client-picker__confirm:hover,
+    .calendar-edit-session-panel--booked .calendar-client-picker__confirm:focus-visible {
+        background: transparent !important;
+        color: #111827 !important;
+        box-shadow: none !important;
+    }
+}
+
 /* --------------------------------------------------------------------------
    Mobile client picker refinements: show left checkmarks in client lists and
    add an inline confirm button inside the search field.

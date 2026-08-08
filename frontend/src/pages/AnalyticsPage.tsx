@@ -15,7 +15,7 @@ import {
 } from 'recharts'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
-import { Card, EmptyState, PageHeader } from '../components/ui'
+import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
 import { hasEmployeePermission } from '../lib/employeePermissions'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
@@ -946,8 +946,6 @@ export function AnalyticsPage() {
 
   return (
     <div className="stack gap-lg analytics-page">
-      <PageHeader title={text.title} />
-
       {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && isWorkspaceRolloutEnabled(me, 'WORKSPACE_ANALYTICS') && (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId && hasEmployeePermission(unit, 'REPORTS_ANALYTICS_VIEW')).length > 1 && (
         <div className="analytics-scope-switch" role="tablist">
           <Link to="/analytics" className="active">{locale === 'sl' ? 'Trenutna enota' : locale === 'sr' ? 'Trenutna jedinica' : 'Current unit'}</Link>
@@ -955,22 +953,17 @@ export function AnalyticsPage() {
         </div>
       )}
 
-      <div className="analytics-mobile-tabs" role="tablist" aria-label={text.title}>
-        <button type="button" className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>
-          {text.tabOverview}
-        </button>
-        <button type="button" className={activeTab === 'reports' ? 'active' : ''} onClick={() => setActiveTab('reports')}>
-          {text.tabReports}
-        </button>
-      </div>
-
-      <div className="analytics-section-switch analytics-page-tabs analytics-page-tabs--desktop" role="tablist" aria-label={text.title}>
-        <button type="button" className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>
-          {text.tabOverview}
-        </button>
-        <button type="button" className={activeTab === 'reports' ? 'active' : ''} onClick={() => setActiveTab('reports')}>
-          {text.tabReports}
-        </button>
+      <div className="clients-page-header analytics-tabs-header">
+        <div className="clients-page-header__entity clients-entity-tabs-shell">
+          <div className="clients-session-tabs clients-entity-tabs" role="tablist" aria-label={text.title}>
+            <button type="button" role="tab" aria-selected={activeTab === 'overview'} className={`clients-session-tab${activeTab === 'overview' ? ' active' : ''}`} onClick={() => setActiveTab('overview')}>
+              {text.tabOverview}
+            </button>
+            <button type="button" role="tab" aria-selected={activeTab === 'reports'} className={`clients-session-tab${activeTab === 'reports' ? ' active' : ''}`} onClick={() => setActiveTab('reports')}>
+              {text.tabReports}
+            </button>
+          </div>
+        </div>
       </div>
 
       {activeTab === 'overview' && (<>

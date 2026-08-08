@@ -191,7 +191,9 @@ public class SessionBookingController {
             /** Ordered service chain. Null/empty preserves the legacy typeId + endTime contract. */
             List<BookingServiceRequest> services,
             /** Physical branch inside the selected operating unit. Defaults from space or unit default. */
-            Long locationId
+            Long locationId,
+            /** Session-only participant limit for a group booking. Null preserves/defaults, non-positive clears on update. */
+            Integer maxParticipantsOverride
     ) {
         /** Source-compatible constructor for legacy callers that only provide typeId. */
         public BookingRequest(
@@ -217,7 +219,7 @@ public class SessionBookingController {
             this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
                     meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
                     groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
-                    recurrenceSeriesKey, null, null);
+                    recurrenceSeriesKey, null, null, null);
         }
 
         /** Source-compatible constructor for callers that provide a service chain but no location. */
@@ -232,7 +234,22 @@ public class SessionBookingController {
             this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
                     meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
                     groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
-                    recurrenceSeriesKey, services, null);
+                    recurrenceSeriesKey, services, null, null);
+        }
+
+        /** Source-compatible constructor for callers that provide a service chain and location. */
+        public BookingRequest(
+                Long clientId, List<Long> clientIds, Long consultantId, String startTime, String endTime,
+                Long spaceId, Long typeId, String notes, String meetingLink, Boolean online,
+                String meetingProvider, Boolean allowPersonalBlockOverlap, Long groupId,
+                String groupEmailOverride, Long groupBillingCompanyIdOverride, String bookingStatus,
+                List<BookingPayeeRequest> payees, String recurrenceSeriesKey,
+                List<BookingServiceRequest> services, Long locationId
+        ) {
+            this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
+                    meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
+                    groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
+                    recurrenceSeriesKey, services, locationId, null);
         }
     }
 
@@ -351,7 +368,8 @@ public class SessionBookingController {
             int totalServiceMinutes,
             int totalBreakMinutes,
             BigDecimal totalGross,
-            LocationSummary location
+            LocationSummary location,
+            Integer maxParticipantsOverride
     ) {}
     public record BookableSlotResponse(
             Long id,
@@ -1131,7 +1149,8 @@ public class SessionBookingController {
                 base.totalServiceMinutes(),
                 base.totalBreakMinutes(),
                 base.totalGross(),
-                base.location()
+                base.location(),
+                base.maxParticipantsOverride()
         );
     }
 
@@ -1559,7 +1578,8 @@ public class SessionBookingController {
                 SessionBillingSupport.grossTotal(representative),
                 representative.getLocation() == null ? null : new LocationSummary(
                         representative.getLocation().getId(), representative.getLocation().getName(),
-                        representative.getLocation().getCity(), representative.getLocation().getTimezone())
+                        representative.getLocation().getCity(), representative.getLocation().getTimezone()),
+                representative.getMaxParticipantsOverride()
         );
     }
 

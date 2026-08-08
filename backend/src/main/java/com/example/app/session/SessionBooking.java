@@ -193,6 +193,10 @@ public class SessionBooking extends BaseEntity {
     @Column(name = "session_group_email_override", length = 512)
     private String sessionGroupEmailOverride;
 
+    /** Session-specific capacity override for this logical group booking. Null uses the service default. */
+    @Column(name = "max_participants_override")
+    private Integer maxParticipantsOverride;
+
     /**
      * When set, overrides {@link ClientGroup#getBillingCompany()} for this session only.
      */

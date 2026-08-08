@@ -2594,6 +2594,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           groupBillingCompanyIdOverride: null,
           bookingStatus: normalizeStoredBookingStatus(pending.bookingStatus),
           recurrenceSeriesKey: pending.recurrenceSeriesKey ?? null,
+          maxParticipantsOverride: pending.maxParticipantsOverride ?? null,
           payees: Array.isArray(pending.payees) ? pending.payees : [],
         }
         const pendingStatusValidation = getStatusTransitionValidation(
@@ -4578,6 +4579,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     services: CalendarServiceDraft[],
     selectedClientCount: number,
     groupMode: boolean,
+    sessionMaxParticipantsOverride?: number | null,
   ) => {
     const warnings: string[] = []
     const typedServices = normalizeCalendarServiceDrafts(services).filter((service) => service.typeId != null)
@@ -4601,7 +4603,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           ? 'Sve izabrane usluge moraju dozvoljavati grupne termine.'
           : 'Every selected service must allow group sessions.')
     }
-    const maxParticipants = getServiceChainMaxParticipants(typedServices)
+    const normalizedSessionLimit = Number(sessionMaxParticipantsOverride)
+    const maxParticipants = groupMode && Number.isFinite(normalizedSessionLimit) && normalizedSessionLimit > 0
+      ? Math.round(normalizedSessionLimit)
+      : getServiceChainMaxParticipants(typedServices)
     if (maxParticipants != null && selectedClientCount > maxParticipants) {
       warnings.push(locale === 'sl'
         ? `Kombinacija storitev dovoljuje največ ${maxParticipants} strank.`
@@ -4642,6 +4647,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             .map((value) => Number(value))
             .filter((value) => Number.isInteger(value) && value > 0))).length,
           Boolean(groupBookingEnabled && selectedBookedSession?.groupId != null && Number(selectedBookedSession.groupId) > 0),
+          selectedBookedSession?.maxParticipantsOverride ?? null,
         ),
         ...(isLocalBookingAllDay(selectedBookedSession?.startTime, selectedBookedSession?.endTime) && bookingServicesPayload(bookedServiceDrafts).length > 1
           ? [multiServiceAllDayWarning]
@@ -10227,7 +10233,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     const consultantId = selectedBookedSession.consultant?.id
     const typeBreakMinutes = Math.max(0, currentBookedServiceChain.totalBreakMinutes - currentBookedServiceChain.totalInternalBreakMinutes)
-    const maxParticipants = getServiceChainMaxParticipants(currentBookedServiceDrafts)
+    const sessionMaxParticipantsOverride = bookedIsGroupSession
+      ? Number(selectedBookedSession.maxParticipantsOverride)
+      : Number.NaN
+    const maxParticipants = Number.isFinite(sessionMaxParticipantsOverride) && sessionMaxParticipantsOverride > 0
+      ? Math.round(sessionMaxParticipantsOverride)
+      : getServiceChainMaxParticipants(currentBookedServiceDrafts)
     if (maxParticipants != null && resolvedClientIds.length > maxParticipants) {
       showToast('error', locale === 'sl'
         ? `Izbrane storitve dovoljujejo največ ${maxParticipants} udeležencev na termin.`
@@ -10293,6 +10304,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
             bookingStatus: requestedStoredStatus,
             recurrenceSeriesKey,
+            maxParticipantsOverride: bookedIsGroupSession ? (selectedBookedSession.maxParticipantsOverride ?? 0) : null,
             payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
           },
         })
@@ -10324,6 +10336,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           meetingProvider: provider,
           bookingStatus: requestedStoredStatus,
           recurrenceSeriesKey,
+          maxParticipantsOverride: bookedIsGroupSession ? (selectedBookedSession.maxParticipantsOverride ?? 0) : null,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
           repeats: Boolean(selectedBookedSession.repeats),
           repeatInterval: selectedBookedSession.repeatInterval ?? 1,
@@ -10356,6 +10369,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       groupBillingCompanyIdOverride: null,
       bookingStatus: requestedStoredStatus,
       recurrenceSeriesKey,
+      maxParticipantsOverride: bookedIsGroupSession ? (selectedBookedSession.maxParticipantsOverride ?? 0) : null,
       payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
     }
     const futureOccurrencePayloads: any[] = selectedBookedSession.repeats
@@ -11120,6 +11134,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           meetingProvider: provider,
           bookingStatus: editPayload.bookingStatus ?? 'RESERVED',
           recurrenceSeriesKey: editPayload.recurrenceSeriesKey ?? null,
+          maxParticipantsOverride: editPayload.maxParticipantsOverride ?? null,
           payees: editPayload.payees ?? [],
           allowPersonalBlockOverlap: true,
         }))
@@ -11156,6 +11171,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         groupBillingCompanyIdOverride: null,
         bookingStatus: editStatus,
         recurrenceSeriesKey: editPayload.recurrenceSeriesKey ?? null,
+        maxParticipantsOverride: editPayload.maxParticipantsOverride ?? null,
         payees: editPayload.payees ?? [],
         allowPersonalBlockOverlap: true,
       })

@@ -1697,6 +1697,7 @@ export function ConfigurationNotificationsSection({
   const customDomainStatus =
     settings[EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS_KEY] || "NOT_VERIFIED";
   const customDomainVerified = isEmailSenderVerified(customDomainStatus);
+  const customEmailSenderEnabled = settings.CUSTOM_EMAIL_SENDER_ENABLED === "true";
   const customSenderDomainMatches = emailSenderDomainMatches(
     customFromEmail,
     customDomain,
@@ -4316,7 +4317,7 @@ export function ConfigurationNotificationsSection({
               ) : null}
             </div>
           ) : null}
-          {channel === "email" && channelAvailability.email ? (
+          {channel === "email" && channelAvailability.email && customEmailSenderEnabled ? (
             <section className="notif-sender-card" aria-label="Pošiljatelj e-pošte">
               <div className="notif-sender-head">
                 <span>

@@ -379,7 +379,9 @@ public class PublicBookingManageService {
             if (groupContainsClient(activeRows, booking.getClient().getId())) continue;
 
             int bookedParticipants = activeParticipantCount(activeRows);
-            Integer maxParticipants = representative.getType().getMaxParticipantsPerSession();
+            Integer maxParticipants = representative.getMaxParticipantsOverride() != null && representative.getMaxParticipantsOverride() > 0
+                    ? representative.getMaxParticipantsOverride()
+                    : representative.getType().getMaxParticipantsPerSession();
             if (maxParticipants != null && bookedParticipants >= maxParticipants) continue;
 
             List<Long> excludeIds = new ArrayList<>(activeRows.stream()
@@ -466,7 +468,9 @@ public class PublicBookingManageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You are already booked into the selected group session.");
         }
         int bookedParticipants = activeParticipantCount(activeTargetRows);
-        Integer maxParticipants = target.getType().getMaxParticipantsPerSession();
+        Integer maxParticipants = target.getMaxParticipantsOverride() != null && target.getMaxParticipantsOverride() > 0
+                ? target.getMaxParticipantsOverride()
+                : target.getType().getMaxParticipantsPerSession();
         if (maxParticipants != null && bookedParticipants >= maxParticipants) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session has no available spaces.");
         }

@@ -301,7 +301,7 @@ public class SessionBookingCreationService {
         } else {
             requestedClientIds = resolveRequestedClientIds(req, multipleClientsPerSessionEnabled);
         }
-        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
+        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size(), clientGroup != null ? normalizedMaxParticipantsOverride(req.maxParticipantsOverride()) : null);
         Long excludedWaitlistOfferId = resolveMatchingWaitlistOfferId(
                 waitlistRequestId,
                 companyId,
@@ -378,7 +378,7 @@ public class SessionBookingCreationService {
         } else {
             requestedClientIds = resolveRequestedClientIds(req, multipleClientsPerSessionEnabled);
         }
-        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
+        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size(), clientGroup != null ? normalizedMaxParticipantsOverride(req.maxParticipantsOverride()) : null);
         Long excludedWaitlistOfferId = resolveMatchingWaitlistOfferId(
                 waitlistRequestId,
                 companyId,
@@ -520,7 +520,12 @@ public class SessionBookingCreationService {
         } else {
             requestedClientIds = resolveRequestedClientIds(req, allowMultipleClientsForRequest);
         }
-        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size());
+        Integer effectiveMaxParticipantsOverride = representative.getClientGroup() == null
+                ? null
+                : req.maxParticipantsOverride() == null
+                    ? representative.getMaxParticipantsOverride()
+                    : normalizedMaxParticipantsOverride(req.maxParticipantsOverride());
+        servicePlans.validateParticipantLimit(servicePlan, requestedClientIds.size(), effectiveMaxParticipantsOverride);
         var excludeIds = existingRows.stream().map(SessionBooking::getId).toList();
         acquireWorkspaceSchedulingLocks(companyId, consultantId, servicePlan);
         validateBookingWindow(
@@ -580,6 +585,9 @@ public class SessionBookingCreationService {
                 row = new SessionBooking();
                 row.setBookingGroupKey(groupKey);
                 row.setRecurrenceSeriesKey(representative.getRecurrenceSeriesKey());
+                if (req.maxParticipantsOverride() == null) {
+                    row.setMaxParticipantsOverride(representative.getMaxParticipantsOverride());
+                }
                 created = true;
             } else {
                 previouslyBlockedAvailability = SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus());
@@ -1069,6 +1077,7 @@ public class SessionBookingCreationService {
         placeholder.setClientGroup(participant.getClientGroup());
         placeholder.setSessionGroupEmailOverride(participant.getSessionGroupEmailOverride());
         placeholder.setSessionGroupBillingCompany(participant.getSessionGroupBillingCompany());
+        placeholder.setMaxParticipantsOverride(participant.getMaxParticipantsOverride());
         placeholder = repo.save(placeholder);
 
         // Public cancellation flushes here before continuing with participant
@@ -1410,13 +1419,13 @@ public class SessionBookingCreationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This guest is already booked into the selected group session.");
         }
         if (enforceGuestEligibility) {
-            validateGroupSessionJoinCapacity(type, existingRows, client);
+            validateGroupSessionJoinCapacity(representative, type, existingRows, client);
         }
         long activeParticipants = existingRows.stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()))
                 .count();
-        servicePlans.validateParticipantLimit(representativePlan, Math.toIntExact(activeParticipants + 1));
+        servicePlans.validateParticipantLimit(representativePlan, Math.toIntExact(activeParticipants + 1), representative.getMaxParticipantsOverride());
 
         validateBookingWindow(
                 companyId,
@@ -1453,6 +1462,7 @@ public class SessionBookingCreationService {
         joined.setClientGroup(representative.getClientGroup());
         joined.setSessionGroupEmailOverride(representative.getSessionGroupEmailOverride());
         joined.setSessionGroupBillingCompany(representative.getSessionGroupBillingCompany());
+        joined.setMaxParticipantsOverride(representative.getMaxParticipantsOverride());
         if ("COMPANY".equalsIgnoreCase(String.valueOf(representative.getPayeeType()))
                 && representative.getPayeeCompany() != null) {
             joined.setPayeeType("COMPANY");
@@ -2142,6 +2152,11 @@ public class SessionBookingCreationService {
         booking.setBookingStatus(resolveRequestedStoredStatusForCreate(companyId, bookingStatus));
     }
 
+    private static Integer normalizedMaxParticipantsOverride(Integer value) {
+        if (value == null || value <= 0) return null;
+        return Math.min(value, 100000);
+    }
+
     private void applySharedFields(
             SessionBooking booking,
             SessionBookingController.BookingRequest req,
@@ -2177,6 +2192,9 @@ public class SessionBookingCreationService {
         booking.setStartTime(start);
         booking.setEndTime(end);
         booking.setBookingStatus(bookingStatus);
+        if (req.maxParticipantsOverride() != null) {
+            booking.setMaxParticipantsOverride(normalizedMaxParticipantsOverride(req.maxParticipantsOverride()));
+        }
         // For the multi-service contract the resolved plan is authoritative. Avoid validating or
         // applying the legacy root aliases here; synchronize(...) sets them to the first segment.
         if (!hasExplicitServiceSelection(req)) {
@@ -2365,8 +2383,10 @@ public class SessionBookingCreationService {
         guestEntitlementService.maybeRestoreCreditForBooking(booking);
     }
 
-    private void validateGroupSessionJoinCapacity(SessionType type, List<SessionBooking> existingRows, Client joiningClient) {
-        Integer maxParticipants = type.getMaxParticipantsPerSession();
+    private void validateGroupSessionJoinCapacity(SessionBooking representative, SessionType type, List<SessionBooking> existingRows, Client joiningClient) {
+        Integer maxParticipants = representative != null && representative.getMaxParticipantsOverride() != null && representative.getMaxParticipantsOverride() > 0
+                ? representative.getMaxParticipantsOverride()
+                : type.getMaxParticipantsPerSession();
         if (maxParticipants == null) {
             return;
         }
@@ -2652,6 +2672,9 @@ public class SessionBookingCreationService {
             keep.setBookingSource(existingBookingSource);
             keep.setSourceOrderId(existingSourceOrderId);
             keep.setGuestUserId(existingGuestUserId);
+            if (req.maxParticipantsOverride() == null) {
+                keep.setMaxParticipantsOverride(sourceRepresentative.getMaxParticipantsOverride());
+            }
         }
         applySharedFields(keep, req, me, start, end, companyId, meetingLink, bookingStatus);
         synchronizeServicePlan(keep, servicePlan);

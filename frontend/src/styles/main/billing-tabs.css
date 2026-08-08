@@ -122,6 +122,10 @@
     gap: 18px;
 }
 
+.billing-open-mobile-sort-wrap {
+    display: none;
+}
+
 .billing-modern-filter-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -4223,5 +4227,12 @@
         width: 21px;
         height: 21px;
         stroke-width: 1.8;
+    }
+}
+
+@media (max-width: 720px) {
+    .billing-open-mobile-sort-wrap {
+        display: block;
+        position: relative;
     }
 }

@@ -37,6 +37,8 @@ function positiveInteger(value: unknown) {
 }
 
 function sessionCapacity(session: any) {
+  const sessionOverride = positiveInteger(session?.maxParticipantsOverride)
+  if (sessionOverride != null) return sessionOverride
   const serviceLimits = (Array.isArray(session?.services) ? session.services : [])
     .map((service: any) => positiveInteger(service?.type?.maxParticipantsPerSession))
     .filter((value: number | null): value is number => value != null)

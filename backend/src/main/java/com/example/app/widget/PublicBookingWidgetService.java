@@ -1230,7 +1230,9 @@ public class PublicBookingWidgetService {
                 .map(Client::getId)
                 .distinct()
                 .count();
-        Integer maxParticipants = type.getMaxParticipantsPerSession();
+        Integer maxParticipants = representative.getMaxParticipantsOverride() != null && representative.getMaxParticipantsOverride() > 0
+                ? representative.getMaxParticipantsOverride()
+                : type.getMaxParticipantsPerSession();
         if (maxParticipants != null && bookedParticipants >= maxParticipants) {
             return null;
         }

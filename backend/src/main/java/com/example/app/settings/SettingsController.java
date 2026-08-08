@@ -82,6 +82,7 @@ public class SettingsController {
             SettingKey.INBOX_ENABLED.name(),
             SettingKey.NOTIFICATIONS_ENABLED.name(),
             SettingKey.NOTIFICATIONS_EMAIL_ALERTS_ENABLED.name(),
+            SettingKey.CUSTOM_EMAIL_SENDER_ENABLED.name(),
             SettingKey.NOTIFICATIONS_SMS_ALERTS_ENABLED.name(),
             SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED.name(),
             SettingKey.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED.name(),

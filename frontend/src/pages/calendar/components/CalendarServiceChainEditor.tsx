@@ -39,6 +39,7 @@ function labels(locale: string) {
       decreaseDuration: 'Skrajšaj trajanje',
       increaseDuration: 'Podaljšaj trajanje',
       price: 'Cena',
+      maxParticipants: 'Največ udeležencev v skupini',
       totalDuration: 'Skupno trajanje',
       total: 'Skupaj',
       moveUp: 'Premakni navzgor',
@@ -72,6 +73,7 @@ function labels(locale: string) {
       decreaseDuration: 'Smanji trajanje',
       increaseDuration: 'Povećaj trajanje',
       price: 'Cena',
+      maxParticipants: 'Najviše učesnika u grupi',
       totalDuration: 'Ukupno trajanje',
       total: 'Ukupno',
       moveUp: 'Pomeri nagore',
@@ -104,6 +106,7 @@ function labels(locale: string) {
     decreaseDuration: 'Decrease duration',
     increaseDuration: 'Increase duration',
     price: 'Price',
+    maxParticipants: 'Maximum participants in group',
     totalDuration: 'Total duration',
     total: 'Total',
     moveUp: 'Move up',
@@ -226,6 +229,9 @@ export function CalendarServiceChainEditor({
   defaultSpaceId = null,
   multipleServicesEnabled = false,
   allowServiceEdit = true,
+  showSessionMaxParticipants = false,
+  sessionMaxParticipants = null,
+  onSessionMaxParticipantsChange,
 }: {
   locale: string
   services: CalendarServiceDraft[]
@@ -241,6 +247,9 @@ export function CalendarServiceChainEditor({
   defaultSpaceId?: number | null
   multipleServicesEnabled?: boolean
   allowServiceEdit?: boolean
+  showSessionMaxParticipants?: boolean
+  sessionMaxParticipants?: number | null
+  onSessionMaxParticipantsChange?: (value: number | null) => void
 }) {
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -251,6 +260,7 @@ export function CalendarServiceChainEditor({
   const [editingServiceIndex, setEditingServiceIndex] = useState<number | null>(null)
   const [editingServiceDuration, setEditingServiceDuration] = useState('60')
   const [editingServicePrice, setEditingServicePrice] = useState('0,00')
+  const [editingSessionMaxParticipants, setEditingSessionMaxParticipants] = useState('')
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
@@ -390,6 +400,8 @@ export function CalendarServiceChainEditor({
     setEditingServiceIndex(index)
     setEditingServiceDuration(String(duration))
     setEditingServicePrice(price.toFixed(2).replace('.', ','))
+    const effectiveMaxParticipants = Number(sessionMaxParticipants ?? type?.maxParticipantsPerSession ?? 0)
+    setEditingSessionMaxParticipants(effectiveMaxParticipants > 0 ? String(Math.round(effectiveMaxParticipants)) : '')
     setMenuIndex(null)
     setReorderMenuIndex(null)
   }
@@ -406,6 +418,10 @@ export function CalendarServiceChainEditor({
       durationMinutesOverride,
       grossPriceOverride: Number.isFinite(normalizedPrice) ? Math.max(0, normalizedPrice) : 0,
     })
+    if (showSessionMaxParticipants && onSessionMaxParticipantsChange) {
+      const parsedMaxParticipants = Number(editingSessionMaxParticipants)
+      onSessionMaxParticipantsChange(Number.isFinite(parsedMaxParticipants) && parsedMaxParticipants > 0 ? Math.round(parsedMaxParticipants) : null)
+    }
     setEditingServiceIndex(null)
   }
 
@@ -715,6 +731,19 @@ export function CalendarServiceChainEditor({
                   <span>€</span>
                 </div>
               </label>
+              {showSessionMaxParticipants ? (
+                <label className="calendar-service-edit-modal__field">
+                  <span>{copy.maxParticipants}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={editingSessionMaxParticipants}
+                    onChange={(event) => setEditingSessionMaxParticipants(event.target.value)}
+                  />
+                </label>
+              ) : null}
             </div>
             <div className="calendar-service-edit-modal__footer">
               <button type="button" className="primary" onClick={saveEditService}>{copy.saveChanges}</button>
