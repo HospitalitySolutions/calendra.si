@@ -125,9 +125,23 @@ public class BillFolioPdfService {
         );
     }
 
-    public String paymentQrPayload(Bill bill, Long companyId, String locale) {
+    /**
+     * Canonical direct-POS payload. Keeping this conversion in the backend ensures
+     * native ESC/POS printing uses the same snapshots, discounts, advance-payment
+     * calculations, localized payment names and fiscal data as the 58 mm PDF.
+     */
+    public FolioPdfRequest posReceiptPrintRequest(Bill bill, Long companyId, String locale) {
         if (bill == null || companyId == null) return null;
-        return buildFolioPdfRequest(bill, companyId, locale).getPaymentQrPayload();
+        String effectiveLocale = resolveInvoiceLocale(bill, locale);
+        FolioPdfRequest request = buildFolioPdfRequest(bill, companyId, effectiveLocale);
+        request.setLocale(effectiveLocale);
+        return request;
+    }
+
+    /** Saved 58 mm layout used by both the PDF preview and native POS renderer. */
+    public PosReceiptLayoutConfig posReceiptLayout(Long companyId) {
+        if (companyId == null) return PosReceiptLayoutConfig.defaultLayout();
+        return loadPosReceiptLayout(companyId);
     }
 
     public static final String BANK_TRANSFER_QR_SETTINGS_MISSING_CODE = "BANK_TRANSFER_QR_SETTINGS_MISSING";

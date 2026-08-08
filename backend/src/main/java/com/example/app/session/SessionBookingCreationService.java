@@ -777,11 +777,19 @@ public class SessionBookingCreationService {
 
         final List<SessionBooking> activeRows;
         if (placeholderForResponse != null) {
-            // Last guest removed: cancelGroupParticipantBooking already created and
-            // flushed the empty RESERVED group occurrence. Do not reload it through a
-            // separate query; that was the only behaviour difference from the working
-            // public "Odpovej rezervacijo" path.
-            activeRows = List.of(placeholderForResponse);
+            // Last guest removed: the shared cancellation core already created and
+            // flushed the empty RESERVED occurrence, but the open-bill sync it runs
+            // afterwards clears the JPA persistence context. The in-memory placeholder
+            // is therefore detached and its lazy associations (SessionType.linkedServices)
+            // cannot be initialized while mapping the response. Reload it by id so the
+            // response is built from a managed entity.
+            SessionBooking reloadedPlaceholder = repo
+                    .findByIdAndCompanyId(placeholderForResponse.getId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Group session placeholder is missing after guest removal."
+                    ));
+            activeRows = List.of(reloadedPlaceholder);
         } else {
             List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
             if (refreshed == null || refreshed.isEmpty()) {

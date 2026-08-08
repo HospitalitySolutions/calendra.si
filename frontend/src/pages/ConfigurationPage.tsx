@@ -14,8 +14,10 @@ import {
   normalizeInvoicePrintPreference,
 } from "../lib/invoicePrintFormat";
 import {
-  buildReceiptRasterEscPosBytes,
+  buildPosReceiptEscPosBytes,
   sendEscPosBytes,
+  type PosReceiptLayout,
+  type PosReceiptPrintRequest,
 } from "../lib/posPrinter";
 import {
   Card,
@@ -4293,7 +4295,7 @@ export function ConfigurationPage() {
     locale,
   }), [locale, settings]);
 
-  const fetchPos58PreviewBlob = useCallback(async (): Promise<Blob> => {
+  const fetchPos58VisualPreviewBlob = useCallback(async (): Promise<Blob> => {
     const response = await api.post("/billing/folio/pos58-raster", pos58PreviewRequest, {
       params: { locale },
       responseType: "blob",
@@ -4302,34 +4304,6 @@ export function ConfigurationPage() {
       ? response.data
       : new Blob([response.data], { type: "image/png" });
   }, [locale, pos58PreviewRequest]);
-
-  const buildPosTestReceiptBytes = useCallback(() => {
-    const encoder = new TextEncoder();
-    const companyName = settings.COMPANY_NAME?.trim() || "Calendra";
-    const paperLabel = posPaperWidth === "80" ? "80 mm" : "58 mm";
-    const lines = [
-      companyName,
-      locale === "sl" ? "TEST POS IZPIS" : "POS TEST PRINT",
-      `${paperLabel} · ${posTemplate === "COMPACT" ? "Compact" : "Detailed"}`,
-      "-------------------------------",
-      locale === "sl" ? "Neposredno ESC/POS tiskanje deluje." : "Direct ESC/POS printing works.",
-      locale === "sl" ? "Ta povezava velja za ta brskalnik." : "This connection is saved for this browser.",
-      posPrintLogo ? (locale === "sl" ? "Logotip: vklopljen" : "Logo: enabled") : (locale === "sl" ? "Logotip: izklopljen" : "Logo: disabled"),
-      posPrintQr ? (locale === "sl" ? "QR koda: vklopljena" : "QR code: enabled") : (locale === "sl" ? "QR koda: izklopljena" : "QR code: disabled"),
-      "",
-      new Date().toLocaleString(locale === "sl" ? "sl-SI" : "en-US"),
-      "",
-      "",
-    ].join("\n");
-    const body = encoder.encode(lines);
-    const prefix = new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x01]);
-    const suffix = posAutoCut ? new Uint8Array([0x1d, 0x56, 0x00]) : new Uint8Array([0x1b, 0x64, 0x04]);
-    const bytes = new Uint8Array(prefix.length + body.length + suffix.length);
-    bytes.set(prefix, 0);
-    bytes.set(body, prefix.length);
-    bytes.set(suffix, prefix.length + body.length);
-    return bytes;
-  }, [locale, posAutoCut, posPaperWidth, posPrintLogo, posPrintQr, posTemplate, settings.COMPANY_NAME]);
 
   const printPosTestReceipt = useCallback(async () => {
     const serial = getSerialApi();
@@ -4353,12 +4327,22 @@ export function ConfigurationPage() {
         port = ports[0];
         posPrinterPortRef.current = port;
       }
-      const bytes = posPaperWidth === "58"
-        ? await buildReceiptRasterEscPosBytes(await fetchPos58PreviewBlob(), {
-            autoCut: posAutoCut,
-            maxWidthDots: 384,
-          })
-        : buildPosTestReceiptBytes();
+      const { data: savedLayout } = await api.get("/billing/folio-layout-pos58");
+      const printerLayout = posPaperWidth === "80" && posTemplate === "COMPACT"
+        ? { ...(savedLayout as PosReceiptLayout), fontSize: "COMPACT" as const }
+        : savedLayout as PosReceiptLayout;
+      const bytes = await buildPosReceiptEscPosBytes(
+        pos58PreviewRequest as PosReceiptPrintRequest,
+        printerLayout,
+        locale,
+        {
+          paperWidthMm: posPaperWidth === "80" ? 80 : 58,
+          printLogo: posPaperWidth === "58" ? true : posPrintLogo,
+          printQr: posPaperWidth === "58" ? true : posPrintQr,
+          autoCut: posAutoCut,
+          logoSource: settings.COMPANY_LOGO_BASE64 || settings.COMPANY_LOGO_URL || null,
+        },
+      );
       await sendEscPosBytes(port, bytes, POS_DEFAULT_BAUD_RATE);
       setPosPrinterConnectionState("connected");
       showToast(
@@ -4373,7 +4357,7 @@ export function ConfigurationPage() {
     } finally {
       setPrintingPosTestReceipt(false);
     }
-  }, [buildPosTestReceiptBytes, fetchPos58PreviewBlob, getSerialApi, locale, posAutoCut, posPaperWidth, showToast]);
+  }, [getSerialApi, locale, pos58PreviewRequest, posAutoCut, posPaperWidth, posPrintLogo, posPrintQr, posTemplate, settings.COMPANY_LOGO_BASE64, settings.COMPANY_LOGO_URL, showToast]);
 
   useEffect(() => {
     if (!canViewConfiguration) return;
@@ -4422,7 +4406,7 @@ export function ConfigurationPage() {
     let objectUrl: string | null = null;
     setPos58PreviewLoading(true);
     setPos58PreviewError(false);
-    void fetchPos58PreviewBlob()
+    void fetchPos58VisualPreviewBlob()
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
@@ -4442,7 +4426,7 @@ export function ConfigurationPage() {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [billingSubtab, fetchPos58PreviewBlob, posPaperWidth, tab]);
+  }, [billingSubtab, fetchPos58VisualPreviewBlob, posPaperWidth, tab]);
 
   const saveStripePreference = async (
     patch: Partial<{ mode: string; country: string; businessType: string }>,
@@ -13040,8 +13024,8 @@ export function ConfigurationPage() {
                                         <div>
                                           <strong>{locale === "sl" ? "Sinhronizirano s Postavitvijo računa" : "Synchronized with Invoice layout"}</strong>
                                           {locale === "sl"
-                                            ? "Pri 58 mm se na POS natisne točno ista predloga kot pod Postavitev računa → 58 mm: vsebina, razporeditev, velikost pisave, logotip, UPN QR, fiskalni QR, reference, podpis in noga. Spremembe tam se samodejno uporabijo tudi tukaj."
-                                            : "For 58 mm printing, POS uses the exact same template as Invoice layout → 58 mm: content, order, font size, logo, payment QR, fiscal QR, references, signature and footer. Changes there are applied here automatically."}
+                                            ? "58 mm POS izpis uporablja isto shranjeno vsebino, vrstni red razdelkov in velikost pisave kot Postavitev računa → 58 mm, nato pa jih prilagodi nativnemu termičnemu ESC/POS izpisu. Logotip, UPN QR, fiskalni QR, reference, podpis in noga sledijo nastavitvam iz Postavitve računa."
+                                            : "58 mm POS printing uses the same saved content, section order and font-size setting as Invoice layout → 58 mm, then adapts them to native thermal ESC/POS output. Logo, payment QR, fiscal QR, references, signature and footer follow the Invoice layout settings."}
                                         </div>
                                       </div>
                                       <button
@@ -13062,11 +13046,11 @@ export function ConfigurationPage() {
                                   <div>
                                     {posPaperWidth === "58"
                                       ? locale === "sl"
-                                        ? "58 mm račun se najprej pripravi z istim PDF izrisovalnikom kot predogled pod Postavitev računa, nato pa se pri 203 DPI pretvori v 384-točkovni ESC/POS izpis. Zato POS ne uporablja ločene besedilne predloge."
-                                        : "The 58 mm receipt is first rendered with the same PDF renderer used by Invoice layout, then converted at 203 DPI into a 384-dot ESC/POS print. POS therefore does not use a separate text template."
+                                        ? "58 mm se zdaj izriše neposredno z nativnimi ESC/POS ukazi: besedilo in stolpci se prilagodijo 32-znakovni širini, UPN in fiskalni QR pa se pošljeta kot pravi ESC/POS QR ukaz. Celoten račun se ne pretvarja več v veliko bitno sliko, zato se QR podatki ne morejo izpisati kot čudni znaki."
+                                        : "58 mm is now rendered directly with native ESC/POS commands: text and columns are fitted to the 32-character width, while payment and fiscal QR codes are sent as native ESC/POS QR commands. The full receipt is no longer converted into one large bitmap, preventing QR data from printing as garbage characters."
                                       : locale === "sl"
-                                        ? "80 mm trenutno uporablja obstoječo neposredno ESC/POS predlogo. 58 mm pa je v celoti sinhroniziran s Postavitvijo računa."
-                                        : "80 mm currently uses the existing direct ESC/POS template. 58 mm is fully synchronized with Invoice layout."}
+                                        ? "80 mm uporablja isti novi nativni ESC/POS izris, prilagojen širšemu papirju. Kompaktna predloga uporabi gostejšo pisavo."
+                                        : "80 mm uses the same new native ESC/POS renderer adapted to the wider paper. The Compact template uses the denser printer font."}
                                   </div>
                                 </div>
                               </div>
@@ -13121,14 +13105,14 @@ export function ConfigurationPage() {
                               <div className="pos-preview-title-row">
                                 <h3>{locale === "sl" ? `Predogled POS računa (${posPaperWidth} mm)` : `POS receipt preview (${posPaperWidth} mm)`}</h3>
                                 {posPaperWidth === "58" ? (
-                                  <span className="pos-sync-badge">✓ {locale === "sl" ? "Enaka predloga" : "Same template"}</span>
+                                  <span className="pos-sync-badge">✓ {locale === "sl" ? "Ista postavitev" : "Same layout"}</span>
                                 ) : null}
                               </div>
                               <span>
                                 {posPaperWidth === "58"
                                   ? locale === "sl"
-                                    ? "Predogled je generiran z isto shranjeno 58 mm predlogo kot dejanski POS izpis."
-                                    : "This preview is generated from the same saved 58 mm template as the actual POS print."
+                                    ? "Predogled prikazuje isto shranjeno vsebino, vrstni red in nastavitve 58 mm postavitve; dejanski POS izpis jih prilagodi nativni širini termičnega tiskalnika."
+                                    : "This preview shows the same saved content, section order, and 58 mm layout settings; the actual POS print adapts them to the printer’s native thermal width."
                                   : locale === "sl"
                                     ? "Predogled obstoječe 80 mm ESC/POS predloge."
                                     : "Preview of the existing 80 mm ESC/POS template."}
@@ -13145,7 +13129,7 @@ export function ConfigurationPage() {
                                     {pos58PreviewLoading
                                       ? locale === "sl" ? "Pripravljam predogled iz Postavitve računa …" : "Rendering preview from Invoice layout…"
                                       : pos58PreviewError
-                                        ? locale === "sl" ? "Predogleda ni bilo mogoče pripraviti. Shranjena 58 mm predloga se bo kljub temu uporabila pri tiskanju." : "The preview could not be rendered. The saved 58 mm template will still be used when printing."
+                                        ? locale === "sl" ? "Predogleda ni bilo mogoče pripraviti. Shranjena 58 mm postavitev se bo kljub temu uporabila pri nativnem POS izpisu." : "The preview could not be rendered. The saved 58 mm layout will still be used by the native POS print renderer."
                                         : locale === "sl" ? "Predogled ni na voljo." : "Preview unavailable."}
                                   </div>
                                 )}
