@@ -207,7 +207,7 @@ class GuestOrderServicePaymentRulesTest {
         // valid resolved branch and let the tests reach the payment assertions.
         when(catalogService.requireGuestBookableLocation(eq(10L), isNull(), anyList(), eq(guestUser)))
                 .thenReturn(1L);
-        when(catalogService.resolveProduct(eq(10L), eq("product-1"), any())).thenReturn(
+        when(catalogService.resolveProduct(eq(10L), eq("product-1"), isNull(), eq(guestUser))).thenReturn(
                 new GuestCatalogService.ResolvedProduct(
                         null,
                         null,
@@ -218,7 +218,7 @@ class GuestOrderServicePaymentRulesTest {
                         true
                 )
         );
-        when(catalogService.bookingRules(10L)).thenReturn(
+        when(catalogService.bookingRules(eq(10L), isNull())).thenReturn(
                 new GuestSettingsService.GuestBookingRules(
                         24,
                         12,
@@ -253,10 +253,10 @@ class GuestOrderServicePaymentRulesTest {
         first.setId(11L);
         SessionType second = new SessionType();
         second.setId(12L);
-        when(fixture.catalogService.resolveWebsiteSessionProduct(eq(10L), eq(11L))).thenReturn(
+        when(fixture.catalogService.resolveWebsiteSessionProduct(eq(10L), eq(11L), isNull())).thenReturn(
                 new GuestCatalogService.ResolvedProduct(null, first, "First service", "CLASS_TICKET", BigDecimal.valueOf(25), "EUR", true)
         );
-        when(fixture.catalogService.resolveWebsiteSessionProduct(eq(10L), eq(12L))).thenReturn(
+        when(fixture.catalogService.resolveWebsiteSessionProduct(eq(10L), eq(12L), isNull())).thenReturn(
                 new GuestCatalogService.ResolvedProduct(null, second, "Second service", "CLASS_TICKET", BigDecimal.valueOf(35), "EUR", true)
         );
 

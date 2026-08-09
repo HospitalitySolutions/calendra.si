@@ -245,9 +245,12 @@ session/SessionTypeController.java|@DeleteMapping("/{id}")|delete
 session/SessionTypeController.java|@PostMapping|create
 session/SessionTypeController.java|@PutMapping("/reorder")|reorder
 session/SessionTypeController.java|@PutMapping("/{id}")|update
+session/SessionTypeLocationPriceController.java|@PutMapping|save
 session/SpaceController.java|@DeleteMapping("/{id}")|delete
 session/SpaceController.java|@PostMapping|create
 session/SpaceController.java|@PutMapping("/{id}")|update
+settings/LocationSettingOverrideController.java|@DeleteMapping("/{key}")|clear
+settings/LocationSettingOverrideController.java|@PutMapping("/{key}")|put
 settings/SettingsController.java|@PostMapping(value="/guest-app/assets/{assetType}",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)|uploadGuestAppAsset
 settings/SettingsController.java|@PutMapping("/reservation-rules")|saveReservationRules
 settings/SettingsController.java|@PutMapping|save
@@ -281,6 +284,7 @@ waitlist/WaitlistController.java|@PostMapping("/{id}/convert-to-booking")|conver
 waitlist/WaitlistController.java|@PostMapping("/{id}/offer")|offer
 waitlist/WaitlistController.java|@PostMapping("/{id}/skip")|skip
 waitlist/WaitlistController.java|@PostMapping|create
+waitlist/WaitlistSettingsController.java|@DeleteMapping|inherit
 waitlist/WaitlistSettingsController.java|@PutMapping|save
 widget/PublicBookingWidgetController.java|@PostMapping("/{tenantCode}/bookings")|createBooking
 widget/PublicBookingWidgetController.java|@PostMapping("/{tenantCode}/waitlist")|createWaitlistRequest

@@ -95,7 +95,7 @@ class ConsumableLocationInventoryMigrationTest {
         assertThat(jdbc.queryForObject("select location_id from consumable_purchase_order where id=?", Long.class, purchaseOrderId))
                 .isEqualTo(defaultLocationId);
 
-        Long bookingId = insertBooking(jdbc, companyId);
+        Long bookingId = insertBooking(jdbc, companyId, defaultLocationId);
         Long sessionConsumableId = jdbc.queryForObject("""
                 insert into session_consumable(
                     created_at, updated_at, company_id, session_booking_id, booking_group_key,
@@ -204,18 +204,18 @@ class ConsumableLocationInventoryMigrationTest {
                 """, Long.class, companyId, name, defaultLocation);
     }
 
-    private Long insertBooking(JdbcTemplate jdbc, Long companyId) {
+    private Long insertBooking(JdbcTemplate jdbc, Long companyId, Long locationId) {
         return jdbc.queryForObject("""
                 insert into session_booking(
-                    created_at, updated_at, company_id, start_time, end_time, availability_end_time,
+                    created_at, updated_at, company_id, location_id, start_time, end_time, availability_end_time,
                     payee_custom_data, booking_source, meeting_provisioning_status,
                     meeting_provisioning_attempts, meeting_confirmation_pending, service_group_snapshot_captured
                 ) values (
-                    current_timestamp, current_timestamp, ?, current_timestamp + interval '1 day',
+                    current_timestamp, current_timestamp, ?, ?, current_timestamp + interval '1 day',
                     current_timestamp + interval '1 day 30 minutes', current_timestamp + interval '1 day 30 minutes',
                     false, 'MANUAL', 'NONE', 0, false, true
                 ) returning id
-                """, Long.class, companyId);
+                """, Long.class, companyId, locationId);
     }
 
     private Long insertSessionMovement(
