@@ -190,6 +190,8 @@ inbox/ClientMessageWebhookController.java|@PostMapping(value="/whatsapp/{company
 location/LocationController.java|@DeleteMapping("/{id}")|delete
 location/LocationController.java|@PostMapping|create
 location/LocationController.java|@PutMapping("/{id}")|update
+location/LocationPublicLogoController.java|@DeleteMapping("/{id}/public-logo")|delete
+location/LocationPublicLogoController.java|@PostMapping(value="/{id}/public-logo",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)|upload
 mfa/MfaController.java|@DeleteMapping("/webauthn/credentials/{credentialId}")|deleteCredential
 mfa/MfaController.java|@PostMapping("/recovery/regenerate")|regenerateRecoveryCodes
 mfa/MfaController.java|@PostMapping("/recovery/verify")|verifyRecoveryCode
