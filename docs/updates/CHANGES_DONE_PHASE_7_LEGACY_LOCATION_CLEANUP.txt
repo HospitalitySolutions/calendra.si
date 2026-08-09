@@ -1,0 +1,18 @@
+Phase 7 — legacy Location/public-presentation cleanup
+
+- Removed PublicCompanyDirectoryController / PublicCompanyDirectoryService and the old company-directory documentation/tests.
+- Removed SettingKey.PUBLIC_DIRECTORY_ENABLED and SettingKey.GOOGLE_PLACE_ID.
+- Added V55__remove_legacy_company_public_identity.sql:
+  - preserves any remaining legacy-only logoImageUrl into COMPANY_LOGO_URL, then strips publicDiscoverable/publicName/publicAddress/publicDescription/publicPhone/logoImageUrl from GUEST_APP_SETTINGS_JSON;
+  - deletes persisted PUBLIC_DIRECTORY_ENABLED and GOOGLE_PLACE_ID rows;
+  - leaves canonical Location presentation untouched.
+- SettingsController now sanitizes all Guest App JSON writes so old clients/rule synchronization cannot restore legacy public identity.
+- Signup re-seeding removes legacy public-identity fields before writing Guest App settings.
+- Guest App runtime no longer reads legacy public identity from GUEST_APP_SETTINGS_JSON and company-level discovery fallback is removed.
+- Public booking management and waitlist offer/notification presentation no longer fall back to company branding when a mandatory event Location exists.
+- Company-level Guest App aggregate/membership identity uses canonical company/legal values; public provider identity is Location-only.
+- Frontend Guest App settings no longer parse or serialize legacy public identity/logo fields. Company logo uses COMPANY_LOGO_URL only.
+- Configuration copy carries Location public name/address/description and visibility flags while leaving logo-object keys, Google Place IDs and legal/fiscal identity target-specific.
+- Added LegacyPublicIdentityCleanupMigrationTest for V54 -> V55 cleanup preservation.
+
+Next: Phase 8 verification/release gate.

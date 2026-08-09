@@ -41,13 +41,13 @@ public final class GuestMapper {
         return new GuestDtos.TenantSummaryResponse(
                 String.valueOf(company.getId()),
                 displayCompanyName(company, settings),
-                settings.publicDescription(),
-                settings.publicCity(),
-                settings.publicPhone(),
+                null,
+                settings.companyCity(),
+                settings.companyPhone(),
                 displayCompanyAddressLine(settings),
                 settings.tenantType(),
                 settings.cardImageUrl(),
-                settings.logoImageUrl(),
+                settings.companyLogoUrl(),
                 settings.iconImageUrl(),
                 link.getStatus().name(),
                 settings.employeeSelectionStep(),
@@ -75,13 +75,13 @@ public final class GuestMapper {
         return new GuestDtos.TenantSummaryResponse(
                 String.valueOf(company.getId()),
                 displayCompanyName(company, settings),
-                settings.publicDescription(),
-                settings.publicCity(),
-                settings.publicPhone(),
+                null,
+                settings.companyCity(),
+                settings.companyPhone(),
                 displayCompanyAddressLine(settings),
                 settings.tenantType(),
                 settings.cardImageUrl(),
-                settings.logoImageUrl(),
+                settings.companyLogoUrl(),
                 settings.iconImageUrl(),
                 "ACTIVE",
                 settings.employeeSelectionStep(),
@@ -146,11 +146,8 @@ public final class GuestMapper {
         );
     }
 
-    /** Guest display name: public name first, then invoice/legal name, then DB tenancy name. */
+    /** Company-level aggregate label. Public branch identity is resolved only from Location. */
     public static String displayCompanyName(Company company, GuestSettingsService.GuestPublicSettings settings) {
-        if (settings.publicName() != null && !settings.publicName().isBlank()) {
-            return settings.publicName().trim();
-        }
         if (settings.invoiceCompanyName() != null && !settings.invoiceCompanyName().isBlank()) {
             return settings.invoiceCompanyName().trim();
         }
@@ -172,8 +169,8 @@ public final class GuestMapper {
         if (settings.companyAddress() != null && !settings.companyAddress().isBlank()) {
             return settings.companyAddress().trim();
         }
-        if (settings.publicCity() != null && !settings.publicCity().isBlank()) {
-            return settings.publicCity().trim();
+        if (settings.companyCity() != null && !settings.companyCity().isBlank()) {
+            return settings.companyCity().trim();
         }
         return null;
     }

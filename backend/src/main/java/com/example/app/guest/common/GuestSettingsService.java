@@ -46,17 +46,12 @@ public class GuestSettingsService {
         boolean enabled = root.path("guestAppEnabled").asBoolean(true);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
         boolean inboxEnabled = enabled && root.path("inboxEnabled").asBoolean(true);
-        boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
-        String name = textOrNull(root.path("publicName"));
-        String publicAddress = textOrNull(root.path("publicAddress"));
-        String description = textOrNull(root.path("publicDescription"));
-        String phone = textOrNull(root.path("publicPhone"));
-        String tenantType = normalizeTenantType(textOrNull(root.path("tenantType")));
+        String tenantType = normalizeTenantType(firstNonBlank(
+                textOrNull(values.get(SettingKey.MODULE_CONFIG_TYPE.name())),
+                textOrNull(root.path("tenantType"))
+        ));
         String cardImageUrl = textOrNull(root.path("cardImageUrl"));
-        String logoImageUrl = textOrNull(values.get(SettingKey.COMPANY_LOGO_URL.name()));
-        if (logoImageUrl == null) {
-            logoImageUrl = textOrNull(root.path("logoImageUrl"));
-        }
+        String companyLogoUrl = textOrNull(values.get(SettingKey.COMPANY_LOGO_URL.name()));
         String iconImageUrl = textOrNull(root.path("iconImageUrl"));
         String companyStreet = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
         String companyPostal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
@@ -69,19 +64,16 @@ public class GuestSettingsService {
                 textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_POSTAL_CODE.name())),
                 companyPostal
         );
-        String city = firstNonBlank(
+        String physicalCity = firstNonBlank(
                 textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_CITY.name())),
                 companyCity
         );
         String formattedAddress = firstNonBlank(
-                publicAddress,
-                formatCompanyAddressLine(physicalStreet, physicalPostal, city),
+                formatCompanyAddressLine(physicalStreet, physicalPostal, physicalCity),
                 formatCompanyAddressLine(companyStreet, companyPostal, companyCity)
         );
         String invoiceCompanyName = textOrNull(values.get(SettingKey.COMPANY_NAME.name()));
-        if (phone == null) {
-            phone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
-        }
+        String companyPhone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
         String defaultLanguage = root.path("defaultLanguage").asText("sl");
         TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
         boolean employeeSelectionStep = reservationRules.employeeSelectionAllowed();
@@ -89,7 +81,12 @@ public class GuestSettingsService {
         boolean cancellationAllowed = reservationRules.cancellationAllowed();
         boolean modificationAllowed = reservationRules.modificationAllowed();
         boolean multipleServicesEnabled = root.path("multipleServicesEnabled").asBoolean(false);
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl, cancellationAllowed, modificationAllowed, multipleServicesEnabled);
+        return new GuestPublicSettings(
+                enabled, physicalCity, companyPhone, formattedAddress, invoiceCompanyName, defaultLanguage,
+                employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType,
+                cardImageUrl, companyLogoUrl, iconImageUrl, cancellationAllowed, modificationAllowed,
+                multipleServicesEnabled
+        );
     }
 
     public Boolean billingEnabled(Long companyId) {
@@ -379,11 +376,8 @@ public class GuestSettingsService {
 
     public record GuestPublicSettings(
             boolean guestAppEnabled,
-            boolean publicDiscoverable,
-            String publicName,
-            String publicDescription,
-            String publicCity,
-            String publicPhone,
+            String companyCity,
+            String companyPhone,
             String companyAddress,
             String invoiceCompanyName,
             String defaultLanguage,
@@ -393,20 +387,17 @@ public class GuestSettingsService {
             boolean inboxEnabled,
             String tenantType,
             String cardImageUrl,
-            String logoImageUrl,
+            String companyLogoUrl,
             String iconImageUrl,
             boolean cancellationAllowed,
             boolean modificationAllowed,
             boolean multipleServicesEnabled
     ) {
-        /** Backwards-compatible constructor for callers created before multi-service settings existed. */
+        /** Convenience constructor for callers that do not need multi-service configuration. */
         public GuestPublicSettings(
                 boolean guestAppEnabled,
-                boolean publicDiscoverable,
-                String publicName,
-                String publicDescription,
-                String publicCity,
-                String publicPhone,
+                String companyCity,
+                String companyPhone,
                 String companyAddress,
                 String invoiceCompanyName,
                 String defaultLanguage,
@@ -416,35 +407,19 @@ public class GuestSettingsService {
                 boolean inboxEnabled,
                 String tenantType,
                 String cardImageUrl,
-                String logoImageUrl,
+                String companyLogoUrl,
                 String iconImageUrl,
                 boolean cancellationAllowed,
                 boolean modificationAllowed
         ) {
             this(
-                    guestAppEnabled,
-                    publicDiscoverable,
-                    publicName,
-                    publicDescription,
-                    publicCity,
-                    publicPhone,
-                    companyAddress,
-                    invoiceCompanyName,
-                    defaultLanguage,
-                    employeeSelectionStep,
-                    useEmployeeContact,
-                    billingEnabled,
-                    inboxEnabled,
-                    tenantType,
-                    cardImageUrl,
-                    logoImageUrl,
-                    iconImageUrl,
-                    cancellationAllowed,
-                    modificationAllowed,
-                    false
+                    guestAppEnabled, companyCity, companyPhone, companyAddress, invoiceCompanyName, defaultLanguage,
+                    employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType,
+                    cardImageUrl, companyLogoUrl, iconImageUrl, cancellationAllowed, modificationAllowed, false
             );
         }
     }
+
     public record GuestBookingRules(
             int cancelUntilHours,
             int rescheduleUntilHours,

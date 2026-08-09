@@ -60,7 +60,7 @@ public class GuestLocationAccessService {
 
     /**
      * Resolves the selected Guest App booking location. A single eligible branch may be
-     * auto-selected for backwards compatibility; multiple branches require an explicit id.
+     * auto-selected because it is unambiguous; multiple branches require an explicit id.
      */
     public Location resolveBookable(Long companyId, Long locationId) {
         if (companyId == null) {

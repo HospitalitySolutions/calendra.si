@@ -20,6 +20,9 @@ import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.TenantInviteRepository;
+import com.example.app.location.Location;
+import com.example.app.location.LocationPublicPresentationService;
+import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.time.Instant;
@@ -31,34 +34,43 @@ import org.springframework.web.server.ResponseStatusException;
 
 class GuestTenantServiceTest {
     @Test
-    void searchReturnsOnlyDiscoverableTenantsForRequestedType() {
+    void searchReturnsOnlyDiscoverableLocationsForRequestedType() {
         Company salon = company(1L, "Luna Hair Studio");
         Company gym = company(2L, "Forma Gym Center");
-        Company hiddenSalon = company(3L, "Private Salon");
+        Location salonLocation = location(11L, salon, "Center");
+        Location gymLocation = location(22L, gym, "Downtown");
 
-        CompanyRepository companies = mock(CompanyRepository.class);
         GuestSettingsService settings = mock(GuestSettingsService.class);
-        when(companies.findAll()).thenReturn(List.of(salon, gym, hiddenSalon));
-        when(settings.publicSettings(1L)).thenReturn(publicSettings(true, true, "salon"));
-        when(settings.publicSettings(2L)).thenReturn(publicSettings(true, true, "gym"));
-        when(settings.publicSettings(3L)).thenReturn(publicSettings(true, false, "salon"));
+        when(settings.publicSettings(1L)).thenReturn(publicSettings(true, "salon"));
+        when(settings.publicSettings(2L)).thenReturn(publicSettings(true, "gym"));
         when(settings.bookingRules(1L)).thenReturn(bookingRules());
+        when(settings.acceptedPaymentMethods(1L)).thenReturn(List.of());
+
+        GuestLocationAccessService guestLocations = mock(GuestLocationAccessService.class);
+        when(guestLocations.discoverableLocations()).thenReturn(List.of(salonLocation, gymLocation));
+        LocationPublicPresentationService presentations = mock(LocationPublicPresentationService.class);
+        when(presentations.resolve(salonLocation)).thenReturn(presentation(salonLocation, "Luna Center"));
+        when(presentations.resolve(gymLocation)).thenReturn(presentation(gymLocation, "Forma Downtown"));
 
         GuestTenantService service = new GuestTenantService(
-                companies,
+                mock(CompanyRepository.class),
                 mock(ClientRepository.class),
                 mock(UserRepository.class),
                 mock(GuestTenantLinkRepository.class),
                 mock(TenantInviteRepository.class),
                 settings,
+                mock(StripeConnectService.class),
                 mock(ClientRemovalGuard.class),
-                mock(ClientAnonymizationService.class)
+                mock(ClientAnonymizationService.class),
+                guestLocations,
+                presentations
         );
 
         var results = service.search("", "salon");
 
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).companyName()).isEqualTo("Luna Hair Studio");
+        assertThat(results.get(0).companyName()).isEqualTo("Luna Center");
+        assertThat(results.get(0).locationId()).isEqualTo("11");
         assertThat(results.get(0).tenantType()).isEqualTo("salon");
     }
 
@@ -81,8 +93,11 @@ class GuestTenantServiceTest {
                 links,
                 mock(TenantInviteRepository.class),
                 mock(GuestSettingsService.class),
+                mock(StripeConnectService.class),
                 guard,
-                mock(ClientAnonymizationService.class)
+                mock(ClientAnonymizationService.class),
+                mock(GuestLocationAccessService.class),
+                mock(LocationPublicPresentationService.class)
         );
 
         assertThatThrownBy(() -> service.unsubscribe(guest, company.getId()))
@@ -110,8 +125,11 @@ class GuestTenantServiceTest {
                 links,
                 mock(TenantInviteRepository.class),
                 mock(GuestSettingsService.class),
+                mock(StripeConnectService.class),
                 guard,
-                mock(ClientAnonymizationService.class)
+                mock(ClientAnonymizationService.class),
+                mock(GuestLocationAccessService.class),
+                mock(LocationPublicPresentationService.class)
         );
 
         var result = service.unsubscribe(guest, company.getId());
@@ -135,7 +153,7 @@ class GuestTenantServiceTest {
         when(links.findByGuestUserIdAndCompanyId(guest.getId(), company.getId())).thenReturn(Optional.of(existingLink));
         when(links.save(existingLink)).thenReturn(existingLink);
         GuestSettingsService settings = mock(GuestSettingsService.class);
-        when(settings.publicSettings(company.getId())).thenReturn(publicSettings(true, true, "salon"));
+        when(settings.publicSettings(company.getId())).thenReturn(publicSettings(true, "salon"));
 
         GuestTenantService service = new GuestTenantService(
                 companies,
@@ -144,8 +162,11 @@ class GuestTenantServiceTest {
                 links,
                 mock(TenantInviteRepository.class),
                 settings,
+                mock(StripeConnectService.class),
                 mock(ClientRemovalGuard.class),
-                mock(ClientAnonymizationService.class)
+                mock(ClientAnonymizationService.class),
+                mock(GuestLocationAccessService.class),
+                mock(LocationPublicPresentationService.class)
         );
 
         GuestDtos.JoinTenantResponse response = service.join(
@@ -175,7 +196,7 @@ class GuestTenantServiceTest {
         when(links.findByGuestUserIdAndCompanyId(guest.getId(), company.getId())).thenReturn(Optional.of(existingLink));
         when(links.save(existingLink)).thenReturn(existingLink);
         GuestSettingsService settings = mock(GuestSettingsService.class);
-        when(settings.publicSettings(company.getId())).thenReturn(publicSettings(true, true, "salon"));
+        when(settings.publicSettings(company.getId())).thenReturn(publicSettings(true, "salon"));
         UserRepository users = mock(UserRepository.class);
         User owner = new User();
         owner.setId(5L);
@@ -195,8 +216,11 @@ class GuestTenantServiceTest {
                 links,
                 mock(TenantInviteRepository.class),
                 settings,
+                mock(StripeConnectService.class),
                 mock(ClientRemovalGuard.class),
-                mock(ClientAnonymizationService.class)
+                mock(ClientAnonymizationService.class),
+                mock(GuestLocationAccessService.class),
+                mock(LocationPublicPresentationService.class)
         );
 
         GuestDtos.JoinTenantResponse response = service.join(
@@ -230,8 +254,11 @@ class GuestTenantServiceTest {
                 links,
                 mock(TenantInviteRepository.class),
                 mock(GuestSettingsService.class),
+                mock(StripeConnectService.class),
                 guard,
-                anonymizationService
+                anonymizationService,
+                mock(GuestLocationAccessService.class),
+                mock(LocationPublicPresentationService.class)
         );
 
         var result = service.anonymize(guest, company.getId());
@@ -279,16 +306,13 @@ class GuestTenantServiceTest {
         return company;
     }
 
-    private static GuestSettingsService.GuestPublicSettings publicSettings(boolean enabled, boolean discoverable, String tenantType) {
+    private static GuestSettingsService.GuestPublicSettings publicSettings(boolean enabled, String tenantType) {
         return new GuestSettingsService.GuestPublicSettings(
                 enabled,
-                discoverable,
-                null,
-                "Public description",
                 "Ljubljana",
-                null,
-                null,
-                null,
+                "+386",
+                "Street 1, 1000 Ljubljana",
+                "Legal Company",
                 "sl",
                 false,
                 false,
@@ -300,6 +324,26 @@ class GuestTenantServiceTest {
                 "https://example.com/icon.svg",
                 true,
                 true
+        );
+    }
+
+    private static Location location(Long id, Company company, String name) {
+        Location location = new Location();
+        location.setId(id);
+        location.setCompany(company);
+        location.setName(name);
+        location.setCity("Ljubljana");
+        location.setActive(true);
+        location.setGuestAppDiscoverable(true);
+        location.setPublicBookingEnabled(true);
+        return location;
+    }
+
+    private static LocationPublicPresentationService.PublicPresentation presentation(Location location, String name) {
+        return new LocationPublicPresentationService.PublicPresentation(
+                location.getId(), location.getCompany().getId(), name, "Street 1, 1000 Ljubljana",
+                "Location description", "+386", "hello@example.test", null, null, false, true, true,
+                true, true, null
         );
     }
 

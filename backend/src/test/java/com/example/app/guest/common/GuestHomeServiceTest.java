@@ -60,13 +60,10 @@ class GuestHomeServiceTest {
                 .thenReturn(
                         new GuestSettingsService.GuestPublicSettings(
                                 true,
-                                true,
-                                "Studio",
-                                "Desc",
                                 "Ljubljana",
                                 "+386",
                                 "Street 1",
-                                null,
+                                "Studio",
                                 "sl",
                                 false,
                                 false,

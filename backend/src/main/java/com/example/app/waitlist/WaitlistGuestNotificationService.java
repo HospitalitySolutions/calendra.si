@@ -203,8 +203,8 @@ public class WaitlistGuestNotificationService {
                 ? emailLayoutRenderer.render(
                         request.getCompany(),
                         body,
-                        presentation == null ? null : presentation.publicName(),
-                        presentation == null ? null : absolutePublicUrl(presentation.publicLogoUrl()))
+                        presentation.publicName(),
+                        absolutePublicUrl(presentation.publicLogoUrl()))
                 : normalizeEmailHtml(body);
         try {
             if (workspaceEmailQuota != null) workspaceEmailQuota.assertCanSend(companyId, 1);
@@ -340,7 +340,6 @@ public class WaitlistGuestNotificationService {
             LocationPublicPresentationService.PublicPresentation presentation
     ) {
         Map<String, String> values = new LinkedHashMap<>();
-        Company company = request.getCompany();
         Client client = request.getClient();
 
         // A completed booking is authoritative. Otherwise use the active offer,
@@ -372,15 +371,10 @@ public class WaitlistGuestNotificationService {
         LocalTime requestedStartTime = preferredWindow == null ? null : preferredWindow.getTimeFrom();
         LocalTime requestedEndTime = preferredWindow == null ? null : preferredWindow.getTimeTo();
 
-        String manageUrl = waitlistUrl(request.getId(), request.getLocation() == null ? null : request.getLocation().getId());
+        String manageUrl = waitlistUrl(request.getId(), request.getLocation().getId());
         String acceptUrl = offer == null ? manageUrl : publicOfferUrl(offer.getId(), "accept");
         String declineUrl = offer == null ? manageUrl : publicOfferUrl(offer.getId(), "decline");
-        String companyName = presentation != null && presentation.publicName() != null && !presentation.publicName().isBlank()
-                ? presentation.publicName().trim()
-                : settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
-                .map(AppSetting::getValue)
-                .filter(value -> value != null && !value.isBlank())
-                .orElse(company.getName() == null ? "" : company.getName());
+        String companyName = safe(presentation.publicName());
 
         values.put("{{clientFirstName}}", client == null ? "" : safe(client.getFirstName()));
         values.put("{{clientLastName}}", client == null ? "" : safe(client.getLastName()));
@@ -400,15 +394,17 @@ public class WaitlistGuestNotificationService {
         values.put("{{declineUrl}}", declineUrl);
         values.put("{{manageWaitlistUrl}}", manageUrl);
         values.put("{{companyName}}", safe(companyName));
-        values.put("{{locationName}}", presentation == null ? request.getLocation() == null ? "" : safe(request.getLocation().getName()) : safe(presentation.publicName()));
-        values.put("{{locationAddress}}", presentation == null ? "" : safe(presentation.publicAddress()));
-        values.put("{{locationPhone}}", presentation == null ? "" : safe(presentation.publicPhone()));
-        values.put("{{locationEmail}}", presentation == null ? "" : safe(presentation.publicEmail()));
+        values.put("{{locationName}}", safe(presentation.publicName()));
+        values.put("{{locationAddress}}", safe(presentation.publicAddress()));
+        values.put("{{locationPhone}}", safe(presentation.publicPhone()));
+        values.put("{{locationEmail}}", safe(presentation.publicEmail()));
         return values;
     }
 
     private LocationPublicPresentationService.PublicPresentation publicPresentation(WaitlistRequest request) {
-        if (request == null || request.getLocation() == null || locationPresentation == null) return null;
+        if (request == null || request.getLocation() == null) {
+            throw new IllegalStateException("Waitlist request is missing its required location.");
+        }
         return locationPresentation.resolve(request.getLocation());
     }
 

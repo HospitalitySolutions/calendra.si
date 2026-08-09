@@ -80,3 +80,12 @@ Google-sourced data.
   }
 ]
 ```
+
+## Legacy company directory removal
+
+The former company-level `/api/public/company-directory` endpoint and the
+`PUBLIC_DIRECTORY_ENABLED` / company-level `GOOGLE_PLACE_ID` settings were removed
+in Phase 7. `GUEST_APP_SETTINGS_JSON` is not a public-presentation fallback. All
+public presentation is resolved from the selected `Location`; `COMPANY_LOGO_URL`
+remains only the deliberate company-level logo fallback when a Location has no
+public logo of its own.

@@ -263,8 +263,9 @@ public class ConfigurationCopyService {
             Location existing = targetLocations.stream().filter(t -> t.getName().equalsIgnoreCase(source.getName())).findFirst().orElse(null);
             items.add(new CopyItem(ConfigurationCopyCategory.LOCATIONS_AND_SPACES,
                     existing == null ? "CREATE" : c.overwrite() ? "UPDATE" : "SKIP", "location:" + source.getId(),
-                    source.getName(), existing == null ? "Create location without fiscal-premise or issuer identifiers."
-                            : "Target location already exists; legal and fiscal fields are never overwritten."));
+                    source.getName(), existing == null
+                            ? "Create location with its public presentation, without fiscal-premise, issuer, logo-object or Google Place identifiers."
+                            : "Target location already exists; public presentation may be updated, while legal, fiscal, logo-object and Google Place identifiers are never overwritten."));
         }
         Map<Long, Location> sourceLocations = locations.findAllByCompanyIdOrderByDefaultLocationDescNameAscIdAsc(c.source().getId())
                 .stream().collect(Collectors.toMap(Location::getId, Function.identity()));
@@ -449,9 +450,16 @@ public class ConfigurationCopyService {
             target.setPhone(source.getPhone());
             target.setEmail(source.getEmail());
             target.setOpeningHoursJson(source.getOpeningHoursJson());
+            target.setPublicName(source.getPublicName());
+            target.setPublicAddress(source.getPublicAddress());
+            target.setPublicDescription(source.getPublicDescription());
+            target.setPublicDirectoryEnabled(source.isPublicDirectoryEnabled());
+            target.setGuestAppDiscoverable(source.isGuestAppDiscoverable());
+            target.setWebsitePresentationEnabled(source.isWebsitePresentationEnabled());
             target.setPublicBookingEnabled(source.isPublicBookingEnabled());
             target.setActive(source.isActive());
-            // fiscalBusinessPremiseCode and defaultLegalEntity intentionally stay target-specific.
+            // Public logo object keys, Google Place IDs, fiscal-premise and issuer fields are
+            // branch/tenant-specific and intentionally stay target-specific.
             target = locations.save(target);
             targetBySourceId.put(source.getId(), target);
             changed++;

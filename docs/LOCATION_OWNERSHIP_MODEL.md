@@ -266,7 +266,7 @@ Phase 6C removes the remaining operational Company-as-Location assumptions in bo
 - The web Analytics page follows the global **Poslovalnice** selection and filters consultant/space/service options to the selected branch. Reports inherit the global Location selection while still allowing an explicit report-level branch choice.
 - For a selected Location, `newClients` is derived from clients created in the requested period who also appear in the branch-scoped booking result. `Client.assignedLocations` is deliberately not treated as historical operational ownership.
 
-The remaining architectural work is Phase 7 cleanup: delete obsolete company-level public identity/directory settings and duplicate fallbacks now that all operational consumers have an authoritative Location.
+Phase 7 cleanup is completed below. The remaining release work is Phase 8 verification: full build/test/mobile validation and multi-location smoke coverage.
 
 ## Implementation rule for new code
 
@@ -277,3 +277,17 @@ Before adding a new table/API, answer these questions explicitly:
 3. If it is shared, does it need `all locations / selected locations` scope?
 4. If it references a room/session/order, is Location consistency enforced in both service code and the database?
 5. Can a multi-location tenant ever reach a branch by implicit "first/default location" selection? Auto-resolution is allowed only when there is exactly one eligible Location.
+
+## Phase 7 — legacy public-identity cleanup
+
+Phase 7 completes the public-presentation cutover:
+
+- `Location` is the only runtime source of public branch name, address, description, phone/e-mail, directory visibility, Guest App discoverability, website presentation visibility and Google Place identity.
+- The legacy `/api/public/company-directory` endpoint and its company-level service/test/documentation were removed. Public directory consumers use `/api/public/location-directory` only.
+- `PUBLIC_DIRECTORY_ENABLED` and `GOOGLE_PLACE_ID` are no longer application setting keys. V55 deletes any persisted rows after V44 has already copied their values to the default Location.
+- V55 also removes `publicDiscoverable`, `publicName`, `publicAddress`, `publicDescription`, `publicPhone` and `logoImageUrl` from `GUEST_APP_SETTINGS_JSON`. Before stripping `logoImageUrl`, it defensively preserves any legacy-only logo into canonical `COMPANY_LOGO_URL`.
+- Settings writes sanitize `GUEST_APP_SETTINGS_JSON`, so legacy clients cannot recreate removed public-identity fields after migration.
+- Guest App discovery no longer has a company-level compatibility path: discovery is always Location-based. Company-level membership/aggregate DTOs use canonical company/legal identity, while provider/location DTOs use `LocationPublicPresentationService`.
+- Configuration copy now carries portable Location public-presentation text/visibility fields with the Location. Public-logo S3 object keys, Google Place IDs, legal/fiscal identifiers and issuer assignments remain target-specific and are not copied.
+
+The remaining release work is Phase 8 verification: full migration/build/test/mobile validation and multi-location smoke coverage.

@@ -52,6 +52,10 @@ public class SettingsController {
             SettingKey.WIDGET_TURNSTILE_SECRET_KEY
     );
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Set<String> LEGACY_GUEST_PUBLIC_IDENTITY_FIELDS = Set.of(
+            "publicDiscoverable", "publicName", "publicAddress",
+            "publicDescription", "publicPhone", "logoImageUrl"
+    );
     private static final Set<String> MODULE_VISIBILITY_SETTING_KEYS = Set.of(
             SettingKey.LOCATIONS_ENABLED.name(),
             SettingKey.SPACES_ENABLED.name(),
@@ -664,7 +668,7 @@ public class SettingsController {
             return ns;
         });
         setting.setKey(key.name());
-        setting.setValue(value == null ? "" : value);
+        setting.setValue(encodeForSave(key, value == null ? "" : value));
         repository.save(setting);
     }
 
@@ -930,7 +934,22 @@ public class SettingsController {
             String raw = value == null ? "" : value.trim();
             return raw.isBlank() ? "" : crypto.encrypt(raw);
         }
+        if (key == SettingKey.GUEST_APP_SETTINGS_JSON) {
+            return sanitizeGuestAppSettingsJson(value);
+        }
         return value;
+    }
+
+    private static String sanitizeGuestAppSettingsJson(String raw) {
+        if (raw == null || raw.isBlank()) return "{}";
+        try {
+            Map<String, Object> parsed = JSON.readValue(raw, new TypeReference<Map<String, Object>>() {});
+            if (parsed == null) return "{}";
+            LEGACY_GUEST_PUBLIC_IDENTITY_FIELDS.forEach(parsed::remove);
+            return JSON.writeValueAsString(parsed);
+        } catch (Exception ignored) {
+            return "{}";
+        }
     }
 
     private String decodeForRead(String keyName, String value) {
@@ -972,7 +991,7 @@ public class SettingsController {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
             case "card", "cardimage", "cardimageurl" -> "cardImageUrl";
-            case "logo", "logoimage", "logoimageurl" -> "logoImageUrl";
+            case "logo", "logoimage", "logoimageurl" -> "companyLogoUrl";
             case "icon", "iconimage", "iconimageurl" -> "iconImageUrl";
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported guest app asset type.");
         };

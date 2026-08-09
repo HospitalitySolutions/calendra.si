@@ -1867,15 +1867,15 @@ public class WaitlistService {
     private PublicOfferView toPublicOfferView(WaitlistOffer offer) {
         WaitlistRequest request = offer.getRequest();
         Company company = request == null ? null : request.getCompany();
-        Long companyId = company == null ? null : company.getId();
         String tenantCode = company == null ? null : trimToNull(company.getTenantCode());
-        Location location = request != null && request.getLocation() != null ? request.getLocation() : offer.getLocation();
-        LocationPublicPresentationService.PublicPresentation presentation = location == null || locationPresentation == null
-                ? null
-                : locationPresentation.resolve(location);
-        String publicName = presentation == null ? tenantName(company) : trimToNull(presentation.publicName());
-        String publicLogoUrl = presentation == null ? tenantLogoUrl(companyId) : trimToNull(presentation.publicLogoUrl());
-        Long locationId = location == null ? null : location.getId();
+        Location location = request == null ? null : request.getLocation();
+        if (location == null) {
+            throw new IllegalStateException("Waitlist offer is missing its required location.");
+        }
+        LocationPublicPresentationService.PublicPresentation presentation = locationPresentation.resolve(location);
+        String publicName = trimToNull(presentation.publicName());
+        String publicLogoUrl = trimToNull(presentation.publicLogoUrl());
+        Long locationId = location.getId();
         String otherSlotsUrl = tenantCode == null || locationId == null
                 ? null
                 : "/widget/" + tenantCode + "?locationId=" + locationId;
@@ -1891,12 +1891,10 @@ public class WaitlistService {
                 publicSlotTime(offer.getSlotStart(), location),
                 offer.getEmployee() == null ? "" : employeeName(offer.getEmployee()),
                 locationId,
-                presentation == null
-                        ? location == null ? null : trimToNull(location.getName())
-                        : trimToNull(presentation.publicName()),
-                presentation == null ? null : trimToNull(presentation.publicAddress()),
-                presentation == null ? null : trimToNull(presentation.publicPhone()),
-                presentation == null ? null : trimToNull(presentation.publicEmail()),
+                trimToNull(presentation.publicName()),
+                trimToNull(presentation.publicAddress()),
+                trimToNull(presentation.publicPhone()),
+                trimToNull(presentation.publicEmail()),
                 zoneFor(location).getId(),
                 offer.getStatus().name(),
                 request == null || request.getStatus() == null ? null : request.getStatus().name(),
@@ -1918,26 +1916,6 @@ public class WaitlistService {
             return ZONE;
         }
     }
-
-    private String tenantName(Company company) {
-        if (company == null || company.getId() == null) return "Calendra";
-        String value = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
-                .map(AppSetting::getValue)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .orElse(company.getName());
-        return value == null || value.isBlank() ? "Calendra" : value;
-    }
-
-    private String tenantLogoUrl(Long companyId) {
-        if (companyId == null) return null;
-        return settings.findByCompanyIdAndKey(companyId, SettingKey.COMPANY_LOGO_URL)
-                .map(AppSetting::getValue)
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .orElse(null);
-    }
-
 
     private static Long companyId(Company company) {
         if (company == null || company.getId() == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found.");

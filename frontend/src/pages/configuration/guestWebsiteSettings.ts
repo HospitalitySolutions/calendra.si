@@ -12,13 +12,8 @@ export type GuestAppSettingsForm = {
   entitlementsEnabled: boolean;
   inboxEnabled: boolean;
   multipleServicesEnabled: boolean;
-  publicDiscoverable: boolean;
-  publicName: string;
-  publicAddress: string;
-  publicDescription: string;
   tenantType: TenantConfigType;
   cardImageUrl: string;
-  logoImageUrl: string;
   iconImageUrl: string;
   defaultLanguage: "sl" | "en" | "sr";
   employeeSelectionStep: boolean;
@@ -75,7 +70,7 @@ export type WebsiteBookingRulesForm = {
   depositPercent: string;
 };
 
-export type GuestAppAssetField = "cardImageUrl" | "logoImageUrl" | "iconImageUrl";
+export type GuestAppAssetField = "cardImageUrl" | "iconImageUrl";
 
 export type StripeConnectMode = "sandbox" | "production";
 export type StripeConnectAccountStatus = {
@@ -213,27 +208,6 @@ export const GUEST_PRODUCT_TYPES = [
 export const ALL_GUEST_PRODUCT_TYPES: string[] = [...GUEST_PRODUCT_TYPES];
 
 
-const GUEST_PUBLIC_NAME_MAX_LENGTH = 120;
-const GUEST_PUBLIC_ADDRESS_MAX_LENGTH = 200;
-const GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH = 500;
-
-const normalizePublicName = (value: string | undefined) =>
-  String(value || "").slice(0, GUEST_PUBLIC_NAME_MAX_LENGTH);
-
-const normalizePublicAddress = (value: string | undefined) =>
-  String(value || "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, GUEST_PUBLIC_ADDRESS_MAX_LENGTH);
-
-const normalizePublicDescription = (value: string | undefined) =>
-  String(value || "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH);
-
 const normalizeGuestQrColor = (value: string | undefined) => {
   const v = String(value || "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : "#2563EB";
@@ -247,13 +221,8 @@ export const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   entitlementsEnabled: false,
   inboxEnabled: true,
   multipleServicesEnabled: false,
-  publicDiscoverable: false,
-  publicName: "",
-  publicAddress: "",
-  publicDescription: "",
   tenantType: "salon",
   cardImageUrl: "",
-  logoImageUrl: "",
   iconImageUrl: "",
   defaultLanguage: "sl",
   employeeSelectionStep: false,
@@ -647,13 +616,8 @@ export const parseGuestAppSettings = (
       entitlementsEnabled: parsed?.entitlementsEnabled === true,
       inboxEnabled: parsed?.inboxEnabled !== false,
       multipleServicesEnabled: parsed?.multipleServicesEnabled === true,
-      publicDiscoverable: parsed?.publicDiscoverable === true,
-      publicName: normalizePublicName(parsed?.publicName),
-      publicAddress: normalizePublicAddress(parsed?.publicAddress),
-      publicDescription: normalizePublicDescription(parsed?.publicDescription),
       tenantType: normalizeTenantConfigType(parsed?.tenantType),
       cardImageUrl: String(parsed?.cardImageUrl || ""),
-      logoImageUrl: String(parsed?.logoImageUrl || ""),
       iconImageUrl: String(parsed?.iconImageUrl || ""),
       defaultLanguage: parsed?.defaultLanguage === "en" || parsed?.defaultLanguage === "sr" ? parsed.defaultLanguage : "sl",
       employeeSelectionStep: parsed?.employeeSelectionStep === true,
@@ -895,13 +859,8 @@ export const serializeGuestAppSettings = (value: GuestAppSettingsForm) =>
     entitlementsEnabled: value.entitlementsEnabled,
     inboxEnabled: value.inboxEnabled,
     multipleServicesEnabled: value.multipleServicesEnabled,
-    publicDiscoverable: value.publicDiscoverable,
-    publicName: normalizePublicName(value.publicName).trim(),
-    publicAddress: normalizePublicAddress(value.publicAddress),
-    publicDescription: normalizePublicDescription(value.publicDescription),
     tenantType: normalizeTenantConfigType(value.tenantType),
     cardImageUrl: value.cardImageUrl.trim(),
-    logoImageUrl: value.logoImageUrl.trim(),
     iconImageUrl: value.iconImageUrl.trim(),
     defaultLanguage: value.defaultLanguage,
     employeeSelectionStep: value.employeeSelectionStep,

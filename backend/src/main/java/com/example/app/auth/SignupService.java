@@ -1835,6 +1835,8 @@ public class SignupService {
                         // Keep the new tenant type even if an older malformed JSON value exists.
                     }
                 });
+        List.of("publicDiscoverable", "publicName", "publicAddress", "publicDescription", "publicPhone", "logoImageUrl")
+                .forEach(guestSettings::remove);
         guestSettings.put("tenantType", normalizedTenantType);
         boolean premiumDefaults = "PREMIUM".equals(normalizePackageType(packageType, "BASIC"));
         guestSettings.put("guestAppEnabled", premiumDefaults);

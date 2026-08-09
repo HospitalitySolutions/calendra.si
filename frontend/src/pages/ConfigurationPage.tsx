@@ -1376,8 +1376,9 @@ export function ConfigurationPage() {
     fiscal: true,
   });
   const [savingSettings, setSavingSettings] = useState(false);
+  type ConfigurationUploadAssetField = GuestAppAssetField | "companyLogoUrl";
   const [uploadingGuestAsset, setUploadingGuestAsset] =
-    useState<GuestAppAssetField | null>(null);
+    useState<ConfigurationUploadAssetField | null>(null);
   const [guestAppSettings, setGuestAppSettings] =
     useState<GuestAppSettingsForm>(defaultGuestAppSettings);
   const [guestBookingRules, setGuestBookingRules] =
@@ -4684,16 +4685,16 @@ export function ConfigurationPage() {
   };
 
   const uploadGuestAppAsset = async (
-    field: GuestAppAssetField,
+    field: ConfigurationUploadAssetField,
     file: File | null,
   ) => {
     if (!canViewConfiguration || !file) return;
     const assetTypeByField: Record<
-      GuestAppAssetField,
+      ConfigurationUploadAssetField,
       "card" | "logo" | "icon"
     > = {
       cardImageUrl: "card",
-      logoImageUrl: "logo",
+      companyLogoUrl: "logo",
       iconImageUrl: "icon",
     };
     setUploadingGuestAsset(field);
@@ -4707,18 +4708,16 @@ export function ConfigurationPage() {
           headers: { "Content-Type": "multipart/form-data" },
         },
       );
-      const settingField = String(
-        data?.settingField || field,
-      ) as GuestAppAssetField;
       const publicUrl = String(data?.publicUrl || "");
       if (!publicUrl) {
         throw new Error("Upload did not return a public URL.");
       }
-      setGuestAppSettings((prev) => ({ ...prev, [settingField]: publicUrl }));
-      if (settingField === "logoImageUrl") {
+      if (field === "companyLogoUrl") {
         setSettings((prev) => ({ ...prev, COMPANY_LOGO_URL: publicUrl }));
+      } else {
+        setGuestAppSettings((prev) => ({ ...prev, [field]: publicUrl }));
       }
-      showToast("success", settingField === "logoImageUrl" ? "Logotip podjetja je naložen." : "Guest app asset uploaded.");
+      showToast("success", field === "companyLogoUrl" ? "Logotip podjetja je naložen." : "Guest app asset uploaded.");
     } catch (err: any) {
       showToast(
         "error",
@@ -8726,21 +8725,18 @@ export function ConfigurationPage() {
                                 title="Povlecite logotip sem ali kliknite za izbiro"
                                 subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
                                 hint="Lokacije lahko v zavihku Poslovni prostori nastavijo svoj javni logotip ali uporabijo tega."
-                                currentUrl={
-                                  settings.COMPANY_LOGO_URL ||
-                                  guestAppSettings.logoImageUrl
-                                }
+                                currentUrl={settings.COMPANY_LOGO_URL}
                                 previewAlt="Logotip podjetja"
                                 previewShape="round"
                                 iconKind="logo"
                                 onFile={(selected) =>
                                   void uploadGuestAppAsset(
-                                    "logoImageUrl",
+                                    "companyLogoUrl",
                                     selected,
                                   )
                                 }
                                 uploading={
-                                  uploadingGuestAsset === "logoImageUrl"
+                                  uploadingGuestAsset === "companyLogoUrl"
                                 }
                               />
                             </div>
@@ -9138,7 +9134,7 @@ export function ConfigurationPage() {
                       spacesEnabled={spacesEnabledCommitted}
                       issuerOptions={locationIssuerOptions}
                       companyLogoUrl={
-                        settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl
+                        settings.COMPANY_LOGO_URL
                       }
                       onChanged={load}
                     />
@@ -10573,7 +10569,7 @@ export function ConfigurationPage() {
                     spacesEnabled={spacesEnabledCommitted}
                     issuerOptions={locationIssuerOptions}
                     companyLogoUrl={
-                      settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl
+                      settings.COMPANY_LOGO_URL
                     }
                     onChanged={load}
                   />
