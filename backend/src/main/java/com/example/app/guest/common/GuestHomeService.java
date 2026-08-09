@@ -61,7 +61,8 @@ public class GuestHomeService {
                             com.example.app.session.SessionServiceSupport.totalServiceMinutes(b),
                             GuestBookingViewSupport.totalPrice(serviceLines),
                             "EUR",
-                            paymentStatus
+                            paymentStatus,
+                            b.getLocation() == null ? null : String.valueOf(b.getLocation().getId())
                     );
                 })
                 .toList();

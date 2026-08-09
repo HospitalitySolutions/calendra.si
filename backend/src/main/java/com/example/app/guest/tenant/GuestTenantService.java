@@ -10,6 +10,8 @@ import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.*;
+import com.example.app.location.Location;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -36,6 +38,8 @@ public class GuestTenantService {
     private final StripeConnectService stripeConnectService;
     private final ClientRemovalGuard clientRemovalGuard;
     private final ClientAnonymizationService clientAnonymizationService;
+    private final GuestLocationAccessService guestLocations;
+    private final LocationPublicPresentationService locationPresentations;
 
     @Autowired
     public GuestTenantService(
@@ -47,7 +51,9 @@ public class GuestTenantService {
             GuestSettingsService guestSettings,
             StripeConnectService stripeConnectService,
             ClientRemovalGuard clientRemovalGuard,
-            ClientAnonymizationService clientAnonymizationService
+            ClientAnonymizationService clientAnonymizationService,
+            GuestLocationAccessService guestLocations,
+            LocationPublicPresentationService locationPresentations
     ) {
         this.companies = companies;
         this.clients = clients;
@@ -58,6 +64,8 @@ public class GuestTenantService {
         this.stripeConnectService = stripeConnectService;
         this.clientRemovalGuard = clientRemovalGuard;
         this.clientAnonymizationService = clientAnonymizationService;
+        this.guestLocations = guestLocations;
+        this.locationPresentations = locationPresentations;
     }
 
     /** Backwards-compatible constructor used by existing unit tests. */
@@ -71,7 +79,8 @@ public class GuestTenantService {
             ClientRemovalGuard clientRemovalGuard,
             ClientAnonymizationService clientAnonymizationService
     ) {
-        this(companies, clients, users, links, invites, guestSettings, null, clientRemovalGuard, clientAnonymizationService);
+        this(companies, clients, users, links, invites, guestSettings, null, clientRemovalGuard,
+                clientAnonymizationService, null, null);
     }
 
     public GuestDtos.TenantLookupResponse resolveByCode(String tenantCode) {
@@ -94,7 +103,8 @@ public class GuestTenantService {
                 settings.employeeSelectionStep(),
                 settings.useEmployeeContact(),
                 settings.cancellationAllowed(),
-                settings.modificationAllowed()
+                settings.modificationAllowed(),
+                locationSummaries(company, "ACTIVE")
         );
     }
 
@@ -123,32 +133,50 @@ public class GuestTenantService {
                 settings.employeeSelectionStep(),
                 settings.useEmployeeContact(),
                 settings.cancellationAllowed(),
-                settings.modificationAllowed()
+                settings.modificationAllowed(),
+                locationSummaries(company, "ACTIVE")
         );
     }
 
     public List<GuestDtos.TenantSummaryResponse> search(String query, String tenantType) {
-        String normalizedQuery = query == null ? "" : query.trim();
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         String normalizedType = normalizeTenantType(tenantType);
-        List<Company> candidates = normalizedQuery.isBlank()
-                ? companies.findAll()
-                : companies.findAllByNameContainingIgnoreCase(normalizedQuery);
-        List<GuestDtos.TenantSummaryResponse> out = new ArrayList<>();
-        for (Company company : candidates) {
-            var settings = guestSettings.publicSettings(company.getId());
-            if (!settings.guestAppEnabled() || !settings.publicDiscoverable()) continue;
-            if (normalizedType != null && !normalizedType.equals(settings.tenantType())) continue;
-            var rules = guestSettings.bookingRules(company.getId());
-            out.add(GuestMapper.toTenantSummary(
-                    company,
-                    settings,
-                    rules.requireOnlinePayment(),
-                    rules.paymentRequirement(),
-                    rules.depositPercent(),
-                    selectablePaymentMethods(company)
-            ));
+
+        // Compatibility path for isolated legacy tests that construct this service without
+        // the new location dependencies. Production always uses location-based discovery.
+        if (guestLocations == null || locationPresentations == null) {
+            List<Company> candidates = normalizedQuery.isBlank()
+                    ? companies.findAll()
+                    : companies.findAllByNameContainingIgnoreCase(query.trim());
+            List<GuestDtos.TenantSummaryResponse> legacy = new ArrayList<>();
+            for (Company company : candidates) {
+                var settings = guestSettings.publicSettings(company.getId());
+                if (!settings.guestAppEnabled() || !settings.publicDiscoverable()) continue;
+                if (normalizedType != null && !normalizedType.equals(settings.tenantType())) continue;
+                var rules = guestSettings.bookingRules(company.getId());
+                legacy.add(GuestMapper.toTenantSummary(
+                        company, settings, rules.requireOnlinePayment(), rules.paymentRequirement(),
+                        rules.depositPercent(), selectablePaymentMethods(company)
+                ));
+            }
+            legacy.sort(Comparator.comparing(GuestDtos.TenantSummaryResponse::companyName, String.CASE_INSENSITIVE_ORDER));
+            return legacy;
         }
-        out.sort(Comparator.comparing(GuestDtos.TenantSummaryResponse::companyName, String.CASE_INSENSITIVE_ORDER));
+
+        List<GuestDtos.TenantSummaryResponse> out = new ArrayList<>();
+        for (Location location : guestLocations.discoverableLocations()) {
+            Company company = location.getCompany();
+            if (company == null) continue;
+            var settings = guestSettings.publicSettings(company.getId());
+            if (!settings.guestAppEnabled()) continue;
+            if (normalizedType != null && !normalizedType.equals(settings.tenantType())) continue;
+            var presentation = locationPresentations.resolve(location);
+            if (!matchesLocationSearch(normalizedQuery, company, location, presentation)) continue;
+            out.add(toLocationSummary(location, settings, "ACTIVE"));
+        }
+        out.sort(Comparator
+                .comparing(GuestDtos.TenantSummaryResponse::companyName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(item -> item.locationId() == null ? "" : item.locationId()));
         return out;
     }
 
@@ -160,6 +188,8 @@ public class GuestTenantService {
         if (!publicSettings.guestAppEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest app is disabled for this tenant.");
         }
+
+        Long selectedLocationId = resolveJoinLocationId(company, request.locationId());
 
         GuestTenantLink existing = links.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         MatchResult match = existing == null
@@ -191,7 +221,8 @@ public class GuestTenantService {
         return new GuestDtos.JoinTenantResponse(
                 new GuestDtos.TenantLinkResponse(String.valueOf(company.getId()), String.valueOf(match.client().getId()), link.getStatus().name(), link.getJoinedVia().name()),
                 match.matchType() != MatchType.CREATED,
-                match.matchType().name()
+                match.matchType().name(),
+                selectedLocationId == null ? null : String.valueOf(selectedLocationId)
         );
     }
 
@@ -211,6 +242,41 @@ public class GuestTenantService {
                     );
                 })
                 .toList();
+    }
+
+    /**
+     * Location-level providers available to the signed-in guest. The membership itself
+     * remains company-level, so one active link may expose several discoverable branches.
+     */
+    public List<GuestDtos.TenantSummaryResponse> providers(GuestUser guestUser) {
+        if (guestLocations == null || locationPresentations == null) return linkedTenants(guestUser);
+        List<GuestTenantLink> activeLinks = links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
+                .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
+                .toList();
+        List<Long> companyIds = activeLinks.stream()
+                .map(link -> link.getCompany() == null ? null : link.getCompany().getId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (companyIds.isEmpty()) return List.of();
+        java.util.Map<Long, GuestTenantLink> linkByCompany = activeLinks.stream()
+                .filter(link -> link.getCompany() != null && link.getCompany().getId() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        link -> link.getCompany().getId(),
+                        link -> link,
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new
+                ));
+        List<GuestDtos.TenantSummaryResponse> out = new ArrayList<>();
+        for (Location location : guestLocations.discoverableLocations(companyIds)) {
+            if (location.getCompany() == null) continue;
+            GuestTenantLink link = linkByCompany.get(location.getCompany().getId());
+            if (link == null) continue;
+            var settings = guestSettings.publicSettings(location.getCompany().getId());
+            if (!settings.guestAppEnabled()) continue;
+            out.add(toLocationSummary(location, settings, link.getStatus().name()));
+        }
+        return out;
     }
 
     @Transactional
@@ -254,6 +320,62 @@ public class GuestTenantService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant membership not found."));
     }
 
+
+    private List<GuestDtos.TenantSummaryResponse> locationSummaries(Company company, String status) {
+        if (company == null || guestLocations == null || locationPresentations == null) return List.of();
+        var settings = guestSettings.publicSettings(company.getId());
+        if (!settings.guestAppEnabled()) return List.of();
+        return guestLocations.discoverableLocations(company.getId()).stream()
+                .map(location -> toLocationSummary(location, settings, status))
+                .toList();
+    }
+
+    private GuestDtos.TenantSummaryResponse toLocationSummary(
+            Location location,
+            GuestSettingsService.GuestPublicSettings settings,
+            String status
+    ) {
+        var rules = guestSettings.bookingRules(location.getCompany().getId());
+        return GuestMapper.toLocationSummary(
+                location,
+                settings,
+                locationPresentations,
+                rules.requireOnlinePayment(),
+                rules.paymentRequirement(),
+                rules.depositPercent(),
+                selectablePaymentMethods(location.getCompany()),
+                status
+        );
+    }
+
+    private Long resolveJoinLocationId(Company company, String rawLocationId) {
+        if (guestLocations == null || company == null) return null;
+        if (rawLocationId != null && !rawLocationId.isBlank()) {
+            Long locationId = parseId(rawLocationId);
+            return guestLocations.requireDiscoverable(company.getId(), locationId).getId();
+        }
+        List<Location> visible = guestLocations.discoverableLocations(company.getId());
+        return visible.size() == 1 ? visible.get(0).getId() : null;
+    }
+
+    private static boolean matchesLocationSearch(
+            String normalizedQuery,
+            Company company,
+            Location location,
+            LocationPublicPresentationService.PublicPresentation presentation
+    ) {
+        if (normalizedQuery == null || normalizedQuery.isBlank()) return true;
+        return containsIgnoreCase(company == null ? null : company.getName(), normalizedQuery)
+                || containsIgnoreCase(location == null ? null : location.getName(), normalizedQuery)
+                || containsIgnoreCase(location == null ? null : location.getCity(), normalizedQuery)
+                || containsIgnoreCase(presentation == null ? null : presentation.publicName(), normalizedQuery)
+                || containsIgnoreCase(presentation == null ? null : presentation.publicAddress(), normalizedQuery)
+                || containsIgnoreCase(presentation == null ? null : presentation.publicDescription(), normalizedQuery);
+    }
+
+    private static boolean containsIgnoreCase(String value, String normalizedQuery) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(normalizedQuery);
+    }
 
     private List<String> selectablePaymentMethods(Company company) {
         List<String> accepted = guestSettings.acceptedPaymentMethods(company.getId());

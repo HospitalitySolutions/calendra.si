@@ -10,6 +10,8 @@ import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.ProductType;
 import com.example.app.guest.model.VoucherRules;
+import com.example.app.guest.tenant.GuestLocationAccessService;
+import com.example.app.location.Location;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
@@ -68,6 +70,9 @@ public class GuestCatalogService {
     private final TenantFeatureAccessService featureAccess;
     private final ZoneId zoneId;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GuestLocationAccessService guestLocations;
+
     public GuestCatalogService(
             SessionTypeRepository sessionTypes,
             GuestProductRepository guestProducts,
@@ -96,7 +101,14 @@ public class GuestCatalogService {
 
     @Transactional(readOnly = true)
     public List<GuestDtos.ProductResponse> products(Long companyId, GuestUser guestUser) {
+        return products(companyId, null, guestUser);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestDtos.ProductResponse> products(Long companyId, Long locationId, GuestUser guestUser) {
         SimulatedTimeContext.set(companyId);
+        Location selectedLocation = locationId == null || guestLocations == null
+                ? null : guestLocations.resolveBookable(companyId, locationId);
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
@@ -104,6 +116,7 @@ public class GuestCatalogService {
         String defaultCurrency = tenantCurrency(companyId);
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
+            if (selectedLocation != null && !guestLocations.isServiceAvailableAt(type, selectedLocation.getId())) continue;
             BigDecimal price = sessionTypePriceGross(type);
             String productType = Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()) ? "CLASS_TICKET" : "SESSION_SINGLE";
             out.add(new GuestDtos.ProductResponse(
@@ -143,6 +156,8 @@ public class GuestCatalogService {
             if (product.getProductType() != ProductType.COURSE
                     && product.getSessionType() != null
                     && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
+            if (selectedLocation != null && product.getSessionType() != null
+                    && !guestLocations.isServiceAvailableAt(product.getSessionType(), selectedLocation.getId())) continue;
             out.add(new GuestDtos.ProductResponse(
                     String.valueOf(product.getId()),
                     product.getName(),
@@ -218,6 +233,51 @@ public class GuestCatalogService {
                 .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::endsAt))
                 .toList();
         return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), sorted);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestDtos.AvailabilityResponse availability(
+            Long companyId,
+            List<Long> sessionTypeIds,
+            String dateText,
+            Long consultantId,
+            Long locationId,
+            GuestUser guestUser
+    ) {
+        if (guestLocations == null) {
+            return availability(companyId, sessionTypeIds, dateText, consultantId, guestUser);
+        }
+        Location location = guestLocations.resolveBookable(companyId, locationId);
+        List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
+        chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
+
+        // Group-session slots represent concrete bookings at a concrete branch. Filtering
+        // them here prevents a Location A provider card from ever joining Location B.
+        if (chain.size() == 1 && isGuestGroupService(chain.get(0))) {
+            SessionType type = chain.get(0);
+            SimulatedTimeContext.set(companyId);
+            LocalDate date = LocalDate.parse(dateText);
+            GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+            if (!dateAllowedByReservationRules(companyId, date, rules)) {
+                return new GuestDtos.AvailabilityResponse(
+                        String.valueOf(type.getId()), dateText, List.of(),
+                        List.of(String.valueOf(type.getId())),
+                        Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes()),
+                        sessionTypePriceGross(type).doubleValue(), tenantCurrency(companyId)
+                );
+            }
+            Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
+            List<GuestDtos.AvailabilitySlotResponse> slots = guestGroupSessionSlots(
+                    companyId, type, date, requestedConsultantId, guestUser, location.getId()
+            );
+            return new GuestDtos.AvailabilityResponse(
+                    String.valueOf(type.getId()), dateText, slots,
+                    List.of(String.valueOf(type.getId())),
+                    Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes()),
+                    sessionTypePriceGross(type).doubleValue(), tenantCurrency(companyId)
+            );
+        }
+        return availability(companyId, sessionTypeIds, dateText, consultantId, guestUser);
     }
 
     /** Shared ordered-chain availability used by mobile, widget and public booking. */
@@ -317,6 +377,30 @@ public class GuestCatalogService {
                 totalPrice,
                 tenantCurrency(companyId)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestDtos.ConsultantResponse> consultants(
+            Long companyId, List<Long> sessionTypeIds, Long locationId, GuestUser guestUser
+    ) {
+        if (guestLocations != null) {
+            Location location = guestLocations.resolveBookable(companyId, locationId);
+            List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
+            chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
+        }
+        return consultants(companyId, sessionTypeIds, guestUser);
+    }
+
+    /** Validates an authenticated guest booking chain against one location (used by slot holds/orders). */
+    @Transactional(readOnly = true)
+    public Long requireGuestBookableLocation(
+            Long companyId, Long locationId, List<Long> sessionTypeIds, GuestUser guestUser
+    ) {
+        if (guestLocations == null) return locationId;
+        Location location = guestLocations.resolveBookable(companyId, locationId);
+        List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
+        chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
+        return location.getId();
     }
 
     @Transactional(readOnly = true)
@@ -978,10 +1062,22 @@ public class GuestCatalogService {
             Long consultantId,
             GuestUser guestUser
     ) {
+        return guestGroupSessionSlots(companyId, type, date, consultantId, guestUser, null);
+    }
+
+    private List<GuestDtos.AvailabilitySlotResponse> guestGroupSessionSlots(
+            Long companyId,
+            SessionType type,
+            LocalDate date,
+            Long consultantId,
+            GuestUser guestUser,
+            Long locationId
+    ) {
         LocalDateTime from = date.atStartOfDay();
         LocalDateTime to = date.plusDays(1).atStartOfDay();
         return bookings.findPublicGroupSessionCandidates(companyId, type.getId(), from, to)
                 .stream()
+                .filter(row -> locationId == null || (row.getLocation() != null && Objects.equals(row.getLocation().getId(), locationId)))
                 .collect(java.util.stream.Collectors.groupingBy(this::groupKeyOf, LinkedHashMap::new, java.util.stream.Collectors.toList()))
                 .values()
                 .stream()

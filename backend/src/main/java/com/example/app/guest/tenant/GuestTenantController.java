@@ -36,6 +36,12 @@ public class GuestTenantController {
         return tenantService.search(query, tenantType);
     }
 
+    @GetMapping("/providers")
+    public List<GuestDtos.TenantSummaryResponse> providers(HttpServletRequest httpRequest) {
+        GuestUser guestUser = authContextService.requireGuest(httpRequest);
+        return tenantService.providers(guestUser);
+    }
+
     @PostMapping("/join")
     public GuestDtos.JoinTenantResponse join(@RequestBody GuestDtos.JoinTenantRequest request, HttpServletRequest httpRequest) {
         GuestUser guestUser = authContextService.requireGuest(httpRequest);

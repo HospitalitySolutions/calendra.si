@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
@@ -15,6 +16,30 @@ import { acquirePosPrinterPort, buildPosReceiptEscPosBytes, directPosPrintingEna
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
+import {
+  billingServicesQueryOptions,
+  clientOptionsQueryOptions,
+  invoiceIssuersQueryOptions,
+  invoiceSeriesQueryOptions,
+  locationsQueryOptions,
+  paymentMethodsQueryOptions,
+  settingsQueryOptions,
+  usersQueryOptions,
+} from '../queries/sharedQueryOptions'
+import {
+  billingEditorBookingsQueryOptions,
+  billingEditorCompaniesQueryOptions,
+  billingSummaryQueryOptions,
+  billsPageQueryOptions,
+  giftCardsPageQueryOptions,
+  openBillsQueryOptions,
+  unusedAdvancesPageQueryOptions,
+  unusedAdvancesQueryOptions,
+  type BillingHistoryStats,
+  type BillingSummary,
+  type GiftCardStats,
+} from '../queries/billingQueryOptions'
+import { queryKeys } from '../queries/queryKeys'
 import '../styles/main/billing-tabs.css'
 import '../styles/main/billing-open-bill-popup.css'
 import '../styles/main/billing-batch-payment.css'
@@ -52,6 +77,15 @@ function isManualOpenBillLineSourceId(value: number | null | undefined): boolean
 
 /** Billing list tabs: rows per page (folio history, open payments, unused advances). */
 const BILLING_LIST_PAGE_SIZE = 10
+
+function useDebouncedValue<T>(value: T, delayMs = 250): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delayMs)
+    return () => window.clearTimeout(timeout)
+  }, [value, delayMs])
+  return debounced
+}
 
 /** Negative ids mark manual open-bill slots (backend uses {@code -manualNo}); display {@code #M2} like open bills. */
 function formatBillingSessionIdDisplay(sessionId: number | null | undefined): string {
@@ -544,6 +578,38 @@ function normalizeBill(bill: Bill): Bill {
   }
 }
 
+function normalizeOpenBill(ob: OpenBill): OpenBill {
+  return {
+    ...ob,
+    discountType: ob.discountType ?? null,
+    discountValue: ob.discountValue == null ? null : Number(ob.discountValue),
+    discountAmountGross: ob.discountAmountGross == null ? null : Number(ob.discountAmountGross),
+    discountedTotalGross: ob.discountedTotalGross == null ? null : Number(ob.discountedTotalGross),
+    discountItemIndex: ob.discountItemIndex == null ? null : Number(ob.discountItemIndex),
+    wholeBillDiscountPercent: ob.wholeBillDiscountPercent == null ? null : Number(ob.wholeBillDiscountPercent),
+    itemDiscounts: Array.isArray(ob.itemDiscounts) ? ob.itemDiscounts.map((entry) => ({
+      ...entry,
+      itemIndex: Number(entry.itemIndex),
+      discountValue: Number(entry.discountValue),
+    })) : [],
+    paymentMethod: normalizePaymentMethod(ob.paymentMethod),
+    items: (ob.items ?? []).map((item) => {
+      const fallbackGross = Number(item.netPrice || 0) * (1 + billingTaxMultiplier(item.transactionService?.taxRate))
+      return {
+        ...item,
+        netPrice: Number(item.netPrice || 0),
+        grossPrice: Number.isFinite(Number(item.grossPrice)) ? Number(item.grossPrice) : Number(fallbackGross.toFixed(2)),
+      }
+    }),
+    paymentSplits: (ob.paymentSplits ?? []).map((split) => ({
+      ...split,
+      paymentMethod: normalizePaymentMethod(split.paymentMethod)!,
+      amountGross: Number(split.amountGross || 0),
+      sourceAdvanceBillId: split.sourceAdvanceBillId ?? null,
+    })),
+  }
+}
+
 function slovenianPostavkaCountForm(count: number): string {
   const n = Math.abs(count) % 100
   if (n >= 11 && n <= 14) return 'postavk'
@@ -667,6 +733,21 @@ type UnusedAdvance = {
   remainingGross: number
   location?: { id: number; name: string } | null
 }
+
+type BillingServerPageMeta = {
+  totalElements: number
+  page: number
+  size: number
+  totalPages: number
+}
+
+const EMPTY_BILLING_SERVER_PAGE: BillingServerPageMeta = {
+  totalElements: 0,
+  page: 0,
+  size: BILLING_LIST_PAGE_SIZE,
+  totalPages: 0,
+}
+
 
 /** API `billType`; missing values default to invoice. */
 function normalizeBillType(bill: Bill): BillDocumentType {
@@ -813,7 +894,10 @@ export type BillingPageProps = {
 
 export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = null, onEmbeddedClose, onEmbeddedSaved }: BillingPageProps = {}) {
   const me = useAuthenticatedUser()
-  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId)
+  const activeUnitId = me.activeUnitId ?? me.companyId
+  const queryClient = useQueryClient()
+  const [selectedLocationId] = useSelectedLocationId(activeUnitId)
+  const billingEditorDependencyScopeKey = `${activeUnitId ?? 'none'}:${selectedLocationId ?? 'none'}`
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const canIssueOpenInvoice = canIssueOpenInvoices(me)
   const canIssueAdvanceInvoice = canIssueAdvanceInvoices(me)
@@ -1053,15 +1137,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     manualOpenBillSessionLabel: MANUAL_OPEN_BILL_BACKEND_LABEL,
   }
   const openBillsSortOptions = useMemo(() => getOpenBillsSortOptions(locale), [locale])
-  const [settings, setSettings] = useState<Record<string, string>>({})
-  const [services, setServices] = useState<BillingService[]>([])
-  const [servicesLoaded, setServicesLoaded] = useState(false)
-  const [bills, setBills] = useState<Bill[]>([])
-  const [openBills, setOpenBills] = useState<OpenBill[]>([])
+  const [settings, setSettings] = useState<Record<string, string>>(() => queryClient.getQueryData<Record<string, string>>(queryKeys.settings.byUnit(activeUnitId)) ?? {})
+  const [services, setServices] = useState<BillingService[]>(() => queryClient.getQueryData<BillingService[]>(queryKeys.billing.services(activeUnitId)) ?? [])
+  const [servicesLoaded, setServicesLoaded] = useState(() => queryClient.getQueryData(queryKeys.billing.services(activeUnitId)) != null)
+  const [bills, setBills] = useState<Bill[]>(() => (queryClient.getQueryData<Bill[]>(queryKeys.billing.bills(activeUnitId)) ?? []).map((bill) => normalizeBill(bill)))
+  const [openBills, setOpenBills] = useState<OpenBill[]>(() => (queryClient.getQueryData<OpenBill[]>(queryKeys.billing.openBills(activeUnitId)) ?? []).map((openBill) => normalizeOpenBill(openBill)))
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [unusedAdvances, setUnusedAdvances] = useState<UnusedAdvance[]>([])
-  const [giftCards, setGiftCards] = useState<BillingGiftCard[]>([])
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [unusedAdvances, setUnusedAdvances] = useState<UnusedAdvance[]>(() => queryClient.getQueryData<UnusedAdvance[]>(queryKeys.billing.unusedAdvances(activeUnitId, selectedLocationId)) ?? [])
+  const [giftCards, setGiftCards] = useState<BillingGiftCard[]>(() => queryClient.getQueryData<BillingGiftCard[]>(queryKeys.billing.giftCards(activeUnitId)) ?? [])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(() => (queryClient.getQueryData<PaymentMethod[]>(queryKeys.billing.paymentMethods(activeUnitId)) ?? []).map((method) => normalizePaymentMethod(method)!).filter(Boolean))
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -1187,6 +1271,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     status: 'all',
   })
   const [billingTab, setBillingTab] = useState<BillingTab>('open')
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(() => queryClient.getQueryData<BillingSummary>(queryKeys.billing.summary(activeUnitId, selectedLocationId)) ?? null)
+  const [loadedBillingEditorDependencyScopeKey, setLoadedBillingEditorDependencyScopeKey] = useState('')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
   const [] = useState<{ openBillId: number; sessionId: number } | null>(null)
   const [, setApplyAmountNet] = useState('')
@@ -1240,6 +1326,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openPaymentsPage, setOpenPaymentsPage] = useState(1)
   const [unusedAdvancesPage, setUnusedAdvancesPage] = useState(1)
   const [giftCardsPage, setGiftCardsPage] = useState(1)
+  const [historyPageMeta, setHistoryPageMeta] = useState<BillingServerPageMeta>(EMPTY_BILLING_SERVER_PAGE)
+  const [openPaymentsPageMeta, setOpenPaymentsPageMeta] = useState<BillingServerPageMeta>(EMPTY_BILLING_SERVER_PAGE)
+  const [unusedAdvancesPageMeta, setUnusedAdvancesPageMeta] = useState<BillingServerPageMeta>(EMPTY_BILLING_SERVER_PAGE)
+  const [giftCardsPageMeta, setGiftCardsPageMeta] = useState<BillingServerPageMeta>(EMPTY_BILLING_SERVER_PAGE)
+  const [loadedBillsView, setLoadedBillsView] = useState<'history' | 'openPayments' | null>(null)
+  const [historyServerStats, setHistoryServerStats] = useState<BillingHistoryStats | null>(null)
+  const [openPaymentsServerTotal, setOpenPaymentsServerTotal] = useState(0)
+  const [unusedAdvancesServerTotal, setUnusedAdvancesServerTotal] = useState(0)
+  const [giftCardServerStats, setGiftCardServerStats] = useState<GiftCardStats | null>(null)
+  const debouncedOpenPaymentsSearch = useDebouncedValue(openPaymentsSearch)
+  const debouncedUnusedAdvancesSearch = useDebouncedValue(unusedAdvancesSearch)
+  const debouncedGiftCardSearch = useDebouncedValue(giftCardSearch)
+  const debouncedHistorySearch = useDebouncedValue(historySearch)
   const [sendingGiftCardId, setSendingGiftCardId] = useState<number | null>(null)
   const [printingGiftCardId, setPrintingGiftCardId] = useState<number | null>(null)
   const [detailGiftCard, setDetailGiftCard] = useState<BillingGiftCard | null>(null)
@@ -1255,113 +1354,348 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
   )
 
-  const load = async () => {
-    // Start every request together, but publish each result as soon as it arrives.
-    // A slow optional endpoint must not keep the visible open-bills view empty.
-    const settingsRequest = api.get('/settings').catch(() => ({ data: {} as Record<string, string> }))
-    const servicesRequest = api.get('/billing/services')
-    const billsRequest = api.get('/billing/bills')
-    const openBillsRequest = api.get('/billing/open-bills')
-    const bookingsRequest = api.get('/bookings').catch(() => ({ data: [] }))
-    const unusedAdvancesRequest = settingsRequest.then((settingsResponse) =>
-      settingsResponse.data?.BILLING_ADVANCE_ENABLED === 'false'
-        ? { data: [] }
-        : api.get('/billing/unused-advances').catch(() => ({ data: [] })),
-    )
-    const giftCardsRequest = settingsRequest.then((settingsResponse) =>
-      settingsResponse.data?.BILLING_GIFT_CARDS_ENABLED === 'true'
-        ? api.get('/billing/gift-cards').catch(() => ({ data: [] }))
-        : { data: [] },
-    )
-    const clientsRequest = api.get('/clients/options', { params: { size: 500, locationId: selectedLocationId ?? undefined } })
-    const companiesRequest = api.get('/companies', { params: { locationId: selectedLocationId ?? undefined } })
-    const usersRequest = isAdmin ? api.get('/users') : Promise.resolve({ data: [] })
-    const paymentMethodsRequest = api.get('/billing/payment-methods').catch(() => ({ data: [] }))
-    const issuersRequest = api.get('/billing/issuers').catch(() => ({ data: [] }))
-    const seriesRequest = api.get('/billing/invoice-series').catch(() => ({ data: [] }))
-    const locationsRequest = api.get('/locations').catch(() => ({ data: [] }))
+  async function fetchBillingQuery<T>(
+    options: { queryKey: readonly unknown[]; queryFn: () => Promise<T>; staleTime?: number },
+    force = false,
+  ): Promise<T> {
+    if (force) {
+      await queryClient.invalidateQueries({ queryKey: options.queryKey, exact: true, refetchType: 'none' })
+    }
+    return queryClient.fetchQuery(options)
+  }
 
-    const settingsTask = settingsRequest.then((response) => {
-      setSettings(response.data || {})
-      return response.data || {}
-    })
-    const servicesTask = servicesRequest.then((response) => {
-      setServices(response.data || [])
-      setServicesLoaded(true)
-    })
-    const billsTask = billsRequest.then((response) => {
-      setBills((response.data || []).map((bill: Bill) => normalizeBill(bill)))
-    })
-    const openBillsTask = openBillsRequest.then((response) => {
-      const normalized = (response.data || []).map((openBill: OpenBill) => normalizeOpenBill(openBill)) as OpenBill[]
-      setOpenBills(normalized)
-      return normalized
-    })
-    const bookingsTask = bookingsRequest.then((response) => setBookings(response.data || []))
-    const unusedAdvancesTask = unusedAdvancesRequest.then((response) => setUnusedAdvances(response.data || []))
-    const giftCardsTask = giftCardsRequest.then((response) => setGiftCards(response.data || []))
-    const clientsTask = clientsRequest.then((response) => setClients(response.data || []))
-    const companiesTask = companiesRequest.then((response) => setCompanies(response.data || []))
-    const usersTask = usersRequest.then((response) => setUsers(response.data || []))
-    const paymentMethodsTask = paymentMethodsRequest.then((response) => {
-      setPaymentMethods((response.data || []).map((method: PaymentMethod) => normalizePaymentMethod(method)!))
-    })
-    const issuersTask = issuersRequest.then((response) => {
-      setInvoiceIssuers((response.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active))
-    })
-    const seriesTask = seriesRequest.then((response) => {
-      setInvoiceSeriesOptions((response.data || []).filter((series: InvoiceSeriesOption) => series.active))
-    })
-    const locationsTask = locationsRequest.then((response) => {
-      setInvoiceLocations((response.data || []).filter((location: Location) => location.active !== false))
-    })
+  const loadBillingSummary = async (force = false) => {
+    try {
+      const summary = await fetchBillingQuery(billingSummaryQueryOptions(activeUnitId, selectedLocationId), force)
+      setBillingSummary(summary)
+      return summary
+    } catch {
+      return null
+    }
+  }
 
-    await Promise.all([
-      settingsTask,
-      servicesTask,
-      billsTask,
-      openBillsTask,
-      bookingsTask,
-      unusedAdvancesTask,
-      giftCardsTask,
-      clientsTask,
-      companiesTask,
-      usersTask,
-      paymentMethodsTask,
-      issuersTask,
-      seriesTask,
-      locationsTask,
+  const loadBillingEditorDependencies = async (force = false) => {
+    const settingsData = await fetchBillingQuery(settingsQueryOptions(activeUnitId), false).catch(() => ({} as Record<string, string>))
+    setSettings(settingsData || {})
+
+    const servicesPromise = fetchBillingQuery(billingServicesQueryOptions<BillingService>(activeUnitId), false).catch(() => [] as BillingService[])
+    const paymentMethodsPromise = fetchBillingQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId), false).catch(() => [] as PaymentMethod[])
+    const clientsPromise = fetchBillingQuery(clientOptionsQueryOptions<Client>(activeUnitId, selectedLocationId, 500), force).catch(() => [] as Client[])
+    const companiesPromise = fetchBillingQuery(billingEditorCompaniesQueryOptions<Company>(activeUnitId, selectedLocationId), force).catch(() => [] as Company[])
+    const usersPromise = isAdmin
+      ? fetchBillingQuery(usersQueryOptions<User>(activeUnitId), false).catch(() => [] as User[])
+      : Promise.resolve([] as User[])
+    const issuersPromise = fetchBillingQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId), false).catch(() => [] as InvoiceIssuerOption[])
+    const seriesPromise = fetchBillingQuery(invoiceSeriesQueryOptions<InvoiceSeriesOption>(activeUnitId), false).catch(() => [] as InvoiceSeriesOption[])
+    const locationsPromise = fetchBillingQuery(locationsQueryOptions(activeUnitId), false).catch(() => [] as Location[])
+    const bookingsPromise = fetchBillingQuery(billingEditorBookingsQueryOptions<Booking>(activeUnitId), force).catch(() => [] as Booking[])
+    const unusedAdvancesPromise = settingsData?.BILLING_ADVANCE_ENABLED === 'false'
+      ? Promise.resolve([] as UnusedAdvance[])
+      : fetchBillingQuery(unusedAdvancesQueryOptions<UnusedAdvance>(activeUnitId, selectedLocationId), force).catch(() => [] as UnusedAdvance[])
+
+    const [
+      loadedServices,
+      loadedPaymentMethods,
+      loadedClients,
+      loadedCompanies,
+      loadedUsers,
+      loadedIssuers,
+      loadedSeries,
+      loadedLocations,
+      loadedBookings,
+      loadedUnusedAdvances,
+    ] = await Promise.all([
+      servicesPromise,
+      paymentMethodsPromise,
+      clientsPromise,
+      companiesPromise,
+      usersPromise,
+      issuersPromise,
+      seriesPromise,
+      locationsPromise,
+      bookingsPromise,
+      unusedAdvancesPromise,
     ])
-    return { openBills: await openBillsTask }
+
+    const normalizedPaymentMethods = loadedPaymentMethods.map((method) => normalizePaymentMethod(method)!).filter(Boolean)
+    setServices(loadedServices)
+    setServicesLoaded(true)
+    setPaymentMethods(normalizedPaymentMethods)
+    setClients(loadedClients)
+    setCompanies(loadedCompanies)
+    setUsers(loadedUsers)
+    setInvoiceIssuers(loadedIssuers.filter((issuer) => issuer.assignedToCurrentUnit && issuer.active))
+    setInvoiceSeriesOptions(loadedSeries.filter((series) => series.active))
+    setInvoiceLocations(loadedLocations.filter((invoiceLocation) => invoiceLocation.active !== false))
+    setBookings(loadedBookings)
+    setUnusedAdvances(loadedUnusedAdvances)
+    setLoadedBillingEditorDependencyScopeKey(billingEditorDependencyScopeKey)
+
+    return {
+      settings: settingsData,
+      services: loadedServices,
+      paymentMethods: normalizedPaymentMethods,
+      clients: loadedClients,
+      companies: loadedCompanies,
+      users: loadedUsers,
+      invoiceIssuers: loadedIssuers,
+      invoiceSeries: loadedSeries,
+      locations: loadedLocations,
+      bookings: loadedBookings,
+      unusedAdvances: loadedUnusedAdvances,
+    }
+  }
+
+  const load = async (forceDynamic = true) => {
+    // Phase 2: load only the selected billing tab. Shared/catalog data remains in
+    // TanStack Query so returning to Billing can render from cache immediately.
+    const settingsPromise = fetchBillingQuery(settingsQueryOptions(activeUnitId), false).catch(() => ({} as Record<string, string>))
+    const summaryPromise = loadBillingSummary(forceDynamic)
+    let loadedOpenBills = openBills
+
+    const activeTabTask = (async () => {
+      if (billingTab === 'open') {
+        const [loadedServices, loadedPaymentMethods, rows] = await Promise.all([
+          fetchBillingQuery(billingServicesQueryOptions<BillingService>(activeUnitId), false).catch(() => [] as BillingService[]),
+          fetchBillingQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId), false).catch(() => [] as PaymentMethod[]),
+          fetchBillingQuery(openBillsQueryOptions<OpenBill>(activeUnitId), forceDynamic).catch(() => [] as OpenBill[]),
+        ])
+        setServices(loadedServices)
+        setServicesLoaded(true)
+        setPaymentMethods(loadedPaymentMethods.map((method) => normalizePaymentMethod(method)!).filter(Boolean))
+        loadedOpenBills = rows.map((openBill) => normalizeOpenBill(openBill))
+        setOpenBills(loadedOpenBills)
+        return
+      }
+
+      if (billingTab === 'openPayments') {
+        const response = await fetchBillingQuery(billsPageQueryOptions<Bill>(activeUnitId, {
+          view: 'openPayments',
+          locationId: selectedLocationId,
+          search: debouncedOpenPaymentsSearch,
+          sortField: openPaymentsSort.key,
+          sortDir: openPaymentsSort.key ? openPaymentsSort.direction : 'desc',
+          page: Math.max(0, openPaymentsPage - 1),
+          size: BILLING_LIST_PAGE_SIZE,
+        }), forceDynamic).catch(() => null)
+        if (!response) {
+          setBills([])
+          setLoadedBillsView(null)
+          setOpenPaymentsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+          setOpenPaymentsServerTotal(0)
+          return
+        }
+        setBills(response.content.map((bill) => normalizeBill(bill)))
+        setLoadedBillsView('openPayments')
+        setOpenPaymentsPageMeta({
+          totalElements: response.totalElements,
+          page: response.page,
+          size: response.size,
+          totalPages: response.totalPages,
+        })
+        setOpenPaymentsServerTotal(Number(response.totalAmount || 0))
+        return
+      }
+
+      if (billingTab === 'history') {
+        const response = await fetchBillingQuery(billsPageQueryOptions<Bill>(activeUnitId, {
+          view: 'history',
+          locationId: selectedLocationId,
+          search: debouncedHistorySearch,
+          dateFrom: historyDateFrom,
+          dateTo: historyDateTo,
+          paymentStatus: historyStatusFilter,
+          fiscalStatus: fiscalCashRegisterEnabled ? historyFiscalStatusFilter : 'all',
+          billType: historyBillTypeFilter,
+          sortField: historySortField,
+          sortDir: historySortDir,
+          page: Math.max(0, historyPage - 1),
+          size: BILLING_LIST_PAGE_SIZE,
+        }), forceDynamic).catch(() => null)
+        if (!response) {
+          setBills([])
+          setLoadedBillsView(null)
+          setHistoryPageMeta(EMPTY_BILLING_SERVER_PAGE)
+          setHistoryServerStats(null)
+          return
+        }
+        setBills(response.content.map((bill) => normalizeBill(bill)))
+        setLoadedBillsView('history')
+        setHistoryPageMeta({
+          totalElements: response.totalElements,
+          page: response.page,
+          size: response.size,
+          totalPages: response.totalPages,
+        })
+        setHistoryServerStats(response.historyStats ?? null)
+        return
+      }
+
+      const settingsData = await settingsPromise
+      if (billingTab === 'unusedAdvances') {
+        if (settingsData?.BILLING_ADVANCE_ENABLED === 'false') {
+          setUnusedAdvances([])
+          setUnusedAdvancesPageMeta(EMPTY_BILLING_SERVER_PAGE)
+          setUnusedAdvancesServerTotal(0)
+          return
+        }
+        const response = await fetchBillingQuery(unusedAdvancesPageQueryOptions<UnusedAdvance>(activeUnitId, {
+          locationId: selectedLocationId,
+          search: debouncedUnusedAdvancesSearch,
+          sortField: unusedAdvancesSort.key,
+          sortDir: unusedAdvancesSort.key ? unusedAdvancesSort.direction : 'desc',
+          page: Math.max(0, unusedAdvancesPage - 1),
+          size: BILLING_LIST_PAGE_SIZE,
+        }), forceDynamic).catch(() => null)
+        if (!response) {
+          setUnusedAdvances([])
+          setUnusedAdvancesPageMeta(EMPTY_BILLING_SERVER_PAGE)
+          setUnusedAdvancesServerTotal(0)
+          return
+        }
+        setUnusedAdvances(response.content)
+        setUnusedAdvancesPageMeta({
+          totalElements: response.totalElements,
+          page: response.page,
+          size: response.size,
+          totalPages: response.totalPages,
+        })
+        setUnusedAdvancesServerTotal(Number(response.totalRemainingGross || 0))
+        return
+      }
+
+      if (billingTab === 'giftCards') {
+        if (settingsData?.BILLING_GIFT_CARDS_ENABLED !== 'true') {
+          setGiftCards([])
+          setGiftCardsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+          setGiftCardServerStats(null)
+          return
+        }
+        const response = await fetchBillingQuery(giftCardsPageQueryOptions<BillingGiftCard>(activeUnitId, {
+          locationId: selectedLocationId,
+          search: debouncedGiftCardSearch,
+          dateFrom: giftCardDateFrom,
+          dateTo: giftCardDateTo,
+          status: giftCardStatusFilter,
+          sortField: giftCardsSort.key,
+          sortDir: giftCardsSort.direction,
+          page: Math.max(0, giftCardsPage - 1),
+          size: BILLING_LIST_PAGE_SIZE,
+        }), forceDynamic).catch(() => null)
+        if (!response) {
+          setGiftCards([])
+          setGiftCardsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+          setGiftCardServerStats(null)
+          return
+        }
+        setGiftCards(response.content)
+        setGiftCardsPageMeta({
+          totalElements: response.totalElements,
+          page: response.page,
+          size: response.size,
+          totalPages: response.totalPages,
+        })
+        setGiftCardServerStats(response.stats)
+      }
+    })()
+
+    const [settingsData] = await Promise.all([settingsPromise, summaryPromise, activeTabTask])
+    setSettings(settingsData || {})
+    return { openBills: loadedOpenBills }
   }
 
   const refreshBillingRows = async () => {
-    const requests: Array<Promise<void>> = [
-      api.get('/billing/open-bills').then((response) => {
-        setOpenBills((response.data || []).map((openBill: OpenBill) => normalizeOpenBill(openBill)))
-      }),
-      api.get('/billing/bills').then((response) => {
-        setBills((response.data || []).map((bill: Bill) => normalizeBill(bill)))
-      }),
-      api.get('/bookings').then((response) => setBookings(response.data || [])).catch(() => undefined),
-    ]
-    if (billingTab === 'unusedAdvances' && advanceBillingEnabled) {
-      requests.push(api.get('/billing/unused-advances').then((response) => setUnusedAdvances(response.data || [])).catch(() => undefined))
-    }
-    if (billingTab === 'giftCards' && giftCardsEnabled) {
-      requests.push(api.get('/billing/gift-cards').then((response) => setGiftCards(response.data || [])).catch(() => undefined))
-    }
-    await Promise.all(requests)
+    // Refresh only what is visible. Bookings and invoice-editor catalogs are
+    // intentionally excluded and are loaded when an editor is opened.
+    await load(true)
+  }
+
+  const markBillingDynamicCacheStale = async () => {
+    // Mutations invalidate all billing row caches without refetching inactive tabs.
+    // The visible tab is refreshed immediately; other tabs refresh only when opened.
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.summaryByUnit(activeUnitId), refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.openBills(activeUnitId), exact: true, refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.bills(activeUnitId), refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.unusedAdvancesByUnit(activeUnitId), refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.giftCards(activeUnitId), refetchType: 'none' }),
+    ])
+  }
+
+  const reloadAfterBillingMutation = async () => {
+    await markBillingDynamicCacheStale()
+    return load(true)
   }
 
   useEffect(() => {
-    const request = load()
+    // Never keep another unit's billing rows visible while the new unit is loading.
+    const cachedSettings = queryClient.getQueryData<Record<string, string>>(queryKeys.settings.byUnit(activeUnitId))
+    const cachedServices = queryClient.getQueryData<BillingService[]>(queryKeys.billing.services(activeUnitId))
+    const cachedOpenBills = queryClient.getQueryData<OpenBill[]>(queryKeys.billing.openBills(activeUnitId))
+    const cachedPaymentMethods = queryClient.getQueryData<PaymentMethod[]>(queryKeys.billing.paymentMethods(activeUnitId))
+    const cachedUsers = queryClient.getQueryData<User[]>(queryKeys.users.byUnit(activeUnitId))
+    const cachedIssuers = queryClient.getQueryData<InvoiceIssuerOption[]>(queryKeys.billing.issuers(activeUnitId))
+    const cachedSeries = queryClient.getQueryData<InvoiceSeriesOption[]>(queryKeys.billing.invoiceSeries(activeUnitId))
+    const cachedLocations = queryClient.getQueryData<Location[]>(queryKeys.locations.byUnit(activeUnitId))
+    const cachedBookings = queryClient.getQueryData<Booking[]>(queryKeys.billing.editorBookings(activeUnitId))
+
+    setSettings(cachedSettings ?? {})
+    setServices(cachedServices ?? [])
+    setServicesLoaded(cachedServices != null)
+    setBills([])
+    setLoadedBillsView(null)
+    setHistoryPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setOpenPaymentsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setHistoryServerStats(null)
+    setOpenPaymentsServerTotal(0)
+    setOpenBills((cachedOpenBills ?? []).map((openBill) => normalizeOpenBill(openBill)))
+    setGiftCards([])
+    setGiftCardsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setGiftCardServerStats(null)
+    setPaymentMethods((cachedPaymentMethods ?? []).map((method) => normalizePaymentMethod(method)!).filter(Boolean))
+    setUsers(cachedUsers ?? [])
+    setInvoiceIssuers((cachedIssuers ?? []).filter((issuer) => issuer.assignedToCurrentUnit && issuer.active))
+    setInvoiceSeriesOptions((cachedSeries ?? []).filter((series) => series.active))
+    setInvoiceLocations((cachedLocations ?? []).filter((invoiceLocation) => invoiceLocation.active !== false))
+    setBookings(cachedBookings ?? [])
+    setLoadedBillingEditorDependencyScopeKey('')
+  }, [activeUnitId, queryClient])
+
+  useEffect(() => {
+    // Location-specific caches have their own keys so changing the top-level location
+    // cannot briefly display rows/counters from the previously selected location.
+    setUnusedAdvances([])
+    setUnusedAdvancesPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setUnusedAdvancesServerTotal(0)
+    setGiftCards([])
+    setGiftCardsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setGiftCardServerStats(null)
+    setBills([])
+    setLoadedBillsView(null)
+    setHistoryPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setOpenPaymentsPageMeta(EMPTY_BILLING_SERVER_PAGE)
+    setHistoryServerStats(null)
+    setOpenPaymentsServerTotal(0)
+    setBillingSummary(queryClient.getQueryData<BillingSummary>(queryKeys.billing.summary(activeUnitId, selectedLocationId)) ?? null)
+    setClients(queryClient.getQueryData<Client[]>(queryKeys.clients.options(activeUnitId, selectedLocationId, 500)) ?? [])
+    setCompanies(queryClient.getQueryData<Company[]>(queryKeys.billing.editorCompanies(activeUnitId, selectedLocationId)) ?? [])
+    setLoadedBillingEditorDependencyScopeKey('')
+  }, [activeUnitId, selectedLocationId, queryClient])
+
+  useEffect(() => {
+    const request = load(false)
     billingPollInFlightRef.current = request
     const clear = () => {
       if (billingPollInFlightRef.current === request) billingPollInFlightRef.current = null
     }
     void request.then(clear, clear)
-  }, [selectedLocationId])
+  }, [activeUnitId, billingTab, selectedLocationId, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
+
+  useEffect(() => {
+    if (!embeddedCreateBill && activeOpenBillId == null) return
+    void loadBillingEditorDependencies(false)
+  }, [activeUnitId, activeOpenBillId, embeddedCreateBill, selectedLocationId])
+
   useEffect(() => {
     const poll = () => {
       if (document.visibilityState !== 'visible' || billingPollInFlightRef.current) return
@@ -1378,7 +1712,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', poll)
     }
-  }, [billingTab, selectedLocationId])
+  }, [activeUnitId, billingTab, selectedLocationId, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
   const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
@@ -1510,6 +1844,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       onEmbeddedClose?.()
       return
     }
+    if (loadedBillingEditorDependencyScopeKey !== billingEditorDependencyScopeKey) return
     const embeddedItemsNeedCatalog = (embeddedCreateBill.items ?? []).some((item) =>
       String(item.netPrice ?? '').trim() === '' || String(item.grossPrice ?? '').trim() === '')
     if (embeddedItemsNeedCatalog && !servicesLoaded) return
@@ -1545,7 +1880,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setBillingTab(embeddedCreateBill.billType === 'ADVANCE' && advanceBillingEnabled ? 'unusedAdvances' : 'open')
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
-  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, canIssueAdvanceInvoice, canIssueOpenInvoice, locale, me.id, onEmbeddedClose, services, servicesLoaded, showToast])
+  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, canIssueAdvanceInvoice, canIssueOpenInvoice, locale, me.id, onEmbeddedClose, services, servicesLoaded, showToast, billingEditorDependencyScopeKey, loadedBillingEditorDependencyScopeKey])
   /** Keep the side panel in sync when open bills reload (e.g. apply advance, polling) unless there are unsaved line edits. */
   useEffect(() => {
     setDetailOpenBill((prev) => {
@@ -1595,36 +1930,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       stopEntitlementCamera()
     }
   }, [entitlementPaymentTarget?.openBillId, entitlementPaymentTarget?.splitKey, entitlementPaymentStep])
-
-  const normalizeOpenBill = (ob: OpenBill): OpenBill => ({
-    ...ob,
-    discountType: ob.discountType ?? null,
-    discountValue: ob.discountValue == null ? null : Number(ob.discountValue),
-    discountAmountGross: ob.discountAmountGross == null ? null : Number(ob.discountAmountGross),
-    discountedTotalGross: ob.discountedTotalGross == null ? null : Number(ob.discountedTotalGross),
-    discountItemIndex: ob.discountItemIndex == null ? null : Number(ob.discountItemIndex),
-    wholeBillDiscountPercent: ob.wholeBillDiscountPercent == null ? null : Number(ob.wholeBillDiscountPercent),
-    itemDiscounts: Array.isArray(ob.itemDiscounts) ? ob.itemDiscounts.map((entry) => ({
-      ...entry,
-      itemIndex: Number(entry.itemIndex),
-      discountValue: Number(entry.discountValue),
-    })) : [],
-    paymentMethod: normalizePaymentMethod(ob.paymentMethod),
-    items: (ob.items ?? []).map((item) => {
-      const fallbackGross = Number(item.netPrice || 0) * (1 + billingTaxMultiplier(item.transactionService?.taxRate))
-      return {
-        ...item,
-        netPrice: Number(item.netPrice || 0),
-        grossPrice: Number.isFinite(Number(item.grossPrice)) ? Number(item.grossPrice) : Number(fallbackGross.toFixed(2)),
-      }
-    }),
-    paymentSplits: (ob.paymentSplits ?? []).map((split) => ({
-      ...split,
-      paymentMethod: normalizePaymentMethod(split.paymentMethod)!,
-      amountGross: Number(split.amountGross || 0),
-      sourceAdvanceBillId: split.sourceAdvanceBillId ?? null,
-    })),
-  })
 
   const openBillClientLabel = (ob: OpenBill) => {
     if (ob.batchScope === 'COMPANY') {
@@ -2228,8 +2533,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   ), [selectedLocationId])
 
   const locationFilteredBills = useMemo(
-    () => bills.filter((bill) => matchesSelectedLocation(bill.location?.id)),
-    [bills, matchesSelectedLocation],
+    () => (loadedBillsView === billingTab ? bills : []).filter((bill) => matchesSelectedLocation(bill.location?.id)),
+    [billingTab, bills, loadedBillsView, matchesSelectedLocation],
   )
   const locationFilteredOpenBills = useMemo(
     () => openBills.filter((openBill) => matchesSelectedLocation(openBill.location?.id)),
@@ -2260,198 +2565,61 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return groupOpenBillRowsForSession(filtered)
   }, [locationFilteredOpenBills, openBillsSearch, locale])
 
-  const filteredHistoryBills = useMemo(() => {
-    const q = historySearch.trim().toLowerCase()
-    const from = historyDateFrom ? Date.parse(`${historyDateFrom}T00:00:00`) : Number.NEGATIVE_INFINITY
-    const to = historyDateTo ? Date.parse(`${historyDateTo}T23:59:59`) : Number.POSITIVE_INFINITY
-    const byDate = locationFilteredBills.filter((bill) => {
-      const ts = Date.parse(String(bill.issueDate || ''))
-      if (!Number.isFinite(ts)) return true
-      return ts >= from && ts <= to
-    })
-    const byStatus = historyStatusFilter === 'all'
-      ? byDate
-      : byDate.filter((bill) => (bill.paymentStatus || 'open') === historyStatusFilter)
-    const byFiscalStatus = !fiscalCashRegisterEnabled || historyFiscalStatusFilter === 'all'
-      ? byStatus
-      : byStatus.filter((bill) => (bill.fiscalStatus || 'NOT_SENT') === historyFiscalStatusFilter)
-    const byBillType =
-      historyBillTypeFilter === 'all'
-        ? byFiscalStatus
-        : byFiscalStatus.filter((bill) => historyInvoiceTypeForBill(bill) === historyBillTypeFilter)
-    if (!q) return byBillType
-    return byBillType.filter((bill) => {
-      const billNo = String(bill.billNumber || '').toLowerCase()
-      const orderId = displayInvoiceOrderId(bill).toLowerCase()
-      const sessionHaystack =
-        bill.sessionId == null
-          ? ''
-          : `${bill.sessionId} ${formatBillingSessionIdDisplay(bill.sessionId)}`.toLowerCase()
-      const client = bill.client ? fullName(bill.client).toLowerCase() : ''
-      const recipientCompany = String(bill.recipientCompany?.name || '').toLowerCase()
-      const consultant = fullName(bill.consultant).toLowerCase()
-      const method = String(bill.paymentMethod?.name || '').toLowerCase()
-      return (
-        billNo.includes(q) ||
-        orderId.includes(q) ||
-        sessionHaystack.includes(q) ||
-        client.includes(q) ||
-        recipientCompany.includes(q) ||
-        consultant.includes(q) ||
-        method.includes(q)
-      )
-    })
-  }, [locationFilteredBills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, fiscalCashRegisterEnabled])
-
-  const sortedHistoryBills = useMemo(() => {
-    const list = [...filteredHistoryBills]
-    const factor = historySortDir === 'asc' ? 1 : -1
-    list.sort((a, b) => {
-      let comparison = 0
-      if (historySortField === 'invoiceNumber') {
-        comparison = compareBillingSortableValues(a.billNumber || a.id, b.billNumber || b.id, locale)
-      } else if (historySortField === 'invoiceType') {
-        comparison = compareBillingSortableValues(historyInvoiceTypeForBill(a), historyInvoiceTypeForBill(b), locale)
-      } else if (historySortField === 'orderId') {
-        comparison = compareBillingSortableValues(displayInvoiceOrderId(a), displayInvoiceOrderId(b), locale)
-      } else if (historySortField === 'sessionId') {
-        comparison = compareBillingSortableValues(a.sessionId ?? Number.NEGATIVE_INFINITY, b.sessionId ?? Number.NEGATIVE_INFINITY, locale)
-      } else if (historySortField === 'customer') {
-        const customerA = a.billingTarget === 'COMPANY' ? (a.recipientCompany?.name || '') : (a.client ? fullName(a.client) : '')
-        const customerB = b.billingTarget === 'COMPANY' ? (b.recipientCompany?.name || '') : (b.client ? fullName(b.client) : '')
-        comparison = compareBillingSortableValues(customerA, customerB, locale)
-      } else if (historySortField === 'employee') {
-        comparison = compareBillingSortableValues(fullName(a.consultant), fullName(b.consultant), locale)
-      } else if (historySortField === 'description') {
-        comparison = compareBillingSortableValues(a.items?.[0]?.transactionService?.description || normalizeBillType(a), b.items?.[0]?.transactionService?.description || normalizeBillType(b), locale)
-      } else if (historySortField === 'date') {
-        const tsA = Date.parse(String(a.issueDate || ''))
-        const tsB = Date.parse(String(b.issueDate || ''))
-        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
-      } else if (historySortField === 'gross') {
-        comparison = Number(a.totalGross || 0) - Number(b.totalGross || 0)
-      } else if (historySortField === 'paymentStatus') {
-        comparison = compareBillingSortableValues(a.paymentStatus || 'open', b.paymentStatus || 'open', locale)
-      } else if (historySortField === 'fiscalStatus') {
-        comparison = compareBillingSortableValues(a.fiscalStatus || 'NOT_SENT', b.fiscalStatus || 'NOT_SENT', locale)
-      }
-      if (comparison === 0) comparison = Number(a.id || 0) - Number(b.id || 0)
-      return comparison * factor
-    })
-    return list
-  }, [filteredHistoryBills, historySortField, historySortDir, locale])
+  // Phase 2.2: history and gift-card rows are already filtered, sorted and paged by the server.
+  // Keep only the lightweight location guard for legacy records with no location snapshot.
+  const filteredHistoryBills = locationFilteredBills
+  const sortedHistoryBills = filteredHistoryBills
 
   useEffect(() => {
     setHistoryPage(1)
   }, [historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir])
 
+  useEffect(() => {
+    setSelectedHistoryBillIds([])
+  }, [historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter])
+
   const historyPagination = useMemo(() => {
-    const total = sortedHistoryBills.length
-    const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
+    const total = Number(historyPageMeta.totalElements || 0)
+    const totalPages = Math.max(1, Number(historyPageMeta.totalPages || 0))
     const page = Math.min(Math.max(1, historyPage), totalPages)
-    const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
-    const slice = sortedHistoryBills.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const pageSize = Math.max(1, Number(historyPageMeta.size || BILLING_LIST_PAGE_SIZE))
+    const offset = (page - 1) * pageSize
+    const slice = sortedHistoryBills
     const showFrom = total === 0 ? 0 : offset + 1
-    const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
+    const showTo = total === 0 ? 0 : Math.min(offset + slice.length, total)
     return { total, totalPages, page, slice, showFrom, showTo }
-  }, [sortedHistoryBills, historyPage])
+  }, [sortedHistoryBills, historyPage, historyPageMeta])
 
   useEffect(() => {
     if (historyPagination.page !== historyPage) setHistoryPage(historyPagination.page)
   }, [historyPagination.page, historyPage])
 
-  useEffect(() => {
-    const allowedIds = new Set(sortedHistoryBills.map((bill) => bill.id))
-    setSelectedHistoryBillIds((prev) => prev.filter((id) => allowedIds.has(id)))
-  }, [sortedHistoryBills])
-
   const selectedHistoryBillIdSet = useMemo(() => new Set(selectedHistoryBillIds), [selectedHistoryBillIds])
-  const selectedHistoryBills = useMemo(() => sortedHistoryBills.filter((bill) => selectedHistoryBillIdSet.has(bill.id)), [sortedHistoryBills, selectedHistoryBillIdSet])
   const historyPageBillIds = useMemo(() => historyPagination.slice.map((bill) => bill.id), [historyPagination.slice])
   const allHistoryPageSelected = historyPageBillIds.length > 0 && historyPageBillIds.every((id) => selectedHistoryBillIdSet.has(id))
 
-  const filteredGiftCards = useMemo(() => {
-    const q = giftCardSearch.trim().toLowerCase()
-    const from = giftCardDateFrom ? Date.parse(`${giftCardDateFrom}T00:00:00`) : Number.NEGATIVE_INFINITY
-    const to = giftCardDateTo ? Date.parse(`${giftCardDateTo}T23:59:59`) : Number.POSITIVE_INFINITY
-    return locationFilteredGiftCards.filter((card) => {
-      const issuedTs = Date.parse(String(card.issuedAt || ''))
-      const dateMatches = !Number.isFinite(issuedTs) || (issuedTs >= from && issuedTs <= to)
-      const statusMatches = giftCardStatusFilter === 'all' || card.status === giftCardStatusFilter
-      if (!dateMatches || !statusMatches) return false
-      if (!q) return true
-      return [
-        card.giftCardNumber,
-        card.code,
-        card.productName,
-        card.voucherMode,
-        ...(card.eligibleServiceNames || []),
-        card.clientName,
-        card.clientEmail,
-        card.billNumber,
-        card.orderReference,
-      ].some((entry) => String(entry || '').toLowerCase().includes(q))
-    })
-  }, [locationFilteredGiftCards, giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
+  const filteredGiftCards = locationFilteredGiftCards
+  const sortedGiftCards = filteredGiftCards
 
-  const sortedGiftCards = useMemo(() => {
-    const factor = giftCardsSort.direction === 'asc' ? 1 : -1
-    return [...filteredGiftCards].sort((a, b) => {
-      let comparison = 0
-      if (giftCardsSort.key === 'id') {
-        comparison = compareBillingSortableValues(a.giftCardNumber || a.id, b.giftCardNumber || b.id, locale)
-      } else if (giftCardsSort.key === 'code') {
-        comparison = compareBillingSortableValues(a.code, b.code, locale)
-      } else if (giftCardsSort.key === 'type') {
-        comparison = compareBillingSortableValues(`${a.voucherMode || ''} ${a.voucherScope || ''}`, `${b.voucherMode || ''} ${b.voucherScope || ''}`, locale)
-      } else if (giftCardsSort.key === 'customer') {
-        comparison = compareBillingSortableValues(`${a.clientName || ''} ${a.clientEmail || ''}`, `${b.clientName || ''} ${b.clientEmail || ''}`, locale)
-      } else if (giftCardsSort.key === 'content') {
-        comparison = compareBillingSortableValues(`${a.productName || ''} ${(a.eligibleServiceNames || []).join(' ')} ${a.valueGross ?? ''}`, `${b.productName || ''} ${(b.eligibleServiceNames || []).join(' ')} ${b.valueGross ?? ''}`, locale)
-      } else if (giftCardsSort.key === 'expires') {
-        const tsA = Date.parse(String(a.expiresAt || ''))
-        const tsB = Date.parse(String(b.expiresAt || ''))
-        comparison = (Number.isFinite(tsA) ? tsA : Number.POSITIVE_INFINITY) - (Number.isFinite(tsB) ? tsB : Number.POSITIVE_INFINITY)
-      } else if (giftCardsSort.key === 'status') {
-        comparison = compareBillingSortableValues(a.status, b.status, locale)
-      } else if (giftCardsSort.key === 'invoice') {
-        comparison = compareBillingSortableValues(a.billNumber || a.orderReference, b.billNumber || b.orderReference, locale)
-      } else if (giftCardsSort.key === 'issuedAt') {
-        const tsA = Date.parse(String(a.issuedAt || ''))
-        const tsB = Date.parse(String(b.issuedAt || ''))
-        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
-      }
-      if (comparison === 0) {
-        const tsA = Date.parse(String(a.issuedAt || ''))
-        const tsB = Date.parse(String(b.issuedAt || ''))
-        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
-      }
-      return comparison * factor
-    })
-  }, [filteredGiftCards, giftCardsSort, locale])
-
-  const giftCardStats = useMemo(() => {
-    const active = locationFilteredGiftCards.filter((card) => card.status === 'active').length
-    const partial = locationFilteredGiftCards.filter((card) => card.status === 'partially_used').length
-    const used = locationFilteredGiftCards.filter((card) => card.status === 'used').length
-    const expired = locationFilteredGiftCards.filter((card) => card.status === 'expired').length
-    const outstanding = locationFilteredGiftCards
-      .filter((card) => card.voucherMode !== 'SERVICE')
-      .filter((card) => card.status === 'active' || card.status === 'partially_used')
-      .reduce((sum, card) => sum + Number(card.remainingGross || 0), 0)
-    return { active, partial, used, expired, outstanding }
-  }, [locationFilteredGiftCards])
+  const giftCardStats = giftCardServerStats ?? {
+    active: 0,
+    partial: 0,
+    used: 0,
+    expired: 0,
+    outstanding: 0,
+  }
 
   const giftCardsPagination = useMemo(() => {
-    const total = sortedGiftCards.length
-    const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
+    const total = Number(giftCardsPageMeta.totalElements || 0)
+    const totalPages = Math.max(1, Number(giftCardsPageMeta.totalPages || 0))
     const page = Math.min(Math.max(1, giftCardsPage), totalPages)
-    const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
-    const slice = sortedGiftCards.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const pageSize = Math.max(1, Number(giftCardsPageMeta.size || BILLING_LIST_PAGE_SIZE))
+    const offset = (page - 1) * pageSize
+    const slice = sortedGiftCards
     const showFrom = total === 0 ? 0 : offset + 1
-    const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
+    const showTo = total === 0 ? 0 : Math.min(offset + slice.length, total)
     return { total, totalPages, page, slice, showFrom, showTo }
-  }, [sortedGiftCards, giftCardsPage])
+  }, [sortedGiftCards, giftCardsPage, giftCardsPageMeta])
 
   useEffect(() => {
     setGiftCardsPage(1)
@@ -3415,90 +3583,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
 
 
-  const openPayments = useMemo(() => {
-    const q = openPaymentsSearch.trim().toLowerCase()
-    const unpaid = locationFilteredBills.filter((bill) => (bill.paymentStatus || 'open') !== 'paid' && (bill.paymentStatus || 'open') !== 'cancelled')
-    return q
-      ? unpaid.filter((bill) => {
-        const billNo = String(bill.billNumber || '').toLowerCase()
-        const orderId = displayInvoiceOrderId(bill).toLowerCase()
-        const client = bill.billingTarget === 'COMPANY'
-          ? String(bill.recipientCompany?.name || '').toLowerCase()
-          : (bill.client ? fullName(bill.client).toLowerCase() : '')
-        const method = String(bill.paymentMethod?.name || '').toLowerCase()
-        const amount = String(billBankTransferDueAmount(bill) || '').toLowerCase()
-        return billNo.includes(q) || orderId.includes(q) || client.includes(q) || method.includes(q) || amount.includes(q)
-      })
-      : unpaid
-  }, [locationFilteredBills, openPaymentsSearch])
+  // Phase 2.2: these lists are returned as already filtered/sorted server pages.
+  const openPayments = locationFilteredBills
+  const sortedOpenPayments = openPayments
+  const filteredUnusedAdvances = locationFilteredUnusedAdvances
+  const sortedUnusedAdvances = filteredUnusedAdvances
 
-  const sortedOpenPayments = useMemo(() => {
-    if (!openPaymentsSort.key) return openPayments
-    const factor = openPaymentsSort.direction === 'asc' ? 1 : -1
-    return [...openPayments].sort((a, b) => {
-      let comparison = 0
-      if (openPaymentsSort.key === 'orderId') {
-        comparison = compareBillingSortableValues(displayInvoiceOrderId(a), displayInvoiceOrderId(b), locale)
-      } else if (openPaymentsSort.key === 'billNumber') {
-        comparison = compareBillingSortableValues(a.billNumber || a.id, b.billNumber || b.id, locale)
-      } else if (openPaymentsSort.key === 'payer') {
-        const payerA = a.billingTarget === 'COMPANY' ? (a.recipientCompany?.name || '') : (a.client ? fullName(a.client) : '')
-        const payerB = b.billingTarget === 'COMPANY' ? (b.recipientCompany?.name || '') : (b.client ? fullName(b.client) : '')
-        comparison = compareBillingSortableValues(payerA, payerB, locale)
-      } else if (openPaymentsSort.key === 'date' || openPaymentsSort.key === 'dueDate') {
-        const tsA = Date.parse(String(a.issueDate || ''))
-        const tsB = Date.parse(String(b.issueDate || ''))
-        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
-      } else if (openPaymentsSort.key === 'amount') {
-        comparison = billBankTransferDueAmount(a) - billBankTransferDueAmount(b)
-      }
-      if (comparison === 0) comparison = Number(a.id || 0) - Number(b.id || 0)
-      return comparison * factor
-    })
-  }, [openPayments, openPaymentsSort, locale])
-
-  const filteredUnusedAdvances = useMemo(() => {
-    const q = unusedAdvancesSearch.trim().toLowerCase()
-    if (!q) return locationFilteredUnusedAdvances
-    return locationFilteredUnusedAdvances.filter((advance) => {
-      const clientLabel = `${advance.client?.firstName || ''} ${advance.client?.lastName || ''}`.trim().toLowerCase()
-      const billNo = String(advance.billNumber || '').toLowerCase()
-      const sessionId = `${advance.sessionId ?? ''} ${formatBillingSessionIdDisplay(advance.sessionId)}`.toLowerCase()
-      return billNo.includes(q) || clientLabel.includes(q) || sessionId.includes(q)
-    })
-  }, [locationFilteredUnusedAdvances, unusedAdvancesSearch])
-
-  const sortedUnusedAdvances = useMemo(() => {
-    if (!unusedAdvancesSort.key) return filteredUnusedAdvances
-    const factor = unusedAdvancesSort.direction === 'asc' ? 1 : -1
-    return [...filteredUnusedAdvances].sort((a, b) => {
-      let comparison = 0
-      if (unusedAdvancesSort.key === 'advanceNumber') {
-        comparison = compareBillingSortableValues(a.billNumber || a.advanceBillId, b.billNumber || b.advanceBillId, locale)
-      } else if (unusedAdvancesSort.key === 'customer') {
-        const customerA = `${a.client?.firstName || ''} ${a.client?.lastName || ''}`.trim() || a.recipientCompany?.name || ''
-        const customerB = `${b.client?.firstName || ''} ${b.client?.lastName || ''}`.trim() || b.recipientCompany?.name || ''
-        comparison = compareBillingSortableValues(customerA, customerB, locale)
-      } else if (unusedAdvancesSort.key === 'sessionId') {
-        comparison = compareBillingSortableValues(a.sessionId ?? Number.NEGATIVE_INFINITY, b.sessionId ?? Number.NEGATIVE_INFINITY, locale)
-      } else if (unusedAdvancesSort.key === 'originalAmount') {
-        comparison = Number(a.totalGross || 0) - Number(b.totalGross || 0)
-      } else if (unusedAdvancesSort.key === 'remainingAmount') {
-        comparison = Number(a.remainingGross || 0) - Number(b.remainingGross || 0)
-      } else if (unusedAdvancesSort.key === 'date') {
-        const tsA = Date.parse(String(a.issueDate || ''))
-        const tsB = Date.parse(String(b.issueDate || ''))
-        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
-      }
-      if (comparison === 0) comparison = Number(a.advanceBillId || 0) - Number(b.advanceBillId || 0)
-      return comparison * factor
-    })
-  }, [filteredUnusedAdvances, unusedAdvancesSort, locale])
-
-  const openPaymentsTotal = useMemo(
-    () => openPayments.reduce((sum, bill) => sum + billBankTransferDueAmount(bill), 0),
-    [openPayments],
-  )
+  const openPaymentsTotal = openPaymentsServerTotal
   const paymentDeadlineDays = useMemo(() => {
     const raw = settings.PAYMENT_DEADLINE_DAYS
     if (raw == null || String(raw).trim() === '') return 0
@@ -3507,32 +3598,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return Math.floor(parsed)
   }, [settings.PAYMENT_DEADLINE_DAYS])
 
-  const unusedAdvancesTotal = useMemo(
-    () => filteredUnusedAdvances.reduce((sum, advance) => sum + Number(advance.remainingGross || 0), 0),
-    [filteredUnusedAdvances],
-  )
+  const unusedAdvancesTotal = unusedAdvancesServerTotal
 
   const openPaymentsPagination = useMemo(() => {
-    const total = sortedOpenPayments.length
-    const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
+    const total = Number(openPaymentsPageMeta.totalElements || 0)
+    const totalPages = Math.max(1, Number(openPaymentsPageMeta.totalPages || 0))
     const page = Math.min(Math.max(1, openPaymentsPage), totalPages)
-    const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
-    const slice = sortedOpenPayments.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const pageSize = Math.max(1, Number(openPaymentsPageMeta.size || BILLING_LIST_PAGE_SIZE))
+    const offset = (page - 1) * pageSize
+    const slice = sortedOpenPayments
     const showFrom = total === 0 ? 0 : offset + 1
-    const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
+    const showTo = total === 0 ? 0 : Math.min(offset + slice.length, total)
     return { total, totalPages, page, slice, showFrom, showTo }
-  }, [sortedOpenPayments, openPaymentsPage])
+  }, [sortedOpenPayments, openPaymentsPage, openPaymentsPageMeta])
 
   const unusedAdvancesPagination = useMemo(() => {
-    const total = sortedUnusedAdvances.length
-    const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
+    const total = Number(unusedAdvancesPageMeta.totalElements || 0)
+    const totalPages = Math.max(1, Number(unusedAdvancesPageMeta.totalPages || 0))
     const page = Math.min(Math.max(1, unusedAdvancesPage), totalPages)
-    const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
-    const slice = sortedUnusedAdvances.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const pageSize = Math.max(1, Number(unusedAdvancesPageMeta.size || BILLING_LIST_PAGE_SIZE))
+    const offset = (page - 1) * pageSize
+    const slice = sortedUnusedAdvances
     const showFrom = total === 0 ? 0 : offset + 1
-    const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
+    const showTo = total === 0 ? 0 : Math.min(offset + slice.length, total)
     return { total, totalPages, page, slice, showFrom, showTo }
-  }, [sortedUnusedAdvances, unusedAdvancesPage])
+  }, [sortedUnusedAdvances, unusedAdvancesPage, unusedAdvancesPageMeta])
 
   useEffect(() => {
     setOpenPaymentsPage(1)
@@ -3558,20 +3648,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (unusedAdvancesPagination.page !== unusedAdvancesPage) setUnusedAdvancesPage(unusedAdvancesPagination.page)
   }, [unusedAdvancesPagination.page, unusedAdvancesPage])
 
-  const folioStats = useMemo(() => {
-    const now = new Date()
-    const thisMonth = sortedHistoryBills.filter((bill) => {
-      const date = new Date(bill.issueDate)
-      return Number.isFinite(date.getTime()) && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
-    })
-    return {
-      thisMonthCount: thisMonth.length,
-      paidCount: sortedHistoryBills.filter((bill) => bill.paymentStatus === 'paid').length,
-      refundsCount: sortedHistoryBills.filter((bill) => isRefundBill(bill)).length,
-      advancesCount: sortedHistoryBills.filter((bill) => normalizeBillType(bill) === 'ADVANCE').length,
-      totalAmount: sortedHistoryBills.reduce((sum, bill) => sum + Number(bill.totalGross || 0), 0),
-    }
-  }, [sortedHistoryBills])
+  const folioStats = historyServerStats ?? {
+    thisMonthCount: 0,
+    paidCount: 0,
+    refundsCount: 0,
+    advancesCount: 0,
+    totalAmount: 0,
+  }
 
   const addDays = (value: string | null | undefined, days: number) => {
     const d = new Date(value || '')
@@ -3761,7 +3844,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
       notifyBillCreationResult(data)
-      await load()
+      await reloadAfterBillingMutation()
       if (embeddedCreateBill) {
         await onEmbeddedSaved?.()
         onEmbeddedClose?.()
@@ -3779,12 +3862,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const openCreateBillModal = () => {
+  const openCreateBillModal = async () => {
     if (!canIssueOpenInvoice) {
       showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
       return
     }
-    const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
+    const dependencies = await loadBillingEditorDependencies(false)
+    const stripeEnabled = dependencies.settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
+    const advanceEnabled = dependencies.settings.BILLING_ADVANCE_ENABLED !== 'false'
+    const availablePaymentMethods = dependencies.paymentMethods
+      .filter((method) => stripeEnabled || !isStripePaymentMethod(method))
+      .filter((method) => advanceEnabled || !isDepositPaymentMethod(method))
+    const defaultPaymentMethodId = availablePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? availablePaymentMethods[0]?.id
     setBillForm({
       items: [],
       paymentMethodId: defaultPaymentMethodId,
@@ -3800,13 +3889,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setShowCreateBillModal(true)
   }
 
-  const openCreateAdvanceBillModal = () => {
+  const openCreateAdvanceBillModal = async () => {
     if (!advanceBillingEnabled) return
     if (!canIssueAdvanceInvoice) {
       showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
       return
     }
-    const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
+    const dependencies = await loadBillingEditorDependencies(false)
+    const stripeEnabled = dependencies.settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
+    const availablePaymentMethods = dependencies.paymentMethods.filter((method) => stripeEnabled || !isStripePaymentMethod(method))
+    const defaultPaymentMethodId = availablePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? availablePaymentMethods[0]?.id
     setBillForm({
       items: [],
       paymentMethodId: defaultPaymentMethodId,
@@ -3863,6 +3955,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const openEditInvoicePopup = (ob: OpenBill) => {
+    void loadBillingEditorDependencies(false)
     setOpenBillEditorRootId(ob.id)
     setOpenBillAddMenuForId(null)
     setExternalOpenBillPickerForRootId(null)
@@ -4441,15 +4534,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const downloadHistoryExport = async (kind: 'pdf' | 'excel', scope: 'all' | 'selected') => {
-    const ids = scope === 'selected' ? selectedHistoryBills.map((bill) => bill.id) : sortedHistoryBills.map((bill) => bill.id)
-    if (ids.length === 0) {
-      showToast('error', locale === 'sl' ? 'Ni računov za izvoz.' : 'There are no invoices to export.')
-      return
-    }
     const stateLabel = `${scope}-${kind}` as 'all-pdf' | 'selected-pdf' | 'all-excel' | 'selected-excel'
     setExportingHistoryScope(stateLabel)
     setHistoryExportMenuOpen(false)
     try {
+      const ids = scope === 'selected'
+        ? selectedHistoryBillIds
+        : (await api.get<number[]>('/billing/bills/paged/ids', {
+          params: {
+            locationId: selectedLocationId ?? undefined,
+            search: historySearch.trim() || undefined,
+            dateFrom: historyDateFrom || undefined,
+            dateTo: historyDateTo || undefined,
+            paymentStatus: historyStatusFilter !== 'all' ? historyStatusFilter : undefined,
+            fiscalStatus: fiscalCashRegisterEnabled && historyFiscalStatusFilter !== 'all' ? historyFiscalStatusFilter : undefined,
+            billType: historyBillTypeFilter !== 'all' ? historyBillTypeFilter : undefined,
+            sortField: historySortField,
+            sortDir: historySortDir,
+          },
+        })).data
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        showToast('error', locale === 'sl' ? 'Ni računov za izvoz.' : 'There are no invoices to export.')
+        return
+      }
+
       const response = await api.post(
         kind === 'pdf' ? `/billing/bills/export/pdf-zip?locale=${locale}` : `/billing/bills/export/excel?locale=${locale}`,
         { billIds: ids },
@@ -4719,7 +4828,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     try {
       await api.post(`/billing/gift-cards/${card.id}/send`)
       showToast('success', locale === 'sl' ? `${voucherTypeLabel(card)} je bil poslan.` : 'Voucher was sent.')
-      await load()
+      await reloadAfterBillingMutation()
     } catch (error: any) {
       showToast('error', readBillingApiMessage(error) || (locale === 'sl' ? 'Bona ni bilo mogoče poslati.' : 'Unable to send voucher.'))
     } finally {
@@ -4830,7 +4939,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       openBillIds: related.map((entry) => entry.id),
     })
     const normalized = (data || []).map((entry: OpenBill) => normalizeOpenBill(entry))
+    queryClient.setQueryData(queryKeys.billing.openBills(activeUnitId), normalized)
     setOpenBills(normalized)
+    void queryClient.invalidateQueries({ queryKey: queryKeys.billing.summaryByUnit(activeUnitId), refetchType: 'none' })
     clearOpenBillDrafts(related.map((entry) => entry.id))
     const updated = normalized.find((entry: OpenBill) => entry.id === target.id) || null
     setDetailOpenBill(updated)
@@ -4863,7 +4974,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
 
     clearOpenBillDrafts(dirtyBills.map((entry) => entry.id))
-    const snapshot = await load()
+    const snapshot = await reloadAfterBillingMutation()
     const refreshed = snapshot.openBills.map((entry) => normalizeOpenBill(entry))
     setOpenBills(refreshed)
     const updatedActive = refreshed.find((entry) => entry.id === activeBill.id)
@@ -4880,7 +4991,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setDeletingOpenId(ob.id)
     try {
       await api.delete(`/billing/open-bills/${ob.id}`)
-      setOpenBills((prev) => prev.filter((x) => x.id !== ob.id))
+      setOpenBills((prev) => {
+        const next = prev.filter((x) => x.id !== ob.id)
+        queryClient.setQueryData(queryKeys.billing.openBills(activeUnitId), next)
+        return next
+      })
+      setBillingSummary((prev) => prev ? { ...prev, openBills: Math.max(0, prev.openBills - 1) } : prev)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billing.summaryByUnit(activeUnitId), refetchType: 'none' })
       clearOpenBillDrafts([ob.id])
       setDetailOpenBill((prev) => (prev?.id === ob.id ? null : prev))
       if (activeOpenBillId === ob.id) closeDetailOpenBill()
@@ -5157,7 +5274,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         showToast('success', locale === 'sl'
           ? `${data?.entitlementName || 'Ugodnost'} je pokrila termin. Nov račun ni bil izdan.`
           : `${data?.entitlementName || 'Entitlement'} covered the session. No new invoice was issued.`)
-        const snapshot = await load()
+        const snapshot = await reloadAfterBillingMutation()
         await onEmbeddedSaved?.()
         const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, snapshot.openBills)
         if (!movedToNextTab) {
@@ -5180,7 +5297,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
       notifyOpenBillClosedResult(data)
-      const snapshot = await load()
+      const snapshot = await reloadAfterBillingMutation()
       await onEmbeddedSaved?.()
       const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, snapshot.openBills)
       if (!movedToNextTab) {
@@ -5255,7 +5372,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (!payload) return
     setCreatingManualOpenBill(true)
     try {
-      const snapshot = await load()
+      const snapshot = await reloadAfterBillingMutation()
       const refreshed = snapshot.openBills.map((entry) => normalizeOpenBill(entry))
       setOpenBills(refreshed)
       setBillingTab('open')
@@ -5316,7 +5433,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', consultantId: me.id, discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
-      await load()
+      await reloadAfterBillingMutation()
     } catch (error: any) {
       closePdfActionWindow(printWindow)
       if (!showStripeSetupPopupFromError(error) && !showBankTransferQrSettingsPopupFromError(error)) {
@@ -5372,7 +5489,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     try {
       const { data } = await api.post(`/billing/open-bills/session/${ctx.sessionId}/additional`, payload)
       const created = data ? normalizeOpenBill(data) : null
-      const snapshot = await load()
+      const snapshot = await reloadAfterBillingMutation()
       const refreshed = snapshot.openBills.map((entry) => normalizeOpenBill(entry))
       setOpenBills(refreshed)
       const target = created ? refreshed.find((entry) => entry.id === created.id) ?? created : null
@@ -8067,7 +8184,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       } else {
         showToast('success', 'Payment link sent to client email.')
       }
-      await load()
+      await reloadAfterBillingMutation()
     } catch (error: any) {
       if (!showStripeSetupPopupFromError(error) && !showBankTransferQrSettingsPopupFromError(error)) {
         showToast(
@@ -8099,7 +8216,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? `Imported bank statement. Matched ${matched} payment${matched === 1 ? '' : 's'}${preview ? `: ${preview}` : ''}. ${unmatched} row${unmatched === 1 ? '' : 's'} left unmatched.`
           : 'Imported bank statement, but no unpaid folios were matched.',
       )
-      await load()
+      await reloadAfterBillingMutation()
     } finally {
       setImportingBankStatement(false)
       if (bankStatementInputRef.current) bankStatementInputRef.current.value = ''
@@ -8111,7 +8228,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setMarkingPaidBillId(bill.id)
     try {
       await api.post(`/billing/bills/${bill.id}/mark-paid`)
-      await load()
+      await reloadAfterBillingMutation()
     } finally {
       setMarkingPaidBillId(null)
     }
@@ -8137,7 +8254,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     try {
       await api.post(`/billing/bills/${bill.id}/refund`)
       showToast('success', 'Refund invoice created.')
-      await load()
+      await reloadAfterBillingMutation()
     } finally {
       setRefundingBillId(null)
     }
@@ -8238,11 +8355,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const billingTabCounts = {
-    open: sortedOpenBills.length,
-    openPayments: openPayments.length,
-    unusedAdvances: filteredUnusedAdvances.length,
-    giftCards: sortedGiftCards.length,
-    history: sortedHistoryBills.length,
+    // Server-paged tabs use the server total whenever their own filters/search are active.
+    // The lightweight summary remains the source for untouched/inactive tab totals.
+    open: openBillsSearch.trim() ? sortedOpenBills.length : (billingSummary?.openBills ?? sortedOpenBills.length),
+    openPayments: openPaymentsSearch.trim()
+      ? openPaymentsPageMeta.totalElements
+      : (billingSummary?.openPayments ?? openPaymentsPageMeta.totalElements),
+    unusedAdvances: unusedAdvancesSearch.trim()
+      ? unusedAdvancesPageMeta.totalElements
+      : (billingSummary?.unusedAdvances ?? unusedAdvancesPageMeta.totalElements),
+    giftCards: (giftCardSearch.trim() || giftCardDateFrom || giftCardDateTo || giftCardStatusFilter !== 'all')
+      ? giftCardsPageMeta.totalElements
+      : (billingSummary?.giftCards ?? giftCardsPageMeta.totalElements),
+    history: (historySearch.trim() || historyDateFrom || historyDateTo || historyStatusFilter !== 'all'
+      || (fiscalCashRegisterEnabled && historyFiscalStatusFilter !== 'all') || historyBillTypeFilter !== 'all')
+      ? historyPageMeta.totalElements
+      : (billingSummary?.history ?? historyPageMeta.totalElements),
   }
 
   const activeHistoryFilterCount = [
@@ -8265,11 +8393,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const historyExportText = {
     button: locale === 'sl' ? 'Izvoz' : 'Export',
     all: locale === 'sl' ? 'Izvozi vse račune' : 'Export all invoices',
-    selected: locale === 'sl' ? `Izvozi izbrane račune (${selectedHistoryBills.length})` : `Export selected invoices (${selectedHistoryBills.length})`,
+    selected: locale === 'sl' ? `Izvozi izbrane račune (${selectedHistoryBillIds.length})` : `Export selected invoices (${selectedHistoryBillIds.length})`,
     asPdf: locale === 'sl' ? 'Kot PDF datoteke (.zip)' : 'As PDF files (.zip)',
     asExcel: locale === 'sl' ? 'Kot Excel tabela (.xls)' : 'As Excel table (.xls)',
     clearSelection: locale === 'sl' ? 'Počisti izbor' : 'Clear selection',
-    selectedBar: locale === 'sl' ? `Izbrani ${selectedHistoryBills.length} računi` : `${selectedHistoryBills.length} invoices selected`,
+    selectedBar: locale === 'sl' ? `Izbrani ${selectedHistoryBillIds.length} računi` : `${selectedHistoryBillIds.length} invoices selected`,
   }
 
   const openHistoryFiltersModal = () => {
@@ -8672,7 +8800,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <div>
                         <span className="billing-modern-stat-label">{locale === 'sl' ? 'Čaka na plačilo' : 'Pending Allocation'}</span>
                         <strong>{currency(openPaymentsTotal)}</strong>
-                        <small>{openPayments.length} {locale === 'sl' ? 'plačil' : 'payments'}</small>
+                        <small>{openPaymentsPageMeta.totalElements} {locale === 'sl' ? 'plačil' : 'payments'}</small>
                       </div>
                     </div>
                   </div>
@@ -9204,7 +9332,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         type="button"
                         className="billing-filter-btn billing-export-btn"
                         onClick={() => setHistoryExportMenuOpen((value) => !value)}
-                        disabled={sortedHistoryBills.length === 0 || exportingHistoryScope != null}
+                        disabled={historyPageMeta.totalElements === 0 || exportingHistoryScope != null}
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                           <path d="M12 3v12" />
@@ -9235,16 +9363,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           </div>
                           <div className="billing-export-menu__divider" />
                           <div className="billing-export-menu__section">
-                            <button type="button" className="billing-export-menu__headline" disabled={selectedHistoryBills.length === 0} onClick={() => downloadHistoryExport('pdf', 'selected')} role="menuitem">
+                            <button type="button" className="billing-export-menu__headline" disabled={selectedHistoryBillIds.length === 0} onClick={() => downloadHistoryExport('pdf', 'selected')} role="menuitem">
                               <span>{historyExportText.selected}</span>
                             </button>
-                            <button type="button" className="billing-export-menu__item" disabled={selectedHistoryBills.length === 0} onClick={() => downloadHistoryExport('pdf', 'selected')} role="menuitem">
+                            <button type="button" className="billing-export-menu__item" disabled={selectedHistoryBillIds.length === 0} onClick={() => downloadHistoryExport('pdf', 'selected')} role="menuitem">
                               <span className="billing-export-menu__icon" aria-hidden>📄</span>
                               <span className="billing-export-menu__copy">
                                 <strong>{historyExportText.asPdf}</strong>
                               </span>
                             </button>
-                            <button type="button" className="billing-export-menu__item" disabled={selectedHistoryBills.length === 0} onClick={() => downloadHistoryExport('excel', 'selected')} role="menuitem">
+                            <button type="button" className="billing-export-menu__item" disabled={selectedHistoryBillIds.length === 0} onClick={() => downloadHistoryExport('excel', 'selected')} role="menuitem">
                               <span className="billing-export-menu__icon" aria-hidden>📊</span>
                               <span className="billing-export-menu__copy">
                                 <strong>{historyExportText.asExcel}</strong>
@@ -9468,7 +9596,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 ) : (
                   <>
-                    {selectedHistoryBills.length > 0 ? (
+                    {selectedHistoryBillIds.length > 0 ? (
                       <div className="billing-history-selection-bar">
                         <label className="billing-history-selection-bar__label">
                           <input

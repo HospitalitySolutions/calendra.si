@@ -10,6 +10,7 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     List<Location> findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(Long companyId);
     List<Location> findAllByCompanyIdInAndActiveTrueOrderByCompanyIdAscDefaultLocationDescNameAscIdAsc(Collection<Long> companyIds);
     List<Location> findAllByActiveTrueAndPublicDirectoryEnabledTrueOrderByCompanyIdAscNameAscIdAsc();
+    List<Location> findAllByActiveTrueAndGuestAppDiscoverableTrueOrderByCompanyIdAscNameAscIdAsc();
     Optional<Location> findByIdAndCompanyId(Long id, Long companyId);
     List<Location> findAllByCompanyIdAndIdIn(Long companyId, Collection<Long> ids);
     Optional<Location> findFirstByCompanyIdAndDefaultLocationTrue(Long companyId);

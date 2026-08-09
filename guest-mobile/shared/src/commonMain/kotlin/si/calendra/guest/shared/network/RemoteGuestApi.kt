@@ -60,7 +60,8 @@ class RemoteGuestApi(
         request.consultantId.orEmpty(),
         request.entitlementId.orEmpty(),
         request.locale.orEmpty(),
-        request.holdToken.orEmpty()
+        request.holdToken.orEmpty(),
+        request.locationId.orEmpty()
     ).joinToString("|")
 
     private fun checkoutScope(orderId: String, request: CheckoutRequest): String = listOf(
@@ -242,6 +243,11 @@ class RemoteGuestApi(
             if (!tenantType.isNullOrBlank()) parameter("type", tenantType)
         })
 
+    suspend fun providerLocations(): List<TenantSummary> =
+        parse(client.get("${config.baseUrl}/api/guest/tenants/providers") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+        })
+
     suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse =
         parse(client.post("${config.baseUrl}/api/guest/tenants/join") {
             jsonRequest()
@@ -264,26 +270,35 @@ class RemoteGuestApi(
             parameter("companyId", companyId)
         })
 
-    suspend fun products(companyId: String): List<ProductSummary> =
+    suspend fun products(companyId: String, locationId: String? = null): List<ProductSummary> =
         parse(client.get("${config.baseUrl}/api/guest/products") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
             parameter("companyId", companyId)
+            locationId?.takeIf { it.isNotBlank() }?.let { parameter("locationId", it) }
         })
 
-    suspend fun availability(companyId: String, sessionTypeIds: List<String>, date: String, consultantId: String? = null): AvailabilityResponse =
+    suspend fun availability(
+        companyId: String,
+        sessionTypeIds: List<String>,
+        date: String,
+        consultantId: String? = null,
+        locationId: String? = null
+    ): AvailabilityResponse =
         parse(client.get("${config.baseUrl}/api/guest/availability") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
             parameter("companyId", companyId)
             sessionTypeIds.forEach { parameter("sessionTypeIds", it) }
             parameter("date", date)
             consultantId?.takeIf { it.isNotBlank() }?.let { parameter("consultantId", it) }
+            locationId?.takeIf { it.isNotBlank() }?.let { parameter("locationId", it) }
         })
 
-    suspend fun consultants(companyId: String, sessionTypeIds: List<String>): List<ConsultantSummary> =
+    suspend fun consultants(companyId: String, sessionTypeIds: List<String>, locationId: String? = null): List<ConsultantSummary> =
         parse(client.get("${config.baseUrl}/api/guest/consultants") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
             parameter("companyId", companyId)
             sessionTypeIds.forEach { parameter("sessionTypeIds", it) }
+            locationId?.takeIf { it.isNotBlank() }?.let { parameter("locationId", it) }
         })
 
     suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse =

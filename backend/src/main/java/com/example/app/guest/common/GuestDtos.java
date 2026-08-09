@@ -45,8 +45,31 @@ public final class GuestDtos {
             /** When false, guests cannot modify/reschedule upcoming bookings. */
             boolean modificationAllowed,
             /** Enables ordered multi-service selection in public booking channels. */
-            boolean multipleServicesEnabled
-    ) {}
+            boolean multipleServicesEnabled,
+            /** Concrete Guest App provider location. Membership remains company-level. */
+            String locationId,
+            /** Stable UI identity for one company/location pair. */
+            String providerId,
+            String locationName,
+            String publicEmail,
+            boolean publicBookingEnabled
+    ) {
+        public TenantSummaryResponse(
+                String companyId, String companyName, String publicDescription, String publicCity,
+                String publicPhone, String companyAddress, String tenantType, String cardImageUrl,
+                String logoImageUrl, String iconImageUrl, String status, boolean employeeSelectionStep,
+                boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled,
+                boolean requireOnlinePayment, String paymentRequirement, Integer depositPercent,
+                List<String> acceptedPaymentMethods, boolean cancellationAllowed,
+                boolean modificationAllowed, boolean multipleServicesEnabled
+        ) {
+            this(companyId, companyName, publicDescription, publicCity, publicPhone, companyAddress,
+                    tenantType, cardImageUrl, logoImageUrl, iconImageUrl, status, employeeSelectionStep,
+                    useEmployeeContact, billingEnabled, inboxEnabled, requireOnlinePayment,
+                    paymentRequirement, depositPercent, acceptedPaymentMethods, cancellationAllowed,
+                    modificationAllowed, multipleServicesEnabled, null, null, null, null, false);
+        }
+    }
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record LinkedCompanyOptionResponse(String id, String name) {}
@@ -114,10 +137,37 @@ public final class GuestDtos {
     public record DeleteGuestAccountResponse(boolean deleted) {}
 
     public record TenantLookupRequest(String tenantCode) {}
-    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin, boolean employeeSelectionStep, boolean useEmployeeContact, boolean cancellationAllowed, boolean modificationAllowed) {}
-    public record JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId) {}
+    public record TenantLookupResponse(
+            String companyId, String companyName, String publicDescription, String publicCity,
+            String publicPhone, String companyAddress, String tenantType, String cardImageUrl,
+            String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin,
+            boolean employeeSelectionStep, boolean useEmployeeContact, boolean cancellationAllowed,
+            boolean modificationAllowed, List<TenantSummaryResponse> locations
+    ) {
+        public TenantLookupResponse(
+                String companyId, String companyName, String publicDescription, String publicCity,
+                String publicPhone, String companyAddress, String tenantType, String cardImageUrl,
+                String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin,
+                boolean employeeSelectionStep, boolean useEmployeeContact,
+                boolean cancellationAllowed, boolean modificationAllowed
+        ) {
+            this(companyId, companyName, publicDescription, publicCity, publicPhone, companyAddress,
+                    tenantType, cardImageUrl, logoImageUrl, iconImageUrl, joinMethod, canJoin,
+                    employeeSelectionStep, useEmployeeContact, cancellationAllowed, modificationAllowed,
+                    List.of());
+        }
+    }
+    public record JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId, String locationId) {
+        public JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId) {
+            this(joinMethod, tenantCode, inviteCode, companyId, null);
+        }
+    }
     public record TenantLinkResponse(String companyId, String clientId, String status, String joinedVia) {}
-    public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {}
+    public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType, String selectedLocationId) {
+        public JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {
+            this(tenantLink, clientMatched, matchType, null);
+        }
+    }
 
     public record BookingServiceResponse(
             String sessionTypeId,
@@ -142,8 +192,20 @@ public final class GuestDtos {
             int totalDurationMinutes,
             double totalPriceGross,
             String currency,
-            String paymentStatus
-    ) {}
+            String paymentStatus,
+            String locationId
+    ) {
+        public UpcomingBookingResponse(
+                String bookingId, String sessionTypeName, String startsAt, String bookingStatus,
+                String employeePhone, String endsAt, String consultantName, String sessionTypeId,
+                List<BookingServiceResponse> services, int totalDurationMinutes,
+                double totalPriceGross, String currency, String paymentStatus
+        ) {
+            this(bookingId, sessionTypeName, startsAt, bookingStatus, employeePhone, endsAt,
+                    consultantName, sessionTypeId, services, totalDurationMinutes, totalPriceGross,
+                    currency, paymentStatus, null);
+        }
+    }
     public record EntitlementResponse(
             String entitlementId,
             String productName,
@@ -440,8 +502,18 @@ public final class GuestDtos {
             List<BookingServiceResponse> services,
             int totalDurationMinutes,
             double totalPriceGross,
-            String currency
-    ) {}
+            String currency,
+            String locationId
+    ) {
+        public BookingHistoryItemResponse(
+                String bookingId, String sessionTypeName, String startsAt, String bookingStatus,
+                List<BookingServiceResponse> services, int totalDurationMinutes,
+                double totalPriceGross, String currency
+        ) {
+            this(bookingId, sessionTypeName, startsAt, bookingStatus, services,
+                    totalDurationMinutes, totalPriceGross, currency, null);
+        }
+    }
     public record ToggleAutoRenewRequest(Boolean autoRenews) {}
     public record ToggleAutoRenewResponse(String entitlementId, boolean autoRenews) {}
 

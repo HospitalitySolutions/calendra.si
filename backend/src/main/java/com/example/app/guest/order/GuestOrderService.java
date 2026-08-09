@@ -218,6 +218,21 @@ public class GuestOrderService {
                 channel
         );
         var product = serviceLines.get(0).product();
+        String resolvedLocationId = request.locationId();
+        if (channel == PaymentChannel.GUEST && request.slotId() != null && !request.slotId().isBlank()
+                && serviceLines.stream().anyMatch(line -> isSessionLikeProductType(line.product().productType()))) {
+            List<Long> bookingServiceTypeIds = serviceLines.stream()
+                    .map(OrderServiceLine::product)
+                    .map(GuestCatalogService.ResolvedProduct::sessionType)
+                    .filter(Objects::nonNull)
+                    .map(type -> type.getId())
+                    .filter(Objects::nonNull)
+                    .toList();
+            Long selectedLocationId = catalogService.requireGuestBookableLocation(
+                    companyId, parseNullableLocationId(request.locationId()), bookingServiceTypeIds, guestUser
+            );
+            resolvedLocationId = selectedLocationId == null ? null : String.valueOf(selectedLocationId);
+        }
         if (serviceLines.size() > 1) {
             GuestSettingsService.GuestPublicSettings publicSettings = guestSettings.publicSettings(companyId);
             if (publicSettings != null && !publicSettings.multipleServicesEnabled()) {
@@ -244,7 +259,7 @@ public class GuestOrderService {
                 serviceLines,
                 paymentMethodType,
                 normalizedBookingSource,
-                request.locationId()
+                resolvedLocationId
         );
         if (reusableOrder != null) {
             reusableOrder = refreshBookingHoldToken(reusableOrder, request.holdToken());
@@ -278,7 +293,7 @@ public class GuestOrderService {
                 serviceLines,
                 request.consultantId(),
                 request.holdToken(),
-                request.locationId()
+                resolvedLocationId
         ));
         order = orders.save(order);
 
@@ -523,6 +538,16 @@ public class GuestOrderService {
             return normalizeId(value) == null ? null : Long.parseLong(value.trim());
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service space identifier.");
+        }
+    }
+
+    private static Long parseNullableLocationId(String value) {
+        try {
+            Long parsed = normalizeId(value) == null ? null : Long.parseLong(value.trim());
+            if (parsed != null && parsed <= 0) throw new NumberFormatException();
+            return parsed;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location identifier.");
         }
     }
 
@@ -1869,6 +1894,18 @@ public class GuestOrderService {
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {
         try {
             if (slotContext.groupSessionId() != null) {
+                Long expectedLocationId = extractLocationId(order);
+                if (expectedLocationId != null) {
+                    SessionBooking groupSession = bookings.findById(slotContext.groupSessionId())
+                            .filter(candidate -> candidate.getCompany() != null
+                                    && Objects.equals(candidate.getCompany().getId(), order.getCompany().getId()))
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group session is not available."));
+                    if (groupSession.getLocation() == null
+                            || !Objects.equals(groupSession.getLocation().getId(), expectedLocationId)) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "The selected group session belongs to a different location.");
+                    }
+                }
                 SessionBooking joined = bookingCreationService.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
                         order.getCompany().getId(),
                         slotContext.groupSessionId(),

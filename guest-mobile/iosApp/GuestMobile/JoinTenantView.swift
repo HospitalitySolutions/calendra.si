@@ -262,7 +262,7 @@ struct JoinTenantView: View {
                             Spacer(minLength: 0)
                             JoinTenantPreviewCard(tenant: tenant, isSl: isSl) {
                                 Task {
-                                    await store.joinPublicTenant(companyId: tenant.companyId)
+                                    await store.joinPublicTenant(companyId: tenant.companyId, locationId: tenant.locationId)
                                     if store.errorMessage == nil {
                                         onJoin()
                                     }

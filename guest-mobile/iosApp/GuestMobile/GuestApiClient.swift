@@ -220,10 +220,14 @@ final class GuestApiClient {
         return try await get(path: "api/guest/tenants/search", query: queryItems)
     }
 
-    func joinPublicTenant(companyId: String) async throws {
+    func providerLocations() async throws -> [TenantSummaryModel] {
+        try await get(path: "api/guest/tenants/providers")
+    }
+
+    func joinPublicTenant(companyId: String, locationId: String? = nil) async throws {
         let _: EmptyResponse = try await post(
             path: "api/guest/tenants/join",
-            body: JoinTenantPayload(joinMethod: "PUBLIC_SEARCH", tenantCode: nil, inviteCode: nil, companyId: companyId)
+            body: JoinTenantPayload(joinMethod: "PUBLIC_SEARCH", companyId: companyId, locationId: locationId)
         )
     }
 
@@ -239,33 +243,36 @@ final class GuestApiClient {
         try await get(path: "api/guest/home", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
-    func products(companyId: String) async throws -> [ProductModel] {
-        try await get(path: "api/guest/products", query: [URLQueryItem(name: "companyId", value: companyId)])
+    func products(companyId: String, locationId: String? = nil) async throws -> [ProductModel] {
+        var query = [URLQueryItem(name: "companyId", value: companyId)]
+        if let locationId, !locationId.isEmpty { query.append(URLQueryItem(name: "locationId", value: locationId)) }
+        return try await get(path: "api/guest/products", query: query)
     }
 
-    func availability(companyId: String, sessionTypeIds: [String], date: String, consultantId: String? = nil) async throws -> AvailabilityResponseModel {
+    func availability(companyId: String, sessionTypeIds: [String], date: String, consultantId: String? = nil, locationId: String? = nil) async throws -> AvailabilityResponseModel {
         var query: [URLQueryItem] = [
             URLQueryItem(name: "companyId", value: companyId),
             URLQueryItem(name: "date", value: date)
         ]
         query.append(contentsOf: sessionTypeIds.map { URLQueryItem(name: "sessionTypeIds", value: $0) })
-        if let consultantId, !consultantId.isEmpty {
-            query.append(URLQueryItem(name: "consultantId", value: consultantId))
-        }
+        if let consultantId, !consultantId.isEmpty { query.append(URLQueryItem(name: "consultantId", value: consultantId)) }
+        if let locationId, !locationId.isEmpty { query.append(URLQueryItem(name: "locationId", value: locationId)) }
         return try await get(path: "api/guest/availability", query: query)
     }
 
-    func consultants(companyId: String, sessionTypeIds: [String]) async throws -> [ConsultantSummaryModel] {
+    func consultants(companyId: String, sessionTypeIds: [String], locationId: String? = nil) async throws -> [ConsultantSummaryModel] {
         var query = [URLQueryItem(name: "companyId", value: companyId)]
         query.append(contentsOf: sessionTypeIds.map { URLQueryItem(name: "sessionTypeIds", value: $0) })
+        if let locationId, !locationId.isEmpty { query.append(URLQueryItem(name: "locationId", value: locationId)) }
         return try await get(path: "api/guest/consultants", query: query)
     }
 
-    func createBookingSlotHold(companyId: String, slotId: String, serviceTypeIds: [Int64], previousHoldToken: String? = nil) async throws -> BookingSlotHoldResponseModel {
+    func createBookingSlotHold(companyId: String, locationId: String? = nil, slotId: String, serviceTypeIds: [Int64], previousHoldToken: String? = nil) async throws -> BookingSlotHoldResponseModel {
         try await post(
             path: "api/guest/booking-holds",
             body: BookingSlotHoldPayload(
                 companyId: companyId,
+                locationId: locationId,
                 slotId: slotId,
                 serviceTypeIds: serviceTypeIds,
                 previousHoldToken: previousHoldToken
@@ -484,11 +491,11 @@ final class GuestApiClient {
         )
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil, locationId: String? = nil) async throws -> CheckoutResponseModel {
         let flowKey = newIdempotencyKey(prefix: "ios-guest-order")
         let order: CreateOrderEnvelope = try await post(
             path: "api/guest/orders",
-            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId, services: services, holdToken: holdToken),
+            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId, services: services, holdToken: holdToken, locationId: locationId),
             idempotencyKey: "\(flowKey):create"
         )
         return try await post(

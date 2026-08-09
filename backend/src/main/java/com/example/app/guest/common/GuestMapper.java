@@ -2,6 +2,8 @@ package com.example.app.guest.common;
 
 import com.example.app.company.Company;
 import com.example.app.guest.model.*;
+import com.example.app.location.Location;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -93,6 +95,54 @@ public final class GuestMapper {
                 settings.cancellationAllowed(),
                 settings.modificationAllowed(),
                 settings.multipleServicesEnabled()
+        );
+    }
+
+    public static GuestDtos.TenantSummaryResponse toLocationSummary(
+            Location location,
+            GuestSettingsService.GuestPublicSettings settings,
+            LocationPublicPresentationService presentations,
+            boolean requireOnlinePayment,
+            String paymentRequirement,
+            Integer depositPercent,
+            List<String> acceptedPaymentMethods,
+            String status
+    ) {
+        if (location == null || location.getCompany() == null) {
+            throw new IllegalArgumentException("Location with company is required.");
+        }
+        Company company = location.getCompany();
+        LocationPublicPresentationService.PublicPresentation presentation = presentations.resolve(location);
+        String locationId = String.valueOf(location.getId());
+        String companyId = String.valueOf(company.getId());
+        return new GuestDtos.TenantSummaryResponse(
+                companyId,
+                presentation.publicName(),
+                presentation.publicDescription(),
+                location.getCity(),
+                presentation.publicPhone(),
+                presentation.publicAddress(),
+                settings.tenantType(),
+                settings.cardImageUrl(),
+                presentation.publicLogoUrl(),
+                settings.iconImageUrl(),
+                status == null || status.isBlank() ? "ACTIVE" : status,
+                settings.employeeSelectionStep(),
+                settings.useEmployeeContact(),
+                settings.billingEnabled(),
+                settings.inboxEnabled(),
+                requireOnlinePayment,
+                paymentRequirement,
+                depositPercent,
+                acceptedPaymentMethods == null ? List.of() : acceptedPaymentMethods,
+                settings.cancellationAllowed(),
+                settings.modificationAllowed(),
+                settings.multipleServicesEnabled(),
+                locationId,
+                companyId + ":" + locationId,
+                location.getName(),
+                presentation.publicEmail(),
+                presentation.publicBookingEnabled()
         );
     }
 

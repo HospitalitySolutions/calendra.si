@@ -22,13 +22,14 @@ interface GuestRepository {
     suspend fun downloadProfilePicture(): ByteArray
     suspend fun resolveTenant(code: String): TenantLookupResponse
     suspend fun searchTenants(query: String, tenantType: String? = null): List<TenantSummary>
+    suspend fun providerLocations(): List<TenantSummary>
     suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse
     suspend fun unsubscribeTenant(companyId: String): TenantLink
     suspend fun anonymizeTenant(companyId: String): TenantLink
     suspend fun home(companyId: String): HomePayload
-    suspend fun products(companyId: String): List<ProductSummary>
-    suspend fun availability(companyId: String, sessionTypeIds: List<String>, date: String, consultantId: String? = null): AvailabilityResponse
-    suspend fun consultants(companyId: String, sessionTypeIds: List<String>): List<ConsultantSummary>
+    suspend fun products(companyId: String, locationId: String? = null): List<ProductSummary>
+    suspend fun availability(companyId: String, sessionTypeIds: List<String>, date: String, consultantId: String? = null, locationId: String? = null): AvailabilityResponse
+    suspend fun consultants(companyId: String, sessionTypeIds: List<String>, locationId: String? = null): List<ConsultantSummary>
     suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse
     suspend fun releaseBookingSlotHold(companyId: String, holdToken: String)
     suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse

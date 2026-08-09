@@ -62,9 +62,13 @@ public class GuestHomeController {
     }
 
     @GetMapping("/products")
-    public List<GuestDtos.ProductResponse> products(@RequestParam String companyId, HttpServletRequest request) {
+    public List<GuestDtos.ProductResponse> products(
+            @RequestParam String companyId,
+            @RequestParam(required = false) String locationId,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return catalogService.products(Long.parseLong(companyId), guestUser);
+        return catalogService.products(Long.parseLong(companyId), parseOptionalLocationId(locationId), guestUser);
     }
 
     @GetMapping("/availability")
@@ -74,12 +78,16 @@ public class GuestHomeController {
             @RequestParam(required = false) List<String> sessionTypeIds,
             @RequestParam String date,
             @RequestParam(required = false) String consultantId,
+            @RequestParam(required = false) String locationId,
             HttpServletRequest request
     ) {
         GuestUser guestUser = authContextService.requireGuest(request);
         Long consultantIdNum = (consultantId == null || consultantId.isBlank()) ? null : Long.parseLong(consultantId.trim());
         List<Long> serviceIds = parseServiceIds(sessionTypeId, sessionTypeIds);
-        return catalogService.availability(Long.parseLong(companyId), serviceIds, date, consultantIdNum, guestUser);
+        return catalogService.availability(
+                Long.parseLong(companyId), serviceIds, date, consultantIdNum,
+                parseOptionalLocationId(locationId), guestUser
+        );
     }
 
     @GetMapping("/consultants")
@@ -87,10 +95,25 @@ public class GuestHomeController {
             @RequestParam String companyId,
             @RequestParam(required = false) String sessionTypeId,
             @RequestParam(required = false) List<String> sessionTypeIds,
+            @RequestParam(required = false) String locationId,
             HttpServletRequest request
     ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return catalogService.consultants(Long.parseLong(companyId), parseServiceIds(sessionTypeId, sessionTypeIds), guestUser);
+        return catalogService.consultants(
+                Long.parseLong(companyId), parseServiceIds(sessionTypeId, sessionTypeIds),
+                parseOptionalLocationId(locationId), guestUser
+        );
+    }
+
+    private static Long parseOptionalLocationId(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            long parsed = Long.parseLong(raw.trim());
+            if (parsed <= 0) throw new NumberFormatException();
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location identifier.");
+        }
     }
 
     private static List<Long> parseServiceIds(String legacyId, List<String> ids) {

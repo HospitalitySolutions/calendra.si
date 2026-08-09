@@ -25,12 +25,15 @@ data class CreateOrderRequest(
     /** Ordered service lines; omitted for tenants using the legacy single-service flow. */
     val services: List<SelectedServiceRequest>? = null,
     /** Temporary 15-minute hold created when the guest enters payment and review. */
-    val holdToken: String? = null
+    val holdToken: String? = null,
+    /** Physical provider branch selected for this booking. */
+    val locationId: String? = null
 )
 
 @Serializable
 data class BookingSlotHoldRequest(
     val companyId: String,
+    val locationId: String? = null,
     val slotId: String,
     val serviceTypeIds: List<Long>,
     val previousHoldToken: String? = null

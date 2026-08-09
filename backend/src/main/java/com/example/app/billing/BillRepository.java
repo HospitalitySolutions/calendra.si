@@ -18,6 +18,41 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     long countByLegalEntityId(Long legalEntityId);
     long countByInvoiceSeriesId(Long invoiceSeriesId);
     long countByLocationId(Long locationId);
+    long countByCompanyId(Long companyId);
+    @Query("""
+            select count(b) from Bill b
+            where b.company.id = :companyId
+              and (b.location.id = :locationId or b.location is null)
+            """)
+    long countVisibleByCompanyIdAndLocationId(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId);
+
+    @Query("""
+            select count(b) from Bill b
+            where b.company.id = :companyId
+              and b.paymentStatus <> :paidStatus
+              and b.paymentStatus <> :cancelledStatus
+            """)
+    long countOpenPaymentsByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("paidStatus") String paidStatus,
+            @Param("cancelledStatus") String cancelledStatus
+    );
+
+    @Query("""
+            select count(b) from Bill b
+            where b.company.id = :companyId
+              and (b.location.id = :locationId or b.location is null)
+              and b.paymentStatus <> :paidStatus
+              and b.paymentStatus <> :cancelledStatus
+            """)
+    long countOpenPaymentsByCompanyIdAndLocationId(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId,
+            @Param("paidStatus") String paidStatus,
+            @Param("cancelledStatus") String cancelledStatus
+    );
 
     @Query("""
             select b.id from Bill b

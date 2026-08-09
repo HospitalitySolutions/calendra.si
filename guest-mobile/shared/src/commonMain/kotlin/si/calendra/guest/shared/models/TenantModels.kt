@@ -24,7 +24,8 @@ data class TenantLookupResponse(
     val employeeSelectionStep: Boolean = false,
     val useEmployeeContact: Boolean = false,
     val cancellationAllowed: Boolean = true,
-    val modificationAllowed: Boolean = true
+    val modificationAllowed: Boolean = true,
+    val locations: List<TenantSummary> = emptyList()
 )
 
 @Serializable
@@ -32,14 +33,16 @@ data class JoinTenantRequest(
     val joinMethod: String,
     val tenantCode: String? = null,
     val inviteCode: String? = null,
-    val companyId: String? = null
+    val companyId: String? = null,
+    val locationId: String? = null
 )
 
 @Serializable
 data class JoinTenantResponse(
     val tenantLink: TenantLink,
     val clientMatched: Boolean,
-    val matchType: String
+    val matchType: String,
+    val selectedLocationId: String? = null
 )
 
 @Serializable

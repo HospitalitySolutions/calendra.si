@@ -28,7 +28,8 @@ data class UpcomingBooking(
     val totalDurationMinutes: Int = 0,
     val totalPriceGross: Double = 0.0,
     val currency: String = "EUR",
-    val paymentStatus: String? = null
+    val paymentStatus: String? = null,
+    val locationId: String? = null
 )
 
 @Serializable

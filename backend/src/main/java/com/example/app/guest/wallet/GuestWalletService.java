@@ -219,7 +219,8 @@ public class GuestWalletService {
                             serviceLines,
                             com.example.app.session.SessionServiceSupport.totalServiceMinutes(b),
                             GuestBookingViewSupport.totalPrice(serviceLines),
-                            "EUR"
+                            "EUR",
+                            b.getLocation() == null ? null : String.valueOf(b.getLocation().getId())
                     );
                 })
                 .toList();

@@ -224,6 +224,7 @@ struct MainTabView: View {
                                 rescheduleContext = BookRescheduleContext(
                                     bookingId: booking.bookingId,
                                     companyId: booking.companyId,
+                                    locationId: booking.locationId,
                                     sessionTypeId: booking.sessionTypeId,
                                     sessionTypeName: booking.title
                                 )
@@ -246,6 +247,7 @@ struct MainTabView: View {
                                 rescheduleContext = BookRescheduleContext(
                                     bookingId: booking.bookingId.isEmpty ? booking.id : booking.bookingId,
                                     companyId: booking.companyId,
+                                    locationId: booking.locationId,
                                     sessionTypeId: booking.sessionTypeId,
                                     sessionTypeName: booking.title
                                 )

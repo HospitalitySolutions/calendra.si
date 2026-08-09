@@ -3,6 +3,7 @@ import SwiftUI
 struct BookRescheduleContext: Identifiable, Hashable {
     let bookingId: String
     let companyId: String
+    let locationId: String?
     let sessionTypeId: String?
     let sessionTypeName: String
 
@@ -70,13 +71,19 @@ struct BookView: View {
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
 
-    private var providers: [TenantModel] {
-        store.linkedTenants.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    private var providers: [TenantSummaryModel] {
+        store.providerLocations
+            .filter { $0.publicBookingEnabled != false }
+            .sorted { lhs, rhs in
+                let byName = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+                if byName != .orderedSame { return byName == .orderedAscending }
+                return (lhs.locationName ?? lhs.city ?? "").localizedCaseInsensitiveCompare(rhs.locationName ?? rhs.city ?? "") == .orderedAscending
+            }
     }
 
     private var servicesForSelectedProvider: [ServiceOptionModel] {
         store.serviceOptions
-            .filter { $0.companyId == selectedProviderId }
+            .filter { $0.providerId == selectedProviderId }
             .sorted { lhs, rhs in
                 let leftGroup = lhs.serviceGroupSortOrder ?? Int.max
                 let rightGroup = rhs.serviceGroupSortOrder ?? Int.max
@@ -99,7 +106,7 @@ struct BookView: View {
         return order.compactMap { grouped[$0] }
     }
 
-    private var selectedProvider: TenantModel? {
+    private var selectedProvider: TenantSummaryModel? {
         providers.first(where: { $0.id == selectedProviderId })
     }
 
@@ -380,7 +387,7 @@ struct BookView: View {
             storedProfile = LocalProfileStore.shared.load(from: store.user)
             selectedStoredCard = storedProfile.cards.first
             if selectedProviderId == nil {
-                selectedProviderId = store.selectedTenantId ?? providers.first?.id
+                selectedProviderId = providers.first(where: { $0.companyId == store.selectedTenantId })?.id ?? providers.first?.id
             }
             applyRescheduleContextIfNeeded()
             applyLaunchRequestIfNeeded()
@@ -1369,10 +1376,13 @@ struct BookView: View {
 
     private func applyRescheduleContextIfNeeded() {
         guard let context = rescheduleContext else { return }
-        guard providers.contains(where: { $0.id == context.companyId }) else { return }
-        selectedProviderId = context.companyId
+        let provider = providers.first { candidate in
+            candidate.companyId == context.companyId && (context.locationId == nil || candidate.locationId == context.locationId)
+        } ?? providers.first { $0.companyId == context.companyId }
+        guard let provider else { return }
+        selectedProviderId = provider.id
         if let service = store.serviceOptions.first(where: {
-            $0.companyId == context.companyId && (($0.sessionTypeId == context.sessionTypeId && context.sessionTypeId != nil) || $0.name.caseInsensitiveCompare(context.sessionTypeName) == .orderedSame)
+            $0.providerId == provider.id && (($0.sessionTypeId == context.sessionTypeId && context.sessionTypeId != nil) || $0.name.caseInsensitiveCompare(context.sessionTypeName) == .orderedSame)
         }) {
             selectedServiceIds = [service.id]
             selectedSlotId = nil
@@ -1382,12 +1392,12 @@ struct BookView: View {
 
     private func applyLaunchRequestIfNeeded() {
         guard rescheduleContext == nil, let request = launchRequest else { return }
-        guard providers.contains(where: { $0.id == request.companyId }) else {
+        let companyProviders = providers.filter { $0.companyId == request.companyId }
+        guard !companyProviders.isEmpty else {
             onLaunchRequestConsumed()
             return
         }
 
-        selectedProviderId = request.companyId
         selectedConsultantId = nil
         selectedSlotId = nil
         consultants = []
@@ -1395,34 +1405,52 @@ struct BookView: View {
         selectedPaymentMethod = request.preferredPaymentMethod
         selectedEntitlementId = request.entitlementId
 
-        if let service = matchedService(for: request) {
+        let matches = companyProviders.compactMap { provider -> (TenantSummaryModel, ServiceOptionModel)? in
+            guard let service = matchedService(for: request, provider: provider) else { return nil }
+            return (provider, service)
+        }
+
+        switch matches.count {
+        case 1:
+            let (provider, service) = matches[0]
+            selectedProviderId = provider.id
             entitlementLaunchMode = true
             selectedServiceIds = [service.id]
+            notice = nil
             currentStep = .dateTime
-        } else {
+        case 0:
+            selectedProviderId = nil
             entitlementLaunchMode = false
             selectedServiceIds = []
-            currentStep = .service
+            currentStep = .provider
             notice = tr("No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
+        default:
+            // Entitlements belong to the company. If the same entitlement can be
+            // redeemed at several branches, the guest must choose the branch.
+            selectedProviderId = nil
+            entitlementLaunchMode = false
+            selectedServiceIds = []
+            currentStep = .provider
+            notice = nil
         }
 
         ensurePaymentMethodAllowed()
         onLaunchRequestConsumed()
     }
 
-    private func matchedService(for request: BookLaunchRequest) -> ServiceOptionModel? {
-        let providerServices = store.serviceOptions.filter { $0.companyId == request.companyId }
+    private func matchedService(for request: BookLaunchRequest, provider: TenantSummaryModel) -> ServiceOptionModel? {
+        let providerServices = store.serviceOptions.filter { $0.providerId == provider.id }
         if let sessionTypeId = request.sessionTypeId,
            let service = providerServices.first(where: { $0.sessionTypeId == sessionTypeId }) {
             return service
         }
-        if providerServices.count == 1 {
-            return providerServices.first
-        }
         if let exactName = providerServices.first(where: { $0.name.caseInsensitiveCompare(request.entitlementName) == .orderedSame }) {
             return exactName
         }
-        return providerServices.first(where: { $0.name.localizedCaseInsensitiveContains(request.entitlementName) || request.entitlementName.localizedCaseInsensitiveContains($0.name) })
+        if let fuzzy = providerServices.first(where: { $0.name.localizedCaseInsensitiveContains(request.entitlementName) || request.entitlementName.localizedCaseInsensitiveContains($0.name) }) {
+            return fuzzy
+        }
+        return providerServices.count == 1 ? providerServices.first : nil
     }
 
     private func loadAvailability(for services: [ServiceOptionModel]) async {
@@ -1437,7 +1465,8 @@ struct BookView: View {
                 companyId: primary.companyId,
                 sessionTypeIds: services.map(\.sessionTypeId),
                 date: selectedDate,
-                consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
+                consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil,
+                locationId: primary.locationId
             )
             dateAvailability[DateFormatting.dayString(selectedDate)] = !slots.isEmpty
             if slots.contains(where: { $0.id == selectedSlotId }) == false {
@@ -1485,7 +1514,8 @@ struct BookView: View {
                     companyId: primary.companyId,
                     sessionTypeIds: services.map(\.sessionTypeId),
                     date: date,
-                    consultantId: consultantId
+                    consultantId: consultantId,
+                    locationId: primary.locationId
                 )
                 loaded[DateFormatting.dayString(date)] = !daySlots.isEmpty
                 dateAvailability = loaded
@@ -1500,7 +1530,7 @@ struct BookView: View {
         guard let primary = services.first else { return }
         isLoadingConsultants = true
         do {
-            consultants = try await store.loadConsultants(companyId: primary.companyId, sessionTypeIds: services.map(\.sessionTypeId))
+            consultants = try await store.loadConsultants(companyId: primary.companyId, sessionTypeIds: services.map(\.sessionTypeId), locationId: primary.locationId)
         } catch {
             guard !isCancellation(error), !Task.isCancelled else { return }
             consultants = []
@@ -1516,6 +1546,7 @@ struct BookView: View {
             notice = nil
             let hold = try await store.createBookingSlotHold(
                 companyId: primary.companyId,
+                locationId: primary.locationId,
                 slotId: slot.id,
                 serviceTypeIds: services.map(\.sessionTypeId),
                 previousHoldToken: slotHoldToken
@@ -1602,7 +1633,8 @@ struct BookView: View {
                         : nil
                     return SelectedServicePayload(productId: service.productId, sessionTypeId: service.sessionTypeId, position: index, entitlementId: entitlement, spaceId: nil)
                 },
-                holdToken: slotHoldToken
+                holdToken: slotHoldToken,
+                locationId: primary.locationId
             )
             // The backend consumed the hold together with the successful order.
             slotHoldToken = nil

@@ -100,6 +100,7 @@ private enum class BookingActionMenu { Contact, Manage }
 data class UpcomingBookingCard(
     val id: String,
     val companyId: String,
+    val locationId: String? = null,
     val title: String,
     val sessionTypeId: String?,
     val startsAt: String,

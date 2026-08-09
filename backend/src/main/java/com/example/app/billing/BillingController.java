@@ -32,6 +32,9 @@ import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.GuestEntitlement;
+import com.example.app.guest.model.GuestEntitlementRepository;
+import com.example.app.guest.model.EntitlementType;
+import com.example.app.guest.model.ProductType;
 import com.example.app.guest.model.VoucherRules;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.location.Location;
@@ -127,6 +130,9 @@ public class BillingController {
     private GuestEntitlementService guestEntitlementService;
     private LocationRepository locations;
     private ActivityLogService activityLogs;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GuestEntitlementRepository giftEntitlements;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -459,6 +465,37 @@ public class BillingController {
             BigDecimal usedGross,
             BigDecimal remainingGross,
             InvoiceLocationSummary location
+    ) {}
+    public record BillingSummaryResponse(
+            long openBills,
+            long openPayments,
+            long unusedAdvances,
+            long giftCards,
+            long history
+    ) {}
+    public record BillingHistoryStatsResponse(
+            long thisMonthCount,
+            long paidCount,
+            long refundsCount,
+            long advancesCount,
+            BigDecimal totalAmount
+    ) {}
+    public record BillPageResponse(
+            List<BillResponse> content,
+            long totalElements,
+            int page,
+            int size,
+            int totalPages,
+            BigDecimal totalAmount,
+            BillingHistoryStatsResponse historyStats
+    ) {}
+    public record UnusedAdvancePageResponse(
+            List<UnusedAdvanceResponse> content,
+            long totalElements,
+            int page,
+            int size,
+            int totalPages,
+            BigDecimal totalRemainingGross
     ) {}
     public record ApplyUnusedAdvanceRequest(Long advanceBillId, Long openBillId, Long sessionId, BigDecimal applyAmountNet, BigDecimal applyAmountGross) {}
     public record ApplyUnusedAdvanceResponse(Long openBillId, Long advanceBillId, BigDecimal remainingNet) {}
@@ -843,6 +880,45 @@ public class BillingController {
                         "targetPath", "/configuration?tab=billing&subtab=paymentMethods"));
     }
 
+    @GetMapping("/summary")
+    @Transactional(readOnly = true)
+    public BillingSummaryResponse billingSummary(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "locationId", required = false) Long locationId
+    ) {
+        Long companyId = me.getCompany().getId();
+        long openBillCount = locationId == null
+                ? openBillRepo.countListRowsByCompanyId(companyId)
+                : openBillRepo.countListRowsByCompanyIdAndLocationId(companyId, locationId);
+        long historyCount = locationId == null
+                ? billRepo.countByCompanyId(companyId)
+                : billRepo.countVisibleByCompanyIdAndLocationId(companyId, locationId);
+        long openPaymentCount = locationId == null
+                ? billRepo.countOpenPaymentsByCompanyId(companyId, BillPaymentStatus.PAID, BillPaymentStatus.CANCELLED)
+                : billRepo.countOpenPaymentsByCompanyIdAndLocationId(companyId, locationId, BillPaymentStatus.PAID, BillPaymentStatus.CANCELLED);
+
+        Map<String, String> featureSettings = settings.findAllByCompanyIdsAndKeys(
+                        List.of(companyId),
+                        List.of(SettingKey.BILLING_ADVANCE_ENABLED.name(), SettingKey.BILLING_GIFT_CARDS_ENABLED.name()))
+                .stream()
+                .collect(Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (left, right) -> right));
+        boolean advanceEnabled = !"false".equalsIgnoreCase(
+                String.valueOf(featureSettings.getOrDefault(SettingKey.BILLING_ADVANCE_ENABLED.name(), "true")).trim());
+        boolean giftCardsEnabled = "true".equalsIgnoreCase(
+                String.valueOf(featureSettings.getOrDefault(SettingKey.BILLING_GIFT_CARDS_ENABLED.name(), "false")).trim());
+
+        long unusedAdvanceCount = advanceEnabled
+                ? advanceAllocationRepo.countUnusedAdvancesByCompanyIdAndOptionalLocation(companyId, locationId)
+                : 0L;
+        long giftCardCount = 0L;
+        if (giftCardsEnabled && giftEntitlements != null) {
+            giftCardCount = locationId == null
+                    ? giftEntitlements.countGiftCardsByCompanyId(companyId, EntitlementType.GIFT_CARD, ProductType.GIFT_CARD)
+                    : giftEntitlements.countGiftCardsByCompanyIdAndLocationId(companyId, locationId, EntitlementType.GIFT_CARD, ProductType.GIFT_CARD);
+        }
+        return new BillingSummaryResponse(openBillCount, openPaymentCount, unusedAdvanceCount, giftCardCount, historyCount);
+    }
+
     @GetMapping("/bills")
     @Transactional(readOnly = true)
     public List<BillResponse> bills(
@@ -860,6 +936,243 @@ public class BillingController {
                 .map(this::ensureSnapshotBackfilled)
                 .map(BillingController::toResponse)
                 .toList();
+    }
+
+
+    /**
+     * Phase 2.2 billing list endpoint. Unlike the legacy /bills endpoint, this
+     * applies search/filter/sort in PostgreSQL and only materializes the visible
+     * page of rich Bill entities. The legacy endpoint stays unchanged for older
+     * callers and editor flows.
+     */
+    @GetMapping("/bills/paged")
+    @Transactional(readOnly = true)
+    public BillPageResponse pagedBills(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "view", defaultValue = "history") String view,
+            @RequestParam(name = "locationId", required = false) Long locationId,
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "dateFrom", required = false) LocalDate dateFrom,
+            @RequestParam(name = "dateTo", required = false) LocalDate dateTo,
+            @RequestParam(name = "paymentStatus", required = false) String paymentStatus,
+            @RequestParam(name = "fiscalStatus", required = false) String fiscalStatus,
+            @RequestParam(name = "billType", required = false) String billType,
+            @RequestParam(name = "sortField", required = false) String sortField,
+            @RequestParam(name = "sortDir", defaultValue = "desc") String sortDir,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        Long companyId = me.getCompany().getId();
+        boolean openPaymentsView = "openPayments".equalsIgnoreCase(String.valueOf(view));
+        int requestedPage = safePage(page);
+        int safeSize = safeSize(size, 10, 100);
+        String direction = "asc".equalsIgnoreCase(sortDir) ? "ASC" : "DESC";
+
+        StringBuilder from = new StringBuilder("""
+                FROM bills b
+                LEFT JOIN users u ON u.id = b.consultant_id
+                LEFT JOIN payment_methods pm ON pm.id = b.payment_method_id
+                """);
+        StringBuilder where = new StringBuilder(" WHERE b.company_id = :companyId ");
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("companyId", companyId);
+
+        if (locationId != null) {
+            where.append(" AND (b.location_id = :locationId OR b.location_id IS NULL) ");
+            params.put("locationId", locationId);
+        }
+        if (openPaymentsView) {
+            where.append(" AND b.payment_status <> 'paid' AND b.payment_status <> 'cancelled' ");
+        }
+        if (dateFrom != null) {
+            where.append(" AND b.issue_date >= :dateFrom ");
+            params.put("dateFrom", dateFrom);
+        }
+        if (dateTo != null) {
+            where.append(" AND b.issue_date <= :dateTo ");
+            params.put("dateTo", dateTo);
+        }
+        if (paymentStatus != null && !paymentStatus.isBlank() && !"all".equalsIgnoreCase(paymentStatus)) {
+            where.append(" AND LOWER(COALESCE(b.payment_status, 'open')) = :paymentStatus ");
+            params.put("paymentStatus", paymentStatus.trim().toLowerCase(Locale.ROOT));
+        }
+        if (fiscalStatus != null && !fiscalStatus.isBlank() && !"all".equalsIgnoreCase(fiscalStatus)) {
+            where.append(" AND LOWER(COALESCE(b.fiscal_status, 'NOT_SENT')) = :fiscalStatus ");
+            params.put("fiscalStatus", fiscalStatus.trim().toLowerCase(Locale.ROOT));
+        }
+
+        String refundPredicate = "(b.refund_of_bill_id IS NOT NULL OR NULLIF(BTRIM(b.refund_reference), '') IS NOT NULL OR b.total_gross < 0)";
+        if (billType != null && !billType.isBlank() && !"all".equalsIgnoreCase(billType)) {
+            String normalizedType = billType.trim().toUpperCase(Locale.ROOT);
+            if ("REFUND".equals(normalizedType)) {
+                where.append(" AND ").append(refundPredicate).append(' ');
+            } else if ("ADVANCE".equals(normalizedType)) {
+                where.append(" AND NOT ").append(refundPredicate).append(" AND b.bill_type = 'ADVANCE' ");
+            } else if ("INVOICE".equals(normalizedType)) {
+                where.append(" AND NOT ").append(refundPredicate).append(" AND (b.bill_type IS NULL OR b.bill_type = 'INVOICE') ");
+            }
+        }
+
+        if (search != null && !search.isBlank()) {
+            where.append("""
+                     AND (
+                        LOWER(COALESCE(b.bill_number, '')) LIKE :search
+                        OR LOWER(COALESCE(NULLIF(BTRIM(b.order_id), ''), 'PAY-' || LPAD(CAST(b.id AS TEXT), 4, '0'))) LIKE :search
+                        OR LOWER(CAST(COALESCE(b.source_session_id_snapshot, 0) AS TEXT)) LIKE :search
+                        OR LOWER(CASE WHEN b.source_session_id_snapshot IS NULL THEN '' WHEN b.source_session_id_snapshot < 0
+                            THEN '#m' || CAST(ABS(b.source_session_id_snapshot) AS TEXT) ELSE '#' || CAST(b.source_session_id_snapshot AS TEXT) END) LIKE :search
+                        OR LOWER(CAST(COALESCE(b.total_gross, 0) AS TEXT)) LIKE :search
+                        OR LOWER(CASE
+                            WHEN UPPER(COALESCE(b.recipient_type_snapshot, 'PERSON')) = 'COMPANY'
+                                THEN COALESCE(b.recipient_company_name_snapshot, '')
+                            ELSE CONCAT_WS(' ', COALESCE(b.client_first_name_snapshot, ''), COALESCE(b.client_last_name_snapshot, ''))
+                        END) LIKE :search
+                        OR LOWER(CONCAT_WS(' ', COALESCE(u.first_name, ''), COALESCE(u.last_name, ''))) LIKE :search
+                        OR LOWER(COALESCE(pm.name, '')) LIKE :search
+                        OR EXISTS (
+                            SELECT 1 FROM bill_item bi
+                            JOIN transaction_service ts ON ts.id = bi.transaction_service_id
+                            WHERE bi.bill_id = b.id AND LOWER(COALESCE(ts.description, '')) LIKE :search
+                        )
+                     )
+                    """);
+            params.put("search", "%" + search.trim().toLowerCase(Locale.ROOT) + "%");
+        }
+
+        String countSql = "SELECT COUNT(*) " + from + where;
+        jakarta.persistence.Query countQuery = entityManager.createNativeQuery(countSql);
+        applyNativeParameters(countQuery, params);
+        long totalElements = ((Number) countQuery.getSingleResult()).longValue();
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / safeSize);
+        int resolvedPage = totalPages == 0 ? 0 : Math.min(requestedPage, totalPages - 1);
+
+        String sortExpression = billPageSortExpression(openPaymentsView, sortField, refundPredicate);
+        String idSql = "SELECT b.id " + from + where + " ORDER BY " + sortExpression + " " + direction + ", b.id " + direction;
+        jakarta.persistence.Query idQuery = entityManager.createNativeQuery(idSql);
+        applyNativeParameters(idQuery, params);
+        idQuery.setFirstResult(resolvedPage * safeSize);
+        idQuery.setMaxResults(safeSize);
+        @SuppressWarnings("unchecked")
+        List<Number> rawIds = idQuery.getResultList();
+        List<Long> ids = rawIds.stream().map(Number::longValue).toList();
+
+        List<BillResponse> content;
+        if (ids.isEmpty()) {
+            content = List.of();
+        } else {
+            Map<Long, Integer> order = new HashMap<>();
+            for (int i = 0; i < ids.size(); i++) order.put(ids.get(i), i);
+            content = billRepo.findAllByCompanyIdAndIdIn(companyId, ids).stream()
+                    .sorted(Comparator.comparingInt(b -> order.getOrDefault(b.getId(), Integer.MAX_VALUE)))
+                    .map(this::ensureSnapshotBackfilled)
+                    .map(BillingController::toResponse)
+                    .toList();
+        }
+
+        BigDecimal totalAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BillingHistoryStatsResponse historyStats = null;
+        if (openPaymentsView) {
+            String amountExpr = billPendingGrossSqlExpression("b");
+            String totalSql = "SELECT COALESCE(SUM(" + amountExpr + "), 0) " + from + where;
+            jakarta.persistence.Query totalQuery = entityManager.createNativeQuery(totalSql);
+            applyNativeParameters(totalQuery, params);
+            totalAmount = toBigDecimal(totalQuery.getSingleResult());
+        } else {
+            String statsSql = "SELECT "
+                    + "COUNT(*) FILTER (WHERE b.issue_date >= date_trunc('month', CURRENT_DATE)::date "
+                    + "AND b.issue_date < (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month')::date), "
+                    + "COUNT(*) FILTER (WHERE LOWER(b.payment_status) = 'paid'), "
+                    + "COUNT(*) FILTER (WHERE " + refundPredicate + "), "
+                    + "COUNT(*) FILTER (WHERE NOT " + refundPredicate + " AND b.bill_type = 'ADVANCE'), "
+                    + "COALESCE(SUM(b.total_gross), 0) " + from + where;
+            jakarta.persistence.Query statsQuery = entityManager.createNativeQuery(statsSql);
+            applyNativeParameters(statsQuery, params);
+            Object[] stats = (Object[]) statsQuery.getSingleResult();
+            historyStats = new BillingHistoryStatsResponse(
+                    ((Number) stats[0]).longValue(),
+                    ((Number) stats[1]).longValue(),
+                    ((Number) stats[2]).longValue(),
+                    ((Number) stats[3]).longValue(),
+                    toBigDecimal(stats[4])
+            );
+            totalAmount = historyStats.totalAmount();
+        }
+        return new BillPageResponse(content, totalElements, resolvedPage, safeSize, totalPages, totalAmount, historyStats);
+    }
+
+    @GetMapping("/bills/paged/ids")
+    @Transactional(readOnly = true)
+    public List<Long> pagedBillIdsForExport(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "locationId", required = false) Long locationId,
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "dateFrom", required = false) LocalDate dateFrom,
+            @RequestParam(name = "dateTo", required = false) LocalDate dateTo,
+            @RequestParam(name = "paymentStatus", required = false) String paymentStatus,
+            @RequestParam(name = "fiscalStatus", required = false) String fiscalStatus,
+            @RequestParam(name = "billType", required = false) String billType,
+            @RequestParam(name = "sortField", required = false) String sortField,
+            @RequestParam(name = "sortDir", defaultValue = "desc") String sortDir
+    ) {
+        // Reuse the exact filter semantics of the paged history endpoint while returning only IDs.
+        Long companyId = me.getCompany().getId();
+        String direction = "asc".equalsIgnoreCase(sortDir) ? "ASC" : "DESC";
+        StringBuilder from = new StringBuilder("""
+                FROM bills b
+                LEFT JOIN users u ON u.id = b.consultant_id
+                LEFT JOIN payment_methods pm ON pm.id = b.payment_method_id
+                """);
+        StringBuilder where = new StringBuilder(" WHERE b.company_id = :companyId ");
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("companyId", companyId);
+        if (locationId != null) {
+            where.append(" AND (b.location_id = :locationId OR b.location_id IS NULL) ");
+            params.put("locationId", locationId);
+        }
+        if (dateFrom != null) { where.append(" AND b.issue_date >= :dateFrom "); params.put("dateFrom", dateFrom); }
+        if (dateTo != null) { where.append(" AND b.issue_date <= :dateTo "); params.put("dateTo", dateTo); }
+        if (paymentStatus != null && !paymentStatus.isBlank() && !"all".equalsIgnoreCase(paymentStatus)) {
+            where.append(" AND LOWER(COALESCE(b.payment_status, 'open')) = :paymentStatus ");
+            params.put("paymentStatus", paymentStatus.trim().toLowerCase(Locale.ROOT));
+        }
+        if (fiscalStatus != null && !fiscalStatus.isBlank() && !"all".equalsIgnoreCase(fiscalStatus)) {
+            where.append(" AND LOWER(COALESCE(b.fiscal_status, 'NOT_SENT')) = :fiscalStatus ");
+            params.put("fiscalStatus", fiscalStatus.trim().toLowerCase(Locale.ROOT));
+        }
+        String refundPredicate = "(b.refund_of_bill_id IS NOT NULL OR NULLIF(BTRIM(b.refund_reference), '') IS NOT NULL OR b.total_gross < 0)";
+        if (billType != null && !billType.isBlank() && !"all".equalsIgnoreCase(billType)) {
+            String normalizedType = billType.trim().toUpperCase(Locale.ROOT);
+            if ("REFUND".equals(normalizedType)) where.append(" AND ").append(refundPredicate).append(' ');
+            else if ("ADVANCE".equals(normalizedType)) where.append(" AND NOT ").append(refundPredicate).append(" AND b.bill_type = 'ADVANCE' ");
+            else if ("INVOICE".equals(normalizedType)) where.append(" AND NOT ").append(refundPredicate).append(" AND (b.bill_type IS NULL OR b.bill_type = 'INVOICE') ");
+        }
+        if (search != null && !search.isBlank()) {
+            where.append("""
+                     AND (
+                        LOWER(COALESCE(b.bill_number, '')) LIKE :search
+                        OR LOWER(COALESCE(NULLIF(BTRIM(b.order_id), ''), 'PAY-' || LPAD(CAST(b.id AS TEXT), 4, '0'))) LIKE :search
+                        OR LOWER(CAST(COALESCE(b.source_session_id_snapshot, 0) AS TEXT)) LIKE :search
+                        OR LOWER(CASE WHEN b.source_session_id_snapshot IS NULL THEN '' WHEN b.source_session_id_snapshot < 0
+                            THEN '#m' || CAST(ABS(b.source_session_id_snapshot) AS TEXT) ELSE '#' || CAST(b.source_session_id_snapshot AS TEXT) END) LIKE :search
+                        OR LOWER(CAST(COALESCE(b.total_gross, 0) AS TEXT)) LIKE :search
+                        OR LOWER(CASE WHEN UPPER(COALESCE(b.recipient_type_snapshot, 'PERSON')) = 'COMPANY'
+                            THEN COALESCE(b.recipient_company_name_snapshot, '')
+                            ELSE CONCAT_WS(' ', COALESCE(b.client_first_name_snapshot, ''), COALESCE(b.client_last_name_snapshot, '')) END) LIKE :search
+                        OR LOWER(CONCAT_WS(' ', COALESCE(u.first_name, ''), COALESCE(u.last_name, ''))) LIKE :search
+                        OR LOWER(COALESCE(pm.name, '')) LIKE :search
+                        OR EXISTS (SELECT 1 FROM bill_item bi JOIN transaction_service ts ON ts.id = bi.transaction_service_id
+                            WHERE bi.bill_id = b.id AND LOWER(COALESCE(ts.description, '')) LIKE :search)
+                     )
+                    """);
+            params.put("search", "%" + search.trim().toLowerCase(Locale.ROOT) + "%");
+        }
+        String sql = "SELECT b.id " + from + where + " ORDER BY "
+                + billPageSortExpression(false, sortField, refundPredicate) + " " + direction + ", b.id " + direction;
+        jakarta.persistence.Query query = entityManager.createNativeQuery(sql);
+        applyNativeParameters(query, params);
+        @SuppressWarnings("unchecked")
+        List<Number> raw = query.getResultList();
+        return raw.stream().map(Number::longValue).toList();
     }
 
     @GetMapping("/bills/{id}")
@@ -2751,6 +3064,56 @@ public class BillingController {
         return toOpenBillResponses(rows, companyId);
     }
 
+
+    private static void applyNativeParameters(jakarta.persistence.Query query, Map<String, Object> params) {
+        params.forEach(query::setParameter);
+    }
+
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (value instanceof BigDecimal decimal) return decimal.setScale(2, RoundingMode.HALF_UP);
+        return new BigDecimal(String.valueOf(value)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static String billPendingGrossSqlExpression(String billAlias) {
+        String bankTransferSplitTotal = "COALESCE((SELECT SUM(bp.amount_gross) FROM bill_payments bp "
+                + "JOIN payment_methods bpm ON bpm.id = bp.payment_method_id "
+                + "WHERE bp.bill_id = " + billAlias + ".id AND bpm.payment_type = 'BANK_TRANSFER'), 0)";
+        return "CASE WHEN " + bankTransferSplitTotal + " > 0 THEN " + bankTransferSplitTotal
+                + " ELSE COALESCE(" + billAlias + ".total_gross, 0) END";
+    }
+
+    private static String billPageSortExpression(boolean openPaymentsView, String sortField, String refundPredicate) {
+        String key = sortField == null ? "" : sortField.trim();
+        if (openPaymentsView) {
+            return switch (key) {
+                case "orderId" -> "LOWER(COALESCE(NULLIF(BTRIM(b.order_id), ''), 'PAY-' || LPAD(CAST(b.id AS TEXT), 4, '0')))";
+                case "billNumber" -> "LOWER(COALESCE(NULLIF(BTRIM(b.bill_number), ''), CAST(b.id AS TEXT)))";
+                case "payer" -> "LOWER(CASE WHEN UPPER(COALESCE(b.recipient_type_snapshot, 'PERSON')) = 'COMPANY' "
+                        + "THEN COALESCE(b.recipient_company_name_snapshot, '') ELSE CONCAT_WS(' ', COALESCE(b.client_first_name_snapshot, ''), COALESCE(b.client_last_name_snapshot, '')) END)";
+                case "date", "dueDate" -> "b.issue_date";
+                case "amount" -> billPendingGrossSqlExpression("b");
+                default -> "b.issue_date";
+            };
+        }
+        return switch (key) {
+            case "invoiceNumber" -> "LOWER(COALESCE(NULLIF(BTRIM(b.bill_number), ''), CAST(b.id AS TEXT)))";
+            case "invoiceType" -> "CASE WHEN " + refundPredicate + " THEN 'REFUND' WHEN b.bill_type = 'ADVANCE' THEN 'ADVANCE' ELSE 'INVOICE' END";
+            case "orderId" -> "LOWER(COALESCE(NULLIF(BTRIM(b.order_id), ''), 'PAY-' || LPAD(CAST(b.id AS TEXT), 4, '0')))";
+            case "sessionId" -> "COALESCE(b.source_session_id_snapshot, -9223372036854775807)";
+            case "customer" -> "LOWER(CASE WHEN UPPER(COALESCE(b.recipient_type_snapshot, 'PERSON')) = 'COMPANY' "
+                    + "THEN COALESCE(b.recipient_company_name_snapshot, '') ELSE CONCAT_WS(' ', COALESCE(b.client_first_name_snapshot, ''), COALESCE(b.client_last_name_snapshot, '')) END)";
+            case "employee" -> "LOWER(CONCAT_WS(' ', COALESCE(u.first_name, ''), COALESCE(u.last_name, '')))";
+            case "description" -> "COALESCE((SELECT LOWER(COALESCE(ts.description, '')) FROM bill_item bi "
+                    + "JOIN transaction_service ts ON ts.id = bi.transaction_service_id WHERE bi.bill_id = b.id ORDER BY bi.id LIMIT 1), LOWER(COALESCE(b.bill_type, 'INVOICE')))";
+            case "gross" -> "b.total_gross";
+            case "paymentStatus" -> "LOWER(COALESCE(b.payment_status, 'open'))";
+            case "fiscalStatus" -> "LOWER(COALESCE(b.fiscal_status, 'NOT_SENT'))";
+            case "date" -> "b.issue_date";
+            default -> "b.issue_date";
+        };
+    }
+
     private static int safePage(int page) {
         return Math.max(0, page);
     }
@@ -3822,11 +4185,166 @@ public class BillingController {
 
     @GetMapping("/unused-advances")
     @Transactional(readOnly = true)
-    public List<UnusedAdvanceResponse> unusedAdvances(@AuthenticationPrincipal User me) {
+    public List<UnusedAdvanceResponse> unusedAdvances(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "locationId", required = false) Long locationId
+    ) {
         Long companyId = me.getCompany().getId();
         if (!isAdvanceBillingEnabled(companyId)) {
             return List.of();
         }
+        return unusedAdvanceResponses(companyId, locationId);
+    }
+
+
+    @GetMapping("/unused-advances/paged")
+    @Transactional(readOnly = true)
+    public UnusedAdvancePageResponse pagedUnusedAdvances(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "locationId", required = false) Long locationId,
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "sortField", required = false) String sortField,
+            @RequestParam(name = "sortDir", defaultValue = "desc") String sortDir,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        Long companyId = me.getCompany().getId();
+        if (!isAdvanceBillingEnabled(companyId)) {
+            return new UnusedAdvancePageResponse(List.of(), 0, 0, safeSize(size, 10, 100), 0, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        }
+        int requestedPage = safePage(page);
+        int safeSize = safeSize(size, 10, 100);
+        String direction = "asc".equalsIgnoreCase(sortDir) ? "ASC" : "DESC";
+        String normalizedSearch = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+
+        String cte = """
+                WITH legacy_net AS (
+                    SELECT source.advance_bill_id, SUM(source.used_net) AS used_net
+                    FROM (
+                        SELECT aa.advance_bill_id, SUM(aa.amount_net) AS used_net
+                        FROM advance_allocations aa
+                        WHERE aa.company_id = :companyId
+                        GROUP BY aa.advance_bill_id
+                        UNION ALL
+                        SELECT bi.source_advance_bill_id AS advance_bill_id,
+                               SUM(-(bi.net_price * bi.quantity)) AS used_net
+                        FROM bill_item bi
+                        JOIN bills consumed_bill ON consumed_bill.id = bi.bill_id
+                        WHERE consumed_bill.company_id = :companyId
+                          AND bi.source_advance_bill_id IS NOT NULL
+                          AND bi.net_price < 0
+                        GROUP BY bi.source_advance_bill_id
+                    ) source
+                    GROUP BY source.advance_bill_id
+                ),
+                open_gross AS (
+                    SELECT obp.source_advance_bill_id AS advance_bill_id, SUM(obp.amount_gross) AS used_gross
+                    FROM open_bill_payments obp
+                    JOIN open_bills ob ON ob.id = obp.open_bill_id
+                    WHERE ob.company_id = :companyId AND obp.source_advance_bill_id IS NOT NULL
+                    GROUP BY obp.source_advance_bill_id
+                ),
+                bill_gross AS (
+                    SELECT bp.source_advance_bill_id AS advance_bill_id, SUM(bp.amount_gross) AS used_gross
+                    FROM bill_payments bp
+                    JOIN bills consumed_bill ON consumed_bill.id = bp.bill_id
+                    WHERE consumed_bill.company_id = :companyId AND bp.source_advance_bill_id IS NOT NULL
+                    GROUP BY bp.source_advance_bill_id
+                ),
+                calculated AS (
+                    SELECT advance.id,
+                           advance.bill_number,
+                           advance.source_session_id_snapshot AS session_id,
+                           advance.issue_date,
+                           advance.total_net,
+                           advance.total_gross,
+                           LOWER(CASE WHEN UPPER(COALESCE(advance.recipient_type_snapshot, 'PERSON')) = 'COMPANY'
+                               THEN COALESCE(advance.recipient_company_name_snapshot, '')
+                               ELSE CONCAT_WS(' ', COALESCE(advance.client_first_name_snapshot, ''), COALESCE(advance.client_last_name_snapshot, '')) END) AS customer,
+                           (
+                               CASE WHEN advance.total_net IS NOT NULL AND advance.total_net <> 0
+                                   THEN ROUND(COALESCE(ln.used_net, 0) * advance.total_gross / advance.total_net, 2)
+                                   ELSE ROUND(COALESCE(ln.used_net, 0), 2)
+                               END
+                               + COALESCE(og.used_gross, 0)
+                               + COALESCE(bg.used_gross, 0)
+                           ) AS used_gross
+                    FROM bills advance
+                    LEFT JOIN legacy_net ln ON ln.advance_bill_id = advance.id
+                    LEFT JOIN open_gross og ON og.advance_bill_id = advance.id
+                    LEFT JOIN bill_gross bg ON bg.advance_bill_id = advance.id
+                    WHERE advance.company_id = :companyId
+                      AND advance.bill_type = 'ADVANCE'
+                      AND advance.payment_status = 'paid'
+                      AND (:locationId IS NULL OR advance.location_id IS NULL OR advance.location_id = :locationId)
+                ),
+                eligible AS (
+                    SELECT calculated.*,
+                           GREATEST(calculated.total_gross - calculated.used_gross, 0) AS remaining_gross
+                    FROM calculated
+                    WHERE calculated.total_gross - calculated.used_gross > 0
+                )
+                """;
+        StringBuilder filter = new StringBuilder(" WHERE 1=1 ");
+        if (!normalizedSearch.isBlank()) {
+            filter.append(" AND (LOWER(COALESCE(bill_number, '')) LIKE :search OR customer LIKE :search OR LOWER(CAST(COALESCE(session_id, 0) AS TEXT)) LIKE :search) ");
+        }
+        String sortExpression = switch (sortField == null ? "" : sortField.trim()) {
+            case "advanceNumber" -> "LOWER(COALESCE(bill_number, ''))";
+            case "customer" -> "customer";
+            case "sessionId" -> "COALESCE(session_id, -9223372036854775807)";
+            case "originalAmount" -> "total_gross";
+            case "remainingAmount" -> "remaining_gross";
+            case "date" -> "issue_date";
+            default -> "issue_date";
+        };
+
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("companyId", companyId);
+        params.put("locationId", locationId);
+        if (!normalizedSearch.isBlank()) params.put("search", "%" + normalizedSearch + "%");
+
+        jakarta.persistence.Query aggregateQuery = entityManager.createNativeQuery(
+                cte + "SELECT COUNT(*), COALESCE(SUM(remaining_gross), 0) FROM eligible" + filter);
+        applyNativeParameters(aggregateQuery, params);
+        Object[] aggregate = (Object[]) aggregateQuery.getSingleResult();
+        long totalElements = ((Number) aggregate[0]).longValue();
+        BigDecimal totalRemainingGross = toBigDecimal(aggregate[1]);
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / safeSize);
+        int resolvedPage = totalPages == 0 ? 0 : Math.min(requestedPage, totalPages - 1);
+
+        jakarta.persistence.Query pageQuery = entityManager.createNativeQuery(
+                cte + "SELECT id, used_gross, remaining_gross FROM eligible" + filter
+                        + " ORDER BY " + sortExpression + " " + direction + ", id " + direction);
+        applyNativeParameters(pageQuery, params);
+        pageQuery.setFirstResult(resolvedPage * safeSize);
+        pageQuery.setMaxResults(safeSize);
+        @SuppressWarnings("unchecked")
+        List<Object[]> pageRows = pageQuery.getResultList();
+        List<Long> ids = pageRows.stream().map(row -> ((Number) row[0]).longValue()).toList();
+        Map<Long, BigDecimal> usedGrossById = new HashMap<>();
+        for (Object[] row : pageRows) usedGrossById.put(((Number) row[0]).longValue(), toBigDecimal(row[1]));
+
+        List<UnusedAdvanceResponse> content;
+        if (ids.isEmpty()) {
+            content = List.of();
+        } else {
+            Map<Long, Integer> order = new HashMap<>();
+            for (int i = 0; i < ids.size(); i++) order.put(ids.get(i), i);
+            content = billRepo.findAllByCompanyIdAndIdIn(companyId, ids).stream()
+                    .sorted(Comparator.comparingInt(b -> order.getOrDefault(b.getId(), Integer.MAX_VALUE)))
+                    .map(advance -> toUnusedAdvanceResponse(companyId, advance, usedGrossById.get(advance.getId())))
+                    .toList();
+        }
+        return new UnusedAdvancePageResponse(content, totalElements, resolvedPage, safeSize, totalPages, totalRemainingGross);
+    }
+
+    /** Backwards-compatible direct-call overload used by existing controller unit tests. */
+    public List<UnusedAdvanceResponse> unusedAdvances(User me) {
+        return unusedAdvances(me, null);
+    }
+
+    private List<UnusedAdvanceResponse> unusedAdvanceResponses(Long companyId, Long locationId) {
         var advanceIds = billRepo.findPageIdsByCompanyIdAndBillTypeAndPaymentStatus(
                 companyId,
                 BillType.ADVANCE,
@@ -3839,6 +4357,7 @@ public class BillingController {
         return billRepo.findAllByCompanyIdAndIdIn(companyId, advanceIds).stream()
                 // Keep a defensive application-level check in addition to the repository filter.
                 .filter(advance -> BillPaymentStatus.PAID.equals(advance.getPaymentStatus()))
+                .filter(advance -> locationId == null || advance.getLocation() == null || Objects.equals(advance.getLocation().getId(), locationId))
                 .sorted(Comparator
                         .comparing(Bill::getIssueDate, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(Bill::getId, Comparator.reverseOrder()))
@@ -4284,9 +4803,13 @@ public class BillingController {
     }
 
     private UnusedAdvanceResponse toUnusedAdvanceResponse(Long companyId, Bill advance) {
+        return toUnusedAdvanceResponse(companyId, advance, null);
+    }
+
+    private UnusedAdvanceResponse toUnusedAdvanceResponse(Long companyId, Bill advance, BigDecimal precomputedUsedGross) {
         BigDecimal total = (advance.getTotalNet() == null ? BigDecimal.ZERO : advance.getTotalNet()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal totalGross = (advance.getTotalGross() == null ? BigDecimal.ZERO : advance.getTotalGross()).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal usedGross = totalAdvanceConsumedGross(companyId, advance).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal usedGross = (precomputedUsedGross == null ? totalAdvanceConsumedGross(companyId, advance) : precomputedUsedGross).setScale(2, RoundingMode.HALF_UP);
         if (usedGross.compareTo(totalGross) > 0) {
             usedGross = totalGross;
         }

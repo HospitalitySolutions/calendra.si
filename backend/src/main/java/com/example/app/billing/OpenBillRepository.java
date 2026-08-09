@@ -11,6 +11,30 @@ import java.util.Optional;
 
 public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
 
+    @Query(value = """
+            SELECT COUNT(DISTINCT CASE
+                WHEN batch_scope = 'NONE' AND booking_group_key IS NOT NULL AND BTRIM(booking_group_key) <> ''
+                    THEN 'booking:' || booking_group_key
+                ELSE 'open:' || CAST(id AS TEXT)
+            END)
+            FROM open_bills
+            WHERE company_id = :companyId
+            """, nativeQuery = true)
+    long countListRowsByCompanyId(@Param("companyId") Long companyId);
+
+    @Query(value = """
+            SELECT COUNT(DISTINCT CASE
+                WHEN batch_scope = 'NONE' AND booking_group_key IS NOT NULL AND BTRIM(booking_group_key) <> ''
+                    THEN 'booking:' || booking_group_key
+                ELSE 'open:' || CAST(id AS TEXT)
+            END)
+            FROM open_bills
+            WHERE company_id = :companyId AND (location_id = :locationId OR location_id IS NULL)
+            """, nativeQuery = true)
+    long countListRowsByCompanyIdAndLocationId(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId);
+
     boolean existsBySessionBookingId(Long sessionBookingId);
     boolean existsBySessionBookingIdAndCompanyId(Long sessionBookingId, Long companyId);
 

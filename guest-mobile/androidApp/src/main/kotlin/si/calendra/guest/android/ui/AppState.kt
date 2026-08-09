@@ -21,6 +21,10 @@ data class GuestUiState(
     val linkedTenants: List<TenantSummary> = emptyList(),
     val selectedTenantId: String? = null,
     val walletSelectedTenantId: String? = null,
+    /** Location-level public providers for booking/discovery. */
+    val providerLocations: List<TenantSummary> = emptyList(),
+    /** Location-scoped booking products keyed by providerId (companyId:locationId). */
+    val providerProducts: Map<String, List<ProductSummary>> = emptyMap(),
     val tenantDashboards: Map<String, TenantDashboard> = emptyMap(),
     val loading: Boolean = false,
     val error: String? = null

@@ -8,6 +8,73 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface AdvanceAllocationRepository extends JpaRepository<AdvanceAllocation, Long> {
+    /**
+     * Lightweight count used by the billing navigation summary. This mirrors the
+     * gross-first remaining-balance calculation without loading every advance or
+     * issuing per-advance aggregate queries.
+     */
+    @Query(
+            value = """
+                    WITH legacy_net AS (
+                        SELECT source.advance_bill_id, SUM(source.used_net) AS used_net
+                        FROM (
+                            SELECT aa.advance_bill_id, SUM(aa.amount_net) AS used_net
+                            FROM advance_allocations aa
+                            WHERE aa.company_id = :companyId
+                            GROUP BY aa.advance_bill_id
+                            UNION ALL
+                            SELECT bi.source_advance_bill_id AS advance_bill_id,
+                                   SUM(-(bi.net_price * bi.quantity)) AS used_net
+                            FROM bill_item bi
+                            JOIN bills consumed_bill ON consumed_bill.id = bi.bill_id
+                            WHERE consumed_bill.company_id = :companyId
+                              AND bi.source_advance_bill_id IS NOT NULL
+                              AND bi.net_price < 0
+                            GROUP BY bi.source_advance_bill_id
+                        ) source
+                        GROUP BY source.advance_bill_id
+                    ),
+                    open_gross AS (
+                        SELECT obp.source_advance_bill_id AS advance_bill_id, SUM(obp.amount_gross) AS used_gross
+                        FROM open_bill_payments obp
+                        JOIN open_bills ob ON ob.id = obp.open_bill_id
+                        WHERE ob.company_id = :companyId
+                          AND obp.source_advance_bill_id IS NOT NULL
+                        GROUP BY obp.source_advance_bill_id
+                    ),
+                    bill_gross AS (
+                        SELECT bp.source_advance_bill_id AS advance_bill_id, SUM(bp.amount_gross) AS used_gross
+                        FROM bill_payments bp
+                        JOIN bills consumed_bill ON consumed_bill.id = bp.bill_id
+                        WHERE consumed_bill.company_id = :companyId
+                          AND bp.source_advance_bill_id IS NOT NULL
+                        GROUP BY bp.source_advance_bill_id
+                    )
+                    SELECT COUNT(*)
+                    FROM bills advance
+                    LEFT JOIN legacy_net ln ON ln.advance_bill_id = advance.id
+                    LEFT JOIN open_gross og ON og.advance_bill_id = advance.id
+                    LEFT JOIN bill_gross bg ON bg.advance_bill_id = advance.id
+                    WHERE advance.company_id = :companyId
+                      AND advance.bill_type = 'ADVANCE'
+                      AND advance.payment_status = 'paid'
+                      AND (:locationId IS NULL OR advance.location_id IS NULL OR advance.location_id = :locationId)
+                      AND advance.total_gross - (
+                          CASE
+                              WHEN advance.total_net IS NOT NULL AND advance.total_net <> 0
+                                  THEN ROUND(COALESCE(ln.used_net, 0) * advance.total_gross / advance.total_net, 2)
+                              ELSE ROUND(COALESCE(ln.used_net, 0), 2)
+                          END
+                          + COALESCE(og.used_gross, 0)
+                          + COALESCE(bg.used_gross, 0)
+                      ) > 0
+                    """,
+            nativeQuery = true
+    )
+    long countUnusedAdvancesByCompanyIdAndOptionalLocation(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId);
+
     @Query("SELECT COALESCE(SUM(a.amountNet), 0) FROM AdvanceAllocation a WHERE a.company.id = :companyId AND a.advanceBill.id = :advanceBillId")
     BigDecimal sumAmountNetByCompanyIdAndAdvanceBillId(Long companyId, Long advanceBillId);
 

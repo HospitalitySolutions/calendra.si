@@ -129,7 +129,7 @@ fun JoinTenantScreen(
     languageCode: String,
     subscribedTenantIds: Set<String> = emptySet(),
     onJoinWithCode: (String) -> Unit,
-    onJoinPublicTenant: (String) -> Unit,
+    onJoinPublicTenant: (String, String?) -> Unit,
     onQrScanned: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -241,7 +241,7 @@ fun JoinTenantScreen(
                 when {
                     loading -> LoadingTenantCard(isSl = isSl)
                     tenants.isEmpty() -> EmptyTenantCard(isSl = isSl)
-                    else -> TenantCarousel(tenants = tenants, isSl = isSl, onSelectTenant = { onJoinPublicTenant(it.companyId) })
+                    else -> TenantCarousel(tenants = tenants, isSl = isSl, onSelectTenant = { onJoinPublicTenant(it.companyId, it.locationId) })
                 }
 
                 Spacer(Modifier.height(20.dp))

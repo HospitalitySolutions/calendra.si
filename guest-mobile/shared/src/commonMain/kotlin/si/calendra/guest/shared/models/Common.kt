@@ -29,7 +29,14 @@ data class TenantSummary(
     /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. */
     val acceptedPaymentMethods: List<String> = emptyList(),
     /** Enables ordered multi-service selection for this tenant. */
-    val multipleServicesEnabled: Boolean = false
+    val multipleServicesEnabled: Boolean = false,
+    /** Concrete public provider branch. Company membership remains company-level. */
+    val locationId: String? = null,
+    /** Stable identity for a company/location provider card. */
+    val providerId: String? = null,
+    val locationName: String? = null,
+    val publicEmail: String? = null,
+    val publicBookingEnabled: Boolean = false
 )
 
 @Serializable

@@ -57,6 +57,24 @@ public interface GuestEntitlementRepository extends JpaRepository<GuestEntitleme
             @Param("entitlementType") EntitlementType entitlementType,
             @Param("productType") ProductType productType);
 
+    @Query("SELECT COUNT(e) FROM GuestEntitlement e WHERE e.company.id = :companyId "
+            + "AND (e.entitlementType = :entitlementType OR e.product.productType = :productType)")
+    long countGiftCardsByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("entitlementType") EntitlementType entitlementType,
+            @Param("productType") ProductType productType);
+
+    @Query("SELECT COUNT(e) FROM GuestEntitlement e WHERE e.company.id = :companyId "
+            + "AND (e.entitlementType = :entitlementType OR e.product.productType = :productType) "
+            + "AND (e.sourceOrder.billId IS NULL OR EXISTS (SELECT b.id FROM Bill b "
+            + "WHERE b.id = e.sourceOrder.billId AND b.company.id = :companyId "
+            + "AND (b.location.id = :locationId OR b.location IS NULL)))")
+    long countGiftCardsByCompanyIdAndLocationId(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId,
+            @Param("entitlementType") EntitlementType entitlementType,
+            @Param("productType") ProductType productType);
+
     @Query("SELECT DISTINCT e.client.id FROM GuestEntitlement e WHERE e.company.id = :companyId AND e.client.id IN :clientIds "
             + "AND e.status IN :statuses AND (e.validFrom IS NULL OR e.validFrom <= :now) "
             + "AND (e.validUntil IS NULL OR e.validUntil > :now) "

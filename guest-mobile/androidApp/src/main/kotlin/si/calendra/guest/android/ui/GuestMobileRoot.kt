@@ -257,6 +257,8 @@ fun GuestMobileRoot() {
             session = sessionToken,
             linkedTenants = sessionToken.linkedTenants,
             selectedTenantId = state.uiState.selectedTenantId,
+            providerLocations = emptyList(),
+            providerProducts = emptyMap(),
             tenantDashboards = emptyMap()
         )
     }
@@ -316,6 +318,17 @@ fun GuestMobileRoot() {
                 )
             }
             state.uiState.linkedTenants.forEach { refreshTenant(it.companyId) }
+            val providers = repo.providerLocations()
+            val providerProducts = linkedMapOf<String, List<ProductSummary>>()
+            for (provider in providers) {
+                if (!provider.publicBookingEnabled) continue
+                val key = providerKey(provider)
+                providerProducts[key] = repo.products(provider.companyId, provider.locationId)
+            }
+            state.uiState = state.uiState.copy(
+                providerLocations = providers,
+                providerProducts = providerProducts
+            )
         }.onFailure {
             statusMessage = it.message ?: "Failed to refresh tenant data"
         }
@@ -957,11 +970,12 @@ fun GuestMobileRoot() {
                                 .onFailure { statusMessage = it.message ?: "Tenant join failed" }
                         }
                     },
-                    onJoinPublicTenant = { companyId ->
+                    onJoinPublicTenant = { companyId, locationId ->
                         scope.launch {
                             runCatching {
                                 joinPublicTenant(
                                     companyId,
+                                    locationId,
                                     repo,
                                     state,
                                     navController,
@@ -1047,6 +1061,7 @@ fun GuestMobileRoot() {
                             rescheduleContext = BookingRescheduleContext(
                                 bookingId = booking.id,
                                 companyId = booking.companyId,
+                                locationId = booking.locationId,
                                 sessionTypeId = booking.sessionTypeId,
                                 sessionTypeName = booking.title
                             )
@@ -1111,6 +1126,7 @@ fun GuestMobileRoot() {
                             rescheduleContext = BookingRescheduleContext(
                                 bookingId = booking.id,
                                 companyId = booking.companyId,
+                                locationId = booking.locationId,
                                 sessionTypeId = booking.sessionTypeId,
                                 sessionTypeName = booking.title
                             )
@@ -1122,6 +1138,7 @@ fun GuestMobileRoot() {
                             rescheduleContext = BookingRescheduleContext(
                                 bookingId = booking.id,
                                 companyId = booking.companyId,
+                                locationId = booking.locationId,
                                 sessionTypeId = booking.sessionTypeId,
                                 sessionTypeName = booking.title
                             )
@@ -1164,9 +1181,11 @@ fun GuestMobileRoot() {
                     BookScreen(
                         modifier = innerModifier,
                         languageCode = appUiLocale,
-                        providers = state.uiState.linkedTenants.map { provider ->
+                        providers = bookingProviders(state.uiState).map { provider ->
                             ProviderOption(
+                                providerId = providerKey(provider),
                                 companyId = provider.companyId,
+                                locationId = provider.locationId,
                                 tenantName = provider.companyName,
                                 tenantAddress = provider.companyAddress ?: provider.publicCity,
                                 billingEnabled = provider.billingEnabled,
@@ -1183,15 +1202,15 @@ fun GuestMobileRoot() {
                         onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                         onLoadAvailability = { selectedServices, date, consultantId ->
                             val primary = selectedServices.first()
-                            repo.availability(primary.companyId, selectedServices.map { it.sessionTypeId }, date.toString(), consultantId).slots
+                            repo.availability(primary.companyId, selectedServices.map { it.sessionTypeId }, date.toString(), consultantId, primary.locationId).slots
                         },
                         onLoadConsultants = { selectedServices ->
                             val primary = selectedServices.first()
-                            runCatching { repo.consultants(primary.companyId, selectedServices.map { it.sessionTypeId }) }.getOrElse { emptyList() }
+                            runCatching { repo.consultants(primary.companyId, selectedServices.map { it.sessionTypeId }, primary.locationId) }.getOrElse { emptyList() }
                                 .map { si.calendra.guest.android.ui.screens.ConsultantOption(id = it.id, firstName = it.firstName, lastName = it.lastName, email = it.email) }
                         },
-                        employeeSelectionStepEnabled = { companyId ->
-                            state.uiState.linkedTenants.firstOrNull { it.companyId == companyId }?.employeeSelectionStep == true
+                        employeeSelectionStepEnabled = { providerId ->
+                            bookingProviders(state.uiState).firstOrNull { providerKey(it) == providerId }?.employeeSelectionStep == true
                         },
                         launchRequest = bookLaunchRequest,
                         onLaunchRequestConsumed = { bookLaunchRequest = null },
@@ -1200,6 +1219,7 @@ fun GuestMobileRoot() {
                             repo.createBookingSlotHold(
                                 BookingSlotHoldRequest(
                                     companyId = primary.companyId,
+                                    locationId = primary.locationId,
                                     slotId = slotId,
                                     serviceTypeIds = selectedServices.map { service -> service.sessionTypeId.toLong() },
                                     previousHoldToken = previousHoldToken
@@ -1229,7 +1249,8 @@ fun GuestMobileRoot() {
                                                 entitlementId = entitlementByService[service.id]
                                             )
                                         },
-                                        holdToken = holdToken
+                                        holdToken = holdToken,
+                                        locationId = primary.locationId
                                     )
                                 )
                                 repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = false, locale = appUiLocale))
@@ -1302,11 +1323,14 @@ fun GuestMobileRoot() {
                         BookScreen(
                             modifier = innerModifier,
                             languageCode = appUiLocale,
-                            providers = state.uiState.linkedTenants.map { provider ->
+                            providers = bookingProviders(state.uiState).map { provider ->
                                 ProviderOption(
+                                    providerId = providerKey(provider),
                                     companyId = provider.companyId,
+                                    locationId = provider.locationId,
                                     tenantName = provider.companyName,
                                     tenantAddress = provider.companyAddress ?: provider.publicCity,
+                                    billingEnabled = provider.billingEnabled,
                                     requireOnlinePayment = provider.requireOnlinePayment,
                                     paymentRequirement = provider.paymentRequirement,
                                     depositPercent = provider.depositPercent,
@@ -1320,15 +1344,15 @@ fun GuestMobileRoot() {
                             onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                             onLoadAvailability = { selectedServices, date, consultantId ->
                                 val primary = selectedServices.first()
-                                repo.availability(primary.companyId, selectedServices.map { it.sessionTypeId }, date.toString(), consultantId).slots
+                                repo.availability(primary.companyId, selectedServices.map { it.sessionTypeId }, date.toString(), consultantId, primary.locationId).slots
                             },
                             onLoadConsultants = { selectedServices ->
                                 val primary = selectedServices.first()
-                                runCatching { repo.consultants(primary.companyId, selectedServices.map { it.sessionTypeId }) }.getOrElse { emptyList() }
+                                runCatching { repo.consultants(primary.companyId, selectedServices.map { it.sessionTypeId }, primary.locationId) }.getOrElse { emptyList() }
                                     .map { si.calendra.guest.android.ui.screens.ConsultantOption(id = it.id, firstName = it.firstName, lastName = it.lastName, email = it.email) }
                             },
-                            employeeSelectionStepEnabled = { companyId ->
-                                state.uiState.linkedTenants.firstOrNull { it.companyId == companyId }?.employeeSelectionStep == true
+                            employeeSelectionStepEnabled = { providerId ->
+                                bookingProviders(state.uiState).firstOrNull { providerKey(it) == providerId }?.employeeSelectionStep == true
                             },
                             onCheckout = { _, _, _, _, _, _ -> },
                             rescheduleContext = context,
@@ -2873,6 +2897,12 @@ private suspend fun joinTenantWithCode(
         notifications = repo.notifications(tenant.companyId).items,
         inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
     )
+    val providerLocations = repo.providerLocations()
+    val providerProducts = providerLocations
+        .filter { it.publicBookingEnabled }
+        .associate { provider ->
+            providerKey(provider) to repo.products(provider.companyId, provider.locationId)
+        }
     state.uiState = state.uiState.copy(
         session = GuestSession(
             token = token,
@@ -2881,6 +2911,8 @@ private suspend fun joinTenantWithCode(
         ),
         linkedTenants = updatedSession.linkedTenants,
         selectedTenantId = null,
+        providerLocations = providerLocations,
+        providerProducts = providerProducts,
         tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)
     )
     navController.navigate(RootRoute.Home.route) {
@@ -2890,6 +2922,7 @@ private suspend fun joinTenantWithCode(
 }
 private suspend fun joinPublicTenant(
     companyId: String,
+    locationId: String?,
     repo: si.calendra.guest.shared.repository.GuestRepository,
     state: GuestMutableState,
     navController: androidx.navigation.NavHostController,
@@ -2901,7 +2934,8 @@ private suspend fun joinPublicTenant(
     repo.joinTenant(
         JoinTenantRequest(
             joinMethod = "PUBLIC_SEARCH",
-            companyId = normalizedCompanyId
+            companyId = normalizedCompanyId,
+            locationId = locationId
         )
     )
 
@@ -2933,6 +2967,12 @@ private suspend fun joinPublicTenant(
         inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
     )
 
+    val providerLocations = repo.providerLocations()
+    val providerProducts = providerLocations
+        .filter { it.publicBookingEnabled }
+        .associate { provider ->
+            providerKey(provider) to repo.products(provider.companyId, provider.locationId)
+        }
     state.uiState = state.uiState.copy(
         session = GuestSession(
             token = token,
@@ -2941,6 +2981,8 @@ private suspend fun joinPublicTenant(
         ),
         linkedTenants = updatedSession.linkedTenants,
         selectedTenantId = null,
+        providerLocations = providerLocations,
+        providerProducts = providerProducts,
         tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)
     )
 
@@ -3078,28 +3120,30 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
         val tenant = dashboard?.home?.tenant ?: state.linkedTenants.firstOrNull { it.companyId == tenantId }
         val upcoming = dashboard?.home?.upcomingBookings.orEmpty().mapNotNull { booking ->
             tenant?.let {
+                val displayProvider = bookingProvider(state, tenantId, booking.locationId) ?: it
                 val phone =
                     if (it.useEmployeeContact && !booking.employeePhone.isNullOrBlank()) {
                         booking.employeePhone
                     } else {
-                        it.publicPhone
+                        displayProvider.publicPhone
                     }
                 UpcomingBookingCard(
                     id = booking.bookingId,
                     companyId = tenantId,
+                    locationId = booking.locationId,
                     title = booking.sessionTypeName,
                     sessionTypeId = booking.sessionTypeId,
                     startsAt = booking.startsAt,
                     endsAt = booking.endsAt,
                     status = booking.bookingStatus,
-                    tenantName = it.companyName,
-                    tenantCity = it.publicCity,
-                    tenantAddress = it.companyAddress,
+                    tenantName = displayProvider.companyName,
+                    tenantCity = displayProvider.publicCity,
+                    tenantAddress = displayProvider.companyAddress,
                     consultantName = booking.consultantName,
                     tenantPhone = phone,
-                    cardImageUrl = it.cardImageUrl,
-                    logoImageUrl = it.logoImageUrl,
-                    iconImageUrl = it.iconImageUrl,
+                    cardImageUrl = displayProvider.cardImageUrl,
+                    logoImageUrl = displayProvider.logoImageUrl,
+                    iconImageUrl = displayProvider.iconImageUrl,
                     services = booking.services.sortedBy { line -> line.position }.map { line -> line.name },
                     totalDurationMinutes = booking.totalDurationMinutes,
                     totalPriceGross = booking.totalPriceGross,
@@ -3112,22 +3156,24 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
         }
         val history = dashboard?.history.orEmpty().mapNotNull { booking ->
             tenant?.let {
+                val displayProvider = bookingProvider(state, tenantId, booking.locationId) ?: it
                 UpcomingBookingCard(
                     id = booking.bookingId,
                     companyId = tenantId,
+                    locationId = booking.locationId,
                     title = booking.sessionTypeName,
                     sessionTypeId = null,
                     startsAt = booking.startsAt,
                     endsAt = null,
                     status = booking.bookingStatus,
-                    tenantName = it.companyName,
-                    tenantCity = it.publicCity,
-                    tenantAddress = it.companyAddress,
+                    tenantName = displayProvider.companyName,
+                    tenantCity = displayProvider.publicCity,
+                    tenantAddress = displayProvider.companyAddress,
                     consultantName = null,
-                    tenantPhone = it.publicPhone,
-                    cardImageUrl = it.cardImageUrl,
-                    logoImageUrl = it.logoImageUrl,
-                    iconImageUrl = it.iconImageUrl,
+                    tenantPhone = displayProvider.publicPhone,
+                    cardImageUrl = displayProvider.cardImageUrl,
+                    logoImageUrl = displayProvider.logoImageUrl,
+                    iconImageUrl = displayProvider.iconImageUrl,
                     services = booking.services.sortedBy { line -> line.position }.map { line -> line.name },
                     totalDurationMinutes = booking.totalDurationMinutes,
                     totalPriceGross = booking.totalPriceGross,
@@ -3146,28 +3192,30 @@ private fun aggregatedCalendarBookings(state: GuestUiState): List<UpcomingBookin
         val dashboard = state.tenantDashboards[tenantId]
         val tenant = dashboard?.home?.tenant ?: linkedTenant
         dashboard?.home?.upcomingBookings.orEmpty().map { booking ->
+            val displayProvider = bookingProvider(state, tenantId, booking.locationId) ?: tenant
             val phone =
                 if (tenant.useEmployeeContact && !booking.employeePhone.isNullOrBlank()) {
                     booking.employeePhone
                 } else {
-                    tenant.publicPhone
+                    displayProvider.publicPhone
                 }
             UpcomingBookingCard(
                 id = booking.bookingId,
                 companyId = tenantId,
+                locationId = booking.locationId,
                 title = booking.sessionTypeName,
                 sessionTypeId = booking.sessionTypeId,
                 startsAt = booking.startsAt,
                 endsAt = booking.endsAt,
                 status = booking.bookingStatus,
-                tenantName = tenant.companyName,
-                tenantCity = tenant.publicCity,
-                tenantAddress = tenant.companyAddress,
+                tenantName = displayProvider.companyName,
+                tenantCity = displayProvider.publicCity,
+                tenantAddress = displayProvider.companyAddress,
                 consultantName = booking.consultantName,
                 tenantPhone = phone,
-                cardImageUrl = tenant.cardImageUrl,
-                logoImageUrl = tenant.logoImageUrl,
-                iconImageUrl = tenant.iconImageUrl,
+                cardImageUrl = displayProvider.cardImageUrl,
+                logoImageUrl = displayProvider.logoImageUrl,
+                iconImageUrl = displayProvider.iconImageUrl,
                 services = booking.services.sortedBy { line -> line.position }.map { line -> line.name },
                 totalDurationMinutes = booking.totalDurationMinutes,
                 totalPriceGross = booking.totalPriceGross,
@@ -3214,17 +3262,31 @@ private fun aggregatedAccesses(state: GuestUiState): List<AccessCard> =
         }
     }
 
+private fun providerKey(provider: TenantSummary): String =
+    provider.providerId?.takeIf { it.isNotBlank() }
+        ?: "${provider.companyId}:${provider.locationId.orEmpty()}"
+
+private fun bookingProviders(state: GuestUiState): List<TenantSummary> =
+    state.providerLocations.filter { it.publicBookingEnabled }
+
+private fun bookingProvider(state: GuestUiState, companyId: String, locationId: String?): TenantSummary? =
+    state.providerLocations.firstOrNull {
+        it.companyId == companyId && (locationId == null || it.locationId == locationId)
+    } ?: state.linkedTenants.firstOrNull { it.companyId == companyId }
+
 private fun aggregatedServices(state: GuestUiState): List<ServiceOption> =
-    selectedTenantIds(state).flatMap { tenantId ->
-        val dashboard = state.tenantDashboards[tenantId]
-        val tenant = dashboard?.home?.tenant ?: state.linkedTenants.firstOrNull { it.companyId == tenantId }
-        dashboard?.products.orEmpty().filter { it.bookable && !it.sessionTypeId.isNullOrBlank() }.mapNotNull { product ->
-            tenant?.let {
+    bookingProviders(state).flatMap { provider ->
+        val key = providerKey(provider)
+        state.providerProducts[key].orEmpty()
+            .filter { it.bookable && !it.sessionTypeId.isNullOrBlank() }
+            .map { product ->
                 ServiceOption(
-                    id = "$tenantId-${product.productId}",
-                    companyId = tenantId,
-                    tenantName = it.companyName,
-                    tenantCity = it.publicCity,
+                    id = "$key-${product.productId}",
+                    providerId = key,
+                    companyId = provider.companyId,
+                    locationId = provider.locationId,
+                    tenantName = provider.companyName,
+                    tenantCity = provider.publicCity,
                     productId = product.productId,
                     name = product.name,
                     description = product.description,
@@ -3236,12 +3298,11 @@ private fun aggregatedServices(state: GuestUiState): List<ServiceOption> =
                     serviceGroupName = product.serviceGroupName,
                     serviceGroupSortOrder = product.serviceGroupSortOrder,
                     serviceSortOrder = product.serviceSortOrder,
-                    tenantType = it.tenantType
+                    tenantType = provider.tenantType
                 )
             }
-        }
     }.sortedWith(
-        compareBy<ServiceOption> { it.companyId }
+        compareBy<ServiceOption> { it.providerId }
             .thenBy { it.serviceGroupSortOrder ?: Int.MAX_VALUE }
             .thenBy { it.serviceGroupName.orEmpty() }
             .thenBy { it.serviceSortOrder }

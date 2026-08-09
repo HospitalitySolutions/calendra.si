@@ -162,8 +162,17 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
     let depositPercent: Int?
     let acceptedPaymentMethods: [String]?
     let multipleServicesEnabled: Bool?
+    let locationId: String?
+    let providerId: String?
+    let locationName: String?
+    let publicEmail: String?
+    let publicBookingEnabled: Bool?
 
-    var id: String { companyId }
+    var id: String { providerId ?? (locationId.map { "\(companyId):\($0)" } ?? companyId) }
+    var name: String { companyName }
+    var description: String? { publicDescription }
+    var city: String? { publicCity }
+    var phone: String? { publicPhone }
 
     init(
         companyId: String,
@@ -185,7 +194,12 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
         paymentRequirement: String? = nil,
         depositPercent: Int? = nil,
         acceptedPaymentMethods: [String]? = nil,
-        multipleServicesEnabled: Bool? = nil
+        multipleServicesEnabled: Bool? = nil,
+        locationId: String? = nil,
+        providerId: String? = nil,
+        locationName: String? = nil,
+        publicEmail: String? = nil,
+        publicBookingEnabled: Bool? = nil
     ) {
         self.companyId = companyId
         self.companyName = companyName
@@ -207,6 +221,11 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
         self.depositPercent = depositPercent
         self.acceptedPaymentMethods = acceptedPaymentMethods
         self.multipleServicesEnabled = multipleServicesEnabled
+        self.locationId = locationId
+        self.providerId = providerId
+        self.locationName = locationName
+        self.publicEmail = publicEmail
+        self.publicBookingEnabled = publicBookingEnabled
     }
 }
 
@@ -422,6 +441,7 @@ struct BookingModel: Identifiable, Codable, Hashable {
     let totalPriceGross: Double?
     let currency: String?
     let paymentStatus: String?
+    let locationId: String?
 
     init(
         id: String,
@@ -436,7 +456,8 @@ struct BookingModel: Identifiable, Codable, Hashable {
         totalDurationMinutes: Int? = nil,
         totalPriceGross: Double? = nil,
         currency: String? = nil,
-        paymentStatus: String? = nil
+        paymentStatus: String? = nil,
+        locationId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -451,6 +472,7 @@ struct BookingModel: Identifiable, Codable, Hashable {
         self.totalPriceGross = totalPriceGross
         self.currency = currency
         self.paymentStatus = paymentStatus
+        self.locationId = locationId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -467,6 +489,7 @@ struct BookingModel: Identifiable, Codable, Hashable {
         case totalPriceGross
         case currency
         case paymentStatus
+        case locationId
     }
 }
 struct EntitlementModel: Identifiable, Codable, Hashable {
@@ -699,6 +722,7 @@ struct TenantLookupModel: Codable {
     let canJoin: Bool
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
+    let locations: [TenantSummaryModel]?
 }
 
 struct HomePayloadModel: Codable {
@@ -854,6 +878,7 @@ struct BookingCardModel: Identifiable, Hashable {
     let id: String
     let bookingId: String
     let companyId: String
+    let locationId: String?
     let title: String
     let startsAt: String
     let status: String
@@ -956,7 +981,9 @@ struct WalletOrderCardModel: Identifiable, Hashable {
 
 struct ServiceOptionModel: Identifiable, Hashable {
     let id: String
+    let providerId: String
     let companyId: String
+    let locationId: String?
     let tenantName: String
     let tenantCity: String?
     let tenantPhone: String?
@@ -979,6 +1006,15 @@ struct JoinTenantPayload: Codable {
     let tenantCode: String?
     let inviteCode: String?
     let companyId: String?
+    let locationId: String?
+
+    init(joinMethod: String, tenantCode: String? = nil, inviteCode: String? = nil, companyId: String? = nil, locationId: String? = nil) {
+        self.joinMethod = joinMethod
+        self.tenantCode = tenantCode
+        self.inviteCode = inviteCode
+        self.companyId = companyId
+        self.locationId = locationId
+    }
 }
 
 struct LoginPayload: Codable {
@@ -1077,6 +1113,7 @@ struct SelectedServicePayload: Codable {
 
 struct BookingSlotHoldPayload: Codable {
     let companyId: String
+    let locationId: String?
     let slotId: String
     let serviceTypeIds: [Int64]
     let previousHoldToken: String?
@@ -1097,8 +1134,9 @@ struct CreateOrderPayload: Codable {
     let entitlementId: String?
     let services: [SelectedServicePayload]?
     let holdToken: String?
+    let locationId: String?
 
-    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil) {
+    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil, locationId: String? = nil) {
         self.companyId = companyId
         self.productId = productId
         self.slotId = slotId
@@ -1107,6 +1145,7 @@ struct CreateOrderPayload: Codable {
         self.entitlementId = entitlementId
         self.services = services
         self.holdToken = holdToken
+        self.locationId = locationId
     }
 }
 

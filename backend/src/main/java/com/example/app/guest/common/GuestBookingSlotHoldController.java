@@ -1,6 +1,7 @@
 package com.example.app.guest.common;
 
 import com.example.app.guest.auth.GuestAuthContextService;
+import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.session.BookingSlotHoldService;
@@ -19,14 +20,27 @@ public class GuestBookingSlotHoldController {
     private final GuestAuthContextService auth;
     private final GuestTenantService tenants;
     private final BookingSlotHoldService holds;
+    private final GuestCatalogService catalog;
 
-    public GuestBookingSlotHoldController(GuestAuthContextService auth, GuestTenantService tenants, BookingSlotHoldService holds) {
+    public GuestBookingSlotHoldController(
+            GuestAuthContextService auth,
+            GuestTenantService tenants,
+            BookingSlotHoldService holds,
+            GuestCatalogService catalog
+    ) {
         this.auth = auth;
         this.tenants = tenants;
         this.holds = holds;
+        this.catalog = catalog;
     }
 
-    public record GuestHoldRequest(String companyId, String slotId, java.util.List<Long> serviceTypeIds, String previousHoldToken) {}
+    public record GuestHoldRequest(
+            String companyId,
+            String locationId,
+            String slotId,
+            java.util.List<Long> serviceTypeIds,
+            String previousHoldToken
+    ) {}
 
     @PostMapping
     public BookingSlotHoldService.HoldResponse create(@RequestBody GuestHoldRequest request, HttpServletRequest httpRequest) {
@@ -44,9 +58,23 @@ public class GuestBookingSlotHoldController {
                     org.springframework.http.HttpStatus.BAD_REQUEST, "Company is required.");
         }
         tenants.requireLink(guest, companyId);
+        Long locationId = parseOptionalLocationId(request.locationId());
+        catalog.requireGuestBookableLocation(companyId, locationId, request.serviceTypeIds(), guest);
         return holds.create(companyId, new BookingSlotHoldService.HoldRequest(
                 request.slotId(), request.serviceTypeIds(), request.previousHoldToken()
         ));
+    }
+
+    private static Long parseOptionalLocationId(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            long value = Long.parseLong(raw.trim());
+            if (value <= 0) throw new NumberFormatException();
+            return value;
+        } catch (NumberFormatException ex) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid location identifier.");
+        }
     }
 
     @DeleteMapping("/{companyId}/{token}")

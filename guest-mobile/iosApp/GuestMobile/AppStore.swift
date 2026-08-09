@@ -29,6 +29,8 @@ final class AppStore: ObservableObject {
     @Published var linkedTenants: [TenantModel] = []
     @Published var selectedTenantId: String?
     @Published var walletSelectedTenantId: String?
+    @Published var providerLocations: [TenantSummaryModel] = []
+    @Published var providerProducts: [String: [ProductModel]] = [:]
     @Published var tenantDashboards: [String: TenantDashboardModel] = [:]
     @Published var errorMessage: String?
     @Published var noticeMessage: String?
@@ -96,23 +98,27 @@ final class AppStore: ObservableObject {
             .flatMap { tenantId -> [BookingCardModel] in
                 guard let dashboard = tenantDashboards[tenantId] else { return [] }
                 func toCard(_ booking: BookingModel) -> BookingCardModel {
+                    let provider = providerLocations.first {
+                        $0.companyId == tenantId && (booking.locationId == nil || $0.locationId == booking.locationId)
+                    }
                     let selectedPhone = (dashboard.tenant.useEmployeeContact == true && (booking.employeePhone?.isEmpty == false))
                         ? booking.employeePhone
-                        : dashboard.tenant.phone
+                        : (provider?.publicPhone ?? dashboard.tenant.phone)
                     return BookingCardModel(
                         id: "\(tenantId)-\(booking.id)",
                         bookingId: booking.id,
                         companyId: tenantId,
+                        locationId: booking.locationId,
                         title: booking.title,
                         startsAt: booking.startsAt,
                         status: booking.status,
-                        tenantName: dashboard.tenant.name,
-                        tenantCity: dashboard.tenant.city,
-                        tenantAddress: dashboard.tenant.companyAddress,
+                        tenantName: provider?.companyName ?? dashboard.tenant.name,
+                        tenantCity: provider?.publicCity ?? dashboard.tenant.city,
+                        tenantAddress: provider?.companyAddress ?? dashboard.tenant.companyAddress,
                         tenantPhone: selectedPhone,
-                        cardImageUrl: dashboard.tenant.cardImageUrl,
-                        logoImageUrl: dashboard.tenant.logoImageUrl,
-                        iconImageUrl: dashboard.tenant.iconImageUrl,
+                        cardImageUrl: provider?.cardImageUrl ?? dashboard.tenant.cardImageUrl,
+                        logoImageUrl: provider?.logoImageUrl ?? dashboard.tenant.logoImageUrl,
+                        iconImageUrl: provider?.iconImageUrl ?? dashboard.tenant.iconImageUrl,
                         endsAt: booking.endsAt,
                         consultantName: booking.consultantName,
                         sessionTypeId: booking.sessionTypeId,
@@ -308,18 +314,26 @@ final class AppStore: ObservableObject {
         .sorted { $0.name < $1.name }
     }
 
+    private func providerKey(_ provider: TenantSummaryModel) -> String {
+        if let providerId = provider.providerId, !providerId.isEmpty { return providerId }
+        return "\(provider.companyId):\(provider.locationId ?? "")"
+    }
+
     var serviceOptions: [ServiceOptionModel] {
-        activeTenantIds
-            .flatMap { tenantId -> [ServiceOptionModel] in
-                guard let dashboard = tenantDashboards[tenantId] else { return [] }
-                return dashboard.products.compactMap { product -> ServiceOptionModel? in
+        providerLocations
+            .filter { $0.publicBookingEnabled != false }
+            .flatMap { provider -> [ServiceOptionModel] in
+                let key = providerKey(provider)
+                return (providerProducts[key] ?? []).compactMap { product -> ServiceOptionModel? in
                     guard product.bookable, let sessionTypeId = product.sessionTypeId else { return nil }
                     return ServiceOptionModel(
-                        id: "\(tenantId)-\(product.id)",
-                        companyId: tenantId,
-                        tenantName: dashboard.tenant.name,
-                        tenantCity: dashboard.tenant.city,
-                        tenantPhone: dashboard.tenant.phone,
+                        id: "\(key)-\(product.id)",
+                        providerId: key,
+                        companyId: provider.companyId,
+                        locationId: provider.locationId,
+                        tenantName: provider.companyName,
+                        tenantCity: provider.publicCity,
+                        tenantPhone: provider.publicPhone,
                         productId: product.id,
                         name: product.name,
                         description: product.description,
@@ -331,12 +345,12 @@ final class AppStore: ObservableObject {
                         serviceGroupName: product.serviceGroupName,
                         serviceGroupSortOrder: product.serviceGroupSortOrder,
                         serviceSortOrder: product.serviceSortOrder,
-                        tenantType: dashboard.tenant.tenantType
+                        tenantType: provider.tenantType
                     )
                 }
             }
             .sorted { lhs, rhs in
-                if lhs.companyId != rhs.companyId { return lhs.companyId < rhs.companyId }
+                if lhs.providerId != rhs.providerId { return lhs.providerId < rhs.providerId }
                 let leftGroup = lhs.serviceGroupSortOrder ?? Int.max
                 let rightGroup = rhs.serviceGroupSortOrder ?? Int.max
                 if leftGroup != rightGroup { return leftGroup < rightGroup }
@@ -578,7 +592,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func joinPublicTenant(companyId: String) async {
+    func joinPublicTenant(companyId: String, locationId: String? = nil) async {
         let normalizedCompanyId = companyId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedCompanyId.isEmpty else {
             errorMessage = "Tenant not found."
@@ -586,7 +600,7 @@ final class AppStore: ObservableObject {
         }
         guard !usePreviewData else { applyPreview(); return }
         await run {
-            try await self.api.joinPublicTenant(companyId: normalizedCompanyId)
+            try await self.api.joinPublicTenant(companyId: normalizedCompanyId, locationId: locationId)
             try await self.refreshAllTenantsThrowing()
             self.selectedTenantId = nil
             self.walletSelectedTenantId = self.linkedTenants.first?.id
@@ -1007,18 +1021,18 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func loadAvailability(companyId: String, sessionTypeIds: [String], date: Date, consultantId: String? = nil) async throws -> [AvailabilitySlotModel] {
+    func loadAvailability(companyId: String, sessionTypeIds: [String], date: Date, consultantId: String? = nil, locationId: String? = nil) async throws -> [AvailabilitySlotModel] {
         let day = Self.dayFormatter.string(from: date)
         if usePreviewData { return preview.availability(for: sessionTypeIds.first ?? "", date: day) }
-        return try await api.availability(companyId: companyId, sessionTypeIds: sessionTypeIds, date: day, consultantId: consultantId).slots
+        return try await api.availability(companyId: companyId, sessionTypeIds: sessionTypeIds, date: day, consultantId: consultantId, locationId: locationId).slots
     }
 
-    func loadConsultants(companyId: String, sessionTypeIds: [String]) async throws -> [ConsultantSummaryModel] {
+    func loadConsultants(companyId: String, sessionTypeIds: [String], locationId: String? = nil) async throws -> [ConsultantSummaryModel] {
         if usePreviewData { return [] }
-        return try await api.consultants(companyId: companyId, sessionTypeIds: sessionTypeIds)
+        return try await api.consultants(companyId: companyId, sessionTypeIds: sessionTypeIds, locationId: locationId)
     }
 
-    func createBookingSlotHold(companyId: String, slotId: String, serviceTypeIds: [String], previousHoldToken: String? = nil) async throws -> BookingSlotHoldResponseModel {
+    func createBookingSlotHold(companyId: String, locationId: String? = nil, slotId: String, serviceTypeIds: [String], previousHoldToken: String? = nil) async throws -> BookingSlotHoldResponseModel {
         if usePreviewData {
             return BookingSlotHoldResponseModel(
                 holdToken: "preview-hold-\(slotId)",
@@ -1034,6 +1048,7 @@ final class AppStore: ObservableObject {
         }
         return try await api.createBookingSlotHold(
             companyId: companyId,
+            locationId: locationId,
             slotId: slotId,
             serviceTypeIds: numericServiceIds,
             previousHoldToken: previousHoldToken
@@ -1046,7 +1061,7 @@ final class AppStore: ObservableObject {
         try? await api.releaseBookingSlotHold(companyId: companyId, holdToken: holdToken)
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil, services: [SelectedServicePayload]? = nil, holdToken: String? = nil, locationId: String? = nil) async throws -> CheckoutResponseModel {
         let response: CheckoutResponseModel
         if usePreviewData {
             let completeImmediately = paymentMethod == "ENTITLEMENT" || paymentMethod == "PAY_AT_VENUE"
@@ -1063,7 +1078,7 @@ final class AppStore: ObservableObject {
                 merchantDisplayName: nil
             )
         } else {
-            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId, services: services, holdToken: holdToken)
+            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId, services: services, holdToken: holdToken, locationId: locationId)
         }
         try await refreshTenant(companyId: companyId)
         return response
@@ -1217,6 +1232,42 @@ final class AppStore: ObservableObject {
         for tenant in linkedTenants {
             try await refreshTenant(companyId: tenant.id)
         }
+        if usePreviewData {
+            providerLocations = linkedTenants.map { tenant in
+                TenantSummaryModel(
+                    companyId: tenant.id,
+                    companyName: tenant.name,
+                    publicDescription: tenant.description,
+                    publicCity: tenant.city,
+                    publicPhone: tenant.phone,
+                    companyAddress: tenant.companyAddress,
+                    tenantType: tenant.tenantType,
+                    cardImageUrl: tenant.cardImageUrl,
+                    logoImageUrl: tenant.logoImageUrl,
+                    iconImageUrl: tenant.iconImageUrl,
+                    billingEnabled: tenant.billingEnabled,
+                    requireOnlinePayment: tenant.requireOnlinePayment,
+                    paymentRequirement: tenant.paymentRequirement,
+                    depositPercent: tenant.depositPercent,
+                    acceptedPaymentMethods: tenant.acceptedPaymentMethods,
+                    multipleServicesEnabled: tenant.multipleServicesEnabled,
+                    locationId: "preview-\(tenant.id)",
+                    providerId: "\(tenant.id):preview-\(tenant.id)",
+                    locationName: tenant.name,
+                    publicBookingEnabled: true
+                )
+            }
+            providerProducts = Dictionary(uniqueKeysWithValues: providerLocations.map { provider in
+                (providerKey(provider), tenantDashboards[provider.companyId]?.products ?? [])
+            })
+        } else {
+            providerLocations = try await api.providerLocations()
+            var scopedProducts: [String: [ProductModel]] = [:]
+            for provider in providerLocations where provider.publicBookingEnabled != false {
+                scopedProducts[providerKey(provider)] = try await api.products(companyId: provider.companyId, locationId: provider.locationId)
+            }
+            providerProducts = scopedProducts
+        }
         restartBookingRealtimeStreams()
         if let selectedTenantId, let tenant = linkedTenants.first(where: { $0.id == selectedTenantId }) {
             currentTenant = tenant
@@ -1228,6 +1279,8 @@ final class AppStore: ObservableObject {
         authStore.saveToken(session.token)
         user = session.guestUser
         linkedTenants = session.linkedTenants
+        providerLocations = []
+        providerProducts = [:]
         if let walletSelectedTenantId, session.linkedTenants.contains(where: { $0.id == walletSelectedTenantId }) == false {
             self.walletSelectedTenantId = session.linkedTenants.first?.id
         } else if self.walletSelectedTenantId == nil {

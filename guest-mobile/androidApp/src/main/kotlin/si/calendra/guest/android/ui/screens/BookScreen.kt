@@ -163,7 +163,9 @@ private fun PaymentMethodUi.localizedHelper(languageCode: String): String? = whe
 
 
 data class ProviderOption(
+    val providerId: String,
     val companyId: String,
+    val locationId: String? = null,
     val tenantName: String,
     val tenantAddress: String?,
     val billingEnabled: Boolean = true,
@@ -181,7 +183,9 @@ data class ProviderOption(
 
 data class ServiceOption(
     val id: String,
+    val providerId: String,
     val companyId: String,
+    val locationId: String? = null,
     val tenantName: String,
     val tenantCity: String?,
     val productId: String,
@@ -259,6 +263,7 @@ data class ConsultantOption(
 data class BookingRescheduleContext(
     val bookingId: String,
     val companyId: String,
+    val locationId: String? = null,
     val sessionTypeId: String?,
     val sessionTypeName: String
 )
@@ -310,7 +315,7 @@ fun BookScreen(
     val scope = rememberCoroutineScope()
 
     var currentStep by remember { mutableStateOf(BookingFlowStep.PROVIDER) }
-    var selectedProviderId by remember { mutableStateOf<String?>(providers.firstOrNull()?.companyId) }
+    var selectedProviderId by remember { mutableStateOf<String?>(providers.firstOrNull()?.providerId) }
     var selectedServiceIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedConsultantId by remember { mutableStateOf<String?>(null) }
     var consultants by remember { mutableStateOf<List<ConsultantOption>>(emptyList()) }
@@ -347,7 +352,7 @@ fun BookScreen(
     var launchRequestInitialized by remember(launchRequest?.id) { mutableStateOf(false) }
 
     val providerScopedServices = remember(services, selectedProviderId) {
-        services.filter { it.companyId == selectedProviderId }.sortedWith(
+        services.filter { it.providerId == selectedProviderId }.sortedWith(
             compareBy<ServiceOption> { it.serviceGroupSortOrder ?: Int.MAX_VALUE }
                 .thenBy { it.serviceGroupName.orEmpty() }
                 .thenBy { it.serviceSortOrder }
@@ -356,14 +361,14 @@ fun BookScreen(
     }
 
     LaunchedEffect(providers) {
-        if (providers.isNotEmpty() && providers.none { it.companyId == selectedProviderId }) {
-            selectedProviderId = providers.first().companyId
+        if (providers.isNotEmpty() && providers.none { it.providerId == selectedProviderId }) {
+            selectedProviderId = providers.first().providerId
         }
     }
 
     LaunchedEffect(providerScopedServices, selectedProviderId) {
         val validIds = selectedServiceIds.filter { id -> providerScopedServices.any { it.id == id } }
-        val multipleEnabled = providers.firstOrNull { it.companyId == selectedProviderId }?.multipleServicesEnabled == true
+        val multipleEnabled = providers.firstOrNull { it.providerId == selectedProviderId }?.multipleServicesEnabled == true
         val next = when {
             validIds.isNotEmpty() -> if (multipleEnabled) validIds else listOf(validIds.first())
             providerScopedServices.isNotEmpty() && !multipleEnabled -> listOf(providerScopedServices.first().id)
@@ -378,10 +383,12 @@ fun BookScreen(
     LaunchedEffect(rescheduleContext, services, providers) {
         if (rescheduleInitialized) return@LaunchedEffect
         val context = rescheduleContext ?: return@LaunchedEffect
-        selectedProviderId = providers.firstOrNull { it.companyId == context.companyId }?.companyId
-            ?: selectedProviderId
+        selectedProviderId = providers.firstOrNull {
+            it.companyId == context.companyId && (context.locationId == null || it.locationId == context.locationId)
+        }?.providerId ?: providers.firstOrNull { it.companyId == context.companyId }?.providerId ?: selectedProviderId
         val candidate = services.firstOrNull {
             it.companyId == context.companyId &&
+                (context.locationId == null || it.locationId == context.locationId) &&
                 ((context.sessionTypeId != null && context.sessionTypeId == it.sessionTypeId) ||
                     it.name.equals(context.sessionTypeName, ignoreCase = true))
         }
@@ -398,46 +405,66 @@ fun BookScreen(
     LaunchedEffect(launchRequest, services, providers) {
         if (launchRequestInitialized || rescheduleContext != null) return@LaunchedEffect
         val request = launchRequest ?: return@LaunchedEffect
-        val providerExists = providers.any { it.companyId == request.companyId }
-        if (!providerExists) {
+        val companyProviders = providers.filter { it.companyId == request.companyId }
+        if (companyProviders.isEmpty()) {
             onLaunchRequestConsumed()
             launchRequestInitialized = true
             return@LaunchedEffect
         }
 
-        selectedProviderId = request.companyId
         selectedConsultantId = null
         selectedSlotId = null
         selectedPaymentMethod = PaymentMethodUi.values().firstOrNull { it.apiValue == request.preferredPaymentMethodType }
             ?: PaymentMethodUi.ENTITLEMENT
         selectedEntitlementId = request.entitlementId
 
-        val providerServices = services.filter { it.companyId == request.companyId }
-        val candidate = request.sessionTypeId?.let { sessionTypeId ->
-            providerServices.firstOrNull { it.sessionTypeId == sessionTypeId }
-        } ?: providerServices.firstOrNull { it.name.equals(request.entitlementName, ignoreCase = true) }
-            ?: providerServices.firstOrNull { service ->
-                service.name.contains(request.entitlementName, ignoreCase = true) ||
-                    request.entitlementName.contains(service.name, ignoreCase = true)
-            }
-            ?: providerServices.singleOrNull()
+        fun matchingService(provider: ProviderOption): ServiceOption? {
+            val providerServices = services.filter { it.providerId == provider.providerId }
+            return request.sessionTypeId?.let { sessionTypeId ->
+                providerServices.firstOrNull { it.sessionTypeId == sessionTypeId }
+            } ?: providerServices.firstOrNull { it.name.equals(request.entitlementName, ignoreCase = true) }
+                ?: providerServices.firstOrNull { service ->
+                    service.name.contains(request.entitlementName, ignoreCase = true) ||
+                        request.entitlementName.contains(service.name, ignoreCase = true)
+                }
+                ?: providerServices.singleOrNull()
+        }
 
-        if (candidate != null) {
-            entitlementLaunchMode = true
-            selectedServiceIds = listOf(candidate.id)
-            currentStep = BookingFlowStep.DATE_TIME
-        } else {
-            entitlementLaunchMode = false
-            selectedServiceIds = emptyList()
-            availabilityLoadError = bookTr(languageCode, "No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
-            currentStep = BookingFlowStep.DATE_TIME
+        val matchingProviders = companyProviders.mapNotNull { provider ->
+            matchingService(provider)?.let { provider to it }
+        }
+        when (matchingProviders.size) {
+            1 -> {
+                val (provider, service) = matchingProviders.single()
+                selectedProviderId = provider.providerId
+                entitlementLaunchMode = true
+                selectedServiceIds = listOf(service.id)
+                availabilityLoadError = null
+                currentStep = BookingFlowStep.DATE_TIME
+            }
+            0 -> {
+                selectedProviderId = null
+                entitlementLaunchMode = false
+                selectedServiceIds = emptyList()
+                availabilityLoadError = bookTr(languageCode, "No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
+                currentStep = BookingFlowStep.PROVIDER
+            }
+            else -> {
+                // The wallet entitlement belongs to the company, not to one branch. If it
+                // can be redeemed at several locations, require the guest to choose one.
+                selectedProviderId = null
+                entitlementLaunchMode = false
+                selectedServiceIds = emptyList()
+                availabilityLoadError = null
+                currentStep = BookingFlowStep.PROVIDER
+            }
         }
 
         onLaunchRequestConsumed()
         launchRequestInitialized = true
     }
 
-    val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
+    val selectedProvider = providers.firstOrNull { it.providerId == selectedProviderId }
     val multipleServicesEnabled = selectedProvider?.multipleServicesEnabled == true && !entitlementLaunchMode && rescheduleContext == null
     val skipsOnlinePayment = selectedProvider?.billingEnabled == false || selectedProvider?.requireOnlinePayment == false
     val selectedServices = selectedServiceIds.mapNotNull { id -> providerScopedServices.firstOrNull { it.id == id } }
@@ -783,9 +810,9 @@ fun BookScreen(
                             ProviderListRow(
                                 provider = provider,
                                 languageCode = languageCode,
-                                selected = provider.companyId == selectedProviderId,
+                                selected = provider.providerId == selectedProviderId,
                                 onClick = {
-                                    selectedProviderId = provider.companyId
+                                    selectedProviderId = provider.providerId
                                     selectedServiceIds = if (provider.multipleServicesEnabled) emptyList()
                                     else services.firstOrNull { it.companyId == provider.companyId }?.let { listOf(it.id) } ?: emptyList()
                                     selectedSlotId = null

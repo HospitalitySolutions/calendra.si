@@ -40,7 +40,8 @@ data class BookingHistoryItem(
     val services: List<BookingServiceLine> = emptyList(),
     val totalDurationMinutes: Int = 0,
     val totalPriceGross: Double = 0.0,
-    val currency: String = "EUR"
+    val currency: String = "EUR",
+    val locationId: String? = null
 )
 
 @Serializable

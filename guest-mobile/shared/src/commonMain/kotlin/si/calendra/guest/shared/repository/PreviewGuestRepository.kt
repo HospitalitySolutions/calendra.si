@@ -68,6 +68,17 @@ class PreviewGuestRepository : GuestRepository {
     override suspend fun searchTenants(query: String, tenantType: String?): List<TenantSummary> =
         preview.searchTenants(query, tenantType)
 
+    override suspend fun providerLocations(): List<TenantSummary> =
+        preview.session().linkedTenants.mapIndexed { index, tenant ->
+            val locationId = tenant.locationId ?: "preview-location-${index + 1}"
+            tenant.copy(
+                locationId = locationId,
+                providerId = tenant.providerId ?: "${tenant.companyId}:$locationId",
+                locationName = tenant.locationName ?: tenant.companyName,
+                publicBookingEnabled = true
+            )
+        }
+
     override suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse =
         preview.joinTenant(request)
 
@@ -90,19 +101,21 @@ class PreviewGuestRepository : GuestRepository {
     override suspend fun home(companyId: String): HomePayload =
         preview.home(companyId)
 
-    override suspend fun products(companyId: String): List<ProductSummary> =
+    override suspend fun products(companyId: String, locationId: String?): List<ProductSummary> =
         preview.products(companyId)
 
     override suspend fun availability(
         companyId: String,
         sessionTypeIds: List<String>,
         date: String,
-        consultantId: String?
+        consultantId: String?,
+        locationId: String?
     ): AvailabilityResponse = preview.availability(sessionTypeIds.firstOrNull().orEmpty(), date).copy(sessionTypeIds = sessionTypeIds)
 
     override suspend fun consultants(
         companyId: String,
-        sessionTypeIds: List<String>
+        sessionTypeIds: List<String>,
+        locationId: String?
     ): List<ConsultantSummary> = emptyList()
 
     override suspend fun createBookingSlotHold(request: BookingSlotHoldRequest): BookingSlotHoldResponse =
