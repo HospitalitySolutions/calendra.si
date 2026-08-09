@@ -31,5 +31,16 @@ export default defineConfig({
   build: {
     sourcemap: false,
     chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/')
+          if (normalizedId.includes('/node_modules/@tanstack/')) {
+            return 'vendor-query'
+          }
+          return undefined
+        },
+      },
+    },
   },
 })
