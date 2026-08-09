@@ -59,6 +59,15 @@ public class TenantEmailLayoutRenderer {
      * Accepts either rich-text editor HTML or legacy plain-text bodies.
      */
     public String render(Company company, String bodyHtml) {
+        return render(company, bodyHtml, null, null);
+    }
+
+    /**
+     * Renders the standard tenant layout with an event-specific public identity.
+     * This is used for location-owned events (for example waitlist offers) where
+     * the recipient should see the physical branch identity instead of the generic company identity.
+     */
+    public String render(Company company, String bodyHtml, String publicName, String publicLogoUrl) {
         String content = sanitizeContent(bodyHtml);
         if (content.isBlank()) {
             content = "<p style=\"" + PARAGRAPH_STYLE + "\">&nbsp;</p>";
@@ -66,7 +75,8 @@ public class TenantEmailLayoutRenderer {
         Long companyId = company == null ? null : company.getId();
         String companyName = setting(companyId, SettingKey.COMPANY_NAME)
                 .orElseGet(() -> company == null || company.getName() == null ? "" : company.getName().trim());
-        return wrap(content, headerHtml(companyId, companyName), footerHtml(companyName));
+        String displayName = publicName == null || publicName.isBlank() ? companyName : publicName.trim();
+        return wrap(content, headerHtml(companyId, displayName, publicLogoUrl), footerHtml(displayName));
     }
 
     /**
@@ -206,11 +216,14 @@ public class TenantEmailLayoutRenderer {
         return html.toString();
     }
 
-    private String headerHtml(Long companyId, String companyName) {
-        String logoUrl = setting(companyId, SettingKey.COMPANY_LOGO_URL).orElse("");
+    private String headerHtml(Long companyId, String companyName, String publicLogoUrl) {
+        String explicitLogoUrl = publicLogoUrl == null ? "" : publicLogoUrl.trim();
+        String companyLogoUrl = setting(companyId, SettingKey.COMPANY_LOGO_URL).orElse("");
         String logoSrc = "";
-        if (isSafeHref(logoUrl)) {
-            logoSrc = logoUrl;
+        if (isSafeHref(explicitLogoUrl)) {
+            logoSrc = explicitLogoUrl;
+        } else if (isSafeHref(companyLogoUrl)) {
+            logoSrc = companyLogoUrl;
         } else {
             String base64 = setting(companyId, SettingKey.COMPANY_LOGO_BASE64).orElse("");
             if (!base64.isBlank()) {

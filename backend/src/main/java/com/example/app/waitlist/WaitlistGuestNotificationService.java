@@ -10,6 +10,7 @@ import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.notifications.GuestPushService;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -94,6 +95,7 @@ public class WaitlistGuestNotificationService {
     private final GuestPushService guestPush;
     private final TenantEmailSenderResolver emailSenderResolver;
     private final TenantEmailLayoutRenderer emailLayoutRenderer;
+    private final LocationPublicPresentationService locationPresentation;
     private final MessageDeliveryLogService deliveryLogs;
     private final String frontendBaseUrl;
 
@@ -118,6 +120,7 @@ public class WaitlistGuestNotificationService {
             GuestPushService guestPush,
             @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver,
             @Autowired(required = false) TenantEmailLayoutRenderer emailLayoutRenderer,
+            LocationPublicPresentationService locationPresentation,
             @Autowired(required = false) MessageDeliveryLogService deliveryLogs
     ) {
         this.events = events;
@@ -135,6 +138,7 @@ public class WaitlistGuestNotificationService {
         this.guestPush = guestPush;
         this.emailSenderResolver = emailSenderResolver;
         this.emailLayoutRenderer = emailLayoutRenderer;
+        this.locationPresentation = locationPresentation;
         this.deliveryLogs = deliveryLogs;
         this.frontendBaseUrl = normalizeBaseUrl(frontendBaseUrl);
     }
@@ -171,8 +175,9 @@ public class WaitlistGuestNotificationService {
 
             JsonNode root = notificationRoot(event.companyId());
             List<WaitlistRequestWindow> requestWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(request.getId());
-            Map<String, String> tokens = tokens(request, offer, requestWindows);
-            deliverEmail(root, request, client, event.kind(), tokens);
+            LocationPublicPresentationService.PublicPresentation presentation = publicPresentation(request);
+            Map<String, String> tokens = tokens(request, offer, requestWindows, presentation);
+            deliverEmail(root, request, client, event.kind(), tokens, presentation);
             deliverSms(root, request, client, event.kind(), tokens);
             deliverGuestApp(root, request, offer, client, event.kind(), tokens);
         } catch (Exception ex) {
@@ -182,7 +187,8 @@ public class WaitlistGuestNotificationService {
     }
 
     private void deliverEmail(JsonNode root, WaitlistRequest request, Client client,
-                              EventKind kind, Map<String, String> tokens) {
+                              EventKind kind, Map<String, String> tokens,
+                              LocationPublicPresentationService.PublicPresentation presentation) {
         Long companyId = request.getCompany().getId();
         if (!channelEnabled(companyId, SettingKey.NOTIFICATIONS_EMAIL_ALERTS_ENABLED, true)) return;
         JsonNode node = root.path("email").path(kind.jsonKey());
@@ -194,7 +200,11 @@ public class WaitlistGuestNotificationService {
         if (subject.isBlank() && body.isBlank()) return;
         if (subject.isBlank()) subject = " ";
         String html = emailLayoutRenderer != null
-                ? emailLayoutRenderer.render(request.getCompany(), body)
+                ? emailLayoutRenderer.render(
+                        request.getCompany(),
+                        body,
+                        presentation == null ? null : presentation.publicName(),
+                        presentation == null ? null : absolutePublicUrl(presentation.publicLogoUrl()))
                 : normalizeEmailHtml(body);
         try {
             if (workspaceEmailQuota != null) workspaceEmailQuota.assertCanSend(companyId, 1);
@@ -258,12 +268,15 @@ public class WaitlistGuestNotificationService {
         String body = plainText(replaceTokens(node.path("body").asText(""), tokens));
         if (title.isBlank() && body.isBlank()) return;
         try {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                    "event", kind.jsonKey(),
-                    "waitlistRequestId", String.valueOf(request.getId()),
-                    "waitlistOfferId", offer == null || offer.getId() == null ? "" : String.valueOf(offer.getId()),
-                    "screen", "waitlist"
-            ));
+            Map<String, String> payloadValues = new LinkedHashMap<>();
+            payloadValues.put("event", kind.jsonKey());
+            payloadValues.put("waitlistRequestId", String.valueOf(request.getId()));
+            payloadValues.put("waitlistOfferId", offer == null || offer.getId() == null ? "" : String.valueOf(offer.getId()));
+            payloadValues.put("screen", "waitlist");
+            if (request.getLocation() != null && request.getLocation().getId() != null) {
+                payloadValues.put("locationId", String.valueOf(request.getLocation().getId()));
+            }
+            String payload = objectMapper.writeValueAsString(payloadValues);
             GuestNotification created = guestNotifications.createForClient(
                     request.getCompany(),
                     client,
@@ -278,6 +291,9 @@ public class WaitlistGuestNotificationService {
                 extra.put("screen", "waitlist");
                 extra.put("waitlistRequestId", String.valueOf(request.getId()));
                 if (offer != null && offer.getId() != null) extra.put("waitlistOfferId", String.valueOf(offer.getId()));
+                if (request.getLocation() != null && request.getLocation().getId() != null) {
+                    extra.put("locationId", String.valueOf(request.getLocation().getId()));
+                }
                 guestPush.notifyGuestReminder(created.getGuestUser(), request.getCompany(), client, title, body, extra);
             }
         } catch (Exception ex) {
@@ -317,10 +333,11 @@ public class WaitlistGuestNotificationService {
                 .orElse(fallback);
     }
 
-    private Map<String, String> tokens(
+    Map<String, String> tokens(
             WaitlistRequest request,
             WaitlistOffer offer,
-            List<WaitlistRequestWindow> requestWindows
+            List<WaitlistRequestWindow> requestWindows,
+            LocationPublicPresentationService.PublicPresentation presentation
     ) {
         Map<String, String> values = new LinkedHashMap<>();
         Company company = request.getCompany();
@@ -355,10 +372,12 @@ public class WaitlistGuestNotificationService {
         LocalTime requestedStartTime = preferredWindow == null ? null : preferredWindow.getTimeFrom();
         LocalTime requestedEndTime = preferredWindow == null ? null : preferredWindow.getTimeTo();
 
-        String manageUrl = waitlistUrl(request.getId());
+        String manageUrl = waitlistUrl(request.getId(), request.getLocation() == null ? null : request.getLocation().getId());
         String acceptUrl = offer == null ? manageUrl : publicOfferUrl(offer.getId(), "accept");
         String declineUrl = offer == null ? manageUrl : publicOfferUrl(offer.getId(), "decline");
-        String companyName = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
+        String companyName = presentation != null && presentation.publicName() != null && !presentation.publicName().isBlank()
+                ? presentation.publicName().trim()
+                : settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
                 .map(AppSetting::getValue)
                 .filter(value -> value != null && !value.isBlank())
                 .orElse(company.getName() == null ? "" : company.getName());
@@ -376,12 +395,41 @@ public class WaitlistGuestNotificationService {
         values.put("{{date}}", start == null ? dateRange(request) : DATE.format(start));
         values.put("{{startTime}}", start != null ? TIME.format(start) : requestedStartTime == null ? "" : TIME.format(requestedStartTime));
         values.put("{{endTime}}", end != null ? TIME.format(end) : requestedEndTime == null ? "" : TIME.format(requestedEndTime));
-        values.put("{{offerExpiresAt}}", offer == null || offer.getExpiresAt() == null ? "" : DATE_TIME.format(LocalDateTime.ofInstant(offer.getExpiresAt(), ZONE)));
+        values.put("{{offerExpiresAt}}", offer == null || offer.getExpiresAt() == null ? "" : DATE_TIME.format(LocalDateTime.ofInstant(offer.getExpiresAt(), zoneFor(request))));
         values.put("{{acceptUrl}}", acceptUrl);
         values.put("{{declineUrl}}", declineUrl);
         values.put("{{manageWaitlistUrl}}", manageUrl);
         values.put("{{companyName}}", safe(companyName));
+        values.put("{{locationName}}", presentation == null ? request.getLocation() == null ? "" : safe(request.getLocation().getName()) : safe(presentation.publicName()));
+        values.put("{{locationAddress}}", presentation == null ? "" : safe(presentation.publicAddress()));
+        values.put("{{locationPhone}}", presentation == null ? "" : safe(presentation.publicPhone()));
+        values.put("{{locationEmail}}", presentation == null ? "" : safe(presentation.publicEmail()));
         return values;
+    }
+
+    private LocationPublicPresentationService.PublicPresentation publicPresentation(WaitlistRequest request) {
+        if (request == null || request.getLocation() == null || locationPresentation == null) return null;
+        return locationPresentation.resolve(request.getLocation());
+    }
+
+    private ZoneId zoneFor(WaitlistRequest request) {
+        String timezone = request == null || request.getLocation() == null ? null : request.getLocation().getTimezone();
+        if (timezone == null || timezone.isBlank()) return ZONE;
+        try {
+            return ZoneId.of(timezone.trim());
+        } catch (Exception ignored) {
+            return ZONE;
+        }
+    }
+
+    private String absolutePublicUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim();
+        if (normalized.startsWith("https://") || normalized.startsWith("http://") || normalized.startsWith("data:")) {
+            return normalized;
+        }
+        if (frontendBaseUrl.isBlank()) return normalized;
+        return normalized.startsWith("/") ? frontendBaseUrl + normalized : frontendBaseUrl + "/" + normalized;
     }
 
     private String publicOfferUrl(Long offerId, String action) {
@@ -389,8 +437,9 @@ public class WaitlistGuestNotificationService {
         return frontendBaseUrl.isBlank() ? path : frontendBaseUrl + path;
     }
 
-    private String waitlistUrl(Long requestId) {
-        String path = "/appointments?requestId=" + requestId;
+    private String waitlistUrl(Long requestId, Long locationId) {
+        String path = "/appointments?requestId=" + requestId
+                + (locationId == null ? "" : "&locationId=" + locationId);
         return frontendBaseUrl.isBlank() ? path : frontendBaseUrl + path;
     }
 

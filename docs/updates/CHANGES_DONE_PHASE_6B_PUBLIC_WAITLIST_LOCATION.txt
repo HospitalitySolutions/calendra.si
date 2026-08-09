@@ -1,0 +1,16 @@
+PHASE 6B — PUBLIC WAITLIST + EVENT LOCATION PRESENTATION
+
+Implemented:
+- Public waitlist offers resolve branch name/logo/address/phone/e-mail through LocationPublicPresentationService.
+- PublicOfferView now carries locationId and branch contact fields.
+- Browse-other-slots URL preserves the exact waitlist Location with ?locationId=.
+- Public offer timestamps carry the branch UTC offset/timezone, and calendar exports use the branch public address.
+- Guest-facing waitlist manage URLs preserve locationId.
+- Waitlist notification {{companyName}} resolves to the event Location public name.
+- Added {{locationName}}, {{locationAddress}}, {{locationPhone}}, {{locationEmail}} notification tokens.
+- Offer-expiry notification formatting uses the request Location timezone.
+- Waitlist e-mail layout can render the event Location public name/logo while Company remains the sender/quota boundary.
+- Guest App notification and push payloads include locationId.
+- Added focused tests for public offer presentation/location URL, waitlist notification tokens/timezone and location-specific e-mail layout branding.
+
+No Flyway migration is required because waitlist Location ownership was already normalized and enforced in Phase 5.5A.

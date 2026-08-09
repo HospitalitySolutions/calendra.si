@@ -1,6 +1,6 @@
 # Calendra location ownership model
 
-Status: Phase 6A implemented / location ownership baseline
+Status: Phase 6B implemented / location ownership baseline
 
 ## Architectural rule
 
@@ -67,7 +67,7 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | public booking management | BOOKING LOCATION | **Phase 6A implemented** | Manage/cancel/reschedule resolves rules, presentation, timezone and availability from the immutable booking Location; group moves cannot cross branches. |
 | Google Place / public identity | LOCATION | Phases 1–3 migrated | Correct. |
 | inbox/messages | WORKSPACE/COMPANY CUSTOMER RELATIONSHIP | Keep shared | Attach booking/location context when a message originates from a booking; do not fragment conversation identity by branch by default. |
-| notifications | EVENT LOCATION when event-based | Needs consistency pass | Booking/waitlist/order notifications should render the concrete event's Location identity. General account notifications remain company/workspace scoped. |
+| notifications | EVENT LOCATION when event-based | **Phase 6B waitlist path implemented** | Public waitlist pages and waitlist e-mail/SMS/Guest App notifications render the request Location identity. Booking/order notification paths remain for the final consistency pass. |
 | analytics | LOCATION dimension + workspace/company aggregation | Needs consistency pass | Concrete events already carrying Location should be aggregatable by branch without guessing from Company. |
 
 ## Phase 5.5A – concrete operational ownership (implemented in this patch)
@@ -229,12 +229,25 @@ Phase 6A completes Location ownership for public manage/cancel/reschedule links:
 - Group-session availability only exposes sessions at the original booking Location.
 - Direct reschedule POSTs reject cross-Location group targets, and the original booking Location is explicitly preserved during a successful group move.
 
-## Phase 6B and later
+## Phase 6B – public waitlist and event-location presentation
 
-Continue the remaining secondary-consumer pass:
+Phase 6B completes Location presentation for the public waitlist path:
 
-- waitlist public pages and offer links use request/offer Location identity,
-- event-based booking/waitlist/order notifications use the concrete event Location identity,
+- `PublicOfferView` resolves name, logo, address, phone and e-mail from the waitlist request Location through `LocationPublicPresentationService`.
+- The public offer page exposes the branch contact details; offer timestamps are emitted with the branch UTC offset/timezone and calendar exports use the public branch address.
+- "Browse other slots" returns to `/widget/{tenantCode}?locationId={request.location_id}` instead of reopening an unscoped company widget.
+- Guest-facing waitlist notification URLs preserve `locationId`, and Guest App notification/push payloads carry the request Location ID.
+- Waitlist notification `{{companyName}}` now resolves to the event Location public name; explicit `{{locationName}}`, `{{locationAddress}}`, `{{locationPhone}}` and `{{locationEmail}}` template tokens are also available.
+- Waitlist offer-expiry text resolves the request Location timezone.
+- Waitlist e-mails use the standard tenant e-mail layout with an event-specific Location name/logo override, while sender/reply-to and quotas remain Company scoped.
+
+No schema change is required: Phase 5.5A already made `WaitlistRequest.location`, `WaitlistOffer.location` and waitlist holds mandatory and tenant-safe.
+
+## Phase 6C and later
+
+Continue the remaining secondary-consumer consistency pass:
+
+- booking/order event notifications use the concrete event Location identity where applicable,
 - analytics expose reliable Location dimensions,
 - remove remaining code paths that use `companyId` as a proxy for operational location.
 

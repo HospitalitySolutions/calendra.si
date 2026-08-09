@@ -15,7 +15,12 @@ type OfferResponse = {
   slotEnd?: string | null
   startsAtLabel?: string | null
   employeeName?: string | null
+  locationId?: number | null
   locationName?: string | null
+  locationAddress?: string | null
+  locationPhone?: string | null
+  locationEmail?: string | null
+  timezone?: string | null
   offerStatus?: string | null
   requestStatus?: string | null
   otherSlotsUrl?: string | null
@@ -69,7 +74,7 @@ function ChevronDownIcon() {
   )
 }
 
-function formatDateTime(value: string | null | undefined, locale: string) {
+function formatDateTime(value: string | null | undefined, locale: string, timezone?: string | null) {
   if (!value) return ''
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
@@ -80,13 +85,14 @@ function formatDateTime(value: string | null | undefined, locale: string) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: timezone || undefined,
   }).format(d)
 }
 
 function buildCalendarPayload(data: OfferResponse) {
   const title = data.serviceName || 'Calendra'
   const details = [data.tenantName, data.employeeName].filter(Boolean).join(' · ')
-  const location = data.locationName || data.tenantName || ''
+  const location = data.locationAddress || data.locationName || data.tenantName || ''
   return { title, details, location }
 }
 
@@ -497,6 +503,9 @@ export function PublicWaitlistOfferPage() {
     dateTime: 'Termin',
     provider: 'Izvajalec',
     location: 'Lokacija',
+    address: 'Naslov',
+    phone: 'Telefon',
+    email: 'E-pošta',
     addToCalendar: 'Dodaj v koledar',
     otherSlots: 'Ogled drugih terminov',
     googleCalendar: 'Google Koledar',
@@ -526,6 +535,9 @@ export function PublicWaitlistOfferPage() {
     dateTime: 'Date & time',
     provider: 'Employee',
     location: 'Location',
+    address: 'Address',
+    phone: 'Phone',
+    email: 'Email',
     addToCalendar: 'Add to calendar',
     otherSlots: 'Browse other slots',
     googleCalendar: 'Google Calendar',
@@ -616,7 +628,7 @@ export function PublicWaitlistOfferPage() {
   const status = String(data?.offerStatus || '').toUpperCase()
   const tenantLogoUrl = data?.tenantLogoUrl?.trim() || ''
   const useTenantLogo = Boolean(tenantLogoUrl) && !tenantLogoFailed
-  const otherSlotsUrl = data?.otherSlotsUrl || (data?.tenantCode ? `/widget/${data.tenantCode}` : '#')
+  const otherSlotsUrl = data?.otherSlotsUrl || (data?.tenantCode && data?.locationId ? `/widget/${data.tenantCode}?locationId=${encodeURIComponent(String(data.locationId))}` : '#')
   const showDeclineChoice = isDeclineFlow && status === 'PENDING' && !declineChoiceCompleted
   const showDeclinedUi = status === 'DECLINED' ? true : status === 'ACCEPTED' ? false : isDeclineFlow
 
@@ -663,9 +675,12 @@ export function PublicWaitlistOfferPage() {
                   <h2>{showDeclinedUi ? copy.declinedLabel : copy.acceptedLabel}</h2>
                   <div className="public-offer-summary-grid">
                     <div><strong>{copy.service}:</strong> {data.serviceName || '—'}</div>
-                    <div><strong>{copy.dateTime}:</strong> {formatDateTime(data.slotStart, locale)}</div>
+                    <div><strong>{copy.dateTime}:</strong> {formatDateTime(data.slotStart, locale, data.timezone)}</div>
                     {data.employeeName ? <div><strong>{copy.provider}:</strong> {data.employeeName}</div> : null}
                     {data.locationName ? <div><strong>{copy.location}:</strong> {data.locationName}</div> : null}
+                    {data.locationAddress ? <div><strong>{copy.address}:</strong> {data.locationAddress}</div> : null}
+                    {data.locationPhone ? <div><strong>{copy.phone}:</strong> <a href={`tel:${data.locationPhone}`}>{data.locationPhone}</a></div> : null}
+                    {data.locationEmail ? <div><strong>{copy.email}:</strong> <a href={`mailto:${data.locationEmail}`}>{data.locationEmail}</a></div> : null}
                   </div>
                 </div>
               </section>

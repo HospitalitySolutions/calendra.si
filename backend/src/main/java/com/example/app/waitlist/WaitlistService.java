@@ -7,6 +7,7 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.notification.TenantNotificationService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -98,6 +99,7 @@ public class WaitlistService {
     private final int expiryBatchSize;
 
     private final LocationRepository locations;
+    private final LocationPublicPresentationService locationPresentation;
 
     public WaitlistService(
             WaitlistRequestRepository requests,
@@ -117,6 +119,7 @@ public class WaitlistService {
             CompanyRepository companies,
             AppSettingRepository settings,
             LocationRepository locations,
+            LocationPublicPresentationService locationPresentation,
             BookableSlotRepository bookableSlots,
             SessionBookingCreationService bookingValidation,
             TenantReservationRulesService reservationRules,
@@ -145,6 +148,7 @@ public class WaitlistService {
         this.companies = companies;
         this.settings = settings;
         this.locations = locations;
+        this.locationPresentation = locationPresentation;
         this.bookableSlots = bookableSlots;
         this.bookingValidation = bookingValidation;
         this.reservationRules = reservationRules;
@@ -273,7 +277,12 @@ public class WaitlistService {
             String slotEnd,
             String startsAtLabel,
             String employeeName,
+            Long locationId,
             String locationName,
+            String locationAddress,
+            String locationPhone,
+            String locationEmail,
+            String timezone,
             String offerStatus,
             String requestStatus,
             String otherSlotsUrl
@@ -1860,24 +1869,54 @@ public class WaitlistService {
         Company company = request == null ? null : request.getCompany();
         Long companyId = company == null ? null : company.getId();
         String tenantCode = company == null ? null : trimToNull(company.getTenantCode());
+        Location location = request != null && request.getLocation() != null ? request.getLocation() : offer.getLocation();
+        LocationPublicPresentationService.PublicPresentation presentation = location == null || locationPresentation == null
+                ? null
+                : locationPresentation.resolve(location);
+        String publicName = presentation == null ? tenantName(company) : trimToNull(presentation.publicName());
+        String publicLogoUrl = presentation == null ? tenantLogoUrl(companyId) : trimToNull(presentation.publicLogoUrl());
+        Long locationId = location == null ? null : location.getId();
+        String otherSlotsUrl = tenantCode == null || locationId == null
+                ? null
+                : "/widget/" + tenantCode + "?locationId=" + locationId;
         return new PublicOfferView(
                 offer.getId(),
                 request == null ? null : request.getId(),
                 tenantCode,
-                tenantName(company),
-                tenantLogoUrl(companyId),
+                publicName,
+                publicLogoUrl,
                 offer.getServiceNameSnapshot() == null ? "" : offer.getServiceNameSnapshot(),
-                offer.getSlotStart() == null ? null : offer.getSlotStart().toString(),
-                offer.getSlotEnd() == null ? null : offer.getSlotEnd().toString(),
-                offer.getSlotStart() == null ? null : offer.getSlotStart().toString(),
+                publicSlotTime(offer.getSlotStart(), location),
+                publicSlotTime(offer.getSlotEnd(), location),
+                publicSlotTime(offer.getSlotStart(), location),
                 offer.getEmployee() == null ? "" : employeeName(offer.getEmployee()),
-                offer.getRoom() != null
-                        ? trimToNull(offer.getRoom().getName())
-                        : request != null && request.getLocation() != null ? trimToNull(request.getLocation().getName()) : null,
+                locationId,
+                presentation == null
+                        ? location == null ? null : trimToNull(location.getName())
+                        : trimToNull(presentation.publicName()),
+                presentation == null ? null : trimToNull(presentation.publicAddress()),
+                presentation == null ? null : trimToNull(presentation.publicPhone()),
+                presentation == null ? null : trimToNull(presentation.publicEmail()),
+                zoneFor(location).getId(),
                 offer.getStatus().name(),
                 request == null || request.getStatus() == null ? null : request.getStatus().name(),
-                tenantCode == null ? null : "/widget/" + tenantCode
+                otherSlotsUrl
         );
+    }
+
+    private String publicSlotTime(LocalDateTime value, Location location) {
+        if (value == null) return null;
+        return value.atZone(zoneFor(location)).toOffsetDateTime().toString();
+    }
+
+    private ZoneId zoneFor(Location location) {
+        String timezone = location == null ? null : trimToNull(location.getTimezone());
+        if (timezone == null) return ZONE;
+        try {
+            return ZoneId.of(timezone);
+        } catch (Exception ignored) {
+            return ZONE;
+        }
     }
 
     private String tenantName(Company company) {
