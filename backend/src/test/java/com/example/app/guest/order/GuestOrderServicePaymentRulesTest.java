@@ -3,6 +3,8 @@ package com.example.app.guest.order;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -199,6 +201,12 @@ class GuestOrderServicePaymentRulesTest {
         link.setClient(client);
 
         when(tenantService.requireLink(guestUser, 10L)).thenReturn(link);
+        // Guest booking is location-aware now. Mockito returns 0L for an unstubbed Long,
+        // which correctly fails production validation as an invalid location id. These
+        // payment-rule tests are not about location selection, so give the fixture one
+        // valid resolved branch and let the tests reach the payment assertions.
+        when(catalogService.requireGuestBookableLocation(eq(10L), isNull(), anyList(), eq(guestUser)))
+                .thenReturn(1L);
         when(catalogService.resolveProduct(eq(10L), eq("product-1"), any())).thenReturn(
                 new GuestCatalogService.ResolvedProduct(
                         null,

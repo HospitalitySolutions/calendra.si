@@ -99,7 +99,7 @@ This phase establishes Location on records that represent a concrete transaction
 
 ### Database guardrails
 
-Migration `V47__operational_location_ownership_foundation.sql` enforces cross-company/location consistency for booking holds, waitlist offers/holds and GuestOrders. The application cannot persist a branch belonging to another Company even if a service-layer check is bypassed. It also replaces the older Space, SessionBooking, OpenBill and WaitlistRequest trigger fallback: an omitted `location_id` is auto-resolved only when exactly one active Location exists; a multi-location Company must provide the branch explicitly.
+Migration `V48__operational_location_ownership_foundation.sql` enforces cross-company/location consistency for booking holds, waitlist offers/holds and GuestOrders. The application cannot persist a branch belonging to another Company even if a service-layer check is bypassed. It also replaces the older Space, SessionBooking, OpenBill and WaitlistRequest trigger fallback: an omitted `location_id` is auto-resolved only when exactly one active Location exists; a multi-location Company must provide the branch explicitly.
 
 ## Phase 5.5B – availability and staff (next)
 
